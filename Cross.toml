@@ -1,0 +1,5 @@
+[build.env]
+passthrough = [
+    "CARGO_TARGET_DIR",
+    "RUSTFLAGS",
+]

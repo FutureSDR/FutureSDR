@@ -1,0 +1,13 @@
+[package]
+name = "msg"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.38"
+clap = "2.33.1"
+futuresdr = { path = "../.." }
+
+[[bin]]
+name = "msg"
+path = "msg.rs"

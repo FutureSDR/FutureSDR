@@ -1,0 +1,145 @@
+axes.axisbelow              : False
+axes.edgecolor              : black
+axes.facecolor              : white
+axes.formatter.limits       : -7, 7
+axes.formatter.use_locale   : False
+axes.formatter.use_mathtext : False
+axes.formatter.useoffset    : True
+axes.grid                   : False
+axes.labelcolor             : black
+axes.labelpad               : 3.0
+axes.labelsize              : 9.0
+axes.labelweight            : normal
+axes.linewidth              : 1.0
+
+axes.prop_cycle             : cycler('color', ['003359', 'ff7900', '00747a', '8b0000', '646464'])
+axes.titlesize              : 9.0
+axes.unicode_minus          : True
+axes.xmargin                : 0
+axes.ymargin                : 0
+
+errorbar.capsize            : 3
+
+figure.autolayout           : False
+figure.dpi                  : 100
+figure.edgecolor            : white
+figure.facecolor            : 0.75
+figure.figsize              : 3.337, 2.0624
+figure.subplot.bottom       : 0.19
+figure.subplot.hspace       : 0.15
+figure.subplot.left         : 0.12
+figure.subplot.right        : 0.99
+figure.subplot.top          : 0.985
+figure.subplot.wspace       : 0.15
+figure.titlesize            : 9.0
+figure.titleweight          : normal
+
+font.cursive                : Apple Chancery, Textile, Zapf Chancery, Sand, Script MT, Felipa, cursive
+font.family                 : serif
+font.fantasy                : Comic Sans MS, Chicago, Charcoal, Impact, Western, Humor Sans, fantasy
+font.monospace              : Bitstream Vera Sans Mono, Andale Mono, Nimbus Mono L, Courier New, Courier, Fixed, Terminal, monospace
+font.sans-serif             : Bitstream Vera Sans, Lucida Grande, Verdana, Geneva, Lucid, Arial, Helvetica, Avant Garde, sans-serif
+font.serif                  : Libertine, Times, Bitstream Vera Serif, New Century Schoolbook, Century Schoolbook L, Utopia, ITC Bookman, Bookman, Nimbus Roman No9 L, Times, Palatino, Charter, serif
+font.size                   : 9.0
+font.stretch                : normal
+font.style                  : normal
+font.variant                : normal
+font.weight                 : medium
+
+grid.alpha                  : 1.0
+grid.color                  : black
+grid.linestyle              : :
+grid.linewidth              : 0.5
+
+legend.borderaxespad        : 0
+legend.borderpad            : 0.5
+legend.columnspacing        : 2.
+legend.edgecolor            : k
+legend.fancybox             : False
+legend.fontsize             : 9.0
+legend.framealpha           : None
+legend.frameon              : True
+legend.handleheight         : 0.7
+legend.handlelength         : 2.35
+legend.handletextpad        : 0.35
+legend.labelspacing         : 0.5
+legend.markerscale          : 1.0
+legend.numpoints            : 2
+legend.scatterpoints        : 3
+legend.shadow               : False
+
+lines.antialiased           : True
+lines.color                 : blue
+lines.dash_capstyle         : butt
+lines.dash_joinstyle        : miter
+lines.linestyle             : -
+lines.linewidth             : 1.5
+lines.marker                : None
+lines.markeredgewidth       : 0.5
+lines.markersize            : 6
+lines.solid_capstyle        : projecting
+lines.solid_joinstyle       : miter
+markers.fillstyle           : full
+mathtext.bf                 : serif:bold
+mathtext.cal                : cursive
+mathtext.default            : it
+mathtext.fontset            : cm
+mathtext.it                 : serif:italic
+mathtext.rm                 : serif
+mathtext.sf                 : sans
+mathtext.tt                 : monospace
+patch.antialiased           : True
+patch.edgecolor             : black
+patch.facecolor             : blue
+patch.linewidth             : 1.0
+path.simplify               : True
+path.simplify_threshold     : 0.1
+path.sketch                 : None
+path.snap                   : True
+pdf.compression             : 6
+pdf.fonttype                : 3
+polaraxes.grid              : True
+ps.distiller.res            : 6000
+ps.fonttype                 : 3
+ps.papersize                : letter
+ps.useafm                   : False
+ps.usedistiller             : False
+#savefig.bbox                : tight
+savefig.dpi                 : 100
+savefig.edgecolor           : white
+savefig.facecolor           : white
+savefig.format              : png
+savefig.pad_inches          : 0.01
+savefig.transparent         : False
+
+text.antialiased            : True
+text.color                  : black
+text.hinting                : auto
+text.hinting_factor         : 8
+text.latex.preamble         : \usepackage{libertine}\usepackage[libertine]{newtxmath}
+#text.latex.unicode          : False
+text.usetex                 : True
+
+xtick.top                   : False
+xtick.bottom                : True
+xtick.color                 : k
+xtick.direction             : out
+xtick.labelsize             : 9.0
+xtick.major.pad             : 4
+xtick.major.size            : 4
+xtick.major.width           : 0.5
+xtick.minor.pad             : 4
+xtick.minor.size            : 2
+xtick.minor.width           : 0.5
+
+ytick.right                 : False
+ytick.left                  : True
+ytick.color                 : k
+ytick.direction             : out
+ytick.labelsize             : 9.0
+ytick.major.pad             : 2
+ytick.major.size            : 4
+ytick.major.width           : 0.5
+ytick.minor.pad             : 4
+ytick.minor.size            : 2
+ytick.minor.width           : 0.5

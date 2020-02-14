@@ -1,0 +1,10 @@
+log_level = "debug"
+buffer_size = 32768
+queue_size = 8192
+ctrlport_enable = true
+ctrlport_bind = "127.0.0.1:1337"
+
+[my]
+a = 1
+b = "foo"
+

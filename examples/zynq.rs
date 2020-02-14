@@ -1,0 +1,68 @@
+use anyhow::Result;
+
+fn main() -> Result<()> {
+    inner::main()
+}
+
+#[cfg(not(feature = "zynq"))]
+mod inner {
+    use anyhow::Result;
+
+    pub(super) fn main() -> Result<()> {
+        println!("Zynq feature not enabled.");
+        Ok(())
+    }
+}
+
+#[cfg(feature = "zynq")]
+mod inner {
+    use anyhow::Result;
+
+    use futuresdr::blocks::CopyBuilder;
+    use futuresdr::blocks::VectorSink;
+    use futuresdr::blocks::VectorSinkBuilder;
+    use futuresdr::blocks::VectorSourceBuilder;
+    use futuresdr::blocks::ZynqBuilder;
+    use futuresdr::runtime::buffer::zynq::D2H;
+    use futuresdr::runtime::buffer::zynq::H2D;
+    use futuresdr::runtime::Flowgraph;
+    use futuresdr::runtime::Runtime;
+
+    pub(super) fn main() -> Result<()> {
+        use rand::Rng;
+
+        let mut fg = Flowgraph::new();
+
+        let n_items = 100_000;
+        let orig: Vec<u32> = rand::thread_rng()
+            .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
+            .take(n_items)
+            .collect();
+
+        let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
+        let cpy = CopyBuilder::new(4).build();
+        let zynq = ZynqBuilder::new("uio4", "uio5", ("udmabuf0", "udmabuf1")).build()?;
+        let snk = VectorSinkBuilder::<u32>::new().build();
+
+        let src = fg.add_block(src);
+        let cpy = fg.add_block(cpy);
+        let zynq = fg.add_block(zynq);
+        let snk = fg.add_block(snk);
+
+        fg.connect_stream(src, "out", cpy, "in")?;
+        fg.connect_stream_with_type(cpy, "out", zynq, "in", H2D::with_size(1 << 14))?;
+        fg.connect_stream_with_type(zynq, "out", snk, "in", D2H::new())?;
+
+        fg = Runtime::new().run(fg)?;
+
+        let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+        let v = snk.items();
+
+        assert_eq!(v.len(), n_items);
+        for i in 0..v.len() {
+            assert_eq!(orig[i] + 123, v[i]);
+        }
+
+        Ok(())
+    }
+}

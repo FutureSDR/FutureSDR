@@ -1,0 +1,63 @@
+use anyhow::Result;
+use futures::FutureExt;
+use std::future::Future;
+use std::pin::Pin;
+
+use crate::runtime::AsyncKernel;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::Pmt;
+use crate::runtime::StreamIoBuilder;
+
+pub struct MessageCopy {}
+
+impl MessageCopy {
+    pub fn new() -> Block {
+        Block::new_async(
+            BlockMetaBuilder::new("MessageCopy").build(),
+            StreamIoBuilder::new().build(),
+            MessageIoBuilder::new()
+                .register_output("out")
+                .register_async_input("in", MessageCopy::handler)
+                .build(),
+            MessageCopy {},
+        )
+    }
+
+    fn handler<'a>(
+        &'a mut self,
+        mio: &'a mut MessageIo<Self>,
+        _meta: &'a mut BlockMeta,
+        p: Pmt,
+    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
+        async move {
+            mio.post(0, p).await;
+            Ok(Pmt::Null)
+        }
+        .boxed()
+    }
+}
+
+#[async_trait]
+impl AsyncKernel for MessageCopy {}
+
+pub struct MessageCopyBuilder {}
+
+impl MessageCopyBuilder {
+    pub fn new() -> MessageCopyBuilder {
+        MessageCopyBuilder {}
+    }
+
+    pub fn build(&mut self) -> Block {
+        MessageCopy::new()
+    }
+}
+
+impl Default for MessageCopyBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
