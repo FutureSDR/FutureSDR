@@ -34,14 +34,12 @@ mod inner {
         let mut fg = Flowgraph::new();
 
         let n_items = 10_000_000;
-        let orig: Vec<f32> = repeat_with(|| rand::random::<f32>())
-            .take(n_items)
-            .collect();
+        let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
         let broker = Arc::new(Broker::new());
 
         let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
-        let vulkan = VulkanBuilder::new(broker.clone()).build();
+        let vulkan = VulkanBuilder::new(broker).build();
         let snk = VectorSinkBuilder::<f32>::new().build();
 
         let src = fg.add_block(src);

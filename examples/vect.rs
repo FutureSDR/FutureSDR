@@ -15,9 +15,7 @@ fn main() -> Result<()> {
     let n_items = 20_000;
     let n_copy = 1000;
 
-    let orig: Vec<f32> = repeat_with(|| rand::random::<f32>())
-        .take(n_items)
-        .collect();
+    let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
     let src = fg.add_block(VectorSourceBuilder::new(orig.clone()).build());
     let snk = fg.add_block(

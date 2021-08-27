@@ -32,9 +32,9 @@ impl CtrlPortDemo {
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .register_output("out")
-                .register_sync_input("in", CtrlPortDemo::handler)
+                .register_sync_input("in", Self::handler)
                 .build(),
-            CtrlPortDemo { counter: 5 },
+            Self { counter: 5 },
         )
     }
 
