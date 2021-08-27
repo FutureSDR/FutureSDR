@@ -46,7 +46,7 @@ impl DoubleMappedTempFile {
             fd = libc::mkstemp(path as *mut libc::c_char);
             ensure!(fd >= 0, "tempfile could not be created");
 
-            let ret = libc::unlink(path as *const libc::c_char);
+            let ret = libc::unlink(path.cast::<i8>());
             if ret < 0 {
                 libc::close(fd);
                 bail!("unlinking failed");
@@ -137,9 +137,9 @@ mod test {
 
         unsafe {
             let b1 =
-                slice::from_raw_parts_mut::<u64>(b.addr as *mut u64, ps / mem::size_of::<u64>());
+                slice::from_raw_parts_mut::<u64>(b.addr.cast::<u64>(), ps / mem::size_of::<u64>());
             let b2 = slice::from_raw_parts_mut::<u64>(
-                b.addr.add(b.size) as *mut u64,
+                b.addr.add(b.size).cast::<u64>(),
                 ps / mem::size_of::<u64>(),
             );
             for (i, v) in b1.iter_mut().enumerate() {

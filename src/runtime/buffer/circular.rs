@@ -112,7 +112,7 @@ impl BufferWriterHost for Writer {
         let (space, offset) = self.space_available();
         unsafe {
             (
-                self.buffer.addr().add(offset * self.item_size) as *mut u8,
+                self.buffer.addr().add(offset * self.item_size).cast::<u8>(),
                 space * self.item_size,
             )
         }
@@ -250,7 +250,7 @@ impl BufferReaderHost for Reader {
 
         unsafe {
             (
-                self.ptr.add(reader_offset * self.item_size) as *const u8,
+                self.ptr.add(reader_offset * self.item_size).cast::<u8>(),
                 space * self.item_size,
             )
         }
@@ -328,7 +328,7 @@ mod tests {
             let (buff, size) = w.bytes();
 
             unsafe {
-                let buff = slice::from_raw_parts_mut::<u64>(buff as *mut u64, size / item_size);
+                let buff = slice::from_raw_parts_mut::<u64>(buff.cast::<u64>(), size / item_size);
                 for i in 0..10 {
                     buff[i] = i as u64;
                 }

@@ -122,7 +122,7 @@ impl StreamOutput {
     pub fn slice<T>(&mut self) -> &'static mut [T] {
         let (ptr, len) = self.writer.as_mut().unwrap().bytes();
 
-        unsafe { slice::from_raw_parts_mut(ptr as *mut T, len / mem::size_of::<T>()) }
+        unsafe { slice::from_raw_parts_mut(ptr.cast::<T>(), len / mem::size_of::<T>()) }
     }
 
     pub async fn notify_finished(&mut self) {
