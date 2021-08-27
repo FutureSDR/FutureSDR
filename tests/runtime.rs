@@ -37,7 +37,7 @@ fn flowgraph() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0f32);
+        assert_eq!(*i, 0_f32);
     }
 
     Ok(())
@@ -68,7 +68,7 @@ fn flowgraph_tpb() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0f32);
+        assert_eq!(*i, 0_f32);
     }
 
     Ok(())
@@ -99,7 +99,7 @@ fn flowgraph_flow() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0f32);
+        assert_eq!(*i, 0_f32);
     }
 
     Ok(())
@@ -110,9 +110,7 @@ fn fg_rand_vec() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let n_items = 10_000_000;
-    let orig: Vec<f32> = repeat_with(|| rand::random::<f32>())
-        .take(n_items)
-        .collect();
+    let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
     let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
     let copy = CopyBuilder::new(4).build();
@@ -142,11 +140,9 @@ fn fg_rand_vec() -> Result<()> {
 fn fg_rand_vec_multi_snk() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let n_items = 1000_000;
+    let n_items = 1_000_000;
     let n_snks = 10;
-    let orig: Vec<f32> = repeat_with(|| rand::random::<f32>())
-        .take(n_items)
-        .collect();
+    let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
     let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
     let copy = CopyBuilder::new(4).build();
@@ -165,7 +161,7 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    for s in snks.iter() {
+    for s in &snks {
         let snk = fg.block_async::<VectorSink<f32>>(*s).unwrap();
         let v = snk.items();
 

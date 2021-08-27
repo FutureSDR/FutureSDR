@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let n_items = 100_000;
     let orig: Vec<u8> = repeat_with(rand::random::<u8>).take(n_items).collect();
 
-    let src = VectorSourceBuilder::<u8>::new(orig.clone()).build();
+    let src = VectorSourceBuilder::<u8>::new(orig).build();
     let throttle = ThrottleBuilder::new(1, 100.0).build();
     let snk = WebsocketSinkBuilder::<u8>::new(9001).build();
 

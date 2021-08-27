@@ -72,7 +72,7 @@ mod inner {
                     .add_stream_output("out", size_of::<f32>())
                     .build(),
                 MessageIoBuilder::new().build(),
-                ComplexToMag {},
+                Self {},
             )
         }
     }
@@ -92,7 +92,7 @@ mod inner {
             let n = std::cmp::min(i.len(), o.len());
 
             for x in 0..n {
-                let mut t = (((i[x].norm_sqr().log10() + 3.0) / 6.0 * 255.0) + 125.0) / 2.0;
+                let mut t = ((i[x].norm_sqr().log10() + 3.0) / 6.0).mul_add(255.0, 125.0) / 2.0;
                 t = t.clamp(0.0, 255.0);
                 o[x] = t;
             }
