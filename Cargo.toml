@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.2"
+version = "0.0.4"
 authors = ["Bastian Bloessl <mail@bastibl.net>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -28,6 +28,9 @@ default = ["soapy", "vulkan"]
 soapy = ["soapysdr"]
 vulkan = ["vulkano", "vulkano-shaders"]
 zynq = ["xilinx-dma"]
+
+[package.metadata.docs.rs]
+no-default-features = true
 
 [dependencies]
 anyhow = "1.0.38"
