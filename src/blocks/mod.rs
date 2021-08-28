@@ -73,6 +73,12 @@ mod websocket_sink;
 #[cfg(not(target_arch = "wasm32"))]
 pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode};
 
+mod zmq_pub_sink;
+pub use zmq_pub_sink::{ZMQPubSink, ZMQPubSinkBuilder};
+
+mod zmq_sub_source;
+pub use zmq_sub_source::{ZMQSubSource, ZMQSubSourceBuilder};
+
 #[cfg(feature = "zynq")]
 mod zynq;
 #[cfg(feature = "zynq")]
