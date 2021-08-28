@@ -47,6 +47,7 @@ impl AsyncKernel for ZMQSubSource {
             for (place, element) in o.iter_mut().zip(data.iter()) {
                 *place = *element;
             }
+            print!("Received");
     
             sio.output(0).produce(n);
     
@@ -63,7 +64,7 @@ impl AsyncKernel for ZMQSubSource {
     ) -> Result<()> {
         let context = zmq::Context::new();
         let receiver = context.socket(zmq::SUB).unwrap();
-        assert!(receiver.bind(&self.address).is_ok());
+        assert!(receiver.connect(&self.address).is_ok());
         self.receiver = Some(receiver.into());
         Ok(())
     }
