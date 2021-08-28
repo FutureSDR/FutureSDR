@@ -44,7 +44,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features
+          args: --no-default-features --all-targets --workspace --exclude "androidfs"
 
   test-windows:
     name: Unit Test Windows
@@ -74,7 +74,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features --all-targets --workspace
+          args: --no-default-features --all-targets --workspace --exclude "androidfs"
 
   lints:
     name: Lints
