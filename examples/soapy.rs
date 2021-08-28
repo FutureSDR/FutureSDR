@@ -64,6 +64,7 @@ mod inner {
     pub struct ComplexToMag {}
 
     impl ComplexToMag {
+        #[allow(clippy::new_ret_no_self)]
         pub fn new() -> Block {
             Block::new_async(
                 BlockMetaBuilder::new("ComplexToMag").build(),

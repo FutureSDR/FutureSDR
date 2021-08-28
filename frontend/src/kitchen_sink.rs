@@ -3,8 +3,6 @@ use futuresdr_pmt::PmtKind;
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
 
 use crate::ctrl_port::Call;
-use crate::ctrl_port::Poll;
-use crate::ctrl_port::PollPeriodic;
 use crate::ctrl_port::Radio;
 use crate::ctrl_port::RadioItem;
 

@@ -329,8 +329,8 @@ mod tests {
 
             unsafe {
                 let buff = slice::from_raw_parts_mut::<u64>(buff.cast::<u64>(), size / item_size);
-                for i in 0..10 {
-                    buff[i] = i as u64;
+                for (i, b) in buff.iter_mut().enumerate().take(10) {
+                    *b = i as u64;
                 }
             }
 
@@ -342,8 +342,8 @@ mod tests {
             let (buff, size) = r.bytes();
             unsafe {
                 let buff = slice::from_raw_parts_mut::<u64>(buff as *mut u64, size / item_size);
-                for i in 0..r.bytes().1 / item_size {
-                    assert!(buff[i] == i as u64);
+                for (i, b) in buff.iter().enumerate().take(r.bytes().1 / item_size) {
+                    assert!(i as u64 == *b);
                 }
             }
 

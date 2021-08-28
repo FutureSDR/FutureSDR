@@ -37,7 +37,7 @@ fn flowgraph() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0_f32);
+        assert!(i.abs() < f32::EPSILON);
     }
 
     Ok(())
@@ -68,7 +68,7 @@ fn flowgraph_tpb() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0_f32);
+        assert!(i.abs() < f32::EPSILON);
     }
 
     Ok(())
@@ -99,7 +99,7 @@ fn flowgraph_flow() -> Result<()> {
 
     assert_eq!(v.len(), 1_000_000);
     for i in v {
-        assert_eq!(*i, 0_f32);
+        assert!(i.abs() < f32::EPSILON);
     }
 
     Ok(())
@@ -130,7 +130,7 @@ fn fg_rand_vec() -> Result<()> {
 
     assert_eq!(v.len(), n_items);
     for i in 0..v.len() {
-        assert_eq!(orig[i], v[i]);
+        assert!((orig[i] - v[i]).abs() < f32::EPSILON);
     }
 
     Ok(())
@@ -167,7 +167,7 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
 
         assert_eq!(v.len(), n_items);
         for i in 0..v.len() {
-            assert_eq!(orig[i], v[i]);
+            assert!((orig[i] - v[i]).abs() < f32::EPSILON);
         }
     }
 

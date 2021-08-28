@@ -49,7 +49,7 @@ fn main() -> Result<()> {
 
     assert_eq!(v.len(), n_items);
     for i in 0..v.len() {
-        assert_eq!(orig[i], v[i]);
+        assert!((orig[i] - v[i]).abs() < f32::EPSILON);
     }
 
     println!("flowgraph took {:?}", elapsed);

@@ -69,10 +69,10 @@ mod test {
     #[test]
     fn pmt() {
         let p = Pmt::Null;
-        assert_eq!(p.is_string(), false);
+        assert!(!p.is_string());
         assert_eq!(p.to_string(), None);
         let p = Pmt::String("foo".to_owned());
-        assert_eq!(p.is_string(), true);
+        assert!(p.is_string());
         assert_eq!(p.to_string(), Some("foo".to_owned()));
     }
 
@@ -88,6 +88,7 @@ mod test {
         assert_eq!(p, p2);
     }
 
+    #[allow(clippy::many_single_char_names)]
     #[test]
     fn pmt_eq() {
         let a = Pmt::Null;
