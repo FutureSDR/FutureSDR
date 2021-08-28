@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "futuresdr"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "android_logger",
  "anyhow",
