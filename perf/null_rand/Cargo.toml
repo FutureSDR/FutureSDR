@@ -6,7 +6,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.38"
 clap = "2.33.1"
-futuresdr = { path = "../.." }
+futuresdr = { path = "../..", default-features = false }
 
 [[bin]]
 name = "null_rand"
