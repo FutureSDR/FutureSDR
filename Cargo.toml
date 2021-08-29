@@ -19,7 +19,7 @@ members = [
     "examples/android",
     "examples/logging",
     "examples/wasm",
-    "examples/zmq",
+    "examples/zeromq",
     "perf/msg",
     "perf/null_rand",
 ]
