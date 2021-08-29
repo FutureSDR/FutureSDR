@@ -24,7 +24,11 @@ impl ZMQSubSource {
                 .add_stream_output("out", item_size)
                 .build(),
             MessageIoBuilder::new().build(),
-            ZMQSubSource { item_size, address: address.to_string(), receiver: None },
+            ZMQSubSource {
+                item_size,
+                address: address.to_string(),
+                receiver: None,
+            },
         )
     }
 }
@@ -38,8 +42,14 @@ impl AsyncKernel for ZMQSubSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
-        if let Ok(data) = self.receiver.as_mut().unwrap().recv_bytes(0) {
+        let o = sio.output(0).slice::<u8>();
+        if let Ok(n_bytes) = self.receiver.as_mut().unwrap().recv_into(o, 0) {
+            //print!("Received\n");
+            debug_assert_eq!(o.len() % self.item_size, 0);
+            let n = n_bytes / self.item_size;
+            sio.output(0).produce(n);
+        }
+        /*  if let Ok(data) = self.receiver.as_mut().unwrap().recv_bytes(0) {
             let o = sio.output(0).slice::<u8>();
             debug_assert_eq!(o.len() % self.item_size, 0);
             let n = o.len() / self.item_size;
@@ -48,10 +58,10 @@ impl AsyncKernel for ZMQSubSource {
                 *place = *element;
             }
             print!("Received");
-    
+
             sio.output(0).produce(n);
-    
-        }
+
+        }*/
 
         Ok(())
     }
@@ -62,14 +72,15 @@ impl AsyncKernel for ZMQSubSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
+        //print!("AudioInit\n");
         let context = zmq::Context::new();
         let receiver = context.socket(zmq::SUB).unwrap();
         assert!(receiver.connect(&self.address).is_ok());
+        receiver.set_subscribe(b"").expect("cannot subscribe to ZMQ");
         self.receiver = Some(receiver.into());
         Ok(())
     }
 }
-
 
 pub struct ZMQSubSourceBuilder {
     item_size: usize,

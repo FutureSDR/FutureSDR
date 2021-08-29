@@ -43,7 +43,7 @@ impl AsyncKernel for ZMQPubSink {
 
         let n = i.len() / self.item_size;
         if n > 0 {
-            print!("pushing");
+            print!(".");
             self.publisher.as_mut().unwrap().send(&*i, 0).unwrap();
             sio.input(0).consume(n);
         }

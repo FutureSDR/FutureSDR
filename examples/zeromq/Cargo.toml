@@ -1,0 +1,18 @@
+[package]
+name = "zeromq"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+futuresdr = { path = "../..", default-features = false }
+log = "0.4.14"
+anyhow = "1.0.38"
+env_logger = "0.9.0"
+
+[[bin]]
+name = "zmq-receiver"
+path = "zmq_receiver.rs"
+
+[[bin]]
+name = "zmq-emitter"
+path = "zmq_emitter.rs"
