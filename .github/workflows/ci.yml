@@ -3,8 +3,8 @@ on: [push, pull_request]
 name: CI
 
 jobs:
-  check:
-    name: Check
+  lints:
+    name: Lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -16,12 +16,19 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          components: rustfmt, clippy
 
-      - name: Run cargo check
+      - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: --no-default-features
+          command: fmt
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --workspace --no-default-features --features=vulkan -- -D warnings
 
   test:
     name: Unit Tests Unix
@@ -75,30 +82,3 @@ jobs:
         with:
           command: test
           args: --no-default-features --all-targets --workspace --exclude "androidfs"
-
-  lints:
-    name: Lints
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --workspace --no-default-features --features=vulkan -- -D warnings
