@@ -1,4 +1,6 @@
 use anyhow::Result;
+use log::info;
+use log::debug;
 
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
@@ -44,25 +46,11 @@ impl AsyncKernel for ZMQSubSource {
     ) -> Result<()> {
         let o = sio.output(0).slice::<u8>();
         if let Ok(n_bytes) = self.receiver.as_mut().unwrap().recv_into(o, 0) {
-            //print!("Received\n");
+            debug!("ZMQ receiving\n");
             debug_assert_eq!(o.len() % self.item_size, 0);
             let n = n_bytes / self.item_size;
             sio.output(0).produce(n);
         }
-        /*  if let Ok(data) = self.receiver.as_mut().unwrap().recv_bytes(0) {
-            let o = sio.output(0).slice::<u8>();
-            debug_assert_eq!(o.len() % self.item_size, 0);
-            let n = o.len() / self.item_size;
-            //std::slice::bytes::copy_memory(&data, &mut o);
-            for (place, element) in o.iter_mut().zip(data.iter()) {
-                *place = *element;
-            }
-            print!("Received");
-
-            sio.output(0).produce(n);
-
-        }*/
-
         Ok(())
     }
 
@@ -72,11 +60,15 @@ impl AsyncKernel for ZMQSubSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        //print!("AudioInit\n");
+        debug!("ZMQSubSource Init\n");
+
         let context = zmq::Context::new();
         let receiver = context.socket(zmq::SUB).unwrap();
+        info!("ZMQSubSource Connecting to {:?}", self.address);
         assert!(receiver.connect(&self.address).is_ok());
-        receiver.set_subscribe(b"").expect("cannot subscribe to ZMQ");
+        receiver
+            .set_subscribe(b"")
+            .expect("cannot subscribe to ZMQ");
         self.receiver = Some(receiver.into());
         Ok(())
     }
