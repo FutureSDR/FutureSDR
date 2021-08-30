@@ -19,7 +19,7 @@ pub struct ZMQSubSource {
 impl ZMQSubSource {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
-            BlockMetaBuilder::new("ZMQSubSource").build(),
+            BlockMetaBuilder::new("ZMQSubSource").blocking().build(),
             StreamIoBuilder::new()
                 .add_stream_output("out", item_size)
                 .build(),

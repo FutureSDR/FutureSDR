@@ -19,7 +19,7 @@ pub struct ZMQPubSink {
 impl ZMQPubSink {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
-            BlockMetaBuilder::new("ZMQPubSink").build(),
+            BlockMetaBuilder::new("ZMQPubSink").blocking().build(),
             StreamIoBuilder::new()
                 .add_stream_input("in", item_size)
                 .build(),
