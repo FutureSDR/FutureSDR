@@ -1,3 +1,6 @@
+mod add_const;
+pub use add_const::{AddConst};
+
 mod copy;
 pub use copy::{Copy, CopyBuilder};
 
