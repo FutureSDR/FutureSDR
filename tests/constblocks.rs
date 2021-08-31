@@ -124,7 +124,7 @@ fn powerconst_on_vec_f32_source() -> Result<()> {
     let mut fg = Flowgraph::new();
     let orig: Vec<f32> = vec![1.0, 2.0, 3.5, 4.5, 10.5];
     let src = fg.add_block(VectorSourceBuilder::<f32>::new(orig.clone()).build());
-    let add_const = fg.add_block(ConstBlock::new(a_constant, |v: f32, c: f32| v.powf(c)));
+    let add_const = fg.add_block(ConstBlock::new(move |v: f32| v.powf(a_constant)));
     let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build());
 
     fg.connect_stream(src, "out", add_const, "in")?;

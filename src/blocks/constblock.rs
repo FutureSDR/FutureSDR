@@ -2,7 +2,9 @@ use anyhow::Result;
 use std::cmp;
 use std::ops::Add;
 use std::ops::Mul;
-
+use std::marker::Sync;
+use std::marker::Send;
+use std::marker::Copy;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -12,18 +14,22 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
+use std::marker::PhantomData;
 
-pub struct ConstBlock<D, F: FnMut(D, D) -> D> {
-    constant: D,
+pub struct ConstBlock<D, F: FnMut(D) -> D>
+where
+    D: 'static
+{
     f: F,
+    phantom: PhantomData<&'static D>
 }
 
 impl<D, F> ConstBlock<D, F>
 where
-    D: std::marker::Send + 'static + Add<Output = D> + Mul<Output = D> + std::marker::Copy,
-    F: FnMut(D, D) -> D + std::marker::Send + 'static,
+    D: Send + 'static + Add<Output = D> + Mul<Output = D> + Copy + Sync,
+    F: FnMut(D) -> D + Send + 'static,
 {
-    pub fn new(constant: D, f: F) -> Block {
+    pub fn new(f: F) -> Block {
         let item_size: usize = std::mem::size_of::<D>();
         Block::new_async(
             BlockMetaBuilder::new("ConstBlock").build(),
@@ -32,7 +38,7 @@ where
                 .add_stream_output("out", item_size)
                 .build(),
             MessageIoBuilder::<ConstBlock<D, F>>::new().build(),
-            ConstBlock { constant, f },
+            ConstBlock { f, phantom: PhantomData },
         )
     }
 }
@@ -40,8 +46,8 @@ where
 #[async_trait]
 impl<D, F> AsyncKernel for ConstBlock<D, F>
 where
-    D: std::marker::Send + Add<Output = D> + 'static + std::marker::Copy + Mul<Output = D>,
-    F: FnMut(D, D) -> D + std::marker::Send,
+    D: Send + Add<Output = D> + 'static + Mul<Output = D> + Copy + Sync,
+    F: FnMut(D) -> D + std::marker::Send,
 {
     async fn work(
         &mut self,
@@ -56,7 +62,7 @@ where
         let mut m = 0;
         if !i.is_empty() && !o.is_empty() {
             m = cmp::min(i.len(), o.len());
-            let f_curry = |vi: &D| (self.f)(*vi, self.constant);
+            let f_curry = |vi: &D| (self.f)(*vi);
             let i_plus_const = i.iter().map(f_curry);
             for (v, t) in i_plus_const.zip(o) {
                 *t = v;
@@ -79,17 +85,17 @@ pub struct ConstBuilder<D> {
 
 impl<D> ConstBuilder<D>
 where
-    D: std::marker::Send + 'static + Add<Output = D> + Mul<Output = D> + std::marker::Copy,
+    D: Sync + Copy + Send + 'static + Add<Output = D> + Mul<Output = D>,
 {
     pub fn new(constant: D) -> ConstBuilder<D> {
         ConstBuilder { constant }
     }
 
     pub fn build_add(self) -> Block {
-        ConstBlock::new(self.constant, |a: D, b: D| a + b)
+        ConstBlock::new(move |a: D| a + self.constant)
     }
 
     pub fn build_multiply(self) -> Block {
-        ConstBlock::new(self.constant, |a: D, b: D| -> D { a * b })
+        ConstBlock::new(move |a: D| -> D { a * self.constant})
     }
 }
