@@ -1,5 +1,5 @@
-mod add_const;
-pub use add_const::{AddConst};
+mod constblock;
+pub use constblock::{ConstBlock, ConstBuilder};
 
 mod copy;
 pub use copy::{Copy, CopyBuilder};
