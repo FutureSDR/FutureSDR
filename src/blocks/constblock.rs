@@ -85,10 +85,6 @@ where
         ConstBuilder { constant }
     }
 
-    pub fn adder(a: D, b: D) -> D {
-        a + b
-    }
-
     pub fn build_add(self) -> Block {
         ConstBlock::new(self.constant, |a: D, b: D| a + b)
     }
