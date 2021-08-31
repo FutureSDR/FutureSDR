@@ -19,10 +19,13 @@ use crate::runtime::WorkIo;
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
     stream: Option<soapysdr::RxStream<Complex<f32>>>,
+    freq: f64,
+    sample_rate: f64,
+    gain: f64,
 }
 
 impl SoapySource {
-    pub fn new() -> Block {
+    pub fn new(freq: f64, sample_rate: f64, gain: f64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
             StreamIoBuilder::new()
@@ -53,6 +56,9 @@ impl SoapySource {
             SoapySource {
                 dev: None,
                 stream: None,
+                freq,
+                sample_rate,
+                gain,
             },
         )
     }
@@ -91,9 +97,9 @@ impl AsyncKernel for SoapySource {
         soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new("")?);
         let dev = self.dev.as_ref().context("no dev")?;
-        dev.set_frequency(Rx, channel, 100e6, ()).unwrap();
-        dev.set_sample_rate(Rx, channel, 3.2e6).unwrap();
-        dev.set_gain(Rx, channel, 34.0).unwrap();
+        dev.set_frequency(Rx, channel, self.freq, ()).unwrap();
+        dev.set_sample_rate(Rx, channel, self.sample_rate).unwrap();
+        dev.set_gain(Rx, channel, self.gain).unwrap();
 
         self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel]).unwrap());
         self.stream.as_mut().context("no stream")?.activate(None)?;
@@ -117,20 +123,34 @@ impl AsyncKernel for SoapySource {
 
 unsafe impl Sync for SoapySource {}
 
-pub struct SoapySourceBuilder {}
+#[derive(Default)]
+pub struct SoapySourceBuilder {
+    freq: f64,
+    sample_rate: f64,
+    gain: f64,
+}
 
 impl SoapySourceBuilder {
     pub fn new() -> SoapySourceBuilder {
-        SoapySourceBuilder {}
+        SoapySourceBuilder::default()
+    }
+
+    pub fn freq(mut self, freq: f64) -> SoapySourceBuilder {
+        self.freq = freq;
+        self
+    }
+
+    pub fn sample_rate(mut self, sample_rate: f64) -> SoapySourceBuilder {
+        self.sample_rate = sample_rate;
+        self
+    }
+
+    pub fn gain(mut self, gain: f64) -> SoapySourceBuilder {
+        self.gain = gain;
+        self
     }
 
     pub fn build(self) -> Block {
-        SoapySource::new()
-    }
-}
-
-impl Default for SoapySourceBuilder {
-    fn default() -> Self {
-        Self::new()
+        SoapySource::new(self.freq, self.sample_rate, self.gain)
     }
 }

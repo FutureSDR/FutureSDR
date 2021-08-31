@@ -41,7 +41,11 @@ mod inner {
     pub(super) fn main() -> Result<()> {
         let mut fg = Flowgraph::new();
 
-        let src = SoapySourceBuilder::new().build();
+        let src = SoapySourceBuilder::new()
+            .freq(100e6)
+            .sample_rate(3.2e6)
+            .gain(34.0)
+            .build();
         let fft = FftBuilder::new().build();
         let mag = ComplexToMag::new();
         let snk = WebsocketSinkBuilder::<f32>::new(9001)
