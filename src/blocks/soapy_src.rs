@@ -88,6 +88,7 @@ impl AsyncKernel for SoapySource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let channel: usize = 0;
+        soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new("")?);
         let dev = self.dev.as_ref().context("no dev")?;
         dev.set_frequency(Rx, channel, 100e6, ()).unwrap();
