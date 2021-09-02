@@ -18,6 +18,9 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install ZeroMQ
+        run: sudo apt-get install -y libzmq3-dev
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -28,14 +31,34 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --workspace --no-default-features --features=vulkan -- -D warnings
+          args: --all-targets --workspace --features=vulkan,zeromq -- -D warnings
 
   test:
-    name: Unit Tests Unix
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+    name: Unit Tests Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install ZeroMQ
+        run: sudo apt-get install -y libzmq3-dev
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --workspace --exclude androidfs --features=zeromq
+
+  test-macos:
+    name: Unit Tests macOS
+    runs-on: macos-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -51,7 +74,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features --all-targets --workspace --exclude "androidfs"
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq
 
   test-windows:
     name: Unit Test Windows
@@ -81,4 +104,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features --all-targets --workspace --exclude "androidfs"
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq
