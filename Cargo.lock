@@ -3221,9 +3221,7 @@ name = "zeromq"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "env_logger 0.9.0",
  "futuresdr",
- "log",
 ]
 
 [[package]]

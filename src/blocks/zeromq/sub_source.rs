@@ -1,6 +1,6 @@
 use anyhow::Result;
-use log::info;
 use log::debug;
+use log::info;
 
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
@@ -12,21 +12,21 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct ZMQSubSource {
+pub struct SubSource {
     item_size: usize,
     address: String,
     receiver: Option<zmq::Socket>,
 }
 
-impl ZMQSubSource {
+impl SubSource {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
-            BlockMetaBuilder::new("ZMQSubSource").blocking().build(),
+            BlockMetaBuilder::new("SubSource").blocking().build(),
             StreamIoBuilder::new()
                 .add_stream_output("out", item_size)
                 .build(),
             MessageIoBuilder::new().build(),
-            ZMQSubSource {
+            SubSource {
                 item_size,
                 address: address.to_string(),
                 receiver: None,
@@ -36,7 +36,7 @@ impl ZMQSubSource {
 }
 
 #[async_trait]
-impl AsyncKernel for ZMQSubSource {
+impl AsyncKernel for SubSource {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
@@ -45,12 +45,13 @@ impl AsyncKernel for ZMQSubSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<u8>();
-        if let Ok(n_bytes) = self.receiver.as_mut().unwrap().recv_into(o, 0) {
-            debug!("ZMQ receiving\n");
-            debug_assert_eq!(o.len() % self.item_size, 0);
-            let n = n_bytes / self.item_size;
-            sio.output(0).produce(n);
-        }
+        let mut n_bytes = self.receiver.as_mut().unwrap().recv_into(o, 0)?;
+        n_bytes = std::cmp::min(n_bytes, o.len());
+        debug_assert_eq!(o.len() % self.item_size, 0);
+        let n = n_bytes / self.item_size;
+        debug!("SubSource received {}", n);
+        sio.output(0).produce(n);
+
         Ok(())
     }
 
@@ -60,39 +61,37 @@ impl AsyncKernel for ZMQSubSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        debug!("ZMQSubSource Init\n");
+        debug!("SubSource Init");
 
         let context = zmq::Context::new();
         let receiver = context.socket(zmq::SUB).unwrap();
-        info!("ZMQSubSource Connecting to {:?}", self.address);
-        assert!(receiver.connect(&self.address).is_ok());
-        receiver
-            .set_subscribe(b"")
-            .expect("cannot subscribe to ZMQ");
-        self.receiver = Some(receiver.into());
+        info!("SubSource Connecting to {:?}", self.address);
+        receiver.connect(&self.address)?;
+        receiver.set_subscribe(b"")?;
+        self.receiver = Some(receiver);
         Ok(())
     }
 }
 
-pub struct ZMQSubSourceBuilder {
+pub struct SubSourceBuilder {
     item_size: usize,
     address: String,
 }
 
-impl ZMQSubSourceBuilder {
-    pub fn new(item_size: usize) -> ZMQSubSourceBuilder {
-        ZMQSubSourceBuilder {
+impl SubSourceBuilder {
+    pub fn new(item_size: usize) -> SubSourceBuilder {
+        SubSourceBuilder {
             item_size,
             address: "tcp://*:5555".into(),
         }
     }
 
-    pub fn address(mut self, address: &str) -> ZMQSubSourceBuilder {
+    pub fn address(mut self, address: &str) -> SubSourceBuilder {
         self.address = address.to_string();
         self
     }
 
     pub fn build(&mut self) -> Block {
-        ZMQSubSource::new(self.item_size, &*self.address)
+        SubSource::new(self.item_size, &*self.address)
     }
 }

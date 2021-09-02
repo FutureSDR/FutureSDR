@@ -74,14 +74,7 @@ mod websocket_sink;
 pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode};
 
 #[cfg(feature = "zeromq")]
-mod zmq_pub_sink;
-#[cfg(feature = "zeromq")]
-pub use zmq_pub_sink::{ZMQPubSink, ZMQPubSinkBuilder};
-
-#[cfg(feature = "zeromq")]
-mod zmq_sub_source;
-#[cfg(feature = "zeromq")]
-pub use zmq_sub_source::{ZMQSubSource, ZMQSubSourceBuilder};
+pub mod zeromq;
 
 #[cfg(feature = "zynq")]
 mod zynq;

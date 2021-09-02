@@ -1,23 +1,26 @@
 use anyhow::Result;
-use env_logger::Builder;
+use futuresdr::blocks::zeromq::PubSinkBuilder;
+use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
-use futuresdr::blocks::ZMQPubSinkBuilder;
+use futuresdr::blocks::Throttle;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use log::LevelFilter;
 
 fn main() -> Result<()> {
-    let mut builder = Builder::from_default_env();
-    builder
-        .filter(Some("futuresdr::blocks"), LevelFilter::Info)
-        .init();
-
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(NullSource::new(4));
-    let snk = fg.add_block(ZMQPubSinkBuilder::new(4).address("tcp://*:50001").build());
+    let src = fg.add_block(NullSource::new(1));
+    let head = fg.add_block(Head::new(1, 1_000_000));
+    let throttle = fg.add_block(Throttle::new(1, 100e3));
+    let snk = fg.add_block(
+        PubSinkBuilder::new(1)
+            .address("tcp://127.0.0.1:50001")
+            .build(),
+    );
 
-    fg.connect_stream(src, "out", snk, "in")?;
+    fg.connect_stream(src, "out", head, "in")?;
+    fg.connect_stream(head, "out", throttle, "in")?;
+    fg.connect_stream(throttle, "out", snk, "in")?;
 
     Runtime::new().run(fg)?;
 

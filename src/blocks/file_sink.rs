@@ -21,7 +21,7 @@ pub struct FileSink {
 }
 
 impl FileSink {
-    pub fn new(item_size: usize, file_name: String) -> Block {
+    pub fn new(item_size: usize, file_name: &str) -> Block {
         debug_assert_eq!(item_size, 1);
         Block::new_async(
             BlockMetaBuilder::new("FileSink").build(),
@@ -30,7 +30,7 @@ impl FileSink {
                 .build(),
             MessageIoBuilder::new().build(),
             FileSink {
-                file_name,
+                file_name: file_name.into(),
                 file: None,
                 n_written: 0,
             },
@@ -98,11 +98,14 @@ pub struct FileSinkBuilder {
 }
 
 impl FileSinkBuilder {
-    pub fn new(item_size: usize, file: String) -> FileSinkBuilder {
-        FileSinkBuilder { item_size, file }
+    pub fn new(item_size: usize, file: &str) -> FileSinkBuilder {
+        FileSinkBuilder {
+            item_size,
+            file: file.into(),
+        }
     }
 
     pub fn build(self) -> Block {
-        FileSink::new(self.item_size, self.file)
+        FileSink::new(self.item_size, &self.file)
     }
 }

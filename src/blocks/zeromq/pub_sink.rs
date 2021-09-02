@@ -1,3 +1,6 @@
+use anyhow::Result;
+use log::info;
+
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -7,25 +10,22 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use anyhow::Result;
-use log::debug;
-use log::info;
 
-pub struct ZMQPubSink {
+pub struct PubSink {
     item_size: usize,
     address: String,
     publisher: Option<zmq::Socket>,
 }
 
-impl ZMQPubSink {
+impl PubSink {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
-            BlockMetaBuilder::new("ZMQPubSink").blocking().build(),
+            BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new()
                 .add_stream_input("in", item_size)
                 .build(),
             MessageIoBuilder::new().build(),
-            ZMQPubSink {
+            PubSink {
                 item_size,
                 address: address.to_string(),
                 publisher: None,
@@ -35,7 +35,7 @@ impl ZMQPubSink {
 }
 
 #[async_trait]
-impl AsyncKernel for ZMQPubSink {
+impl AsyncKernel for PubSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -48,7 +48,6 @@ impl AsyncKernel for ZMQPubSink {
 
         let n = i.len() / self.item_size;
         if n > 0 {
-            debug!(".");
             self.publisher.as_mut().unwrap().send(&*i, 0).unwrap();
             sio.input(0).consume(n);
         }
@@ -67,33 +66,34 @@ impl AsyncKernel for ZMQPubSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let context = zmq::Context::new();
-        let publisher = context.socket(zmq::PUB).unwrap();
-        info!("ZMQSubSource Binding to {:?}", self.address);
-        assert!(publisher.bind(&self.address).is_ok());
-        self.publisher = Some(publisher.into());
+        let publisher = context.socket(zmq::PUB)?;
+        info!("SubSource Binding to {:?}", self.address);
+        publisher.bind(&self.address)?;
+        self.publisher = Some(publisher);
+
         Ok(())
     }
 }
 
-pub struct ZMQPubSinkBuilder {
+pub struct PubSinkBuilder {
     item_size: usize,
     address: String,
 }
 
-impl ZMQPubSinkBuilder {
-    pub fn new(item_size: usize) -> ZMQPubSinkBuilder {
-        ZMQPubSinkBuilder {
+impl PubSinkBuilder {
+    pub fn new(item_size: usize) -> PubSinkBuilder {
+        PubSinkBuilder {
             item_size,
             address: "tcp://*:5555".into(),
         }
     }
 
-    pub fn address(mut self, address: &str) -> ZMQPubSinkBuilder {
+    pub fn address(mut self, address: &str) -> PubSinkBuilder {
         self.address = address.to_string();
         self
     }
 
     pub fn build(&mut self) -> Block {
-        ZMQPubSink::new(self.item_size, &*self.address)
+        PubSink::new(self.item_size, &*self.address)
     }
 }
