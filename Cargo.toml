@@ -25,14 +25,23 @@ members = [
 ]
 
 [features]
-default = ["soapy", "vulkan", "zeromq"]
+default = []
 soapy = ["soapysdr"]
 vulkan = ["vulkano", "vulkano-shaders"]
 zynq = ["xilinx-dma"]
 zeromq = ["zmq"]
 
-[package.metadata.docs.rs]
-no-default-features = true
+[[example]]
+name = "soapy"
+required-features = ["soapy"]
+
+[[example]]
+name = "vulkan"
+required-features = ["vulkan"]
+
+[[example]]
+name = "zynq"
+required-features = ["zynq"]
 
 [dependencies]
 anyhow = "1.0.38"
