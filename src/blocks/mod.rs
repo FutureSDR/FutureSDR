@@ -1,9 +1,11 @@
 mod apply;
 pub use apply::Apply;
 
+#[cfg(feature = "audio")]
+pub mod audio;
+
 mod copy;
 pub use copy::{Copy, CopyBuilder};
-
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
 
@@ -24,7 +26,6 @@ pub use file_source::{FileSource, FileSourceBuilder};
 
 mod finite_source;
 pub use finite_source::FiniteSource;
-
 mod head;
 pub use head::{Head, HeadBuilder};
 mod message_burst;

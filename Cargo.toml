@@ -17,6 +17,7 @@ members = [
     "pmt",
     "frontend",
     "examples/android",
+    "examples/audio",
     "examples/logging",
     "examples/wasm",
     "examples/zeromq",
@@ -26,6 +27,7 @@ members = [
 
 [features]
 default = []
+audio = ["cpal", "rodio"]
 soapy = ["soapysdr"]
 vulkan = ["vulkano", "vulkano-shaders"]
 zynq = ["xilinx-dma"]
@@ -78,8 +80,10 @@ async-tungstenite = "0.14.0"
 blocking = "1.0.2"
 concurrent-queue = "1.2.2"
 core_affinity = "0.5.10"
+cpal = { version = "0.13.4", optional = true }
 libc = "0.2.99"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rodio = { version = "0.14.0", optional = true }
 rustfft = "6.0.1"
 tungstenite = "0.14.0"
 vulkano = { git = "https://github.com/bastibl/vulkano", version = "0.25.0", branch = "master",  optional = true }

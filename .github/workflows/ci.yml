@@ -10,6 +10,9 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -21,6 +24,9 @@ jobs:
       - name: Install ZeroMQ
         run: sudo apt-get install -y libzmq3-dev
 
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -31,9 +37,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --workspace --features=vulkan,zeromq -- -D warnings
+          args: --all-targets --workspace --features=vulkan,zeromq,audio -- -D warnings
 
-  test:
+  test-linux:
     name: Unit Tests Linux
     runs-on: ubuntu-latest
     steps:
@@ -50,11 +56,14 @@ jobs:
       - name: Install ZeroMQ
         run: sudo apt-get install -y libzmq3-dev
 
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --features=zeromq
+          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio
 
   test-macos:
     name: Unit Tests macOS
@@ -74,7 +83,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio
 
   test-windows:
     name: Unit Test Windows
@@ -104,4 +113,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio
