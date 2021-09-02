@@ -237,7 +237,9 @@ async fn run_flowgraph<S: Scheduler>(
     debug!("running blocks");
     for (_, opt) in inboxes.iter_mut() {
         if let Some(ref mut chan) = opt {
-            chan.send(AsyncMessage::Notify).await.unwrap();
+            if chan.send(AsyncMessage::Notify).await.is_err() {
+                debug!("runtime wanted to start block that already terminated");
+            }
         }
     }
 
