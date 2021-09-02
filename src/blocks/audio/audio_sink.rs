@@ -7,10 +7,6 @@ use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
 
-use futures::channel::mpsc;
-use futures::channel::oneshot;
-use futures::SinkExt;
-use futures::StreamExt;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -20,6 +16,10 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
+use futures::channel::mpsc;
+use futures::channel::oneshot;
+use futures::SinkExt;
+use futures::StreamExt;
 
 #[allow(clippy::type_complexity)]
 pub struct AudioSink {

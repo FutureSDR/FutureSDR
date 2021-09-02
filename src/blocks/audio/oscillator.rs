@@ -1,7 +1,7 @@
 use rodio::source::{SineWave, Source};
 
-use crate::runtime::Block;
 use crate::blocks;
+use crate::runtime::Block;
 
 pub struct Oscillator;
 
