@@ -138,16 +138,19 @@ impl SoapySourceBuilder {
         SoapySourceBuilder::default()
     }
 
+    /// See [`soapysdr::Device::set_frequency()`]
     pub fn freq(mut self, freq: f64) -> SoapySourceBuilder {
         self.freq = freq;
         self
     }
 
+    /// See [`soapysdr::Device::set_sample_rate()`]
     pub fn sample_rate(mut self, sample_rate: f64) -> SoapySourceBuilder {
         self.sample_rate = sample_rate;
         self
     }
 
+    /// See [`soapysdr::Device::set_gain()`]
     pub fn gain(mut self, gain: f64) -> SoapySourceBuilder {
         self.gain = gain;
         self
