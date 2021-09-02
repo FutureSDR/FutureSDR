@@ -4,6 +4,10 @@ version = "0.0.1"
 edition = "2018"
 
 [[bin]]
+name = "loopback"
+path = "loopback.rs"
+
+[[bin]]
 name = "play-file"
 path = "play_file.rs"
 
