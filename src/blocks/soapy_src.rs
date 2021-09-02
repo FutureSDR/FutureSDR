@@ -22,10 +22,11 @@ pub struct SoapySource {
     freq: f64,
     sample_rate: f64,
     gain: f64,
+    filter: String,
 }
 
 impl SoapySource {
-    pub fn new(freq: f64, sample_rate: f64, gain: f64) -> Block {
+    pub fn new(freq: f64, sample_rate: f64, gain: f64, filter: String) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
             StreamIoBuilder::new()
@@ -59,6 +60,7 @@ impl SoapySource {
                 freq,
                 sample_rate,
                 gain,
+                filter,
             },
         )
     }
@@ -95,7 +97,7 @@ impl AsyncKernel for SoapySource {
     ) -> Result<()> {
         let channel: usize = 0;
         soapysdr::configure_logging();
-        self.dev = Some(soapysdr::Device::new("")?);
+        self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         let dev = self.dev.as_ref().context("no dev")?;
         dev.set_frequency(Rx, channel, self.freq, ()).unwrap();
         dev.set_sample_rate(Rx, channel, self.sample_rate).unwrap();
@@ -128,6 +130,7 @@ pub struct SoapySourceBuilder {
     freq: f64,
     sample_rate: f64,
     gain: f64,
+    filter: String,
 }
 
 impl SoapySourceBuilder {
@@ -150,7 +153,14 @@ impl SoapySourceBuilder {
         self
     }
 
+    /// See [`soapysdr::Device::new()`]
+    pub fn filter(mut self, filter: String) -> SoapySourceBuilder {
+        self.filter = filter;
+        self
+    }
+
+    /// Build [`SoapySource`]
     pub fn build(self) -> Block {
-        SoapySource::new(self.freq, self.sample_rate, self.gain)
+        SoapySource::new(self.freq, self.sample_rate, self.gain, self.filter)
     }
 }
