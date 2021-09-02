@@ -13,18 +13,18 @@ use crate::runtime::WorkIo;
 
 pub struct Apply<A, B>
 where
-    A: Copy + 'static,
-    B: Copy + 'static,
+    A: 'static,
+    B: 'static,
 {
-    f: Box<dyn FnMut(A) -> B + Send + 'static>,
+    f: Box<dyn FnMut(&A) -> B + Send + 'static>,
 }
 
 impl<A, B> Apply<A, B>
 where
-    A: Copy + 'static,
-    B: Copy + 'static,
+    A: 'static,
+    B: 'static,
 {
-    pub fn new(f: impl FnMut(A) -> B + Send + 'static) -> Block {
+    pub fn new(f: impl FnMut(&A) -> B + Send + 'static) -> Block {
         Block::new_sync(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()
@@ -40,8 +40,8 @@ where
 #[async_trait]
 impl<A, B> SyncKernel for Apply<A, B>
 where
-    A: Copy + 'static,
-    B: Copy + 'static,
+    A: 'static,
+    B: 'static,
 {
     fn work(
         &mut self,
@@ -56,7 +56,7 @@ where
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (v, r) in i.iter().zip(o.iter_mut()) {
-                *r = (self.f)(*v);
+                *r = (self.f)(v);
             }
 
             sio.input(0).consume(m);
