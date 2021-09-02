@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::mem;
 
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -9,6 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 pub struct Apply<A, B>
@@ -25,7 +25,7 @@ where
     B: Copy + 'static,
 {
     pub fn new(f: impl FnMut(A) -> B + Send + 'static) -> Block {
-        Block::new_async(
+        Block::new_sync(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()
                 .add_stream_input("in", mem::size_of::<A>())
@@ -38,12 +38,12 @@ where
 }
 
 #[async_trait]
-impl<A, B> AsyncKernel for Apply<A, B>
+impl<A, B> SyncKernel for Apply<A, B>
 where
     A: Copy + 'static,
     B: Copy + 'static,
 {
-    async fn work(
+    fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

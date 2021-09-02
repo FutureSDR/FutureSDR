@@ -22,6 +22,9 @@ mod file_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub use file_source::{FileSource, FileSourceBuilder};
 
+mod finite_source;
+pub use finite_source::FiniteSource;
+
 mod head;
 pub use head::{Head, HeadBuilder};
 mod message_burst;
@@ -45,6 +48,9 @@ pub use null_source::{NullSource, NullSourceBuilder};
 mod soapy_src;
 #[cfg(feature = "soapy")]
 pub use soapy_src::{SoapySource, SoapySourceBuilder};
+
+mod source;
+pub use source::Source;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tcp_sink;
