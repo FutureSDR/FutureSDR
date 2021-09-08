@@ -251,6 +251,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "futuresdr",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1007,14 +1015,6 @@ dependencies = [
  "winapi 0.3.9",
  "xilinx-dma",
  "zmq",
-]
-
-[[package]]
-name = "futuresdr-audio"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "futuresdr",
 ]
 
 [[package]]
