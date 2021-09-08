@@ -6,6 +6,8 @@ jobs:
   lints:
     name: Lints
     runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -42,6 +44,8 @@ jobs:
   test-linux:
     name: Unit Tests Linux
     runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -63,11 +67,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio
+          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio -- --nocapture
 
   test-macos:
     name: Unit Tests macOS
     runs-on: macos-latest
+    env:
+      RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -83,11 +89,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio -- --nocapture
 
   test-windows:
     name: Unit Test Windows
     runs-on: windows-latest
+    env:
+      RUST_BACKTRACE: full
     steps:
       - name: Ninja Install
         uses: crazy-max/ghaction-chocolatey@v1.3.1
@@ -113,4 +121,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio -- --nocapture
