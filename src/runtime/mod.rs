@@ -2,6 +2,7 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 
 mod block;
+mod block_builder;
 mod block_meta;
 pub mod buffer;
 pub mod config;
@@ -29,6 +30,7 @@ mod topology;
 pub use block::AsyncBlock;
 pub use block::AsyncKernel;
 pub use block::Block;
+pub use block_builder::BlockBuilder;
 pub use block::SyncBlock;
 pub use block::SyncKernel;
 pub use block::WorkIo;
