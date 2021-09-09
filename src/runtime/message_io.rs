@@ -236,7 +236,7 @@ impl<T: Send> MessageIoBuilder<T> {
     }
 
     // adding inputs can only be done here
-    pub fn register_async_input(
+    pub fn add_async_input(
         mut self,
         name: &str,
         c: impl for<'a> Fn(
@@ -256,7 +256,7 @@ impl<T: Send> MessageIoBuilder<T> {
         self
     }
 
-    pub fn register_sync_input(
+    pub fn add_sync_input(
         mut self,
         name: &str,
         c: impl for<'a> Fn(&'a mut T, &'a mut MessageIo<T>, &'a mut BlockMeta, Pmt) -> Result<Pmt>
@@ -270,7 +270,7 @@ impl<T: Send> MessageIoBuilder<T> {
     }
 
     // adding outputs can only be done here
-    pub fn register_output(mut self, name: &str) -> MessageIoBuilder<T> {
+    pub fn add_output(mut self, name: &str) -> MessageIoBuilder<T> {
         self.outputs.push(MessageOutput::new(name));
         self
     }

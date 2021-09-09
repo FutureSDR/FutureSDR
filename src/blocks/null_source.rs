@@ -19,9 +19,7 @@ impl NullSource {
     pub fn new(item_size: usize) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSource").build(),
-            StreamIoBuilder::new()
-                .add_stream_output("out", item_size)
-                .build(),
+            StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
             NullSource { item_size },
         )

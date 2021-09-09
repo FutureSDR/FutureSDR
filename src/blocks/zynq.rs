@@ -30,8 +30,8 @@ impl Zynq {
         Ok(Block::new_async(
             BlockMetaBuilder::new("Zynq").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", 4)
-                .add_stream_output("out", 4)
+                .add_input("in", 4)
+                .add_output("out", 4)
                 .build(),
             MessageIoBuilder::<Zynq>::new().build(),
             Zynq {

@@ -21,8 +21,8 @@ impl Head {
         Block::new_async(
             BlockMetaBuilder::new("Head").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .add_stream_output("out", item_size)
+                .add_input("in", item_size)
+                .add_output("out", item_size)
                 .build(),
             MessageIoBuilder::new().build(),
             Head { item_size, n_items },

@@ -54,8 +54,8 @@ impl ComplexToMag {
         Block::new_async(
             BlockMetaBuilder::new("ComplexToMag").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", size_of::<Complex<f32>>())
-                .add_stream_output("out", size_of::<f32>())
+                .add_input("in", size_of::<Complex<f32>>())
+                .add_output("out", size_of::<f32>())
                 .build(),
             MessageIoBuilder::new().build(),
             Self {},

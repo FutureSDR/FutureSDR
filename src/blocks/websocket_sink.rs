@@ -43,7 +43,7 @@ impl<T: Send + Sync + 'static> WebsocketSink<T> {
         Block::new_async(
             BlockMetaBuilder::new("WebsocketSink").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", size_of::<T>())
+                .add_input("in", size_of::<T>())
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             WebsocketSink {

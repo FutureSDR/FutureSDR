@@ -37,7 +37,7 @@ impl AudioSink {
     pub fn new(sample_rate: u32, channels: u16) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("AudioSink").build(),
-            StreamIoBuilder::new().add_stream_input("in", 4).build(),
+            StreamIoBuilder::new().add_input("in", 4).build(),
             MessageIoBuilder::new().build(),
             AudioSink {
                 sample_rate,

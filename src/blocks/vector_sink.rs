@@ -21,7 +21,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
         Block::new_async(
             BlockMetaBuilder::new("VectorSink").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", mem::size_of::<T>())
+                .add_input("in", mem::size_of::<T>())
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             VectorSink {

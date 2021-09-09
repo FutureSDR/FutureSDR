@@ -20,7 +20,7 @@ impl MessageSink {
             BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .register_sync_input(
+                .add_sync_input(
                     "in",
                     |block: &mut MessageSink,
                      _mio: &mut MessageIo<MessageSink>,

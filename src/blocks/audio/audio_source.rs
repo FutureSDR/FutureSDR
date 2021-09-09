@@ -34,7 +34,7 @@ impl AudioSource {
     pub fn new(sample_rate: u32, channels: u16) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("AudioSource").build(),
-            StreamIoBuilder::new().add_stream_output("out", 4).build(),
+            StreamIoBuilder::new().add_output("out", 4).build(),
             MessageIoBuilder::new().build(),
             AudioSource {
                 sample_rate,

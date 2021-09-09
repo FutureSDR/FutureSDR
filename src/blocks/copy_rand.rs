@@ -22,8 +22,8 @@ impl CopyRand {
         Block::new_sync(
             BlockMetaBuilder::new("CopyRand").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .add_stream_output("out", item_size)
+                .add_input("in", item_size)
+                .add_output("out", item_size)
                 .build(),
             MessageIoBuilder::<CopyRand>::new().build(),
             CopyRand {

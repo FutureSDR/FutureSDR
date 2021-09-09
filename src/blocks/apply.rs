@@ -28,8 +28,8 @@ where
         Block::new_sync(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", mem::size_of::<A>())
-                .add_stream_output("out", mem::size_of::<B>())
+                .add_input("in", mem::size_of::<A>())
+                .add_output("out", mem::size_of::<B>())
                 .build(),
             MessageIoBuilder::<Apply<A, B>>::new().build(),
             Apply { f: Box::new(f) },

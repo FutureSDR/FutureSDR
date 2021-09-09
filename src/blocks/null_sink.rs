@@ -19,9 +19,7 @@ impl NullSink {
     pub fn new(item_size: usize) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSink").build(),
-            StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .build(),
+            StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
             NullSink {
                 item_size,

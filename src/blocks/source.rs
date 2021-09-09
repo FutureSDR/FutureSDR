@@ -26,7 +26,7 @@ where
         Block::new_sync(
             BlockMetaBuilder::new("Source").build(),
             StreamIoBuilder::new()
-                .add_stream_output("out", mem::size_of::<A>())
+                .add_output("out", mem::size_of::<A>())
                 .build(),
             MessageIoBuilder::<Source<A>>::new().build(),
             Source { f: Box::new(f) },
