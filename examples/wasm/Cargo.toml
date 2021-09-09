@@ -7,7 +7,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-futuresdr = { path = "../..", default-features = false }
+futuresdr = { path = "../.." }
 wasm-bindgen = "0.2.74"
 log = "0.4.14"
 getrandom = { version = "0.2", features = ["js"] }

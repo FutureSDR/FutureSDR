@@ -27,11 +27,18 @@ members = [
 
 [features]
 default = []
+tpb_scheduler = []
+flow_scheduler = []
+block_builder = []
 audio = ["cpal", "rodio"]
 soapy = ["soapysdr"]
 vulkan = ["vulkano", "vulkano-shaders"]
 zynq = ["xilinx-dma"]
 zeromq = ["zmq"]
+
+[[example]]
+name = "scheduler"
+required-features = ["tpb_scheduler", "flow_scheduler"]
 
 [[example]]
 name = "soapy"
@@ -44,6 +51,14 @@ required-features = ["vulkan"]
 [[example]]
 name = "zynq"
 required-features = ["zynq"]
+
+[[test]]
+name = "flow"
+required-features = ["flow_scheduler"]
+
+[[test]]
+name = "tpb"
+required-features = ["tpb_scheduler"]
 
 [dependencies]
 anyhow = "1.0.38"

@@ -39,7 +39,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --workspace --features=vulkan,zeromq,audio -- -D warnings
+          args: --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,block_builder -- -D warnings
 
   test-linux:
     name: Unit Tests Linux
@@ -67,7 +67,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio,flow_scheduler,tpb_scheduler,block_builder -- --nocapture
 
   test-macos:
     name: Unit Tests macOS
@@ -89,7 +89,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler,block_builder -- --nocapture
 
   test-windows:
     name: Unit Test Windows
@@ -121,4 +121,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler,block_builder -- --nocapture

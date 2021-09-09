@@ -2,6 +2,7 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 
 mod block;
+#[cfg(feature = "block_builder")]
 mod block_builder;
 mod block_meta;
 pub mod buffer;
@@ -30,10 +31,11 @@ mod topology;
 pub use block::AsyncBlock;
 pub use block::AsyncKernel;
 pub use block::Block;
-pub use block_builder::BlockBuilder;
 pub use block::SyncBlock;
 pub use block::SyncKernel;
 pub use block::WorkIo;
+#[cfg(feature = "block_builder")]
+pub use block_builder::BlockBuilder;
 pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
