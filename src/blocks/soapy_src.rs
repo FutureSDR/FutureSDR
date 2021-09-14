@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use futures::FutureExt;
+use log::info;
 use num_complex::Complex;
 use soapysdr::Direction;
 use soapysdr::Direction::Rx;
@@ -100,14 +101,29 @@ impl AsyncKernel for SoapySource {
         soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         let dev = self.dev.as_ref().context("no dev")?;
-        for rng in dev.get_sample_rate_range(Direction::Rx, channel).context("list sample rate range").unwrap().iter() {
-            println!("sample rate: {:?}", rng);
+        for rng in dev
+            .get_sample_rate_range(Direction::Rx, channel)
+            .context("list sample rate range")
+            .unwrap()
+            .iter()
+        {
+            info!("sample rate: {:?}", rng);
         }
-        dev.set_frequency(Rx, channel, self.freq, ()).context("SOAPy set frequency").unwrap();
-        dev.set_sample_rate(Rx, channel, self.sample_rate).context("SOAPy set sample rate").unwrap();
-        dev.set_gain(Rx, channel, self.gain).context("SOAPy set gain").unwrap();
+        dev.set_frequency(Rx, channel, self.freq, ())
+            .context("SOAPy set frequency")
+            .unwrap();
+        dev.set_sample_rate(Rx, channel, self.sample_rate)
+            .context("SOAPy set sample rate")
+            .unwrap();
+        dev.set_gain(Rx, channel, self.gain)
+            .context("SOAPy set gain")
+            .unwrap();
 
-        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel]).context("SOAPy getting stream").unwrap());
+        self.stream = Some(
+            dev.rx_stream::<Complex<f32>>(&[channel])
+                .context("SOAPy getting stream")
+                .unwrap(),
+        );
         self.stream.as_mut().context("no stream")?.activate(None)?;
 
         Ok(())
