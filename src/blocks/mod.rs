@@ -1,9 +1,6 @@
 mod apply;
 pub use apply::Apply;
 
-mod apply2;
-pub use apply2::Apply2;
-
 #[cfg(feature = "audio")]
 pub mod audio;
 
