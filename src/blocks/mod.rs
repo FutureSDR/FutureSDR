@@ -11,6 +11,8 @@ mod copy;
 pub use copy::{Copy, CopyBuilder};
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
+mod filter;
+pub use filter::Filter;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod fft;
