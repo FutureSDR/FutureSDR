@@ -1,4 +1,3 @@
-use anyhow::Result;
 use log::info;
 use std::iter::repeat_with;
 use wasm_bindgen::prelude::*;
@@ -9,6 +8,7 @@ use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::Result;
 
 #[wasm_bindgen]
 pub fn run_fg() {

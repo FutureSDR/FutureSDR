@@ -1,8 +1,8 @@
-use anyhow::Result;
 use async_trait::async_trait;
 use num_complex::Complex;
 use std::mem::size_of;
 
+use futuresdr::Result;
 use futuresdr::blocks::FftBuilder;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;

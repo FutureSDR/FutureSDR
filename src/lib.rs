@@ -10,4 +10,5 @@ pub mod blocks;
 pub mod runtime;
 
 pub use anyhow::Result;
+pub use anyhow::Context;
 pub use num_complex::Complex;

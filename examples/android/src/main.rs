@@ -1,5 +1,5 @@
 use androidfs::run_fg;
-use anyhow::Result;
+use futuresdr::Result;
 
 fn main() -> Result<()> {
     run_fg()?;

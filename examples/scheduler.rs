@@ -1,8 +1,8 @@
-use anyhow::Result;
 use async_io::block_on;
 use async_io::Timer;
 use std::time::Duration;
 
+use futuresdr::Result;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::Scheduler;

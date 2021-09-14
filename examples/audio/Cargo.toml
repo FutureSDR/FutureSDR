@@ -16,5 +16,4 @@ name = "play-tone"
 path = "play_tone.rs"
 
 [dependencies]
-anyhow = "1.0.38"
 futuresdr = { path = "../..", features = ["audio"] }

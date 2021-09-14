@@ -1,4 +1,3 @@
-use anyhow::Result;
 use rand::Rng;
 
 use futuresdr::blocks::CopyBuilder;
@@ -10,6 +9,7 @@ use futuresdr::runtime::buffer::zynq::D2H;
 use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::Result;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

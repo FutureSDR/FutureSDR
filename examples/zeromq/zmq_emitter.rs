@@ -1,4 +1,4 @@
-use anyhow::Result;
+use futuresdr::Result;
 use futuresdr::blocks::zeromq::PubSinkBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;

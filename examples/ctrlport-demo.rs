@@ -1,4 +1,4 @@
-use anyhow::Result;
+use futuresdr::Result;
 use async_trait::async_trait;
 
 use futuresdr::runtime::AsyncKernel;

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use futuresdr::Result;
 use env_logger::Builder;
 use log::info;
 use log::LevelFilter;
