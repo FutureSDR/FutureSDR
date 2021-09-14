@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use futures::FutureExt;
 use num_complex::Complex;
+use soapysdr::Direction;
 use soapysdr::Direction::Rx;
 use std::cmp;
 use std::mem;
@@ -99,11 +100,14 @@ impl AsyncKernel for SoapySource {
         soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         let dev = self.dev.as_ref().context("no dev")?;
-        dev.set_frequency(Rx, channel, self.freq, ()).unwrap();
-        dev.set_sample_rate(Rx, channel, self.sample_rate).unwrap();
-        dev.set_gain(Rx, channel, self.gain).unwrap();
+        for rng in dev.get_sample_rate_range(Direction::Rx, channel).context("list sample rate range").unwrap().iter() {
+            println!("sample rate: {:?}", rng);
+        }
+        dev.set_frequency(Rx, channel, self.freq, ()).context("SOAPy set frequency").unwrap();
+        dev.set_sample_rate(Rx, channel, self.sample_rate).context("SOAPy set sample rate").unwrap();
+        dev.set_gain(Rx, channel, self.gain).context("SOAPy set gain").unwrap();
 
-        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel]).unwrap());
+        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel]).context("SOAPy getting stream").unwrap());
         self.stream.as_mut().context("no stream")?.activate(None)?;
 
         Ok(())
