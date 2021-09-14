@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "futuresdr"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "android_logger",
  "anyhow",
@@ -3202,9 +3202,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "xilinx-dma"
-version = "0.0.2"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a834ea7d1de199b56ebc62667c00fd2f9f3e49ec630e564f73dddcafb57f9a90"
+checksum = "f1f4c6ffaf9fac172c0a0de9bcda678ecf1a5861d9542a8b7f1e4222602ee1e7"
 dependencies = [
  "anyhow",
  "async-io",
