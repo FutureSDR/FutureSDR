@@ -1,13 +1,13 @@
-use anyhow::Result;
-use log::info;
 use std::iter::repeat_with;
 use std::sync::Arc;
 
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyBuilder;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::VulkanBuilder;
+use futuresdr::log::info;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::D2H;
 use futuresdr::runtime::buffer::vulkan::H2D;

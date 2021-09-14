@@ -1,12 +1,12 @@
-use anyhow::Result;
-use log::info;
 use std::iter::repeat_with;
 use wasm_bindgen::prelude::*;
 
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::log::info;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 

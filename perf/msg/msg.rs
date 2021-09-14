@@ -1,5 +1,7 @@
-use anyhow::{Context, Result};
 use clap::{value_t, App, Arg};
+use std::time;
+
+use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::MessageBurstBuilder;
 use futuresdr::blocks::MessageCopyBuilder;
 use futuresdr::blocks::MessageSink;
@@ -7,7 +9,6 @@ use futuresdr::blocks::MessageSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use std::time;
 
 fn main() -> Result<()> {
     let matches = App::new("Vect Flowgraph")

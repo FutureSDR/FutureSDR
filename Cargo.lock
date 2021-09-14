@@ -55,10 +55,8 @@ dependencies = [
 name = "androidfs"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futuresdr",
  "jni",
- "log",
  "rand",
 ]
 
@@ -254,7 +252,6 @@ dependencies = [
 name = "audio"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "futuresdr",
 ]
 
@@ -1443,10 +1440,8 @@ dependencies = [
 name = "logging"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "env_logger 0.9.0",
  "futuresdr",
- "log",
 ]
 
 [[package]]
@@ -1555,7 +1550,6 @@ dependencies = [
 name = "msg"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "futuresdr",
 ]
@@ -1689,7 +1683,6 @@ dependencies = [
 name = "null_rand"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "futuresdr",
 ]
@@ -3055,10 +3048,8 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 name = "wasm"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futuresdr",
  "getrandom",
- "log",
  "rand",
  "wasm-bindgen",
 ]
@@ -3277,7 +3268,6 @@ dependencies = [
 name = "zeromq"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futuresdr",
 ]
 

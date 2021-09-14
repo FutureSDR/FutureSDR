@@ -3,8 +3,13 @@
 
 #[macro_use]
 extern crate async_trait;
-#[macro_use]
-extern crate log;
 
 pub mod blocks;
 pub mod runtime;
+
+// re-exports
+#[macro_use]
+pub extern crate log;
+
+pub use anyhow;
+pub use num_complex;

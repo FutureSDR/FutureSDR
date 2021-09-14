@@ -1,10 +1,10 @@
-use anyhow::Result;
 use env_logger::Builder;
-use log::info;
-use log::LevelFilter;
 use std::time;
 
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSourceBuilder;
+use futuresdr::log::info;
+use futuresdr::log::LevelFilter;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
