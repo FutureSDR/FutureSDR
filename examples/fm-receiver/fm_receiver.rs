@@ -1,10 +1,10 @@
-use anyhow::Result;
+use futuresdr::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use num_complex::Complex;
+use futuresdr::Complex;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -26,7 +26,7 @@ fn main() -> Result<()> {
         let r = (v_n.re * v_n_minus_1.im - v_n.im * v_n_minus_1.re)
             / (v_n.re * v_n.re + v_n.im * v_n.im);
         v_n_minus_1 = *v_n;
-        return r;
+        r
     });
 
     let src = fg.add_block(src);

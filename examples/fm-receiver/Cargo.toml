@@ -4,10 +4,8 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-futuresdr = { path = "../..", default-features = false, features=["soapy", "audio", "vulkan"] }
-anyhow = "1.0.38"
+futuresdr = { path = "../..", default-features = false, features=["soapy", "audio"] }
 clang-sys={version="1.2.2", features=["clang_11_0", "runtime"]}
-num-complex = "0.4.0"
 
 [[bin]]
 name = "fm-receiver"
