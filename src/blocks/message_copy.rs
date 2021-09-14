@@ -20,8 +20,8 @@ impl MessageCopy {
             BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .register_output("out")
-                .register_async_input("in", MessageCopy::handler)
+                .add_output("out")
+                .add_async_input("in", MessageCopy::handler)
                 .build(),
             MessageCopy {},
         )

@@ -21,7 +21,7 @@ impl MessageBurst {
         Block::new_async(
             BlockMetaBuilder::new("MessageBurst").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().register_output("out").build(),
+            MessageIoBuilder::new().add_output("out").build(),
             MessageBurst {
                 message,
                 n_messages,

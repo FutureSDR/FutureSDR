@@ -11,34 +11,34 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
-pub struct Apply<A, B>
+pub struct Filter<A, B>
 where
     A: 'static,
     B: 'static,
 {
-    f: Box<dyn FnMut(&A) -> B + Send + 'static>,
+    f: Box<dyn FnMut(&A) -> Option<B> + Send + 'static>,
 }
 
-impl<A, B> Apply<A, B>
+impl<A, B> Filter<A, B>
 where
     A: 'static,
     B: 'static,
 {
-    pub fn new(f: impl FnMut(&A) -> B + Send + 'static) -> Block {
+    pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Block {
         Block::new_sync(
-            BlockMetaBuilder::new("Apply").build(),
+            BlockMetaBuilder::new("Filter").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<B>())
                 .build(),
-            MessageIoBuilder::<Apply<A, B>>::new().build(),
-            Apply { f: Box::new(f) },
+            MessageIoBuilder::<Filter<A, B>>::new().build(),
+            Filter { f: Box::new(f) },
         )
     }
 }
 
 #[async_trait]
-impl<A, B> SyncKernel for Apply<A, B>
+impl<A, B> SyncKernel for Filter<A, B>
 where
     A: 'static,
     B: 'static,
@@ -53,17 +53,24 @@ where
         let i = sio.input(0).slice::<A>();
         let o = sio.output(0).slice::<B>();
 
-        let m = std::cmp::min(i.len(), o.len());
-        if m > 0 {
-            for (v, r) in i.iter().zip(o.iter_mut()) {
-                *r = (self.f)(v);
-            }
+        let mut consumed = 0;
+        let mut produced = 0;
 
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+        while produced < o.len() {
+            if consumed >= i.len() {
+                break;
+            }
+            if let Some(v) = (self.f)(&i[consumed]) {
+                o[produced] = v;
+                produced += 1;
+            }
+            consumed += 1;
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        sio.input(0).consume(consumed);
+        sio.output(0).produce(produced);
+
+        if sio.input(0).finished() && consumed == i.len() {
             io.finished = true;
         }
 

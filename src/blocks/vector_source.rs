@@ -23,7 +23,7 @@ impl<T: Send + 'static> VectorSource<T> {
         Block::new_async(
             BlockMetaBuilder::new("VectorSource").build(),
             StreamIoBuilder::new()
-                .add_stream_output("out", mem::size_of::<T>())
+                .add_output("out", mem::size_of::<T>())
                 .build(),
             MessageIoBuilder::new().build(),
             VectorSource { items, n_copied: 0 },

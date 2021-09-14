@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Bastian Bloessl <mail@bastibl.net>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -28,11 +28,18 @@ members = [
 
 [features]
 default = []
+tpb_scheduler = []
+flow_scheduler = []
+block_builder = []
 audio = ["cpal", "rodio"]
 soapy = ["soapysdr"]
 vulkan = ["vulkano", "vulkano-shaders"]
 zynq = ["xilinx-dma"]
 zeromq = ["zmq"]
+
+[[example]]
+name = "scheduler"
+required-features = ["tpb_scheduler", "flow_scheduler"]
 
 [[example]]
 name = "soapy"
@@ -45,6 +52,14 @@ required-features = ["vulkan"]
 [[example]]
 name = "zynq"
 required-features = ["zynq"]
+
+[[test]]
+name = "flow"
+required-features = ["flow_scheduler"]
+
+[[test]]
+name = "tpb"
+required-features = ["tpb_scheduler"]
 
 [dependencies]
 anyhow = "1.0.38"
@@ -95,7 +110,7 @@ tokio = { version = "1", features = ["rt"] }
 soapysdr = { version = "0.3.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-xilinx-dma = { version = "0.0.2", optional = true }
+xilinx-dma = { version = "0.0.3", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.10.1"

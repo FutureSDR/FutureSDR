@@ -22,9 +22,7 @@ impl SubSource {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("SubSource").blocking().build(),
-            StreamIoBuilder::new()
-                .add_stream_output("out", item_size)
-                .build(),
+            StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
             SubSource {
                 item_size,

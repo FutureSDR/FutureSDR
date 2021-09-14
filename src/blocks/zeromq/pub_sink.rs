@@ -21,9 +21,7 @@ impl PubSink {
     pub fn new(item_size: usize, address: &str) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("PubSink").blocking().build(),
-            StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .build(),
+            StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
             PubSink {
                 item_size,

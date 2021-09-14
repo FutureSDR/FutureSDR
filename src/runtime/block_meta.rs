@@ -31,24 +31,29 @@ impl BlockMeta {
 }
 
 pub struct BlockMetaBuilder {
-    type_name: String,
+    name: String,
     blocking: bool,
 }
 
 impl BlockMetaBuilder {
-    pub fn new(type_name: &str) -> BlockMetaBuilder {
+    pub fn new(name: &str) -> BlockMetaBuilder {
         BlockMetaBuilder {
-            type_name: type_name.to_string(),
+            name: name.to_string(),
             blocking: false,
         }
     }
 
-    pub fn blocking(&mut self) -> &mut BlockMetaBuilder {
+    pub fn blocking(mut self) -> Self {
         self.blocking = true;
         self
     }
 
-    pub fn build(&self) -> BlockMeta {
-        BlockMeta::new(self.type_name.clone(), self.blocking)
+    pub fn name(mut self, name: &str) -> Self {
+        self.name = name.to_string();
+        self
+    }
+
+    pub fn build(self) -> BlockMeta {
+        BlockMeta::new(self.name, self.blocking)
     }
 }

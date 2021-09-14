@@ -28,8 +28,8 @@ impl Fft {
         Block::new_async(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", size_of::<Complex<f32>>())
-                .add_stream_output("out", size_of::<Complex<f32>>())
+                .add_input("in", size_of::<Complex<f32>>())
+                .add_output("out", size_of::<Complex<f32>>())
                 .build(),
             MessageIoBuilder::<Fft>::new().build(),
             Fft {

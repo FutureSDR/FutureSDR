@@ -26,7 +26,7 @@ impl MessageSource {
         Block::new_async(
             BlockMetaBuilder::new("MessageSource").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().register_output("out").build(),
+            MessageIoBuilder::new().add_output("out").build(),
             MessageSource {
                 message,
                 interval,

@@ -25,9 +25,7 @@ impl FileSource {
         debug_assert_eq!(item_size, 1);
         Block::new_async(
             BlockMetaBuilder::new("FileSource").build(),
-            StreamIoBuilder::new()
-                .add_stream_output("out", item_size)
-                .build(),
+            StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
             FileSource {
                 file_name,

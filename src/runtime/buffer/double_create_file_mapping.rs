@@ -22,6 +22,7 @@ static SEGMENTS: AtomicUsize = AtomicUsize::new(0);
 #[derive(Debug)]
 pub struct DoubleCreateFileMapping {
     addr: *mut libc::c_void,
+    handle: *mut libc::c_void,
     size: usize,
 }
 
@@ -71,15 +72,9 @@ impl DoubleCreateFileMapping {
                 bail!("Failed to map first segement at correct address.")
             }
 
-            let second_cpy = MapViewOfFileEx(
-                handle,
-                FILE_MAP_WRITE,
-                0,
-                0,
-                size,
-                first_tmp.offset(size as isize),
-            );
-            if second_cpy != first_tmp.offset(size as isize) {
+            let second_cpy =
+                MapViewOfFileEx(handle, FILE_MAP_WRITE, 0, 0, size, first_tmp.add(size));
+            if second_cpy != first_tmp.add(size) {
                 UnmapViewOfFile(first_cpy);
                 CloseHandle(handle);
                 bail!("Failed to map second segement at correct address.")
@@ -87,6 +82,7 @@ impl DoubleCreateFileMapping {
 
             Ok(DoubleCreateFileMapping {
                 addr: first_tmp as *mut libc::c_void,
+                handle,
                 size,
             })
         }
@@ -98,5 +94,17 @@ impl DoubleCreateFileMapping {
 }
 
 impl Drop for DoubleCreateFileMapping {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        unsafe {
+            if UnmapViewOfFile(self.addr) == 0 {
+                info!("failed to unmap first copy of buffer");
+            }
+            if UnmapViewOfFile(self.addr.add(self.size)) == 0 {
+                info!("failed to unmap second copy of buffer");
+            }
+            if CloseHandle(self.handle) == 0 {
+                info!("failed to close buffer handle");
+            }
+        }
+    }
 }

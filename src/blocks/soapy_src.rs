@@ -31,10 +31,10 @@ impl SoapySource {
         Block::new_async(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
             StreamIoBuilder::new()
-                .add_stream_output("out", mem::size_of::<Complex<f32>>())
+                .add_output("out", mem::size_of::<Complex<f32>>())
                 .build(),
             MessageIoBuilder::new()
-                .register_async_input(
+                .add_async_input(
                     "freq",
                     |block: &mut SoapySource,
                      _mio: &mut MessageIo<SoapySource>,

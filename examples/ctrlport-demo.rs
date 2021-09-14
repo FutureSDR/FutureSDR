@@ -32,8 +32,8 @@ impl CtrlPortDemo {
             BlockMetaBuilder::new("CtrlPortDemo").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .register_output("out")
-                .register_sync_input("in", Self::handler)
+                .add_output("out")
+                .add_sync_input("in", Self::handler)
                 .build(),
             Self { counter: 5 },
         )

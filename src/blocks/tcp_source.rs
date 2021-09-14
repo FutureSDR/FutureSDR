@@ -22,7 +22,7 @@ impl TcpSource {
     pub fn new(port: u32) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("TcpSource").build(),
-            StreamIoBuilder::new().add_stream_output("out", 1).build(),
+            StreamIoBuilder::new().add_output("out", 1).build(),
             MessageIoBuilder::new().build(),
             TcpSource {
                 port,

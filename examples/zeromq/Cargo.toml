@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-futuresdr = { path = "../..", default-features = false, features=["zeromq"] }
+futuresdr = { path = "../..", features = ["zeromq"] }
 anyhow = "1.0.38"
 
 [[bin]]

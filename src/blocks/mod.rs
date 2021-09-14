@@ -4,10 +4,15 @@ pub use apply::Apply;
 #[cfg(feature = "audio")]
 pub mod audio;
 
+mod combine;
+pub use combine::Combine;
+
 mod copy;
 pub use copy::{Copy, CopyBuilder};
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
+mod filter;
+pub use filter::Filter;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod fft;
@@ -52,6 +57,8 @@ pub use soapy_src::{SoapySource, SoapySourceBuilder};
 
 mod source;
 pub use source::Source;
+mod split;
+pub use split::Split;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tcp_sink;

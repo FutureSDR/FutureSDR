@@ -22,7 +22,7 @@ impl TcpSink {
     pub fn new(port: u32) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("TcpSink").build(),
-            StreamIoBuilder::new().add_stream_input("in", 1).build(),
+            StreamIoBuilder::new().add_input("in", 1).build(),
             MessageIoBuilder::new().build(),
             TcpSink {
                 port,

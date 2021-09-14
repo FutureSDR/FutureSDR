@@ -25,9 +25,7 @@ impl FileSink {
         debug_assert_eq!(item_size, 1);
         Block::new_async(
             BlockMetaBuilder::new("FileSink").build(),
-            StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .build(),
+            StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
             FileSink {
                 file_name: file_name.into(),

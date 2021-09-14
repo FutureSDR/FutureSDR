@@ -27,8 +27,8 @@ impl Throttle {
         Block::new_async(
             BlockMetaBuilder::new("Throttle").build(),
             StreamIoBuilder::new()
-                .add_stream_input("in", item_size)
-                .add_stream_output("out", item_size)
+                .add_input("in", item_size)
+                .add_output("out", item_size)
                 .build(),
             MessageIoBuilder::<Throttle>::new().build(),
             Throttle {
