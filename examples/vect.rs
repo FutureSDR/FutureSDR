@@ -1,8 +1,8 @@
 use std::iter::repeat_with;
 use std::time;
 
-use futuresdr::Context;
-use futuresdr::Result;
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyBuilder;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;

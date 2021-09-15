@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-use log::info;
-=======
->>>>>>> master
 use std::iter::repeat_with;
 use std::sync::Arc;
 
@@ -17,7 +13,6 @@ use futuresdr::runtime::buffer::vulkan::D2H;
 use futuresdr::runtime::buffer::vulkan::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use futuresdr::Result;
 
 pub fn run_fg() -> Result<()> {
     let mut fg = Flowgraph::new();

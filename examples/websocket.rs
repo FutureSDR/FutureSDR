@@ -1,6 +1,6 @@
 use std::iter::repeat_with;
 
-use futuresdr::Result;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::ThrottleBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;

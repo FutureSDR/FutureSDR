@@ -1,6 +1,6 @@
-use futuresdr::Result;
 use async_trait::async_trait;
 
+use futuresdr::anyhow::Result;
 use futuresdr::runtime::AsyncKernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;

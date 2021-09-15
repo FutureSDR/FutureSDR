@@ -1,6 +1,6 @@
 use std::time;
 
-use futuresdr::Result;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
