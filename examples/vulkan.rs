@@ -1,6 +1,7 @@
 use std::iter::repeat_with;
 use std::sync::Arc;
 
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
@@ -9,7 +10,6 @@ use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use futuresdr::Result;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
