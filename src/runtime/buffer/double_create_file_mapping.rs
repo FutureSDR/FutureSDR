@@ -28,6 +28,16 @@ pub struct DoubleCreateFileMapping {
 
 impl DoubleCreateFileMapping {
     pub fn new(size: usize) -> Result<DoubleCreateFileMapping> {
+        for _ in 0..5 {
+            let ret = Self::new_try(size);
+            if ret.is_ok() {
+                return ret;
+            }
+        }
+        Self::new_try(size)
+    }
+
+    fn new_try(size: usize) -> Result<DoubleCreateFileMapping> {
         let page_size = pagesize();
         if size % page_size != 0 {
             bail!(

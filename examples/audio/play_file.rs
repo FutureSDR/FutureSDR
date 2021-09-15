@@ -1,4 +1,4 @@
-use futuresdr::Result;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::FileSource;
 use futuresdr::runtime::Flowgraph;

@@ -1,5 +1,7 @@
-use anyhow::{Context, Result};
 use clap::{value_t, App, Arg};
+use std::time;
+
+use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::HeadBuilder;
 use futuresdr::blocks::NullSourceBuilder;
@@ -9,7 +11,6 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use std::time;
 
 fn main() -> Result<()> {
     let matches = App::new("Vect Rand Flowgraph")

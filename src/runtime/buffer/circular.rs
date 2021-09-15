@@ -277,12 +277,12 @@ impl BufferReaderHost for Reader {
             return;
         }
 
-        self.writer_inbox
+        let _ = self
+            .writer_inbox
             .send(AsyncMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
             })
-            .await
-            .unwrap();
+            .await;
 
         self.state.lock().unwrap().readers.remove(self.id);
     }

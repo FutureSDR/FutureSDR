@@ -8,7 +8,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../..", features = ["vulkan"] }
-anyhow = "1.0.38"
 jni = { version = "0.19" }
 rand = "0.8.0"
-log = "0.4.14"
