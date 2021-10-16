@@ -1,0 +1,23 @@
+[package]
+name = "sdr"
+version = "0.0.1"
+edition = "2018"
+
+[[bin]]
+name = "wbfm"
+path = "wbfm.rs"
+
+[dependencies]
+futuresdr = { path = "../..", default-features = false, features=["soapy", "audio"] }
+async-trait = "0.1.41"
+
+[build-dependencies]
+bindgen = {version="0.57"}
+clang-sys={version="1.2.2", features=["clang_11_0", "runtime"]}
+
+# [dev-dependencies]
+# clang-sys="1.2.2"
+
+[dev-dependencies.clang-sys]
+version="1.2.2"
+features = ["clang_11_0", "runtime"]

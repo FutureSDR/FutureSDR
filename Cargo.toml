@@ -19,6 +19,7 @@ members = [
     "examples/android",
     "examples/audio",
     "examples/logging",
+    "examples/sdr",
     "examples/wasm",
     "examples/zeromq",
     "perf/msg",
