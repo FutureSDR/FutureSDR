@@ -96,9 +96,13 @@ pub fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>>) {
             .unwrap();
 
         runtime.block_on(async move {
+            // You can also deserialize this
+            let cors = rocket_cors::CorsOptions::default().to_cors().unwrap();
+
             let mut r = rocket::custom(config)
                 .manage(inboxes)
-                .mount("/api/", routes());
+                .mount("/api/", routes())
+                .attach(cors);
 
             if let Some(ref p) = config::config().frontend_path {
                 r = r.mount("/", FileServer::from(p));

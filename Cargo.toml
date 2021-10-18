@@ -97,6 +97,7 @@ core_affinity = "0.5.10"
 cpal = { version = "0.13.4", optional = true }
 libc = "0.2.99"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", rev = "a062933c1b109949c618b0dba296ac33e4b1a105" }
 rodio = { version = "0.14.0", optional = true }
 rustfft = "6.0.1"
 tungstenite = "0.14.0"
