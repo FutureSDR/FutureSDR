@@ -15,15 +15,15 @@ fn main() {
     // to bindgen, and lets you build up options for
     // the resulting bindings.
     let bindings = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
         .header("wrapper.h")
-        // Tell cargo to invalidate the built crate whenever any of the
-        // included header files changed.
+        .whitelist_function("iirfilt_.*")
+        .whitelist_function("firdecim_.*")
+        .whitelist_function("freqdem_.*")
+        .whitelist_function("nco_.*")
+        .whitelist_function("msresamp_.*")
+        .generate_comments(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-        // Finish the builder and generate the bindings.
         .generate()
-        // Unwrap the Result and panic on failure.
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
