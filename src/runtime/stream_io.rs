@@ -11,7 +11,6 @@ pub struct StreamInput {
     name: String,
     item_size: usize,
     reader: Option<BufferReader>,
-    items_read: u64,
 }
 
 impl StreamInput {
@@ -20,7 +19,6 @@ impl StreamInput {
             name: name.to_string(),
             item_size,
             reader: None,
-            items_read: 0,
         }
     }
 
