@@ -39,8 +39,13 @@ pub struct Broker {
 
 impl Broker {
     pub fn new() -> Broker {
+        let instance_extensions = InstanceExtensions{
+            khr_get_physical_device_properties2: true,
+            ..InstanceExtensions::none()
+        };
+
         let instance =
-            Instance::new(None, Version::V1_1, &InstanceExtensions::none(), None).unwrap();
+            Instance::new(None, Version::V1_1, &instance_extensions, None).unwrap();
 
         let device_extensions = DeviceExtensions {
             khr_storage_buffer_storage_class: true,
