@@ -1,6 +1,7 @@
 use futuresdr::runtime::config;
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct MyConfig {
     a: i32,

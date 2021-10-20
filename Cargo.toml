@@ -83,7 +83,6 @@ zmq = {version = "0.9", optional = true}
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-rs-async-executor = "0.9.0"
 console_log = "0.2.0"
-getrandom = { version = "0.2", features = ["js"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"
@@ -99,6 +98,7 @@ core_affinity = "0.5.10"
 cpal = { version = "0.13.4", optional = true }
 libc = "0.2.99"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", rev = "a062933c1b109949c618b0dba296ac33e4b1a105" }
 rodio = { version = "0.14.0", optional = true }
 rustfft = "6.0.1"
 tungstenite = "0.14.0"
@@ -107,7 +107,7 @@ vulkano-shaders = { version = "0.25.0", optional = true }
 tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
-soapysdr = { version = "0.3.0", optional = true }
+soapysdr = { version = "0.3.1", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 xilinx-dma = { version = "0.0.3", optional = true }

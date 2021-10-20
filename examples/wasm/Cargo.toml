@@ -9,5 +9,4 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 futuresdr = { path = "../.." }
 wasm-bindgen = "0.2.74"
-getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8.0"
