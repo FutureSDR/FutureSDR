@@ -1,16 +1,16 @@
 SHELL=/bin/bash
 
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
-NRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/nr_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
 
 REPETITIONS=10
 
 .PHONY: setup all clean
 
-all: setup $(GRRESULTS) $(NRRESULTS)
+all: setup $(GRRESULTS) $(FSRESULTS)
 
 gr: setup $(GRRESULTS) 
-nr: setup $(NRRESULTS) 
+fs: setup $(FSRESULTS) 
 
 setup:
 	@echo "### SETTING UP"
@@ -37,7 +37,7 @@ perf-data/gr%.csv: build/msg_flowgraph
 
 	cset shield --userset=sdr --exec -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) | grep -v cset > $@
 
-perf-data/nr%.csv: msg.rs
+perf-data/fs%.csv: msg.rs
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python -c "print \"$@\".split(\"_\")[1]"))

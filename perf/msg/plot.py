@@ -23,7 +23,7 @@ fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 t = d.loc[('gr')]
 ax.errorbar(t.index**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNURadio')
 
-t = d.loc[('nr')]
+t = d.loc[('fs')]
 ax.errorbar(t.index**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='FutureSDR')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")

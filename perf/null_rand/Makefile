@@ -1,14 +1,14 @@
 SHELL=/bin/bash
 
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_6_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(50), np.arange(1,25,2), [200000000], [512])]))')
-NRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/nr_{0}_6_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,25,2), [200000000], [512], ["smol1", "smoln", "flow"])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_6_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,25,2), [200000000], [512], ["smol1", "smoln", "flow"])]))')
 
 .PHONY: setup all clean perf_smol perf_flow perf_gr
 
-all: setup $(GRRESULTS) $(NRRESULTS)
+all: setup $(GRRESULTS) $(FSRESULTS)
 
 gr: setup $(GRRESULTS)
-nr: setup $(NRRESULTS)
+fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
@@ -34,7 +34,7 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 
 	cset shield --userset=sdr --exec -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) | grep -v cset > $@
 
-perf-data/nr%.csv: null_rand.rs
+perf-data/fs%.csv: null_rand.rs
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
