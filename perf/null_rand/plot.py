@@ -28,13 +28,13 @@ fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 t = d.loc[('gr')].reset_index()
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\,Radio')
 
-t = d.loc[('nr', 'smol1')].reset_index();
+t = d.loc[('fs', 'smol1')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-1')
 
-t = d.loc[('nr', 'smoln')].reset_index();
+t = d.loc[('fs', 'smoln')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')
 
-t = d.loc[('nr', 'flow')].reset_index();
+t = d.loc[('fs', 'flow')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")

@@ -11,8 +11,8 @@ do
 	echo "gr,$(cat $f)" >> ${outfile}
 done
 
-files=$(ls perf-data/nr_*.csv 2>/dev/null || echo)
+files=$(ls perf-data/fs_*.csv 2>/dev/null || echo)
 for f in ${files}
 do
-	echo "nr,$(cat $f)" >> ${outfile}
+	echo "fs,$(cat $f)" >> ${outfile}
 done

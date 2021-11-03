@@ -3,9 +3,9 @@ use std::time;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::CopyRandBuilder;
-use futuresdr::blocks::HeadBuilder;
-use futuresdr::blocks::NullSourceBuilder;
-use futuresdr::blocks::{NullSink, NullSinkBuilder};
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSource;
+use futuresdr::blocks::NullSink;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
@@ -82,8 +82,8 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSourceBuilder::new(4).build());
-        let head = fg.add_block(HeadBuilder::new(4, samples as u64).build());
+        let src = fg.add_block(NullSource::new(4));
+        let head = fg.add_block(Head::new(4, samples as u64));
         fg.connect_stream(src, "out", head, "in")?;
 
         let mut last = fg.add_block(CopyRandBuilder::new(4).max_copy(max_copy).build());
@@ -95,7 +95,7 @@ fn main() -> Result<()> {
             last = block;
         }
 
-        let snk = fg.add_block(NullSinkBuilder::new(4).build());
+        let snk = fg.add_block(NullSink::new(4));
         fg.connect_stream(last, "out", snk, "in")?;
         snks.push(snk);
     }

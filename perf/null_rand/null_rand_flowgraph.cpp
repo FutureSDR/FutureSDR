@@ -16,39 +16,29 @@ namespace po = boost::program_options;
 using namespace gr;
 
 
-null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy)
-    : d_pipes(pipes), d_stages(stages), d_samples(samples), d_max_copy(max_copy) {
+null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
 
     this->tb = gr::make_top_block("buf_flowgraph");
 
-
-    for(int pipe = 0; pipe < d_pipes; pipe++) {
+    for(int pipe = 0; pipe < pipes; pipe++) {
 
         auto src = blocks::null_source::make(4);
         auto head = blocks::head::make(4, samples);
-
         tb->connect(src, 0, head, 0);
 
-        auto block = sched::copy_rand::make(sizeof(float), d_max_copy);
-        tb->connect(head, 0, block, 0);
-        blocks.push_back(block);
+        auto prev = sched::copy_rand::make(sizeof(float), max_copy);
+        tb->connect(head, 0, prev, 0);
 
-        for(int stage = 1; stage < d_stages; stage++) {
-            block = sched::copy_rand::make(sizeof(float), d_max_copy);
-            tb->connect(blocks.back(), 0, block, 0);
-            blocks.push_back(block);
+        for(int stage = 1; stage < stages; stage++) {
+            auto block = sched::copy_rand::make(sizeof(float), max_copy);
+            tb->connect(prev, 0, block, 0);
+            prev = block;
         }
 
         auto sink = blocks::null_sink::make(sizeof(float));
-        tb->connect(blocks.back(), 0, sink, 0);
+        tb->connect(prev, 0, sink, 0);
     }
-
-    // std::cout << "pipes " << d_pipes << "  stages " << d_stages << "  samples " << d_samples << "  max copy " << d_max_copy << std::endl;
 }
-
-null_rand_flowgraph::~null_rand_flowgraph () {
-}
-
 
 int main (int argc, char **argv) {
     int run;
