@@ -9,28 +9,22 @@ namespace po = boost::program_options;
 using namespace gr;
 
 
-msg_flowgraph::msg_flowgraph(int pipes, int stages) :
-    d_pipes(pipes), d_stages(stages) {
+msg_flowgraph::msg_flowgraph(int pipes, int stages) {
 
     this->tb = make_top_block("msg_flowgraph");
 
-    src = sched::msg_forward::make();
-
     sched::msg_forward::sptr prev;
 
-    for(int pipe = 0; pipe < d_pipes; pipe++) {
+    for(int pipe = 0; pipe < pipes; pipe++) {
         prev = sched::msg_forward::make();
-        tb->msg_connect(src, "out", prev, "in");
+        d_srcs.push_back(prev);
 
-        for(int stage = 1; stage < d_stages; stage++) {
+        for(int stage = 1; stage <= stages; stage++) {
             sched::msg_forward::sptr block = sched::msg_forward::make();
             tb->msg_connect(prev, "out", block, "in");
             prev = block;
         }
     }
-}
-
-msg_flowgraph::~msg_flowgraph () {
 }
 
 int main (int argc, char **argv) {
@@ -61,16 +55,17 @@ int main (int argc, char **argv) {
     msg_flowgraph* runner = new msg_flowgraph(pipes, stages);
 
     for(int repetition = 0; repetition < repetitions; repetition++) {
-
         // enqueue messages
-        for(int p = 0; p < burst_size; p++) {
-            pmt::pmt_t msg = pmt::from_double(1.23);
-            runner->src->post(pmt::mp("in"), msg);
-        }
+        for (auto s : runner->d_srcs) {
+            for (int p = 0; p < burst_size; p++) {
+                pmt::pmt_t msg = pmt::from_double(1.23);
+                s->post(pmt::mp("in"), msg);
+            }
 
-        // enqueue done message to terminate
-        pmt::pmt_t msg = pmt::cons(pmt::intern("done"), pmt::from_long(1));
-        runner->src->post(pmt::mp("system"), msg);
+            // enqueue done message to terminate
+            pmt::pmt_t msg = pmt::cons(pmt::intern("done"), pmt::from_long(1));
+            s->post(pmt::mp("system"), msg);
+        }
 
         auto start = std::chrono::high_resolution_clock::now();
         runner->tb->run();

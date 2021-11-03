@@ -11,20 +11,12 @@ using namespace gr;
 
 class msg_flowgraph {
 
-private:
-
-    int d_pipes;
-    int d_stages;
-
-    void create_fork();
-    void create_diamond();
-
 public:
     msg_flowgraph(int pipes, int stages);
-	~msg_flowgraph();
 
     top_block_sptr tb;
-    sched::msg_forward::sptr src;
+
+    std::vector<sched::msg_forward::sptr> d_srcs;
 };
 
 

@@ -2,10 +2,9 @@ use clap::{value_t, App, Arg};
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::blocks::MessageBurstBuilder;
-use futuresdr::blocks::MessageCopyBuilder;
+use futuresdr::blocks::MessageBurst;
+use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
-use futuresdr::blocks::MessageSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -67,24 +66,21 @@ fn main() -> Result<()> {
 
     for r in 0..repetitions {
         let mut fg = Flowgraph::new();
-        let src = fg.add_block(MessageBurstBuilder::new(Pmt::Double(1.23), burst_size).build());
-
-        let mut last;
+        let mut prev;
         let mut snks = Vec::new();
 
         for _ in 0..pipes {
-            last = fg.add_block(MessageCopyBuilder::new().build());
-            fg.connect_message(src, "out", last, "in")?;
+            prev = fg.add_block(MessageBurst::new(Pmt::Double(1.23), burst_size));
 
             for _ in 1..stages {
-                let block = fg.add_block(MessageCopyBuilder::new().build());
-                fg.connect_message(last, "out", block, "in")?;
-                last = block;
+                let block = fg.add_block(MessageCopy::new());
+                fg.connect_message(prev, "out", block, "in")?;
+                prev = block;
             }
 
-            let snk = fg.add_block(MessageSinkBuilder::new().build());
+            let snk = fg.add_block(MessageSink::new());
             snks.push(snk);
-            fg.connect_message(last, "out", snk, "in")?;
+            fg.connect_message(prev, "out", snk, "in")?;
         }
 
         let runtime = Runtime::new();

@@ -3,7 +3,7 @@ SHELL=/bin/bash
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
 NRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/nr_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
 
-REPETITIONS=100
+REPETITIONS=10
 
 .PHONY: setup all clean
 
