@@ -1,0 +1,16 @@
+[package]
+name = "null_rand_latency"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+clap = "2.33.1"
+futuresdr = { path = "../..", features = ["flow_scheduler", "tpb_scheduler"] }
+usdt = "0.1.18"
+
+[build-dependencies]
+usdt = "0.1.18"
+
+[[bin]]
+name = "null_rand_latency"
+path = "null_rand_latency.rs"

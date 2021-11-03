@@ -23,6 +23,7 @@ members = [
     "examples/zeromq",
     "perf/msg",
     "perf/null_rand",
+    "perf/null_rand_latency",
 ]
 
 [features]
