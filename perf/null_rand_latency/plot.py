@@ -34,6 +34,8 @@ for (i, x) in g:
 
     r = pd.concat([r, t], axis=0)
 
+r['latency'] = r['latency']*1e6
+
 d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std]})
 
 fig, ax = plt.subplots(1, 1)
@@ -50,7 +52,7 @@ ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=t[('latency', 'std')], lab
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_xlabel('\#\,Stages')
-ax.set_ylabel('Execution Time (in s)')
+ax.set_ylabel('Latency (in ms)')
 ax.set_ylim(0)
 
 handles, labels = ax.get_legend_handles_labels()
