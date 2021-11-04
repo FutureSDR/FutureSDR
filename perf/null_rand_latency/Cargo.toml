@@ -6,10 +6,10 @@ edition = "2018"
 [dependencies]
 clap = "2.33.1"
 futuresdr = { path = "../..", features = ["flow_scheduler", "tpb_scheduler"] }
-usdt = "0.1.18"
+lttng-ust = "0.1.0"
 
 [build-dependencies]
-usdt = "0.1.18"
+lttng-ust-generate = "0.1.1"
 
 [[bin]]
 name = "null_rand_latency"
