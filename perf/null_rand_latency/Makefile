@@ -32,7 +32,20 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 	@echo MAX=$(MAX)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	cset shield --userset=sdr --exec -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) | grep -v cset > $@
+	lttng stop || true
+	lttng destroy || true
+	rm -rf perf-data/foo
+
+	lttng create foo -o perf-data/foo
+	lttng enable-event --userspace null_rand_latency:tx
+	lttng enable-event --userspace null_rand_latency:rx
+	lttng start
+
+	cset shield --userset=sdr --exec -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX)
+
+	lttng destroy
+	python3 parse.py perf-data/foo > $@
+	rm -rf perf-data/foo
 
 perf-data/fs%.csv: null_rand_latency.rs
 	mkdir -p perf-data

@@ -60,8 +60,7 @@ int null_source_latency::work(int noutput_items,
     uint64_t before = items / d_granularity;
     uint64_t after = (items + noutput_items) / d_granularity;
     if (before ^ after) {
-        tracepoint(null_rand_latency, tx, 0, after);
-        std::cout << "trigger source " << after << std::endl;
+        tracepoint(null_rand_latency, tx, unique_id(), after);
     }
 
     return noutput_items;
@@ -105,7 +104,7 @@ int null_sink_latency::work(int noutput_items,
     uint64_t before = items / d_granularity;
     uint64_t after = (items + noutput_items) / d_granularity;
     if (before ^ after) {
-        tracepoint(null_rand_latency, tx, 0, after);
+        tracepoint(null_rand_latency, rx, unique_id(), after);
     }
 
     return noutput_items;

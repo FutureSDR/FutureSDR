@@ -22,6 +22,18 @@ TRACEPOINT_EVENT(
     )
 )
 
+TRACEPOINT_EVENT(
+    null_rand_latency,
+    rx,
+    TP_ARGS(
+        uint64_t, block,
+        uint64_t, samples
+    ),
+    TP_FIELDS(
+        ctf_integer(uint64_t, block, block)
+        ctf_integer(uint64_t, samples, samples)
+    )
+)
 #endif /* _HELLO_TP_H */
 
 #include <lttng/tracepoint-event.h>

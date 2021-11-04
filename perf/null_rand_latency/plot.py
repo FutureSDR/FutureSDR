@@ -6,12 +6,24 @@ import matplotlib.pyplot as plt
 plt.style.use('../acmart.mplrc')
 
 ### latency vs stages
+print("loading csv")
 d = pd.read_csv('perf-data/results.csv')
+
+print("filtering data")
 d = d[d['max_copy'] == 512]
 d = d[d['pipes'] == 6]
 d = d[d['samples'] == 200000000]
-
 d = d[['sdr', 'scheduler', 'stages', 'run', 'time', 'event', 'block', 'items']]
+
+def gr_block_index(d):
+    if d['sdr'] == 'gr' and d['event'] == 'rx':
+        return d['block'] - d['stages'] - 2
+    else:
+        return d['block']
+
+print("applying block index change for GR...", end='')
+d['block'] = d.apply(gr_block_index, axis=1)
+print("done")
 
 g = d.groupby(['sdr', 'scheduler', 'stages', 'run'])
 
@@ -26,34 +38,55 @@ for (i, x) in g:
     tx = a[a['event'] == 'tx'].set_index(['block', 'items'])
     lat = rx.join(tx, lsuffix='_rx', how='inner')
     lat = lat['time_rx'] - lat['time']
+    assert np.all(lat > 0)
 
-    t = pd.DataFrame(lat[0], columns=['latency'])
+    t = pd.DataFrame(lat, columns=['latency'])
     t['sdr'] = i[0]
     t['scheduler'] = i[1]
     t['stages'] = i[2]
 
     r = pd.concat([r, t], axis=0)
 
-r['latency'] = r['latency']*1e6
+r['latency'] = r['latency']/1e6
 
-d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std]})
+r.to_pickle("latency.data")
+
+##############################################################
+##############################################################
+##############################################################
+##############################################################
+r = pd.read_pickle("latency.data")
+
+def percentile(n):
+    def percentile_(x):
+        return np.percentile(x, n)
+    percentile_.__name__ = 'percentile_%s' % n
+    return percentile_
+
+d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std, percentile(5), percentile(95)]})
 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-# t = d.loc[('gr')].reset_index()
-# ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\,Radio')
+t = d.loc[('gr')].reset_index()
+t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='GNU\,Radio')
 
 t = d.loc[('fs', 'smoln')].reset_index();
-ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=t[('latency', 'std')], label='Smol-N')
+t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+ax.errorbar(t['stages']-0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Smol-N')
 
 t = d.loc[('fs', 'flow')].reset_index();
-ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=t[('latency', 'std')], label='Flow')
+t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+ax.errorbar(t['stages']+0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Flow')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_xlabel('\#\,Stages')
 ax.set_ylabel('Latency (in ms)')
-ax.set_ylim(0)
+ax.set_ylim(0, 99)
 
 handles, labels = ax.get_legend_handles_labels()
 handles = [x[0] for x in handles]
