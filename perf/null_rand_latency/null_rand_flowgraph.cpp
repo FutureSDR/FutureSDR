@@ -8,6 +8,7 @@
 
 #include <gnuradio/blocks/head.h>
 #include <gnuradio/sync_block.h>
+#include "tp.h"
 
 namespace po = boost::program_options;
 
@@ -59,6 +60,7 @@ int null_source_latency::work(int noutput_items,
     uint64_t before = items / d_granularity;
     uint64_t after = (items + noutput_items) / d_granularity;
     if (before ^ after) {
+        tracepoint(null_rand_latency, tx, 0, after);
         std::cout << "trigger source " << after << std::endl;
     }
 
@@ -103,7 +105,7 @@ int null_sink_latency::work(int noutput_items,
     uint64_t before = items / d_granularity;
     uint64_t after = (items + noutput_items) / d_granularity;
     if (before ^ after) {
-        std::cout << "trigger sink " << after << std::endl;
+        tracepoint(null_rand_latency, tx, 0, after);
     }
 
     return noutput_items;
