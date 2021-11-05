@@ -1,12 +1,15 @@
 use clap::{value_t, App, Arg};
-use std::time;
-use std::ptr;
 use lttng_ust::import_tracepoints;
+use std::ptr;
+use std::time;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::async_trait::async_trait;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
+use futuresdr::runtime::scheduler::FlowScheduler;
+use futuresdr::runtime::scheduler::SmolScheduler;
+use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::AsyncKernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -18,16 +21,12 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use futuresdr::runtime::scheduler::FlowScheduler;
-use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::scheduler::TpbScheduler;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
-const GRANULARITY : u64 = 32768;
+const GRANULARITY: u64 = 32768;
 
 fn main() -> Result<()> {
-
     let matches = App::new("Vect Rand Flowgraph")
         .arg(
             Arg::with_name("run")
@@ -177,7 +176,12 @@ impl NullSourceLatency {
             BlockMetaBuilder::new("NullSourceLatency").build(),
             StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
-            NullSourceLatency { item_size, probe_granularity, id: None, n_produced: 0 },
+            NullSourceLatency {
+                item_size,
+                probe_granularity,
+                id: None,
+                n_produced: 0,
+            },
         )
     }
 }
@@ -215,7 +219,7 @@ impl AsyncKernel for NullSourceLatency {
         self.n_produced += n as u64;
         let after = self.n_produced / self.probe_granularity;
 
-        if before ^ after != 0 {
+        if before != after {
             tracepoints::null_rand_latency::tx(self.id.unwrap(), after);
         }
         Ok(())
