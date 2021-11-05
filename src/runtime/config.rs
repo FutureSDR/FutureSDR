@@ -84,9 +84,8 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
             }
         }
     }
-    if !c.validate() {
-        panic!("invalid config");
-    }
+    assert!(c.validate(), "invalid config");
+
     c
 });
 

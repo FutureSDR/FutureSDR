@@ -38,9 +38,8 @@ pub mod zynq;
 pub fn pagesize() -> usize {
     unsafe {
         let ps = libc::sysconf(libc::_SC_PAGESIZE);
-        if ps < 0 {
-            panic!("could not determince page size");
-        }
+        assert!(ps > 0, "could not determince page size");
+
         ps as usize
     }
 }
