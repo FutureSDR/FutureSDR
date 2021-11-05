@@ -171,6 +171,7 @@ pub struct NullSourceLatency {
 }
 
 impl NullSourceLatency {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(item_size: usize, probe_granularity: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSourceLatency").build(),
@@ -237,6 +238,7 @@ pub struct NullSinkLatency {
 }
 
 impl NullSinkLatency {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(item_size: usize, probe_granularity: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSinkLatency").build(),
