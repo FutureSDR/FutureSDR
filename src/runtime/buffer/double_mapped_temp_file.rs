@@ -46,7 +46,7 @@ impl DoubleMappedTempFile {
             fd = libc::mkstemp(path as *mut libc::c_char);
             ensure!(fd >= 0, "tempfile could not be created");
 
-            let ret = libc::unlink(path.cast::<i8>());
+            let ret = libc::unlink(path.cast::<libc::c_char>());
             if ret < 0 {
                 libc::close(fd);
                 bail!("unlinking failed");
