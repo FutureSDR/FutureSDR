@@ -2,11 +2,11 @@ use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::num_complex::Complex;
 use futuresdr::blocks::FftBuilder;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::num_complex::Complex;
 use futuresdr::runtime::AsyncKernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
