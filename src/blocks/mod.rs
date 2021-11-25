@@ -33,6 +33,10 @@ mod finite_source;
 pub use finite_source::FiniteSource;
 mod head;
 pub use head::{Head, HeadBuilder};
+
+#[cfg(feature = "lttng")]
+pub mod lttng;
+
 mod message_burst;
 pub use message_burst::{MessageBurst, MessageBurstBuilder};
 mod message_copy;

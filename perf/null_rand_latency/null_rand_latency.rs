@@ -1,28 +1,16 @@
 use clap::{value_t, App, Arg};
-use lttng_ust::import_tracepoints;
-use std::ptr;
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::async_trait::async_trait;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
+use futuresdr::blocks::lttng::NullSource;
+use futuresdr::blocks::lttng::NullSink;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use futuresdr::runtime::AsyncKernel;
-use futuresdr::runtime::Block;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::WorkIo;
-
-import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 const GRANULARITY: u64 = 32768;
 
@@ -96,7 +84,7 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSourceLatency::new(4, GRANULARITY));
+        let src = fg.add_block(NullSource::new(4, GRANULARITY));
         let head = fg.add_block(Head::new(4, samples as u64));
         fg.connect_stream(src, "out", head, "in")?;
 
@@ -109,7 +97,7 @@ fn main() -> Result<()> {
             last = block;
         }
 
-        let snk = fg.add_block(NullSinkLatency::new(4, GRANULARITY));
+        let snk = fg.add_block(NullSink::new(4, GRANULARITY));
         fg.connect_stream(last, "out", snk, "in")?;
         snks.push(snk);
     }
@@ -141,7 +129,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let snk = fg.block_async::<NullSinkLatency>(s).context("no block")?;
+        let snk = fg.block_async::<NullSink>(s).context("no block")?;
         let v = snk.n_received();
         assert_eq!(v, samples as u64);
     }
@@ -160,143 +148,3 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// =========================================================
-// NULL SOURCE
-// =========================================================
-pub struct NullSourceLatency {
-    item_size: usize,
-    probe_granularity: u64,
-    id: Option<u64>,
-    n_produced: u64,
-}
-
-impl NullSourceLatency {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(item_size: usize, probe_granularity: u64) -> Block {
-        Block::new_async(
-            BlockMetaBuilder::new("NullSourceLatency").build(),
-            StreamIoBuilder::new().add_output("out", item_size).build(),
-            MessageIoBuilder::new().build(),
-            NullSourceLatency {
-                item_size,
-                probe_granularity,
-                id: None,
-                n_produced: 0,
-            },
-        )
-    }
-}
-
-#[async_trait]
-impl AsyncKernel for NullSourceLatency {
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        meta: &mut BlockMeta,
-    ) -> Result<()> {
-        let s = meta.instance_name().unwrap();
-        self.id = Some(s.split('_').next_back().unwrap().parse::<u64>().unwrap());
-        Ok(())
-    }
-
-    async fn work(
-        &mut self,
-        _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        let o = sio.output(0).slice::<u8>();
-        debug_assert_eq!(o.len() % self.item_size, 0);
-
-        unsafe {
-            ptr::write_bytes(o.as_mut_ptr(), 0, o.len());
-        }
-
-        let before = self.n_produced / self.probe_granularity;
-        let n = o.len() / self.item_size;
-        sio.output(0).produce(n);
-        self.n_produced += n as u64;
-        let after = self.n_produced / self.probe_granularity;
-
-        if before != after {
-            tracepoints::null_rand_latency::tx(self.id.unwrap(), after);
-        }
-        Ok(())
-    }
-}
-
-// =========================================================
-// NULL SINK
-// =========================================================
-pub struct NullSinkLatency {
-    item_size: usize,
-    n_received: u64,
-    probe_granularity: u64,
-    id: Option<u64>,
-}
-
-impl NullSinkLatency {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(item_size: usize, probe_granularity: u64) -> Block {
-        Block::new_async(
-            BlockMetaBuilder::new("NullSinkLatency").build(),
-            StreamIoBuilder::new().add_input("in", item_size).build(),
-            MessageIoBuilder::new().build(),
-            NullSinkLatency {
-                item_size,
-                n_received: 0,
-                probe_granularity,
-                id: None,
-            },
-        )
-    }
-
-    pub fn n_received(&self) -> u64 {
-        self.n_received
-    }
-}
-
-#[async_trait]
-impl AsyncKernel for NullSinkLatency {
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        meta: &mut BlockMeta,
-    ) -> Result<()> {
-        let s = meta.instance_name().unwrap();
-        self.id = Some(s.split('_').next_back().unwrap().parse::<u64>().unwrap());
-        Ok(())
-    }
-
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
-        debug_assert_eq!(i.len() % self.item_size, 0);
-
-        let before = self.n_received / self.probe_granularity;
-
-        let n = i.len() / self.item_size;
-        if n > 0 {
-            self.n_received += n as u64;
-            sio.input(0).consume(n);
-        }
-
-        if sio.input(0).finished() {
-            io.finished = true;
-        }
-
-        let after = self.n_received / self.probe_granularity;
-        if before ^ after != 0 {
-            tracepoints::null_rand_latency::rx(self.id.unwrap(), after);
-        }
-        Ok(())
-    }
-}

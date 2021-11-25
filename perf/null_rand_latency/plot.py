@@ -37,6 +37,10 @@ for (i, x) in g:
     rx = a[a['event'] == 'rx'].set_index(['block', 'items'])
     tx = a[a['event'] == 'tx'].set_index(['block', 'items'])
     lat = rx.join(tx, lsuffix='_rx', how='inner')
+    foo = rx.join(tx, lsuffix='_rx', how='outer')
+    diff = foo.shape[0] - lat.shape[0]
+    if diff > 6:
+        print(f"{i} item lost {diff} of {lat.shape[0]}")
     lat = lat['time_rx'] - lat['time']
     assert np.all(lat > 0)
 
@@ -68,10 +72,10 @@ d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std, 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[('gr')].reset_index()
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='GNU\,Radio')
+# t = d.loc[('gr')].reset_index()
+# t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+# t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+# ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='GNU\,Radio')
 
 t = d.loc[('fs', 'smoln')].reset_index();
 t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]

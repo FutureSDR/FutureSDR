@@ -13,9 +13,9 @@ def parse():
         event = msg.event
         event_type = None
 
-        if event.cls.name == 'null_rand_latency:tx':
+        if event.cls.name == 'null_rand_latency:tx' or event.cls.name == 'futuresdr:tx':
             event_type = 'tx'
-        elif event.cls.name == 'null_rand_latency:rx':
+        elif event.cls.name == 'null_rand_latency:rx' or event.cls.name == 'futuresdr:rx':
             event_type = 'rx'
         else: 
             continue

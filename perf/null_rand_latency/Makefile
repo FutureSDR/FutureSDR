@@ -68,8 +68,8 @@ perf-data/fs%.csv: null_rand_latency.rs
 	rm -rf perf-data/foo
 
 	lttng create foo -o perf-data/foo
-	lttng enable-event --userspace null_rand_latency:tx
-	lttng enable-event --userspace null_rand_latency:rx
+	lttng enable-event --userspace futuresdr:tx
+	lttng enable-event --userspace futuresdr:rx
 	lttng start
 
 	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) --scheduler=$(SCHEDULER)
