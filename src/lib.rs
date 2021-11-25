@@ -1,5 +1,6 @@
 #![recursion_limit = "512"]
 #![allow(clippy::new_ret_no_self)]
+#![feature(core_intrinsics)]
 
 pub mod blocks;
 pub mod runtime;
