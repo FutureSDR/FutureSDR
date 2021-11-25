@@ -1,14 +1,11 @@
-#include "null_rand_flowgraph.hpp"
+#include <boost/program_options.hpp>
 
-#include <algorithm>
-#include <chrono>
-#include <numeric>
-#include <functional>
-#include <boost/format.hpp>
-
-#include <gnuradio/blocks/head.h>
+#include <gnuradio/top_block.h>
 #include <gnuradio/sync_block.h>
-#include "tp.h"
+#include <gnuradio/blocks/head.h>
+#include <sched/copy_rand.h>
+#include <sched/null_sink_latency.h>
+#include <sched/null_source_latency.h>
 
 namespace po = boost::program_options;
 
@@ -16,100 +13,12 @@ const uint64_t GRANULARITY = 32768;
 
 using namespace gr;
 
-// ============================================================
-// NULL SOURCE LATENCY
-// ============================================================
-class null_source_latency : virtual public sync_block
-{
-private:
-    uint64_t d_granularity;
+class null_rand_flowgraph {
 public:
-    typedef std::shared_ptr<null_source_latency> sptr;
-    static sptr make(size_t sizeof_stream_item, uint64_t granularity);
-
-    null_source_latency(size_t sizeof_stream_item, uint64_t granularity);
-
-    int work(int noutput_items,
-             gr_vector_const_void_star& input_items,
-             gr_vector_void_star& output_items) override;
+    null_rand_flowgraph(
+            int pipes, int stages, uint64_t samples, size_t max_copy);
+    top_block_sptr tb;
 };
-
-null_source_latency::sptr null_source_latency::make(size_t sizeof_stream_item, uint64_t granularity)
-{
-    return gnuradio::make_block_sptr<null_source_latency>(sizeof_stream_item, granularity);
-}
-
-null_source_latency::null_source_latency(size_t sizeof_stream_item, uint64_t granularity)
-    : d_granularity(granularity), sync_block("null_source_latency",
-                 io_signature::make(0, 0, 0),
-                 io_signature::make(1, -1, sizeof_stream_item))
-{
-}
-
-int null_source_latency::work(int noutput_items,
-                           gr_vector_const_void_star& input_items,
-                           gr_vector_void_star& output_items)
-{
-    void* optr;
-    for (size_t n = 0; n < input_items.size(); n++) {
-        optr = (void*)output_items[n];
-        memset(optr, 0, noutput_items * output_signature()->sizeof_stream_item(n));
-    }
-
-    uint64_t items = nitems_written(0);
-    uint64_t before = items / d_granularity;
-    uint64_t after = (items + noutput_items) / d_granularity;
-    if (before ^ after) {
-        tracepoint(null_rand_latency, tx, unique_id(), after);
-    }
-
-    return noutput_items;
-}
-
-// ============================================================
-// NULL SINK LATENCY
-// ============================================================
-class null_sink_latency : virtual public sync_block
-{
-private:
-    uint64_t d_granularity;
-public:
-    typedef std::shared_ptr<null_sink_latency> sptr;
-    static sptr make(size_t sizeof_stream_item, uint64_t granularity);
-
-    null_sink_latency(size_t sizeof_stream_item, uint64_t granularity);
-
-    int work(int noutput_items,
-             gr_vector_const_void_star& input_items,
-             gr_vector_void_star& output_items) override;
-};
-
-null_sink_latency::sptr null_sink_latency::make(size_t sizeof_stream_item, uint64_t granularity)
-{
-    return gnuradio::make_block_sptr<null_sink_latency>(sizeof_stream_item, granularity);
-}
-
-null_sink_latency::null_sink_latency(size_t sizeof_stream_item, uint64_t granularity)
-    : d_granularity(granularity), sync_block("null_sink_latency",
-                 io_signature::make(1, -1, sizeof_stream_item),
-                 io_signature::make(0, 0, 0))
-{
-}
-
-int null_sink_latency::work(int noutput_items,
-                         gr_vector_const_void_star& input_items,
-                         gr_vector_void_star& output_items)
-{
-    uint64_t items = nitems_read(0);
-    uint64_t before = items / d_granularity;
-    uint64_t after = (items + noutput_items) / d_granularity;
-    if (before ^ after) {
-        tracepoint(null_rand_latency, rx, unique_id(), after);
-    }
-
-    return noutput_items;
-}
-
 
 // ============================================================
 // FLOWGRAPH
@@ -120,8 +29,8 @@ null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples
 
     for(int pipe = 0; pipe < pipes; pipe++) {
 
-        auto src = null_source_latency::make(4, GRANULARITY);
-        auto head = blocks::head::make(4, samples);
+        auto src = sched::null_source_latency::make(sizeof(float), GRANULARITY);
+        auto head = blocks::head::make(sizeof(float), samples);
         tb->connect(src, 0, head, 0);
 
         auto prev = sched::copy_rand::make(sizeof(float), max_copy);
@@ -133,7 +42,7 @@ null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples
             prev = block;
         }
 
-        auto sink = null_sink_latency::make(sizeof(float), GRANULARITY);
+        auto sink = sched::null_sink_latency::make(sizeof(float), GRANULARITY);
         tb->connect(prev, 0, sink, 0);
     }
 }
