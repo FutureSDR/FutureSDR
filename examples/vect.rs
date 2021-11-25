@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
 use std::iter::repeat_with;
 use std::time;
 
+use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::CopyBuilder;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;

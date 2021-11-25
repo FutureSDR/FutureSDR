@@ -1,8 +1,8 @@
-use anyhow::Result;
 use futures::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;

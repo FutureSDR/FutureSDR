@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 #[cfg(not(target_arch = "wasm32"))]
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
@@ -15,6 +14,7 @@ use wasm_rs_async_executor::single_threaded::block_on;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = single_threaded::TaskHandle<T>;
 
+use crate::anyhow::{Context, Result};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;

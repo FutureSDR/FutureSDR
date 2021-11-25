@@ -1,5 +1,4 @@
-use anyhow::Result;
-
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyBuilder;
 use futuresdr::blocks::HeadBuilder;
 use futuresdr::blocks::NullSourceBuilder;

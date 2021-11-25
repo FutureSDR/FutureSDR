@@ -1,5 +1,3 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use async_io::Async;
 use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
@@ -14,6 +12,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::anyhow::Context as _;
+use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;

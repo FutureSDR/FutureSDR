@@ -1,12 +1,11 @@
-use anyhow::Result;
 use async_io::block_on;
-use async_trait::async_trait;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
 
+use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;

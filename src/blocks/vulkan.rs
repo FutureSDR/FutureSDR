@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
@@ -10,6 +9,7 @@ use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::ComputePipelineAbstract;
 use vulkano::sync::{self, GpuFuture};
 
+use crate::anyhow::{Context, Result};
 use crate::runtime::buffer::vulkan::Broker;
 use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::ReaderH2D;

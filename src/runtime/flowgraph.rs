@@ -1,4 +1,3 @@
-use anyhow::Result;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::SinkExt;
@@ -6,6 +5,7 @@ use std::cmp::{Eq, PartialEq};
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use crate::anyhow::Result;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::buffer::circular::Circular;
 #[cfg(target_arch = "wasm32")]

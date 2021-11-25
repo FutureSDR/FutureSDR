@@ -1,8 +1,8 @@
-use anyhow::Result;
 use async_io::Timer;
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;

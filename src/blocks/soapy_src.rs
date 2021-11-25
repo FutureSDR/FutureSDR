@@ -1,10 +1,10 @@
-use anyhow::{Context, Result};
 use futures::FutureExt;
-use num_complex::Complex;
 use soapysdr::Direction::Rx;
 use std::cmp;
 use std::mem;
 
+use crate::anyhow::{Context, Result};
+use crate::num_complex::Complex;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;

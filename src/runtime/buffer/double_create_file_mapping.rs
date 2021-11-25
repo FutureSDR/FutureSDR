@@ -1,4 +1,3 @@
-use anyhow::{bail, Result};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use winapi::shared::minwindef::LPVOID;
 use winapi::um::handleapi::CloseHandle;
@@ -15,6 +14,7 @@ use winapi::um::{
     winbase::CreateFileMappingA,
 };
 
+use crate::anyhow::{bail, Result};
 use crate::runtime::buffer::pagesize;
 
 static SEGMENTS: AtomicUsize = AtomicUsize::new(0);

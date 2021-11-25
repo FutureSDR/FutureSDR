@@ -1,6 +1,6 @@
-use anyhow::Result;
 use rand::Rng;
 
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyBuilder;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;

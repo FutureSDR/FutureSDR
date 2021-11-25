@@ -1,7 +1,7 @@
-use anyhow::{bail, Result};
 use xilinx_dma::AxiDmaAsync;
 use xilinx_dma::DmaBuffer;
 
+use crate::anyhow::{bail, Result};
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;

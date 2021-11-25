@@ -1,10 +1,10 @@
-use anyhow::Result;
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use crate::anyhow::Result;
 use crate::runtime::AsyncMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
