@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <boost/format.hpp>
-#include <gnuradio/realtime.h>
 
 namespace po = boost::program_options;
 

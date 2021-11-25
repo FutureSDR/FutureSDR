@@ -21,6 +21,7 @@ members = [
     "examples/logging",
     "examples/wasm",
     "examples/zeromq",
+    "perf/fir",
     "perf/msg",
     "perf/null_rand",
     "perf/null_rand_latency",

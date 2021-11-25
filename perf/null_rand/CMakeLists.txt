@@ -2,7 +2,7 @@ project(NullRandFlowgraph)
 
 cmake_minimum_required(VERSION 3.8)
 
-find_package(Gnuradio "3.8" REQUIRED COMPONENTS blocks)
+find_package(Gnuradio "3.9" REQUIRED COMPONENTS blocks)
 find_package(gnuradio-sched)
 
 add_executable(null_rand_flowgraph null_rand_flowgraph.cpp)
