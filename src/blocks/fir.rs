@@ -69,6 +69,9 @@ impl<const N: usize> SyncKernel for Fir<f32, N> {
                 }
             }
 
+            sio.input(0).consume(n);
+            sio.output(0).produce(n);
+
             if sio.input(0).finished() && n == i.len() + 1 - N {
                 io.finished = true;
             }
