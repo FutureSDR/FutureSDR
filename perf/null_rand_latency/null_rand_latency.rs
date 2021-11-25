@@ -2,10 +2,10 @@ use clap::{value_t, App, Arg};
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
+use futuresdr::blocks::lttng::NullSink;
+use futuresdr::blocks::lttng::NullSource;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::lttng::NullSource;
-use futuresdr::blocks::lttng::NullSink;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
@@ -147,4 +147,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-

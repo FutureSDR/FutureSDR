@@ -71,7 +71,7 @@ impl AsyncKernel for NullSource {
         self.n_produced += n as u64;
         let after = self.n_produced / self.probe_granularity;
 
-        for i in 1..=(after-before) {
+        for i in 1..=(after - before) {
             tracepoints::futuresdr::tx(self.id.unwrap(), before + i);
         }
 

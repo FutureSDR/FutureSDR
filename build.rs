@@ -1,8 +1,8 @@
 #[cfg(feature = "lttng")]
 fn gen_lttng_tracepoints() {
+    use lttng_ust_generate::{CIntegerType, CTFType, Generator, Provider};
     use std::env;
     use std::path::PathBuf;
-    use lttng_ust_generate::{CIntegerType, CTFType, Generator, Provider};
 
     let mut provider = Provider::new("futuresdr");
     let c = provider
