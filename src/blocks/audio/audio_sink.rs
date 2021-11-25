@@ -30,6 +30,7 @@ pub struct AudioSink {
     buff: Option<(Box<[f32]>, usize, oneshot::Sender<Box<[f32]>>)>,
 }
 
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for AudioSink {}
 
 impl AudioSink {

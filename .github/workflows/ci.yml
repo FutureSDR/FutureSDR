@@ -15,11 +15,11 @@ jobs:
       - name: Install alsalibs
         run: sudo apt-get -y install libasound2-dev
 
-      - name: Install stable toolchain
+      - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
           components: rustfmt, clippy
 
