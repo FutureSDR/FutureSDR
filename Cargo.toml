@@ -2,7 +2,7 @@
 name = "futuresdr"
 version = "0.0.7"
 authors = ["Bastian Bloessl <mail@bastibl.net>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
