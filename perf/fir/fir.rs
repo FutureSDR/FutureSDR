@@ -80,7 +80,11 @@ fn main() -> Result<()> {
     let scheduler = value_t!(matches.value_of("scheduler"), String).context("no scheduler")?;
 
     let mut fg = Flowgraph::new();
-    let taps: [f32; 64] = repeat_with(rand::random::<f32>).take(64).collect::<Vec<f32>>().try_into().unwrap();
+    let taps: [f32; 64] = repeat_with(rand::random::<f32>)
+        .take(64)
+        .collect::<Vec<f32>>()
+        .try_into()
+        .unwrap();
 
     let mut snks = Vec::new();
 

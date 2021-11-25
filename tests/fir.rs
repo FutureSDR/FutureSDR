@@ -28,7 +28,7 @@ fn fir_f32() -> Result<()> {
     let res = vec![6.0f32, 9.0, 12.0, 15.0];
     assert_eq!(v.len(), res.len());
     for (have, want) in v.iter().zip(res) {
-        assert!((have-want).abs() < f32::EPSILON);
+        assert!((have - want).abs() < f32::EPSILON);
     }
 
     Ok(())
