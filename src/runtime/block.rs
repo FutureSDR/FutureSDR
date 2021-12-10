@@ -34,6 +34,7 @@ impl fmt::Debug for WorkIo {
     }
 }
 
+// TIP: Why not combine this with AsyncKernelT below? -wspeirs
 #[async_trait]
 pub trait AsyncKernel: Send {
     async fn work(
@@ -92,6 +93,9 @@ pub trait SyncKernel: Send {
     }
 }
 
+// TIP: I would consider breaking this down into individual traits: Block, Meta, Kernel, etc. If you want a single
+// trait that combines them all, you can do this with: AsyncBlockT: Block + Meta + Kernel ... You don't even need
+// to specify any methods in the top-level trait. -wspeirs
 #[async_trait]
 pub trait AsyncBlockT: Send + Any {
     // ##### BLOCK
@@ -421,12 +425,17 @@ impl<T: SyncKernel + Send> SyncBlockT for SyncBlock<T> {
     }
 }
 
+// TIP: Why did box these variants? You should be able to use generics here too, and avoid the vtable lookup. -wspeirs
 #[derive(Debug)]
 pub enum Block {
     Sync(Box<dyn SyncBlockT>),
     Async(Box<dyn AsyncBlockT>),
 }
 
+// TIP: I think you could avoid a lot of the new_(a)sync and as_(a)sync methods by simply having a Block trait that
+// defines the common methods. Then structs for AsyncBlock and SyncBlock. Your connect (and other) functions will
+// simply take a B: Block, and operate appropriately. If you _really_ needed to know the type of block (sync or async)
+// you can always provide a type() method in the Block trait. -wspeirs
 impl Block {
     pub fn new_async<T: AsyncKernel + Send + 'static>(
         meta: BlockMeta,

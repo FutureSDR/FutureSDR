@@ -39,7 +39,7 @@ pub fn pagesize() -> usize {
     unsafe {
         let ps = libc::sysconf(libc::_SC_PAGESIZE);
         if ps < 0 {
-            panic!("could not determince page size");
+            panic!("could not determine page size");
         }
         ps as usize
     }

@@ -29,12 +29,16 @@ use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::WorkIo;
 
+/// This is the [Runtime] that runs a [Flowgraph] to completion.
+///
+/// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
 pub struct Runtime<S: Scheduler> {
     scheduler: S,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Runtime<SmolScheduler> {
+    /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Runtime<SmolScheduler> {
         RuntimeBuilder {
             scheduler: SmolScheduler::default(),
@@ -68,8 +72,9 @@ impl Default for Runtime<WasmScheduler> {
 }
 
 impl<S: Scheduler> Runtime<S> {
-    pub fn custom(scheduler: S) -> RuntimeBuilder<S> {
-        RuntimeBuilder { scheduler }
+    /// Create a [Runtime] with a given [Scheduler]
+    pub fn with_scheduler(scheduler: S) -> Runtime<S> {
+        RuntimeBuilder { scheduler }.build()
     }
 
     pub fn spawn<T: Send + 'static>(
@@ -102,6 +107,8 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
+    // TIP: I wouldn't make this public, as I don't think you actually want folks calling it, but instead push
+    // everything through the run() method. -wspeirs
     pub fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<AsyncMessage>(queue_size);
@@ -115,6 +122,7 @@ impl<S: Scheduler> Runtime<S> {
         (task, FlowgraphHandle::new(fg_inbox))
     }
 
+    /// Main method that kicks-off the running of a [Flowgraph].
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg);

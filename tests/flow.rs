@@ -27,7 +27,7 @@ fn flowgraph_flow() -> Result<()> {
     fg.connect_stream(head, "out", copy, "in")?;
     fg.connect_stream(copy, "out", vect_sink, "in")?;
 
-    fg = Runtime::custom(FlowScheduler::new()).build().run(fg)?;
+    fg = Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
 
     let snk = fg.block_async::<VectorSink<f32>>(vect_sink).unwrap();
     let v = snk.items();

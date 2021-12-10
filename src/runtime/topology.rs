@@ -75,9 +75,11 @@ impl Hash for BufferBuilderEntry {
     }
 }
 
+/// The actual graph that backs a [Flowgraph].
 #[derive(Debug)]
 pub struct Topology {
     pub(crate) blocks: Slab<Option<Block>>,
+    // TIP: I would create a type for this even though it isn't exposed to users; for your own sanity. -wspeirs
     // (src blk, src port, buffer_type) -> (dst blk, dst port)
     pub(crate) stream_edges: HashMap<(usize, usize, BufferBuilderEntry), Vec<(usize, usize)>>,
     // src blk, src port, dst blk, dst port
@@ -85,6 +87,7 @@ pub struct Topology {
 }
 
 impl Topology {
+    /// Constructs a blank [Topology]
     pub fn new() -> Self {
         Topology {
             blocks: Slab::new(),
@@ -111,6 +114,7 @@ impl Topology {
         }
     }
 
+    /// Adds a [Block] to the [Topology] returning the `id` of the [Block] in the [Topology].
     pub fn add_block(&mut self, mut block: Block) -> usize {
         let type_name = block.type_name();
         let mut i = 0;
@@ -129,6 +133,7 @@ impl Topology {
         self.blocks.insert(Some(block))
     }
 
+    /// Removes a [Block] and all edges connected to the [Block] from the [Topology].
     pub fn delete_block(&mut self, id: usize) {
         // remove from registry
         self.blocks.remove(id);

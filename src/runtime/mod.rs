@@ -57,6 +57,8 @@ pub use topology::Topology;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 
+// TIP: Methods like this aren't a great idea for various reasons; just use the macros from the log crate, and let
+// the user pick which actual logger they'd like to use. -wspeirs
 pub fn init() {
     logging::init();
 }
