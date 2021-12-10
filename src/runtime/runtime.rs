@@ -29,12 +29,16 @@ use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::WorkIo;
 
+/// This is the [Runtime] that runs a [Flowgraph] to completion.
+///
+/// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
 pub struct Runtime<S> {
     scheduler: S,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Runtime<SmolScheduler> {
+    /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Runtime<SmolScheduler> {
         RuntimeBuilder {
             scheduler: SmolScheduler::default(),
@@ -68,8 +72,9 @@ impl Default for Runtime<WasmScheduler> {
 }
 
 impl<S: Scheduler> Runtime<S> {
-    pub fn custom(scheduler: S) -> RuntimeBuilder<S> {
-        RuntimeBuilder { scheduler }
+    /// Create a [Runtime] with a given [Scheduler]
+    pub fn with_scheduler(scheduler: S) -> Runtime<S> {
+        RuntimeBuilder { scheduler }.build()
     }
 
     pub fn spawn<T: Send + 'static>(
@@ -115,6 +120,7 @@ impl<S: Scheduler> Runtime<S> {
         (task, FlowgraphHandle::new(fg_inbox))
     }
 
+    /// Main method that kicks-off the running of a [Flowgraph].
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg);

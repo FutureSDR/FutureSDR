@@ -19,11 +19,16 @@ use crate::runtime::Pmt;
 use crate::runtime::SyncKernel;
 use crate::runtime::Topology;
 
+/// The main component of any FutureSDR program.
+///
+/// A [Flowgraph] is what drives the entire program. It is composed of a set of blocks and connections between them.
+/// There is at least one source and one sink in every Flowgraph.
 pub struct Flowgraph {
     pub(crate) topology: Option<Topology>,
 }
 
 impl Flowgraph {
+    /// Creates a new [Flowgraph] with an empty [Topology]
     pub fn new() -> Flowgraph {
         Flowgraph {
             topology: Some(Topology::new()),

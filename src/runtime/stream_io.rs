@@ -47,6 +47,12 @@ impl StreamInput {
         unsafe { slice::from_raw_parts_mut(ptr as *mut T, len / mem::size_of::<T>()) }
     }
 
+    pub fn as_slice<T>(&mut self) -> &'static [T] {
+        let (ptr, len) = self.reader.as_mut().unwrap().bytes();
+
+        unsafe { slice::from_raw_parts(ptr as *const T, len / mem::size_of::<T>()) }
+    }
+
     pub fn set_reader(&mut self, reader: BufferReader) {
         debug_assert!(self.reader.is_none());
         self.reader = Some(reader);
