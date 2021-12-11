@@ -106,8 +106,8 @@ rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", rev = "a062933
 rodio = { version = "0.14.0", optional = true }
 rustfft = "6.0.1"
 tungstenite = "0.14.0"
-vulkano = { git = "https://github.com/bastibl/vulkano", version = "0.25.0", branch = "master",  optional = true }
-vulkano-shaders = { version = "0.25.0", optional = true }
+vulkano = { version = "0.27.1", optional = true }
+vulkano-shaders = { version = "0.27.1", optional = true }
 tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]

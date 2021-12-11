@@ -6,7 +6,8 @@ use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::pipeline::ComputePipeline;
-use vulkano::pipeline::ComputePipelineAbstract;
+use vulkano::pipeline::Pipeline;
+use vulkano::pipeline::PipelineBindPoint;
 use vulkano::sync::{self, GpuFuture};
 
 use crate::anyhow::{Context, Result};
@@ -25,6 +26,8 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+#[allow(clippy::needless_question_mark)]
+#[allow(deprecated)]
 mod cs {
     vulkano_shaders::shader! {
         ty: "compute",
@@ -106,13 +109,14 @@ impl AsyncKernel for Vulkan {
             input.submit(BufferEmpty { buffer });
         }
 
-        let shader = cs::Shader::load(self.broker.device())?;
-        let pipeline = Arc::new(ComputePipeline::new(
+        let shader = cs::load(self.broker.device())?;
+        let pipeline = ComputePipeline::new(
             self.broker.device(),
-            &shader.main_entry_point(),
+            shader.entry_point("main").unwrap(),
             &(),
             None,
-        )?);
+            |_| {},
+        )?;
         self.pipeline = Some(pipeline);
         self.layout = Some(
             self.pipeline
@@ -140,14 +144,15 @@ impl AsyncKernel for Vulkan {
             i(sio, 0).submit(m);
         }
 
+        let pipeline = self.pipeline.as_ref().context("no pipeline")?.clone();
+        let layout = self.layout.as_ref().context("no layout")?.clone();
+
         for m in i(sio, 0).buffers().drain(..) {
             debug!("vulkan block: launching full buffer");
 
-            let set = Arc::new(
-                PersistentDescriptorSet::start(self.layout.as_ref().context("no layout")?.clone())
-                    .add_buffer(m.buffer.clone())?
-                    .build()?,
-            );
+            let mut set_builder = PersistentDescriptorSet::start(layout.clone());
+            set_builder.add_buffer(m.buffer.clone())?;
+            let set = set_builder.build()?;
 
             let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
             if m.used_bytes as u32 / 4 % 64 > 0 {
@@ -160,12 +165,15 @@ impl AsyncKernel for Vulkan {
                 CommandBufferUsage::OneTimeSubmit,
             )?;
 
-            builder.dispatch(
-                [dispatch, 1, 1],
-                self.pipeline.as_ref().context("no pipeline")?.clone(),
-                set.clone(),
-                (),
-            )?;
+            builder
+                .bind_pipeline_compute(pipeline.clone())
+                .bind_descriptor_sets(
+                    PipelineBindPoint::Compute,
+                    pipeline.layout().clone(),
+                    0,
+                    set.clone(),
+                )
+                .dispatch([dispatch, 1, 1])?;
             let command_buffer = builder.build()?;
 
             let future = sync::now(self.broker.device().clone())
