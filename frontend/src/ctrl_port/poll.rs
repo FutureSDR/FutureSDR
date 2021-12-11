@@ -66,12 +66,11 @@ impl Component for Poll {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let fetch_task = Self::fetch(&props, &link);
         let error = fetch_task.is_none();
-        let value;
-        if error {
-            value = "Error".to_string();
+        let value = if error {
+            "Error".to_string()
         } else {
-            value = "fetching...".to_string();
-        }
+            "fetching...".to_string()
+        };
 
         Self {
             link,
