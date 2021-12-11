@@ -113,22 +113,22 @@ fn main() -> Result<()> {
     let elapsed;
 
     if scheduler == "smol1" {
-        let runtime = Runtime::custom(SmolScheduler::new(1, false)).build();
+        let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "smoln" {
-        let runtime = Runtime::custom(SmolScheduler::default()).build();
+        let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "tpb" {
-        let runtime = Runtime::custom(TpbScheduler::new()).build();
+        let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime = Runtime::custom(FlowScheduler::new()).build();
+        let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
