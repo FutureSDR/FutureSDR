@@ -65,12 +65,12 @@ name = "tpb"
 required-features = ["tpb_scheduler"]
 
 [dependencies]
-anyhow = "1.0.38"
-async-trait = "0.1.41"
-clap = "2.33.1"
+anyhow = "1.0"
+async-trait = "0.1.52"
+clap = "2.34"
 config = "0.11.0"
-dirs = "3.0.1"
-futures = "0.3.5"
+dirs = "4.0"
+futures = "0.3.18"
 futures-lite = "1.10.0"
 futuresdr-pmt = { path = "pmt", version = "0.0.2" }
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_off"] }
@@ -81,7 +81,7 @@ once_cell = "1.5.2"
 rand = "0.8.0"
 slab = "0.4.4"
 spin = "0.9.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.131", features = ["derive"] }
 zmq = {version = "0.9", optional = true}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -95,30 +95,30 @@ async-io = "1.6.0"
 async-lock = "2.4.0"
 async-net = "1.5.0"
 async-task = "4.0.3"
-async-tungstenite = "0.14.0"
-blocking = "1.0.2"
+async-tungstenite = "0.16.1"
+blocking = "1.1"
 concurrent-queue = "1.2.2"
 core_affinity = "0.5.10"
 cpal = { version = "0.13.4", optional = true }
-libc = "0.2.99"
+libc = "0.2.109"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
 rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", rev = "a062933c1b109949c618b0dba296ac33e4b1a105" }
 rodio = { version = "0.14.0", optional = true }
 rustfft = "6.0.1"
-tungstenite = "0.14.0"
+tungstenite = "0.16.0"
 vulkano = { version = "0.27.1", optional = true }
 vulkano-shaders = { version = "0.27.1", optional = true }
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1.14", features = ["rt"] }
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 soapysdr = { version = "0.3.1", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-xilinx-dma = { version = "0.0.3", optional = true }
+xilinx-dma = { version = "0.0.6", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.10.1"
-openssl-sys = { version = "0.9.63", features = ["vendored"] }
+openssl-sys = { version = "0.9.71", features = ["vendored"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "handleapi", "memoryapi"] }
