@@ -30,7 +30,7 @@ pub enum WebsocketSinkMode {
     FixedDropping(usize),
 }
 
-pub struct WebsocketSink<T: Send + Sync + 'static> {
+pub struct WebsocketSink<T> {
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
     conn: Option<WsStream>,
@@ -164,7 +164,7 @@ impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
     }
 }
 
-pub struct WebsocketSinkBuilder<T: Send + Sync + 'static> {
+pub struct WebsocketSinkBuilder<T> {
     port: u32,
     mode: WebsocketSinkMode,
     _p: PhantomData<T>,

@@ -12,7 +12,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct VectorSink<T: Clone + std::fmt::Debug + Sync + 'static> {
+pub struct VectorSink<T> {
     items: Vec<T>,
 }
 
@@ -63,7 +63,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> AsyncKernel for VectorS
     }
 }
 
-pub struct VectorSinkBuilder<T: Clone + std::fmt::Debug + Sync + 'static> {
+pub struct VectorSinkBuilder<T> {
     capacity: usize,
     _foo: PhantomData<T>,
 }

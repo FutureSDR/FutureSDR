@@ -29,7 +29,7 @@ use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::WorkIo;
 
-pub struct Runtime<S: Scheduler> {
+pub struct Runtime<S> {
     scheduler: S,
 }
 
@@ -128,7 +128,7 @@ impl<S: Scheduler> Runtime<S> {
     }
 }
 
-pub struct RuntimeBuilder<S: Scheduler> {
+pub struct RuntimeBuilder<S> {
     scheduler: S,
 }
 

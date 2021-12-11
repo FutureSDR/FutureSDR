@@ -178,7 +178,7 @@ pub trait SyncBlockT: Send + Any {
     async fn post(&mut self, id: usize, p: Pmt);
 }
 
-pub struct AsyncBlock<T: AsyncKernel + Send + 'static> {
+pub struct AsyncBlock<T> {
     meta: BlockMeta,
     sio: StreamIo,
     mio: MessageIo<T>,
@@ -186,7 +186,7 @@ pub struct AsyncBlock<T: AsyncKernel + Send + 'static> {
 }
 
 #[async_trait]
-impl<T: AsyncKernel + Send> AsyncBlockT for AsyncBlock<T> {
+impl<T: AsyncKernel + Send + 'static> AsyncBlockT for AsyncBlock<T> {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
         self
@@ -300,7 +300,7 @@ impl<T: AsyncKernel + Send> AsyncBlockT for AsyncBlock<T> {
     }
 }
 
-pub struct SyncBlock<T: SyncKernel + Send + 'static> {
+pub struct SyncBlock<T> {
     meta: BlockMeta,
     sio: StreamIo,
     mio: MessageIo<T>,
@@ -308,7 +308,7 @@ pub struct SyncBlock<T: SyncKernel + Send + 'static> {
 }
 
 #[async_trait]
-impl<T: SyncKernel + Send> SyncBlockT for SyncBlock<T> {
+impl<T: SyncKernel + Send + 'static> SyncBlockT for SyncBlock<T> {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
         self
@@ -663,7 +663,7 @@ impl Block {
     }
 }
 
-impl<T: AsyncKernel + Send> fmt::Debug for AsyncBlock<T> {
+impl<T: AsyncKernel + Send + 'static> fmt::Debug for AsyncBlock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncBlock")
             .field("type_name", &self.type_name().to_string())
@@ -671,7 +671,7 @@ impl<T: AsyncKernel + Send> fmt::Debug for AsyncBlock<T> {
     }
 }
 
-impl<T: SyncKernel + Send> fmt::Debug for SyncBlock<T> {
+impl<T: SyncKernel + Send + 'static> fmt::Debug for SyncBlock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SyncBlock")
             .field("type_name", &self.type_name().to_string())

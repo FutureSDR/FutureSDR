@@ -64,7 +64,7 @@ impl<T: Send + 'static> AsyncKernel for VectorSource<T> {
     }
 }
 
-pub struct VectorSourceBuilder<T: Send> {
+pub struct VectorSourceBuilder<T> {
     items: Vec<T>,
 }
 

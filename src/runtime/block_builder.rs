@@ -46,14 +46,14 @@ impl BlockBuilder {
     }
 }
 
-pub struct AsyncBlockBuilder<K: AsyncKernel + 'static> {
+pub struct AsyncBlockBuilder<K> {
     kernel: K,
     meta: BlockMetaBuilder,
     sio: StreamIoBuilder,
     mio: MessageIoBuilder<K>,
 }
 
-impl<K: AsyncKernel> AsyncBlockBuilder<K> {
+impl<K: AsyncKernel + 'static> AsyncBlockBuilder<K> {
     pub fn name(mut self, name: &str) -> Self {
         self.meta = self.meta.name(name);
         self
@@ -118,14 +118,14 @@ impl<K: AsyncKernel> AsyncBlockBuilder<K> {
     }
 }
 
-pub struct SyncBlockBuilder<K: SyncKernel + 'static> {
+pub struct SyncBlockBuilder<K> {
     kernel: K,
     meta: BlockMetaBuilder,
     sio: StreamIoBuilder,
     mio: MessageIoBuilder<K>,
 }
 
-impl<K: SyncKernel> SyncBlockBuilder<K> {
+impl<K: SyncKernel + 'static> SyncBlockBuilder<K> {
     pub fn name(mut self, name: &str) -> Self {
         self.meta = self.meta.name(name);
         self

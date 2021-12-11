@@ -9,7 +9,7 @@ use crate::runtime::AsyncMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
 
-pub enum MessageInput<T: Send + ?Sized> {
+pub enum MessageInput<T: ?Sized> {
     Sync(SyncMessageInput<T>),
     Async(AsyncMessageInput<T>),
 }
@@ -23,7 +23,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
     }
 }
 
-pub struct SyncMessageInput<T: Send + ?Sized> {
+pub struct SyncMessageInput<T: ?Sized> {
     name: String,
     #[allow(clippy::type_complexity)]
     handler: Arc<
@@ -65,7 +65,7 @@ impl<T: Send + ?Sized> SyncMessageInput<T> {
     }
 }
 
-pub struct AsyncMessageInput<T: Send + ?Sized> {
+pub struct AsyncMessageInput<T: ?Sized> {
     name: String,
     #[allow(clippy::type_complexity)]
     handler: Arc<
@@ -164,12 +164,12 @@ impl MessageOutput {
     }
 }
 
-pub struct MessageIo<T: Send + ?Sized> {
+pub struct MessageIo<T: ?Sized> {
     inputs: Vec<MessageInput<T>>,
     outputs: Vec<MessageOutput>,
 }
 
-impl<T: Send> MessageIo<T> {
+impl<T: Send + ?Sized> MessageIo<T> {
     fn new(inputs: Vec<MessageInput<T>>, outputs: Vec<MessageOutput>) -> Self {
         MessageIo { inputs, outputs }
     }
@@ -222,7 +222,7 @@ impl<T: Send> MessageIo<T> {
     }
 }
 
-pub struct MessageIoBuilder<T: Send> {
+pub struct MessageIoBuilder<T> {
     inputs: Vec<MessageInput<T>>,
     outputs: Vec<MessageOutput>,
 }

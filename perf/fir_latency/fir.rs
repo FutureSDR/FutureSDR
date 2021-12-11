@@ -3,11 +3,11 @@ use std::iter::repeat_with;
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
+use futuresdr::blocks::lttng::NullSink;
+use futuresdr::blocks::lttng::NullSource;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Fir;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::lttng::NullSink;
-use futuresdr::blocks::lttng::NullSource;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
