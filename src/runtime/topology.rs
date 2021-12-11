@@ -75,7 +75,7 @@ impl Hash for BufferBuilderEntry {
     }
 }
 
-/// The actual graph that backs a [Flowgraph].
+/// The actual graph that backs a [Flowgraph](crate::runtime::Flowgraph).
 #[derive(Debug)]
 pub struct Topology {
     pub(crate) blocks: Slab<Option<Block>>,
