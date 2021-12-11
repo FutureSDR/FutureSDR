@@ -118,7 +118,7 @@ fn main() -> Result<()> {
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime = Runtime::with_scheduler(FlowScheduler::new();
+        let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();

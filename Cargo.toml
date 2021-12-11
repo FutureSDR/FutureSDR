@@ -32,7 +32,6 @@ members = [
 default = []
 tpb_scheduler = []
 flow_scheduler = []
-block_builder = []
 lttng = ["lttng-ust", "lttng-ust-generate"]
 audio = ["cpal", "rodio"]
 soapy = ["soapysdr"]
