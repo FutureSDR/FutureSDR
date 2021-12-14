@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>FutureSDR WASM Example</title>
+        <link rel="stylesheet" href="/css/futuresdr.css">
+        <link rel="shortcut icon" href="/favicon.png">
+        <script type="module">
+            import init, {run_fg} from "./wasm.js"
+
+            const runWasm = async () => {
+                const rustWasm = await init();
+                run_fg();
+            };
+
+            runWasm();
+        </script>
+    </head>
+    <body>
+        <h1>Hello World!</h1>
+    </body>
+</html>

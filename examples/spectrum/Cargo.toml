@@ -1,0 +1,21 @@
+[package]
+name = "spectrum"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "cpu"
+required-features = ["cpu"]
+
+
+[features]
+default = []
+cpu = [ "futuresdr/soapy" ]
+
+[dependencies]
+futuresdr = { path = "../.." }
+# wasm-bindgen = "0.2.74"
+# rand = "0.8.0"
