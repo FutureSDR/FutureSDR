@@ -136,6 +136,7 @@ impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
             self.conn = Some(WsStream {
                 inner: async_tungstenite::accept_async(Async::new(stream)?).await?,
             });
+            io.call_again = true;
         } else {
             if let WebsocketSinkMode::FixedDropping(block_size) = &self.mode {
                 let n = items / block_size;
