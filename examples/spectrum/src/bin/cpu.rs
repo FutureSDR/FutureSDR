@@ -9,6 +9,7 @@ use futuresdr::runtime::Runtime;
 use spectrum::lin2db_block;
 use spectrum::power_block;
 use spectrum::FftShift;
+use spectrum::Keep1InN;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -27,13 +28,15 @@ fn main() -> Result<()> {
     let shift = fg.add_block(FftShift::new());
     let power = fg.add_block(power_block());
     let log = fg.add_block(lin2db_block());
+    let keep = fg.add_block(Keep1InN::new(0.1, 10));
     let snk = fg.add_block(snk);
 
     fg.connect_stream(src, "out", fft, "in")?;
     fg.connect_stream(fft, "out", power, "in")?;
     fg.connect_stream(power, "out", log, "in")?;
     fg.connect_stream(log, "out", shift, "in")?;
-    fg.connect_stream(shift, "out", snk, "in")?;
+    fg.connect_stream(shift, "out", keep, "in")?;
+    fg.connect_stream(keep, "out", snk, "in")?;
 
     Runtime::new().run(fg)?;
     Ok(())

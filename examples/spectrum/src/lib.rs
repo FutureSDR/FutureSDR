@@ -110,74 +110,36 @@ impl SyncKernel for Keep1InN {
         let input = sio.input(0).slice::<f32>();
         let output = sio.output(0).slice::<f32>();
 
-        let n = std::cmp::min(input.len(), output.len()) / 2048;
+        let mut consumed = 0;
+        let mut produced = 0;
 
-        for i in 0..n {
-            for k in 0..2048 {
-                let m = (k + 1024) % 2048;
-                output[i * 2048 + m] = input[i * 2048 + k]
+        while (consumed+1) * 2048 <= input.len() {
+            if self.i == self.n {
+                if (produced+1) * 2048 <= output.len() {
+                    output[produced*2048..(produced+1)*2048].clone_from_slice(&self.avg);
+                    self.i = 0;
+                    produced += 1;
+                } else {
+                    break;
+                }
             }
+
+            for i in 0..2048 {
+                self.avg[i] = (1.0 - self.alpha) * self.avg[i] + self.alpha * input[consumed * 2048 + i];
+            }
+
+            consumed += 1;
+            self.i += 1;
         }
 
-        if sio.input(0).finished() && n == input.len() / 2048 {
+        if sio.input(0).finished() && consumed == input.len() / 2048 {
             io.finished = true;
         }
 
-        sio.input(0).consume(n * 2048);
-        sio.output(0).produce(n * 2048);
+        sio.input(0).consume(consumed * 2048);
+        sio.output(0).produce(produced * 2048);
 
         Ok(())
     }
 }
 
-
-
-
-// use std::iter::repeat_with;
-// use wasm_bindgen::prelude::*;
-
-// use futuresdr::anyhow::Result;
-// use futuresdr::blocks::CopyRandBuilder;
-// use futuresdr::blocks::VectorSink;
-// use futuresdr::blocks::VectorSinkBuilder;
-// use futuresdr::blocks::VectorSourceBuilder;
-// use futuresdr::log::info;
-// use futuresdr::runtime::Flowgraph;
-// use futuresdr::runtime::Runtime;
-
-// #[wasm_bindgen]
-// pub fn run_fg() {
-//     run().unwrap();
-// }
-
-// fn run() -> Result<()> {
-//     let mut fg = Flowgraph::new();
-
-//     let n_items = 1_000;
-//     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
-
-//     let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
-//     let copy = CopyRandBuilder::new(4).max_copy(13).build();
-//     let snk = VectorSinkBuilder::<f32>::new().build();
-
-//     let src = fg.add_block(src);
-//     let copy = fg.add_block(copy);
-//     let snk = fg.add_block(snk);
-
-//     fg.connect_stream(src, "out", copy, "in")?;
-//     fg.connect_stream(copy, "out", snk, "in")?;
-
-//     fg = Runtime::new().run(fg)?;
-
-//     let snk = fg.block_async::<VectorSink<f32>>(snk).unwrap();
-//     let v = snk.items();
-
-//     assert_eq!(v.len(), n_items);
-//     for i in 0..v.len() {
-//         assert!((orig[i] - v[i]).abs() < f32::EPSILON);
-//     }
-//     info!("data matches");
-//     info!("first items {:?}", &v[0..10]);
-
-//     Ok(())
-// }
