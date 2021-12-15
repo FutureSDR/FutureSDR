@@ -11,7 +11,7 @@ varying vec2 texCoord;
 
 void main()
 {
-    vec4 sample = texture2D(vertexFrequencyData, vec2(gTexCoord0.x+0.5, gTexCoord0.y + vertexYOffset));
+    vec4 sample = texture2D(vertexFrequencyData, vec2(gTexCoord0.x, gTexCoord0.y + vertexYOffset));
     vec4 newPosition = vec4(gPosition.x, gPosition.y + verticalScale * sample.a, gPosition.z, 1.0);
     gl_Position = worldViewProjection * newPosition;
     texCoord = gTexCoord0;

@@ -146,21 +146,14 @@ Number.prototype.clamp = function(min, max) {
          new Response(event.data).arrayBuffer()
                                  .then(function (buff) {
                                      var data = new Float32Array(buff);
-                                     var min = 40;
-                                     var max = 220;
+                                     var min = -10;
+                                     var max = 10;
                                      var i;
                                      for (i = 0; i < 2048; i++) {
                                          analyserView1.freqByteData[i] = (data[i].clamp(min, max)-min)/(max-min)*255;
                                      }
-
                                  });
      }
-
-     /*
-     for (i = 0; i < 2048; i++) {
-         analyserView1.freqByteData[i] = i % 256;
-     }
-     */
      window.requestAnimationFrame(draw);
  }
 

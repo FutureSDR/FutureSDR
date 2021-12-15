@@ -43,10 +43,10 @@ pub fn add_slider_u32(
 }
 
 #[wasm_bindgen]
-pub fn add_freq(id: String, url: String) {
+pub fn add_freq(id: String, url: String, min: f32, max: f32) {
     let document = yew::utils::document();
     let div = document.query_selector(&id).unwrap().unwrap();
-    App::<frequency::Frequency>::new().mount_with_props(div, frequency::Props { url });
+    App::<frequency::Frequency>::new().mount_with_props(div, frequency::Props { url, min, max });
 }
 
 #[wasm_bindgen]

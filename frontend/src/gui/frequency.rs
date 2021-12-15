@@ -22,6 +22,8 @@ pub enum Msg {
 #[derive(Clone, Properties, Default, PartialEq)]
 pub struct Props {
     pub url: String,
+    pub min: f32,
+    pub max: f32,
 }
 
 pub struct Frequency {
@@ -40,8 +42,6 @@ pub struct Frequency {
 }
 
 const HEIGHT: usize = 256;
-const MIN: f32 = 100.0;
-const MAX: f32 = 185.0;
 const CANVAS_HEIGHT: usize = 256;
 const CANVAS_WIDTH: usize = 256;
 
@@ -266,7 +266,7 @@ impl Frequency {
         let data: Vec<u8> = self
             .last_data
             .iter()
-            .map(|v| ((v.clamp(MIN, MAX) - MIN) / (MAX - MIN) * 255.0) as u8)
+            .map(|v| ((v.clamp(self.props.min, self.props.max) - self.props.min) / (self.props.max - self.props.min) * 255.0) as u8)
             .collect();
 
         gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(

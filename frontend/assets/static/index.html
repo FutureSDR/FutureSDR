@@ -9,7 +9,7 @@
 
             const runWasm = async () => {
                 const rustWasm = await init();
-                add_freq("#freq", "ws://localhost:9001");
+                add_freq("#freq", "ws://localhost:9001", -20, 10);
                 add_slider_u32("#freq_slider", "http://localhost:1337", 0, 0, 800000000, 900000000, 1000000);
                 app("#app");
             };
