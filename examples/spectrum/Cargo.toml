@@ -10,12 +10,18 @@ crate-type = ["cdylib", "rlib"]
 name = "cpu"
 required-features = ["cpu"]
 
+[[bin]]
+name = "vulkan"
+required-features = ["cpu", "vulkan"]
+
 
 [features]
 default = []
 cpu = [ "futuresdr/soapy" ]
+vulkan = [ "futuresdr/vulkan", "vulkano", "vulkano-shaders"]
 
 [dependencies]
 futuresdr = { path = "../.." }
-# wasm-bindgen = "0.2.74"
-# rand = "0.8.0"
+vulkano = { version = "0.27.1", optional = true }
+vulkano-shaders = { version = "0.27.1", optional = true }
+wasm-bindgen = "0.2.74"

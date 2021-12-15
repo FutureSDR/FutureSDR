@@ -1,35 +1,31 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::SoapySourceBuilder;
-use futuresdr::blocks::WebsocketSinkBuilder;
-use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use wasm_bindgen::prelude::*;
 
-use spectrum::lin2db_block;
-use spectrum::power_block;
-use spectrum::FftShift;
-use spectrum::Keep1InN;
+use crate::lin2db_block;
+use crate::power_block;
+use crate::FftShift;
+use crate::Keep1InN;
 
-fn main() -> Result<()> {
+#[wasm_bindgen]
+pub fn run_fg() {
+    run().unwrap();
+}
+
+fn run() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = SoapySourceBuilder::new()
-        .freq(100e6)
-        .sample_rate(3.2e6)
-        .gain(34.0)
-        .build();
-    let snk = WebsocketSinkBuilder::<f32>::new(9001)
-        .mode(WebsocketSinkMode::FixedBlocking(2048))
-        .build();
-
-    let src = fg.add_block(src);
+    let src = fg.add_block(NullSource::new(4));
     let fft = fg.add_block(Fft::new());
     let power = fg.add_block(power_block());
     let log = fg.add_block(lin2db_block());
     let shift = fg.add_block(FftShift::<f32>::new());
     let keep = fg.add_block(Keep1InN::new(0.1, 10));
-    let snk = fg.add_block(snk);
+    let snk = fg.add_block(NullSink::new(4));
 
     fg.connect_stream(src, "out", fft, "in")?;
     fg.connect_stream(fft, "out", power, "in")?;
