@@ -1,7 +1,9 @@
-.PHONY: build cpu vulkan
+.PHONY: cpu vulkan wasm
 
 wasm:
-	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name wasm --out-dir ./dist --dev
+	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name futuresdr --out-dir ./dist --dev
+	./gulp
+	cd dist && ../serve.py
 
 cpu:
 	cargo run --bin=cpu --features=cpu
