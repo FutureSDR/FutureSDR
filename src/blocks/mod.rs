@@ -92,6 +92,10 @@ pub use vulkan::{Vulkan, VulkanBuilder};
 mod wasm_sdr;
 #[cfg(target_arch = "wasm32")]
 pub use wasm_sdr::WasmSdr;
+#[cfg(target_arch = "wasm32")]
+mod wasm_freq;
+#[cfg(target_arch = "wasm32")]
+pub use wasm_freq::WasmFreq;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket_sink;
