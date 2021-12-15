@@ -15,10 +15,7 @@ mod filter;
 pub use filter::Filter;
 mod fir;
 pub use fir::Fir;
-
-#[cfg(not(target_arch = "wasm32"))]
 mod fft;
-#[cfg(not(target_arch = "wasm32"))]
 pub use fft::{Fft, FftBuilder};
 
 #[cfg(not(target_arch = "wasm32"))]
