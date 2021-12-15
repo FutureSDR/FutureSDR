@@ -125,7 +125,12 @@ impl SyncKernel for Keep1InN {
             }
 
             for i in 0..2048 {
-                self.avg[i] = (1.0 - self.alpha) * self.avg[i] + self.alpha * input[consumed * 2048 + i];
+                let t = input[consumed * 2048 + i];
+                if t.is_finite() {
+                    self.avg[i] = (1.0 - self.alpha) * self.avg[i] + self.alpha * t;
+                } else {
+                    self.avg[i] *= 1.0 - self.alpha;
+                }
             }
 
             consumed += 1;
