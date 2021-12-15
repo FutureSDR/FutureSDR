@@ -1,6 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::NullSink;
+use futuresdr::blocks::WasmFreq;
 use futuresdr::blocks::WasmSdr;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -25,7 +25,7 @@ fn run() -> Result<()> {
     let log = fg.add_block(lin2db_block());
     let shift = fg.add_block(FftShift::<f32>::new());
     let keep = fg.add_block(Keep1InN::new(0.1, 10));
-    let snk = fg.add_block(NullSink::new(4));
+    let snk = fg.add_block(WasmFreq::new("#freq", -20.0, 10.0));
 
     fg.connect_stream(src, "out", fft, "in")?;
     fg.connect_stream(fft, "out", power, "in")?;
