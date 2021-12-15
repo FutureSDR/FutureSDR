@@ -1,3 +1,4 @@
+use futures::channel::mpsc;
 use std::convert::TryInto;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
@@ -12,6 +13,14 @@ use yew::services::ConsoleService;
 use yew::services::WebSocketService;
 use yew::services::{RenderService, Task};
 use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
+
+pub fn mount(id: &str, min: f32, max: f32) -> mpsc::Sender<Vec<f32>> {
+    let document = yew::utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    let app = App::<Frequency>::new().mount_with_props(div, Props { url: "".to_string(), min, max });
+    let app = app.get_component().unwrap();
+    app.get_sender()
+}
 
 pub enum Msg {
     Data(Binary),
@@ -36,9 +45,11 @@ pub struct Frequency {
     vertex_buffer: Option<WebGlBuffer>,
     prog: Option<WebGlProgram>,
     num_indices: i32,
+    receiver: mpsc::Receiver<Vec<f32>>,
+    sender: mpsc::Sender<Vec<f32>>,
     texture_offset: i32,
     texture: Option<WebGlTexture>,
-    _websocket_task: WebSocketTask,
+    _websocket_task: Option<WebSocketTask>,
 }
 
 const HEIGHT: usize = 256;
@@ -50,10 +61,17 @@ impl Component for Frequency {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let cb = link.callback(Msg::Data);
-        let notification = link.callback(Msg::Status);
-        let _websocket_task =
-            WebSocketService::connect_binary(&props.url, cb, notification).unwrap();
+        let _websocket_task = if props.url != "" {
+            let cb = link.callback(Msg::Data);
+            let notification = link.callback(Msg::Status);
+            Some(WebSocketService::connect_binary(&props.url, cb, notification).unwrap())
+        } else {
+            None
+        };
+
+        let (sender, receiver) = mpsc::channel(4);
+
+        ConsoleService::log("yew frequency widget created");
 
         Self {
             link,
@@ -65,6 +83,8 @@ impl Component for Frequency {
             num_indices: 0,
             gl: None,
             prog: None,
+            receiver,
+            sender,
             _render_loop: None,
             last_data: [0f32; 2048],
             _websocket_task,
@@ -72,6 +92,7 @@ impl Component for Frequency {
     }
 
     fn rendered(&mut self, first_render: bool) {
+        ConsoleService::log("yew frequency widget rendered");
         let canvas = self.canvas_ref.cast::<HtmlCanvasElement>().unwrap();
 
         let gl: GL = canvas
@@ -211,6 +232,7 @@ void main()
         self.gl = Some(gl);
 
         if first_render {
+            ConsoleService::log("yew frequency widget first render");
             let render_frame = self.link.callback(Msg::Render);
             let handle = RenderService::request_animation_frame(render_frame);
             self._render_loop = Some(Box::new(handle));
@@ -220,6 +242,10 @@ void main()
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Render(timestamp) => {
+                ConsoleService::log("rendering");
+                if let Ok(Some(v)) = self.receiver.try_next() {
+                    self.last_data = v.try_into().expect("data has wrong size");
+                }
                 self.render_gl(timestamp);
             }
             Msg::Data(b) => {
@@ -241,6 +267,7 @@ void main()
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        ConsoleService::log("yew frequency widget change");
         if props == self.props {
             return false;
         }
@@ -250,6 +277,7 @@ void main()
     }
 
     fn view(&self) -> Html {
+        ConsoleService::log("yew frequency widget view");
         html! {
             <canvas ref={self.canvas_ref.clone()} />
         }
@@ -257,6 +285,11 @@ void main()
 }
 
 impl Frequency {
+
+    fn get_sender(&self) -> mpsc::Sender<Vec<f32>> {
+        self.sender.clone()
+    }
+
     fn render_gl(&mut self, _timestamp: f64) {
         let gl = self.gl.as_ref().unwrap();
 

@@ -3,8 +3,8 @@
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 
-mod ctrl_port;
-mod gui;
+pub mod ctrl_port;
+pub mod gui;
 mod kitchen_sink;
 
 use ctrl_port::slider;
