@@ -1,4 +1,4 @@
 .PHONY: build
 
 build:
-	wasm-pack build --target web --out-name wasm --out-dir ./dist --dev
+	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name wasm --out-dir ./dist --dev
