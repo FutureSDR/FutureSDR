@@ -1,5 +1,3 @@
-use futures::channel::mpsc;
-use once_cell::sync::OnceCell;
 use std::convert::TryInto;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -16,21 +14,16 @@ use yew::services::WebSocketService;
 use yew::services::{RenderService, Task};
 use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
 
-static INSTANCE: OnceCell<mpsc::Sender<Vec<f32>>> = OnceCell::new();
+#[wasm_bindgen]
+extern "C" {
+    fn get_samples() -> Vec<f32>;
+}
 
 #[wasm_bindgen]
 pub fn add_freq(id: String, url: String, min: f32, max: f32) { 
     let document = yew::utils::document();
     let div = document.query_selector(&id).unwrap().unwrap();
-    let app = App::<Frequency>::new().mount_with_props(div, Props { url, min, max });
-    let app = app.get_component().unwrap();
-    ConsoleService::log("setting sender");
-    INSTANCE.set(app.get_sender()).unwrap();
-}
-
-pub fn get_sender() -> mpsc::Sender<Vec<f32>> {
-    ConsoleService::log("getting sender");
-    INSTANCE.get().unwrap().clone()
+    App::<Frequency>::new().mount_with_props(div, Props { url, min, max });
 }
 
 pub enum Msg {
@@ -56,11 +49,9 @@ pub struct Frequency {
     vertex_buffer: Option<WebGlBuffer>,
     prog: Option<WebGlProgram>,
     num_indices: i32,
-    receiver: mpsc::Receiver<Vec<f32>>,
-    sender: mpsc::Sender<Vec<f32>>,
     texture_offset: i32,
     texture: Option<WebGlTexture>,
-    _websocket_task: Option<WebSocketTask>,
+    websocket_task: Option<WebSocketTask>,
 }
 
 const HEIGHT: usize = 256;
@@ -72,15 +63,13 @@ impl Component for Frequency {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let _websocket_task = if props.url != "" {
+        let websocket_task = if props.url != "" {
             let cb = link.callback(Msg::Data);
             let notification = link.callback(Msg::Status);
             Some(WebSocketService::connect_binary(&props.url, cb, notification).unwrap())
         } else {
             None
         };
-
-        let (sender, receiver) = mpsc::channel(4);
 
         ConsoleService::log("yew frequency widget created");
 
@@ -94,11 +83,9 @@ impl Component for Frequency {
             num_indices: 0,
             gl: None,
             prog: None,
-            receiver,
-            sender,
             _render_loop: None,
             last_data: [0f32; 2048],
-            _websocket_task,
+            websocket_task,
         }
     }
 
@@ -254,8 +241,8 @@ void main()
         match msg {
             Msg::Render(timestamp) => {
                 ConsoleService::log("rendering");
-                if let Ok(Some(v)) = self.receiver.try_next() {
-                    self.last_data = v.try_into().expect("data has wrong size");
+                if self.websocket_task.is_none() {
+                    self.last_data = get_samples().try_into().expect("data has wrong size");
                 }
                 self.render_gl(timestamp);
             }
@@ -296,10 +283,6 @@ void main()
 }
 
 impl Frequency {
-
-    fn get_sender(&self) -> mpsc::Sender<Vec<f32>> {
-        self.sender.clone()
-    }
 
     fn render_gl(&mut self, _timestamp: f64) {
         let gl = self.gl.as_ref().unwrap();

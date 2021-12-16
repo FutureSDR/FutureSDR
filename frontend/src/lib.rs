@@ -9,7 +9,6 @@ mod kitchen_sink;
 
 use ctrl_port::slider;
 use futuresdr_pmt::PmtKind;
-use gui::frequency;
 
 #[wasm_bindgen(start)]
 pub fn futuresdr_init() {
@@ -41,13 +40,6 @@ pub fn add_slider_u32(
         },
     );
 }
-
-// #[wasm_bindgen]
-// pub fn add_freq(id: String, url: String, min: f32, max: f32) {
-//     let document = yew::utils::document();
-//     let div = document.query_selector(&id).unwrap().unwrap();
-//     App::<frequency::Frequency>::new().mount_with_props(div, frequency::Props { url, min, max });
-// }
 
 #[wasm_bindgen]
 pub fn app(id: String) {
