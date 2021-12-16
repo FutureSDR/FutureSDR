@@ -16,16 +16,16 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 use crate::runtime::buffer::wgpu::{ReaderH2D, WriterD2H, BufferEmpty, BufferFull};
 
-pub struct WgpuWasm {
+pub struct Wgpu {
     broker: WgpuBroker,
     buffer_items: u64,
     pipeline: Option<ComputePipeline>,
     storage_buffer: wgpu::Buffer,
     output_buffers: Vec<Buffer>,
-    input_buffers: Vec<Buffer>,
+    _input_buffers: Vec<Buffer>,
 }
 
-impl WgpuWasm {
+impl Wgpu{
     pub fn new(broker: WgpuBroker, buffer_items: u64) -> Block {
 
         let storage_buffer = broker.device.create_buffer(&wgpu::BufferDescriptor {
@@ -43,14 +43,14 @@ impl WgpuWasm {
                 .add_input("in", 4)
                 .add_output("out", 4)
                 .build(),
-            MessageIoBuilder::<WgpuWasm>::new().build(),
-            WgpuWasm {
+            MessageIoBuilder::<Wgpu>::new().build(),
+            Wgpu {
                 broker,
                 buffer_items,
                 pipeline: None,
                 storage_buffer,
                 output_buffers: Vec::new(),
-                input_buffers: Vec::new(),
+                _input_buffers: Vec::new(),
             },
         )
     }
@@ -67,7 +67,7 @@ fn o(sio: &mut StreamIo, id: usize) -> &mut WriterD2H {
  }
 
 #[async_trait]
-impl AsyncKernel for WgpuWasm {
+impl AsyncKernel for Wgpu {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
@@ -165,7 +165,7 @@ impl AsyncKernel for WgpuWasm {
                   }
 
                  {
-                    // log::info!("***Write to storage buffer - first element : {} ***", m.buffer[0]);
+                     // log::info!("***Write to storage buffer - first element : {} ***", m.buffer[0]);
                      // log::info!("***Write to storage buffer - 8192 element : {} ***", input[8192]);
                      self.broker.queue.write_buffer(&self.storage_buffer, 0, &m.buffer[0..m.used_bytes]);
                      let mut encoder =
@@ -181,12 +181,11 @@ impl AsyncKernel for WgpuWasm {
 
                      encoder.copy_buffer_to_buffer(&self.storage_buffer, 0, &output, 0, m.used_bytes as u64);
 
-                   //  log::info!("*** queue submit ***");
+                     log::info!("*** queue submit ***");
                      output.unmap();
                      self.broker.queue.submit(Some(encoder.finish()));
                  }
 
-                /// log::info!("*** remapping result buffer ***");
                  let buffer_slice = output.slice(..);
                  let buffer_future = buffer_slice.map_async(wgpu::MapMode::Read);
 
@@ -205,11 +204,11 @@ impl AsyncKernel for WgpuWasm {
                  }
 
 
-        //sio.input(0).consume(n * 2048);#
+             //sio.input(0).consume(n * 2048);#
              // Horrible style to always ceate a new buffer..?
              //
              let input = i(sio,0);
-            // let input_buffer = BufferEmpty{
+             // let input_buffer = BufferEmpty{
              //    buffer: vec![0; 8192]
              //};
              input.submit(BufferEmpty{ buffer: m.buffer });
@@ -223,25 +222,3 @@ impl AsyncKernel for WgpuWasm {
     }
 }
 
-pub struct WgpuBuilderWasm {
-    wgpu_broker: WgpuBroker,
-    buffer_items: u64,
-}
-
-impl WgpuBuilderWasm {
-    pub fn new(broker: WgpuBroker) -> WgpuBuilderWasm {
-        WgpuBuilderWasm {
-            wgpu_broker: broker,
-            buffer_items: 2048,
-        }
-    }
-
-    pub fn buffer_items(mut self, items: u64) -> WgpuBuilderWasm {
-        self.buffer_items = items;
-        self
-    }
-
-    pub fn build(self) -> Block {
-        WgpuWasm::new(self.wgpu_broker, self.buffer_items)
-    }
-}

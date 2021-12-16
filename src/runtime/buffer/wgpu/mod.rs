@@ -1,9 +1,3 @@
-use wgpu::{Device, Adapter};
-use wgpu::Queue;
-use wgpu::Buffer;
-
-
-
 mod d2h;
 pub use d2h::ReaderD2H;
 pub use d2h::WriterD2H;
@@ -12,6 +6,9 @@ mod h2d;
 pub use h2d::ReaderH2D;
 pub use h2d::WriterH2D;
 pub use h2d::H2D;
+
+use wgpu::{Device, Adapter};
+use wgpu::Queue;
 
 // ================== WGPU MESSAGE ============================
 #[derive(Debug)]

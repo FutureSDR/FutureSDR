@@ -29,11 +29,14 @@ pub mod slab;
 #[cfg(feature = "vulkan")]
 pub mod vulkan;
 
+// ==================== WGPU =======================
+#[cfg(feature = "wgpu")]
+pub mod wgpu;
+
 // // -==================== ZYNQ ========================
 #[cfg(feature = "zynq")]
 pub mod zynq;
 
-pub mod wgpu;
 // =================== PAGESIZE ======================
 #[cfg(unix)]
 pub fn pagesize() -> usize {
