@@ -79,6 +79,7 @@ num-complex = "0.4.0"
 num_cpus = "1.13.0"
 once_cell = "1.5.2"
 rand = "0.8.0"
+rustfft = "6.0.1"
 slab = "0.4.4"
 spin = "0.9.0"
 serde = { version = "1.0.131", features = ["derive"] }
@@ -88,7 +89,6 @@ zmq = {version = "0.9", optional = true}
 console_log = "0.2.0"
 futuresdr-frontend = { path = "frontend" }
 getrandom = { version = "0.2.3", features = ["js"] }
-rustfft = "6.0.1"
 wasm-bindgen = "0.2.74"
 wasm-rs-async-executor = "0.9.0"
 
