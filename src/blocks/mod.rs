@@ -107,5 +107,14 @@ pub mod zeromq;
 
 #[cfg(feature = "zynq")]
 mod zynq;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod wgpu_block;
+#[cfg(target_arch = "wasm32")]
+mod wgpu_block_wasm;
+#[cfg(not(target_arch = "wasm32"))]
+pub use wgpu_block::{WgpuBuilder};
+#[cfg(target_arch = "wasm32")]
+pub use wgpu_block_wasm::WgpuBuilderWasm;
 #[cfg(feature = "zynq")]
 pub use zynq::{Zynq, ZynqBuilder};
