@@ -39,8 +39,6 @@
              margin: 0;
              padding: 20px;
          }
-         #slide {
-         }
         </style>
     </head>
     <body>
@@ -50,64 +48,23 @@
                     Start
                 </button>
             </div>
-            <div id="slide" class="flex-item" ></div>
         </div>
         <div id="freq"></div>
 
-
-        <div class="spinner" id='spinner'></div>
-        <div class="emscripten" id="status">Downloading...</div>
-
-
-        <div class="emscripten">
-            <progress value="0" max="100" id="progress" hidden=1></progress>
-        </div>
-
-        
-        <div class="emscripten_border">
-            <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-        </div>
-        <!-- <textarea id="output" rows="8"></textarea> -->
-
-        <script type='text/javascript'>
-         var statusElement = document.getElementById('status');
-         var progressElement = document.getElementById('progress');
-         var spinnerElement = document.getElementById('spinner');
-
+        <script type="text/javascript">
          var Module = {
              preRun: [],
              postRun: [],
              print: (function() {
-                 var element = document.getElementById('output');
-                 if (element) element.value = ''; // clear browser cache
                  return function(text) {
                      if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
-                     // These replacements are necessary if you render to raw HTML
-                     //text = text.replace(/&/g, "&amp;");
-                     //text = text.replace(/</g, "&lt;");
-                     //text = text.replace(/>/g, "&gt;");
-                     //text = text.replace('\n', '<br>', 'g');
                      console.log(text);
-                     if (element) {
-                         element.value += text + "\n";
-                         element.scrollTop = element.scrollHeight; // focus on bottom
-                     }
                  };
              })(),
              printErr: function(text) {
                  if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
                  console.error(text);
              },
-             canvas: (function() {
-                 var canvas = document.getElementById('canvas');
-
-                 // As a default initial behavior, pop up an alert when webgl context is lost. To make your
-                 // application robust, you may want to override this behavior before shipping!
-                 // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-                 canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
-
-                 return canvas;
-             })(),
              setStatus: function(text) {
                  if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
                  if (text === Module.setStatus.last.text) return;
@@ -118,17 +75,8 @@
                  Module.setStatus.last.text = text;
                  if (m) {
                      text = m[1];
-                     progressElement.value = parseInt(m[2])*100;
-                     progressElement.max = parseInt(m[4])*100;
-                     progressElement.hidden = false;
-                     spinnerElement.hidden = false;
-                 } else {
-                     progressElement.value = null;
-                     progressElement.max = null;
-                     progressElement.hidden = true;
-                     if (!text) spinnerElement.style.display = 'none';
                  }
-                 statusElement.innerHTML = text;
+                 console.log(text);
              },
              totalDependencies: 0,
              monitorRunDependencies: function(left) {
@@ -136,86 +84,52 @@
                  Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
              }
          };
+
          Module.setStatus('Downloading...');
-         window.onerror = function(event) {
-             // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
-             Module.setStatus('Exception thrown, see JavaScript console');
-             spinnerElement.style.display = 'none';
-             Module.setStatus = function(text) {
-                 if (text) Module.printErr('[post-exception status] ' + text);
-             };
-         };
-        </script>
-        <script type="text/javascript">
-         var myLink = document.getElementById('start');
-         var read_samples;
-         var set_freq;
-
-         Module['onRuntimeInitialized'] = function() {
-             console.log("emscripten loaded ");
-             read_samples = Module.read_samples;
-             set_freq = Module.set_freq;
-         }
-
-         myLink.onclick = function() {
-             var script = document.createElement("script");
-             script.type = "text/javascript";
-             script.src = "rtl_open.js"; 
-             document.getElementsByTagName("head")[0].appendChild(script);
-             return false;
-         }
 
          var samples = new Float32Array(2048);
 
          function get_samples() {
              return samples;
          }
-        
+
+         var worker = new Worker("myworker.js");
+         console.log("worker created");
+
+         worker.onmessage = function(event) {
+             console.log("main thread messages from worker");
+             samples = event.data;
+         };
+         
+         var read_samples;
+         var set_freq;
+
+         Module['onRuntimeInitialized'] = function() {
+             console.log("EMSCRIPTEN LOADED");
+             read_samples = Module.read_samples;
+             set_freq = Module.set_freq;
+             console.log(Module);
+         }
+
+         var myLink = document.getElementById('start');
+         myLink.onclick = function() {
+            var script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = "rtl_open.js"; 
+            document.getElementsByTagName("head")[0].appendChild(script);
+            return false;
+         }
         </script>
         <script type="module">
 
          import init, {add_freq} from "./futuresdr.js"
 
-         function Sleep(milliseconds) {
-             return new Promise(resolve => setTimeout(resolve, milliseconds));
-         }
-
          const runWasm = async () => {
-             await Sleep(5000);
              const rustWasm = await init();
              add_freq('#freq', '', -20, 10);
-             var worker = new Worker("worker.js",  {
-                 type: 'module'
-             });
-             console.log("worker created");
-             worker.addEventListener("message", event => {
-                 console.log("main thread messages from worker");
-                 if(event.data == "read_samples") {
-                     worker.postMessage(read_samples());
-                     console.log("main thread posted samples to worker");
-                 } else {
-                     samples = event.data;
-                 }
-             });
-             console.log("worker eventlistener added");
          };
 
-         function waitForElement(){
-
-             if(typeof read_samples === 'function') {
-                 console.log("present, loading");
-
-                 runWasm();
-             } else {
-                 console.log("not present, waiting");
-                 setTimeout(waitForElement, 250);
-             }
-         }
-
-         waitForElement();
+         runWasm();
         </script>
-
-
-
     </body>
 </html>
