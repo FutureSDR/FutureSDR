@@ -6,15 +6,20 @@
         <link rel="stylesheet" href="/css/futuresdr.css">
         <link rel="shortcut icon" href="/favicon.png">
         <script type="module">
-            import init, {run_fg} from "./wasm.js"
+         import init, {run_fg} from "./wasm.js"
 
-            const runWasm = async () => {
-                const rustWasm = await init();
-                run_fg();
-            };
+         const runWasm = async () => {
+             const rustWasm = await init();
+             await run_fg();
+         };
 
-            runWasm();
-        </script>
+         runWasm();
+         </script>
+         <!-- <script>
+              var worker = new Worker("worker.js",  {
+              type: 'module'
+              });
+              </script> -->
     </head>
     <body>
         <h1>Hello World!</h1>
