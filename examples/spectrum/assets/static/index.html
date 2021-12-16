@@ -168,7 +168,7 @@
         </script>
         <script type="module">
 
-         import init, {run_fg} from "./futuresdr.js"
+         import init, {run_fg, add_freq} from "./futuresdr.js"
 
          function Sleep(milliseconds) {
              return new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -177,9 +177,10 @@
          const runWasm = async () => {
              await Sleep(5000);
              const rustWasm = await init();
-             run_fg();
-             /* add_freq('#freq');
-              * add_slider('#slide', 88000000, 108000000, 1000000); */
+             add_freq('#freq', '', -20, 10);
+             var worker = new Worker("worker.js",  {
+                 type: 'module'
+             });
          };
 
          function waitForElement(){
