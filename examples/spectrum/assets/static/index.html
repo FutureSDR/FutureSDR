@@ -158,17 +158,23 @@
          }
 
          myLink.onclick = function() {
-
              var script = document.createElement("script");
              script.type = "text/javascript";
              script.src = "rtl_open.js"; 
              document.getElementsByTagName("head")[0].appendChild(script);
              return false;
          }
+
+         var samples = new Float32Array(2048);
+
+         function get_samples() {
+             return samples;
+         }
+        
         </script>
         <script type="module">
 
-         import init, {run_fg, add_freq} from "./futuresdr.js"
+         import init, {add_freq} from "./futuresdr.js"
 
          function Sleep(milliseconds) {
              return new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -181,6 +187,17 @@
              var worker = new Worker("worker.js",  {
                  type: 'module'
              });
+             console.log("worker created");
+             worker.addEventListener("message", event => {
+                 console.log("main thread messages from worker");
+                 if(event.data == "read_samples") {
+                     worker.postMessage(read_samples());
+                     console.log("main thread posted samples to worker");
+                 } else {
+                     samples = event.data;
+                 }
+             });
+             console.log("worker eventlistener added");
          };
 
          function waitForElement(){

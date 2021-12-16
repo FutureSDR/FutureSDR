@@ -25,7 +25,13 @@ gulp.task('assets:static', function() {
         .pipe(browserSync.stream());
 });
 
-gulp.task('assets', gulp.parallel('assets:css', 'assets:static'));
+gulp.task('assets:futuresdr', function() {
+    return gulp.src('../../frontend/dist/futuresdr*')
+        .pipe(gulp.dest('dist/'))
+        .pipe(browserSync.stream());
+});
+
+gulp.task('assets', gulp.parallel('assets:css', 'assets:static', 'assets:futuresdr'));
 gulp.task('default', gulp.parallel('assets'));
 
 gulp.task('serve', function() {
