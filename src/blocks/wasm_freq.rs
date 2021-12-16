@@ -1,7 +1,5 @@
-use futures::channel::mpsc;
-use futures::SinkExt;
-use futuresdr_frontend::gui::frequency;
 use std::mem::size_of;
+use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
@@ -14,15 +12,16 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct WasmFreq {
-    sender: mpsc::Sender<Vec<f32>>,
+#[wasm_bindgen]
+extern "C" {
+    fn put_samples(s: Vec<f32>);
 }
+
+pub struct WasmFreq;
 
 impl WasmFreq {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(div: &str, min: f32, max: f32) -> Block {
-
-        let sender = frequency::get_sender();
 
         Block::new_async(
             BlockMetaBuilder::new("WasmFreq").build(),
@@ -30,9 +29,7 @@ impl WasmFreq {
                 .add_input("in", size_of::<f32>())
                 .build(),
             MessageIoBuilder::new().build(),
-            Self {
-                sender,
-            },
+            Self,
         )
     }
 }
@@ -51,10 +48,7 @@ impl AsyncKernel for WasmFreq {
         let n = input.len() / 2048;
 
         for i in 0..n {
-            if self.sender.send(input[i*2048..(i+1)*2048].to_vec()).await.is_err() {
-                info!("WasmFreq failed to write to Yew component. Terminating");
-                io.finished = true;
-            }
+            put_samples(input[i*2048..(i+1)*2048].to_vec());
             info!("WasmFreq sent data");
         }
 
