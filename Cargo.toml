@@ -83,6 +83,8 @@ rustfft = "6.0.1"
 slab = "0.4.4"
 spin = "0.9.0"
 serde = { version = "1.0.131", features = ["derive"] }
+wgpu = {version = "0.11.0"}
+bytemuck = "1.4"
 zmq = {version = "0.9", optional = true}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

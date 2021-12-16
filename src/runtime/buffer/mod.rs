@@ -33,6 +33,7 @@ pub mod vulkan;
 #[cfg(feature = "zynq")]
 pub mod zynq;
 
+pub mod wgpu;
 // =================== PAGESIZE ======================
 #[cfg(unix)]
 pub fn pagesize() -> usize {
