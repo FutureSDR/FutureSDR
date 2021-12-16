@@ -1,5 +1,7 @@
 use futures::channel::mpsc;
+use once_cell::sync::OnceCell;
 use std::convert::TryInto;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use web_sys::WebGlBuffer;
@@ -14,12 +16,21 @@ use yew::services::WebSocketService;
 use yew::services::{RenderService, Task};
 use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
 
-pub fn mount(id: &str, min: f32, max: f32) -> mpsc::Sender<Vec<f32>> {
+static INSTANCE: OnceCell<mpsc::Sender<Vec<f32>>> = OnceCell::new();
+
+#[wasm_bindgen]
+pub fn add_freq(id: String, url: String, min: f32, max: f32) { 
     let document = yew::utils::document();
     let div = document.query_selector(&id).unwrap().unwrap();
-    let app = App::<Frequency>::new().mount_with_props(div, Props { url: "".to_string(), min, max });
+    let app = App::<Frequency>::new().mount_with_props(div, Props { url, min, max });
     let app = app.get_component().unwrap();
-    app.get_sender()
+    ConsoleService::log("setting sender");
+    INSTANCE.set(app.get_sender()).unwrap();
+}
+
+pub fn get_sender() -> mpsc::Sender<Vec<f32>> {
+    ConsoleService::log("getting sender");
+    INSTANCE.get().unwrap().clone()
 }
 
 pub enum Msg {

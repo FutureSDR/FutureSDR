@@ -22,7 +22,7 @@ impl WasmFreq {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(div: &str, min: f32, max: f32) -> Block {
 
-        let sender = frequency::mount(div, min, max);
+        let sender = frequency::get_sender();
 
         Block::new_async(
             BlockMetaBuilder::new("WasmFreq").build(),
