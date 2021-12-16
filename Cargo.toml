@@ -90,7 +90,8 @@ console_log = "0.2.0"
 futuresdr-frontend = { path = "frontend" }
 getrandom = { version = "0.2.3", features = ["js"] }
 wasm-bindgen = "0.2.74"
-wasm-rs-async-executor = "0.9.0"
+pollster = "0.2.4"
+wasm-bindgen-futures = "0.4.28"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"

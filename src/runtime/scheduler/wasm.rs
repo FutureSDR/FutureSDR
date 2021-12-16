@@ -1,7 +1,11 @@
 use futures::channel::mpsc::{channel, Sender};
+use futures::channel::oneshot;
 use futures::future::Future;
+use futures::task::Context;
+use futures::task::Poll;
+use futures_lite::FutureExt;
 use slab::Slab;
-use wasm_rs_async_executor::single_threaded;
+use std::pin::Pin;
 
 use crate::runtime::config;
 use crate::runtime::run_block;
@@ -51,16 +55,36 @@ impl Scheduler for WasmScheduler {
     fn spawn<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
-    ) -> single_threaded::TaskHandle<T> {
-        single_threaded::spawn(future)
+    ) -> TaskHandle<T> {
+        let (tx, rx) = oneshot::channel::<T>();
+        wasm_bindgen_futures::spawn_local(async move {
+            let t = future.await;
+            if tx.send(t).is_err() {
+                info!("task cannot deliver final result");
+            }
+        });
+
+        TaskHandle(rx)
     }
 
     fn spawn_blocking<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
-    ) -> single_threaded::TaskHandle<T> {
+    ) -> TaskHandle<T> {
         info!("no spawn blocking for wasm, using spawn");
         self.spawn(future)
+    }
+}
+
+pub struct TaskHandle<T>(oneshot::Receiver<T>);
+
+impl<T> std::future::Future for TaskHandle<T>{
+    type Output = T;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.0.poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(x) => Poll::Ready(x.unwrap()),
+        }
     }
 }
 

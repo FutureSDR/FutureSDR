@@ -1,16 +1,14 @@
-#[cfg(not(target_arch = "wasm32"))]
-use async_task::Task;
 use futures::channel::mpsc::Sender;
 use futures::future::Future;
 use slab::Slab;
 
+#[cfg(not(target_arch = "wasm32"))]
+use async_task::Task;
+#[cfg(target_arch = "wasm32")]
+type Task<T> = super::wasm::TaskHandle<T>;
+
 use crate::runtime::AsyncMessage;
 use crate::runtime::Topology;
-
-#[cfg(target_arch = "wasm32")]
-use wasm_rs_async_executor::single_threaded;
-#[cfg(target_arch = "wasm32")]
-type Task<T> = single_threaded::TaskHandle<T>;
 
 pub trait Scheduler: Clone + Send + 'static {
     fn run_topology(
