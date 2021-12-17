@@ -17,6 +17,7 @@ use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
 #[wasm_bindgen]
 extern "C" {
     fn get_samples() -> Vec<f32>;
+    fn rendered();
 }
 
 #[wasm_bindgen]
@@ -240,11 +241,12 @@ void main()
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Render(timestamp) => {
-                ConsoleService::log("rendering");
+                // ConsoleService::log("rendering");
                 if self.websocket_task.is_none() {
                     self.last_data = get_samples().try_into().expect("data has wrong size");
                 }
                 self.render_gl(timestamp);
+                rendered();
             }
             Msg::Data(b) => {
                 if let Ok(b) = b {

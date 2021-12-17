@@ -2,7 +2,7 @@
 
 wasm:
 	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name spectrum --out-dir ./dist --dev
-	cd ../../frontend && RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name spectrum --out-dir ./dist --dev
+	cd ../../frontend && make
 	./gulp
 	cd dist && ../serve.py
 

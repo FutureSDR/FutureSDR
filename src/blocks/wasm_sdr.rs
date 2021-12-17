@@ -1,8 +1,14 @@
+use futures::channel::mpsc;
+use futures::SinkExt;
+use futures::StreamExt;
+use once_cell::sync::OnceCell;
 use std::mem::size_of;
+use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
+use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -10,15 +16,27 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
+static SENDER: OnceCell<Mutex<mpsc::Sender<Vec<u8>>>> = OnceCell::new();
+
 #[wasm_bindgen]
-extern "C" {
-    fn read_samples() -> Vec<u8>;
+pub async fn push_samples(s: Vec<u8>) -> bool {
+    if let Some(tx) = SENDER.get() {
+        if tx.lock().unwrap().send(s).await.is_err() {
+            info!("WasmSdr, pushing while closed");
+            false
+        } else {
+            true
+        }
+    } else {
+        info!("WasmSdr, pushing before initialized");
+        false
+    }
 }
 
 pub struct WasmSdr {
+    receiver: mpsc::Receiver<Vec<u8>>,
     samples: Vec<u8>,
     index: usize,
 }
@@ -26,13 +44,17 @@ pub struct WasmSdr {
 impl WasmSdr {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-        Block::new_sync(
+        let (sender, receiver) = mpsc::channel(1);
+        SENDER.set(Mutex::new(sender)).unwrap();
+
+        Block::new_async(
             BlockMetaBuilder::new("WasmSDR").build(),
             StreamIoBuilder::new()
                 .add_output("out", size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::new().build(),
             Self {
+                receiver,
                 samples: Vec::new(),
                 index: 0,
             },
@@ -41,10 +63,10 @@ impl WasmSdr {
 }
 
 #[async_trait]
-impl SyncKernel for WasmSdr {
-    fn work(
+impl AsyncKernel for WasmSdr {
+    async fn work(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
@@ -53,9 +75,11 @@ impl SyncKernel for WasmSdr {
         let output = sio.output(0).slice::<Complex32>();
 
         if self.index == self.samples.len() {
-            self.samples = read_samples();
+            self.samples = self.receiver.next().await.unwrap();
             self.index = 0;
         }
+
+        info!("WasmSDR samples.len {}   index {}    output space {}", self.samples.len(), self.index, output.len());
 
         let n = std::cmp::min((self.samples.len() - self.index) / 2, output.len());
 
@@ -65,6 +89,8 @@ impl SyncKernel for WasmSdr {
                 (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0);
         }
 
+        info!("WasmSDR producing {}", n);
+        io.call_again = true;
         self.index += 2 * n;
         sio.output(0).produce(n);
 

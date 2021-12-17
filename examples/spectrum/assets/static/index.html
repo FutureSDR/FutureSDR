@@ -94,11 +94,21 @@
          }
 
          function get_samples() {
+             inflight -= 2048 * 10;
+             console.log(samples);
              return samples;
+         }
+
+         function rendered() {
+             let r = resolver;
+             resolver = function () {};
+             r();
          }
 
          var read_samples;
          var set_freq;
+         var inflight = 0;
+         var resolver = function () {};
 
          Module['onRuntimeInitialized'] = function() {
              console.log("EMSCRIPTEN LOADED");
@@ -122,23 +132,55 @@
 
          const runWasm = async () => {
              const rustWasm = await init();
-             add_freq('#freq', '', -20, 10);
+             add_freq('#freq', '', -50, 20);
          };
 
          runWasm();
         </script>
 
         <script type="module">
-         import init, {run_fg} from "./spectrum.js"
+         import init, {run_fg, push_samples} from "./spectrum.js"
 
          function Sleep(milliseconds) {
              return new Promise(resolve => setTimeout(resolve, milliseconds));
          }
 
+         var produced = 0;
+         var render_promise;
+
+         async function push() {
+             while(true) {
+                 if(produced > 2048 * 2 * 10 *2) {
+                     await p;
+                     let p = new Promise(function(resolve) {
+                         resolver = resolve;
+                     });
+                     produced = 0;
+                     /* }
+                      * if(inflight > 4096 * 20) {
+                      *     console.log("too much inflight " + inflight);
+                      *     await p;
+                      *     console.log("promise resolved"); */
+
+                 } else {
+                     console.log("trying to push samples " + inflight);
+                     let res = await push_samples(read_samples());
+                     if(res) {
+                         console.log("pushed samples " + inflight);
+                         inflight += 4096;
+                         produced += 8192;
+                     } else {
+                         console.log("pushing failed " + inflight);
+                         await Sleep(1000);
+                     }
+                 }
+             }
+         }
+
          const runWasm = async () => {
              await Sleep(5000);
              const rustWasm = await init();
-             await run_fg();
+             await Promise.all([run_fg(), push()]);
          };
 
          function waitForElement(){

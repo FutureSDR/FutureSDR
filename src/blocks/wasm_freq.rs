@@ -38,7 +38,7 @@ impl WasmFreq {
 impl AsyncKernel for WasmFreq {
     async fn work(
         &mut self,
-        io: &mut WorkIo,
+        _io: &mut WorkIo,
         sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
