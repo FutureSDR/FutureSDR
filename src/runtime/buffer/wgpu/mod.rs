@@ -24,15 +24,15 @@ pub struct BufferEmpty {
 
 
 #[derive(Debug)]
-pub struct WgpuBroker {
+pub struct Broker {
     pub adapter: Adapter,
     pub device: Device,
     pub queue: Queue,
 }
 
-impl WgpuBroker {
+impl Broker {
     // Creating some of the wgpu types requires async code
-    pub async fn new() -> WgpuBroker {
+    pub async fn new() -> Broker {
         info!("adapter");
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         info!("created instance");
@@ -59,7 +59,7 @@ impl WgpuBroker {
             .await
             .expect("device queue failed");
 
-        WgpuBroker {
+        Broker {
             adapter,
             device,
             queue

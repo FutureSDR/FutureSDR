@@ -19,6 +19,7 @@ required-features = ["cpu", "vulkan"]
 default = []
 cpu = [ "futuresdr/soapy" ]
 vulkan = [ "futuresdr/vulkan", "vulkano", "vulkano-shaders"]
+wgpu = [ "futuresdr/wgpu" ]
 
 [dependencies]
 futuresdr = { path = "../.." }

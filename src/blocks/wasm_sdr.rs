@@ -66,7 +66,7 @@ impl WasmSdr {
 impl AsyncKernel for WasmSdr {
     async fn work(
         &mut self,
-        io: &mut WorkIo,
+        _io: &mut WorkIo,
         sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
@@ -87,7 +87,6 @@ impl AsyncKernel for WasmSdr {
                 (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0);
         }
 
-        io.call_again = true;
         self.index += 2 * n;
         sio.output(0).produce(n);
 
