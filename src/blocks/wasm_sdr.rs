@@ -52,11 +52,9 @@ impl SyncKernel for WasmSdr {
 
         let output = sio.output(0).slice::<Complex32>();
 
-        while self.index == self.samples.len() {
-            info!("reading samples {}", self.index);
+        if self.index == self.samples.len() {
             self.samples = read_samples();
             self.index = 0;
-            info!("samples read {}", self.samples.len());
         }
 
         let n = std::cmp::min((self.samples.len() - self.index) / 2, output.len());
@@ -68,7 +66,6 @@ impl SyncKernel for WasmSdr {
         }
 
         self.index += 2 * n;
-        info!("WasmSdr producing {}", n);
         sio.output(0).produce(n);
 
         Ok(())

@@ -21,7 +21,7 @@ pub struct WasmFreq;
 
 impl WasmFreq {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(div: &str, min: f32, max: f32) -> Block {
+    pub fn new() -> Block {
 
         Block::new_async(
             BlockMetaBuilder::new("WasmFreq").build(),
@@ -49,7 +49,6 @@ impl AsyncKernel for WasmFreq {
 
         for i in 0..n {
             put_samples(input[i*2048..(i+1)*2048].to_vec());
-            info!("WasmFreq sent data");
         }
 
         sio.input(0).consume(n * 2048);

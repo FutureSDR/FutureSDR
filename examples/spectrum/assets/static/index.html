@@ -89,18 +89,14 @@
 
          var samples = new Float32Array(2048);
 
+         function put_samples(s) {
+             samples = s;
+         }
+
          function get_samples() {
              return samples;
          }
 
-         var worker = new Worker("myworker.js");
-         console.log("worker created");
-
-         worker.onmessage = function(event) {
-             console.log("main thread messages from worker");
-             samples = event.data;
-         };
-         
          var read_samples;
          var set_freq;
 
@@ -120,8 +116,8 @@
             return false;
          }
         </script>
-        <script type="module">
 
+        <script type="module">
          import init, {add_freq} from "./futuresdr.js"
 
          const runWasm = async () => {
@@ -130,6 +126,32 @@
          };
 
          runWasm();
+        </script>
+
+        <script type="module">
+         import init, {run_fg} from "./spectrum.js"
+
+         function Sleep(milliseconds) {
+             return new Promise(resolve => setTimeout(resolve, milliseconds));
+         }
+
+         const runWasm = async () => {
+             await Sleep(5000);
+             const rustWasm = await init();
+             await run_fg();
+         };
+
+         function waitForElement(){
+             if(typeof read_samples === 'function') {
+                 console.log("present, loading");
+                 runWasm();
+             } else {
+                 console.log("not present, waiting");
+                 setTimeout(waitForElement, 250);
+             }
+         }
+         waitForElement();
+
         </script>
     </body>
 </html>

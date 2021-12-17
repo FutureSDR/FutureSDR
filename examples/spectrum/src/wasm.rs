@@ -12,11 +12,11 @@ use crate::FftShift;
 use crate::Keep1InN;
 
 #[wasm_bindgen]
-pub fn run_fg() {
-    run().unwrap();
+pub async fn run_fg() {
+    run().await.unwrap();
 }
 
-fn run() -> Result<()> {
+async fn run() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = fg.add_block(WasmSdr::new());
@@ -25,7 +25,7 @@ fn run() -> Result<()> {
     let log = fg.add_block(lin2db_block());
     let shift = fg.add_block(FftShift::<f32>::new());
     let keep = fg.add_block(Keep1InN::new(0.1, 10));
-    let snk = fg.add_block(WasmFreq::new("#freq", -20.0, 10.0));
+    let snk = fg.add_block(WasmFreq::new());
 
     fg.connect_stream(src, "out", fft, "in")?;
     fg.connect_stream(fft, "out", power, "in")?;
@@ -34,7 +34,7 @@ fn run() -> Result<()> {
     fg.connect_stream(shift, "out", keep, "in")?;
     fg.connect_stream(keep, "out", snk, "in")?;
 
-    Runtime::new().run(fg)?;
+    Runtime::new().run(fg).await?;
     Ok(())
 }
 
