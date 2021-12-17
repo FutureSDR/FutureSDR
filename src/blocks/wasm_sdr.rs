@@ -79,8 +79,6 @@ impl AsyncKernel for WasmSdr {
             self.index = 0;
         }
 
-        info!("WasmSDR samples.len {}   index {}    output space {}", self.samples.len(), self.index, output.len());
-
         let n = std::cmp::min((self.samples.len() - self.index) / 2, output.len());
 
         for i in 0..n {
@@ -89,7 +87,6 @@ impl AsyncKernel for WasmSdr {
                 (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0);
         }
 
-        info!("WasmSDR producing {}", n);
         io.call_again = true;
         self.index += 2 * n;
         sio.output(0).produce(n);

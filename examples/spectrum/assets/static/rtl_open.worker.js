@@ -54,7 +54,6 @@ var wasmSourceMapData;
 var wasmOffsetData;
 
 function moduleLoaded() {
-    console.log(Module);
   wasmSourceMap = resetPrototype(Module['WasmSourceMap'], wasmSourceMapData);
   wasmOffsetConverter = resetPrototype(Module['WasmOffsetConverter'], wasmOffsetData);
 }

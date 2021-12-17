@@ -17,7 +17,6 @@ use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
 #[wasm_bindgen]
 extern "C" {
     fn get_samples() -> Vec<f32>;
-    fn rendered();
 }
 
 #[wasm_bindgen]
@@ -123,7 +122,7 @@ varying float power;
 
 void main()
 {
-    vec4 sample = texture2D(frequency_data, vec2(gTexCoord0.x + 0.5, gTexCoord0.y + yoffset));
+    vec4 sample = texture2D(frequency_data, vec2(gTexCoord0.x, gTexCoord0.y + yoffset));
     gl_Position = vec4((gTexCoord0 - 0.5) * 2.0, 0, 1);
 
     power = sample.a;
@@ -246,7 +245,6 @@ void main()
                     self.last_data = get_samples().try_into().expect("data has wrong size");
                 }
                 self.render_gl(timestamp);
-                rendered();
             }
             Msg::Data(b) => {
                 if let Ok(b) = b {

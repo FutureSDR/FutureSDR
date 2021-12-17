@@ -445,7 +445,6 @@ pub(crate) async fn run_block(
         }
 
         // ================== work
-        info!("{} working()", block.instance_name().unwrap());
         work_io.call_again = false;
         match &mut block {
             Block::Sync(b) => b.work(&mut work_io)?,

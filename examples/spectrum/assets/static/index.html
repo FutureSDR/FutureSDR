@@ -50,6 +50,8 @@
             </div>
         </div>
         <div id="freq"></div>
+        <input type="range" value="42" min="800000000" max="900000000" step="1000000" onchange="update_slider(this.value)" />
+        <span id="freq_text">asdf</span>
 
         <script type="text/javascript">
          var Module = {
@@ -94,8 +96,9 @@
          }
 
          function get_samples() {
-             inflight -= 2048 * 10;
-             console.log(samples);
+             let r = resolver;
+             resolver = function () {};
+             r();
              return samples;
          }
 
@@ -107,7 +110,6 @@
 
          var read_samples;
          var set_freq;
-         var inflight = 0;
          var resolver = function () {};
 
          Module['onRuntimeInitialized'] = function() {
@@ -115,6 +117,12 @@
              read_samples = Module.read_samples;
              set_freq = Module.set_freq;
              console.log(Module);
+         }
+
+         function update_slider(f) {
+             let i = parseInt(f, 10);
+             console.log("setting freq " + i/1000000)
+             set_freq(i);
          }
 
          var myLink = document.getElementById('start');
@@ -132,7 +140,7 @@
 
          const runWasm = async () => {
              const rustWasm = await init();
-             add_freq('#freq', '', -50, 20);
+             add_freq('#freq', '', -20, 10);
          };
 
          runWasm();
@@ -146,31 +154,23 @@
          }
 
          var produced = 0;
-         var render_promise;
+         var p = new Promise(function(resolve) {
+             resolver = resolve;
+         });
 
          async function push() {
              while(true) {
-                 if(produced > 2048 * 2 * 10 *2) {
+                 if(produced > 2048 * 2 * 7) {
                      await p;
-                     let p = new Promise(function(resolve) {
+                     p = new Promise(function(resolve) {
                          resolver = resolve;
                      });
                      produced = 0;
-                     /* }
-                      * if(inflight > 4096 * 20) {
-                      *     console.log("too much inflight " + inflight);
-                      *     await p;
-                      *     console.log("promise resolved"); */
-
                  } else {
-                     console.log("trying to push samples " + inflight);
                      let res = await push_samples(read_samples());
                      if(res) {
-                         console.log("pushed samples " + inflight);
-                         inflight += 4096;
                          produced += 8192;
                      } else {
-                         console.log("pushing failed " + inflight);
                          await Sleep(1000);
                      }
                  }
