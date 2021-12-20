@@ -8,46 +8,15 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../.." }
-wasm-bindgen = "0.2.76"
-getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8.0"
-wasm-rs-async-executor = "0.9.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
+console_log = { version = "0.2.0", features = ["color"] }
+# instant = "0.1.12"
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2.76"
 wasm-bindgen-futures = "0.4.23"
-console_log = "0.1.2"
-winit = {version = "0.25", features = ["web-sys"]}
-wgpu = {version = "0.11.0"}
-log = "0.4"
-web-sys = { version = "0.3.53", features = ["Location"] }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
-package = "web-sys"
-version = "0.3.22"
-features = [
-    'console',
-    "AddEventListenerOptions",
-    'CssStyleDeclaration',
-    'BeforeUnloadEvent',
-    'Document',
-    'DomRect',
-    'Element',
-    'Event',
-    'EventTarget',
-    'FocusEvent',
-    'HtmlCanvasElement',
-    'HtmlElement',
-    'KeyboardEvent',
-    'MediaQueryList',
-    'MediaQueryListEvent',
-    'MouseEvent',
-    'Node',
-    'PointerEvent',
-    'Window',
-    'WheelEvent'
-]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2.45"
-
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-console_log = "0.2"
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+async-io = "1.6.0"
