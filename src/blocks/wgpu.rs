@@ -14,20 +14,21 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use crate::runtime::buffer::wgpu::{ReaderH2D, WriterD2H, BufferEmpty, BufferFull};
+use crate::runtime::buffer::wgpu::{ReaderH2D, WriterD2H, BufferEmpty, GPUBufferFull};
 
-pub struct Wgpu {
-    broker: Broker,
+
+pub struct WgpuWasm {
+    broker: WgpuBroker,
     buffer_items: u64,
     pipeline: Option<ComputePipeline>,
-    storage_buffer: wgpu::Buffer,
     output_buffers: Vec<Buffer>,
-    _input_buffers: Vec<Buffer>,
+    //input_buffers: Vec<Buffer>,
+    storage_buffer: wgpu::Buffer,
+    //processed_bytes: u64,
 }
 
-impl Wgpu{
-    pub fn new(broker: Broker, buffer_items: u64) -> Block {
-
+impl WgpuWasm {
+    pub fn new(broker: WgpuBroker, buffer_items: u64) -> Block {
         let storage_buffer = broker.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: buffer_items * 4,
@@ -37,20 +38,22 @@ impl Wgpu{
             mapped_at_creation: false,
         });
 
+
         Block::new_async(
             BlockMetaBuilder::new("Wgpu").build(),
             StreamIoBuilder::new()
                 .add_input("in", 4)
                 .add_output("out", 4)
                 .build(),
-            MessageIoBuilder::<Wgpu>::new().build(),
-            Wgpu {
+            MessageIoBuilder::<WgpuWasm>::new().build(),
+            WgpuWasm {
                 broker,
                 buffer_items,
                 pipeline: None,
-                storage_buffer,
                 output_buffers: Vec::new(),
-                _input_buffers: Vec::new(),
+                //input_buffers: Vec::new(),
+                storage_buffer,
+                //processed_bytes: 0,
             },
         )
     }
@@ -61,32 +64,33 @@ fn o(sio: &mut StreamIo, id: usize) -> &mut WriterD2H {
     sio.output(id).try_as::<WriterD2H>().unwrap()
 }
 
- #[inline]
- fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
-     sio.input(id).try_as::<ReaderH2D>().unwrap()
- }
+#[inline]
+fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
+    sio.input(id).try_as::<ReaderH2D>().unwrap()
+}
 
+//#[cfg(target_arch = "wasm32")]
 #[async_trait]
-impl AsyncKernel for Wgpu {
+impl AsyncKernel for WgpuWasm {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
         let output_buffer = self.broker.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: self.buffer_items * 4,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: true,
+            mapped_at_creation: false,
         });
-
         self.output_buffers.push(output_buffer);
 
         let input = i(sio, 0);
+
         let input_buffer = BufferEmpty {
-            buffer: vec![0; 8192]
+            buffer: vec![0u8; (self.buffer_items * 4) as usize],
+            size: self.buffer_items * 4,
         };
         input.submit(input_buffer);
 
@@ -102,7 +106,7 @@ impl AsyncKernel for Wgpu {
             entry_point: "main",
         });
 
-        self.pipeline = Some( compute_pipeline );
+        self.pipeline = Some(compute_pipeline);
 
         Ok(())
     }
@@ -114,24 +118,29 @@ impl AsyncKernel for Wgpu {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
         for m in o(sio, 0).buffers().drain(..) {
-            let buff = self.broker.device.create_buffer(&wgpu::BufferDescriptor {
-                label: None,
-                size: self.buffer_items * 4,
-                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: true,
-            });
-
-            debug!("webgpu: received empty output buffer");
-            self.output_buffers.push(buff);
+            log::info!("**** Empty Output Buffer is added to output_buffers");
+            self.output_buffers.push(m.buffer);
         }
 
         for m in i(sio, 0).buffers().drain(..) {
-            debug!("*** InputBuffers: size {}  used_bytes {}***", m.buffer.len(), m.used_bytes);
+            log::info!("**** Full Input Buffer is processed");
+
+            if self.output_buffers.is_empty() {
+                log::info!("output buff empty ************************************");
+                let o = self.broker.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: None,
+                    size: self.buffer_items * 4,
+                    usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                self.output_buffers.push(o);
+            }
+
 
 
             let output = self.output_buffers.pop().unwrap();
+
 
             // Instantiates the bind group, once again specifying the binding of buffers.
             let bind_group_layout = self.pipeline.as_ref().unwrap().get_bind_group_layout(0);
@@ -143,7 +152,6 @@ impl AsyncKernel for Wgpu {
                     resource: self.storage_buffer.as_entire_binding(),
                 }],
             });
-            //log::info!("*** bind group created ***");
 
             let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
             if m.used_bytes as u32 / 4 % 64 > 0 {
@@ -152,6 +160,8 @@ impl AsyncKernel for Wgpu {
 
             {
                 self.broker.queue.write_buffer(&self.storage_buffer, 0, &m.buffer[0..m.used_bytes]);
+
+
                 let mut encoder =
                     self.broker.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
@@ -165,38 +175,24 @@ impl AsyncKernel for Wgpu {
 
                 encoder.copy_buffer_to_buffer(&self.storage_buffer, 0, &output, 0, m.used_bytes as u64);
 
-                debug!("*** queue submit ***");
-                output.unmap();
                 self.broker.queue.submit(Some(encoder.finish()));
             }
 
+            // log::info!("*** remapping result buffer ***");
             let buffer_slice = output.slice(..);
             let buffer_future = buffer_slice.map_async(wgpu::MapMode::Read);
 
-            debug!("*** queue polling ***");
             self.broker.device.poll(wgpu::Maintain::Wait);
 
-            debug!("*** waiting for buffer future ***");
             if let Ok(()) = buffer_future.await {
-                log::debug!("*** Output Send ***");
-                let range = buffer_slice.get_mapped_range().to_vec();
-                let out = BufferFull { buffer: range, used_bytes: m.used_bytes };
-                //o(sio, 0).submit(BufferFull {buffer: output.buffer, used_bytes: 8192 });
-                o(sio, 0).submit(out);
+                o(sio, 0).submit(GPUBufferFull { buffer: output, used_bytes: m.used_bytes });
             } else {
-                debug!("*** buffer future failed ***");
                 panic!("failed to map result buffer")
             }
 
+            let input = i(sio, 0);
 
-            //sio.input(0).consume(n * 2048);#
-            // Horrible style to always ceate a new buffer..?
-            //
-            let input = i(sio,0);
-            // let input_buffer = BufferEmpty{
-            //    buffer: vec![0; 8192]
-            //};
-            input.submit(BufferEmpty{ buffer: m.buffer });
+            input.submit(BufferEmpty { buffer: m.buffer, size: self.buffer_items * 4 });
         }
         // Returns data from buffer
         if i(sio, 0).finished() {
@@ -207,3 +203,25 @@ impl AsyncKernel for Wgpu {
     }
 }
 
+pub struct WgpuBuilderWasm {
+    wgpu_broker: WgpuBroker,
+    buffer_items: u64,
+}
+
+impl WgpuBuilderWasm {
+    pub fn new(broker: WgpuBroker, buffer_items: u64) -> WgpuBuilderWasm {
+        WgpuBuilderWasm {
+            wgpu_broker: broker,
+            buffer_items,
+        }
+    }
+
+    pub fn buffer_items(mut self, items: u64) -> WgpuBuilderWasm {
+        self.buffer_items = items;
+        self
+    }
+
+    pub fn build(self) -> Block {
+        WgpuWasm::new(self.wgpu_broker, self.buffer_items)
+    }
+}

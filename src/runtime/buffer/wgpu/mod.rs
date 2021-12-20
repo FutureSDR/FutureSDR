@@ -11,15 +11,58 @@ use wgpu::{Device, Adapter};
 use wgpu::Queue;
 
 // ================== WGPU MESSAGE ============================
+/*
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub struct BufferFull {
+    pub buffer: Buffer,
+    pub used_bytes: usize,
+}
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub struct BufferEmpty {
+    pub buffer: Buffer,
+    pub size: u64,
+}
+
+ */
+
+//#[cfg(target_arch = "wasm32")]
 #[derive(Debug)]
 pub struct BufferFull {
     pub buffer: Vec<u8>,
     pub used_bytes: usize,
 }
-
+//#[cfg(target_arch = "wasm32")]
 #[derive(Debug)]
 pub struct BufferEmpty {
     pub buffer: Vec<u8>,
+    pub size: u64,
+}
+/*
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub struct GPUBufferFull {
+    pub buffer: Buffer,
+    pub used_bytes: usize,
+}
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub struct GPUBufferEmpty {
+    pub buffer: Buffer,
+}
+
+ */
+//#[cfg(target_arch = "wasm32")]
+#[derive(Debug)]
+pub struct GPUBufferFull {
+    pub buffer: Buffer,
+    pub used_bytes: usize,
+}
+//#[cfg(target_arch = "wasm32")]
+#[derive(Debug)]
+pub struct GPUBufferEmpty {
+    pub buffer: Buffer,
 }
 
 

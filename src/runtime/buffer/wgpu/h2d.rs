@@ -3,8 +3,7 @@ use futures::prelude::*;
 use std::any::Any;
 use std::sync::{Arc, Mutex};
 
-use crate::runtime::buffer::wgpu::BufferEmpty;
-use crate::runtime::buffer::wgpu::BufferFull;
+use crate::runtime::buffer::wgpu::{BufferEmpty, BufferFull};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderCustom;
@@ -111,7 +110,7 @@ impl BufferWriterHost for WriterH2D {
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
-
+    //#[cfg(target_arch = "wasm32")]
     fn bytes(&mut self) -> (*mut u8, usize) {
         if self.buffer.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop() {
@@ -127,10 +126,10 @@ impl BufferWriterHost for WriterH2D {
 
         unsafe {
             let buffer = self.buffer.as_mut().unwrap();
-            let capacity = 8192 as usize / self.item_size;
+            let capacity = (buffer.buffer.size ) as usize / self.item_size;
            // let slice = buffer.buffer.buffer.slice(..);
 
-            debug!("H2D writer called bytes, buff is some   offset {}    capacity {}", buffer.offset, capacity);
+            //info!("H2D writer called bytes, buff is some   offset {}    capacity {}", buffer.offset, capacity);
             let ret = buffer.buffer.buffer.as_mut_ptr();
             (
                 ret.add(buffer.offset * self.item_size),
@@ -139,18 +138,49 @@ impl BufferWriterHost for WriterH2D {
             )
         }
     }
+/*
+    #[cfg(not(target_arch = "wasm32"))]
+    fn bytes(&mut self) -> (*mut u8, usize) {
+        if self.buffer.is_none() {
+            if let Some(b) = self.inbound.lock().unwrap().pop() {
+                self.buffer = Some(CurrentBuffer {
+                    buffer: b,
+                    offset: 0,
+                });
+            } else {
+                debug!("H2D writer called bytes, buff is none");
+                return (std::ptr::null_mut::<u8>(), 0);
+            }
+        }
 
+        unsafe {
+            let buffer = self.buffer.as_mut().unwrap();
+            let capacity = (buffer.buffer.size) as usize / self.item_size;
+            // let slice = buffer.buffer.buffer.slice(..);
+
+            //info!("H2D writer called bytes, buff is some   offset {}    capacity {}", buffer.offset, capacity);
+            let mut ret = buffer.buffer.buffer.slice(..).get_mapped_range_mut().as_mut_ptr();
+            (
+                ret.add(buffer.offset * self.item_size),
+                //ret.as_mut_ptr().add(buffer.offset * self.item_size),
+                (capacity - buffer.offset) * self.item_size,
+            )
+        }
+    }
+
+ */
     fn produce(&mut self, amount: usize) {
         debug!("H2D writer called produce {}", amount);
+       // log::info!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity = 8192 as usize / self.item_size;
+        let capacity =  (buffer.buffer.size) as usize / self.item_size;
 
         debug_assert!(amount + buffer.offset <= capacity);
-
+        //log::info!("Buffer Offset+Amount: {}, Buffer Capacity: {}", buffer.offset+amount, capacity);
         buffer.offset += amount;
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
-            debug!("H2D writer called currentbuffer data: {:?} ...", buffer[0]);
+            //info!("H2D writer called currentbuffer data: {:?} ...", buffer[0]);
             self.outbound.lock().unwrap().push(BufferFull {
                 buffer,
                 used_bytes: capacity * self.item_size,

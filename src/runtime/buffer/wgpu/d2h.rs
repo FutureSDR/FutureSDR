@@ -3,8 +3,7 @@ use futures::prelude::*;
 use std::any::Any;
 use std::sync::{Arc, Mutex};
 
-use crate::runtime::buffer::wgpu::BufferEmpty;
-use crate::runtime::buffer::wgpu::BufferFull;
+use crate::runtime::buffer::wgpu::{GPUBufferEmpty, GPUBufferFull};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
@@ -43,8 +42,8 @@ impl BufferBuilder for D2H {
 #[derive(Debug)]
 pub struct WriterD2H {
     item_size: usize,
-    inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<Vec<BufferFull>>>,
+    inbound: Arc<Mutex<Vec<GPUBufferEmpty>>>,
+    outbound: Arc<Mutex<Vec<GPUBufferFull>>>,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -122,12 +121,12 @@ impl WriterD2H {
         }))
     }
 
-    pub fn buffers(&mut self) -> Vec<BufferEmpty> {
+    pub fn buffers(&mut self) -> Vec<GPUBufferEmpty> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
-    pub fn submit(&mut self, buffer: BufferFull) {
+    pub fn submit(&mut self, buffer: GPUBufferFull) {
         self.outbound.lock().unwrap().push(buffer);
         let _ = self
             .reader_inbox
@@ -142,8 +141,8 @@ unsafe impl Send for WriterD2H {}
 #[derive(Debug)]
 pub struct ReaderD2H {
     buffer: Option<CurrentBuffer>,
-    inbound: Arc<Mutex<Vec<BufferFull>>>,
-    outbound: Arc<Mutex<Vec<BufferEmpty>>>,
+    inbound: Arc<Mutex<Vec<GPUBufferFull>>>,
+    outbound: Arc<Mutex<Vec<GPUBufferEmpty>>>,
     item_size: usize,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -152,7 +151,7 @@ pub struct ReaderD2H {
 
 #[derive(Debug)]
 struct CurrentBuffer {
-    buffer: BufferFull,
+    buffer: GPUBufferFull,
     offset: usize,
 }
 
@@ -161,7 +160,45 @@ impl BufferReaderHost for ReaderD2H {
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
+   // #[cfg(target_arch = "wasm32")]
+    fn bytes(&mut self) -> (*const u8, usize) {
+        debug!("D2H reader bytes");
+        if self.buffer.is_none() {
+            if let Some(b) = self.inbound.lock().unwrap().pop() {
+                debug!("set gpuBuffer full from inbound");
+                self.buffer = Some(CurrentBuffer {
+                    buffer: b,
+                    offset: 0,
+                });
+            } else {
+                debug!("set wrong pointer");
+                return (std::ptr::null::<u8>(), 0);
+            }
+        }
 
+        unsafe {
+            let buffer = self.buffer.as_ref().unwrap();
+            let capacity = buffer.buffer.used_bytes / self.item_size;
+          //  let ret = buffer.buffer.buffer.as_ptr(); // get_mapped_range().as_ptr();
+            //let ret = var.as_mut_ptr();
+            let range = buffer.buffer.buffer.slice(..).get_mapped_range();
+            let ptr = range.as_ptr(); // get_mapped_range().as_ptr();
+            //assert_eq!(range.len(), buffer.buffer.used_bytes);
+           // let ptr = range.as_ptr();
+            //drop(var);
+           // buffer.buffer.buffer.unmap();
+           // log::info!("Return Pointer:  {:?} ", ret);
+            //log::info!("Ret Add - Start Address:  {:?}, ***,  Size: {:?} ", ret.add(buffer.offset * self.item_size),
+             //   (capacity - buffer.offset) * self.item_size);
+
+            (
+                ptr.add(buffer.offset * self.item_size),
+                (capacity - buffer.offset) * self.item_size,
+            )
+        }
+    }
+/*
+    #[cfg(not(target_arch = "wasm32"))]
     fn bytes(&mut self) -> (*const u8, usize) {
         debug!("D2H reader bytes");
         if self.buffer.is_none() {
@@ -178,7 +215,10 @@ impl BufferReaderHost for ReaderD2H {
         unsafe {
             let buffer = self.buffer.as_ref().unwrap();
             let capacity = buffer.buffer.used_bytes / self.item_size;
-            let ret = buffer.buffer.buffer.as_ptr();
+            let mut var = buffer.buffer.buffer.slice(..).get_mapped_range_mut(); // get_mapped_range().as_ptr();
+            let ret = var.as_mut_ptr();
+            //   let ret = buffer.buffer.buffer.slice(..).get_mapped_range().to_vec().as_ptr(); // get_mapped_range().as_ptr();
+            //    (capacity - buffer.offset) * self.item_size);
 
             (
                 ret.add(buffer.offset * self.item_size),
@@ -187,19 +227,22 @@ impl BufferReaderHost for ReaderD2H {
         }
     }
 
+ */
+
     fn consume(&mut self, amount: usize) {
-        debug!("D2H reader consume {}", amount);
+       // log::info!("D2H reader consume {} elements", amount);
 
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity = buffer.buffer.used_bytes / self.item_size;
-
+        let capacity =   buffer.buffer.used_bytes / self.item_size;
+        log::info!("Consume -- capacity: {}, offset: {}", capacity, buffer.offset);
         debug_assert!(amount + buffer.offset <= capacity);
         debug_assert!(amount != 0);
 
         buffer.offset += amount;
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
-            self.outbound.lock().unwrap().push(BufferEmpty { buffer });
+            buffer.unmap();
+            self.outbound.lock().unwrap().push(GPUBufferEmpty { buffer});
 
             if let Some(b) = self.inbound.lock().unwrap().pop() {
                 self.buffer = Some(CurrentBuffer {
