@@ -53,6 +53,10 @@ name = "vulkan"
 required-features = ["vulkan"]
 
 [[example]]
+name = "wgpu"
+required-features = ["wgpu"]
+
+[[example]]
 name = "zynq"
 required-features = ["zynq"]
 
