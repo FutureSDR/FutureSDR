@@ -3,7 +3,8 @@ use futures::prelude::*;
 use std::any::Any;
 use std::sync::{Arc, Mutex};
 
-use crate::runtime::buffer::wgpu::{GPUBufferEmpty, GPUBufferFull};
+use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
+use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
@@ -42,8 +43,8 @@ impl BufferBuilder for D2H {
 #[derive(Debug)]
 pub struct WriterD2H {
     item_size: usize,
-    inbound: Arc<Mutex<Vec<GPUBufferEmpty>>>,
-    outbound: Arc<Mutex<Vec<GPUBufferFull>>>,
+    inbound: Arc<Mutex<Vec<BufferEmpty>>>,
+    outbound: Arc<Mutex<Vec<BufferFull>>>,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -121,12 +122,12 @@ impl WriterD2H {
         }))
     }
 
-    pub fn buffers(&mut self) -> Vec<GPUBufferEmpty> {
+    pub fn buffers(&mut self) -> Vec<BufferEmpty> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
-    pub fn submit(&mut self, buffer: GPUBufferFull) {
+    pub fn submit(&mut self, buffer: BufferFull) {
         self.outbound.lock().unwrap().push(buffer);
         let _ = self
             .reader_inbox
@@ -141,8 +142,8 @@ unsafe impl Send for WriterD2H {}
 #[derive(Debug)]
 pub struct ReaderD2H {
     buffer: Option<CurrentBuffer>,
-    inbound: Arc<Mutex<Vec<GPUBufferFull>>>,
-    outbound: Arc<Mutex<Vec<GPUBufferEmpty>>>,
+    inbound: Arc<Mutex<Vec<BufferFull>>>,
+    outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     item_size: usize,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -151,7 +152,7 @@ pub struct ReaderD2H {
 
 #[derive(Debug)]
 struct CurrentBuffer {
-    buffer: GPUBufferFull,
+    buffer: BufferFull,
     offset: usize,
 }
 
@@ -242,7 +243,7 @@ impl BufferReaderHost for ReaderD2H {
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
             buffer.unmap();
-            self.outbound.lock().unwrap().push(GPUBufferEmpty { buffer});
+            self.outbound.lock().unwrap().push(BufferEmpty { buffer});
 
             if let Some(b) = self.inbound.lock().unwrap().pop() {
                 self.buffer = Some(CurrentBuffer {
