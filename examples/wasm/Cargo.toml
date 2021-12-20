@@ -13,7 +13,6 @@ rand = "0.8.0"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 console_log = { version = "0.2.0", features = ["color"] }
-# instant = "0.1.12"
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2.76"
 wasm-bindgen-futures = "0.4.23"
