@@ -123,8 +123,7 @@ impl<S: Scheduler> Runtime<S> {
         block_on(handle)
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub async fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
+    pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg);
         handle.await
     }
