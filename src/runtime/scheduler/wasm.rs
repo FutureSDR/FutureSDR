@@ -60,7 +60,7 @@ impl Scheduler for WasmScheduler {
         wasm_bindgen_futures::spawn_local(async move {
             let t = future.await;
             if tx.send(t).is_err() {
-                info!("task cannot deliver final result");
+                debug!("task cannot deliver final result");
             }
         });
 
