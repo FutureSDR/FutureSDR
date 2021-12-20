@@ -1,6 +1,7 @@
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
@@ -47,7 +48,7 @@ impl BufferBuilder for H2D {
 pub struct WriterH2D {
     buffer: Option<CurrentBuffer>,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<Vec<BufferFull>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
     item_size: usize,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
@@ -73,7 +74,7 @@ impl WriterH2D {
         BufferWriter::Host(Box::new(WriterH2D {
             buffer: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(Vec::new())),
+            outbound: Arc::new(Mutex::new(VecDeque::new())),
             item_size,
             finished: false,
             writer_inbox,
@@ -128,13 +129,9 @@ impl BufferWriterHost for WriterH2D {
         unsafe {
             let buffer = self.buffer.as_mut().unwrap();
             let capacity = (buffer.buffer.buffer.len() ) as usize / self.item_size;
-           // let slice = buffer.buffer.buffer.slice(..);
-
-            //info!("H2D writer called bytes, buff is some   offset {}    capacity {}", buffer.offset, capacity);
             let ret = buffer.buffer.buffer.as_mut_ptr();
             (
                 ret.add(buffer.offset * self.item_size),
-                //ret.as_mut_ptr().add(buffer.offset * self.item_size),
                 (capacity - buffer.offset) * self.item_size,
             )
         }
@@ -142,17 +139,14 @@ impl BufferWriterHost for WriterH2D {
 
     fn produce(&mut self, amount: usize) {
         debug!("H2D writer called produce {}", amount);
-       // log::info!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
         let capacity =  (buffer.buffer.buffer.len()) as usize / self.item_size;
 
         debug_assert!(amount + buffer.offset <= capacity);
-        //log::info!("Buffer Offset+Amount: {}, Buffer Capacity: {}", buffer.offset+amount, capacity);
         buffer.offset += amount;
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
-            //info!("H2D writer called currentbuffer data: {:?} ...", buffer[0]);
-            self.outbound.lock().unwrap().push(BufferFull {
+            self.outbound.lock().unwrap().push_back(BufferFull {
                 buffer,
                 used_bytes: capacity * self.item_size,
             });
@@ -180,7 +174,7 @@ impl BufferWriterHost for WriterH2D {
 
         if let Some(CurrentBuffer { offset, buffer }) = self.buffer.take() {
             if offset > 0 {
-                self.outbound.lock().unwrap().push(BufferFull {
+                self.outbound.lock().unwrap().push_back(BufferFull {
                     buffer: buffer.buffer,
                     used_bytes: offset * self.item_size,
                 });
@@ -211,7 +205,7 @@ unsafe impl Send for WriterH2D {}
 // ====================== READER ============================
 #[derive(Debug)]
 pub struct ReaderH2D {
-    inbound: Arc<Mutex<Vec<BufferFull>>>,
+    inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     writer_output_id: usize,
     writer_inbox: Sender<AsyncMessage>,
@@ -225,9 +219,9 @@ impl ReaderH2D {
         let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
     }
 
-    pub fn buffers(&mut self) -> Vec<BufferFull> {
+    pub fn get_buffer(&mut self) -> Option<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
-        std::mem::take(&mut vec)
+        vec.pop_front()
     }
 }
 

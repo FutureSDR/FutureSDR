@@ -125,12 +125,14 @@ impl AsyncKernel for Wgpu {
             self.output_buffers.push(m.buffer);
         }
 
-        let n = std::cmp::min(i(sio, 0).buffers().len(), self.output_buffers.len());
-
-        for _ in 0..n {
+        for _ in 0..self.output_buffers.len() {
             info!("**** Full Input Buffer is processed");
 
-            let m = i(sio, 0).buffers().pop().unwrap();
+            let m = i(sio, 0).get_buffer();
+            if m.is_none() {
+                break;
+            }
+            let m = m.unwrap();
             let output = self.output_buffers.pop().unwrap();
 
             // Instantiates the bind group, once again specifying the binding of buffers.
