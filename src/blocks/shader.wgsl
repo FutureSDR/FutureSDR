@@ -9,5 +9,6 @@ var<storage, read_write> v_indices: Indices;
 
 [[stage(compute), workgroup_size(64)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
-    v_indices.data[global_id.x] = 4.3429448190325175 * log(v_indices.data[global_id.x]);
+    //v_indices.data[global_id.x] = 4.3429448190325175 * log(v_indices.data[global_id.x]);
+    v_indices.data[global_id.x] = 12.0 * v_indices.data[global_id.x];
 }
