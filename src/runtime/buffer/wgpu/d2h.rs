@@ -2,6 +2,7 @@ use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
 use std::sync::{Arc, Mutex};
+use wgpu::BufferView;
 
 use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
@@ -152,8 +153,9 @@ pub struct ReaderD2H {
 
 #[derive(Debug)]
 struct CurrentBuffer {
-    buffer: BufferFull,
+    buffer: *mut BufferFull,
     offset: usize,
+    slice: BufferView<'static>,
 }
 
 #[async_trait]
@@ -167,9 +169,13 @@ impl BufferReaderHost for ReaderD2H {
         if self.buffer.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop() {
                 debug!("set gpuBuffer full from inbound");
+                let buffer = Box::leak(Box::new(b));
+                let t = buffer as *mut BufferFull;
+                let slice = buffer.buffer.slice(0..buffer.used_bytes as u64).get_mapped_range();
                 self.buffer = Some(CurrentBuffer {
-                    buffer: b,
+                    buffer: t,
                     offset: 0,
+                    slice,
                 });
             } else {
                 debug!("set wrong pointer");
@@ -179,9 +185,8 @@ impl BufferReaderHost for ReaderD2H {
 
         unsafe {
             let buffer = self.buffer.as_ref().unwrap();
-            let capacity = buffer.buffer.used_bytes / self.item_size;
-            let range = buffer.buffer.buffer.slice(..).get_mapped_range();
-            let ptr = range.as_ptr(); // get_mapped_range().as_ptr();
+            let capacity = buffer.slice.len() / self.item_size;
+            let ptr = buffer.slice.as_ptr();
 
             (
                 ptr.add(buffer.offset * self.item_size),
@@ -192,21 +197,26 @@ impl BufferReaderHost for ReaderD2H {
 
     fn consume(&mut self, amount: usize) {
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity =   buffer.buffer.used_bytes / self.item_size;
+        let capacity =   buffer.slice.len() / self.item_size;
         log::info!("Consume -- capacity: {}, offset: {}", capacity, buffer.offset);
         debug_assert!(amount + buffer.offset <= capacity);
         debug_assert!(amount != 0);
 
         buffer.offset += amount;
         if buffer.offset == capacity {
-            let buffer = self.buffer.take().unwrap().buffer.buffer;
+            let c = unsafe { Box::from_raw(self.buffer.take().unwrap().buffer) };
+            let buffer = c.buffer;
             buffer.unmap();
             self.outbound.lock().unwrap().push(BufferEmpty { buffer});
 
             if let Some(b) = self.inbound.lock().unwrap().pop() {
+                let buffer = Box::leak(Box::new(b));
+                let t = buffer as *mut BufferFull;
+                let slice = buffer.buffer.slice(0..buffer.used_bytes as u64).get_mapped_range();
                 self.buffer = Some(CurrentBuffer {
-                    buffer: b,
+                    buffer: t,
                     offset: 0,
+                    slice,
                 });
             }
 
