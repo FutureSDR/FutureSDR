@@ -43,11 +43,13 @@ impl BlockMetaBuilder {
         }
     }
 
+    #[must_use]
     pub fn blocking(mut self) -> Self {
         self.blocking = true;
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: &str) -> Self {
         self.name = name.to_string();
         self

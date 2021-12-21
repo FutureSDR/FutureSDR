@@ -235,7 +235,7 @@ impl<T: Send> MessageIoBuilder<T> {
         }
     }
 
-    // adding inputs can only be done here
+    #[must_use]
     pub fn add_async_input(
         mut self,
         name: &str,
@@ -256,6 +256,7 @@ impl<T: Send> MessageIoBuilder<T> {
         self
     }
 
+    #[must_use]
     pub fn add_sync_input(
         mut self,
         name: &str,
@@ -269,7 +270,7 @@ impl<T: Send> MessageIoBuilder<T> {
         self
     }
 
-    // adding outputs can only be done here
+    #[must_use]
     pub fn add_output(mut self, name: &str) -> MessageIoBuilder<T> {
         self.outputs.push(MessageOutput::new(name));
         self

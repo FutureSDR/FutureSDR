@@ -85,6 +85,7 @@ impl CopyRandBuilder {
         }
     }
 
+    #[must_use]
     pub fn max_copy(mut self, max_copy: usize) -> CopyRandBuilder {
         self.max_copy = max_copy;
         self

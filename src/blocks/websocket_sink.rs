@@ -180,6 +180,7 @@ impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
         }
     }
 
+    #[must_use]
     pub fn mode(mut self, mode: WebsocketSinkMode) -> WebsocketSinkBuilder<T> {
         self.mode = mode;
         self

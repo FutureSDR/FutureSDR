@@ -77,6 +77,7 @@ impl CopyBuilder {
         }
     }
 
+    #[must_use]
     pub fn enabled(mut self, enabled: bool) -> CopyBuilder {
         self.enabled = enabled;
         self

@@ -71,6 +71,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSinkBuilder<T> {
         }
     }
 
+    #[must_use]
     pub fn init_capacity(mut self, n: usize) -> VectorSinkBuilder<T> {
         self.capacity = n;
         self

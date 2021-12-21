@@ -208,6 +208,7 @@ impl VulkanBuilder {
         }
     }
 
+    #[must_use]
     pub fn capacity(mut self, c: u64) -> VulkanBuilder {
         self.capacity = c;
         self

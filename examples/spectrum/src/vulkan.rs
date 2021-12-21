@@ -57,6 +57,7 @@ pub struct Vulkan {
 }
 
 impl Vulkan {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("Vulkan").build(),

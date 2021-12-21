@@ -179,7 +179,7 @@ impl AsyncKernel for Wgpu {
                 {
                     let mut cpass =
                         encoder.begin_compute_pass(&ComputePassDescriptor { label: None });
-                    cpass.set_pipeline(&self.pipeline.as_ref().unwrap());
+                    cpass.set_pipeline(self.pipeline.as_ref().unwrap());
                     cpass.set_bind_group(0, &bind_group, &[]);
                     cpass.insert_debug_marker("FutureSDR compute");
                     cpass.dispatch(dispatch, 1, 1);
