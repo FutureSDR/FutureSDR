@@ -126,14 +126,14 @@ impl AsyncKernel for Wgpu {
         }
 
         for _ in 0..self.output_buffers.len() {
-            info!("**** Full Input Buffer is processed");
-
             let m = i(sio, 0).get_buffer();
             if m.is_none() {
                 break;
             }
             let m = m.unwrap();
             let output = self.output_buffers.pop().unwrap();
+
+            info!("Processing Input Buffer, used_bytes {:?}", &m.used_bytes);
 
             // Instantiates the bind group, once again specifying the binding of buffers.
             let bind_group_layout = self.pipeline.as_ref().unwrap().get_bind_group_layout(0);
@@ -170,7 +170,7 @@ impl AsyncKernel for Wgpu {
                 self.broker.queue.submit(Some(encoder.finish()));
             }
 
-            let buffer_slice = output.slice(..);
+            let buffer_slice = output.slice(0..m.used_bytes as u64);
             let buffer_future = buffer_slice.map_async(MapMode::Read);
 
             self.broker.device.poll(Maintain::Wait);
