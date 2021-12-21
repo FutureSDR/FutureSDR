@@ -32,10 +32,12 @@ pub struct Wgpu {
     pipeline: Option<ComputePipeline>,
     output_buffers: Vec<Buffer>,
     storage_buffer: Buffer,
+    n_input_buffers: usize,
+    n_output_buffers: usize,
 }
 
 impl Wgpu {
-    pub fn new(broker: wgpu::Broker, buffer_items: u64) -> Block {
+    pub fn new(broker: wgpu::Broker, buffer_items: u64, n_input_buffers: usize, n_output_buffers: usize) -> Block {
 
         let storage_buffer = broker.device.create_buffer(&BufferDescriptor {
             label: None,
@@ -59,6 +61,8 @@ impl Wgpu {
                 pipeline: None,
                 output_buffers: Vec::new(),
                 storage_buffer,
+                n_input_buffers,
+                n_output_buffers,
             },
         )
     }
@@ -83,18 +87,22 @@ impl AsyncKernel for Wgpu {
         _b: &mut BlockMeta,
     ) -> Result<()> {
 
-        let output_buffer = self.broker.device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: self.buffer_items * 4,
-            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        self.output_buffers.push(output_buffer);
+        for _ in 0..self.n_output_buffers {
+            let output_buffer = self.broker.device.create_buffer(&BufferDescriptor {
+                label: None,
+                size: self.buffer_items * 4,
+                usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.output_buffers.push(output_buffer);
+        }
 
-        let input_buffer = wgpu::InputBufferEmpty {
-            buffer: vec![0; self.buffer_items as usize * 4].into_boxed_slice(),
-        };
-        i(sio, 0).submit(input_buffer);
+        for _ in 0..self.n_input_buffers {
+            let input_buffer = wgpu::InputBufferEmpty {
+                buffer: vec![0; self.buffer_items as usize * 4].into_boxed_slice(),
+            };
+            i(sio, 0).submit(input_buffer);
+        }
 
         let cs_module = self.broker.device.create_shader_module(&ShaderModuleDescriptor {
             label: None,

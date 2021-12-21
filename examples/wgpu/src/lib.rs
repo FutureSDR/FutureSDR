@@ -27,7 +27,7 @@ pub async fn run() -> Result<()> {
 
     let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
     let broker = wgpu::Broker::new().await;
-    let mul = Wgpu::new(broker, 4096);
+    let mul = Wgpu::new(broker, 4096, 3, 4);
     let snk = VectorSink::<f32>::new(1024);
 
     let src = fg.add_block(src);
