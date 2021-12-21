@@ -3,13 +3,13 @@ use std::iter::repeat_with;
 use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::log::info;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::Wgpu;
+use futuresdr::log::info;
+use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use futuresdr::runtime::buffer::wgpu;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
@@ -40,7 +40,9 @@ pub async fn run() -> Result<()> {
     info!("start flowgraph");
     fg = Runtime::new().run_async(fg).await?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(snk).context("wrong block type")?;
+    let snk = fg
+        .block_async::<VectorSink<f32>>(snk)
+        .context("wrong block type")?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

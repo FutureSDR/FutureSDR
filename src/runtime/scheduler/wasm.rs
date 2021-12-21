@@ -78,7 +78,7 @@ impl Scheduler for WasmScheduler {
 
 pub struct TaskHandle<T>(oneshot::Receiver<T>);
 
-impl<T> std::future::Future for TaskHandle<T>{
+impl<T> std::future::Future for TaskHandle<T> {
     type Output = T;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.0.poll(cx) {

@@ -7,7 +7,7 @@ pub use h2d::ReaderH2D;
 pub use h2d::WriterH2D;
 pub use h2d::H2D;
 
-use wgpu::{Device, Adapter, Buffer, Queue};
+use wgpu::{Adapter, Buffer, Device, Queue};
 
 // ================== WGPU MESSAGE ============================
 #[derive(Debug)]
@@ -67,7 +67,7 @@ impl Broker {
         Broker {
             adapter,
             device,
-            queue
+            queue,
         }
     }
 
@@ -75,4 +75,3 @@ impl Broker {
         self.adapter.get_info().name
     }
 }
-

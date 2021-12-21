@@ -171,7 +171,10 @@ impl BufferReaderHost for ReaderD2H {
                 debug!("set gpuBuffer full from inbound");
                 let buffer = Box::leak(Box::new(b));
                 let t = buffer as *mut BufferFull;
-                let slice = buffer.buffer.slice(0..buffer.used_bytes as u64).get_mapped_range();
+                let slice = buffer
+                    .buffer
+                    .slice(0..buffer.used_bytes as u64)
+                    .get_mapped_range();
                 self.buffer = Some(CurrentBuffer {
                     buffer: t,
                     offset: 0,
@@ -197,8 +200,12 @@ impl BufferReaderHost for ReaderD2H {
 
     fn consume(&mut self, amount: usize) {
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity =   buffer.slice.len() / self.item_size;
-        log::info!("Consume -- capacity: {}, offset: {}", capacity, buffer.offset);
+        let capacity = buffer.slice.len() / self.item_size;
+        log::info!(
+            "Consume -- capacity: {}, offset: {}",
+            capacity,
+            buffer.offset
+        );
         debug_assert!(amount + buffer.offset <= capacity);
         debug_assert!(amount != 0);
 
@@ -207,12 +214,15 @@ impl BufferReaderHost for ReaderD2H {
             let c = unsafe { Box::from_raw(self.buffer.take().unwrap().buffer) };
             let buffer = c.buffer;
             buffer.unmap();
-            self.outbound.lock().unwrap().push(BufferEmpty { buffer});
+            self.outbound.lock().unwrap().push(BufferEmpty { buffer });
 
             if let Some(b) = self.inbound.lock().unwrap().pop() {
                 let buffer = Box::leak(Box::new(b));
                 let t = buffer as *mut BufferFull;
-                let slice = buffer.buffer.slice(0..buffer.used_bytes as u64).get_mapped_range();
+                let slice = buffer
+                    .buffer
+                    .slice(0..buffer.used_bytes as u64)
+                    .get_mapped_range();
                 self.buffer = Some(CurrentBuffer {
                     buffer: t,
                     offset: 0,

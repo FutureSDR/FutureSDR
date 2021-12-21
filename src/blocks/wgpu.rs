@@ -1,19 +1,21 @@
-use std::borrow::Cow;
-use ::wgpu::ComputePipeline;
+use ::wgpu::BindGroupDescriptor;
+use ::wgpu::BindGroupEntry;
 use ::wgpu::Buffer;
 use ::wgpu::BufferDescriptor;
 use ::wgpu::BufferUsages;
+use ::wgpu::CommandEncoderDescriptor;
+use ::wgpu::ComputePassDescriptor;
+use ::wgpu::ComputePipeline;
+use ::wgpu::ComputePipelineDescriptor;
+use ::wgpu::Maintain;
+use ::wgpu::MapMode;
 use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
-use ::wgpu::ComputePipelineDescriptor;
-use ::wgpu::BindGroupDescriptor;
-use ::wgpu::Maintain;
-use ::wgpu::BindGroupEntry;
-use ::wgpu::MapMode;
-use ::wgpu::ComputePassDescriptor;
-use ::wgpu::CommandEncoderDescriptor;
+use std::borrow::Cow;
 
 use crate::anyhow::Result;
+use crate::runtime::buffer::wgpu;
+use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -23,8 +25,6 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use crate::runtime::buffer::wgpu;
-use crate::runtime::buffer::BufferReaderCustom;
 
 pub struct Wgpu {
     broker: wgpu::Broker,
@@ -37,14 +37,16 @@ pub struct Wgpu {
 }
 
 impl Wgpu {
-    pub fn new(broker: wgpu::Broker, buffer_items: u64, n_input_buffers: usize, n_output_buffers: usize) -> Block {
-
+    pub fn new(
+        broker: wgpu::Broker,
+        buffer_items: u64,
+        n_input_buffers: usize,
+        n_output_buffers: usize,
+    ) -> Block {
         let storage_buffer = broker.device.create_buffer(&BufferDescriptor {
             label: None,
             size: buffer_items * 4,
-            usage: BufferUsages::STORAGE
-                | BufferUsages::COPY_SRC
-                | BufferUsages::COPY_DST,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -86,7 +88,6 @@ impl AsyncKernel for Wgpu {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
         for _ in 0..self.n_output_buffers {
             let output_buffer = self.broker.device.create_buffer(&BufferDescriptor {
                 label: None,
@@ -104,17 +105,23 @@ impl AsyncKernel for Wgpu {
             i(sio, 0).submit(input_buffer);
         }
 
-        let cs_module = self.broker.device.create_shader_module(&ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-        });
+        let cs_module = self
+            .broker
+            .device
+            .create_shader_module(&ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+            });
 
-        let compute_pipeline = self.broker.device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: None,
-            layout: None,
-            module: &cs_module,
-            entry_point: "main",
-        });
+        let compute_pipeline =
+            self.broker
+                .device
+                .create_compute_pipeline(&ComputePipelineDescriptor {
+                    label: None,
+                    layout: None,
+                    module: &cs_module,
+                    entry_point: "main",
+                });
 
         self.pipeline = Some(compute_pipeline);
 
@@ -160,20 +167,31 @@ impl AsyncKernel for Wgpu {
             }
 
             {
-                self.broker.queue.write_buffer(&self.storage_buffer, 0, &m.buffer[0..m.used_bytes]);
+                self.broker
+                    .queue
+                    .write_buffer(&self.storage_buffer, 0, &m.buffer[0..m.used_bytes]);
 
-                let mut encoder =
-                    self.broker.device.create_command_encoder(&CommandEncoderDescriptor { label: None });
+                let mut encoder = self
+                    .broker
+                    .device
+                    .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
                 {
-                    let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor { label: None });
+                    let mut cpass =
+                        encoder.begin_compute_pass(&ComputePassDescriptor { label: None });
                     cpass.set_pipeline(&self.pipeline.as_ref().unwrap());
                     cpass.set_bind_group(0, &bind_group, &[]);
                     cpass.insert_debug_marker("FutureSDR compute");
                     cpass.dispatch(dispatch, 1, 1);
                 }
 
-                encoder.copy_buffer_to_buffer(&self.storage_buffer, 0, &output, 0, m.used_bytes as u64);
+                encoder.copy_buffer_to_buffer(
+                    &self.storage_buffer,
+                    0,
+                    &output,
+                    0,
+                    m.used_bytes as u64,
+                );
 
                 self.broker.queue.submit(Some(encoder.finish()));
             }
@@ -184,7 +202,10 @@ impl AsyncKernel for Wgpu {
             self.broker.device.poll(Maintain::Wait);
 
             if let Ok(()) = buffer_future.await {
-                o(sio, 0).submit(wgpu::OutputBufferFull { buffer: output, used_bytes: m.used_bytes });
+                o(sio, 0).submit(wgpu::OutputBufferFull {
+                    buffer: output,
+                    used_bytes: m.used_bytes,
+                });
             } else {
                 panic!("failed to map result buffer")
             }
@@ -199,4 +220,3 @@ impl AsyncKernel for Wgpu {
         Ok(())
     }
 }
-

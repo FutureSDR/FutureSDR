@@ -54,10 +54,10 @@ impl SyncKernel for Keep1InN {
         let mut consumed = 0;
         let mut produced = 0;
 
-        while (consumed+1) * 2048 <= input.len() {
+        while (consumed + 1) * 2048 <= input.len() {
             if self.i == self.n {
-                if (produced+1) * 2048 <= output.len() {
-                    output[produced*2048..(produced+1)*2048].clone_from_slice(&self.avg);
+                if (produced + 1) * 2048 <= output.len() {
+                    output[produced * 2048..(produced + 1) * 2048].clone_from_slice(&self.avg);
                     self.i = 0;
                     produced += 1;
                 } else {

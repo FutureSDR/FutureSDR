@@ -20,7 +20,7 @@ extern "C" {
 }
 
 #[wasm_bindgen]
-pub fn add_freq(id: String, url: String, min: f32, max: f32) { 
+pub fn add_freq(id: String, url: String, min: f32, max: f32) {
     let document = yew::utils::document();
     let div = document.query_selector(&id).unwrap().unwrap();
     App::<Frequency>::new().mount_with_props(div, Props { url, min, max });
@@ -63,7 +63,7 @@ impl Component for Frequency {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let websocket_task = if props.url != "" {
+        let websocket_task = if !props.url.is_empty() {
             let cb = link.callback(Msg::Data);
             let notification = link.callback(Msg::Status);
             Some(WebSocketService::connect_binary(&props.url, cb, notification).unwrap())
@@ -283,7 +283,6 @@ void main()
 }
 
 impl Frequency {
-
     fn render_gl(&mut self, _timestamp: f64) {
         let gl = self.gl.as_ref().unwrap();
 
@@ -293,7 +292,11 @@ impl Frequency {
         let data: Vec<u8> = self
             .last_data
             .iter()
-            .map(|v| ((v.clamp(self.props.min, self.props.max) - self.props.min) / (self.props.max - self.props.min) * 255.0) as u8)
+            .map(|v| {
+                ((v.clamp(self.props.min, self.props.max) - self.props.min)
+                    / (self.props.max - self.props.min)
+                    * 255.0) as u8
+            })
             .collect();
 
         gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(

@@ -3,11 +3,11 @@ use std::iter::repeat_with;
 use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::log::info;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::log::info;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -39,7 +39,9 @@ pub async fn run() -> Result<()> {
     info!("start flowgraph");
     fg = Runtime::new().run_async(fg).await?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(snk).context("wrong block type")?;
+    let snk = fg
+        .block_async::<VectorSink<f32>>(snk)
+        .context("wrong block type")?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

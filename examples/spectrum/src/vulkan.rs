@@ -10,9 +10,9 @@ use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::sync::{self, GpuFuture};
 
+use futuresdr::anyhow::{Context, Result};
 use futuresdr::async_trait::async_trait;
 use futuresdr::log::debug;
-use futuresdr::anyhow::{Context, Result};
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::BufferEmpty;
 use futuresdr::runtime::buffer::vulkan::ReaderH2D;
@@ -196,4 +196,3 @@ impl AsyncKernel for Vulkan {
         Ok(())
     }
 }
-

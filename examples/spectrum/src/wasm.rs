@@ -40,4 +40,3 @@ async fn run() -> Result<()> {
     Runtime::new().run(fg).await?;
     Ok(())
 }
-

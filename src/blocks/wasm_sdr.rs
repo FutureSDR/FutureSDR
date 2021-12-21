@@ -71,7 +71,6 @@ impl AsyncKernel for WasmSdr {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
         let output = sio.output(0).slice::<Complex32>();
 
         if self.index == self.samples.len() {
@@ -83,8 +82,9 @@ impl AsyncKernel for WasmSdr {
 
         for i in 0..n {
             output[i] = Complex32::new(
-                (self.samples[i * 2    ] as f32 - 128.0) / 128.0,
-                (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0);
+                (self.samples[i * 2] as f32 - 128.0) / 128.0,
+                (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0,
+            );
         }
 
         self.index += 2 * n;

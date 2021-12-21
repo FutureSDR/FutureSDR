@@ -22,7 +22,6 @@ pub struct WasmFreq;
 impl WasmFreq {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-
         Block::new_async(
             BlockMetaBuilder::new("WasmFreq").build(),
             StreamIoBuilder::new()
@@ -43,12 +42,11 @@ impl AsyncKernel for WasmFreq {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
         let input = sio.input(0).slice::<f32>();
         let n = input.len() / 2048;
 
         for i in 0..n {
-            put_samples(input[i*2048..(i+1)*2048].to_vec());
+            put_samples(input[i * 2048..(i + 1) * 2048].to_vec());
         }
 
         sio.input(0).consume(n * 2048);

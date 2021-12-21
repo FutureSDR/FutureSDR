@@ -1,4 +1,3 @@
-
 #[cfg(feature = "vulkan")]
 mod vulkan;
 #[cfg(feature = "vulkan")]
@@ -23,4 +22,3 @@ pub fn lin2db_block() -> Block {
 pub fn power_block() -> Block {
     Apply::new(|x: &Complex32| x.norm())
 }
-
