@@ -1,10 +1,9 @@
-use futuresdr::runtime::{Block, StreamIoBuilder, BlockMetaBuilder, MessageIoBuilder, AsyncKernel, WorkIo, StreamIo, MessageIo, BlockMeta};
+use crate::runtime::{Block, StreamIoBuilder, BlockMetaBuilder, MessageIoBuilder, AsyncKernel, WorkIo, StreamIo, MessageIo, BlockMeta};
 use std::{mem, sync::Arc};
 use num_complex::Complex;
 use async_trait::async_trait;
 use rustfft::{FftPlanner, Fft};
 use anyhow::Result;
-use crate::write_to_file::write_to_file;
 
 pub enum WindowType {
     None,
@@ -12,11 +11,11 @@ pub enum WindowType {
     Hamming
 }
 
-pub struct Point<T> where
-    T: Sized + Sync + Send {
-    x: T,
-    y: T
-}
+// pub struct Point<T> where
+//     T: Sized + Sync + Send {
+//     x: T,
+//     y: T
+// }
 
 pub enum FIRFilterResponseShape {
     LowPass(f32),
@@ -203,10 +202,6 @@ impl AsyncKernel for FIRFilter {
         self.forward_fft.process(impulse_fft.as_mut_slice());    
 
         self.impulse_fft = impulse_fft.clone();
-
-        write_to_file::<f32>("/tmp/impulse.dat", &self.impulse_shape);
-
-//        println!("{:?}", self.)
 
         Ok(())
     }

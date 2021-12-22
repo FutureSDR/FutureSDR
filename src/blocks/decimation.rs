@@ -1,4 +1,4 @@
-use futuresdr::runtime::{Block, StreamIoBuilder, BlockMetaBuilder, MessageIoBuilder, AsyncKernel, WorkIo, StreamIo, MessageIo, BlockMeta};
+use crate::runtime::{Block, StreamIoBuilder, BlockMetaBuilder, MessageIoBuilder, AsyncKernel, WorkIo, StreamIo, MessageIo, BlockMeta};
 use std::{mem, marker::PhantomData};
 use async_trait::async_trait;
 use anyhow::Result;

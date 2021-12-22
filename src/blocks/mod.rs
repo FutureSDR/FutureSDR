@@ -17,7 +17,7 @@ mod fir;
 pub use fir::Fir;
 
 mod firfilter;
-pub use firfilter::{FIRFilter, FIRFilterBuilder, FIRFilterResponseShape, WindowType}
+pub use firfilter::{FIRFilter, FIRFilterBuilder, FIRFilterResponseShape, WindowType};
 mod decimation;
 pub use decimation::{Decimation, DecimationBuilder};
 mod quadraturedemodulation;
