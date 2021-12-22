@@ -16,6 +16,13 @@ pub use filter::Filter;
 mod fir;
 pub use fir::Fir;
 
+mod firfilter;
+pub use firfilter::{FIRFilter, FIRFilterBuilder, FIRFilterResponseShape, WindowType}
+mod decimation;
+pub use decimation::{Decimation, DecimationBuilder};
+mod quadraturedemodulation;
+pub use quadraturedemodulation::QuadratureDemodulation;
+
 #[cfg(not(target_arch = "wasm32"))]
 mod fft;
 #[cfg(not(target_arch = "wasm32"))]
