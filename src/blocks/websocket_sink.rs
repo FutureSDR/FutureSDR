@@ -159,7 +159,7 @@ impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
-            format!("127.0.0.1:{}", self.port).parse::<SocketAddr>()?,
+            format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));
         Ok(())
     }
