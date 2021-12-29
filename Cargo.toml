@@ -17,6 +17,7 @@ members = [
     "pmt",
     "frontend",
     "examples/android",
+    "examples/android-hw",
     "examples/audio",
     "examples/logging",
     "examples/spectrum",
@@ -110,13 +111,11 @@ libc = "0.2.109"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
 rocket_cors = { version = "0.5.2", git = "https://github.com/lawliet89/rocket_cors", rev = "a062933c1b109949c618b0dba296ac33e4b1a105" }
 rodio = { version = "0.14.0", optional = true }
+soapysdr = { version = "0.3.1", optional = true }
 tungstenite = "0.16.0"
 vulkano = { version = "0.27.1", optional = true }
 vulkano-shaders = { version = "0.27.1", optional = true }
 tokio = { version = "1.14", features = ["rt"] }
-
-[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
-soapysdr = { version = "0.3.1", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 xilinx-dma = { version = "0.0.6", optional = true }
