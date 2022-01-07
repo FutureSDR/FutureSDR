@@ -13,8 +13,11 @@ mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
 mod filter;
 pub use filter::Filter;
+
+#[cfg_attr(RUSTC_IS_STABLE, path = "fir_stable.rs")]
 mod fir;
 pub use fir::Fir;
+
 mod fft;
 pub use fft::{Fft, FftBuilder};
 

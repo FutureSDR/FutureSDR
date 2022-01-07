@@ -96,14 +96,14 @@ fn main() -> Result<()> {
         fg.connect_stream(src, "out", head, "in")?;
 
         let copy = fg.add_block(CopyRandBuilder::new(4).max_copy(max_copy).build());
-        let mut last = fg.add_block(Fir::new(taps));
+        let mut last = fg.add_block(Fir::new(&taps));
         fg.connect_stream(head, "out", copy, "in")?;
         fg.connect_stream(copy, "out", last, "in")?;
 
         for _ in 1..stages {
             let copy = fg.add_block(CopyRandBuilder::new(4).max_copy(max_copy).build());
             fg.connect_stream(last, "out", copy, "in")?;
-            last = fg.add_block(Fir::new(taps));
+            last = fg.add_block(Fir::new(&taps));
             fg.connect_stream(copy, "out", last, "in")?;
         }
 

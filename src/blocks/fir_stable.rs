@@ -1,5 +1,3 @@
-use std::intrinsics::fadd_fast;
-use std::intrinsics::fmul_fast;
 use std::mem;
 
 use crate::anyhow::Result;
@@ -16,33 +14,33 @@ use crate::runtime::WorkIo;
 pub trait HasFirImpl: Copy + Send + 'static {}
 impl HasFirImpl for f32 {}
 
-pub struct Fir<A, const N: usize>
+pub struct Fir<A>
 where
     A: HasFirImpl,
 {
-    taps: [A; N],
+    taps: Box<[A]>,
 }
 
-impl<A, const N: usize> Fir<A, N>
+impl<A> Fir<A>
 where
     A: HasFirImpl,
-    Fir<A, N>: SyncKernel,
+    Fir<A>: SyncKernel,
 {
-    pub fn new(taps: &[A; N]) -> Block {
+    pub fn new(taps: &[A]) -> Block {
         Block::new_sync(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<A>())
                 .build(),
-            MessageIoBuilder::<Fir<A, N>>::new().build(),
-            Fir { taps: taps.clone() },
+            MessageIoBuilder::<Fir<A>>::new().build(),
+            Fir { taps: taps.to_vec().into_boxed_slice() },
         )
     }
 }
 
 #[async_trait]
-impl<const N: usize> SyncKernel for Fir<f32, N> {
+impl SyncKernel for Fir<f32> {
     fn work(
         &mut self,
         io: &mut WorkIo,
@@ -53,17 +51,16 @@ impl<const N: usize> SyncKernel for Fir<f32, N> {
         let i = sio.input(0).slice::<f32>();
         let o = sio.output(0).slice::<f32>();
 
-        if i.len() >= N {
-            let n = std::cmp::min(i.len() + 1 - N, o.len());
+        let n_taps = self.taps.len();
+
+        if i.len() >= n_taps {
+            let n = std::cmp::min(i.len() + 1 - n_taps, o.len());
 
             unsafe {
                 for k in 0..n {
                     let mut sum = 0.0;
-                    for t in 0..N {
-                        sum = fadd_fast(
-                            sum,
-                            fmul_fast(*i.get_unchecked(k + t), *self.taps.get_unchecked(t)),
-                        );
+                    for t in 0..n_taps {
+                        sum += i.get_unchecked(k + t) * self.taps.get_unchecked(t);
                     }
                     *o.get_unchecked_mut(k) = sum;
                 }
@@ -72,7 +69,7 @@ impl<const N: usize> SyncKernel for Fir<f32, N> {
             sio.input(0).consume(n);
             sio.output(0).produce(n);
 
-            if sio.input(0).finished() && n == i.len() + 1 - N {
+            if sio.input(0).finished() && n == i.len() + 1 - n_taps {
                 io.finished = true;
             }
         } else if sio.input(0).finished() {

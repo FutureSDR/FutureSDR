@@ -1,3 +1,5 @@
+use rustc_version::{version_meta, Channel};
+
 #[cfg(feature = "lttng")]
 fn gen_lttng_tracepoints() {
     use lttng_ust_generate::{CIntegerType, CTFType, Generator, Provider};
@@ -27,6 +29,21 @@ fn gen_lttng_tracepoints() {
 }
 
 fn main() {
+    match version_meta().unwrap().channel {
+        Channel::Stable => {
+            println!("cargo:rustc-cfg=RUSTC_IS_STABLE");
+        }
+        Channel::Beta => {
+            println!("cargo:rustc-cfg=RUSTC_IS_BETA");
+        }
+        Channel::Nightly => {
+            println!("cargo:rustc-cfg=RUSTC_IS_NIGHTLY");
+        }
+        Channel::Dev => {
+            println!("cargo:rustc-cfg=RUSTC_IS_DEV");
+        }
+    }
+
     #[cfg(feature = "lttng")]
     gen_lttng_tracepoints();
 }

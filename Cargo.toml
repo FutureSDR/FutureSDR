@@ -128,6 +128,7 @@ openssl-sys = { version = "0.9.71", features = ["vendored"] }
 winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "handleapi", "memoryapi"] }
 
 [build-dependencies]
+rustc_version = "0.4.0"
 lttng-ust-generate = { version = "0.1.1", optional = true }
 
 [dev-dependencies]
