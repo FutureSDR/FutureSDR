@@ -2,6 +2,7 @@ package net.bastibl.futuresdrhw
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import kotlinx.android.synthetic.main.activity_main.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,9 +12,40 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
+import com.android.volley.Request
+import com.android.volley.RequestQueue
+import com.android.volley.Response
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
+import java.util.ArrayList
+import kotlin.concurrent.thread
 
 private const val ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
+
+class MySingleton constructor(context: Context) {
+    companion object {
+        @Volatile
+        private var INSTANCE: MySingleton? = null
+        fun getInstance(context: Context) =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: MySingleton(context).also {
+                    INSTANCE = it
+                }
+            }
+    }
+    val requestQueue: RequestQueue by lazy {
+        // applicationContext is key, it keeps you from leaking the
+        // Activity or BroadcastReceiver if someone passes one in.
+        Volley.newRequestQueue(context.applicationContext)
+    }
+    fun <T> addToRequestQueue(req: Request<T>) {
+        requestQueue.add(req)
+    }
+}
 
 class MainActivity : AppCompatActivity() {
 
@@ -78,13 +110,42 @@ class MainActivity : AppCompatActivity() {
         Log.d("futuresdr", "Found fd: $fd  usbfs_path: $usbfsPath")
         Log.d("futuresdr", "Found vid: $vid  pid: $pid")
 
-        runFg(fd, usbfsPath, cacheDir.absolutePath)
+        thread(start = true) {
+            try {
+                runFg(fd, usbfsPath, cacheDir.absolutePath)
+            } catch (e: InterruptedException) {
+                Log.d("futuresdr", "crashed $e")
+                this@MainActivity.runOnUiThread(java.lang.Runnable {
+                    freqText.text = "fg crashed"
+                })
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         checkHWPermission()
+
+        val queue = MySingleton.getInstance(this.applicationContext).requestQueue
+
+        freqBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+               val freq = 800e6 + progress * 1e6;
+                freqText.text = "%.2f MHz".format(freq / 1e6);
+
+                val url = "http://localhost:1337/api/block/0/call/0"
+                val pmt = JSONObject("""{"U32": %d}""".format(freq.toInt()))
+                val request = JsonObjectRequest(Request.Method.POST, url, pmt, Response.Listener {}, Response.ErrorListener {} )
+
+                queue.add(request)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        freqBar.progress = 11;
     }
 
     private external fun runFg(fd: Int, usbfsPath: String, tmpDir: String): Void
