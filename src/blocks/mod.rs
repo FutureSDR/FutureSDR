@@ -117,3 +117,8 @@ pub mod zeromq;
 mod zynq;
 #[cfg(feature = "zynq")]
 pub use zynq::{Zynq, ZynqBuilder};
+
+#[cfg(feature = "zynq")]
+mod zynq_sync;
+#[cfg(feature = "zynq")]
+pub use zynq_sync::{ZynqSync, ZynqSyncBuilder};

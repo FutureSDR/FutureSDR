@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use xilinx_dma::AxiDmaAsync;
+use xilinx_dma::AxiDma;
 use xilinx_dma::DmaBuffer;
 
 use crate::anyhow::Result;
@@ -8,7 +8,7 @@ use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
 use crate::runtime::buffer::zynq::WriterD2H;
-use crate::runtime::AsyncKernel;
+use crate::runtime::SyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -18,31 +18,31 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct Zynq<I, O> where I: Send + 'static, O: Send +'static {
-    dma_h2d: AxiDmaAsync,
-    dma_d2h: AxiDmaAsync,
+pub struct ZynqSync<I, O> where I: Send + 'static, O: Send +'static {
+    dma_h2d: AxiDma,
+    dma_d2h: AxiDma,
     dma_buffs: Vec<String>,
     output_buffers: Vec<BufferEmpty>,
     input_data: PhantomData<I>,
     output_data: PhantomData<O>,
 }
 
-impl<I, O> Zynq<I, O> where I: Send + 'static, O: Send + 'static {
+impl<I, O> ZynqSync<I, O> where I: Send + 'static, O: Send + 'static {
     pub fn new<S: Into<String>>(dma_h2d: String, dma_d2h: String, dma_buffs: Vec<S>) -> Result<Block> {
 
         assert!(dma_buffs.len() > 1);
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
 
-        Ok(Block::new_async(
-            BlockMetaBuilder::new("Zynq").build(),
+        Ok(Block::new_sync(
+            BlockMetaBuilder::new("ZynqSync").blocking().build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<I>())
                 .add_output("out", std::mem::size_of::<O>())
                 .build(),
-            MessageIoBuilder::<Zynq<I, O>>::new().build(),
-            Zynq {
-                dma_h2d: AxiDmaAsync::new(&dma_h2d)?,
-                dma_d2h: AxiDmaAsync::new(&dma_d2h)?,
+            MessageIoBuilder::<ZynqSync<I, O>>::new().build(),
+            ZynqSync {
+                dma_h2d: AxiDma::new(&dma_h2d)?,
+                dma_d2h: AxiDma::new(&dma_d2h)?,
                 dma_buffs,
                 output_buffers: Vec::new(),
                 input_data: PhantomData,
@@ -63,7 +63,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static {
+impl<I, O> SyncKernel for ZynqSync<I, O> where I: Send + 'static, O: Send + 'static {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
@@ -88,7 +88,7 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
         Ok(())
     }
 
-    async fn work(
+    fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
@@ -103,10 +103,10 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
 
                 let outbuff = self.output_buffers.pop().unwrap().buffer;
 
-                self.dma_h2d.start_h2d(&inbuff, used_bytes).await.unwrap();
-                self.dma_d2h.start_d2h(&outbuff, used_bytes).await.unwrap();
+                self.dma_h2d.start_h2d(&inbuff, used_bytes).unwrap();
+                self.dma_d2h.start_d2h(&outbuff, used_bytes).unwrap();
                 debug!("dma transfers started (bytes: {})", used_bytes);
-                self.dma_d2h.wait_d2h().await.unwrap();
+                self.dma_d2h.wait_d2h().unwrap();
 
                 i(sio, 0).submit(BufferEmpty { buffer: inbuff });
                 o(sio, 0).submit(BufferFull {
@@ -127,7 +127,7 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
     }
 }
 
-pub struct ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
+pub struct ZynqSyncBuilder<I, O> where I: Send + 'static, O: Send + 'static {
     dma_h2d: String,
     dma_d2h: String,
     dma_buffs: Vec<String>,
@@ -135,10 +135,10 @@ pub struct ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
     _out: PhantomData<O>,
 }
 
-impl<I, O> ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
-    pub fn new<S: Into<String>>(dma_h2d: &str, dma_d2h: &str, dma_buffs: Vec<S>) -> ZynqBuilder<I, O> {
+impl<I, O> ZynqSyncBuilder<I, O> where I: Send + 'static, O: Send + 'static {
+    pub fn new<S: Into<String>>(dma_h2d: &str, dma_d2h: &str, dma_buffs: Vec<S>) -> ZynqSyncBuilder<I, O> {
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
-        ZynqBuilder {
+        ZynqSyncBuilder {
             dma_h2d: dma_h2d.to_string(),
             dma_d2h: dma_d2h.to_string(),
             dma_buffs,
@@ -148,6 +148,6 @@ impl<I, O> ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
     }
 
     pub fn build(self) -> Result<Block> {
-        Zynq::<I, O>::new(self.dma_h2d, self.dma_d2h, self.dma_buffs)
+        ZynqSync::<I, O>::new(self.dma_h2d, self.dma_d2h, self.dma_buffs)
     }
 }
