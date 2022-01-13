@@ -41,6 +41,8 @@ impl BufferBuilder for D2H {
     }
 }
 
+// everything is measured in items, e.g., offsets, capacity, space available
+
 #[derive(Debug)]
 pub struct WriterD2H {
     item_size: usize,
@@ -51,6 +53,39 @@ pub struct WriterD2H {
     writer_output_id: usize,
     reader_inbox: Option<Sender<AsyncMessage>>,
     reader_input_id: Option<usize>,
+}
+
+impl WriterD2H {
+    pub fn new(
+        item_size: usize,
+        writer_inbox: Sender<AsyncMessage>,
+        writer_output_id: usize,
+    ) -> BufferWriter {
+        BufferWriter::Custom(Box::new(WriterD2H {
+            item_size,
+            outbound: Arc::new(Mutex::new(Vec::new())),
+            inbound: Arc::new(Mutex::new(Vec::new())),
+            finished: false,
+            writer_inbox,
+            writer_output_id,
+            reader_inbox: None,
+            reader_input_id: None,
+        }))
+    }
+
+    pub fn buffers(&mut self) -> Vec<BufferEmpty> {
+        let mut vec = self.inbound.lock().unwrap();
+        std::mem::take(&mut vec)
+    }
+
+    pub fn submit(&mut self, buffer: BufferFull) {
+        self.outbound.lock().unwrap().push(buffer);
+        let _ = self
+            .reader_inbox
+            .as_mut()
+            .unwrap()
+            .try_send(AsyncMessage::Notify);
+    }
 }
 
 #[async_trait]
@@ -102,39 +137,6 @@ impl BufferWriterCustom for WriterD2H {
 
     fn finished(&self) -> bool {
         self.finished
-    }
-}
-
-impl WriterD2H {
-    pub fn new(
-        item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        BufferWriter::Custom(Box::new(WriterD2H {
-            item_size,
-            outbound: Arc::new(Mutex::new(Vec::new())),
-            inbound: Arc::new(Mutex::new(Vec::new())),
-            finished: false,
-            writer_inbox,
-            writer_output_id,
-            reader_inbox: None,
-            reader_input_id: None,
-        }))
-    }
-
-    pub fn buffers(&mut self) -> Vec<BufferEmpty> {
-        let mut vec = self.inbound.lock().unwrap();
-        std::mem::take(&mut vec)
-    }
-
-    pub fn submit(&mut self, buffer: BufferFull) {
-        self.outbound.lock().unwrap().push(buffer);
-        let _ = self
-            .reader_inbox
-            .as_mut()
-            .unwrap()
-            .try_send(AsyncMessage::Notify);
     }
 }
 
