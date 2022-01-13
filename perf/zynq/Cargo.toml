@@ -1,0 +1,13 @@
+[package]
+name = "perf-zynq"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "2.34"
+futuresdr = { path = "../..", features = ["zynq"] }
+rand = "0.8.0"
+
+[[bin]]
+name = "zynq"
+path = "zynq.rs"
