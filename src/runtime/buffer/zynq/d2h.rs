@@ -1,6 +1,7 @@
 use futures::channel::mpsc::Sender;
 use futures::SinkExt;
 use std::any::Any;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use crate::runtime::buffer::zynq::BufferEmpty;
@@ -46,7 +47,7 @@ impl BufferBuilder for D2H {
 pub struct WriterD2H {
     item_size: usize,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<Vec<BufferFull>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -62,7 +63,7 @@ impl WriterD2H {
     ) -> BufferWriter {
         BufferWriter::Custom(Box::new(WriterD2H {
             item_size,
-            outbound: Arc::new(Mutex::new(Vec::new())),
+            outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
             finished: false,
             writer_inbox,
@@ -78,7 +79,7 @@ impl WriterD2H {
     }
 
     pub fn submit(&mut self, buffer: BufferFull) {
-        self.outbound.lock().unwrap().push(buffer);
+        self.outbound.lock().unwrap().push_back(buffer);
         let _ = self
             .reader_inbox
             .as_mut()
@@ -97,7 +98,7 @@ impl BufferWriterCustom for WriterD2H {
         debug_assert!(self.reader_inbox.is_none());
         debug_assert!(self.reader_input_id.is_none());
 
-        self.reader_inbox = Some(reader_inbox);
+        self.reader_inbox = Some(reader_inbox.clone());
         self.reader_input_id = Some(reader_input_id);
 
         BufferReader::Host(Box::new(ReaderD2H {
@@ -107,6 +108,7 @@ impl BufferWriterCustom for WriterD2H {
             item_size: self.item_size,
             writer_inbox: self.writer_inbox.clone(),
             writer_output_id: self.writer_output_id,
+            my_inbox: reader_inbox,
             finished: false,
         }))
     }
@@ -144,11 +146,12 @@ unsafe impl Send for WriterD2H {}
 #[derive(Debug)]
 pub struct ReaderD2H {
     buffer: Option<CurrentBuffer>,
-    inbound: Arc<Mutex<Vec<BufferFull>>>,
+    inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     item_size: usize,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
+    my_inbox: Sender<AsyncMessage>,
     finished: bool,
 }
 
@@ -165,9 +168,8 @@ impl BufferReaderHost for ReaderD2H {
     }
 
     fn bytes(&mut self) -> (*const u8, usize) {
-        debug!("D2H reader bytes");
         if self.buffer.is_none() {
-            if let Some(b) = self.inbound.lock().unwrap().pop() {
+            if let Some(b) = self.inbound.lock().unwrap().pop_front() {
                 self.buffer = Some(CurrentBuffer {
                     buffer: b,
                     offset: 0,
@@ -190,7 +192,6 @@ impl BufferReaderHost for ReaderD2H {
     }
 
     fn consume(&mut self, amount: usize) {
-        debug!("D2H reader consume {}", amount);
         debug_assert!(amount != 0);
         debug_assert!(self.buffer.is_some());
 
@@ -203,15 +204,12 @@ impl BufferReaderHost for ReaderD2H {
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
             self.outbound.lock().unwrap().push(BufferEmpty { buffer });
-
-            if let Some(b) = self.inbound.lock().unwrap().pop() {
-                self.buffer = Some(CurrentBuffer {
-                    buffer: b,
-                    offset: 0,
-                });
-            }
-
             let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+
+            // make sure to be called again for another potentially
+            // queued buffer. could also check if there is one and only
+            // message in this case.
+            let _ = self.my_inbox.try_send(AsyncMessage::Notify);
         }
     }
 
@@ -234,7 +232,11 @@ impl BufferReaderHost for ReaderD2H {
     }
 
     fn finished(&self) -> bool {
-        self.finished
+        if self.finished && self.inbound.lock().unwrap().is_empty() {
+            true
+        } else {
+            false
+        }
     }
 }
 

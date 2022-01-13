@@ -1,6 +1,7 @@
 use futures::channel::mpsc::Sender;
 use futures::SinkExt;
 use std::any::Any;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use crate::runtime::buffer::zynq::BufferEmpty;
@@ -50,11 +51,12 @@ impl BufferBuilder for H2D {
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
+// ====================== WRITER ============================
 #[derive(Debug)]
 pub struct WriterH2D {
     buffer: Option<CurrentBuffer>,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<Vec<BufferFull>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
     item_size: usize,
     max_bytes: usize,
     finished: bool,
@@ -83,7 +85,7 @@ impl WriterH2D {
         BufferWriter::Host(Box::new(WriterH2D {
             buffer: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(Vec::new())),
+            outbound: Arc::new(Mutex::new(VecDeque::new())),
             item_size,
             max_bytes,
             finished: false,
@@ -131,39 +133,33 @@ impl BufferWriterHost for WriterH2D {
                     offset: 0,
                 });
             } else {
-                debug!("H2D writer called bytes, buff is none");
+                // debug!("H2D writer called bytes, buff is none");
                 return (std::ptr::null_mut::<u8>(), 0);
             }
         }
 
-        debug!("H2D writer called bytes, buff is some");
+        // debug!("H2D writer called bytes, buff is some");
         let buffer = self.buffer.as_mut().unwrap();
-        let offset = buffer.offset;
         let capacity = std::cmp::min(buffer.buffer.buffer.size(), self.max_bytes) / self.item_size;
 
         unsafe {
             (
-                (buffer.buffer.buffer.buffer() as *mut u8).add(offset * self.item_size),
-                (capacity - offset) * self.item_size,
+                (buffer.buffer.buffer.buffer() as *mut u8).add(buffer.offset * self.item_size),
+                (capacity - buffer.offset) * self.item_size,
             )
         }
     }
 
     fn produce(&mut self, amount: usize) {
-        debug!("H2D writer called produce {}", amount);
-        if self.buffer.is_none() {
-            return;
-        }
-
+        // debug!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
         let capacity = std::cmp::min(buffer.buffer.buffer.size(), self.max_bytes) / self.item_size;
-        let offset = &mut buffer.offset;
-        debug_assert!(amount + *offset <= capacity);
 
-        *offset += amount;
-        if *offset == capacity {
+        debug_assert!(amount + buffer.offset <= capacity);
+        buffer.offset += amount;
+        if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
-            self.outbound.lock().unwrap().push(BufferFull {
+            self.outbound.lock().unwrap().push_back(BufferFull {
                 buffer,
                 used_bytes: capacity * self.item_size,
             });
@@ -191,7 +187,7 @@ impl BufferWriterHost for WriterH2D {
 
         if let Some(CurrentBuffer { offset, buffer }) = self.buffer.take() {
             if offset > 0 {
-                self.outbound.lock().unwrap().push(BufferFull {
+                self.outbound.lock().unwrap().push_back(BufferFull {
                     buffer: buffer.buffer,
                     used_bytes: offset * self.item_size,
                 });
@@ -222,7 +218,7 @@ unsafe impl Send for WriterH2D {}
 // ====================== READER ============================
 #[derive(Debug)]
 pub struct ReaderH2D {
-    inbound: Arc<Mutex<Vec<BufferFull>>>,
+    inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     writer_output_id: usize,
     writer_inbox: Sender<AsyncMessage>,
@@ -231,14 +227,19 @@ pub struct ReaderH2D {
 
 impl ReaderH2D {
     pub fn submit(&mut self, buffer: BufferEmpty) {
-        debug!("H2D reader handling empty buffer");
+        // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
         let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
     }
 
-    pub fn buffers(&mut self) -> Vec<BufferFull> {
+    pub fn get_buffer(&mut self) -> Option<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
-        std::mem::take(&mut vec)
+        vec.pop_front()
+    }
+
+    pub fn buffer_available(&self) -> bool {
+        let vec = self.inbound.lock().unwrap();
+        !vec.is_empty()
     }
 }
 
