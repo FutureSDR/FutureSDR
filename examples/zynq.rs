@@ -22,7 +22,8 @@ fn main() -> Result<()> {
 
     let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
     let cpy = CopyBuilder::new(4).build();
-    let zynq = ZynqBuilder::new("uio4", "uio5", ("udmabuf0", "udmabuf1")).build()?;
+    let zynq =
+        ZynqBuilder::<u32, u32>::new("uio4", "uio5", vec!["udmabuf0", "udmabuf1"]).build()?;
     let snk = VectorSinkBuilder::<u32>::new().build();
 
     let src = fg.add_block(src);

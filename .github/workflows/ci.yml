@@ -127,4 +127,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
