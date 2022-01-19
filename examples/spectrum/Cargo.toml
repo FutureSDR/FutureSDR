@@ -14,7 +14,6 @@ required-features = ["cpu"]
 name = "vulkan"
 required-features = ["cpu", "vulkan"]
 
-
 [features]
 default = []
 cpu = [ "futuresdr/soapy" ]
