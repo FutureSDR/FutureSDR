@@ -14,17 +14,26 @@ def conf_int(data, confidence=0.95):
     h = se * scipy.stats.t.ppf((1+confidence)/2., n-1)
     return h
 
-d = pd.read_csv('perf-data/uncached.csv')
-d = d.groupby(['sync', 'max_copy']).agg({'time': [np.mean, np.var, conf_int]})
-
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[(False)]
-ax.errorbar(np.log2(t.index), t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Async, Unbufferd')
+d = pd.read_csv('perf-data/uncached.csv')
+d = d.groupby(['sync', 'max_copy']).agg({'time': [np.mean, np.var, conf_int]})
+
+# t = d.loc[(False)]
+# ax.errorbar(np.log2(t.index), t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Async, Unbufferd')
 
 t = d.loc[(True)]
 ax.errorbar(np.log2(t.index), t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Sync, Unbufferd')
+
+d = pd.read_csv('perf-data/cached.csv')
+d = d.groupby(['sync', 'max_copy']).agg({'time': [np.mean, np.var, conf_int]})
+
+# t = d.loc[(False)]
+# ax.errorbar(np.log2(t.index), t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Async, Bufferd')
+
+t = d.loc[(True)]
+ax.errorbar(np.log2(t.index), t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Sync, Bufferd')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_ylim(0)
