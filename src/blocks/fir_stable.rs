@@ -34,7 +34,9 @@ where
                 .add_output("out", mem::size_of::<A>())
                 .build(),
             MessageIoBuilder::<Fir<A>>::new().build(),
-            Fir { taps: taps.to_vec().into_boxed_slice() },
+            Fir {
+                taps: taps.to_vec().into_boxed_slice(),
+            },
         )
     }
 }

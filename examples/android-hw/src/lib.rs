@@ -6,13 +6,13 @@ use keep_1_in_n::Keep1InN;
 use std::env;
 
 use futuresdr::anyhow::Result;
-use futuresdr::num_complex::Complex32;
-use futuresdr::log::info;
-use futuresdr::blocks::Fft;
 use futuresdr::blocks::Apply;
+use futuresdr::blocks::Fft;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::log::info;
+use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 

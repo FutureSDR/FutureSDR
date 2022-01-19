@@ -18,7 +18,11 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct Zynq<I, O> where I: Send + 'static, O: Send +'static {
+pub struct Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     dma_h2d: AxiDmaAsync,
     dma_d2h: AxiDmaAsync,
     dma_buffs: Vec<String>,
@@ -27,9 +31,16 @@ pub struct Zynq<I, O> where I: Send + 'static, O: Send +'static {
     output_data: PhantomData<O>,
 }
 
-impl<I, O> Zynq<I, O> where I: Send + 'static, O: Send + 'static {
-    pub fn new<S: Into<String>>(dma_h2d: String, dma_d2h: String, dma_buffs: Vec<S>) -> Result<Block> {
-
+impl<I, O> Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
+    pub fn new<S: Into<String>>(
+        dma_h2d: String,
+        dma_d2h: String,
+        dma_buffs: Vec<S>,
+    ) -> Result<Block> {
         assert!(dma_buffs.len() > 1);
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
 
@@ -63,23 +74,30 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static {
+impl<I, O> AsyncKernel for Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     async fn init(
         &mut self,
         sio: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
         let len = self.dma_buffs.len();
         assert!(len > 1);
 
-        for n in self.dma_buffs[..len/2].iter() {
-            self.output_buffers.push(BufferEmpty { buffer: DmaBuffer::new(n)? });
+        for n in self.dma_buffs[..len / 2].iter() {
+            self.output_buffers.push(BufferEmpty {
+                buffer: DmaBuffer::new(n)?,
+            });
         }
 
-        for n in self.dma_buffs[len/2..].iter() {
-            i(sio, 0).submit(BufferEmpty { buffer: DmaBuffer::new(n)? });
+        for n in self.dma_buffs[len / 2..].iter() {
+            i(sio, 0).submit(BufferEmpty {
+                buffer: DmaBuffer::new(n)?,
+            });
         }
 
         self.dma_h2d.reset();
@@ -95,12 +113,14 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
         self.output_buffers.extend(o(sio, 0).buffers());
 
         while !self.output_buffers.is_empty() {
-            if let Some(BufferFull { buffer: inbuff, used_bytes }) = i(sio, 0).get_buffer() {
-
+            if let Some(BufferFull {
+                buffer: inbuff,
+                used_bytes,
+            }) = i(sio, 0).get_buffer()
+            {
                 let outbuff = self.output_buffers.pop().unwrap().buffer;
 
                 self.dma_h2d.start_h2d(&inbuff, used_bytes).await.unwrap();
@@ -113,7 +133,6 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
                     buffer: outbuff,
                     used_bytes,
                 });
-
             } else {
                 break;
             }
@@ -127,7 +146,11 @@ impl<I, O> AsyncKernel for Zynq<I, O> where I: Send + 'static, O: Send + 'static
     }
 }
 
-pub struct ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
+pub struct ZynqBuilder<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     dma_h2d: String,
     dma_d2h: String,
     dma_buffs: Vec<String>,
@@ -135,8 +158,16 @@ pub struct ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
     _out: PhantomData<O>,
 }
 
-impl<I, O> ZynqBuilder<I, O> where I: Send + 'static, O: Send + 'static {
-    pub fn new<S: Into<String>>(dma_h2d: &str, dma_d2h: &str, dma_buffs: Vec<S>) -> ZynqBuilder<I, O> {
+impl<I, O> ZynqBuilder<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
+    pub fn new<S: Into<String>>(
+        dma_h2d: &str,
+        dma_d2h: &str,
+        dma_buffs: Vec<S>,
+    ) -> ZynqBuilder<I, O> {
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
         ZynqBuilder {
             dma_h2d: dma_h2d.to_string(),

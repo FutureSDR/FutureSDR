@@ -14,7 +14,6 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
-
     let matches = App::new("Zynq Perf")
         .arg(
             Arg::with_name("run")
@@ -48,13 +47,14 @@ fn main() -> Result<()> {
                 .short("s")
                 .long("sync")
                 .takes_value(false)
-                .help("Use sync implementation."))
+                .help("Use sync implementation."),
+        )
         .get_matches();
-
 
     let run = value_t!(matches.value_of("run"), u32).context("missing run parameter")?;
     let n_items = value_t!(matches.value_of("items"), usize).context("missing items parameter")?;
-    let max_copy = value_t!(matches.value_of("max_copy"), usize).context("missing max_copy parameter")?;
+    let max_copy =
+        value_t!(matches.value_of("max_copy"), usize).context("missing max_copy parameter")?;
     let max_bytes = max_copy * std::mem::size_of::<u32>();
     let sync = matches.is_present("sync");
 
@@ -68,11 +68,23 @@ fn main() -> Result<()> {
     let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
     let zynq;
     if sync {
-        zynq = ZynqSyncBuilder::<u32, u32>::new("uio4", "uio5", vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"]).build()?;
+        zynq = ZynqSyncBuilder::<u32, u32>::new(
+            "uio4",
+            "uio5",
+            vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
+        )
+        .build()?;
     } else {
-        zynq = ZynqBuilder::<u32, u32>::new("uio4", "uio5", vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"]).build()?;
+        zynq = ZynqBuilder::<u32, u32>::new(
+            "uio4",
+            "uio5",
+            vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
+        )
+        .build()?;
     }
-    let snk = VectorSinkBuilder::<u32>::new().init_capacity(n_items).build();
+    let snk = VectorSinkBuilder::<u32>::new()
+        .init_capacity(n_items)
+        .build();
 
     let src = fg.add_block(src);
     let zynq = fg.add_block(zynq);
@@ -84,7 +96,14 @@ fn main() -> Result<()> {
     let now = Instant::now();
     fg = Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
-    println!("{},{},{},{},{}", run, n_items, max_copy, sync, elapsed.as_secs_f64());
+    println!(
+        "{},{},{},{},{}",
+        run,
+        n_items,
+        max_copy,
+        sync,
+        elapsed.as_secs_f64()
+    );
 
     let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
@@ -92,7 +111,12 @@ fn main() -> Result<()> {
     assert_eq!(v.len(), n_items);
     for i in 0..v.len() {
         if orig[i] + 123 != v[i] {
-            eprintln!("data wrong: i {}  expected {}   got {}", i, orig[i] + 123, v[i]);
+            eprintln!(
+                "data wrong: i {}  expected {}   got {}",
+                i,
+                orig[i] + 123,
+                v[i]
+            );
             panic!("data does not match");
         }
     }
