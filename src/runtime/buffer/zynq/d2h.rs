@@ -232,11 +232,7 @@ impl BufferReaderHost for ReaderD2H {
     }
 
     fn finished(&self) -> bool {
-        if self.finished && self.inbound.lock().unwrap().is_empty() {
-            true
-        } else {
-            false
-        }
+        self.finished && self.inbound.lock().unwrap().is_empty()
     }
 }
 

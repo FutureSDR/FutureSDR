@@ -66,22 +66,21 @@ fn main() -> Result<()> {
         .collect();
 
     let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
-    let zynq;
-    if sync {
-        zynq = ZynqSyncBuilder::<u32, u32>::new(
+    let zynq = if sync {
+        ZynqSyncBuilder::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )
-        .build()?;
+        .build()?
     } else {
-        zynq = ZynqBuilder::<u32, u32>::new(
+        ZynqBuilder::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )
-        .build()?;
-    }
+        .build()?
+    };
     let snk = VectorSinkBuilder::<u32>::new()
         .init_capacity(n_items)
         .build();

@@ -36,7 +36,7 @@ where
                 .add_output("out", mem::size_of::<A>())
                 .build(),
             MessageIoBuilder::<Fir<A, N>>::new().build(),
-            Fir { taps: taps.clone() },
+            Fir { taps: *taps },
         )
     }
 }
