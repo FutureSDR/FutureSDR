@@ -42,7 +42,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,lttng -- -D warnings
+          args: --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,lttng --exclude androidhw -- -D warnings
 
   test-linux:
     name: Unit Tests Linux
@@ -73,7 +73,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --features=zeromq,audio,flow_scheduler,tpb_scheduler -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude androidhw --features=zeromq,audio,flow_scheduler,tpb_scheduler -- --nocapture
 
   test-macos:
     name: Unit Tests macOS
@@ -95,7 +95,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
 
   test-windows:
     name: Unit Test Windows
@@ -127,4 +127,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
+          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
