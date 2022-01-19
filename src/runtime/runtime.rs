@@ -252,7 +252,7 @@ async fn run_flowgraph<S: Scheduler>(
 
     // Start Control Port
     #[cfg(not(target_arch = "wasm32"))]
-    ctrl_port::start_control_port(inboxes.clone());
+    ctrl_port::start_control_port(inboxes.clone()).await;
 
     // main loop
     loop {
