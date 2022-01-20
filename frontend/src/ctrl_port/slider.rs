@@ -34,7 +34,6 @@ pub fn add_slider_u32(
     );
 }
 
-
 pub enum Msg {
     Error,
     ValueChanged(i64),

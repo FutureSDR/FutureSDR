@@ -1,8 +1,8 @@
 use futures::StreamExt;
 use gloo_render::request_animation_frame;
 use gloo_render::AnimationFrame;
-use reqwasm::websocket::Message;
 use reqwasm::websocket::futures::WebSocket;
+use reqwasm::websocket::Message;
 use std::convert::TryInto;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -62,7 +62,6 @@ impl Component for Frequency {
 
     fn create(ctx: &Context<Self>) -> Self {
         let uses_websocket = if !ctx.props().url.is_empty() {
-
             let link = ctx.link().clone();
             let url = ctx.props().url.clone();
 
@@ -80,7 +79,6 @@ impl Component for Frequency {
             });
 
             true
-
         } else {
             false
         };

@@ -2,8 +2,8 @@ use futures::StreamExt;
 use gloo_render::request_animation_frame;
 use gloo_render::AnimationFrame;
 use rbl_circular_buffer::CircularBuffer;
-use reqwasm::websocket::Message;
 use reqwasm::websocket::futures::WebSocket;
+use reqwasm::websocket::Message;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
@@ -130,7 +130,12 @@ impl Time {
         let max = ctx.props().max;
         let vertices: Vec<f32> = (&self.buff)
             .enumerate()
-            .flat_map(|(i, v)| vec![-1.0 + 2.0 * i as f32 / l as f32, (2.0 * (v - min) / (max - min)) - 1.0])
+            .flat_map(|(i, v)| {
+                vec![
+                    -1.0 + 2.0 * i as f32 / l as f32,
+                    (2.0 * (v - min) / (max - min)) - 1.0,
+                ]
+            })
             .collect();
 
         let vertex_buffer = gl.create_buffer().unwrap();
