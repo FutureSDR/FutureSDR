@@ -72,12 +72,12 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let run : u32 = matches.value_of_t("run").context("no run")?;
-    let pipes : u32 = matches.value_of_t("pipes").context("no pipe")?;
-    let stages : u32 = matches.value_of_t("stages").context("no stages")?;
-    let samples : usize = matches.value_of_t("samples").context("no samples")?;
-    let max_copy : usize = matches.value_of_t("max_copy").context("no max_copy")?;
-    let scheduler : String = matches.value_of_t("scheduler").context("no scheduler")?;
+    let run: u32 = matches.value_of_t("run").context("no run")?;
+    let pipes: u32 = matches.value_of_t("pipes").context("no pipe")?;
+    let stages: u32 = matches.value_of_t("stages").context("no stages")?;
+    let samples: usize = matches.value_of_t("samples").context("no samples")?;
+    let max_copy: usize = matches.value_of_t("max_copy").context("no max_copy")?;
+    let scheduler: String = matches.value_of_t("scheduler").context("no scheduler")?;
 
     let mut fg = Flowgraph::new();
 

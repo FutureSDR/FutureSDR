@@ -51,10 +51,13 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let run : u32 = matches.value_of_t("run").context("missing run parameter")?;
-    let n_items : usize = matches.value_of_t("items").context("missing items parameter")?;
-    let max_copy : usize =
-        matches.value_of_t("max_copy").context("missing max_copy parameter")?;
+    let run: u32 = matches.value_of_t("run").context("missing run parameter")?;
+    let n_items: usize = matches
+        .value_of_t("items")
+        .context("missing items parameter")?;
+    let max_copy: usize = matches
+        .value_of_t("max_copy")
+        .context("missing max_copy parameter")?;
     let max_bytes = max_copy * std::mem::size_of::<u32>();
     let sync = matches.is_present("sync");
 

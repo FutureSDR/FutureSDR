@@ -58,10 +58,12 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let run : u32 = matches.value_of_t("run").context("no run")?;
+    let run: u32 = matches.value_of_t("run").context("no run")?;
     let pipes: u32 = matches.value_of_t("pipes").context("no pipes")?;
     let stages: u32 = matches.value_of_t("stages").context("no stages")?;
-    let repetitions: u32 = matches.value_of_t("repetitions").context("no repetitions")?;
+    let repetitions: u32 = matches
+        .value_of_t("repetitions")
+        .context("no repetitions")?;
     let burst_size: u64 = matches.value_of_t("burst_size").context("no burst_size")?;
 
     for r in 0..repetitions {
