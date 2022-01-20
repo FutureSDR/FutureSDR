@@ -1,4 +1,4 @@
-use clap::{value_t, App, Arg};
+use clap::{App, Arg};
 use rand::Rng;
 use std::time::Instant;
 
@@ -16,8 +16,8 @@ use futuresdr::runtime::Runtime;
 fn main() -> Result<()> {
     let matches = App::new("Zynq Perf")
         .arg(
-            Arg::with_name("run")
-                .short("r")
+            Arg::new("run")
+                .short('r')
                 .long("run")
                 .takes_value(true)
                 .value_name("RUN")
@@ -25,8 +25,8 @@ fn main() -> Result<()> {
                 .help("Run number."),
         )
         .arg(
-            Arg::with_name("max_copy")
-                .short("m")
+            Arg::new("max_copy")
+                .short('m')
                 .long("max_copy")
                 .takes_value(true)
                 .value_name("MAX_COPY")
@@ -34,8 +34,8 @@ fn main() -> Result<()> {
                 .help("Maximum samples per DMA buffer."),
         )
         .arg(
-            Arg::with_name("items")
-                .short("n")
+            Arg::new("items")
+                .short('n')
                 .long("items")
                 .takes_value(true)
                 .value_name("ITEMS")
@@ -43,18 +43,18 @@ fn main() -> Result<()> {
                 .help("Number of items to process."),
         )
         .arg(
-            Arg::with_name("sync")
-                .short("s")
+            Arg::new("sync")
+                .short('s')
                 .long("sync")
                 .takes_value(false)
                 .help("Use sync implementation."),
         )
         .get_matches();
 
-    let run = value_t!(matches.value_of("run"), u32).context("missing run parameter")?;
-    let n_items = value_t!(matches.value_of("items"), usize).context("missing items parameter")?;
-    let max_copy =
-        value_t!(matches.value_of("max_copy"), usize).context("missing max_copy parameter")?;
+    let run : u32 = matches.value_of_t("run").context("missing run parameter")?;
+    let n_items : usize = matches.value_of_t("items").context("missing items parameter")?;
+    let max_copy : usize =
+        matches.value_of_t("max_copy").context("missing max_copy parameter")?;
     let max_bytes = max_copy * std::mem::size_of::<u32>();
     let sync = matches.is_present("sync");
 

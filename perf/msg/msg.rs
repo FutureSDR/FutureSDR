@@ -1,4 +1,4 @@
-use clap::{value_t, App, Arg};
+use clap::{App, Arg};
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
@@ -12,8 +12,8 @@ use futuresdr::runtime::Runtime;
 fn main() -> Result<()> {
     let matches = App::new("Vect Flowgraph")
         .arg(
-            Arg::with_name("run")
-                .short("r")
+            Arg::new("run")
+                .short('r')
                 .long("run")
                 .takes_value(true)
                 .value_name("RUN")
@@ -21,8 +21,8 @@ fn main() -> Result<()> {
                 .help("Sets run number."),
         )
         .arg(
-            Arg::with_name("stages")
-                .short("s")
+            Arg::new("stages")
+                .short('s')
                 .long("stages")
                 .takes_value(true)
                 .value_name("STAGES")
@@ -30,8 +30,8 @@ fn main() -> Result<()> {
                 .help("Sets the number of stages."),
         )
         .arg(
-            Arg::with_name("pipes")
-                .short("p")
+            Arg::new("pipes")
+                .short('p')
                 .long("pipes")
                 .takes_value(true)
                 .value_name("PIPES")
@@ -39,8 +39,8 @@ fn main() -> Result<()> {
                 .help("Sets the number of pipes."),
         )
         .arg(
-            Arg::with_name("repetitions")
-                .short("R")
+            Arg::new("repetitions")
+                .short('R')
                 .long("repetitions")
                 .takes_value(true)
                 .value_name("REPETITIONS")
@@ -48,8 +48,8 @@ fn main() -> Result<()> {
                 .help("Sets the number of repetitions."),
         )
         .arg(
-            Arg::with_name("burst_size")
-                .short("b")
+            Arg::new("burst_size")
+                .short('b')
                 .long("burst_size")
                 .takes_value(true)
                 .value_name("BURST_SIZE")
@@ -58,11 +58,11 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let run = value_t!(matches.value_of("run"), u32).context("no run")?;
-    let pipes = value_t!(matches.value_of("pipes"), u32).context("no pipes")?;
-    let stages = value_t!(matches.value_of("stages"), u32).context("no stages")?;
-    let repetitions = value_t!(matches.value_of("repetitions"), u32).context("no repetitions")?;
-    let burst_size = value_t!(matches.value_of("burst_size"), u64).context("no burst_size")?;
+    let run : u32 = matches.value_of_t("run").context("no run")?;
+    let pipes: u32 = matches.value_of_t("pipes").context("no pipes")?;
+    let stages: u32 = matches.value_of_t("stages").context("no stages")?;
+    let repetitions: u32 = matches.value_of_t("repetitions").context("no repetitions")?;
+    let burst_size: u64 = matches.value_of_t("burst_size").context("no burst_size")?;
 
     for r in 0..repetitions {
         let mut fg = Flowgraph::new();
