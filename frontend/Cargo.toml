@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 console_error_panic_hook = "0.1.6"
 futuresdr-pmt = { path = "../pmt" }
 gloo-console = "0.2.1"
+gloo-timers = { version = "0.2.2", features = ["futures"] }
 gloo-utils = "0.1.2"
 js-sys = "0.3.52"
 rbl_circular_buffer = "0.1.2"
