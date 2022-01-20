@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod ctrl_port;
 // pub mod gui;
-// mod kitchen_sink;
+mod kitchen_sink;
 
 use ctrl_port::slider;
 use futuresdr_pmt::PmtKind;
@@ -42,9 +42,9 @@ pub fn add_slider_u32(
     );
 }
 
-// #[wasm_bindgen]
-// pub fn app(id: String) {
-//     let document = gloo_utils::document();
-//     let div = document.query_selector(&id).unwrap().unwrap();
-//     App::<kitchen_sink::KitchenSink>::new().mount(div);
-// }
+#[wasm_bindgen]
+pub fn app(id: String) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_in_element::<kitchen_sink::KitchenSink>(div);
+}
