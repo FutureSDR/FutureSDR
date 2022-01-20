@@ -1,35 +1,42 @@
+use futures::StreamExt;
+use gloo_render::request_animation_frame;
+use gloo_render::AnimationFrame;
 use rbl_circular_buffer::CircularBuffer;
+use reqwasm::websocket::Message;
+use reqwasm::websocket::futures::WebSocket;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlCanvasElement;
 use web_sys::WebGlRenderingContext as GL;
-use yew::format::Binary;
-use yew::prelude::*;
-use yew::services::websocket::{WebSocketStatus, WebSocketTask};
-use yew::services::ConsoleService;
-use yew::services::WebSocketService;
-use yew::services::{RenderService, Task};
 use yew::prelude::*;
 
 pub enum Msg {
-    Data(Binary),
-    Status(WebSocketStatus),
+    Data(Vec<u8>),
+    Status(String),
     Render(f64),
+}
+
+#[wasm_bindgen]
+pub fn add_time(id: String, url: String, min: f32, max: f32) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_with_props_in_element::<Time>(div, Props { url, min, max });
 }
 
 #[derive(Clone, Properties, Default, PartialEq)]
 pub struct Props {
     pub url: String,
+    pub min: f32,
+    pub max: f32,
 }
 
 pub struct Time {
-    link: ComponentLink<Self>,
-    props: Props,
     canvas_ref: NodeRef,
     _canvas: Option<HtmlCanvasElement>,
     gl: Option<GL>,
-    _render_loop: Option<Box<dyn Task>>,
+    _render_loop: Option<AnimationFrame>,
     buff: CircularBuffer<f32>,
-    _websocket_task: WebSocketTask,
 }
 
 impl Component for Time {
@@ -37,28 +44,32 @@ impl Component for Time {
     type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let cb = link.callback(Msg::Data);
-        let notification = link.callback(Msg::Status);
-        let _websocket_task =
-            WebSocketService::connect_binary(&props.url, cb, notification).unwrap();
+        let link = ctx.link().clone();
+        let url = ctx.props().url.clone();
+
+        spawn_local(async move {
+            let websocket = WebSocket::open(&url).unwrap();
+            let (_, mut rx) = websocket.split();
+
+            while let Some(msg) = rx.next().await {
+                match msg {
+                    Ok(Message::Text(s)) => link.send_message(Msg::Status(s)),
+                    Ok(Message::Bytes(v)) => link.send_message(Msg::Data(v)),
+                    _ => break,
+                }
+            }
+        });
 
         Self {
-            link,
-            props,
             canvas_ref: NodeRef::default(),
             _canvas: None,
             gl: None,
             _render_loop: None,
             buff: CircularBuffer::new(2048),
-            _websocket_task,
         }
     }
 
-    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) {
-        // Once rendered, store references for the canvas and GL context. These can be used for
-        // resizing the rendering area when the window or canvas element are resized, as well as
-        // for making GL calls.
-
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         let canvas = self.canvas_ref.cast::<HtmlCanvasElement>().unwrap();
 
         let gl: GL = canvas
@@ -71,48 +82,33 @@ impl Component for Time {
         self._canvas = Some(canvas);
         self.gl = Some(gl);
 
-        // In a more complex use-case, there will be additional WebGL initialization that should be
-        // done here, such as enabling or disabling depth testing, depth functions, face
-        // culling etc.
-
         if first_render {
-            // The callback to request animation frame is passed a time value which can be used for
-            // rendering motion independent of the framerate which may vary.
-            let render_frame = self.link.callback(Msg::Render);
-            let handle = RenderService::request_animation_frame(render_frame);
-
-            // A reference to the handle must be stored, otherwise it is dropped and the render won't
-            // occur.
-            self._render_loop = Some(Box::new(handle));
+            let handle = {
+                let link = ctx.link().clone();
+                request_animation_frame(move |time| link.send_message(Msg::Render(time)))
+            };
+            self._render_loop = Some(handle);
         }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Render(timestamp) => {
-                // Render functions are likely to get quite large, so it is good practice to split
-                // it into it's own function rather than keeping it inline in the update match
-                // case. This also allows for updating other UI elements that may be rendered in
-                // the DOM like a framerate counter, or other overlaid textual elements.
-                self.render_gl(timestamp);
+                self.render_gl(timestamp, ctx);
             }
             Msg::Data(b) => {
-                if let Ok(b) = b {
-                    let v;
-                    unsafe {
-                        let s = b.len() / 4;
-                        let p = b.as_ptr();
-                        v = std::slice::from_raw_parts(p as *const f32, s);
-                    }
-                    ConsoleService::log(&format!("received bytes: {:?}", b.len()));
-                    for i in v {
-                        self.buff.push(*i);
-                    }
-                    ConsoleService::log(&format!("buf: {:?}", &self.buff));
+                let v;
+                unsafe {
+                    let s = b.len() / 4;
+                    let p = b.as_ptr();
+                    v = std::slice::from_raw_parts(p as *const f32, s);
+                }
+                for i in v {
+                    self.buff.push(*i);
                 }
             }
             Msg::Status(s) => {
-                ConsoleService::log(&format!("socket status {:?}", &s));
+                gloo_console::log!(format!("socket status {:?}", &s));
             }
         }
         true
@@ -126,13 +122,15 @@ impl Component for Time {
 }
 
 impl Time {
-    fn render_gl(&mut self, timestamp: f64) {
+    fn render_gl(&mut self, timestamp: f64, ctx: &Context<Self>) {
         let gl = self.gl.as_ref().expect("GL Context not initialized!");
 
         let l = self.buff.len();
+        let min = ctx.props().min;
+        let max = ctx.props().max;
         let vertices: Vec<f32> = (&self.buff)
             .enumerate()
-            .flat_map(|(i, v)| vec![-1.0 + 2.0 * i as f32 / l as f32, -1.0 + v as f32 / 255.0])
+            .flat_map(|(i, v)| vec![-1.0 + 2.0 * i as f32 / l as f32, (2.0 * (v - min) / (max - min)) - 1.0])
             .collect();
 
         let vertex_buffer = gl.create_buffer().unwrap();
@@ -178,10 +176,10 @@ impl Time {
 
         gl.draw_arrays(GL::LINE_STRIP, 0, l as i32);
 
-        let render_frame = self.link.callback(Msg::Render);
-        let handle = RenderService::request_animation_frame(render_frame);
-
-        // A reference to the new handle must be retained for the next render to run.
-        self._render_loop = Some(Box::new(handle));
+        let handle = {
+            let link = ctx.link().clone();
+            request_animation_frame(move |time| link.send_message(Msg::Render(time)))
+        };
+        self._render_loop = Some(handle);
     }
 }
