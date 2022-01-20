@@ -1,4 +1,5 @@
 use reqwasm::http::Request;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 use futuresdr_pmt::Pmt;
@@ -19,10 +20,10 @@ pub struct Props {
     pub min: i64,
     pub max: i64,
     pub step: i64,
+    pub value: i64,
 }
 
 pub struct Slider {
-    value: i64,
     status: String,
     request_id: u64,
     last_request_id: u64,
@@ -37,16 +38,20 @@ impl Slider {
     }
 
     fn callback(ctx: &Context<Self>, p: &Pmt, id: u64) {
+        let p = p.clone();
+        let endpoint = Self::endpoint(ctx.props());
+        gloo_console::log!(format!("slider: sending request {:?}", &p));
+
         ctx.link().send_future(async move {
-            let response = Request::post(&Self::endpoint(ctx.props()))
+            let response = Request::post(&endpoint)
                 .header("Content-Type", "application/json")
-                .body(Json(p))
+                .body(serde_json::to_string(&p).unwrap())
                 .send()
                 .await;
 
             if let Ok(response) = response {
                 if response.ok() {
-                    Msg::Reply(response.into_body().unwrap(), id)
+                    return Msg::Reply(response.text().await.unwrap(), id);
                 }
             }
             Msg::Error
@@ -74,8 +79,8 @@ impl Component for Slider {
     type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let mut status = "<fetching>".to_string();
-        let value = ctx.props().min;
+        let mut status = "init".to_string();
+        let value = ctx.props().value;
 
         if let Some(p) = Self::value_to_pmt(value, ctx) {
             Self::callback(ctx, &p, 1);
@@ -84,7 +89,6 @@ impl Component for Slider {
         }
 
         Self {
-            value,
             status,
             request_id: 1,
             last_request_id: 0,
@@ -94,20 +98,14 @@ impl Component for Slider {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ValueChanged(v) => {
-                self.status = "<calling>".to_string();
+                self.status = "calling".to_string();
 
-                if let ChangeData::Value(s) = v {
-                    if let Ok(v) = s.parse::<i64>() {
-                        self.value = v;
-
-                        if let Some(p) = Self::value_to_pmt(self.value, ctx) {
-                            self.request_id += 1;
-                            Self::callback(ctx, &p, self.request_id);
-                        }
-                    }
+                if let Some(p) = Self::value_to_pmt(v, ctx) {
+                    self.request_id += 1;
+                    Self::callback(ctx, &p, self.request_id);
+                } else {
+                    self.status = "Invalid Value".to_string();
                 }
-
-                self.status = "Error".to_string();
             }
             Msg::Error => {
                 self.status = "Error".to_string();
@@ -126,16 +124,22 @@ impl Component for Slider {
         if self.request_id > self.last_request_id {
             classes.push_str(" fetching");
         }
+
+        let oninput = ctx.link().callback(|e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            Msg::ValueChanged(input.value_as_number() as i64)
+        });
+
         html! {
             <div>
                 <input type="range"
-                value=self.value.to_string()
-                min=self.props.min.to_string()
-                max=self.props.max.to_string()
-                step=self.props.step.to_string()
-                onchange=ctx.link().callback(Msg::ValueChanged)
+                    min={ctx.props().min.to_string()}
+                    max={ctx.props().max.to_string()}
+                    step={ctx.props().step.to_string()}
+                    {oninput}
                 />
-                <span class={classes}>{ &self.result }</span>
+
+                <span class={classes}>{ &self.status }</span>
             </div>
         }
     }
