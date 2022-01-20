@@ -12,7 +12,7 @@ use yew::services::websocket::{WebSocketStatus, WebSocketTask};
 use yew::services::ConsoleService;
 use yew::services::WebSocketService;
 use yew::services::{RenderService, Task};
-use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
+use yew::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
@@ -237,7 +237,7 @@ void main()
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::Render(timestamp) => {
                 // ConsoleService::log("rendering");
@@ -264,7 +264,7 @@ void main()
         false
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> bool {
         ConsoleService::log("yew frequency widget change");
         if props == self.props {
             return false;

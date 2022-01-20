@@ -73,7 +73,7 @@ impl Component for Call {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         Self {
             link,
             props,
@@ -84,7 +84,7 @@ impl Component for Call {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Submit => {
                 ConsoleService::log(&format!("submitting: {}", self.input));
@@ -115,16 +115,7 @@ impl Component for Call {
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let mut classes = "".to_string();
         if self.fetch_task.is_some() {
             classes.push_str(" fetching");

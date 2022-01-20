@@ -8,7 +8,7 @@ use yew::services::websocket::{WebSocketStatus, WebSocketTask};
 use yew::services::ConsoleService;
 use yew::services::WebSocketService;
 use yew::services::{RenderService, Task};
-use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
+use yew::prelude::*;
 
 pub enum Msg {
     Data(Binary),
@@ -36,7 +36,7 @@ impl Component for Time {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let cb = link.callback(Msg::Data);
         let notification = link.callback(Msg::Status);
         let _websocket_task =
@@ -54,7 +54,7 @@ impl Component for Time {
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) {
         // Once rendered, store references for the canvas and GL context. These can be used for
         // resizing the rendering area when the window or canvas element are resized, as well as
         // for making GL calls.
@@ -87,7 +87,7 @@ impl Component for Time {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Render(timestamp) => {
                 // Render functions are likely to get quite large, so it is good practice to split
@@ -118,16 +118,7 @@ impl Component for Time {
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <canvas ref={self.canvas_ref.clone()} />
         }

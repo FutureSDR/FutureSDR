@@ -63,7 +63,7 @@ impl Component for Poll {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_task = Self::fetch(&props, &link);
         let error = fetch_task.is_none();
         let value = if error {
@@ -81,7 +81,7 @@ impl Component for Poll {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Poll => {
                 self.fetch_task = Self::fetch(&self.props, &self.link);
@@ -104,16 +104,7 @@ impl Component for Poll {
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let mut classes = "".to_string();
         if self.fetch_task.is_some() {
             classes.push_str(" fetching");

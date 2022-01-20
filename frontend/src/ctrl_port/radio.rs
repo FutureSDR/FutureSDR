@@ -25,26 +25,18 @@ impl Component for RadioItem {
     type Message = RadioItemMsg;
     type Properties = RadioItemProps;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         Self { props, link }
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, _msg: Self::Message) -> bool {
         let parent = self.link.get_parent().unwrap().clone();
         let radio_scope = parent.downcast::<Radio>();
         radio_scope.send_message(Msg::Value(self.props.value.clone()));
         false
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let parent = self.link.get_parent().unwrap().clone();
         let radio_scope = parent.downcast::<Radio>();
         let radio = radio_scope.get_component().unwrap();
@@ -123,7 +115,7 @@ impl Component for Radio {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         Self {
             props,
             link,
@@ -134,7 +126,7 @@ impl Component for Radio {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Submit => {
                 ConsoleService::log(&format!("submitting {:?}", self.value));
@@ -167,16 +159,7 @@ impl Component for Radio {
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let mut classes = Vec::new();
         if self.error {
             classes.push("error");
