@@ -1,51 +1,36 @@
-use anyhow::{Error, Result};
 use futuresdr_pmt::Pmt;
-use http::request::Request;
-use http::response::Response;
-use yew::format::Json;
+use reqwasm::http::Request;
+use std::rc::Rc;
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask};
-use yew::services::ConsoleService;
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct RadioItemProps {
     pub value: Pmt,
-    pub id: String,
+    #[prop_or(false)]
+    pub checked: bool,
 }
-pub enum RadioItemMsg {
-    Clicked,
-}
+
 #[derive(Clone)]
-pub struct RadioItem {
-    props: RadioItemProps,
-    link: ComponentLink<Self>,
-}
+pub struct RadioItem;
 
 impl Component for RadioItem {
-    type Message = RadioItemMsg;
+    type Message = ();
     type Properties = RadioItemProps;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        Self { props, link }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, _msg: Self::Message) -> bool {
-        let parent = self.link.get_parent().unwrap().clone();
-        let radio_scope = parent.downcast::<Radio>();
-        radio_scope.send_message(Msg::Value(self.props.value.clone()));
-        false
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let parent = self.link.get_parent().unwrap().clone();
-        let radio_scope = parent.downcast::<Radio>();
-        let radio = radio_scope.get_component().unwrap();
-        let name = radio.props.name.clone();
+        let parent = ctx.link().get_parent().unwrap().clone();
+        let radio = parent.downcast::<Radio>();
+        let p = ctx.props().value.clone();
+        let onclick = radio.callback(move |_| Msg::Value(p.clone()));
 
         html! {
             <>
-            <input type="radio" id={self.props.id.to_string()} name={name} onclick=self.link.callback(|_| RadioItemMsg::Clicked) />
-            <label for={self.props.id.to_string()}>{format!("{:?}", &self.props.value)}</label>
+                <input type="radio" {onclick} checked={ctx.props().checked}/>
+                <label>{format!("{:?}", &ctx.props().value)}</label>
             </>
         }
     }
@@ -57,22 +42,17 @@ pub struct Props {
     pub url: String,
     pub block: u64,
     pub callback: u64,
-    pub name: String,
 }
 
 pub struct Radio {
-    props: Props,
-    link: ComponentLink<Self>,
-    value: Option<Pmt>,
-    result: String,
-    error: bool,
-    fetch_task: Option<FetchTask>,
+    value: Pmt,
+    status: String,
 }
 
 pub enum Msg {
     Submit,
     Value(Pmt),
-    Result(String),
+    Reply(String),
     Error,
 }
 
@@ -84,30 +64,25 @@ impl Radio {
         )
     }
 
-    fn callback(props: &Props, link: &ComponentLink<Self>, p: &Pmt) -> Option<FetchTask> {
-        let request = Request::post(&Self::endpoint(props))
-            .header("Content-Type", "application/json")
-            .body(Json(p));
-        if request.is_err() {
-            ConsoleService::debug("creating request failed");
-            return None;
-        }
-        let request = request.unwrap();
+    fn callback(ctx: &Context<Self>, p: &Pmt) {
+        let p = p.clone();
+        let endpoint = Self::endpoint(ctx.props());
+        gloo_console::log!(format!("radio: sending request {:?}", &p));
 
-        if let Ok(t) = FetchService::fetch(
-            request,
-            link.callback(|response: Response<Result<String, Error>>| {
-                if response.status().is_success() {
-                    Msg::Result(response.into_body().unwrap())
-                } else {
-                    Msg::Error
+        ctx.link().send_future(async move {
+            let response = Request::post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&p).unwrap())
+                .send()
+                .await;
+
+            if let Ok(response) = response {
+                if response.ok() {
+                    return Msg::Reply(response.text().await.unwrap());
                 }
-            }),
-        ) {
-            Some(t)
-        } else {
-            None
-        }
+            }
+            Msg::Error
+        });
     }
 }
 
@@ -115,63 +90,51 @@ impl Component for Radio {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            props,
-            link,
-            result: "<none>".to_string(),
-            value: None,
-            error: false,
-            fetch_task: None,
+            status: "Init".to_string(),
+            value: Pmt::Null,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Submit => {
-                ConsoleService::log(&format!("submitting {:?}", self.value));
-                if let Some(ref v) = self.value {
-                    self.fetch_task = Self::callback(&self.props, &self.link, v);
-                    if self.fetch_task.is_some() {
-                        self.result = "<fetching>".to_string();
-                        self.error = false;
-                    } else {
-                        self.result = "<Error>".to_string();
-                        self.error = true;
-                    }
-                }
+                self.status = "Fetching".to_string();
+                Self::callback(ctx, &self.value);
             }
             Msg::Value(p) => {
-                ConsoleService::log(&format!("updated value {:?}", &p));
-                self.value = Some(p);
+                self.value = p;
             }
             Msg::Error => {
-                self.result = "Error".to_string();
-                self.fetch_task = None;
-                self.error = true;
+                self.status = "Error".to_string();
             }
-            Msg::Result(v) => {
-                self.result = v;
-                self.fetch_task = None;
-                self.error = false;
+            Msg::Reply(v) => {
+                self.status = v;
             }
         };
         true
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let mut classes = Vec::new();
-        if self.error {
-            classes.push("error");
-        }
-        if self.fetch_task.is_some() {
-            classes.push("fetching");
-        }
+        let onclick = ctx.link().callback(|_| Msg::Submit);
+
         html! {
             <>
-                { for self.props.children.iter() }
-                <button type="submit" onclick=self.link.callback(|_|Msg::Submit)>{"Submit"}</button>
-                <div class={classes}>{&self.result}</div>
+            {
+                for ctx.props().children.iter().map(|mut item| {
+                    let mut props = Rc::make_mut(&mut item.props);
+                    if props.value == self.value {
+                        props.checked = true;
+                    } else {
+                        props.checked = false;
+                    }
+                    item
+                })
+            }
+
+                <button type="submit" {onclick}>{"Submit"}</button>
+                <div>{&self.status}</div>
             </>
         }
     }

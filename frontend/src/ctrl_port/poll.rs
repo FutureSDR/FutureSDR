@@ -76,7 +76,6 @@ impl Component for Poll {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-
         let onclick = ctx.link().callback(|_| Msg::Poll);
 
         html! {
