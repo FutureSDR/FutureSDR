@@ -1,9 +1,39 @@
 use reqwasm::http::Request;
+use wasm_bindgen::prelude::*;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 use futuresdr_pmt::Pmt;
 use futuresdr_pmt::PmtKind;
+
+#[wasm_bindgen]
+pub fn add_slider_u32(
+    id: String,
+    url: String,
+    block: u32,
+    callback: u32,
+    min: f64,
+    max: f64,
+    step: f64,
+    value: f64,
+) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_with_props_in_element::<Slider>(
+        div,
+        Props {
+            url,
+            block,
+            callback,
+            pmt_type: PmtKind::U32,
+            min: min as i64,
+            max: max as i64,
+            step: step as i64,
+            value: value as i64,
+        },
+    );
+}
+
 
 pub enum Msg {
     Error,

@@ -1,5 +1,6 @@
 use futuresdr_pmt::Pmt;
 use futuresdr_pmt::PmtKind;
+use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 
 use crate::ctrl_port::call::Call;
@@ -8,6 +9,13 @@ use crate::ctrl_port::poll_periodic::PollPeriodic;
 use crate::ctrl_port::radio::Radio;
 use crate::ctrl_port::radio::RadioItem;
 use crate::ctrl_port::slider::Slider;
+
+#[wasm_bindgen]
+pub fn kitchen_sink(id: String) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_in_element::<KitchenSink>(div);
+}
 
 #[function_component(KitchenSink)]
 pub fn kitchen_sink() -> Html {
