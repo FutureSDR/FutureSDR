@@ -6,6 +6,7 @@ use yew::prelude::*;
 use futuresdr_pmt::Pmt;
 use futuresdr_pmt::PmtKind;
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn add_slider_u32(
     id: String,

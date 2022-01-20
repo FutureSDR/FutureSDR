@@ -30,7 +30,7 @@ impl Poll {
 
     fn callback(ctx: &Context<Self>) {
         let endpoint = Self::endpoint(ctx.props());
-        gloo_console::log!(format!("poll: sending request"));
+        gloo_console::log!("poll: sending request");
 
         ctx.link().send_future(async move {
             let response = Request::post(&endpoint)

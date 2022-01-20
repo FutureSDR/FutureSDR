@@ -33,7 +33,7 @@ impl PollPeriodic {
 
     fn callback(ctx: &Context<Self>) {
         let endpoint = Self::endpoint(ctx.props());
-        gloo_console::log!(format!("poll periodic: sending request"));
+        gloo_console::log!("poll periodic: sending request");
 
         ctx.link().send_future(async move {
             let response = Request::post(&endpoint)

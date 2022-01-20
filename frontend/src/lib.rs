@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+#![allow(clippy::unused_unit)] // wasm-bindgen bug
 
 use wasm_bindgen::prelude::*;
 
