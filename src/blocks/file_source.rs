@@ -65,7 +65,13 @@ impl AsyncKernel for FileSource {
                 self.n_produced += n_to_read / self.item_size;
                 sio.output(0).produce(n_to_read / self.item_size);
             }
-            Err(_) => panic!("Error while reading file"),
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                // Eat the EOF rather than panic
+                // Note this means we might not read the entire file
+                io.finished = true;
+                return Ok(());
+            }
+            Err(e) => panic!("Error while reading {} bytes from file: {:?}", n_to_read, e),
         }
 
         if self.file_size == self.n_produced {
