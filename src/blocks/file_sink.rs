@@ -14,7 +14,7 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 pub struct FileSink {
-    // item_size: usize,
+    item_size: usize,
     file_name: String,
     file: Option<File>,
     n_written: usize,
@@ -22,12 +22,12 @@ pub struct FileSink {
 
 impl FileSink {
     pub fn new(item_size: usize, file_name: &str) -> Block {
-        debug_assert_eq!(item_size, 1);
         Block::new_async(
             BlockMetaBuilder::new("FileSink").build(),
             StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
             FileSink {
+                item_size,
                 file_name: file_name.into(),
                 file: None,
                 n_written: 0,
@@ -46,6 +46,7 @@ impl AsyncKernel for FileSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
+        debug_assert_eq!(i.len() % self.item_size, 0);
 
         match self.file.as_mut().unwrap().write_all(i).await {
             Ok(()) => {}
@@ -56,8 +57,8 @@ impl AsyncKernel for FileSink {
             io.finished = true;
         }
 
-        self.n_written += i.len();
-        sio.input(0).consume(i.len());
+        self.n_written += i.len() / self.item_size;
+        sio.input(0).consume(i.len() / self.item_size);
         Ok(())
     }
 
@@ -90,20 +91,20 @@ impl AsyncKernel for FileSink {
     }
 }
 
-pub struct FileSinkBuilder {
-    item_size: usize,
+pub struct FileSinkBuilder<T> {
     file: String,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl FileSinkBuilder {
-    pub fn new(item_size: usize, file: &str) -> FileSinkBuilder {
-        FileSinkBuilder {
-            item_size,
+impl<T> FileSinkBuilder<T> {
+    pub fn new(file: &str) -> Self {
+        Self {
+            _type: std::marker::PhantomData,
             file: file.into(),
         }
     }
 
     pub fn build(self) -> Block {
-        FileSink::new(self.item_size, &self.file)
+        FileSink::new(std::mem::size_of::<T>(), &self.file)
     }
 }
