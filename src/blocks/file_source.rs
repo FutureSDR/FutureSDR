@@ -12,7 +12,7 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 pub struct FileSource {
-    // item_size: usize,
+    item_size: usize,
     file_name: String,
     file: Option<async_fs::File>,
     file_size: usize,
@@ -21,13 +21,12 @@ pub struct FileSource {
 
 impl FileSource {
     pub fn new(item_size: usize, file_name: String) -> Block {
-        // todo
-        debug_assert_eq!(item_size, 1);
         Block::new_async(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
             FileSource {
+                item_size,
                 file_name,
                 file_size: 0,
                 file: None,
@@ -48,18 +47,23 @@ impl AsyncKernel for FileSource {
     ) -> Result<()> {
         let out = sio.output(0).slice::<u8>();
 
-        let n_read = std::cmp::min(out.len(), self.file_size - self.n_produced);
+        let n_to_read = std::cmp::min(out.len(), self.file_size - self.n_produced);
+        let n_to_read = if n_to_read % self.item_size != 0 {
+            n_to_read - n_to_read % self.item_size
+        } else {
+            n_to_read
+        };
 
         match self
             .file
             .as_mut()
             .unwrap()
-            .read_exact(&mut out[..n_read])
+            .read_exact(&mut out[..n_to_read])
             .await
         {
             Ok(_) => {
-                self.n_produced += n_read;
-                sio.output(0).produce(n_read);
+                self.n_produced += n_to_read / self.item_size;
+                sio.output(0).produce(n_to_read / self.item_size);
             }
             Err(_) => panic!("Error while reading file"),
         }
@@ -94,20 +98,20 @@ impl AsyncKernel for FileSource {
     }
 }
 
-pub struct FileSourceBuilder {
-    item_size: usize,
+pub struct FileSourceBuilder<T> {
     file_name: String,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl FileSourceBuilder {
-    pub fn new(item_size: usize, file_name: String) -> FileSourceBuilder {
-        FileSourceBuilder {
-            item_size,
+impl<T> FileSourceBuilder<T> {
+    pub fn new(file_name: String) -> Self {
+        Self {
             file_name,
+            _type: std::marker::PhantomData,
         }
     }
 
     pub fn build(self) -> Block {
-        FileSource::new(self.item_size, self.file_name)
+        FileSource::new(std::mem::size_of::<T>(), self.file_name)
     }
 }
