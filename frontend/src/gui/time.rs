@@ -128,7 +128,7 @@ impl Time {
         let l = self.buff.len();
         let min = ctx.props().min;
         let max = ctx.props().max;
-        let vertices: Vec<f32> = (&self.buff)
+        let vertices: Vec<f32> = (self.buff)
             .enumerate()
             .flat_map(|(i, v)| {
                 vec![
