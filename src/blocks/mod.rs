@@ -29,7 +29,7 @@ pub use file_sink::{FileSink, FileSinkBuilder};
 #[cfg(not(target_arch = "wasm32"))]
 mod file_source;
 #[cfg(not(target_arch = "wasm32"))]
-pub use file_source::{FileSource, FileSourceBuilder};
+pub use file_source::FileSource;
 
 mod finite_source;
 pub use finite_source::FiniteSource;
