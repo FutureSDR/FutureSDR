@@ -1,4 +1,5 @@
 use std::cmp;
+use std::marker::PhantomData;
 use std::ptr;
 
 use crate::anyhow::Result;
@@ -12,30 +13,30 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
-pub struct CopyRand {
-    item_size: usize,
+pub struct CopyRand<T: Send + 'static> {
     max_copy: usize,
+    _type: PhantomData<T>,
 }
 
-impl CopyRand {
-    pub fn new(item_size: usize, max_copy: usize) -> Block {
+impl<T: Send + 'static> CopyRand<T> {
+    pub fn new(max_copy: usize) -> Block {
         Block::new_sync(
             BlockMetaBuilder::new("CopyRand").build(),
             StreamIoBuilder::new()
-                .add_input("in", item_size)
-                .add_output("out", item_size)
+                .add_input("in", std::mem::size_of::<T>())
+                .add_output("out", std::mem::size_of::<T>())
                 .build(),
-            MessageIoBuilder::<CopyRand>::new().build(),
-            CopyRand {
-                item_size,
+            MessageIoBuilder::<Self>::new().build(),
+            CopyRand::<T> {
                 max_copy,
+                _type: PhantomData,
             },
         )
     }
 }
 
 #[async_trait]
-impl SyncKernel for CopyRand {
+impl<T: Send + 'static> SyncKernel for CopyRand<T> {
     fn work(
         &mut self,
         io: &mut WorkIo,
@@ -45,11 +46,10 @@ impl SyncKernel for CopyRand {
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
         let o = sio.output(0).slice::<u8>();
+        let item_size = std::mem::size_of::<T>();
 
         let mut m = cmp::min(i.len(), o.len());
-
-        debug_assert_eq!(m % self.item_size, 0);
-        m /= self.item_size;
+        m /= item_size;
 
         m = cmp::min(m, self.max_copy);
 
@@ -57,14 +57,14 @@ impl SyncKernel for CopyRand {
             m = rand::random::<usize>() % m + 1;
 
             unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m * self.item_size);
+                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m * item_size);
             }
 
             sio.input(0).consume(m);
             sio.output(0).produce(m);
         }
 
-        if sio.input(0).finished() && m * self.item_size == i.len() {
+        if sio.input(0).finished() && m * item_size == i.len() {
             io.finished = true;
         }
 
@@ -72,26 +72,32 @@ impl SyncKernel for CopyRand {
     }
 }
 
-pub struct CopyRandBuilder {
+pub struct CopyRandBuilder<T: Send + 'static> {
     max_copy: usize,
-    item_size: usize,
+    _type: PhantomData<T>,
 }
 
-impl CopyRandBuilder {
-    pub fn new(item_size: usize) -> CopyRandBuilder {
-        CopyRandBuilder {
+impl<T: Send + 'static> CopyRandBuilder<T> {
+    pub fn new() -> Self {
+        CopyRandBuilder::<T> {
             max_copy: usize::MAX,
-            item_size,
+            _type: PhantomData,
         }
     }
 
     #[must_use]
-    pub fn max_copy(mut self, max_copy: usize) -> CopyRandBuilder {
+    pub fn max_copy(mut self, max_copy: usize) -> Self {
         self.max_copy = max_copy;
         self
     }
 
     pub fn build(self) -> Block {
-        CopyRand::new(self.item_size, self.max_copy)
+        CopyRand::<T>::new(self.max_copy)
+    }
+}
+
+impl<T: Send + 'static> Default for CopyRandBuilder<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }

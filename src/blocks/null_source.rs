@@ -1,5 +1,3 @@
-use std::ptr;
-
 use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
@@ -11,23 +9,27 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct NullSource {
-    item_size: usize,
+pub struct NullSource<T: Send + 'static> {
+    _type: std::marker::PhantomData<T>,
 }
 
-impl NullSource {
-    pub fn new(item_size: usize) -> Block {
+impl<T: Send + 'static> NullSource<T> {
+    pub fn new() -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSource").build(),
-            StreamIoBuilder::new().add_output("out", item_size).build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            NullSource { item_size },
+            NullSource::<T> {
+                _type: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl AsyncKernel for NullSource {
+impl<T: Send + 'static> AsyncKernel for NullSource<T> {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
@@ -36,28 +38,14 @@ impl AsyncKernel for NullSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<u8>();
-        debug_assert_eq!(o.len() % self.item_size, 0);
+        debug_assert_eq!(0, o.len() % std::mem::size_of::<T>());
 
         unsafe {
-            ptr::write_bytes(o.as_mut_ptr(), 0, o.len());
+            std::ptr::write_bytes(o.as_mut_ptr(), 0, o.len());
         }
 
-        sio.output(0).produce(o.len() / self.item_size);
+        sio.output(0).produce(o.len() / std::mem::size_of::<T>());
 
         Ok(())
-    }
-}
-
-pub struct NullSourceBuilder {
-    item_size: usize,
-}
-
-impl NullSourceBuilder {
-    pub fn new(item_size: usize) -> NullSourceBuilder {
-        NullSourceBuilder { item_size }
-    }
-
-    pub fn build(&mut self) -> Block {
-        NullSource::new(self.item_size)
     }
 }

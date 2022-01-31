@@ -8,7 +8,7 @@ mod combine;
 pub use combine::Combine;
 
 mod copy;
-pub use copy::{Copy, CopyBuilder};
+pub use copy::Copy;
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
 mod filter;
@@ -34,7 +34,7 @@ pub use file_source::FileSource;
 mod finite_source;
 pub use finite_source::FiniteSource;
 mod head;
-pub use head::{Head, HeadBuilder};
+pub use head::Head;
 
 #[cfg(feature = "lttng")]
 pub mod lttng;
@@ -52,9 +52,9 @@ mod message_source;
 pub use message_source::{MessageSource, MessageSourceBuilder};
 
 mod null_sink;
-pub use null_sink::{NullSink, NullSinkBuilder};
+pub use null_sink::NullSink;
 mod null_source;
-pub use null_source::{NullSource, NullSourceBuilder};
+pub use null_source::NullSource;
 
 #[cfg(feature = "soapy")]
 mod soapy_src;
@@ -79,7 +79,7 @@ pub use tcp_source::{TcpSource, TcpSourceBuilder};
 #[cfg(not(target_arch = "wasm32"))]
 mod throttle;
 #[cfg(not(target_arch = "wasm32"))]
-pub use throttle::{Throttle, ThrottleBuilder};
+pub use throttle::Throttle;
 
 mod vector_sink;
 pub use vector_sink::{VectorSink, VectorSinkBuilder};

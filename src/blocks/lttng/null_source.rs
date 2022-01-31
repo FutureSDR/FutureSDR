@@ -14,32 +14,34 @@ use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
-pub struct NullSource {
-    item_size: usize,
+pub struct NullSource<T: Send + 'static> {
     probe_granularity: u64,
     id: Option<u64>,
     n_produced: u64,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl NullSource {
+impl<T: Send + 'static> NullSource<T> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(item_size: usize, probe_granularity: u64) -> Block {
+    pub fn new(probe_granularity: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("LTTngNullSource").build(),
-            StreamIoBuilder::new().add_output("out", item_size).build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            NullSource {
-                item_size,
+            NullSource::<T> {
                 probe_granularity,
                 id: None,
                 n_produced: 0,
+                _type: std::marker::PhantomData,
             },
         )
     }
 }
 
 #[async_trait]
-impl AsyncKernel for NullSource {
+impl<T: Send + 'static> AsyncKernel for NullSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
@@ -59,14 +61,13 @@ impl AsyncKernel for NullSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<u8>();
-        debug_assert_eq!(o.len() % self.item_size, 0);
 
         unsafe {
             ptr::write_bytes(o.as_mut_ptr(), 0, o.len());
         }
 
         let before = self.n_produced / self.probe_granularity;
-        let n = o.len() / self.item_size;
+        let n = o.len() / std::mem::size_of::<T>();
         sio.output(0).produce(n);
         self.n_produced += n as u64;
         let after = self.n_produced / self.probe_granularity;

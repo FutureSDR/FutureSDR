@@ -12,27 +12,28 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct Copy {
-    enabled: bool,
-    item_size: usize,
+pub struct Copy<T: Send + 'static> {
+    _type: std::marker::PhantomData<T>,
 }
 
-impl Copy {
-    pub fn new(enabled: bool, item_size: usize) -> Block {
+impl<T: Send + 'static> Copy<T> {
+    pub fn new() -> Block {
         Block::new_async(
             BlockMetaBuilder::new("Copy").build(),
             StreamIoBuilder::new()
-                .add_input("in", item_size)
-                .add_output("out", item_size)
+                .add_input("in", std::mem::size_of::<T>())
+                .add_output("out", std::mem::size_of::<T>())
                 .build(),
-            MessageIoBuilder::<Copy>::new().build(),
-            Copy { enabled, item_size },
+            MessageIoBuilder::<Self>::new().build(),
+            Copy::<T> {
+                _type: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl AsyncKernel for Copy {
+impl<T: Send + 'static> AsyncKernel for Copy<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -42,18 +43,16 @@ impl AsyncKernel for Copy {
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
         let o = sio.output(0).slice::<u8>();
+        let item_size = std::mem::size_of::<T>();
 
-        let mut m = 0;
-        if self.enabled && !i.is_empty() && !o.is_empty() {
-            m = cmp::min(i.len(), o.len());
-            debug_assert_eq!(m % self.item_size, 0);
-
+        let m = cmp::min(i.len(), o.len());
+        if m > 0 {
             unsafe {
                 ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
             }
 
-            sio.input(0).consume(m / self.item_size);
-            sio.output(0).produce(m / self.item_size);
+            sio.input(0).consume(m / item_size);
+            sio.output(0).produce(m / item_size);
         }
 
         if sio.input(0).finished() && m == i.len() {
@@ -61,29 +60,5 @@ impl AsyncKernel for Copy {
         }
 
         Ok(())
-    }
-}
-
-pub struct CopyBuilder {
-    enabled: bool,
-    item_size: usize,
-}
-
-impl CopyBuilder {
-    pub fn new(item_size: usize) -> CopyBuilder {
-        CopyBuilder {
-            enabled: true,
-            item_size,
-        }
-    }
-
-    #[must_use]
-    pub fn enabled(mut self, enabled: bool) -> CopyBuilder {
-        self.enabled = enabled;
-        self
-    }
-
-    pub fn build(self) -> Block {
-        Copy::new(self.enabled, self.item_size)
     }
 }

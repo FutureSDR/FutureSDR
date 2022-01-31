@@ -11,7 +11,7 @@ fn finite_source_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = fg.add_block(FiniteSource::new(|| Some(123u32)));
-    let head = fg.add_block(Head::new(4, 10));
+    let head = fg.add_block(Head::<u32>::new(10));
     let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build());
 
     fg.connect_stream(src, "out", head, "in")?;

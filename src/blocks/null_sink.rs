@@ -9,20 +9,22 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct NullSink {
-    item_size: usize,
+pub struct NullSink<T: Send + 'static> {
     n_received: usize,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl NullSink {
-    pub fn new(item_size: usize) -> Block {
+impl<T: Send + 'static> NullSink<T> {
+    pub fn new() -> Block {
         Block::new_async(
             BlockMetaBuilder::new("NullSink").build(),
-            StreamIoBuilder::new().add_input("in", item_size).build(),
+            StreamIoBuilder::new()
+                .add_input("in", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            NullSink {
-                item_size,
+            NullSink::<T> {
                 n_received: 0,
+                _type: std::marker::PhantomData,
             },
         )
     }
@@ -33,7 +35,7 @@ impl NullSink {
 }
 
 #[async_trait]
-impl AsyncKernel for NullSink {
+impl<T: Send + 'static> AsyncKernel for NullSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -42,9 +44,8 @@ impl AsyncKernel for NullSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
-        debug_assert_eq!(i.len() % self.item_size, 0);
 
-        let n = i.len() / self.item_size;
+        let n = i.len() / std::mem::size_of::<T>();
         if n > 0 {
             self.n_received += n;
             sio.input(0).consume(n);
@@ -55,19 +56,5 @@ impl AsyncKernel for NullSink {
         }
 
         Ok(())
-    }
-}
-
-pub struct NullSinkBuilder {
-    item_size: usize,
-}
-
-impl NullSinkBuilder {
-    pub fn new(item_size: usize) -> NullSinkBuilder {
-        NullSinkBuilder { item_size }
-    }
-
-    pub fn build(&mut self) -> Block {
-        NullSink::new(self.item_size)
     }
 }

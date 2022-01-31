@@ -91,23 +91,23 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::new(4, GRANULARITY));
-        let head = fg.add_block(Head::new(4, samples));
+        let src = fg.add_block(NullSource::<f32>::new(GRANULARITY));
+        let head = fg.add_block(Head::<f32>::new(samples));
         fg.connect_stream(src, "out", head, "in")?;
 
-        let copy = fg.add_block(CopyRandBuilder::new(4).max_copy(max_copy).build());
+        let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build());
         let mut last = fg.add_block(Fir::new(&taps));
         fg.connect_stream(head, "out", copy, "in")?;
         fg.connect_stream(copy, "out", last, "in")?;
 
         for _ in 1..stages {
-            let copy = fg.add_block(CopyRandBuilder::new(4).max_copy(max_copy).build());
+            let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build());
             fg.connect_stream(last, "out", copy, "in")?;
             last = fg.add_block(Fir::new(&taps));
             fg.connect_stream(copy, "out", last, "in")?;
         }
 
-        let snk = fg.add_block(NullSink::new(4, GRANULARITY));
+        let snk = fg.add_block(NullSink::<f32>::new(GRANULARITY));
         fg.connect_stream(last, "out", snk, "in")?;
         snks.push(snk);
     }
@@ -139,7 +139,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let snk = fg.block_async::<NullSink>(s).context("no block")?;
+        let snk = fg.block_async::<NullSink<f32>>(s).context("no block")?;
         let v = snk.n_received();
         assert_eq!(v, samples - (stages * 63));
     }

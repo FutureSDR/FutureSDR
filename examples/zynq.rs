@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::CopyBuilder;
+use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
@@ -21,7 +21,7 @@ fn main() -> Result<()> {
         .collect();
 
     let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
-    let cpy = CopyBuilder::new(4).build();
+    let cpy = Copy::<u32>::new();
     let zynq =
         ZynqBuilder::<u32, u32>::new("uio4", "uio5", vec!["udmabuf0", "udmabuf1"]).build()?;
     let snk = VectorSinkBuilder::<u32>::new().build();

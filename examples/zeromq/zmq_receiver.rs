@@ -12,7 +12,7 @@ fn main() -> Result<()> {
             .address("tcp://127.0.0.1:50001")
             .build(),
     );
-    let snk = fg.add_block(FileSink::new(1, "/tmp/zmq-log.bin"));
+    let snk = fg.add_block(FileSink::<u8>::new("/tmp/zmq-log.bin"));
 
     fg.connect_stream(zmq_src, "out", snk, "in")?;
 

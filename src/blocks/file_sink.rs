@@ -20,10 +20,12 @@ pub struct FileSink<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> FileSink<T> {
-    pub fn new(file_name: &str) -> Block {
+    pub fn new<S: Into<String>>(file_name: S) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("FileSink").build(),
-            StreamIoBuilder::new().add_input("in", std::mem::size_of::<T>()).build(),
+            StreamIoBuilder::new()
+                .add_input("in", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
             FileSink::<T> {
                 file_name: file_name.into(),
@@ -78,6 +80,16 @@ impl<T: Send + 'static> AsyncKernel for FileSink<T> {
             .unwrap();
 
         self.file = Some(file.into());
+        Ok(())
+    }
+
+    async fn deinit(
+        &mut self,
+        _sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        self.file.as_mut().unwrap().sync_all().await.unwrap();
         Ok(())
     }
 }

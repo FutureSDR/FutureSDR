@@ -2,7 +2,7 @@ use std::iter::repeat_with;
 use std::sync::Arc;
 
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::CopyBuilder;
+use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
@@ -22,7 +22,7 @@ pub fn run_fg() -> Result<()> {
     let broker = Arc::new(Broker::new());
 
     let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
-    let copy = CopyBuilder::new(4).build();
+    let copy = Copy::<f32>::new();
     let vulkan = VulkanBuilder::new(broker).build();
     let snk = VectorSinkBuilder::<f32>::new().build();
 

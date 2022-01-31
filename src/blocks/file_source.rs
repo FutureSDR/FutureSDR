@@ -14,20 +14,20 @@ use crate::runtime::WorkIo;
 pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,
-    items_left: usize,
-    _type: std::marker::PhantomData<T>
+    _type: std::marker::PhantomData<T>,
 }
 
 impl<T: Send + 'static> FileSource<T> {
-    pub fn new(file_name: String) -> Block {
+    pub fn new<S: Into<String>>(file_name: S) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("FileSource").build(),
-            StreamIoBuilder::new().add_output("out", std::mem::size_of::<T>()).build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
             FileSource::<T> {
-                file_name,
+                file_name: file_name.into(),
                 file: None,
-                items_left: 0,
                 _type: std::marker::PhantomData,
             },
         )
@@ -46,31 +46,23 @@ impl<T: Send + 'static> AsyncKernel for FileSource<T> {
         let out = sio.output(0).slice::<u8>();
         let item_size = std::mem::size_of::<T>();
 
-        let n = std::cmp::min(out.len() / item_size, self.items_left);
+        let mut i = 0;
 
-        if n > 0 {
-            match self
-                .file
-                .as_mut()
-                .unwrap()
-                .read_exact(&mut out[..n * item_size])
-                .await
-            {
-                Ok(_) => {
-                    self.items_left -= n;
-                    sio.output(0).produce(n);
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    warn!("FileSource: Could not read entire file");
+        while i < out.len() {
+            match self.file.as_mut().unwrap().read(&mut out[i..]).await {
+                Ok(0) => {
                     io.finished = true;
+                    break;
+                }
+                Ok(written) => {
+                    i += written;
                 }
                 Err(e) => panic!("FileSource: Error reading from file: {:?}", e),
             }
         }
 
-        if self.items_left == 0 {
-            io.finished = true;
-        }
+        sio.output(0).produce(i / item_size);
+
         Ok(())
     }
 
@@ -80,11 +72,7 @@ impl<T: Send + 'static> AsyncKernel for FileSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let metadata = std::fs::metadata(self.file_name.clone()).unwrap();
-        self.items_left = metadata.len() as usize / std::mem::size_of::<T>();
-
         self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
         Ok(())
     }
 }
-
