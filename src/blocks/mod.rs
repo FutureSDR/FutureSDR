@@ -24,7 +24,7 @@ pub use fft::{Fft, FftBuilder};
 #[cfg(not(target_arch = "wasm32"))]
 mod file_sink;
 #[cfg(not(target_arch = "wasm32"))]
-pub use file_sink::{FileSink, FileSinkBuilder};
+pub use file_sink::FileSink;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod file_source;
