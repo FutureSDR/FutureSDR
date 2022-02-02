@@ -87,6 +87,39 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32> for FirKernelCore<f32
     }
 }
 
+#[cfg(not(RUSTC_IS_STABLE))]
+impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
+    for FirKernelCore<Complex<f32>, TapsType>
+{
+    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
+        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
+
+        unsafe {
+            for k in 0..n {
+                let mut sum_re = 0.0;
+                let mut sum_im = 0.0;
+                for t in 0..self.taps.num_taps() {
+                    sum_re = fadd_fast(
+                        sum_re,
+                        fmul_fast(i.get_unchecked(k + t).re, self.taps.get(t)),
+                    );
+                    sum_im = fadd_fast(
+                        sum_im,
+                        fmul_fast(i.get_unchecked(k + t).im, self.taps.get(t)),
+                    );
+                }
+                *o.get_unchecked_mut(k) = Complex {
+                    re: sum_re,
+                    im: sum_im,
+                };
+            }
+        }
+
+        (n, n)
+    }
+}
+
+#[cfg(RUSTC_IS_STABLE)]
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for FirKernelCore<Complex<f32>, TapsType>
 {
