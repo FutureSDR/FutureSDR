@@ -39,7 +39,33 @@ impl<const N: usize> TapsAccessor for [f32; N] {
     }
 
     unsafe fn get(&self, index: usize) -> f32 {
-        debug_assert!(index < num_taps());
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+impl<const N: usize> TapsAccessor for &[f32; N] {
+    type TapType = f32;
+
+    fn num_taps(&self) -> usize {
+        N
+    }
+
+    unsafe fn get(&self, index: usize) -> f32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+impl TapsAccessor for Vec<f32> {
+    type TapType = f32;
+
+    fn num_taps(&self) -> usize {
+        self.len()
+    }
+
+    unsafe fn get(&self, index: usize) -> f32 {
+        debug_assert!(index < self.num_taps());
         *self.get_unchecked(index)
     }
 }
@@ -226,7 +252,7 @@ impl FirBuilder {
     /// pick the optimal FIR implementation for the given constraints.
     ///
     /// Note that there must be an implementation of `TapsAccessor` for the taps object
-    /// you pass in. Implementations are provided for arrays.
+    /// you pass in. Implementations are provided for arrays and `Vec<TapType>`.
     ///
     /// Additionally, there must be an available core (implementation of `FirKernel`) for
     /// the specified `SampleType` and `TapType`. Cores are provided for the following
@@ -237,8 +263,11 @@ impl FirBuilder {
     /// Example usage:
     /// ```
     /// use futuresdr::blocks::FirBuilder;
+    /// use num_complex::Complex;
     ///
     /// let fir = FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]);
+    /// let fir = FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]);
+    /// let fir = FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]);
     /// ```
     pub fn new<SampleType, TapType, Taps>(taps: Taps) -> Block
     where
