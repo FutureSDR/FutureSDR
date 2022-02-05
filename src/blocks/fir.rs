@@ -205,7 +205,7 @@ where
                 .build(),
             MessageIoBuilder::<Fir<SampleType, TapType, Core>>::new().build(),
             Fir {
-                core: core,
+                core,
                 _sampletype: std::marker::PhantomData,
                 _taptype: std::marker::PhantomData,
             },
@@ -277,7 +277,7 @@ impl FirBuilder {
         FirKernelCore<SampleType, Taps>: FirKernel<SampleType>,
     {
         Fir::<SampleType, TapType, FirKernelCore<SampleType, Taps>>::new(FirKernelCore {
-            taps: taps,
+            taps,
             _sampletype: std::marker::PhantomData,
         })
     }
