@@ -18,6 +18,7 @@ use num_complex::Complex;
 pub trait FirKernel<SampleType>: Send {
     /// Returns (samples consumed, samples produced)
     fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize);
+    fn num_taps(&self) -> usize;
 }
 
 pub trait TapsAccessor: Send {
@@ -92,6 +93,10 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32> for FirKernelCore<f32
 
         (n, n)
     }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
 }
 
 #[cfg(RUSTC_IS_STABLE)]
@@ -110,6 +115,10 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32> for FirKernelCore<f32
         }
 
         (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
     }
 }
 
@@ -142,6 +151,10 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
         }
 
         (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
     }
 }
 
@@ -235,7 +248,7 @@ where
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
 
-        if consumed == 0 && sio.input(0).finished() {
+        if sio.input(0).finished() && consumed + self.core.num_taps() == i.len() + 1 {
             io.finished = true;
         }
 
