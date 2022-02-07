@@ -118,10 +118,11 @@ pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>
 
         runtime.block_on(async move {
             let addr = config::config().ctrlport_bind.unwrap();
-            axum::Server::bind(&addr)
-                .serve(app.into_make_service())
-                .await
-                .unwrap();
+            if let Ok(s) = axum::Server::try_bind(&addr) {
+                s.serve(app.into_make_service()).await.unwrap();
+            } else {
+                warn!("CtrlPort address already in use");
+            }
         });
     });
 }
