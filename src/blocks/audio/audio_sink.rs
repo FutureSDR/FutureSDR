@@ -87,7 +87,11 @@ impl AsyncKernel for AudioSink {
             move |err| {
                 panic!("cpal stream error {:?}", err);
             },
-        )?;
+        ).expect("could not build output stream");
+        // On Windows there is an issue in cpal with
+        // shared devices, if the requested configuration
+        // does not match the device configuration.
+        // https://github.com/RustAudio/cpal/issues/593
 
         stream.play()?;
 
