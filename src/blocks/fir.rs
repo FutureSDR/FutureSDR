@@ -182,6 +182,10 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
 
         (n, n)
     }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
 }
 
 pub struct Fir<SampleType, TapType, Core>
