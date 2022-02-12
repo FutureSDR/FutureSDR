@@ -71,23 +71,25 @@ impl AsyncKernel for AudioSink {
 
         let (mut tx, rx) = mpsc::unbounded();
 
-        let stream = device.build_output_stream(
-            &config,
-            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                let (my_tx, my_rx) = oneshot::channel::<Box<[f32]>>();
-                let samples = block_on(async {
-                    tx.send((data.len(), my_tx)).await.unwrap();
-                    my_rx.await.unwrap()
-                });
-                assert_eq!(data.len(), samples.len());
-                for (i, s) in samples.iter().enumerate() {
-                    data[i] = *s;
-                }
-            },
-            move |err| {
-                panic!("cpal stream error {:?}", err);
-            },
-        ).expect("could not build output stream");
+        let stream = device
+            .build_output_stream(
+                &config,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    let (my_tx, my_rx) = oneshot::channel::<Box<[f32]>>();
+                    let samples = block_on(async {
+                        tx.send((data.len(), my_tx)).await.unwrap();
+                        my_rx.await.unwrap()
+                    });
+                    assert_eq!(data.len(), samples.len());
+                    for (i, s) in samples.iter().enumerate() {
+                        data[i] = *s;
+                    }
+                },
+                move |err| {
+                    panic!("cpal stream error {:?}", err);
+                },
+            )
+            .expect("could not build output stream");
         // On Windows there is an issue in cpal with
         // shared devices, if the requested configuration
         // does not match the device configuration.
