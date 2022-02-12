@@ -1,0 +1,12 @@
+[package]
+name = "futuredsp"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num-complex = "0.4.0"
+
+[build-dependencies]
+rustc_version = "0.4.0"
