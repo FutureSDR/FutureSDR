@@ -1,0 +1,15 @@
+[package]
+name = "cw"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "play-cw"
+path = "play_cw.rs"
+
+[[bin]]
+name = "listen-cw"
+path = "listen_cw.rs"
+
+[dependencies]
+futuresdr = { path = "../..", features = ["audio"] }
