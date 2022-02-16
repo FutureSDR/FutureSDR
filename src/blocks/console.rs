@@ -10,7 +10,6 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 use std::io::{self, Write};
 
-
 pub struct DisplaySink<T: Send + 'static + std::fmt::Display> {
     _type: std::marker::PhantomData<T>,
 }

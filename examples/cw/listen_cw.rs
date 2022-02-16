@@ -1,15 +1,15 @@
+use clap::{App, Arg};
 use futuresdr::anyhow::Context;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::Oscillator;
-use futuresdr::blocks::Combine;
 use futuresdr::blocks::ApplyIntoIter;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::Combine;
 use futuresdr::blocks::DisplaySink;
+use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::fmt;
-use clap::{Arg,App};
 
 #[derive(Debug, Copy, Clone)]
 pub enum CWAlphabet {
@@ -34,77 +34,267 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
     let c = *i;
     if c == 'A' {
         return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'B'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'C'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'D'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'E'  {
+    } else if c == 'B' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'C' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'D' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'E' {
         return vec![CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'F'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'G'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'H'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'I'  {
+    } else if c == 'F' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'G' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'H' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'I' {
         return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'J'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'K'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'L'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'M'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'N'  {
+    } else if c == 'J' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'K' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'L' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'M' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'N' {
         return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'O'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'P'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'Q'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'R'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'S'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'T'  {
+    } else if c == 'O' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'P' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'Q' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'R' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'S' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'T' {
         return vec![CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'U'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'V'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'W'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'X'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'Y'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'Z'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '1'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == '2'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == '3'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == '4'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == '5'  {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '6'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '7'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '8'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '9'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == '0'  {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else /*if c == ' '*/ {
+    } else if c == 'U' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'V' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'W' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'X' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'Y' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == 'Z' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '1' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '2' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '3' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '4' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '5' {
+        return vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '6' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '7' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '8' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '9' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ];
+    } else if c == '0' {
+        return vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ];
+    } else
+    /*if c == ' '*/
+    {
         return vec![CWAlphabet::WordSpace];
     }
 }
@@ -115,21 +305,32 @@ const DOT_LENGTH: usize = SAMPLE_RATE / 20;
 
 impl IntoIterator for CWAlphabet {
     type Item = f32;
-    type IntoIter = std::iter::Chain<std::iter::Take<std::iter::Repeat<f32>>, std::iter::Take<std::iter::Repeat<f32>>>;
+    type IntoIter = std::iter::Chain<
+        std::iter::Take<std::iter::Repeat<f32>>,
+        std::iter::Take<std::iter::Repeat<f32>>,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            CWAlphabet::Dot => std::iter::repeat(1.0).take(DOT_LENGTH).chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
-            CWAlphabet::Dash => std::iter::repeat(1.0).take(3*DOT_LENGTH).chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
-            CWAlphabet::LetterSpace => std::iter::repeat(0.0).take(3*DOT_LENGTH).chain(std::iter::repeat(0.0).take(0)),
-            CWAlphabet::WordSpace => std::iter::repeat(0.0).take((5-2)*DOT_LENGTH).chain(std::iter::repeat(0.0).take(0)),
+            CWAlphabet::Dot => std::iter::repeat(1.0)
+                .take(DOT_LENGTH)
+                .chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
+            CWAlphabet::Dash => std::iter::repeat(1.0)
+                .take(3 * DOT_LENGTH)
+                .chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
+            CWAlphabet::LetterSpace => std::iter::repeat(0.0)
+                .take(3 * DOT_LENGTH)
+                .chain(std::iter::repeat(0.0).take(0)),
+            CWAlphabet::WordSpace => std::iter::repeat(0.0)
+                .take((5 - 2) * DOT_LENGTH)
+                .chain(std::iter::repeat(0.0).take(0)),
         }
     }
 }
 
 fn main() -> Result<()> {
     let matches = App::new("Convert message into CW")
-/*        .arg(
+        /*        .arg(
             Arg::new("speed")
                 .short('s')
                 .long("speed")
@@ -161,9 +362,9 @@ fn main() -> Result<()> {
     let switch_command = fg.add_block(ApplyIntoIter::<CWAlphabet, CWAlphabet>::new(
         |c: &CWAlphabet| {
             return *c;
-        }
+        },
     ));
-    let sidetone_src = fg.add_block( Oscillator::new(SIDETONE_FREQ, 0.2));
+    let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2));
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
     let snk = fg.add_block(DisplaySink::<CWAlphabet>::new());
 
