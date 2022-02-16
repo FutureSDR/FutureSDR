@@ -84,6 +84,26 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
         return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
     } else if c == 'Z'  {
         return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '1'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == '2'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == '3'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == '4'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == '5'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '6'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '7'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '8'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '9'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == '0'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
     } else /*if c == ' '*/ {
         return vec![CWAlphabet::WordSpace];
     }
@@ -109,7 +129,7 @@ impl IntoIterator for CWAlphabet {
 
 fn main() -> Result<()> {
     let matches = App::new("Convert message into CW")
-        .arg(
+/*        .arg(
             Arg::new("speed")
                 .short('s')
                 .long("speed")
@@ -117,7 +137,7 @@ fn main() -> Result<()> {
                 .value_name("SPEED")
                 .default_value("10")
                 .help("Sets number of signal per XXX."),
-        )
+        )*/
         .arg(
             Arg::new("message")
                 .short('m')
@@ -129,7 +149,7 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    let s: u32 = matches.value_of_t("speed").context("no speed")?;
+    //let s: u32 = matches.value_of_t("speed").context("no speed")?;
     let msg: String = matches.value_of_t("message").context("no message")?;
 
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
