@@ -131,7 +131,8 @@ fn main() -> Result<()> {
 
     let s: u32 = matches.value_of_t("speed").context("no speed")?;
     let msg: String = matches.value_of_t("message").context("no message")?;
-    let msg: Vec<char> = msg.chars().collect();
+
+    let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
     let mut fg = Flowgraph::new();
     let src = fg.add_block(VectorSourceBuilder::<char>::new(msg).build());
