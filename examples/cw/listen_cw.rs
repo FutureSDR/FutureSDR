@@ -8,7 +8,6 @@ use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::DisplaySink;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use std::time;
 use std::fmt;
 use clap::{Arg,App};
 
@@ -157,11 +156,6 @@ fn main() -> Result<()> {
     // let debug_snk = fg.add_block(DisplaySink::<f32>::new());
     // fg.connect_stream(switch_command, "out", debug_snk, "in")?;
 
-    let now = time::Instant::now();
     Runtime::new().run(fg)?;
-    let elapsed = now.elapsed();
-
-    println!("\nflowgraph took {:?}", elapsed);
-
     Ok(())
 }
