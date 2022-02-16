@@ -50,18 +50,18 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
 
 const SAMPLE_RATE: usize = 48_000;
 const SIDETONE_FREQ: u32 = 440; // Usually between 400Hz and 750Hz
-const DOT_LENGTH: usize = 1; //SAMPLE_RATE * 1;
+const DOT_LENGTH: usize = SAMPLE_RATE / 10;
 
 impl IntoIterator for CWAlphabet {
     type Item = f32;
-    type IntoIter = std::iter::Take<std::iter::Repeat<f32>>;
+    type IntoIter = std::iter::Chain<std::iter::Take<std::iter::Repeat<f32>>, std::iter::Take<std::iter::Repeat<f32>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            CWAlphabet::Dot => std::iter::repeat(8.0).take(DOT_LENGTH),
-            CWAlphabet::Dash => std::iter::repeat(5.0).take(3*DOT_LENGTH),
-            CWAlphabet::LetterSpace => std::iter::repeat(0.0).take(3*DOT_LENGTH),
-            CWAlphabet::WordSpace => std::iter::repeat(0.0).take((5-2)*DOT_LENGTH),
+            CWAlphabet::Dot => std::iter::repeat(1.0).take(DOT_LENGTH).chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
+            CWAlphabet::Dash => std::iter::repeat(1.0).take(3*DOT_LENGTH).chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
+            CWAlphabet::LetterSpace => std::iter::repeat(0.0).take(3*DOT_LENGTH).chain(std::iter::repeat(0.0).take(0)),
+            CWAlphabet::WordSpace => std::iter::repeat(0.0).take((5-2)*DOT_LENGTH).chain(std::iter::repeat(0.0).take(0)),
         }
     }
 }
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
 
-    let orig: Vec<char> = vec!['S'];
+    let orig: Vec<char> = vec!['S', 'O', 'S'];
 
     let src = fg.add_block(VectorSourceBuilder::<char>::new(orig).build());
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
@@ -91,8 +91,8 @@ fn main() -> Result<()> {
     fg.connect_stream(sidetone_src, "out", switch_sidetone, "in1")?;
     fg.connect_stream(switch_sidetone, "out", audio_snk, "in")?;
 
-    let debug_snk = fg.add_block(DisplaySink::<f32>::new());
-    fg.connect_stream(switch_command, "out", debug_snk, "in")?;
+    // let debug_snk = fg.add_block(DisplaySink::<f32>::new());
+    // fg.connect_stream(switch_command, "out", debug_snk, "in")?;
 
     let now = time::Instant::now();
     fg = Runtime::new().run(fg)?;
