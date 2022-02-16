@@ -32,17 +32,58 @@ impl fmt::Display for CWAlphabet {
 
 fn morse(i: &char) -> Vec<CWAlphabet> {
     let c = *i;
-    if c == 'L' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace];
+    if c == 'A' {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'B'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'C'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'D'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'E'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'F'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'G'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'H'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'I'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'J'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'K'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'L'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'M'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'N'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
     } else if c == 'O'  {
         return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'S' {
+    } else if c == 'P'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'Q'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'R'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'S'  {
         return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
+    } else if c == 'T'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'U'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'V'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'W'  {
+        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'X'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'Y'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace];
+    } else if c == 'Z'  {
+        return vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
     } else /*if c == ' '*/ {
         return vec![CWAlphabet::WordSpace];
     }
@@ -70,7 +111,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
 
-    let orig: Vec<char> = vec!['S', 'O', 'S'];
+    let orig: Vec<char> = vec!['C', 'Q', ' ', 'C', 'Q', ' ', 'C', 'Q', ' ', 'L', 'O', 'I', 'C'];
 
     let src = fg.add_block(VectorSourceBuilder::<char>::new(orig).build());
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
