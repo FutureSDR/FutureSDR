@@ -1,16 +1,24 @@
 mod apply;
 pub use apply::Apply;
 
+
+mod applyintoiter;
+pub use applyintoiter::ApplyIntoIter;
+
 #[cfg(feature = "audio")]
 pub mod audio;
 
 mod combine;
 pub use combine::Combine;
 
+mod console;
+pub use console::DisplaySink;
+
 mod copy;
 pub use copy::Copy;
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
+
 mod filter;
 pub use filter::Filter;
 
