@@ -1,7 +1,6 @@
 mod apply;
 pub use apply::Apply;
 
-
 mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
 

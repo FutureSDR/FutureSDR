@@ -17,7 +17,7 @@ where
     B: 'static + IntoIterator,
 {
     f: Box<dyn FnMut(&A) -> B + Send + 'static>,
-    current_it: Box<dyn Iterator<Item=B::Item> + Send>,
+    current_it: Box<dyn Iterator<Item = B::Item> + Send>,
 }
 
 impl<A, B> ApplyIntoIter<A, B>
