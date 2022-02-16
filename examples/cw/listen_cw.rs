@@ -10,6 +10,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::time;
 use std::fmt;
+use clap::{Arg,App};
 
 #[derive(Debug, Copy, Clone)]
 pub enum CWAlphabet {
@@ -91,7 +92,7 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
 
 const SAMPLE_RATE: usize = 48_000;
 const SIDETONE_FREQ: u32 = 440; // Usually between 400Hz and 750Hz
-const DOT_LENGTH: usize = SAMPLE_RATE / 10;
+const DOT_LENGTH: usize = SAMPLE_RATE / 20;
 
 impl IntoIterator for CWAlphabet {
     type Item = f32;
@@ -108,12 +109,33 @@ impl IntoIterator for CWAlphabet {
 }
 
 fn main() -> Result<()> {
+    let matches = App::new("Convert message into CW")
+        .arg(
+            Arg::new("speed")
+                .short('s')
+                .long("speed")
+                .takes_value(true)
+                .value_name("SPEED")
+                .default_value("10")
+                .help("Sets number of signal per XXX."),
+        )
+        .arg(
+            Arg::new("message")
+                .short('m')
+                .long("message")
+                .takes_value(true)
+                .value_name("MESSAGE")
+                .default_value("CQ CQ CQ FUTURESDR")
+                .help("Sets the message to convert."),
+        )
+        .get_matches();
+
+    let s: u32 = matches.value_of_t("speed").context("no speed")?;
+    let msg: String = matches.value_of_t("message").context("no message")?;
+    let msg: Vec<char> = msg.chars().collect();
+
     let mut fg = Flowgraph::new();
-
-
-    let orig: Vec<char> = vec!['C', 'Q', ' ', 'C', 'Q', ' ', 'C', 'Q', ' ', 'L', 'O', 'I', 'C'];
-
-    let src = fg.add_block(VectorSourceBuilder::<char>::new(orig).build());
+    let src = fg.add_block(VectorSourceBuilder::<char>::new(msg).build());
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
     let morse = fg.add_block(ApplyIntoIter::<char, Vec<CWAlphabet>>::new(&morse));
     let switch_command = fg.add_block(ApplyIntoIter::<CWAlphabet, CWAlphabet>::new(
@@ -136,7 +158,7 @@ fn main() -> Result<()> {
     // fg.connect_stream(switch_command, "out", debug_snk, "in")?;
 
     let now = time::Instant::now();
-    fg = Runtime::new().run(fg)?;
+    Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
 
     println!("\nflowgraph took {:?}", elapsed);
