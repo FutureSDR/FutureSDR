@@ -122,7 +122,15 @@ impl AsyncKernel for AudioSink {
 
             if buff.len() == full {
                 tx.send(buff).unwrap();
-                self.buff = None;
+
+                if sio.input(0).finished() && n == i.len() {
+                    io.finished = true;
+                } else {
+                    io.call_again = true;
+                }
+            } else if sio.input(0).finished() {
+                tx.send(buff).unwrap();
+                io.finished = true;
             } else {
                 self.buff = Some((buff, full, tx));
             }
