@@ -38,10 +38,13 @@ pub mod blocks;
 pub mod runtime;
 
 // re-exports
-#[macro_use]
-pub extern crate log;
+pub extern crate async_io;
+pub extern crate async_net;
 #[macro_use]
 pub extern crate async_trait;
+pub extern crate futures_lite;
+#[macro_use]
+pub extern crate log;
 
 pub use anyhow;
 pub use num_complex;

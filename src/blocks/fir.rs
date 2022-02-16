@@ -1,5 +1,6 @@
-use std::intrinsics::fadd_fast;
-use std::intrinsics::fmul_fast;
+#[cfg(not(RUSTC_IS_STABLE))]
+use std::intrinsics::{fadd_fast, fmul_fast};
+
 use std::mem;
 
 use crate::anyhow::Result;
@@ -12,37 +13,230 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
+use num_complex::Complex;
 
-pub trait HasFirImpl: Copy + Send + 'static {}
-impl HasFirImpl for f32 {}
-
-pub struct Fir<A, const N: usize>
-where
-    A: HasFirImpl,
-{
-    taps: [A; N],
+pub trait FirKernel<SampleType>: Send {
+    /// Returns (samples consumed, samples produced)
+    fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize);
+    fn num_taps(&self) -> usize;
 }
 
-impl<A, const N: usize> Fir<A, N>
-where
-    A: HasFirImpl,
-    Fir<A, N>: SyncKernel,
+pub trait TapsAccessor: Send {
+    type TapType;
+
+    fn num_taps(&self) -> usize;
+
+    /// Gets the `index`th tap.
+    ///
+    /// Safety: The invariant `index < num_taps()` must be upheld.
+    unsafe fn get(&self, index: usize) -> Self::TapType;
+}
+
+impl<const N: usize> TapsAccessor for [f32; N] {
+    type TapType = f32;
+
+    fn num_taps(&self) -> usize {
+        N
+    }
+
+    unsafe fn get(&self, index: usize) -> f32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+impl<const N: usize> TapsAccessor for &[f32; N] {
+    type TapType = f32;
+
+    fn num_taps(&self) -> usize {
+        N
+    }
+
+    unsafe fn get(&self, index: usize) -> f32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+impl TapsAccessor for Vec<f32> {
+    type TapType = f32;
+
+    fn num_taps(&self) -> usize {
+        self.len()
+    }
+
+    unsafe fn get(&self, index: usize) -> f32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+pub struct FirKernelCore<SampleType, TapsType: TapsAccessor> {
+    taps: TapsType,
+    _sampletype: std::marker::PhantomData<SampleType>,
+}
+
+#[cfg(not(RUSTC_IS_STABLE))]
+impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32> for FirKernelCore<f32, TapsType> {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
+        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
+
+        unsafe {
+            for k in 0..n {
+                let mut sum = 0.0;
+                for t in 0..self.taps.num_taps() {
+                    sum = fadd_fast(sum, fmul_fast(*i.get_unchecked(k + t), self.taps.get(t)));
+                }
+                *o.get_unchecked_mut(k) = sum;
+            }
+        }
+
+        (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
+}
+
+#[cfg(RUSTC_IS_STABLE)]
+impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32> for FirKernelCore<f32, TapsType> {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
+        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
+
+        unsafe {
+            for k in 0..n {
+                let mut sum = 0.0;
+                for t in 0..self.taps.num_taps() {
+                    sum += i.get_unchecked(k + t) * self.taps.get(t);
+                }
+                *o.get_unchecked_mut(k) = sum;
+            }
+        }
+
+        (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
+}
+
+#[cfg(not(RUSTC_IS_STABLE))]
+impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
+    for FirKernelCore<Complex<f32>, TapsType>
 {
-    pub fn new(taps: &[A; N]) -> Block {
+    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
+        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
+
+        unsafe {
+            for k in 0..n {
+                let mut sum_re = 0.0;
+                let mut sum_im = 0.0;
+                for t in 0..self.taps.num_taps() {
+                    sum_re = fadd_fast(
+                        sum_re,
+                        fmul_fast(i.get_unchecked(k + t).re, self.taps.get(t)),
+                    );
+                    sum_im = fadd_fast(
+                        sum_im,
+                        fmul_fast(i.get_unchecked(k + t).im, self.taps.get(t)),
+                    );
+                }
+                *o.get_unchecked_mut(k) = Complex {
+                    re: sum_re,
+                    im: sum_im,
+                };
+            }
+        }
+
+        (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
+}
+
+#[cfg(RUSTC_IS_STABLE)]
+impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
+    for FirKernelCore<Complex<f32>, TapsType>
+{
+    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
+        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
+
+        unsafe {
+            for k in 0..n {
+                let mut sum_re = 0.0;
+                let mut sum_im = 0.0;
+                for t in 0..self.taps.num_taps() {
+                    sum_re += i.get_unchecked(k + t).re * self.taps.get(t);
+                    sum_im += i.get_unchecked(k + t).im * self.taps.get(t);
+                }
+                *o.get_unchecked_mut(k) = Complex {
+                    re: sum_re,
+                    im: sum_im,
+                };
+            }
+        }
+
+        (n, n)
+    }
+
+    fn num_taps(&self) -> usize {
+        self.taps.num_taps()
+    }
+}
+
+pub struct Fir<SampleType, TapType, Core>
+where
+    SampleType: 'static + Send,
+    TapType: 'static,
+    Core: 'static + FirKernel<SampleType>,
+{
+    core: Core,
+    _sampletype: std::marker::PhantomData<SampleType>,
+    _taptype: std::marker::PhantomData<TapType>,
+}
+
+unsafe impl<SampleType, TapType, Core> Send for Fir<SampleType, TapType, Core>
+where
+    SampleType: 'static + Send,
+    TapType: 'static,
+    Core: 'static + FirKernel<SampleType>,
+{
+}
+
+impl<SampleType, TapType, Core> Fir<SampleType, TapType, Core>
+where
+    SampleType: 'static + Send,
+    TapType: 'static,
+    Core: 'static + FirKernel<SampleType>,
+{
+    pub fn new(core: Core) -> Block {
         Block::new_sync(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<A>())
-                .add_output("out", mem::size_of::<A>())
+                .add_input("in", mem::size_of::<SampleType>())
+                .add_output("out", mem::size_of::<SampleType>())
                 .build(),
-            MessageIoBuilder::<Fir<A, N>>::new().build(),
-            Fir { taps: *taps },
+            MessageIoBuilder::<Fir<SampleType, TapType, Core>>::new().build(),
+            Fir {
+                core,
+                _sampletype: std::marker::PhantomData,
+                _taptype: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl<const N: usize> SyncKernel for Fir<f32, N> {
+impl<SampleType, TapType, Core> SyncKernel for Fir<SampleType, TapType, Core>
+where
+    SampleType: 'static + Send,
+    TapType: 'static,
+    Core: 'static + FirKernel<SampleType>,
+{
     fn work(
         &mut self,
         io: &mut WorkIo,
@@ -50,35 +244,58 @@ impl<const N: usize> SyncKernel for Fir<f32, N> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<f32>();
-        let o = sio.output(0).slice::<f32>();
+        let i = sio.input(0).slice::<SampleType>();
+        let o = sio.output(0).slice::<SampleType>();
 
-        if i.len() >= N {
-            let n = std::cmp::min(i.len() + 1 - N, o.len());
+        let (consumed, produced) = self.core.work(i, o);
 
-            unsafe {
-                for k in 0..n {
-                    let mut sum = 0.0;
-                    for t in 0..N {
-                        sum = fadd_fast(
-                            sum,
-                            fmul_fast(*i.get_unchecked(k + t), *self.taps.get_unchecked(t)),
-                        );
-                    }
-                    *o.get_unchecked_mut(k) = sum;
-                }
-            }
+        sio.input(0).consume(consumed);
+        sio.output(0).produce(produced);
 
-            sio.input(0).consume(n);
-            sio.output(0).produce(n);
-
-            if sio.input(0).finished() && n == i.len() + 1 - N {
-                io.finished = true;
-            }
-        } else if sio.input(0).finished() {
+        if sio.input(0).finished() && consumed + self.core.num_taps() == i.len() + 1 {
             io.finished = true;
         }
 
         Ok(())
+    }
+}
+
+pub struct FirBuilder {
+    //
+}
+
+impl FirBuilder {
+    /// Constructs a new FIR Filter using the given types and taps. This function will
+    /// pick the optimal FIR implementation for the given constraints.
+    ///
+    /// Note that there must be an implementation of `TapsAccessor` for the taps object
+    /// you pass in. Implementations are provided for arrays and `Vec<TapType>`.
+    ///
+    /// Additionally, there must be an available core (implementation of `FirKernel`) for
+    /// the specified `SampleType` and `TapType`. Cores are provided for the following
+    /// `SampleType`/`TapType` combinations:
+    /// - `SampleType=f32`, `TapType=f32`
+    /// - `SampleType=Complex<f32>`, `TapType=f32`
+    ///
+    /// Example usage:
+    /// ```
+    /// use futuresdr::blocks::FirBuilder;
+    /// use num_complex::Complex;
+    ///
+    /// let fir = FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]);
+    /// let fir = FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]);
+    /// let fir = FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]);
+    /// ```
+    pub fn new<SampleType, TapType, Taps>(taps: Taps) -> Block
+    where
+        SampleType: 'static + Send,
+        TapType: 'static,
+        Taps: 'static + TapsAccessor,
+        FirKernelCore<SampleType, Taps>: FirKernel<SampleType>,
+    {
+        Fir::<SampleType, TapType, FirKernelCore<SampleType, Taps>>::new(FirKernelCore {
+            taps,
+            _sampletype: std::marker::PhantomData,
+        })
     }
 }

@@ -4,7 +4,7 @@ use std::time;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::CopyRandBuilder;
-use futuresdr::blocks::Fir;
+use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
@@ -94,14 +94,14 @@ fn main() -> Result<()> {
         fg.connect_stream(src, "out", head, "in")?;
 
         let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build());
-        let mut last = fg.add_block(Fir::new(&taps));
+        let mut last = fg.add_block(FirBuilder::new::<f32, f32, _>(taps.to_owned()));
         fg.connect_stream(head, "out", copy, "in")?;
         fg.connect_stream(copy, "out", last, "in")?;
 
         for _ in 1..stages {
             let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build());
             fg.connect_stream(last, "out", copy, "in")?;
-            last = fg.add_block(Fir::new(&taps));
+            last = fg.add_block(FirBuilder::new::<f32, f32, _>(taps.to_owned()));
             fg.connect_stream(copy, "out", last, "in")?;
         }
 
