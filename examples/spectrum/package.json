@@ -8,15 +8,8 @@
   "author": "Bastian Bloessl <mail@bastibl.net>",
   "license": "ISC",
   "devDependencies": {
-    "autoprefixer": "^9.8.6",
     "browser-sync": "^2.26.14",
     "gulp": "^4.0.2",
-    "gulp-cssmin": "^0.2.0",
-    "gulp-debug": "^4.0.0",
-    "gulp-postcss": "^9.0.0",
-    "gulp-sass": "^4.1.0",
-    "gulp-sourcemaps": "^3.0.0",
-    "node-sass": "^5.0.0",
-    "postcss": "^8.2.7"
+    "gulp-sass": "^4.1.0"
   }
 }
