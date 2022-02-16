@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
@@ -15,7 +15,7 @@ use futuresdr::runtime::Runtime;
 const GRANULARITY: u64 = 32768;
 
 fn main() -> Result<()> {
-    let matches = App::new("Vect Rand Flowgraph")
+    let matches = Command::new("Vect Rand Flowgraph")
         .arg(
             Arg::new("run")
                 .short('r')

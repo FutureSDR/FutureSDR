@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use std::iter::repeat_with;
 use std::time;
 
@@ -15,7 +15,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
-    let matches = App::new("FIR Rand Flowgraph")
+    let matches = Command::new("FIR Rand Flowgraph")
         .arg(
             Arg::new("run")
                 .short('r')

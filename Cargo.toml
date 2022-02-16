@@ -71,7 +71,6 @@ required-features = ["tpb_scheduler"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.52"
-clap = "3.0.10"
 config = "0.11.0"
 dirs = "4.0"
 futures = "0.3.18"

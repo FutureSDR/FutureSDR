@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
@@ -10,7 +10,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
-    let matches = App::new("Vect Flowgraph")
+    let matches = Command::new("Vect Flowgraph")
         .arg(
             Arg::new("run")
                 .short('r')

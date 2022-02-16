@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use rand::Rng;
 use std::time::Instant;
 
