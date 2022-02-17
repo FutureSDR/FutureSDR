@@ -3,6 +3,7 @@ use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::Oscillator;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
+#[cfg(not(target_arch = "wasm32"))]
 use futuresdr::blocks::ConsoleSink;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -360,6 +361,12 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     fg.connect_stream(switch_command, "out", switch_sidetone, "in0")?;
     fg.connect_stream(sidetone_src, "out", switch_sidetone, "in1")?;
     fg.connect_stream(switch_sidetone, "out", audio_snk, "in")?;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let console = fg.add_block(ConsoleSink::<CWAlphabet>::new());
+        fg.connect_stream(morse, "out", console, "in")?;
+    }
 
     Runtime::new().run_async(fg).await?;
     Ok(())
