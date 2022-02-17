@@ -38,7 +38,9 @@ pub mod blocks;
 pub mod runtime;
 
 // re-exports
+#[cfg(not(target_arch = "wasm32"))]
 pub extern crate async_io;
+#[cfg(not(target_arch = "wasm32"))]
 pub extern crate async_net;
 #[macro_use]
 pub extern crate async_trait;
