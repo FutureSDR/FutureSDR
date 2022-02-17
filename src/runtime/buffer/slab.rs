@@ -1,6 +1,5 @@
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
-use log::debug;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -199,11 +198,6 @@ impl BufferWriterHost for Writer {
         }
 
         let c = self.current.as_mut().unwrap();
-        debug!(
-            "slab writer:  handing out n items {:?}, offset {:?}",
-            c.capacity - c.offset,
-            c.offset
-        );
 
         unsafe {
             (
@@ -311,11 +305,6 @@ impl BufferReaderHost for Reader {
         }
 
         let c = self.current.as_mut().unwrap();
-        debug!(
-            "slab reader handing out n items {:?}, offset {:?}",
-            c.capacity - c.offset,
-            c.offset
-        );
         unsafe {
             (
                 (c.buffer.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),
@@ -349,7 +338,6 @@ impl BufferReaderHost for Reader {
     }
 
     async fn notify_finished(&mut self) {
-        debug!("Slab Reader notifies writer");
         if self.finished {
             return;
         }
