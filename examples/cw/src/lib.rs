@@ -293,9 +293,7 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
         ];
-    } else
-    /*if c == ' '*/
-    {
+    } else {
         return vec![CWAlphabet::WordSpace];
     }
 }
@@ -349,9 +347,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
     let morse = fg.add_block(ApplyIntoIter::<char, Vec<CWAlphabet>>::new(&morse));
     let switch_command = fg.add_block(ApplyIntoIter::<CWAlphabet, CWAlphabet>::new(
-        |c: &CWAlphabet| {
-            return *c;
-        },
+        |c: &CWAlphabet| *c,
     ));
     let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2));
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));

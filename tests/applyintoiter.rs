@@ -13,7 +13,7 @@ fn base_test(multiplier: usize, buf1_size: usize, buf2_size: usize) -> Result<()
     let src = fg.add_block(VectorSourceBuilder::<f32>::new(orig.clone()).build());
     let apply_into_iter = fg.add_block(ApplyIntoIter::new(
         move |i: &f32| -> std::iter::Take<std::iter::Repeat<f32>> {
-            std::iter::repeat(*i).take(multiplier.try_into().unwrap())
+            std::iter::repeat(*i).take(multiplier)
         },
     ));
     let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build());
