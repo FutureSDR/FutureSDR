@@ -10,8 +10,8 @@ pub mod audio;
 mod combine;
 pub use combine::Combine;
 
-mod console;
-pub use console::DisplaySink;
+mod console_sink;
+pub use console_sink::ConsoleSink;
 
 mod copy;
 pub use copy::Copy;

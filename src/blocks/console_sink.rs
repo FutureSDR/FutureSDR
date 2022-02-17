@@ -8,13 +8,12 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use std::io::{self, Write};
 
-pub struct ConsoleSink<T: Send + 'static + std::fmt::Display> {
+pub struct ConsoleSink<T: Send + 'static + std::fmt::Debug> {
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static + std::fmt::Display> ConsoleSink<T> {
+impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
     pub fn new() -> Block {
         Block::new_async(
             BlockMetaBuilder::new("ConsoleSink").build(),
@@ -30,7 +29,7 @@ impl<T: Send + 'static + std::fmt::Display> ConsoleSink<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static + std::fmt::Display> AsyncKernel for ConsoleSink<T> {
+impl<T: Send + 'static + std::fmt::Debug> AsyncKernel for ConsoleSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -40,13 +39,10 @@ impl<T: Send + 'static + std::fmt::Display> AsyncKernel for ConsoleSink<T> {
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();
 
-        let mut n = 0;
-        for v in i.into_iter() {
-            print!("{}", *v);
-            n += 1;
-        }
-        io::stdout().flush().unwrap();
-        sio.input(0).consume(n);
+        let s = i.iter().map(|x| format!("{:?}, ", x)).collect::<Vec<String>>().concat();
+        info!("{}", s);
+
+        sio.input(0).consume(i.len());
 
         if sio.input(0).finished() {
             io.finished = true;
