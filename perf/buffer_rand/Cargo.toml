@@ -1,0 +1,12 @@
+[package]
+name = "buffer_rand"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "3.1.0"
+futuresdr = { path = "../..", features = ["flow_scheduler"] }
+
+[[bin]]
+name = "buffer_rand"
+path = "buffer_rand.rs"

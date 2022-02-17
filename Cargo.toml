@@ -26,6 +26,7 @@ members = [
     "examples/wasm",
     "examples/wgpu",
     "examples/zeromq",
+    "perf/buffer_rand",
     "perf/fir",
     "perf/fir_latency",
     "perf/msg",
