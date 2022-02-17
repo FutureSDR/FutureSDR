@@ -69,13 +69,11 @@ where
             if let Some(v) = self.current_it.next() {
                 o[produced] = v;
                 produced += 1;
+            } else if let Some(v) = i_iter.next() {
+                self.current_it = Box::new(((self.f)(v)).into_iter());
+                consumed += 1;
             } else {
-                if let Some(v) = i_iter.next() {
-                    self.current_it = Box::new(((self.f)(v)).into_iter());
-                    consumed += 1;
-                } else {
-                    break;
-                }
+                break;
             }
         }
         //println!("produced: {}, consumed: {}, i.len: {}, o.len: {}", produced, consumed, i.len(), o.len());

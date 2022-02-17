@@ -50,10 +50,8 @@ fn base_test(multiplier: usize, buf1_size: usize, buf2_size: usize) -> Result<()
 
 #[test]
 fn repeat_3_buf3() -> Result<()> {
-    base_test(5, 1, 1);
-    base_test(5, 10, 1);
-    base_test(5, 1, 10);
-    base_test(5, 10, 10);
-
-    Ok(())
+    base_test(5, 1, 1)?;
+    base_test(5, 10, 1)?;
+    base_test(5, 1, 10)?;
+    base_test(5, 10, 10)
 }

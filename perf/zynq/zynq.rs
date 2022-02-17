@@ -14,7 +14,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
-    let matches = App::new("Zynq Perf")
+    let matches = Command::new("Zynq Perf")
         .arg(
             Arg::new("run")
                 .short('r')
