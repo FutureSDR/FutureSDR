@@ -1,9 +1,10 @@
-use async_io::block_on;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
+use futures::channel::mpsc;
+use futures::SinkExt;
 
 use crate::anyhow::Result;
 use crate::runtime::AsyncKernel;
@@ -15,22 +16,21 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
-use futures::SinkExt;
-use futures::StreamExt;
 
 #[allow(clippy::type_complexity)]
 pub struct AudioSink {
     sample_rate: u32,
     channels: u16,
     stream: Option<Stream>,
-    rx: Option<mpsc::UnboundedReceiver<(usize, oneshot::Sender<Box<[f32]>>)>>,
-    buff: Option<(Box<[f32]>, usize, oneshot::Sender<Box<[f32]>>)>,
+    min_buffer_size: usize,
+    vec: Vec<f32>,
+    tx: Option<mpsc::Sender<Vec<f32>>>,
 }
 
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for AudioSink {}
+
+const QUEUE_SIZE: usize = 5;
 
 impl AudioSink {
     #[allow(clippy::new_ret_no_self)]
@@ -43,8 +43,9 @@ impl AudioSink {
                 sample_rate,
                 channels,
                 stream: None,
-                rx: None,
-                buff: None,
+                min_buffer_size: 2048,
+                vec: Vec::new(),
+                tx: None,
             },
         )
     }
@@ -69,20 +70,26 @@ impl AsyncKernel for AudioSink {
             buffer_size: BufferSize::Default,
         };
 
-        let (mut tx, rx) = mpsc::unbounded();
+        let (tx, mut rx) = mpsc::channel(QUEUE_SIZE);
+        let mut iter : Option<Vec<f32>> = None;
 
         let stream = device
             .build_output_stream(
                 &config,
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    let (my_tx, my_rx) = oneshot::channel::<Box<[f32]>>();
-                    let samples = block_on(async {
-                        tx.send((data.len(), my_tx)).await.unwrap();
-                        my_rx.await.unwrap()
-                    });
-                    assert_eq!(data.len(), samples.len());
-                    for (i, s) in samples.iter().enumerate() {
-                        data[i] = *s;
+                    let mut i = 0;
+
+                    while let Some(mut v) = iter.take().or_else(|| rx.try_next().ok().and_then(|x| x)) {
+                        let n = std::cmp::min(v.len(), data.len() - i);
+                        data[i..i+n].copy_from_slice(&v[..n]);
+                        i += n;
+
+                        if n < v.len() {
+                            iter = Some(v.split_off(n));
+                            return;
+                        } else if i == data.len() {
+                            return
+                        }
                     }
                 },
                 move |err| {
@@ -97,9 +104,21 @@ impl AsyncKernel for AudioSink {
 
         stream.play()?;
 
-        self.rx = Some(rx);
+        self.tx = Some(tx);
         self.stream = Some(stream);
 
+        Ok(())
+    }
+
+    async fn deinit(
+        &mut self,
+        _s: &mut StreamIo,
+        _m: &mut MessageIo<Self>,
+        _b: &mut BlockMeta,
+    ) -> Result<()> {
+        for _ in 0..QUEUE_SIZE {
+            let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
+        }
         Ok(())
     }
 
@@ -110,36 +129,17 @@ impl AsyncKernel for AudioSink {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        if let Some((mut buff, mut full, tx)) = self.buff.take() {
-            let i = sio.input(0).slice::<f32>();
-            let n = std::cmp::min(i.len(), buff.len() - full);
 
-            for (i, s) in i.iter().take(n).enumerate() {
-                buff[full + i] = *s;
-            }
+        let i = sio.input(0).slice::<f32>();
+        self.vec.extend_from_slice(i);
 
-            full += n;
+        if self.vec.len() >= self.min_buffer_size {
+            self.tx.as_mut().unwrap().send(std::mem::take(&mut self.vec)).await?;
+        }
 
-            if buff.len() == full {
-                tx.send(buff).unwrap();
+        sio.input(0).consume(i.len());
 
-                if sio.input(0).finished() && n == i.len() {
-                    io.finished = true;
-                } else {
-                    io.call_again = true;
-                }
-            } else if sio.input(0).finished() {
-                tx.send(buff).unwrap();
-                io.finished = true;
-            } else {
-                self.buff = Some((buff, full, tx));
-            }
-
-            sio.input(0).consume(n);
-        } else if let Some((n, tx)) = self.rx.as_mut().unwrap().next().await {
-            io.call_again = true;
-            self.buff = Some((vec![0f32; n].into_boxed_slice(), 0, tx));
-        } else {
+        if sio.input(0).finished() {
             io.finished = true;
         }
 
