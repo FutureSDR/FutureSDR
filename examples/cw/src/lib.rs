@@ -1,14 +1,14 @@
-use clap::{App, Arg};
-use futuresdr::anyhow::Context;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::Oscillator;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
-use futuresdr::blocks::DisplaySink;
+use futuresdr::blocks::ConsoleSink;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
@@ -328,30 +328,19 @@ impl IntoIterator for CWAlphabet {
     }
 }
 
-fn main() -> Result<()> {
-    let matches = App::new("Convert message into CW")
-        /*        .arg(
-            Arg::new("speed")
-                .short('s')
-                .long("speed")
-                .takes_value(true)
-                .value_name("SPEED")
-                .default_value("10")
-                .help("Sets number of signal per XXX."),
-        )*/
-        .arg(
-            Arg::new("message")
-                .short('m')
-                .long("message")
-                .takes_value(true)
-                .value_name("MESSAGE")
-                .default_value("CQ CQ CQ FUTURESDR")
-                .help("Sets the message to convert."),
-        )
-        .get_matches();
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub async fn run_fg(msg: String) {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    run_fg_impl(msg).await.unwrap();
+}
 
-    //let s: u32 = matches.value_of_t("speed").context("no speed")?;
-    let msg: String = matches.value_of_t("message").context("no message")?;
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn run_fg(msg: String) -> Result<()> {
+    run_fg_impl(msg).await
+}
+
+pub async fn run_fg_impl(msg: String) -> Result<()> {
 
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
@@ -366,18 +355,13 @@ fn main() -> Result<()> {
     ));
     let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2));
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
-    let snk = fg.add_block(DisplaySink::<CWAlphabet>::new());
 
     fg.connect_stream(src, "out", morse, "in")?;
-    fg.connect_stream(morse, "out", snk, "in")?;
     fg.connect_stream(morse, "out", switch_command, "in")?;
     fg.connect_stream(switch_command, "out", switch_sidetone, "in0")?;
     fg.connect_stream(sidetone_src, "out", switch_sidetone, "in1")?;
     fg.connect_stream(switch_sidetone, "out", audio_snk, "in")?;
 
-    // let debug_snk = fg.add_block(DisplaySink::<f32>::new());
-    // fg.connect_stream(switch_command, "out", debug_snk, "in")?;
-
-    Runtime::new().run(fg)?;
+    Runtime::new().run_async(fg).await?;
     Ok(())
 }
