@@ -62,6 +62,7 @@ impl<T: Send + 'static> SyncKernel for CopyRand<T> {
 
             sio.input(0).consume(m);
             sio.output(0).produce(m);
+            io.call_again = true;
         }
 
         if sio.input(0).finished() && m * item_size == i.len() {
