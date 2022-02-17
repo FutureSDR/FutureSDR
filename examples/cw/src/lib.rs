@@ -7,9 +7,9 @@ use futuresdr::blocks::ConsoleSink;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::fmt;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum CWAlphabet {
@@ -341,7 +341,6 @@ pub async fn run_fg(msg: String) -> Result<()> {
 }
 
 pub async fn run_fg_impl(msg: String) -> Result<()> {
-
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
     let mut fg = Flowgraph::new();

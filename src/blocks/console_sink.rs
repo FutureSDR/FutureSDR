@@ -39,7 +39,11 @@ impl<T: Send + 'static + std::fmt::Debug> AsyncKernel for ConsoleSink<T> {
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();
 
-        let s = i.iter().map(|x| format!("{:?}, ", x)).collect::<Vec<String>>().concat();
+        let s = i
+            .iter()
+            .map(|x| format!("{:?}, ", x))
+            .collect::<Vec<String>>()
+            .concat();
         info!("{}", s);
 
         sio.input(0).consume(i.len());

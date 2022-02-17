@@ -44,7 +44,10 @@ impl Slab {
     }
 
     pub fn with_config(min_bytes: usize, n_buffer: usize) -> Slab {
-        Slab { min_bytes, n_buffer }
+        Slab {
+            min_bytes,
+            n_buffer,
+        }
     }
 }
 
@@ -61,7 +64,13 @@ impl BufferBuilder for Slab {
         writer_inbox: Sender<AsyncMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
-        Writer::new(item_size, self.min_bytes, self.n_buffer, writer_inbox, writer_output_id)
+        Writer::new(
+            item_size,
+            self.min_bytes,
+            self.n_buffer,
+            writer_inbox,
+            writer_output_id,
+        )
     }
 }
 
@@ -175,7 +184,6 @@ impl BufferWriterHost for Writer {
     }
 
     fn bytes(&mut self) -> (*mut u8, usize) {
-
         if self.current.is_none() {
             let mut state = self.state.lock().unwrap();
             if let Some(b) = state.writer_input.pop_front() {
@@ -191,7 +199,11 @@ impl BufferWriterHost for Writer {
         }
 
         let c = self.current.as_mut().unwrap();
-        debug!("slab writer:  handing out n items {:?}, offset {:?}", c.capacity - c.offset, c.offset);
+        debug!(
+            "slab writer:  handing out n items {:?}, offset {:?}",
+            c.capacity - c.offset,
+            c.offset
+        );
 
         unsafe {
             (
@@ -216,7 +228,11 @@ impl BufferWriterHost for Writer {
                 used_bytes: c.capacity * self.item_size,
             });
 
-            let _ = self.reader_inbox.as_mut().unwrap().try_send(AsyncMessage::Notify);
+            let _ = self
+                .reader_inbox
+                .as_mut()
+                .unwrap()
+                .try_send(AsyncMessage::Notify);
 
             // make sure to be called again, if we have another buffer queued
             if !state.writer_input.is_empty() {
@@ -241,7 +257,8 @@ impl BufferWriterHost for Writer {
             }
         }
 
-        let _ = self.reader_inbox
+        let _ = self
+            .reader_inbox
             .as_mut()
             .unwrap()
             .send(AsyncMessage::StreamInputDone {
@@ -279,7 +296,6 @@ impl BufferReaderHost for Reader {
     }
 
     fn bytes(&mut self) -> (*const u8, usize) {
-
         if self.current.is_none() {
             let mut state = self.state.lock().unwrap();
             if let Some(b) = state.reader_input.pop_front() {
@@ -295,7 +311,11 @@ impl BufferReaderHost for Reader {
         }
 
         let c = self.current.as_mut().unwrap();
-        debug!("slab reader handing out n items {:?}, offset {:?}", c.capacity - c.offset , c.offset);
+        debug!(
+            "slab reader handing out n items {:?}, offset {:?}",
+            c.capacity - c.offset,
+            c.offset
+        );
         unsafe {
             (
                 (c.buffer.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),

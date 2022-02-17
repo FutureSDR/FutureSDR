@@ -71,7 +71,7 @@ impl AsyncKernel for AudioSink {
         };
 
         let (tx, mut rx) = mpsc::channel(QUEUE_SIZE);
-        let mut iter : Option<Vec<f32>> = None;
+        let mut iter: Option<Vec<f32>> = None;
 
         let stream = device
             .build_output_stream(
@@ -79,16 +79,18 @@ impl AsyncKernel for AudioSink {
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
                     let mut i = 0;
 
-                    while let Some(mut v) = iter.take().or_else(|| rx.try_next().ok().and_then(|x| x)) {
+                    while let Some(mut v) =
+                        iter.take().or_else(|| rx.try_next().ok().and_then(|x| x))
+                    {
                         let n = std::cmp::min(v.len(), data.len() - i);
-                        data[i..i+n].copy_from_slice(&v[..n]);
+                        data[i..i + n].copy_from_slice(&v[..n]);
                         i += n;
 
                         if n < v.len() {
                             iter = Some(v.split_off(n));
                             return;
                         } else if i == data.len() {
-                            return
+                            return;
                         }
                     }
                 },
@@ -129,12 +131,15 @@ impl AsyncKernel for AudioSink {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-
         let i = sio.input(0).slice::<f32>();
         self.vec.extend_from_slice(i);
 
         if self.vec.len() >= self.min_buffer_size {
-            self.tx.as_mut().unwrap().send(std::mem::take(&mut self.vec)).await?;
+            self.tx
+                .as_mut()
+                .unwrap()
+                .send(std::mem::take(&mut self.vec))
+                .await?;
         }
 
         sio.input(0).consume(i.len());

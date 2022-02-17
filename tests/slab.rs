@@ -72,4 +72,3 @@ fn fg_rand_vec() -> Result<()> {
 
     Ok(())
 }
-

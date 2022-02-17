@@ -22,4 +22,3 @@ fn main() -> Result<()> {
     block_on(run_fg(msg))?;
     Ok(())
 }
-
