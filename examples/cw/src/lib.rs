@@ -12,7 +12,7 @@ use std::fmt;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum CWAlphabet {
     Dot,
     Dash,
@@ -20,7 +20,7 @@ pub enum CWAlphabet {
     WordSpace,
 }
 
-impl fmt::Display for CWAlphabet {
+impl fmt::Debug for CWAlphabet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             CWAlphabet::Dot => write!(f, "."),
@@ -32,274 +32,231 @@ impl fmt::Display for CWAlphabet {
 }
 
 fn morse(i: &char) -> Vec<CWAlphabet> {
-    let c = *i;
-    if c == 'A' {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'B' {
-        return vec![
+    match i {
+        'A' => vec![CWAlphabet::Dot, CWAlphabet::Dash, CWAlphabet::LetterSpace],
+        'B' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'C' {
-        return vec![
+        ],
+        'C' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'D' {
-        return vec![
+        ],
+        'D' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'E' {
-        return vec![CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'F' {
-        return vec![
+        ],
+        'E' => vec![CWAlphabet::Dot, CWAlphabet::LetterSpace],
+        'F' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'G' {
-        return vec![
+        ],
+        'G' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'H' {
-        return vec![
+        ],
+        'H' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'I' {
-        return vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'J' {
-        return vec![
+        ],
+        'I' => vec![CWAlphabet::Dot, CWAlphabet::Dot, CWAlphabet::LetterSpace],
+        'J' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'K' {
-        return vec![
+        ],
+        'K' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'L' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'M' {
-        return vec![
+        ],
+        'L' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'N' {
-        return vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace];
-    } else if c == 'O' {
-        return vec![
+        ],
+        'M' => vec![CWAlphabet::Dash, CWAlphabet::Dash, CWAlphabet::LetterSpace],
+        'N' => vec![CWAlphabet::Dash, CWAlphabet::Dot, CWAlphabet::LetterSpace],
+        'O' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'P' {
-        return vec![
+        ],
+        'P' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'Q' {
-        return vec![
+        ],
+        'Q' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'R' {
-        return vec![
+        ],
+        'R' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'S' {
-        return vec![
+        ],
+        'S' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'T' {
-        return vec![CWAlphabet::Dash, CWAlphabet::LetterSpace];
-    } else if c == 'U' {
-        return vec![
+        ],
+        'T' => vec![CWAlphabet::Dash, CWAlphabet::LetterSpace],
+        'U' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'V' {
-        return vec![
+        ],
+        'V' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'W' {
-        return vec![
+        ],
+        'W' => vec![
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'X' {
-        return vec![
+        ],
+        'X' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'Y' {
-        return vec![
+        ],
+        'Y' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == 'Z' {
-        return vec![
+        ],
+        'Z' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dot,
             CWAlphabet::Dot,
             CWAlphabet::LetterSpace,
-        ];
-    } else if c == '1' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '2' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '3' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '4' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dash,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '5' {
-        return vec![
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '6' {
-        return vec![
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '7' {
-        return vec![
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '8' {
-        return vec![
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '9' {
-        return vec![
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dash,
-            CWAlphabet::Dot,
-            CWAlphabet::LetterSpace,
-        ];
-    } else if c == '0' {
-        return vec![
+        ],
+        '0' => vec![
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::Dash,
             CWAlphabet::LetterSpace,
-        ];
-    } else {
-        return vec![CWAlphabet::WordSpace];
+        ],
+        '1' => vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ],
+        '2' => vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ],
+        '3' => vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ],
+        '4' => vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dash,
+            CWAlphabet::LetterSpace,
+        ],
+        '5' => vec![
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ],
+        '6' => vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ],
+        '7' => vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ],
+        '8' => vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ],
+        '9' => vec![
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dash,
+            CWAlphabet::Dot,
+            CWAlphabet::LetterSpace,
+        ],
+        _ => vec![CWAlphabet::WordSpace],
     }
 }
 
 const SAMPLE_RATE: usize = 48_000;
-const SIDETONE_FREQ: u32 = 440; // Usually between 400Hz and 750Hz
+const SIDETONE_FREQ: f32 = 440.0; // Usually between 400Hz and 750Hz
 const DOT_LENGTH: usize = SAMPLE_RATE / 20;
 
 impl IntoIterator for CWAlphabet {
@@ -360,7 +317,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let console = fg.add_block(ConsoleSink::<CWAlphabet>::new());
+        let console = fg.add_block(ConsoleSink::<CWAlphabet>::new(""));
         fg.connect_stream(morse, "out", console, "in")?;
     }
 
