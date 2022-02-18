@@ -34,6 +34,7 @@ members = [
     "perf/msg",
     "perf/null_rand",
     "perf/null_rand_latency",
+    "perf/vulkan",
     "perf/zynq",
 ]
 
