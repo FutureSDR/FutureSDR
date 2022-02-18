@@ -5,6 +5,7 @@ use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::PersistentDescriptorSet;
+use vulkano::descriptor_set::WriteDescriptorSet;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
@@ -153,9 +154,11 @@ impl AsyncKernel for Vulkan {
         for m in i(sio, 0).buffers().drain(..) {
             debug!("vulkan block: launching full buffer");
 
-            let mut set_builder = PersistentDescriptorSet::start(layout.clone());
-            set_builder.add_buffer(m.buffer.clone())?;
-            let set = set_builder.build()?;
+            let set = PersistentDescriptorSet::new(
+                layout.clone(),
+                [WriteDescriptorSet::buffer(0, m.buffer.clone())],
+            )
+            .unwrap();
 
             let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
             if m.used_bytes as u32 / 4 % 64 > 0 {
