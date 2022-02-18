@@ -7,8 +7,8 @@ use futuresdr::blocks::CopyRand;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::buffer::circular::Circular;
+use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::Flowgraph;
@@ -21,7 +21,7 @@ fn connect(
     dst: usize,
     dst_port: &'static str,
     slab: bool,
-    min_bytes: usize
+    min_bytes: usize,
 ) -> Result<()> {
     if slab {
         fg.connect_stream_with_type(src, src_port, dst, dst_port, Slab::with_size(min_bytes))
@@ -97,7 +97,9 @@ fn main() -> Result<()> {
     let pipes: u32 = matches.value_of_t("pipes").context("no pipe")?;
     let stages: u32 = matches.value_of_t("stages").context("no stages")?;
     let samples: usize = matches.value_of_t("samples").context("no samples")?;
-    let buffer_size: usize = matches.value_of_t("buffer_size").context("no buffer_size")?;
+    let buffer_size: usize = matches
+        .value_of_t("buffer_size")
+        .context("no buffer_size")?;
     let scheduler: String = matches.value_of_t("scheduler").context("no scheduler")?;
     let slab: bool = matches.is_present("slab");
 

@@ -154,7 +154,8 @@ impl AsyncKernel for Vulkan {
             let set = PersistentDescriptorSet::new(
                 layout.clone(),
                 [WriteDescriptorSet::buffer(0, m.buffer.clone())],
-            ).unwrap();
+            )
+            .unwrap();
 
             let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
             if m.used_bytes as u32 / 4 % 64 > 0 {
