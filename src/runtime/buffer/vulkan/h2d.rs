@@ -1,7 +1,6 @@
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use vulkano::buffer::BufferAccess;
 
@@ -49,7 +48,7 @@ impl BufferBuilder for H2D {
 pub struct WriterH2D {
     buffer: Option<CurrentBuffer>,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
+    outbound: Arc<Mutex<Vec<BufferFull>>>,
     item_size: usize,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
@@ -75,7 +74,7 @@ impl WriterH2D {
         BufferWriter::Host(Box::new(WriterH2D {
             buffer: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(VecDeque::new())),
+            outbound: Arc::new(Mutex::new(Vec::new())),
             item_size,
             finished: false,
             writer_inbox,
@@ -148,7 +147,7 @@ impl BufferWriterHost for WriterH2D {
         buffer.offset += amount;
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
-            self.outbound.lock().unwrap().push_back(BufferFull {
+            self.outbound.lock().unwrap().push(BufferFull {
                 buffer,
                 used_bytes: capacity * self.item_size,
             });
@@ -176,7 +175,7 @@ impl BufferWriterHost for WriterH2D {
 
         if let Some(CurrentBuffer { offset, buffer }) = self.buffer.take() {
             if offset > 0 {
-                self.outbound.lock().unwrap().push_back(BufferFull {
+                self.outbound.lock().unwrap().push(BufferFull {
                     buffer: buffer.buffer,
                     used_bytes: offset * self.item_size,
                 });
@@ -207,7 +206,7 @@ unsafe impl Send for WriterH2D {}
 // ====================== READER ============================
 #[derive(Debug)]
 pub struct ReaderH2D {
-    inbound: Arc<Mutex<VecDeque<BufferFull>>>,
+    inbound: Arc<Mutex<Vec<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     writer_output_id: usize,
     writer_inbox: Sender<AsyncMessage>,
