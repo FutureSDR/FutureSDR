@@ -10,3 +10,11 @@ num-complex = "0.4.0"
 
 [build-dependencies]
 rustc_version = "0.4.0"
+
+[dev-dependencies]
+criterion = { version = "0.3.5", features = [ "html_reports" ] }
+rand = "0.8.4"
+
+[[bench]]
+name = "benchmarks"
+harness = false
