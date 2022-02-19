@@ -28,7 +28,8 @@ pub trait TapsAccessor: Send {
 
     /// Gets the `index`th tap.
     ///
-    /// Safety: The invariant `index < num_taps()` must be upheld.
+    /// # Safety
+    /// The invariant `index < num_taps()` must be upheld.
     unsafe fn get(&self, index: usize) -> Self::TapType;
 }
 
