@@ -103,24 +103,52 @@ impl<SampleType, TapsType: TapsAccessor> NonResamplingFirKernel<SampleType, Taps
     }
 }
 
+/// Internal helper function to abstract away everything but the core computation.
+/// Note that this function gets heavily inlined, so there is no (runtime) performance
+/// overhead.
+fn fir_kernel_core<
+    SampleType,
+    TapsType: TapsAccessor,
+    InitFn: Fn() -> SampleType,
+    MacFn: Fn(SampleType, SampleType, TapsType::TapType) -> SampleType,
+>(
+    taps: &TapsType,
+    i: &[SampleType],
+    o: &mut [SampleType],
+    init: InitFn,
+    mac: MacFn,
+) -> (usize, usize)
+where
+    SampleType: Copy,
+    TapsType::TapType: Copy,
+{
+    let n = std::cmp::min((i.len() + 1).saturating_sub(taps.num_taps()), o.len());
+
+    unsafe {
+        for k in 0..n {
+            let mut sum = init();
+            for t in 0..taps.num_taps() {
+                sum = mac(sum, *i.get_unchecked(k + t), taps.get(t));
+            }
+            *o.get_unchecked_mut(k) = sum;
+        }
+    }
+
+    (n, n)
+}
+
 #[cfg(not(RUSTC_IS_STABLE))]
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
-        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
-
-        unsafe {
-            for k in 0..n {
-                let mut sum = 0.0;
-                for t in 0..self.taps.num_taps() {
-                    sum = fadd_fast(sum, fmul_fast(*i.get_unchecked(k + t), self.taps.get(t)));
-                }
-                *o.get_unchecked_mut(k) = sum;
-            }
-        }
-
-        (n, n)
+        fir_kernel_core(
+            &self.taps,
+            i,
+            o,
+            || 0.0,
+            |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
+        )
     }
 
     fn num_taps(&self) -> usize {
@@ -133,19 +161,13 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
-        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
-
-        unsafe {
-            for k in 0..n {
-                let mut sum = 0.0;
-                for t in 0..self.taps.num_taps() {
-                    sum += i.get_unchecked(k + t) * self.taps.get(t);
-                }
-                *o.get_unchecked_mut(k) = sum;
-            }
-        }
-
-        (n, n)
+        fir_kernel_core(
+            &self.taps,
+            i,
+            o,
+            || 0.0,
+            |accum, sample, tap| accum + sample * tap,
+        )
     }
 
     fn num_taps(&self) -> usize {
@@ -158,30 +180,16 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
     fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
-        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
-
-        unsafe {
-            for k in 0..n {
-                let mut sum_re = 0.0;
-                let mut sum_im = 0.0;
-                for t in 0..self.taps.num_taps() {
-                    sum_re = fadd_fast(
-                        sum_re,
-                        fmul_fast(i.get_unchecked(k + t).re, self.taps.get(t)),
-                    );
-                    sum_im = fadd_fast(
-                        sum_im,
-                        fmul_fast(i.get_unchecked(k + t).im, self.taps.get(t)),
-                    );
-                }
-                *o.get_unchecked_mut(k) = Complex {
-                    re: sum_re,
-                    im: sum_im,
-                };
-            }
-        }
-
-        (n, n)
+        fir_kernel_core(
+            &self.taps,
+            i,
+            o,
+            || Complex { re: 0.0, im: 0.0 },
+            |accum, sample, tap| Complex {
+                re: unsafe { fadd_fast(accum.re, fmul_fast(sample.re, tap)) },
+                im: unsafe { fadd_fast(accum.im, fmul_fast(sample.im, tap)) },
+            },
+        )
     }
 
     fn num_taps(&self) -> usize {
@@ -194,24 +202,16 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
     fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
-        let n = std::cmp::min((i.len() + 1).saturating_sub(self.taps.num_taps()), o.len());
-
-        unsafe {
-            for k in 0..n {
-                let mut sum_re = 0.0;
-                let mut sum_im = 0.0;
-                for t in 0..self.taps.num_taps() {
-                    sum_re += i.get_unchecked(k + t).re * self.taps.get(t);
-                    sum_im += i.get_unchecked(k + t).im * self.taps.get(t);
-                }
-                *o.get_unchecked_mut(k) = Complex {
-                    re: sum_re,
-                    im: sum_im,
-                };
-            }
-        }
-
-        (n, n)
+        fir_kernel_core(
+            &self.taps,
+            i,
+            o,
+            || Complex { re: 0.0, im: 0.0 },
+            |accum, sample, tap| Complex {
+                re: accum.re + sample.re * tap,
+                im: accum.im + sample.im * tap,
+            },
+        )
     }
 
     fn num_taps(&self) -> usize {
