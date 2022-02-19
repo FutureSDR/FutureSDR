@@ -81,6 +81,7 @@ impl SubSourceBuilder {
         }
     }
 
+    #[must_use]
     pub fn address(mut self, address: &str) -> SubSourceBuilder {
         self.address = address.to_string();
         self

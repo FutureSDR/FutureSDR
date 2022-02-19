@@ -12,26 +12,29 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct Head {
-    item_size: usize,
+pub struct Head<T: Send + 'static> {
     n_items: u64,
+    _type: std::marker::PhantomData<T>,
 }
-impl Head {
-    pub fn new(item_size: usize, n_items: u64) -> Block {
+impl<T: Send + 'static> Head<T> {
+    pub fn new(n_items: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("Head").build(),
             StreamIoBuilder::new()
-                .add_input("in", item_size)
-                .add_output("out", item_size)
+                .add_input("in", std::mem::size_of::<T>())
+                .add_output("out", std::mem::size_of::<T>())
                 .build(),
             MessageIoBuilder::new().build(),
-            Head { item_size, n_items },
+            Head::<T> {
+                n_items,
+                _type: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl AsyncKernel for Head {
+impl<T: Send + 'static> AsyncKernel for Head<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -41,15 +44,14 @@ impl AsyncKernel for Head {
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
         let o = sio.output(0).slice::<u8>();
-        debug_assert_eq!(i.len() % self.item_size, 0);
-        debug_assert_eq!(o.len() % self.item_size, 0);
+        let item_size = std::mem::size_of::<T>();
 
-        let mut m = cmp::min(self.n_items as usize, i.len() / self.item_size);
-        m = cmp::min(m, o.len() / self.item_size);
+        let mut m = cmp::min(self.n_items as usize, i.len() / item_size);
+        m = cmp::min(m, o.len() / item_size);
 
         if m > 0 {
             unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m * self.item_size);
+                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m * item_size);
             }
 
             self.n_items -= m as u64;
@@ -61,20 +63,5 @@ impl AsyncKernel for Head {
         }
 
         Ok(())
-    }
-}
-
-pub struct HeadBuilder {
-    n_items: u64,
-    item_size: usize,
-}
-
-impl HeadBuilder {
-    pub fn new(item_size: usize, n_items: u64) -> HeadBuilder {
-        HeadBuilder { n_items, item_size }
-    }
-
-    pub fn build(&mut self) -> Block {
-        Head::new(self.item_size, self.n_items)
     }
 }

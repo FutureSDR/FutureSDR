@@ -1,7 +1,7 @@
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::CopyBuilder;
-use futuresdr::blocks::HeadBuilder;
-use futuresdr::blocks::NullSourceBuilder;
+use futuresdr::blocks::Copy;
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::runtime::scheduler::FlowScheduler;
@@ -12,9 +12,9 @@ use futuresdr::runtime::Runtime;
 fn flowgraph_flow() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let copy = CopyBuilder::new(4).build();
-    let head = HeadBuilder::new(4, 1_000_000).build();
-    let null_source = NullSourceBuilder::new(4).build();
+    let copy = Copy::<f32>::new();
+    let head = Head::<f32>::new(1_000_000);
+    let null_source = NullSource::<f32>::new();
     let vect_sink = VectorSinkBuilder::<f32>::new().build();
 
     let copy = fg.add_block(copy);

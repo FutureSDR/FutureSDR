@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.9"
+version = "0.0.12"
 authors = ["Bastian Bloessl <mail@bastibl.net>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -17,15 +17,23 @@ members = [
     "pmt",
     "frontend",
     "examples/android",
+    "examples/android-hw",
     "examples/audio",
+    "examples/cw",
+    "examples/fm-receiver",
     "examples/logging",
+    "examples/spectrum",
     "examples/wasm",
+    "examples/wgpu",
     "examples/zeromq",
+    "perf/buffer_rand",
+    "perf/buffer_size",
     "perf/fir",
     "perf/fir_latency",
     "perf/msg",
     "perf/null_rand",
     "perf/null_rand_latency",
+    "perf/zynq",
 ]
 
 [features]
@@ -66,26 +74,32 @@ required-features = ["tpb_scheduler"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.52"
-clap = "2.34"
 config = "0.11.0"
 dirs = "4.0"
 futures = "0.3.18"
 futures-lite = "1.10.0"
 futuresdr-pmt = { path = "pmt", version = "0.0.2" }
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_off"] }
+log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_off"] }
 lttng-ust = { version = "0.1.0", optional = true}
 num-complex = "0.4.0"
 num_cpus = "1.13.0"
 once_cell = "1.5.2"
 rand = "0.8.0"
+rustfft = "6.0.1"
 slab = "0.4.4"
 spin = "0.9.0"
-serde = { version = "1.0.131", features = ["derive"] }
-zmq = {version = "0.9", optional = true}
+serde = { version = "1.0", features = ["derive"] }
+zmq = { version = "0.9", optional = true}
+wgpu = { git = "https://github.com/gfx-rs/wgpu.git", branch = "master", version = "0.12.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-rs-async-executor = "0.9.0"
 console_log = "0.2.0"
+cpal = { version = "0.13.4", optional = true, features = ['wasm-bindgen'] }
+futuresdr-frontend = { path = "frontend", version = "0.0.1" }
+getrandom = { version = "0.2.3", features = ["js"] }
+rodio = { version = "0.15.0", default-features = false, optional = true }
+wasm-bindgen = "0.2.79"
+wasm-bindgen-futures = "0.4.28"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"
@@ -94,26 +108,22 @@ async-io = "1.6.0"
 async-lock = "2.4.0"
 async-net = "1.5.0"
 async-task = "4.0.3"
-async-tungstenite = "0.16.1"
+async-tungstenite = "0.17.0"
+axum = "0.4.4"
 blocking = "1.1"
 concurrent-queue = "1.2.2"
 core_affinity = "0.5.10"
 cpal = { version = "0.13.4", optional = true }
-libc = "0.2.109"
-rocket = { version = "0.5.0-rc.1", features = ["json"] }
-rocket_cors = { version = "0.5.2", git = "https://github.com/lawliet89/rocket_cors", rev = "a062933c1b109949c618b0dba296ac33e4b1a105" }
-rodio = { version = "0.14.0", optional = true }
-rustfft = "6.0.1"
-tungstenite = "0.16.0"
-vulkano = { version = "0.27.1", optional = true }
-vulkano-shaders = { version = "0.27.1", optional = true }
-tokio = { version = "1.14", features = ["rt"] }
-
-[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
+libc = "0.2.113"
+rodio = { version = "0.15.0", optional = true }
 soapysdr = { version = "0.3.1", optional = true }
+tokio = { version = "1.14", features = ["rt"] }
+tower-http = { version = "0.2.0", features = ["add-extension", "cors", "fs"] }
+vulkano = { version = "0.28.0", optional = true }
+vulkano-shaders = { version = "0.28.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-xilinx-dma = { version = "0.0.6", optional = true }
+xilinx-dma = { version = "0.0.7", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.10.1"
@@ -123,6 +133,7 @@ openssl-sys = { version = "0.9.71", features = ["vendored"] }
 winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "handleapi", "memoryapi"] }
 
 [build-dependencies]
+rustc_version = "0.4.0"
 lttng-ust-generate = { version = "0.1.1", optional = true }
 
 [dev-dependencies]

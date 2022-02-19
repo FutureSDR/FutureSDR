@@ -18,6 +18,6 @@ mod scheduler;
 pub use scheduler::Scheduler;
 
 #[cfg(target_arch = "wasm32")]
-mod wasm;
+pub mod wasm;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::WasmScheduler;

@@ -136,6 +136,7 @@ impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
             self.conn = Some(WsStream {
                 inner: async_tungstenite::accept_async(Async::new(stream)?).await?,
             });
+            io.call_again = true;
         } else {
             if let WebsocketSinkMode::FixedDropping(block_size) = &self.mode {
                 let n = items / block_size;
@@ -158,7 +159,7 @@ impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
-            format!("127.0.0.1:{}", self.port).parse::<SocketAddr>()?,
+            format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));
         Ok(())
     }
@@ -179,6 +180,7 @@ impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
         }
     }
 
+    #[must_use]
     pub fn mode(mut self, mode: WebsocketSinkMode) -> WebsocketSinkBuilder<T> {
         self.mode = mode;
         self

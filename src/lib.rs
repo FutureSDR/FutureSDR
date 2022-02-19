@@ -1,6 +1,6 @@
 #![recursion_limit = "512"]
 #![allow(clippy::new_ret_no_self)]
-#![feature(core_intrinsics)]
+#![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
 
 //! An experimental asynchronous SDR runtime for heterogeneous architectures that is:
 //! * **Extensible**: custom buffers (supporting accelerators like GPUs and FPGAs) and custom schedulers (optimized for your application).
@@ -38,10 +38,15 @@ pub mod blocks;
 pub mod runtime;
 
 // re-exports
-#[macro_use]
-pub extern crate log;
+#[cfg(not(target_arch = "wasm32"))]
+pub extern crate async_io;
+#[cfg(not(target_arch = "wasm32"))]
+pub extern crate async_net;
 #[macro_use]
 pub extern crate async_trait;
+pub extern crate futures_lite;
+#[macro_use]
+pub extern crate log;
 
 pub use anyhow;
 pub use num_complex;

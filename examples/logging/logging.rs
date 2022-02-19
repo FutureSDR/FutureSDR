@@ -11,10 +11,7 @@ use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
     let mut builder = Builder::from_default_env();
-    builder
-        .filter(Some("rocket"), LevelFilter::Off)
-        .filter(None, LevelFilter::Info)
-        .init();
+    builder.filter(None, LevelFilter::Info).init();
 
     let mut fg = Flowgraph::new();
 

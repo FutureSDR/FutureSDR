@@ -1,47 +1,58 @@
+use futures::StreamExt;
+use gloo_render::request_animation_frame;
+use gloo_render::AnimationFrame;
+use reqwasm::websocket::futures::WebSocket;
+use reqwasm::websocket::Message;
 use std::convert::TryInto;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlCanvasElement;
 use web_sys::WebGlBuffer;
 use web_sys::WebGlProgram;
 use web_sys::WebGlRenderingContext as GL;
 use web_sys::WebGlTexture;
-use yew::format::Binary;
 use yew::prelude::*;
-use yew::services::websocket::{WebSocketStatus, WebSocketTask};
-use yew::services::ConsoleService;
-use yew::services::WebSocketService;
-use yew::services::{RenderService, Task};
-use yew::{html, Component, ComponentLink, Html, NodeRef, ShouldRender};
+
+#[wasm_bindgen]
+extern "C" {
+    fn get_samples() -> Vec<f32>;
+}
+
+#[wasm_bindgen]
+pub fn add_freq(id: String, url: String, min: f32, max: f32) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_with_props_in_element::<Frequency>(div, Props { url, min, max });
+}
 
 pub enum Msg {
-    Data(Binary),
-    Status(WebSocketStatus),
+    Data(Vec<u8>),
+    Status(String),
     Render(f64),
 }
 
 #[derive(Clone, Properties, Default, PartialEq)]
 pub struct Props {
     pub url: String,
+    pub min: f32,
+    pub max: f32,
 }
 
 pub struct Frequency {
-    link: ComponentLink<Self>,
-    props: Props,
     canvas_ref: NodeRef,
     gl: Option<GL>,
-    _render_loop: Option<Box<dyn Task>>,
+    _render_loop: Option<AnimationFrame>,
     last_data: [f32; 2048],
     vertex_buffer: Option<WebGlBuffer>,
     prog: Option<WebGlProgram>,
     num_indices: i32,
     texture_offset: i32,
     texture: Option<WebGlTexture>,
-    _websocket_task: WebSocketTask,
+    uses_websocket: bool,
 }
 
 const HEIGHT: usize = 256;
-const MIN: f32 = 100.0;
-const MAX: f32 = 185.0;
 const CANVAS_HEIGHT: usize = 256;
 const CANVAS_WIDTH: usize = 256;
 
@@ -49,15 +60,30 @@ impl Component for Frequency {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let cb = link.callback(Msg::Data);
-        let notification = link.callback(Msg::Status);
-        let _websocket_task =
-            WebSocketService::connect_binary(&props.url, cb, notification).unwrap();
+    fn create(ctx: &Context<Self>) -> Self {
+        let uses_websocket = if !ctx.props().url.is_empty() {
+            let link = ctx.link().clone();
+            let url = ctx.props().url.clone();
+
+            spawn_local(async move {
+                let websocket = WebSocket::open(&url).unwrap();
+                let (_, mut rx) = websocket.split();
+
+                while let Some(msg) = rx.next().await {
+                    match msg {
+                        Ok(Message::Text(s)) => link.send_message(Msg::Status(s)),
+                        Ok(Message::Bytes(v)) => link.send_message(Msg::Data(v)),
+                        _ => break,
+                    }
+                }
+            });
+
+            true
+        } else {
+            false
+        };
 
         Self {
-            link,
-            props,
             canvas_ref: NodeRef::default(),
             texture: None,
             vertex_buffer: None,
@@ -67,11 +93,11 @@ impl Component for Frequency {
             prog: None,
             _render_loop: None,
             last_data: [0f32; 2048],
-            _websocket_task,
+            uses_websocket,
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         let canvas = self.canvas_ref.cast::<HtmlCanvasElement>().unwrap();
 
         let gl: GL = canvas
@@ -103,7 +129,7 @@ varying float power;
 
 void main()
 {
-    vec4 sample = texture2D(frequency_data, vec2(gTexCoord0.x + 0.5, gTexCoord0.y + yoffset));
+    vec4 sample = texture2D(frequency_data, vec2(gTexCoord0.x, gTexCoord0.y + yoffset));
     gl_Position = vec4((gTexCoord0 - 0.5) * 2.0, 0, 1);
 
     power = sample.a;
@@ -211,45 +237,39 @@ void main()
         self.gl = Some(gl);
 
         if first_render {
-            let render_frame = self.link.callback(Msg::Render);
-            let handle = RenderService::request_animation_frame(render_frame);
-            self._render_loop = Some(Box::new(handle));
+            let handle = {
+                let link = ctx.link().clone();
+                request_animation_frame(move |time| link.send_message(Msg::Render(time)))
+            };
+            self._render_loop = Some(handle);
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Render(timestamp) => {
-                self.render_gl(timestamp);
+                if !self.uses_websocket {
+                    self.last_data = get_samples().try_into().expect("data has wrong size");
+                }
+                self.render_gl(timestamp, ctx);
             }
             Msg::Data(b) => {
-                if let Ok(b) = b {
-                    let v;
-                    unsafe {
-                        let s = b.len() / 4;
-                        let p = b.as_ptr();
-                        v = std::slice::from_raw_parts(p as *const f32, s);
-                    }
-                    self.last_data = v.try_into().expect("data has wrong size");
+                let v;
+                unsafe {
+                    let s = b.len() / 4;
+                    let p = b.as_ptr();
+                    v = std::slice::from_raw_parts(p as *const f32, s);
                 }
+                self.last_data = v.try_into().expect("data has wrong size");
             }
             Msg::Status(s) => {
-                ConsoleService::log(&format!("socket status {:?}", &s));
+                gloo_console::log!(format!("socket status {:?}", &s));
             }
         }
         false
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <canvas ref={self.canvas_ref.clone()} />
         }
@@ -257,16 +277,21 @@ void main()
 }
 
 impl Frequency {
-    fn render_gl(&mut self, _timestamp: f64) {
+    fn render_gl(&mut self, _timestamp: f64, ctx: &Context<Self>) {
         let gl = self.gl.as_ref().unwrap();
 
         gl.bind_texture(GL::TEXTURE_2D, self.texture.as_ref());
         gl.pixel_storei(GL::UNPACK_ALIGNMENT, 1);
 
+        let props = ctx.props();
+
         let data: Vec<u8> = self
             .last_data
             .iter()
-            .map(|v| ((v.clamp(MIN, MAX) - MIN) / (MAX - MIN) * 255.0) as u8)
+            .map(|v| {
+                ((v.clamp(props.min, props.max) - props.min) / (props.max - props.min) * 255.0)
+                    as u8
+            })
             .collect();
 
         gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(
@@ -297,8 +322,10 @@ impl Frequency {
 
         self.texture_offset = (self.texture_offset + 1) % HEIGHT as i32;
 
-        let render_frame = self.link.callback(Msg::Render);
-        let handle = RenderService::request_animation_frame(render_frame);
-        self._render_loop = Some(Box::new(handle));
+        let handle = {
+            let link = ctx.link().clone();
+            request_animation_frame(move |time| link.send_message(Msg::Render(time)))
+        };
+        self._render_loop = Some(handle);
     }
 }

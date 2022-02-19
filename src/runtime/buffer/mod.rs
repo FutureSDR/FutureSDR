@@ -29,6 +29,10 @@ pub mod slab;
 #[cfg(feature = "vulkan")]
 pub mod vulkan;
 
+// ==================== WGPU =======================
+#[cfg(feature = "wgpu")]
+pub mod wgpu;
+
 // // -==================== ZYNQ ========================
 #[cfg(feature = "zynq")]
 pub mod zynq;

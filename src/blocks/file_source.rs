@@ -11,34 +11,31 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct FileSource {
-    // item_size: usize,
+pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,
-    file_size: usize,
-    n_produced: usize,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl FileSource {
-    pub fn new(item_size: usize, file_name: String) -> Block {
-        // todo
-        debug_assert_eq!(item_size, 1);
+impl<T: Send + 'static> FileSource<T> {
+    pub fn new<S: Into<String>>(file_name: S) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("FileSource").build(),
-            StreamIoBuilder::new().add_output("out", item_size).build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            FileSource {
-                file_name,
-                file_size: 0,
+            FileSource::<T> {
+                file_name: file_name.into(),
                 file: None,
-                n_produced: 0,
+                _type: std::marker::PhantomData,
             },
         )
     }
 }
 
 #[async_trait]
-impl AsyncKernel for FileSource {
+impl<T: Send + 'static> AsyncKernel for FileSource<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -47,26 +44,25 @@ impl AsyncKernel for FileSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<u8>();
+        let item_size = std::mem::size_of::<T>();
 
-        let n_read = std::cmp::min(out.len(), self.file_size - self.n_produced);
+        let mut i = 0;
 
-        match self
-            .file
-            .as_mut()
-            .unwrap()
-            .read_exact(&mut out[..n_read])
-            .await
-        {
-            Ok(_) => {
-                self.n_produced += n_read;
-                sio.output(0).produce(n_read);
+        while i < out.len() {
+            match self.file.as_mut().unwrap().read(&mut out[i..]).await {
+                Ok(0) => {
+                    io.finished = true;
+                    break;
+                }
+                Ok(written) => {
+                    i += written;
+                }
+                Err(e) => panic!("FileSource: Error reading from file: {:?}", e),
             }
-            Err(_) => panic!("Error while reading file"),
         }
 
-        if self.file_size == self.n_produced {
-            io.finished = true;
-        }
+        sio.output(0).produce(i / item_size);
+
         Ok(())
     }
 
@@ -76,38 +72,7 @@ impl AsyncKernel for FileSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let metadata = std::fs::metadata(self.file_name.clone()).unwrap();
-        self.file_size = metadata.len() as usize;
-
         self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
         Ok(())
-    }
-
-    async fn deinit(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        debug!("file source: n_produced {}", self.n_produced);
-        Ok(())
-    }
-}
-
-pub struct FileSourceBuilder {
-    item_size: usize,
-    file_name: String,
-}
-
-impl FileSourceBuilder {
-    pub fn new(item_size: usize, file_name: String) -> FileSourceBuilder {
-        FileSourceBuilder {
-            item_size,
-            file_name,
-        }
-    }
-
-    pub fn build(self) -> Block {
-        FileSource::new(self.item_size, self.file_name)
     }
 }

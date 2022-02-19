@@ -1,3 +1,6 @@
 Cargo.lock
 .cargo
 target
+node_modules
+perf-data
+package-lock.json

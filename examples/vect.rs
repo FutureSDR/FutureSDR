@@ -2,7 +2,7 @@ use std::iter::repeat_with;
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::blocks::CopyBuilder;
+use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
@@ -26,7 +26,7 @@ fn main() -> Result<()> {
 
     let mut prev = 0;
     for i in 0..n_copy {
-        let t = fg.add_block(CopyBuilder::new(4).build());
+        let t = fg.add_block(Copy::<f32>::new());
 
         if i == 0 {
             fg.connect_stream(src, "out", t, "in")?;

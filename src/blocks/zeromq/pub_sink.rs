@@ -84,6 +84,7 @@ impl PubSinkBuilder {
         }
     }
 
+    #[must_use]
     pub fn address(mut self, address: &str) -> PubSinkBuilder {
         self.address = address.to_string();
         self

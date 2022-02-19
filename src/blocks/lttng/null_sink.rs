@@ -13,25 +13,27 @@ use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
-pub struct NullSink {
-    item_size: usize,
+pub struct NullSink<T: Send + 'static> {
     n_received: u64,
     probe_granularity: u64,
     id: Option<u64>,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl NullSink {
+impl<T: Send + 'static> NullSink<T> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(item_size: usize, probe_granularity: u64) -> Block {
+    pub fn new(probe_granularity: u64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("LTTngNullSink").build(),
-            StreamIoBuilder::new().add_input("in", item_size).build(),
+            StreamIoBuilder::new()
+                .add_input("in", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            NullSink {
-                item_size,
+            NullSink::<T> {
                 n_received: 0,
                 probe_granularity,
                 id: None,
+                _type: std::marker::PhantomData,
             },
         )
     }
@@ -42,7 +44,7 @@ impl NullSink {
 }
 
 #[async_trait]
-impl AsyncKernel for NullSink {
+impl<T: Send + 'static> AsyncKernel for NullSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
@@ -62,11 +64,11 @@ impl AsyncKernel for NullSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<u8>();
-        debug_assert_eq!(i.len() % self.item_size, 0);
+        let item_size = std::mem::size_of::<T>();
 
         let before = self.n_received / self.probe_granularity;
 
-        let n = i.len() / self.item_size;
+        let n = i.len() / item_size;
         if n > 0 {
             self.n_received += n as u64;
             sio.input(0).consume(n);

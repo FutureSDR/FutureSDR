@@ -1,4 +1,5 @@
-.PHONY: build serve
+.PHONY: build
 
 build:
-	wasm-pack build --target web --out-name wasm --out-dir ./dist
+	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name futuresdr --out-dir ./dist
+	./gulp

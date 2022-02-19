@@ -1,5 +1,7 @@
-use wasm::run_fg;
+use futuresdr::anyhow::Result;
 
-fn main() {
-    run_fg();
+use wasm::run;
+
+fn main() -> Result<()> {
+    async_io::block_on(run())
 }

@@ -15,7 +15,7 @@ void main()
     float x = texCoord.x;
     float y = texCoord.y + yoffset;
 
-    vec4 sample = texture2D(frequencyData, vec2(x+0.5, y));
+    vec4 sample = texture2D(frequencyData, vec2(x, y));
     float k = pow(sample.a, 2.0);
     vec4 color = mix(vec4(0, 0, 0, 1), foregroundColor, k);
 

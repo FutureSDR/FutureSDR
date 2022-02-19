@@ -8,5 +8,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../.." }
-wasm-bindgen = "0.2.74"
 rand = "0.8.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = { version = "0.2.0", features = ["color"] }
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2.79"
+wasm-bindgen-futures = "0.4.28"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+async-io = "1.6.0"

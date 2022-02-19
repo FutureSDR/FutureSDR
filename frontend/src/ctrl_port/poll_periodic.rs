@@ -1,17 +1,14 @@
-use anyhow::{Error, Result};
-use http::request::Request;
-use http::response::Response;
+use gloo_timers::future::sleep;
+use reqwasm::http::Request;
 use std::time::Duration;
-use yew::format::Nothing;
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask};
-use yew::services::timeout::{TimeoutService, TimeoutTask};
-use yew::services::ConsoleService;
+
+use futuresdr_pmt::Pmt;
 
 pub enum Msg {
     Timeout,
     Error,
-    Update(String),
+    Reply(String),
 }
 
 #[derive(Clone, Properties, Default, PartialEq)]
@@ -19,16 +16,11 @@ pub struct Props {
     pub url: String,
     pub block: u64,
     pub callback: u64,
-    pub interval: f32,
+    pub interval_secs: f32,
 }
 
 pub struct PollPeriodic {
-    link: ComponentLink<Self>,
-    props: Props,
-    value: String,
-    error: bool,
-    fetch_task: Option<FetchTask>,
-    timeout_task: Option<TimeoutTask>,
+    status: String,
 }
 
 impl PollPeriodic {
@@ -39,27 +31,25 @@ impl PollPeriodic {
         )
     }
 
-    fn fetch(props: &Props, link: &ComponentLink<Self>) -> Option<FetchTask> {
-        if let Ok(request) = Request::get(&Self::endpoint(props)).body(Nothing) {
-            if let Ok(t) = FetchService::fetch(
-                request,
-                link.callback(|response: Response<Result<String, Error>>| {
-                    if response.status().is_success() {
-                        Msg::Update(response.into_body().unwrap())
-                    } else {
-                        Msg::Error
-                    }
-                }),
-            ) {
-                Some(t)
-            } else {
-                ConsoleService::debug("creating fetch task failed");
-                None
+    fn callback(ctx: &Context<Self>) {
+        let endpoint = Self::endpoint(ctx.props());
+        gloo_console::log!("poll periodic: sending request");
+
+        ctx.link().send_future(async move {
+            let response = Request::post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&Pmt::Null).unwrap())
+                .send()
+                .await;
+
+            if let Ok(response) = response {
+                if response.ok() {
+                    return Msg::Reply(response.text().await.unwrap());
+                }
             }
-        } else {
-            ConsoleService::debug("creating request failed");
-            None
-        }
+
+            Msg::Error
+        });
     }
 }
 
@@ -67,75 +57,43 @@ impl Component for PollPeriodic {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let fetch_task = Self::fetch(&props, &link);
-        let error = fetch_task.is_none();
-        let value = if error {
-            "Error".to_string()
-        } else {
-            "fetching...".to_string()
-        };
+    fn create(ctx: &Context<Self>) -> Self {
+        let secs = ctx.props().interval_secs;
+        ctx.link().send_future(async move {
+            sleep(Duration::from_secs_f32(secs)).await;
+            Msg::Timeout
+        });
 
         Self {
-            link,
-            props,
-            value,
-            error,
-            fetch_task,
-            timeout_task: None,
+            status: "init".to_string(),
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Timeout => {
-                self.timeout_task = None;
-                self.fetch_task = Self::fetch(&self.props, &self.link);
-                self.error = self.fetch_task.is_none();
-                if self.error {
-                    self.value = "Error".to_string();
-                }
+                Self::callback(ctx);
+                self.status = "fetching".to_string();
             }
             Msg::Error => {
-                self.fetch_task = None;
-                self.timeout_task = None;
-                self.value = "Error".to_string();
-                self.error = true;
+                self.status = "Error".to_string();
             }
-            Msg::Update(s) => {
-                self.value = s;
-                self.fetch_task = None;
-                self.timeout_task = Some(TimeoutService::spawn(
-                    Duration::from_secs_f32(self.props.interval),
-                    self.link.callback(|_| Msg::Timeout),
-                ));
+            Msg::Reply(s) => {
+                self.status = s;
+
+                let secs = ctx.props().interval_secs;
+                ctx.link().send_future(async move {
+                    sleep(Duration::from_secs_f32(secs)).await;
+                    Msg::Timeout
+                });
             }
         };
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
-        let mut classes = "".to_string();
-        if self.fetch_task.is_some() {
-            classes.push_str(" fetching");
-        }
-        if self.timeout_task.is_some() {
-            classes.push_str(" waiting");
-        }
-        if self.error {
-            classes.push_str(" error");
-        }
+    fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
-            <span class={classes}>{ &self.value }</span>
+            <span>{ &self.status }</span>
         }
     }
 }

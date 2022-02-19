@@ -1,30 +1,38 @@
+use axum::extract::{Extension, Path};
+use axum::http::StatusCode;
+use axum::routing::{get, get_service, post};
+use axum::Json;
+use axum::Router;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::prelude::*;
-use rocket::fs::{relative, FileServer};
-use rocket::serde::json::Json;
-use rocket::{config::Shutdown, get, post, routes};
 use slab::Slab;
-use std::path::Path;
+use std::path;
+use tower_http::add_extension::AddExtensionLayer;
+use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 
 use crate::runtime::config;
 use crate::runtime::AsyncMessage;
 use crate::runtime::Pmt;
 
-fn routes() -> Vec<rocket::Route> {
-    routes![index, handler_id, handler_id_post]
+macro_rules! relative {
+    ($path:expr) => {
+        if cfg!(windows) {
+            concat!(env!("CARGO_MANIFEST_DIR"), "\\", $path)
+        } else {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/", $path)
+        }
+    };
 }
 
-#[get("/")]
-fn index(boxes: &rocket::State<Slab<Option<mpsc::Sender<AsyncMessage>>>>) -> String {
+async fn index(Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>) -> String {
     format!("number of Blocks {:?}", boxes.len())
 }
 
-#[get("/block/<blk>/call/<handler>")]
 async fn handler_id(
-    blk: usize,
-    handler: usize,
-    boxes: &rocket::State<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
+    Path((blk, handler)): Path<(usize, usize)>,
+    Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
 ) -> String {
     let mut b = match boxes.get(blk) {
         Some(Some(s)) => s.clone(),
@@ -46,12 +54,10 @@ async fn handler_id(
     format!("{:?}", ret)
 }
 
-#[post("/block/<blk>/call/<handler>", data = "<pmt>")]
 async fn handler_id_post(
-    blk: usize,
-    handler: usize,
-    pmt: Json<Pmt>,
-    boxes: &rocket::State<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
+    Path((blk, handler)): Path<(usize, usize)>,
+    Json(pmt): Json<Pmt>,
+    Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
 ) -> String {
     let mut b = match boxes.get(blk) {
         Some(Some(s)) => s.clone(),
@@ -62,7 +68,7 @@ async fn handler_id_post(
 
     b.send(AsyncMessage::Callback {
         port_id: handler,
-        data: pmt.into_inner(),
+        data: pmt,
         tx,
     })
     .await
@@ -73,21 +79,36 @@ async fn handler_id_post(
     format!("{:?}", ret)
 }
 
-pub fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>>) {
+pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>>) {
     if !config::config().ctrlport_enable {
         return;
     }
 
-    let addr = config::config().ctrlport_bind.unwrap();
+    let mut app = Router::new()
+        .route("/api/", get(index))
+        .route("/api/block/:blk/call/:handler/", get(handler_id))
+        .route("/api/block/:blk/call/:handler/", post(handler_id_post))
+        .layer(AddExtensionLayer::new(inboxes))
+        .layer(CorsLayer::permissive());
 
-    let mut config = rocket::config::Config::debug_default();
-    config.address = addr.ip();
-    config.port = addr.port();
-    config.shutdown = Shutdown {
-        ctrlc: false,
-        force: true,
-        ..Default::default()
+    let frontend = if let Some(ref p) = config::config().frontend_path {
+        Some(ServeDir::new(p))
+    } else if path::Path::new(relative!("frontend/dist")).is_dir() {
+        Some(ServeDir::new(relative!("frontend/dist")))
+    } else {
+        None
     };
+
+    if let Some(service) = frontend {
+        app = app.fallback(
+            get_service(service).handle_error(|error: std::io::Error| async move {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Unhandled internal error: {}", error),
+                )
+            }),
+        );
+    }
 
     std::thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -96,23 +117,11 @@ pub fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>>) {
             .unwrap();
 
         runtime.block_on(async move {
-            // You can also deserialize this
-            let cors = rocket_cors::CorsOptions::default().to_cors().unwrap();
-
-            let mut r = rocket::custom(config)
-                .manage(inboxes)
-                .mount("/api/", routes())
-                .attach(cors);
-
-            if let Some(ref p) = config::config().frontend_path {
-                r = r.mount("/", FileServer::from(p));
-            } else if Path::new(relative!("frontend/dist")).is_dir() {
-                r = r.mount("/", FileServer::from(relative!("frontend/dist")))
-            }
-
-            if let Err(e) = r.launch().await {
-                info!("rocket server failed to start");
-                info!("{:?}", e);
+            let addr = config::config().ctrlport_bind.unwrap();
+            if let Ok(s) = axum::Server::try_bind(&addr) {
+                s.serve(app.into_make_service()).await.unwrap();
+            } else {
+                warn!("CtrlPort address already in use");
             }
         });
     });

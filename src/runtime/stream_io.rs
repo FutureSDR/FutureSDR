@@ -231,12 +231,13 @@ impl StreamIoBuilder {
         }
     }
 
-    // adding ports can only be done here
+    #[must_use]
     pub fn add_input(mut self, name: &str, item_size: usize) -> StreamIoBuilder {
         self.inputs.push(StreamInput::new(name, item_size));
         self
     }
 
+    #[must_use]
     pub fn add_output(mut self, name: &str, item_size: usize) -> StreamIoBuilder {
         self.outputs.push(StreamOutput::new(name, item_size));
         self

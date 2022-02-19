@@ -121,12 +121,12 @@ impl BufferWriterHost for WriterH2D {
                     offset: 0,
                 });
             } else {
-                debug!("H2D writer called bytes, buff is none");
+                // debug!("H2D writer called bytes, buff is none");
                 return (std::ptr::null_mut::<u8>(), 0);
             }
         }
 
-        debug!("H2D writer called bytes, buff is some");
+        // debug!("H2D writer called bytes, buff is some");
         unsafe {
             let buffer = self.buffer.as_mut().unwrap();
             let capacity = buffer.buffer.buffer.size() as usize / self.item_size;
@@ -139,13 +139,11 @@ impl BufferWriterHost for WriterH2D {
     }
 
     fn produce(&mut self, amount: usize) {
-        debug!("H2D writer called produce {}", amount);
-
+        // debug!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
         let capacity = buffer.buffer.buffer.size() as usize / self.item_size;
 
         debug_assert!(amount + buffer.offset <= capacity);
-
         buffer.offset += amount;
         if buffer.offset == capacity {
             let buffer = self.buffer.take().unwrap().buffer.buffer;
@@ -217,7 +215,7 @@ pub struct ReaderH2D {
 
 impl ReaderH2D {
     pub fn submit(&mut self, buffer: BufferEmpty) {
-        debug!("H2D reader handling empty buffer");
+        // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
         let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
     }

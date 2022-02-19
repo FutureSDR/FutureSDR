@@ -44,16 +44,11 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> AsyncKernel for VectorS
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        loop {
-            let i = sio.input(0).slice::<T>();
-            if i.is_empty() {
-                break;
-            }
+        let i = sio.input(0).slice::<T>();
 
-            self.items.extend_from_slice(i);
+        self.items.extend_from_slice(i);
 
-            sio.input(0).consume(i.len());
-        }
+        sio.input(0).consume(i.len());
 
         if sio.input(0).finished() {
             io.finished = true;
@@ -76,6 +71,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSinkBuilder<T> {
         }
     }
 
+    #[must_use]
     pub fn init_capacity(mut self, n: usize) -> VectorSinkBuilder<T> {
         self.capacity = n;
         self

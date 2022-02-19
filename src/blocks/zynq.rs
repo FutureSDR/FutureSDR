@@ -1,7 +1,9 @@
+use std::marker::PhantomData;
+
 use xilinx_dma::AxiDmaAsync;
 use xilinx_dma::DmaBuffer;
 
-use crate::anyhow::{bail, Result};
+use crate::anyhow::Result;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
@@ -16,31 +18,46 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct Zynq {
+pub struct Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     dma_h2d: AxiDmaAsync,
     dma_d2h: AxiDmaAsync,
-    dma_buffs: (String, String),
-    buff_h2d: Option<BufferFull>,
-    buff_d2h: Option<BufferEmpty>,
-    read: u64,
+    dma_buffs: Vec<String>,
+    output_buffers: Vec<BufferEmpty>,
+    input_data: PhantomData<I>,
+    output_data: PhantomData<O>,
 }
 
-impl Zynq {
-    pub fn new(dma_h2d: String, dma_d2h: String, dma_buffs: (String, String)) -> Result<Block> {
+impl<I, O> Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
+    pub fn new<S: Into<String>>(
+        dma_h2d: String,
+        dma_d2h: String,
+        dma_buffs: Vec<S>,
+    ) -> Result<Block> {
+        assert!(dma_buffs.len() > 1);
+        let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
+
         Ok(Block::new_async(
             BlockMetaBuilder::new("Zynq").build(),
             StreamIoBuilder::new()
-                .add_input("in", 4)
-                .add_output("out", 4)
+                .add_input("in", std::mem::size_of::<I>())
+                .add_output("out", std::mem::size_of::<O>())
                 .build(),
-            MessageIoBuilder::<Zynq>::new().build(),
+            MessageIoBuilder::<Zynq<I, O>>::new().build(),
             Zynq {
                 dma_h2d: AxiDmaAsync::new(&dma_h2d)?,
                 dma_d2h: AxiDmaAsync::new(&dma_d2h)?,
                 dma_buffs,
-                buff_h2d: None,
-                buff_d2h: None,
-                read: 0,
+                output_buffers: Vec::new(),
+                input_data: PhantomData,
+                output_data: PhantomData,
             },
         ))
     }
@@ -57,20 +74,34 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl AsyncKernel for Zynq {
+impl<I, O> AsyncKernel for Zynq<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     async fn init(
         &mut self,
         sio: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        i(sio, 0).submit(BufferEmpty {
-            buffer: DmaBuffer::new(&self.dma_buffs.0)?,
-        });
+        let len = self.dma_buffs.len();
+        assert!(len > 1);
 
-        self.buff_d2h = Some(BufferEmpty {
-            buffer: DmaBuffer::new(&self.dma_buffs.1)?,
-        });
+        for n in self.dma_buffs[..len / 2].iter() {
+            self.output_buffers.push(BufferEmpty {
+                buffer: DmaBuffer::new(n)?,
+            });
+        }
+
+        for n in self.dma_buffs[len / 2..].iter() {
+            i(sio, 0).submit(BufferEmpty {
+                buffer: DmaBuffer::new(n)?,
+            });
+        }
+
+        self.dma_h2d.reset();
+        self.dma_d2h.reset();
 
         Ok(())
     }
@@ -82,48 +113,32 @@ impl AsyncKernel for Zynq {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for m in o(sio, 0).buffers().drain(..) {
-            debug!("zynq: message in output buff");
-            debug_assert!(self.buff_d2h.is_none());
+        self.output_buffers.extend(o(sio, 0).buffers());
 
-            self.buff_d2h = Some(m);
-        }
+        while !self.output_buffers.is_empty() {
+            if let Some(BufferFull {
+                buffer: inbuff,
+                used_bytes,
+            }) = i(sio, 0).get_buffer()
+            {
+                let outbuff = self.output_buffers.pop().unwrap().buffer;
 
-        for m in i(sio, 0).buffers().drain(..) {
-            debug!("zynq: message in input buff");
-            debug_assert!(self.buff_h2d.is_none());
+                self.dma_h2d.start_h2d(&inbuff, used_bytes).await.unwrap();
+                self.dma_d2h.start_d2h(&outbuff, used_bytes).await.unwrap();
+                debug!("dma transfers started (bytes: {})", used_bytes);
+                self.dma_d2h.wait_d2h().await.unwrap();
 
-            self.buff_h2d = Some(m);
-        }
-
-        if self.buff_h2d.is_some() && self.buff_d2h.is_some() {
-            match (self.buff_h2d.take(), self.buff_d2h.take()) {
-                (
-                    Some(BufferFull {
-                        buffer: inbuff,
-                        used_bytes,
-                    }),
-                    Some(BufferEmpty { buffer: outbuff }),
-                ) => {
-                    self.dma_h2d.start_h2d(&inbuff, used_bytes).await.unwrap();
-                    self.dma_d2h.start_d2h(&outbuff, used_bytes).await.unwrap();
-                    debug!("dma transfers started");
-                    self.dma_h2d.wait_h2d().await.unwrap();
-                    self.dma_d2h.wait_d2h().await.unwrap();
-                    self.read += (used_bytes / 4) as u64;
-                    debug!("dma transfers completed");
-                    i(sio, 0).submit(BufferEmpty { buffer: inbuff });
-                    o(sio, 0).submit(BufferFull {
-                        buffer: outbuff,
-                        used_bytes,
-                    });
-                }
-                _ => bail!("zynq failed to destructure buffers"),
+                i(sio, 0).submit(BufferEmpty { buffer: inbuff });
+                o(sio, 0).submit(BufferFull {
+                    buffer: outbuff,
+                    used_bytes,
+                });
+            } else {
+                break;
             }
         }
 
-        if sio.input(0).finished() && self.buff_h2d.is_none() {
-            info!("zynq stopped. read {}", self.read);
+        if sio.input(0).finished() && !i(sio, 0).buffer_available() {
             io.finished = true;
         }
 
@@ -131,22 +146,39 @@ impl AsyncKernel for Zynq {
     }
 }
 
-pub struct ZynqBuilder {
+pub struct ZynqBuilder<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
     dma_h2d: String,
     dma_d2h: String,
-    dma_buffs: (String, String),
+    dma_buffs: Vec<String>,
+    _in: PhantomData<I>,
+    _out: PhantomData<O>,
 }
 
-impl ZynqBuilder {
-    pub fn new(dma_h2d: &str, dma_d2h: &str, dma_buffs: (&str, &str)) -> ZynqBuilder {
+impl<I, O> ZynqBuilder<I, O>
+where
+    I: Send + 'static,
+    O: Send + 'static,
+{
+    pub fn new<S: Into<String>>(
+        dma_h2d: &str,
+        dma_d2h: &str,
+        dma_buffs: Vec<S>,
+    ) -> ZynqBuilder<I, O> {
+        let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
         ZynqBuilder {
             dma_h2d: dma_h2d.to_string(),
             dma_d2h: dma_d2h.to_string(),
-            dma_buffs: (dma_buffs.0.to_string(), dma_buffs.1.to_string()),
+            dma_buffs,
+            _in: PhantomData,
+            _out: PhantomData,
         }
     }
 
     pub fn build(self) -> Result<Block> {
-        Zynq::new(self.dma_h2d, self.dma_d2h, self.dma_buffs)
+        Zynq::<I, O>::new(self.dma_h2d, self.dma_d2h, self.dma_buffs)
     }
 }

@@ -8,11 +8,7 @@ use futures::future::Either;
 use futures::prelude::*;
 use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
-use wasm_rs_async_executor::single_threaded;
-#[cfg(target_arch = "wasm32")]
-use wasm_rs_async_executor::single_threaded::block_on;
-#[cfg(target_arch = "wasm32")]
-type Task<T> = single_threaded::TaskHandle<T>;
+type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
 use crate::anyhow::{Context, Result};
 use crate::runtime::config;
@@ -127,10 +123,9 @@ impl<S: Scheduler> Runtime<S> {
         block_on(handle)
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
+    pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg);
-        block_on(handle).unwrap()
+        handle.await
     }
 }
 
@@ -257,7 +252,7 @@ async fn run_flowgraph<S: Scheduler>(
 
     // Start Control Port
     #[cfg(not(target_arch = "wasm32"))]
-    ctrl_port::start_control_port(inboxes.clone());
+    ctrl_port::start_control_port(inboxes.clone()).await;
 
     // main loop
     loop {

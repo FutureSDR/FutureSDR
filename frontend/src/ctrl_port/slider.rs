@@ -1,19 +1,44 @@
-use anyhow::{Error, Result};
-use http::request::Request;
-use http::response::Response;
-use std::convert::TryFrom;
-use yew::format::Json;
+use reqwasm::http::Request;
+use wasm_bindgen::prelude::*;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask};
-use yew::services::ConsoleService;
 
 use futuresdr_pmt::Pmt;
 use futuresdr_pmt::PmtKind;
 
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen]
+pub fn add_slider_u32(
+    id: String,
+    url: String,
+    block: u32,
+    callback: u32,
+    min: f64,
+    max: f64,
+    step: f64,
+    value: f64,
+) {
+    let document = gloo_utils::document();
+    let div = document.query_selector(&id).unwrap().unwrap();
+    yew::start_app_with_props_in_element::<Slider>(
+        div,
+        Props {
+            url,
+            block,
+            callback,
+            pmt_type: PmtKind::U32,
+            min: min as i64,
+            max: max as i64,
+            step: step as i64,
+            value: value as i64,
+        },
+    );
+}
+
 pub enum Msg {
     Error,
-    Value(yew::events::ChangeData),
-    Result(String),
+    ValueChanged(i64),
+    Reply(String, u64),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -25,15 +50,13 @@ pub struct Props {
     pub min: i64,
     pub max: i64,
     pub step: i64,
+    pub value: i64,
 }
 
 pub struct Slider {
-    link: ComponentLink<Self>,
-    props: Props,
-    value: i64,
-    result: String,
-    error: bool,
-    fetch_task: Option<FetchTask>,
+    status: String,
+    request_id: u64,
+    last_request_id: u64,
 }
 
 impl Slider {
@@ -44,34 +67,29 @@ impl Slider {
         )
     }
 
-    fn callback(props: &Props, link: &ComponentLink<Self>, p: &Pmt) -> Option<FetchTask> {
-        let request = Request::post(&Self::endpoint(props))
-            .header("Content-Type", "application/json")
-            .body(Json(p));
-        if request.is_err() {
-            ConsoleService::debug("creating request failed");
-            return None;
-        }
-        let request = request.unwrap();
+    fn callback(ctx: &Context<Self>, p: &Pmt, id: u64) {
+        let p = p.clone();
+        let endpoint = Self::endpoint(ctx.props());
+        gloo_console::log!(format!("slider: sending request {:?}", &p));
 
-        if let Ok(t) = FetchService::fetch(
-            request,
-            link.callback(|response: Response<Result<String, Error>>| {
-                if response.status().is_success() {
-                    Msg::Result(response.into_body().unwrap())
-                } else {
-                    Msg::Error
+        ctx.link().send_future(async move {
+            let response = Request::post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&p).unwrap())
+                .send()
+                .await;
+
+            if let Ok(response) = response {
+                if response.ok() {
+                    return Msg::Reply(response.text().await.unwrap(), id);
                 }
-            }),
-        ) {
-            Some(t)
-        } else {
-            None
-        }
+            }
+            Msg::Error
+        });
     }
 
-    fn value_to_pmt(value: i64, props: &Props) -> Option<Pmt> {
-        match props.pmt_type {
+    fn value_to_pmt(value: i64, ctx: &Context<Self>) -> Option<Pmt> {
+        match ctx.props().pmt_type {
             PmtKind::U32 => {
                 let v = u32::try_from(value).ok()?;
                 Some(Pmt::U32(v))
@@ -90,96 +108,68 @@ impl Component for Slider {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut error = false;
-        let mut result = "<fetching>".to_string();
-        let value = props.min;
-        let mut fetch_task = None;
+    fn create(ctx: &Context<Self>) -> Self {
+        let mut status = "init".to_string();
+        let value = ctx.props().value;
 
-        if let Some(p) = Self::value_to_pmt(value, &props) {
-            fetch_task = Self::callback(&props, &link, &p);
-            if fetch_task.is_none() {
-                error = true;
-                result = "Error".to_string();
-            }
+        if let Some(p) = Self::value_to_pmt(value, ctx) {
+            Self::callback(ctx, &p, 1);
         } else {
-            error = true;
-            result = "Error".to_string();
+            status = "Invalid Properties".to_string();
         }
 
         Self {
-            link,
-            props,
-            value,
-            result,
-            error,
-            fetch_task,
+            status,
+            request_id: 1,
+            last_request_id: 0,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Value(v) => {
-                self.error = false;
-                self.result = "<calling>".to_string();
+            Msg::ValueChanged(v) => {
+                self.status = "calling".to_string();
 
-                if let ChangeData::Value(s) = v {
-                    if let Ok(v) = s.parse::<i64>() {
-                        self.value = v;
-
-                        if let Some(p) = Self::value_to_pmt(self.value, &self.props) {
-                            self.fetch_task = Self::callback(&self.props, &self.link, &p);
-                            if self.fetch_task.is_some() {
-                                return true;
-                            }
-                        }
-                    }
+                if let Some(p) = Self::value_to_pmt(v, ctx) {
+                    self.request_id += 1;
+                    Self::callback(ctx, &p, self.request_id);
+                } else {
+                    self.status = "Invalid Value".to_string();
                 }
-
-                self.error = true;
-                self.result = "Error".to_string();
             }
             Msg::Error => {
-                self.result = "Error".to_string();
-                self.fetch_task = None;
-                self.error = true;
+                self.status = "Error".to_string();
             }
-            Msg::Result(v) => {
-                self.result = v;
-                self.fetch_task = None;
-                self.error = false;
+            Msg::Reply(v, req_id) => {
+                if req_id > self.last_request_id {
+                    self.status = v;
+                }
             }
         };
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
-
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let mut classes = "".to_string();
-        if self.fetch_task.is_some() {
+        if self.request_id > self.last_request_id {
             classes.push_str(" fetching");
         }
-        if self.error {
-            classes.push_str(" error");
-        }
+
+        let oninput = ctx.link().callback(|e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            Msg::ValueChanged(input.value_as_number() as i64)
+        });
+
         html! {
             <div>
                 <input type="range"
-                value=self.value.to_string()
-                min=self.props.min.to_string()
-                max=self.props.max.to_string()
-                step=self.props.step.to_string()
-                onchange=self.link.callback(Msg::Value)
+                    min={ctx.props().min.to_string()}
+                    max={ctx.props().max.to_string()}
+                    step={ctx.props().step.to_string()}
+                    {oninput}
                 />
-                <span class={classes}>{ &self.result }</span>
+
+                <span class={classes}>{ &self.status }</span>
             </div>
         }
     }

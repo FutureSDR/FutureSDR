@@ -1,20 +1,14 @@
-use anyhow::{Error, Result};
-use http::request::Request;
-use http::response::Response;
-use yew::format::Json;
+use reqwasm::http::Request;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask};
-use yew::services::ConsoleService;
 
 use futuresdr_pmt::Pmt;
 use futuresdr_pmt::PmtKind;
 
 pub enum Msg {
-    Submit,
-    Ignore,
     Error,
-    Value(String),
-    Result(String),
+    Reply(String),
+    Submit(String),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -26,12 +20,7 @@ pub struct Props {
 }
 
 pub struct Call {
-    link: ComponentLink<Self>,
-    props: Props,
-    input: String,
-    result: String,
-    error: bool,
-    fetch_task: Option<FetchTask>,
+    status: String,
 }
 
 impl Call {
@@ -42,30 +31,25 @@ impl Call {
         )
     }
 
-    fn fetch(props: &Props, link: &ComponentLink<Self>, p: &Pmt) -> Option<FetchTask> {
-        let request = Request::post(&Self::endpoint(props))
-            .header("Content-Type", "application/json")
-            .body(Json(p));
-        if request.is_err() {
-            ConsoleService::debug("creating request failed");
-            return None;
-        }
-        let request = request.unwrap();
+    fn callback(ctx: &Context<Self>, p: &Pmt) {
+        let p = p.clone();
+        let endpoint = Self::endpoint(ctx.props());
+        gloo_console::log!(format!("call: sending request {:?}", &p));
 
-        if let Ok(t) = FetchService::fetch(
-            request,
-            link.callback(|response: Response<Result<String, Error>>| {
-                if response.status().is_success() {
-                    Msg::Result(response.into_body().unwrap())
-                } else {
-                    Msg::Error
+        ctx.link().send_future(async move {
+            let response = Request::post(&endpoint)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&p).unwrap())
+                .send()
+                .await;
+
+            if let Ok(response) = response {
+                if response.ok() {
+                    return Msg::Reply(response.text().await.unwrap());
                 }
-            }),
-        ) {
-            Some(t)
-        } else {
-            None
-        }
+            }
+            Msg::Error
+        });
     }
 }
 
@@ -73,75 +57,48 @@ impl Component for Call {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            link,
-            props,
-            input: "".to_string(),
-            result: "<none>".to_string(),
-            error: false,
-            fetch_task: None,
+            status: "init".to_string(),
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Submit => {
-                ConsoleService::log(&format!("submitting: {}", self.input));
-                if let Some(p) = Pmt::from_string(&self.input, &self.props.pmt_type) {
-                    ConsoleService::log(&format!("pmt: {:?}", p));
-                    self.fetch_task = Self::fetch(&self.props, &self.link, &p);
+            Msg::Submit(s) => {
+                if let Some(p) = Pmt::from_string(&s, &ctx.props().pmt_type) {
+                    Self::callback(ctx, &p);
                 } else {
-                    self.result = "Parse Error".to_string();
-                    self.error = true;
-                    self.fetch_task = None;
+                    self.status = "Parse Error".to_string();
                 }
             }
-            Msg::Value(v) => {
-                self.input = v;
-            }
             Msg::Error => {
-                self.result = "Error".to_string();
-                self.fetch_task = None;
-                self.error = true;
+                self.status = "Error".to_string();
             }
-            Msg::Result(v) => {
-                self.result = v;
-                self.fetch_task = None;
-                self.error = false;
+            Msg::Reply(v) => {
+                self.status = v;
             }
-            Msg::Ignore => {}
         };
         true
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if props == self.props {
-            return false;
-        }
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let onkeypress = ctx.link().batch_callback(|e: KeyboardEvent| {
+            if e.key() == "Enter" {
+                let input: HtmlInputElement = e.target_unchecked_into();
+                Some(Msg::Submit(input.value()))
+            } else {
+                None
+            }
+        });
 
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
-        let mut classes = "".to_string();
-        if self.fetch_task.is_some() {
-            classes.push_str(" fetching");
-        }
-        if self.error {
-            classes.push_str(" error");
-        }
         html! {
             <div>
                 <input class="edit"
                     type="text"
-                    value=self.input.to_string()
-                    oninput=self.link.callback(|e: InputData| Msg::Value(e.value))
-                    onkeypress=self.link.callback(move |e: KeyboardEvent| {
-                        if e.key() == "Enter" { Msg::Submit } else { Msg::Ignore }
-                    })/>
-                <span class={classes}>{ &self.result }</span>
+                    { onkeypress }
+                />
+                <span>{ &self.status }</span>
             </div>
         }
     }

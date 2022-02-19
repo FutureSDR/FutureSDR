@@ -96,6 +96,7 @@ impl MessageSourceBuilder {
         }
     }
 
+    #[must_use]
     pub fn n_messages(mut self, n: usize) -> MessageSourceBuilder {
         self.n_messages = Some(n);
         self
