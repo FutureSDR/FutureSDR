@@ -342,7 +342,7 @@ impl BufferReaderHost for Reader {
             return;
         }
 
-        _ = self
+        let _ = self
             .writer_inbox
             .send(AsyncMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
