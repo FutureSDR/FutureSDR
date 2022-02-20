@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>FutureSDR WASM Example</title>
+        <link rel="shortcut icon" href="/favicon.png">
+        <script type="module">
+         import init, {run_fg} from "./wasm.js"
+
+         const runWasm = async () => {
+             const rustWasm = await init();
+
+             var myLink = document.getElementById('start');
+             const sleep = m => new Promise(r => setTimeout(r, m))
+             myLink.onclick = async function() {
+
+                 let runs = [...Array(20).keys()];
+                 let buffer_sizes = [4192, 8384, 12576, 16768, 20960, 25152, 29344, 33536, 37728, 41920, 46112, 50304, 54496, 58688, 62880, 67072, 71264, 75456, 79648];
+                 let samples = BigInt(10000000);
+
+                 for(let r of runs) {
+                     for(let b of buffer_sizes) {
+                         await run_fg(BigInt(r), samples, BigInt(b));
+                         await sleep(200);
+                     }
+                 }
+             };
+         };
+
+         runWasm();
+         </script>
+    </head>
+    <body>
+        <h1>FutureSDR</h1>
+        <button id="start" type="button" value="Start">
+            Start
+        </button>
+    </body>
+</html>

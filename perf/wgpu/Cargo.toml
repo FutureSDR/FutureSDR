@@ -1,5 +1,5 @@
 [package]
-name = "wgpu_mult"
+name = "perf_wgpu"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,23 +8,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../..", features = ["wgpu"] }
-clap = "2.34"
 rand = "0.8.0"
-instant = { version = "0.1", features = [ "stdweb" ] }
 json = "0.12.4"
-web-sys = { version = "0.3.53", features = ["Location"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
-console_log = { version = "0.2.0", features = ["color"] }
 getrandom = { version = "0.2", features = ["js"] }
+instant = { version = "0.1", features = [ "stdweb" ] }
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4.28"
+web-sys = { version = "0.3.53", features = ["Location"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-async-io = "1.6.0"
-
-[package.metadata.wasm-pack.profile.profiling]
-wasm-opt = false
-[profile.release]
-debug = true
+clap = "3.1.0"
+instant = { version = "0.1" }
