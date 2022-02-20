@@ -3,8 +3,8 @@ use std::iter::repeat_with;
 use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::VectorSink;
+use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::Wgpu;
 use futuresdr::log::info;
 use futuresdr::runtime::buffer::wgpu;

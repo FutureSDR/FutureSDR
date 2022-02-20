@@ -1,4 +1,4 @@
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use futuresdr::anyhow::{Context, Result};
 
 fn main() -> Result<()> {
@@ -44,7 +44,9 @@ fn main() -> Result<()> {
     let run: u64 = matches.value_of_t("run").context("no run")?;
     let scheduler: String = matches.value_of_t("scheduler").context("no scheduler")?;
     let samples: u64 = matches.value_of_t("samples").context("no samples")?;
-    let buffer_size: u64 = matches.value_of_t("buffer_size").context("no buffer_size")?;
+    let buffer_size: u64 = matches
+        .value_of_t("buffer_size")
+        .context("no buffer_size")?;
 
     futuresdr::async_io::block_on(perf_wgpu::run(run, scheduler, samples, buffer_size))
 }
