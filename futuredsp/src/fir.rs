@@ -12,10 +12,13 @@ pub trait FirKernel<SampleType>: Send {
     /// related to the input stream (for example, it may contain an internal buffer
     /// of the last `num_taps` input samples).
     ///
-    /// Returns a tuple containing, in order, the samples consumed from the input
-    /// and the samples produced in the output. Elements of `output` beyond what
-    /// is produced are left in an unspecified state.
-    fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize);
+    /// Returns a tuple containing, in order:
+    /// - The number of samples consumed from the input,
+    /// - The number of samples produced in the output, and
+    /// - The number of additional samples that can be produced from the given input (if any)
+    ///
+    /// Elements of `output` beyond what is produced are left in an unspecified state.
+    fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize, usize);
 
     /// Returns the number of taps this FIR filter represents.
     fn num_taps(&self) -> usize;
@@ -118,12 +121,13 @@ fn fir_kernel_core<
     o: &mut [SampleType],
     init: InitFn,
     mac: MacFn,
-) -> (usize, usize)
+) -> (usize, usize, usize)
 where
     SampleType: Copy,
     TapsType::TapType: Copy,
 {
-    let n = std::cmp::min((i.len() + 1).saturating_sub(taps.num_taps()), o.len());
+    let num_producable_samples = (i.len() + 1).saturating_sub(taps.num_taps());
+    let n = std::cmp::min(num_producable_samples, o.len());
 
     unsafe {
         for k in 0..n {
@@ -135,14 +139,14 @@ where
         }
     }
 
-    (n, n)
+    (n, n, num_producable_samples.saturating_sub(n))
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
-    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, usize) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -161,7 +165,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
-    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize) {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, usize) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -180,7 +184,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
-    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
+    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize, usize) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -202,7 +206,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
-    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize) {
+    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize, usize) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -230,20 +234,39 @@ mod tests {
         let kernel = NonResamplingFirKernel::new(taps);
         let input = [1.0, 2.0, 3.0];
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (1, 1));
+        assert_eq!(kernel.work(&input, &mut output), (1, 1, 0));
         assert_eq!(output[0], 14.0);
 
         let mut output = [];
-        assert_eq!(kernel.work(&input, &mut output), (0, 0));
+        assert_eq!(kernel.work(&input, &mut output), (0, 0, 1));
 
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (1, 1));
+        assert_eq!(kernel.work(&input, &mut output), (1, 1, 0));
         assert_eq!(output[0], 14.0);
 
         let input = [1.0, 2.0, 3.0, 4.0, 5.0];
         let mut output = [0.0; 2];
-        assert_eq!(kernel.work(&input, &mut output), (2, 2));
+        assert_eq!(kernel.work(&input, &mut output), (2, 2, 1));
         assert_eq!(output[0], 14.0);
         assert_eq!(output[1], 20.0);
+    }
+
+    /// Tests the "terminating condition" where the input is finished and the
+    /// kernel has produced everything it can given the input, and has exactly
+    /// filled the output buffer.
+    #[test]
+    fn terminating_condition() {
+        let taps = [1.0, 2.0];
+        let kernel = NonResamplingFirKernel::new(taps);
+
+        // With 5 input samples and 3 out, we just need more output space
+        let input = [1.0, 2.0, 3.0, 4.0, 5.0];
+        let mut output = [0.0; 3];
+        assert_eq!(kernel.work(&input, &mut output), (3, 3, 1));
+
+        // With 4 input samples and 3 out, we've exactly filled the output
+        let input = [1.0, 2.0, 3.0, 4.0];
+        let mut output = [0.0; 3];
+        assert_eq!(kernel.work(&input, &mut output), (3, 3, 0));
     }
 }
