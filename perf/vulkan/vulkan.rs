@@ -5,7 +5,6 @@ use std::time;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
 use futuresdr::blocks::VulkanBuilder;
 use futuresdr::runtime::buffer::vulkan;
@@ -56,11 +55,7 @@ fn main() -> Result<()> {
 
     let src = fg.add_block(VectorSourceBuilder::<f32>::new(orig.clone()).build());
     let vulkan = fg.add_block(VulkanBuilder::new(broker).capacity(buffer_size).build());
-    let snk = fg.add_block(
-        VectorSinkBuilder::<f32>::new()
-            .init_capacity(samples)
-            .build(),
-    );
+    let snk = fg.add_block(VectorSink::<f32>::new(samples));
 
     fg.connect_stream_with_type(src, "out", vulkan, "in", vulkan::H2D::new())?;
     fg.connect_stream_with_type(vulkan, "out", snk, "in", vulkan::D2H::new())?;
