@@ -19,9 +19,6 @@ pub trait FirKernel<SampleType>: Send {
     ///
     /// Elements of `output` beyond what is produced are left in an unspecified state.
     fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize, usize);
-
-    /// Returns the number of taps this FIR filter represents.
-    fn num_taps(&self) -> usize;
 }
 
 pub trait TapsAccessor: Send {
@@ -155,10 +152,6 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
             |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
         )
     }
-
-    fn num_taps(&self) -> usize {
-        self.taps.num_taps()
-    }
 }
 
 #[cfg(RUSTC_IS_STABLE)]
@@ -173,10 +166,6 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
             || 0.0,
             |accum, sample, tap| accum + sample * tap,
         )
-    }
-
-    fn num_taps(&self) -> usize {
-        self.taps.num_taps()
     }
 }
 
@@ -196,10 +185,6 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
             },
         )
     }
-
-    fn num_taps(&self) -> usize {
-        self.taps.num_taps()
-    }
 }
 
 #[cfg(RUSTC_IS_STABLE)]
@@ -217,10 +202,6 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
                 im: accum.im + sample.im * tap,
             },
         )
-    }
-
-    fn num_taps(&self) -> usize {
-        self.taps.num_taps()
     }
 }
 
