@@ -71,6 +71,10 @@ name = "flow"
 required-features = ["flow_scheduler"]
 
 [[test]]
+name = "vulkan"
+required-features = ["vulkan"]
+
+[[test]]
 name = "tpb"
 required-features = ["tpb_scheduler"]
 
