@@ -1,0 +1,23 @@
+[package]
+name = "zigbee"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "rx"
+path = "src/bin/rx.rs"
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futuresdr = { path = "../..", features = ["soapy"] }
+clap = "3.1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futuresdr = { path = "../.." }
+console_error_panic_hook = "0.1.6"
+wasm-bindgen = "0.2.79"
+wasm-bindgen-futures = "0.4.29"

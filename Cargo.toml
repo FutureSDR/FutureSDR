@@ -24,6 +24,7 @@ members = [
     "examples/wasm",
     "examples/wgpu",
     "examples/zeromq",
+    "examples/zigbee",
     "frontend",
     "futuredsp",
     "perf/buffer_rand",
@@ -87,7 +88,7 @@ futures = "0.3.18"
 futures-lite = "1.10.0"
 futuredsp = { path = "futuredsp", version = "0.0.1" }
 futuresdr-pmt = { path = "pmt", version = "0.0.2" }
-log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_off"] }
+log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 lttng-ust = { version = "0.1.0", optional = true}
 num-complex = "0.4.0"
 num_cpus = "1.13.0"

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>FutureSDR WASM Example</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/futuresdr.css">
+        <link rel="shortcut icon" href="/favicon.png">
+        <style>
+         body {
+             font-family: arial;
+             margin: 0;
+             padding: none;
+             background-color: black;
+         }
+         canvas {
+             width: 80vw;
+             height: 80vh;
+         }
+
+         .flex-container {
+             height: 100%;
+             width: 100%;
+             padding: 0;
+             margin: 0;
+             display: flex;
+             align-items: center;
+             justify-content: flex-start;
+         }
+         .flex-item {
+             width: 100%;
+             line-height: 20px;
+             color: white;
+             font-weight: bold;
+             font-size: 1em;
+             text-align: center;
+             display: flex-item;
+             margin: 5px;
+         }
+
+         #start {
+             margin: 0;
+             padding: 20px;
+         }
+        </style>
+    </head>
+    <body>
+        <div class="flex-container">
+            <div class="flex-item">
+                <button id="start" type="button" value="Start">
+                    Start
+                </button>
+                <div id="log">
+                </div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+         var Module = {
+             preRun: [],
+             postRun: [],
+             print: (function() {
+                 return function(text) {
+                     if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                     console.log(text);
+                 };
+             })(),
+             printErr: function(text) {
+                 if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                 console.error(text);
+             },
+             setStatus: function(text) {
+                 if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+                 if (text === Module.setStatus.last.text) return;
+                 var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                 var now = Date.now();
+                 if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+                 Module.setStatus.last.time = now;
+                 Module.setStatus.last.text = text;
+                 if (m) {
+                     text = m[1];
+                 }
+                 console.log(text);
+             },
+             totalDependencies: 0,
+             monitorRunDependencies: function(left) {
+                 this.totalDependencies = Math.max(this.totalDependencies, left);
+                 Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+             }
+         };
+
+         Module.setStatus('Downloading...');
+
+         var read_samples;
+         var set_freq;
+
+         Module['onRuntimeInitialized'] = function() {
+             console.log("EMSCRIPTEN LOADED");
+             read_samples = Module.read_samples;
+             set_freq = Module.set_freq;
+             console.log(Module);
+         }
+
+         var myLink = document.getElementById('start');
+         myLink.onclick = function() {
+            var script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = "hackrf_open.js"; 
+            document.getElementsByTagName("head")[0].appendChild(script);
+            return false;
+         }
+        </script>
+
+        <script type="module">
+         import init, {run_fg, push_samples} from "./zigbee.js"
+
+         function Sleep(milliseconds) {
+             return new Promise(resolve => setTimeout(resolve, milliseconds));
+         }
+
+         async function push() {
+             while(true) {
+                 let samples = read_samples();
+                 if(samples.length > 0) {
+                     await push_samples(samples);
+                 } else {
+                     await Sleep(200);
+                 }
+             }
+         }
+
+         (function () {
+             var old = console.info;
+             var logger = document.getElementById('log');
+             console.info = function (message) {
+                 if (typeof message == 'object') {
+                     logger.innerHTML += (JSON && JSON.stringify ? JSON.stringify(message) : message) + '<br />';
+                 } else {
+                     logger.innerHTML += message + '<br />';
+                 }
+             }
+         })();
+
+         const runWasm = async () => {
+             await Sleep(5000);
+             const rustWasm = await init();
+             await Promise.all([run_fg(), push()]);
+         };
+
+         function waitForElement(){
+             if(typeof read_samples === 'function') {
+                 console.log("present, loading");
+                 runWasm();
+             } else {
+                 console.log("not present, waiting");
+                 setTimeout(waitForElement, 250);
+             }
+         }
+         waitForElement();
+
+        </script>
+    </body>
+</html>
