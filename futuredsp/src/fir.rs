@@ -256,19 +256,31 @@ mod tests {
         let kernel = NonResamplingFirKernel::new(taps);
         let input = [1.0, 2.0, 3.0];
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (1, 1, 0));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (1, 1, ComputationStatus::InsufficientInput)
+        );
         assert_eq!(output[0], 14.0);
 
         let mut output = [];
-        assert_eq!(kernel.work(&input, &mut output), (0, 0, 1));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (0, 0, ComputationStatus::InsufficientOutput)
+        );
 
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (1, 1, 0));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (1, 1, ComputationStatus::InsufficientInput)
+        );
         assert_eq!(output[0], 14.0);
 
         let input = [1.0, 2.0, 3.0, 4.0, 5.0];
         let mut output = [0.0; 2];
-        assert_eq!(kernel.work(&input, &mut output), (2, 2, 1));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (2, 2, ComputationStatus::InsufficientOutput)
+        );
         assert_eq!(output[0], 14.0);
         assert_eq!(output[1], 20.0);
     }
@@ -284,11 +296,17 @@ mod tests {
         // With 5 input samples and 3 out, we just need more output space
         let input = [1.0, 2.0, 3.0, 4.0, 5.0];
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (3, 3, 1));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (3, 3, ComputationStatus::InsufficientOutput)
+        );
 
         // With 4 input samples and 3 out, we've exactly filled the output
         let input = [1.0, 2.0, 3.0, 4.0];
         let mut output = [0.0; 3];
-        assert_eq!(kernel.work(&input, &mut output), (3, 3, 0));
+        assert_eq!(
+            kernel.work(&input, &mut output),
+            (3, 3, ComputationStatus::BothSufficient)
+        );
     }
 }
