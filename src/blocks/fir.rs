@@ -71,12 +71,12 @@ where
         let i = sio.input(0).slice::<SampleType>();
         let o = sio.output(0).slice::<SampleType>();
 
-        let (consumed, produced, additional_production) = self.core.work(i, o);
+        let (consumed, produced, status) = self.core.work(i, o);
 
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
 
-        if sio.input(0).finished() && additional_production == 0 {
+        if sio.input(0).finished() && status.produced_all_samples() {
             io.finished = true;
         }
 

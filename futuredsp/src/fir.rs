@@ -3,6 +3,29 @@ use std::intrinsics::{fadd_fast, fmul_fast};
 
 use num_complex::Complex;
 
+/// Represents the status of a computation.
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum ComputationStatus {
+    /// Indicates that the output buffer could hold more samples, if more
+    /// input samples were present.
+    InsufficientInput,
+
+    /// Indicates that more output samples can be computed from the given input,
+    /// but there is not enough available space in the output buffer.
+    InsufficientOutput,
+
+    /// Indicates that as many samples as possible could be computed from the
+    /// input buffer, and that the output buffer was exactly filled.
+    BothSufficient,
+}
+
+impl ComputationStatus {
+    /// Returns whether the output was sufficient to hold all producible samples.
+    pub fn produced_all_samples(self) -> bool {
+        self == Self::BothSufficient || self == Self::InsufficientInput
+    }
+}
+
 /// Implements a trait to run computations with FIR filters.
 pub trait FirKernel<SampleType>: Send {
     /// Computes the FIR filter on the given input, outputting into the given output.
@@ -15,10 +38,14 @@ pub trait FirKernel<SampleType>: Send {
     /// Returns a tuple containing, in order:
     /// - The number of samples consumed from the input,
     /// - The number of samples produced in the output, and
-    /// - The number of additional samples that can be produced from the given input (if any)
+    /// - A `ComputationStatus` which indicates whether the buffers were undersized.
     ///
     /// Elements of `output` beyond what is produced are left in an unspecified state.
-    fn work(&self, input: &[SampleType], output: &mut [SampleType]) -> (usize, usize, usize);
+    fn work(
+        &self,
+        input: &[SampleType],
+        output: &mut [SampleType],
+    ) -> (usize, usize, ComputationStatus);
 }
 
 pub trait TapsAccessor: Send {
@@ -118,13 +145,19 @@ fn fir_kernel_core<
     o: &mut [SampleType],
     init: InitFn,
     mac: MacFn,
-) -> (usize, usize, usize)
+) -> (usize, usize, ComputationStatus)
 where
     SampleType: Copy,
     TapsType::TapType: Copy,
 {
     let num_producable_samples = (i.len() + 1).saturating_sub(taps.num_taps());
-    let n = std::cmp::min(num_producable_samples, o.len());
+    let (n, status) = if num_producable_samples > o.len() {
+        (o.len(), ComputationStatus::InsufficientOutput)
+    } else if num_producable_samples == o.len() {
+        (num_producable_samples, ComputationStatus::BothSufficient)
+    } else {
+        (num_producable_samples, ComputationStatus::InsufficientInput)
+    }; // std::cmp::min(num_producable_samples, o.len());
 
     unsafe {
         for k in 0..n {
@@ -136,14 +169,14 @@ where
         }
     }
 
-    (n, n, num_producable_samples.saturating_sub(n))
+    (n, n, status)
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
-    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, usize) {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -158,7 +191,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
-    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, usize) {
+    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -173,7 +206,11 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
-    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize, usize) {
+    fn work(
+        &self,
+        i: &[Complex<f32>],
+        o: &mut [Complex<f32>],
+    ) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
@@ -191,7 +228,11 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
 impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
-    fn work(&self, i: &[Complex<f32>], o: &mut [Complex<f32>]) -> (usize, usize, usize) {
+    fn work(
+        &self,
+        i: &[Complex<f32>],
+        o: &mut [Complex<f32>],
+    ) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
