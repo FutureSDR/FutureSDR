@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
 use std::intrinsics::{fadd_fast, fmul_fast};
 
@@ -151,13 +152,11 @@ where
     TapsType::TapType: Copy,
 {
     let num_producable_samples = (i.len() + 1).saturating_sub(taps.num_taps());
-    let (n, status) = if num_producable_samples > o.len() {
-        (o.len(), ComputationStatus::InsufficientOutput)
-    } else if num_producable_samples == o.len() {
-        (num_producable_samples, ComputationStatus::BothSufficient)
-    } else {
-        (num_producable_samples, ComputationStatus::InsufficientInput)
-    }; // std::cmp::min(num_producable_samples, o.len());
+    let (n, status) = match num_producable_samples.cmp(&o.len()) {
+        Ordering::Greater => (o.len(), ComputationStatus::InsufficientOutput),
+        Ordering::Equal => (num_producable_samples, ComputationStatus::BothSufficient),
+        Ordering::Less => (num_producable_samples, ComputationStatus::InsufficientInput),
+    };
 
     unsafe {
         for k in 0..n {
