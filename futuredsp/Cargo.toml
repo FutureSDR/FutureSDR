@@ -1,9 +1,15 @@
 [package]
 name = "futuredsp"
 version = "0.0.1"
+authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache-2.0"
+homepage = "https://www.futuresdr.org"
+repository = "https://github.com/futuresdr/futuresdr/"
+readme = "README.md"
+description = "An signal processing library for SDRs and real-time DSP."
+keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
+categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
 [dependencies]
 num-complex = "0.4.0"

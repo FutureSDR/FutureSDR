@@ -1,7 +1,7 @@
 [package]
 name = "futuresdr"
-version = "0.0.12"
-authors = ["Bastian Bloessl <mail@bastibl.net>"]
+version = "0.0.13"
+authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
@@ -14,9 +14,6 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 [workspace]
 members = [
     ".",
-    "futuredsp",
-    "pmt",
-    "frontend",
     "examples/android",
     "examples/android-hw",
     "examples/audio",
@@ -27,6 +24,8 @@ members = [
     "examples/wasm",
     "examples/wgpu",
     "examples/zeromq",
+    "frontend",
+    "futuredsp",
     "perf/buffer_rand",
     "perf/buffer_size",
     "perf/fir",
@@ -37,6 +36,7 @@ members = [
     "perf/vulkan",
     "perf/wgpu",
     "perf/zynq",
+    "pmt",
 ]
 
 [features]

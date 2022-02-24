@@ -1,12 +1,12 @@
 [package]
 name = "futuresdr-frontend"
 version = "0.0.1"
-authors = ["Bastian Bloessl <mail@bastibl.net>"]
+authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
-description = "An Experimental Async SDR Runtime for Heterogeneous Architectures."
+description = "Web Frontend for an Experimental Async SDR Runtime for Heterogeneous Architectures."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
