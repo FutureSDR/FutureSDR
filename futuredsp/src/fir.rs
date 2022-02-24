@@ -1,8 +1,11 @@
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
-use std::intrinsics::{fadd_fast, fmul_fast};
+use core::intrinsics::{fadd_fast, fmul_fast};
 
 use num_complex::Complex;
+
+extern crate alloc;
+use alloc::vec::Vec;
 
 /// Represents the status of a computation.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -119,7 +122,7 @@ impl TapsAccessor for Vec<f32> {
 /// ```
 pub struct NonResamplingFirKernel<SampleType, TapsType: TapsAccessor> {
     taps: TapsType,
-    _sampletype: std::marker::PhantomData<SampleType>,
+    _sampletype: core::marker::PhantomData<SampleType>,
 }
 
 impl<SampleType, TapsType: TapsAccessor> NonResamplingFirKernel<SampleType, TapsType> {
@@ -127,7 +130,7 @@ impl<SampleType, TapsType: TapsAccessor> NonResamplingFirKernel<SampleType, Taps
     pub fn new(taps: TapsType) -> Self {
         Self {
             taps,
-            _sampletype: std::marker::PhantomData,
+            _sampletype: core::marker::PhantomData,
         }
     }
 }
