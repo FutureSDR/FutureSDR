@@ -72,11 +72,17 @@ jobs:
       - name: Install Soapy
         run: sudo apt-get -y install libsoapysdr-dev
 
-      - name: Run cargo test
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy --exclude androidfs --exclude fir_latency --exclude null_rand_latency -- --nocapture --skip vulkan
+          args: --bins --examples --tests --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy --exclude androidfs --exclude fir_latency --exclude null_rand_latency -- --nocapture --skip vulkan
+
+      - name: Run cargo benches
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --benches --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy --exclude androidfs --exclude fir_latency --exclude null_rand_latency -- --nocapture
 
   test-macos:
     name: Unit Tests macOS
@@ -94,11 +100,17 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Run cargo test
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+
+      - name: Run cargo benches
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --benches --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
 
   test-windows:
     name: Unit Test Windows
@@ -126,8 +138,14 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Run cargo test
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+
+      - name: Run cargo benches
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --benches --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --features=flow_scheduler,tpb_scheduler -- --nocapture
