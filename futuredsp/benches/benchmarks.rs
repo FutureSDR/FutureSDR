@@ -3,6 +3,9 @@ use futuredsp::fir::{FirKernel, NonResamplingFirKernel};
 use num_complex::Complex;
 use rand::Rng;
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 trait Generatable {
     fn generate() -> Self;
 }
