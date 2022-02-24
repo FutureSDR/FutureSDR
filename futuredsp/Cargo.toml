@@ -7,7 +7,7 @@ license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
 readme = "README.md"
-description = "An signal processing library for SDRs and real-time DSP."
+description = "A signal processing library for SDR and real-time DSP."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
