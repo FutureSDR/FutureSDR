@@ -21,6 +21,7 @@ members = [
     "examples/fm-receiver",
     "examples/logging",
     "examples/spectrum",
+    "examples/transfer",
     "examples/wasm",
     "examples/wgpu",
     "examples/zeromq",
