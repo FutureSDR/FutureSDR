@@ -301,15 +301,17 @@ impl BufferReaderHost for Reader {
                 let mut state = self.state.lock().unwrap();
                 if let Some(mut b) = state.reader_input.pop_front() {
                     unsafe {
-                        std::ptr::copy_nonoverlapping(cur.buffer.as_ptr().add(cur.offset * self.item_size),
-                                                      b.buffer.as_mut_ptr().add((self.reserved_items - left) * self.item_size),
-                                                      left * self.item_size);
+                        std::ptr::copy_nonoverlapping(
+                            cur.buffer.as_ptr().add(cur.offset * self.item_size),
+                            b.buffer
+                                .as_mut_ptr()
+                                .add((self.reserved_items - left) * self.item_size),
+                            left * self.item_size,
+                        );
                     }
 
                     let old = std::mem::replace(&mut cur.buffer, b.buffer);
-                    state.writer_input.push_back(BufferEmpty {
-                        buffer: old,
-                    });
+                    state.writer_input.push_back(BufferEmpty { buffer: old });
                     let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
 
                     cur.capacity = b.items + self.reserved_items;
@@ -329,7 +331,7 @@ impl BufferReaderHost for Reader {
                 return (std::ptr::null::<u8>(), 0);
             }
         }
-        
+
         let c = self.current.as_mut().unwrap();
 
         unsafe {
@@ -351,9 +353,9 @@ impl BufferReaderHost for Reader {
             let b = self.current.take().unwrap();
             let mut state = self.state.lock().unwrap();
 
-            state.writer_input.push_back(BufferEmpty {
-                buffer: b.buffer,
-            });
+            state
+                .writer_input
+                .push_back(BufferEmpty { buffer: b.buffer });
 
             let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
 

@@ -18,10 +18,10 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-static SENDER: OnceCell<Mutex<mpsc::Sender<Vec<u8>>>> = OnceCell::new();
+static SENDER: OnceCell<Mutex<mpsc::Sender<Vec<i8>>>> = OnceCell::new();
 
 #[wasm_bindgen]
-pub async fn push_samples(s: Vec<u8>) -> bool {
+pub async fn push_samples(s: Vec<i8>) -> bool {
     if let Some(tx) = SENDER.get() {
         if tx.lock().unwrap().send(s).await.is_err() {
             info!("WasmSdr, pushing while closed");
@@ -36,8 +36,8 @@ pub async fn push_samples(s: Vec<u8>) -> bool {
 }
 
 pub struct WasmSdr {
-    receiver: mpsc::Receiver<Vec<u8>>,
-    samples: Vec<u8>,
+    receiver: mpsc::Receiver<Vec<i8>>,
+    samples: Vec<i8>,
     index: usize,
 }
 
@@ -82,8 +82,8 @@ impl AsyncKernel for WasmSdr {
 
         for i in 0..n {
             output[i] = Complex32::new(
-                (self.samples[i * 2] as f32 - 128.0) / 128.0,
-                (self.samples[i * 2 + 1] as f32 - 128.0) / 128.0,
+                (self.samples[self.index + i * 2] as f32) / 128.0,
+                (self.samples[self.index + i * 2 + 1] as f32) / 128.0,
             );
         }
 
