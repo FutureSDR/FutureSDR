@@ -47,7 +47,7 @@ impl Broker {
             .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await
             .expect("Failed to find an appropriate adapter");
-        let downlevel_capabilities = adapter.get_downlevel_properties();
+        let downlevel_capabilities = adapter.get_downlevel_capabilities();
 
         let (device, queue) = adapter
             .request_device(
