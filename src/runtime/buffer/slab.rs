@@ -248,7 +248,7 @@ impl BufferWriterHost for Writer {
                 let mut state = self.state.lock().unwrap();
 
                 state.reader_input.push_back(BufferFull {
-                    buffer: buffer,
+                    buffer,
                     items: offset - self.reserved_items,
                 });
             }

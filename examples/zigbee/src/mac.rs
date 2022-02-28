@@ -24,7 +24,7 @@ impl Mac {
         )
     }
 
-    fn check_crc(data: &Vec<u8>) -> bool {
+    fn check_crc(data: &[u8]) -> bool {
         let mut crc: u16 = 0;
 
         for b in data.iter() {
@@ -32,9 +32,9 @@ impl Mac {
                 let bit = if b & (1 << k) != 0 {
                     1 ^ (crc & 1)
                 } else {
-                    0 ^ (crc & 1)
+                    crc & 1
                 };
-                crc = crc >> 1;
+                crc >>= 1;
                 if bit != 0 {
                     crc ^= 1 << 15;
                     crc ^= 1 << 10;

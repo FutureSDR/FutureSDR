@@ -93,11 +93,9 @@ impl AsyncKernel for Decoder {
 
         while i < inbuf.len() {
             if inbuf[i] > 0.0 {
-                // print!("1");
                 self.shift_reg = (self.shift_reg << 1) | 1;
             } else {
-                // print!("0");
-                self.shift_reg = self.shift_reg << 1;
+                self.shift_reg <<= 1;
             }
 
             self.chip_count = (self.chip_count + 1) % 32;
