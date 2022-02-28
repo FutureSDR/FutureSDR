@@ -16,6 +16,7 @@ use crate::runtime::AsyncMessage;
 pub struct Slab {
     min_bytes: usize,
     n_buffer: usize,
+    reserved_items: usize,
 }
 
 impl Eq for Slab {}
@@ -25,6 +26,7 @@ impl Slab {
         Slab {
             min_bytes: config::config().buffer_size,
             n_buffer: 2,
+            reserved_items: config::config().slab_reserved,
         }
     }
 
@@ -32,6 +34,7 @@ impl Slab {
         Slab {
             min_bytes,
             n_buffer: 2,
+            reserved_items: config::config().slab_reserved,
         }
     }
 
@@ -39,13 +42,15 @@ impl Slab {
         Slab {
             min_bytes: config::config().buffer_size,
             n_buffer,
+            reserved_items: config::config().slab_reserved,
         }
     }
 
-    pub fn with_config(min_bytes: usize, n_buffer: usize) -> Slab {
+    pub fn with_config(min_bytes: usize, n_buffer: usize, reserved_items: usize) -> Slab {
         Slab {
             min_bytes,
             n_buffer,
+            reserved_items,
         }
     }
 }
@@ -67,6 +72,7 @@ impl BufferBuilder for Slab {
             item_size,
             self.min_bytes,
             self.n_buffer,
+            self.reserved_items,
             writer_inbox,
             writer_output_id,
         )
@@ -81,30 +87,24 @@ struct BufferEmpty {
 #[derive(Debug)]
 struct BufferFull {
     buffer: Box<[u8]>,
-    used_bytes: usize,
+    items: usize,
 }
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
 #[derive(Debug)]
-struct CurrentEmpty {
-    buffer: BufferEmpty,
-    offset: usize,
-    capacity: usize,
-}
-
-#[derive(Debug)]
-struct CurrentFull {
-    buffer: BufferFull,
+struct CurrentBuffer {
+    buffer: Box<[u8]>,
     offset: usize,
     capacity: usize,
 }
 
 #[derive(Debug)]
 pub struct Writer {
-    current: Option<CurrentEmpty>,
+    current: Option<CurrentBuffer>,
     state: Arc<Mutex<State>>,
     item_size: usize,
+    reserved_items: usize,
     reader_inbox: Option<Sender<AsyncMessage>>,
     reader_input_id: Option<usize>,
     writer_inbox: Sender<AsyncMessage>,
@@ -123,6 +123,7 @@ impl Writer {
         item_size: usize,
         min_bytes: usize,
         n_buffer: usize,
+        reserved_items: usize,
         writer_inbox: Sender<AsyncMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
@@ -145,6 +146,7 @@ impl Writer {
                 reader_input: VecDeque::new(),
             })),
             item_size,
+            reserved_items,
             reader_inbox: None,
             reader_input_id: None,
             writer_inbox,
@@ -172,6 +174,7 @@ impl BufferWriterHost for Writer {
             state: self.state.clone(),
             item_size: self.item_size,
             reader_inbox,
+            reserved_items: self.reserved_items,
             writer_inbox: self.writer_inbox.clone(),
             writer_output_id: self.writer_output_id,
             finished: false,
@@ -187,9 +190,9 @@ impl BufferWriterHost for Writer {
             let mut state = self.state.lock().unwrap();
             if let Some(b) = state.writer_input.pop_front() {
                 let capacity = b.buffer.len() / self.item_size;
-                self.current = Some(CurrentEmpty {
-                    buffer: b,
-                    offset: 0,
+                self.current = Some(CurrentBuffer {
+                    buffer: b.buffer,
+                    offset: self.reserved_items,
                     capacity,
                 });
             } else {
@@ -201,7 +204,7 @@ impl BufferWriterHost for Writer {
 
         unsafe {
             (
-                (c.buffer.buffer.as_mut_ptr() as *mut u8).add(c.offset * self.item_size),
+                (c.buffer.as_mut_ptr() as *mut u8).add(c.offset * self.item_size),
                 (c.capacity - c.offset) * self.item_size,
             )
         }
@@ -218,8 +221,8 @@ impl BufferWriterHost for Writer {
             let mut state = self.state.lock().unwrap();
 
             state.reader_input.push_back(BufferFull {
-                buffer: c.buffer.buffer,
-                used_bytes: c.capacity * self.item_size,
+                buffer: c.buffer,
+                items: c.capacity - self.reserved_items,
             });
 
             let _ = self
@@ -240,13 +243,13 @@ impl BufferWriterHost for Writer {
             return;
         }
 
-        if let Some(CurrentEmpty { buffer, offset, .. }) = self.current.take() {
-            if offset > 0 {
+        if let Some(CurrentBuffer { buffer, offset, .. }) = self.current.take() {
+            if offset > self.reserved_items {
                 let mut state = self.state.lock().unwrap();
 
                 state.reader_input.push_back(BufferFull {
-                    buffer: buffer.buffer,
-                    used_bytes: offset * self.item_size,
+                    buffer: buffer,
+                    items: offset - self.reserved_items,
                 });
             }
         }
@@ -274,9 +277,10 @@ unsafe impl Send for Writer {}
 
 #[derive(Debug)]
 pub struct Reader {
-    current: Option<CurrentFull>,
+    current: Option<CurrentBuffer>,
     state: Arc<Mutex<State>>,
     item_size: usize,
+    reserved_items: usize,
     reader_inbox: Sender<AsyncMessage>,
     writer_inbox: Sender<AsyncMessage>,
     writer_output_id: usize,
@@ -290,24 +294,46 @@ impl BufferReaderHost for Reader {
     }
 
     fn bytes(&mut self) -> (*const u8, usize) {
-        if self.current.is_none() {
+        if let Some(cur) = self.current.as_mut() {
+            let left = cur.capacity - cur.offset;
+            if left <= self.reserved_items {
+                let mut state = self.state.lock().unwrap();
+                if let Some(mut b) = state.reader_input.pop_front() {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(cur.buffer.as_ptr().add(cur.offset * self.item_size),
+                                                      b.buffer.as_mut_ptr().add((self.reserved_items - left) * self.item_size),
+                                                      left * self.item_size);
+                    }
+
+                    let old = std::mem::replace(&mut cur.buffer, b.buffer);
+                    state.writer_input.push_back(BufferEmpty {
+                        buffer: old,
+                    });
+                    let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+
+                    cur.capacity = b.items + self.reserved_items;
+                    cur.offset = self.reserved_items - left;
+                }
+            }
+        } else {
             let mut state = self.state.lock().unwrap();
             if let Some(b) = state.reader_input.pop_front() {
-                let capacity = b.used_bytes / self.item_size;
-                self.current = Some(CurrentFull {
-                    buffer: b,
-                    offset: 0,
-                    capacity,
+                let capacity = b.items;
+                self.current = Some(CurrentBuffer {
+                    buffer: b.buffer,
+                    offset: self.reserved_items,
+                    capacity: capacity + self.reserved_items,
                 });
             } else {
                 return (std::ptr::null::<u8>(), 0);
             }
         }
-
+        
         let c = self.current.as_mut().unwrap();
+
         unsafe {
             (
-                (c.buffer.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),
+                (c.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),
                 (c.capacity - c.offset) * self.item_size,
             )
         }
@@ -325,7 +351,7 @@ impl BufferReaderHost for Reader {
             let mut state = self.state.lock().unwrap();
 
             state.writer_input.push_back(BufferEmpty {
-                buffer: b.buffer.buffer,
+                buffer: b.buffer,
             });
 
             let _ = self.writer_inbox.try_send(AsyncMessage::Notify);

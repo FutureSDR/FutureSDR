@@ -96,6 +96,7 @@ static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());
 pub struct Config {
     pub queue_size: usize,
     pub buffer_size: usize,
+    pub slab_reserved: usize,
     pub log_level: LevelFilter,
     pub ctrlport_enable: bool,
     pub ctrlport_bind: Option<SocketAddr>,
@@ -120,6 +121,7 @@ impl Default for Config {
         Config {
             queue_size: 8192,
             buffer_size: 32768,
+            slab_reserved: 128,
             log_level: LevelFilter::Debug,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:26125".parse::<SocketAddr>().ok(),
@@ -133,6 +135,7 @@ impl Default for Config {
         Config {
             queue_size: 8192,
             buffer_size: 32768,
+            slab_reserved: 128,
             log_level: LevelFilter::Info,
             ctrlport_enable: false,
             ctrlport_bind: None,
