@@ -296,6 +296,7 @@ impl BufferReaderHost for Reader {
     fn bytes(&mut self) -> (*const u8, usize) {
         if let Some(cur) = self.current.as_mut() {
             let left = cur.capacity - cur.offset;
+            debug_assert!(left > 0);
             if left <= self.reserved_items {
                 let mut state = self.state.lock().unwrap();
                 if let Some(mut b) = state.reader_input.pop_front() {
@@ -318,11 +319,11 @@ impl BufferReaderHost for Reader {
         } else {
             let mut state = self.state.lock().unwrap();
             if let Some(b) = state.reader_input.pop_front() {
-                let capacity = b.items;
+                let capacity = b.items + self.reserved_items;
                 self.current = Some(CurrentBuffer {
                     buffer: b.buffer,
                     offset: self.reserved_items,
-                    capacity: capacity + self.reserved_items,
+                    capacity,
                 });
             } else {
                 return (std::ptr::null::<u8>(), 0);
@@ -357,6 +358,11 @@ impl BufferReaderHost for Reader {
             let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
 
             // make sure to be called again, if we have another buffer queued
+            if !state.reader_input.is_empty() {
+                let _ = self.reader_inbox.try_send(AsyncMessage::Notify);
+            }
+        } else if c.capacity - c.offset <= self.reserved_items {
+            let state = self.state.lock().unwrap();
             if !state.reader_input.is_empty() {
                 let _ = self.reader_inbox.try_send(AsyncMessage::Notify);
             }
