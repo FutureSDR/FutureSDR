@@ -1,5 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use futuredsp::fir::{FirKernel, NonResamplingFirKernel};
+use futuredsp::fir::NonResamplingFirKernel;
+use futuredsp::iir::IirKernel;
+use futuredsp::{StatefulUnaryKernel, TapsAccessor, UnaryKernel};
 use num_complex::Complex;
 use rand::Rng;
 
@@ -33,8 +35,8 @@ fn bench_fir_dynamic_taps<SampleType: Generatable, TapType: Generatable>(
     nsamps: usize,
 ) where
     SampleType: Clone,
-    Vec<TapType>: futuredsp::fir::TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<SampleType, Vec<TapType>>: FirKernel<SampleType>,
+    Vec<TapType>: TapsAccessor<TapType = TapType>,
+    NonResamplingFirKernel<SampleType, Vec<TapType>>: UnaryKernel<SampleType>,
 {
     let taps: Vec<_> = (0..ntaps).map(|_| TapType::generate()).collect();
     let input: Vec<_> = (0..nsamps + ntaps)
@@ -53,8 +55,8 @@ fn bench_fir_static_taps<SampleType: Generatable, TapType: Generatable, const N:
 ) where
     SampleType: Clone,
     TapType: std::fmt::Debug,
-    [TapType; N]: futuredsp::fir::TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<SampleType, [TapType; N]>: FirKernel<SampleType>,
+    [TapType; N]: TapsAccessor<TapType = TapType>,
+    NonResamplingFirKernel<SampleType, [TapType; N]>: UnaryKernel<SampleType>,
 {
     let taps: Vec<_> = (0..N).map(|_| TapType::generate()).collect();
     let taps: [TapType; N] = taps.try_into().unwrap();
@@ -66,10 +68,33 @@ fn bench_fir_static_taps<SampleType: Generatable, TapType: Generatable, const N:
     });
 }
 
+fn bench_iir<SampleType: Generatable, TapType: Generatable>(
+    b: &mut criterion::Bencher,
+    n_a_taps: usize,
+    n_b_taps: usize,
+    nsamps: usize,
+) where
+    SampleType: Clone,
+    Vec<TapType>: TapsAccessor<TapType = TapType>,
+    IirKernel<SampleType, Vec<TapType>>: StatefulUnaryKernel<SampleType>,
+{
+    let a_taps: Vec<_> = (0..n_a_taps).map(|_| TapType::generate()).collect();
+    let b_taps: Vec<_> = (0..n_b_taps).map(|_| TapType::generate()).collect();
+    let input: Vec<_> = (0..nsamps + n_b_taps)
+        .map(|_| SampleType::generate())
+        .collect();
+    let mut output = vec![SampleType::generate(); nsamps];
+    let mut iir = IirKernel::new(black_box(a_taps), black_box(b_taps));
+    b.iter(|| {
+        iir.work(black_box(&input), black_box(&mut output));
+    });
+}
+
 pub fn criterion_benchmark(c: &mut Criterion) {
+    let nsamps = 1000usize;
+
     let mut group = c.benchmark_group("fir");
 
-    let nsamps = 1000usize;
     group.throughput(criterion::Throughput::Elements(nsamps as u64));
 
     for ntaps in [3, 64] {
@@ -93,6 +118,15 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
     group.bench_function(format!("fir-64tap-static complex/real {}", nsamps), |b| {
         bench_fir_static_taps::<Complex<f32>, f32, 64>(b, nsamps);
+    });
+
+    group.finish();
+
+    let mut group = c.benchmark_group("iir");
+    group.throughput(criterion::Throughput::Elements(nsamps as u64));
+
+    group.bench_function("iir", |b| {
+        bench_iir(b, 7, 1, nsamps);
     });
 
     group.finish();
