@@ -9,6 +9,26 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Silently drops samples
+///
+/// # Inputs
+///
+/// `in`: Stream to drop
+///
+/// # Outputs
+///
+/// No outputs
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::NullSink;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let sink = fg.add_block(NullSink::<Complex<f32>>::new());
+/// ```
 pub struct NullSink<T: Send + 'static> {
     n_received: usize,
     _type: std::marker::PhantomData<T>,

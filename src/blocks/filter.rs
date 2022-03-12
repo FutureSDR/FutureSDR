@@ -11,6 +11,32 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
+/// Applies a function to filter a stream
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// `out`: Filtered outputs
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Filter;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// // Remove samples above 1.0
+/// let filter = fg.add_block(Filter::<f32, f32>::new(|i| {
+///     if i < 1.0 {
+///         Some(*i)
+///     } else {
+///         None
+///     }
+/// }));
+/// ```
 pub struct Filter<A, B>
 where
     A: 'static,

@@ -73,6 +73,27 @@ impl AsyncKernel for Fft {
     }
 }
 
+/// Computes a FFT
+/// 
+/// This block computes the FFT on 2048 samples at a time, outputting 2048 samples per FFT.
+///
+/// # Inputs
+///
+/// `in`: Input samples
+///
+/// # Outputs
+///
+/// `out`: FFT results
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::FftBuilder;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let fft = fg.add_block(FftBuilder::new().build());
+/// ```
 pub struct FftBuilder {}
 
 impl FftBuilder {
