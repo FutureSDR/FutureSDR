@@ -1,6 +1,7 @@
 #![recursion_limit = "512"]
 #![allow(clippy::new_ret_no_self)]
 #![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
+#![cfg_attr(RUSTC_IS_NIGHTLY, feature(doc_cfg))]
 
 //! An experimental asynchronous SDR runtime for heterogeneous architectures that is:
 //! * **Extensible**: custom buffers (supporting accelerators like GPUs and FPGAs) and custom schedulers (optimized for your application).
