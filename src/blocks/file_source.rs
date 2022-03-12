@@ -46,6 +46,9 @@ impl<T: Send + 'static> AsyncKernel for FileSource<T> {
         let out = sio.output(0).slice::<u8>();
         let item_size = std::mem::size_of::<T>();
 
+        let out_len = out.len();
+        let out = &mut out[..out_len - out_len % item_size];
+
         let mut i = 0;
 
         while i < out.len() {
