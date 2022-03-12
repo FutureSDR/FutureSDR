@@ -4,7 +4,7 @@
 //! | [Apply] | Apply a function to each sample | ✅ |
 //! | [Combine] | Apply a function to combine two streams into one | ✅ |
 //!
-//! ## Filter blocks
+//! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [fir](FirBuilder) | Generic FIR filter | ✅ |
@@ -15,10 +15,12 @@
 //! | [Throttle] | Limits graph sample rate | ❌ |
 //! | [Head] | Stops graph after specified number of samples | ✅ |
 //!
-//! ## I/O blocks
+//! ## Source/sink blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [FileSource] | Reads samples from a file | ❌ |
+//! | [FileSink] | Writes samples to a file | ❌ |
+//! | [SoapySource] | Read samples from a soapy device | ❌ |
 //! 
 //! ## Message blocks
 //! | Block | Usage | WebAssembly? |

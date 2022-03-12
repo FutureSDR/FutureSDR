@@ -93,8 +93,9 @@ impl AsyncKernel for MessageSource {
 ///
 /// # Usage
 /// ```
+/// use std::time;
 /// use futuresdr::blocks::MessageSourceBuilder;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::runtime::{Flowgraph, Pmt};
 ///
 /// let mut fg = Flowgraph::new();
 ///
