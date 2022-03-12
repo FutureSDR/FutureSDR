@@ -11,6 +11,29 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
+/// Applies the specified function sample-by-sample to two streams to form one.
+///
+/// # Inputs
+///
+/// `in0`: Input A
+///
+/// `in1`: Input B
+///
+/// # Outputs
+///
+/// `out`: Combined output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Combine;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let adder = fg.add_block(Combine::<f32, f32, f32>::new(|a, b| {
+///     a + b
+/// }));
+/// ```
 pub struct Combine<A, B, C>
 where
     A: 'static,

@@ -11,6 +11,43 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
+/// Applies a function to each sample in the stream.
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// `out`: Output after function applied
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Apply;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// // Double each sample
+/// let doubler = fg.add_block(Apply::<f32, f32>::new(|i| i * 2.0));
+///
+/// // Note that the closure can also hold state
+/// let mut last_value = 0.0;
+/// let moving_average = fg.add_block(Apply::<f32, f32>::new(move |i| {
+///     let new_value = (last_value + i) / 2.0;
+///     last_value = *i;
+///     new_value
+/// }));
+///
+/// // Additionally, the closure can change the type of the sample
+/// let to_complex = fg.add_block(Apply::<f32, Complex<f32>>::new(|i| {
+///     Complex {
+///         re: 0.0,
+///         im: *i,
+///     }
+/// }));
+/// ```
 pub struct Apply<A, B>
 where
     A: 'static,

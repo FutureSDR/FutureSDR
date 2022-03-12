@@ -81,6 +81,33 @@ impl AsyncKernel for MessageSource {
     }
 }
 
+/// Repeats a fixed message on an interval
+///
+/// # Inputs
+///
+/// No inputs.
+///
+/// # Outputs
+///
+/// **Message**: `out`: Message output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessageSourceBuilder;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// // Repeat the message "foo" every 100ms twenty times
+/// let msg_source = fg.add_block(
+///     MessageSourceBuilder::new(
+///         Pmt::String("foo".to_string()),
+///         time::Duration::from_millis(100),
+///     )
+///     .n_messages(20)
+///     .build()
+/// );
+/// ```
 pub struct MessageSourceBuilder {
     message: Pmt,
     duration: Duration,
