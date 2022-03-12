@@ -5,3 +5,6 @@ pub mod fir;
 
 mod tapsaccessor;
 pub use tapsaccessor::TapsAccessor;
+
+mod kernel;
+pub use kernel::{ComputationStatus, StatefulUnaryKernel, UnaryKernel};

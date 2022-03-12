@@ -2,53 +2,8 @@ use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
 use core::intrinsics::{fadd_fast, fmul_fast};
 
-use crate::TapsAccessor;
+use crate::{ComputationStatus, TapsAccessor, UnaryKernel};
 use num_complex::Complex;
-
-/// Represents the status of a computation.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum ComputationStatus {
-    /// Indicates that the output buffer could hold more samples, if more
-    /// input samples were present.
-    InsufficientInput,
-
-    /// Indicates that more output samples can be computed from the given input,
-    /// but there is not enough available space in the output buffer.
-    InsufficientOutput,
-
-    /// Indicates that as many samples as possible could be computed from the
-    /// input buffer, and that the output buffer was exactly filled.
-    BothSufficient,
-}
-
-impl ComputationStatus {
-    /// Returns whether the output was sufficient to hold all producible samples.
-    pub fn produced_all_samples(self) -> bool {
-        self == Self::BothSufficient || self == Self::InsufficientInput
-    }
-}
-
-/// Implements a trait to run computations with FIR filters.
-pub trait FirKernel<SampleType>: Send {
-    /// Computes the FIR filter on the given input, outputting into the given output.
-    /// Note that filters will not generally have internal memory - therefore, even
-    /// if the output is sufficiently large, not all input samples may be consumed.
-    /// However, it is also permitted for kernel implementations to contain state
-    /// related to the input stream (for example, it may contain an internal buffer
-    /// of the last `num_taps` input samples).
-    ///
-    /// Returns a tuple containing, in order:
-    /// - The number of samples consumed from the input,
-    /// - The number of samples produced in the output, and
-    /// - A `ComputationStatus` which indicates whether the buffers were undersized.
-    ///
-    /// Elements of `output` beyond what is produced are left in an unspecified state.
-    fn work(
-        &self,
-        input: &[SampleType],
-        output: &mut [SampleType],
-    ) -> (usize, usize, ComputationStatus);
-}
 
 /// A non-resampling FIR filter. Calling `work()` on this struct always
 /// produces exactly as many samples as it consumes.
@@ -59,7 +14,8 @@ pub trait FirKernel<SampleType>: Send {
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::fir::{FirKernel, NonResamplingFirKernel};
+/// use futuredsp::UnaryKernel;
+/// use futuredsp::fir::NonResamplingFirKernel;
 ///
 /// let fir = NonResamplingFirKernel::<f32, _>::new([1.0, 2.0, 3.0]);
 ///
@@ -122,7 +78,7 @@ where
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
@@ -137,7 +93,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
     for NonResamplingFirKernel<f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
@@ -152,7 +108,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<f32>
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
     fn work(
@@ -174,7 +130,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> FirKernel<Complex<f32>>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
     for NonResamplingFirKernel<Complex<f32>, TapsType>
 {
     fn work(
