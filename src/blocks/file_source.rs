@@ -11,6 +11,31 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Loads samples from a file, then stops.
+///
+/// Samples are assumed to be encoded in the native format for the runtime. For
+/// example, on most machines, that means little endian. For complex samples,
+/// the real component must come before the complex component.
+///
+/// # Inputs
+///
+/// No inputs.
+///
+/// # Outputs
+///
+/// `out`: Output samples
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::FileSource;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// // Loads 8-byte samples from the file
+/// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32"));
+/// ```
 pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,

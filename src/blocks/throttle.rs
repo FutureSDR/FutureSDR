@@ -15,6 +15,26 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Limits the sample rate to the given value
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// `out`: Output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Throttle;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let throttle = fg.add_block(Throttle::<Complex<f32>>::new(1_000_000.0));
+/// ```
 pub struct Throttle<T: Send + 'static> {
     rate: f64,
     t_init: Instant,
@@ -23,6 +43,7 @@ pub struct Throttle<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> Throttle<T> {
+    /// Creates a new Throttle block which will throttle to the specified rate.
     pub fn new(rate: f64) -> Block {
         Block::new_async(
             BlockMetaBuilder::new("Throttle").build(),

@@ -12,6 +12,26 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Stops the graph after the given number of samples
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// `out`: Output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Head;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let head = fg.add_block(Head::<Complex<f32>>::new(1_000_000));
+/// ```
 pub struct Head<T: Send + 'static> {
     n_items: u64,
     _type: std::marker::PhantomData<T>,

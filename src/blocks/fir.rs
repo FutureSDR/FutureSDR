@@ -84,32 +84,44 @@ where
     }
 }
 
+/// Creates a generic FIR filter.
+///
+/// Uses the `futuredsp` to pick the optimal FIR implementation for the given
+/// constraints.
+/// 
+/// Note that there must be an implementation of [futuredsp::TapsAccessor] for
+/// the taps object you pass in, see docs for details.
+/// 
+/// Additionally, there must be an available core (implementation of
+/// [futuredsp::UnaryKernel]) available for the specified `SampleType` and
+/// `TapsType`. See the [futuredsp docs](futuredsp::fir) for available
+/// implementations.
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// `out`: Output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::FirBuilder;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]));
+/// ```
 pub struct FirBuilder {
     //
 }
 
 impl FirBuilder {
-    /// Constructs a new FIR Filter using the given types and taps. This function will
-    /// pick the optimal FIR implementation for the given constraints.
-    ///
-    /// Note that there must be an implementation of `TapsAccessor` for the taps object
-    /// you pass in. Implementations are provided for arrays and `Vec<TapType>`.
-    ///
-    /// Additionally, there must be an available core (implementation of `FirKernel`) for
-    /// the specified `SampleType` and `TapType`. Cores are provided for the following
-    /// `SampleType`/`TapType` combinations:
-    /// - `SampleType=f32`, `TapType=f32`
-    /// - `SampleType=Complex<f32>`, `TapType=f32`
-    ///
-    /// Example usage:
-    /// ```
-    /// use futuresdr::blocks::FirBuilder;
-    /// use num_complex::Complex;
-    ///
-    /// let fir = FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]);
-    /// let fir = FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]);
-    /// let fir = FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]);
-    /// ```
     pub fn new<SampleType, TapType, Taps>(taps: Taps) -> Block
     where
         SampleType: 'static + Send,

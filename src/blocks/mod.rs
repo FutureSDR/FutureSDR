@@ -1,3 +1,30 @@
+//! ## Generic blocks
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [Apply] | Apply a function to each sample | ✅ |
+//! | [Combine] | Apply a function to combine two streams into one | ✅ |
+//!
+//! ## Filter blocks
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [fir](FirBuilder) | Generic FIR filter | ✅ |
+//!
+//! ## Limiting blocks
+//! | Block| Usage | WebAssembly? |
+//! |---|---|---|
+//! | [Throttle] | Limits graph sample rate | ❌ |
+//! | [Head] | Stops graph after specified number of samples | ✅ |
+//!
+//! ## I/O blocks
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [FileSource] | Reads samples from a file | ❌ |
+//! 
+//! ## Message blocks
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [MessageSourceBuilder] | Repeats a fixed message on an interval | ❌ |
+
 mod apply;
 pub use apply::Apply;
 
