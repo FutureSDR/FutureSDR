@@ -21,14 +21,12 @@ impl ComputationStatus {
     }
 }
 
-/// Implements a trait to run computations with FIR filters.
+/// Implements a trait to run computations with stateless kernels.
 pub trait UnaryKernel<SampleType>: Send {
-    /// Computes the FIR filter on the given input, outputting into the given output.
-    /// Note that filters will not generally have internal memory - therefore, even
-    /// if the output is sufficiently large, not all input samples may be consumed.
-    /// However, it is also permitted for kernel implementations to contain state
-    /// related to the input stream (for example, it may contain an internal buffer
-    /// of the last `num_taps` input samples).
+    /// Computes the kernel on the given input, outputting into the given
+    /// output. For a `UnaryKernel`, kernels will not have internal memory - in
+    /// particular, this means that a single instantiated kernel does not need
+    /// to be reserved for a single stream of data.
     ///
     /// Returns a tuple containing, in order:
     /// - The number of samples consumed from the input,
@@ -43,14 +41,19 @@ pub trait UnaryKernel<SampleType>: Send {
     ) -> (usize, usize, ComputationStatus);
 }
 
-/// Implements a trait to run computations with FIR filters.
+/// Implements a trait to run computations with stateful kernels.
 pub trait StatefulUnaryKernel<SampleType>: Send {
-    /// Computes the FIR filter on the given input, outputting into the given output.
-    /// Note that filters will not generally have internal memory - therefore, even
-    /// if the output is sufficiently large, not all input samples may be consumed.
-    /// However, it is also permitted for kernel implementations to contain state
-    /// related to the input stream (for example, it may contain an internal buffer
-    /// of the last `num_taps` input samples).
+    /// Computes the kernel on the given input, outputting into the given
+    /// output. `StatefulUnaryKernel`s have internal state. This results in
+    /// several properties:
+    /// * Even if the output is sufficiently large, not all input samples may be
+    ///   consumed.
+    /// * A given instantiated kernel must be called sequentially on a single
+    ///   stream of data. Switching between data streams with a single kernel
+    ///   will result in undefined behaviour.
+    /// 
+    /// Note that all `StatefulUnaryKernel`s implement `UnaryKernel` by
+    /// definition.
     ///
     /// Returns a tuple containing, in order:
     /// - The number of samples consumed from the input,
