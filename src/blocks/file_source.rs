@@ -36,7 +36,7 @@ use crate::runtime::WorkIo;
 /// // Loads 8-byte samples from the file
 /// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32"));
 /// ```
-#[doc(cfg(not(target_arch = "wasm32")))]
+#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,

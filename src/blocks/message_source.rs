@@ -108,7 +108,7 @@ impl AsyncKernel for MessageSource {
 ///     .build()
 /// );
 /// ```
-#[doc(cfg(not(target_arch = "wasm32")))]
+#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct MessageSourceBuilder {
     message: Pmt,
     duration: Duration,
