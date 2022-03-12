@@ -3,11 +3,13 @@
 //! |---|---|---|
 //! | [Apply] | Apply a function to each sample | ✅ |
 //! | [Combine] | Apply a function to combine two streams into one | ✅ |
+//! | [Filter] | Apply a function to filter samples | ✅ |
 //!
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [fir](FirBuilder) | Generic FIR filter | ✅ |
+//! | [fft](FftBuilder) | Computes FFT | ✅ |
 //!
 //! ## Limiting blocks
 //! | Block| Usage | WebAssembly? |
@@ -19,8 +21,11 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [FileSource] | Reads samples from a file | ❌ |
+//! | [SoapySource](SoapySourceBuilder) | Read samples from a soapy device | ❌ |
+//! | [Source] | Repeatedly apply a function to generate samples | ✅ |
+//! | [NullSource] | Generates a stream of zeros | ✅ |
 //! | [FileSink] | Writes samples to a file | ❌ |
-//! | [SoapySource] | Read samples from a soapy device | ❌ |
+//! | [NullSink] | Drops samples | ✅ |
 //! 
 //! ## Message blocks
 //! | Block | Usage | WebAssembly? |

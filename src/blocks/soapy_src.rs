@@ -16,26 +16,6 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Read samples from a SoapySDR source
-///
-/// # Inputs
-///
-/// **Message** `freq`: a Pmt::u32 to change the frequency to.
-///
-/// # Outputs
-///
-/// `out`: Samples received from device.
-///
-/// # Usage
-/// ```
-/// use futuresdr::blocks::SoapySource;
-/// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let source = fg.add_block(SoapySource::new(100e9, 1e6, 10.0, "device=hackrf"));
-/// ```
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
     stream: Option<soapysdr::RxStream<Complex<f32>>>,
@@ -145,6 +125,33 @@ impl AsyncKernel for SoapySource {
 
 unsafe impl Sync for SoapySource {}
 
+/// Read samples from a SoapySDR source
+///
+/// # Inputs
+///
+/// **Message** `freq`: a Pmt::u32 to change the frequency to.
+///
+/// # Outputs
+///
+/// `out`: Samples received from device.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::SoapySourceBuilder;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let source = fg.add_block(
+///     SoapySourceBuilder::new()
+///         .freq(100e9)
+///         .sample_rate(1e6)
+///         .gain(10.0)
+///         .filter("device=hackrf")
+///         .build()
+/// );
+/// ```
 #[derive(Default)]
 pub struct SoapySourceBuilder {
     freq: f64,

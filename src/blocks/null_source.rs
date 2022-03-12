@@ -9,6 +9,26 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Generates a stream of zeroes
+///
+/// # Inputs
+///
+/// No inputs
+///
+/// # Outputs
+///
+/// `out`: Output
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::NullSource;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let source = fg.add_block(NullSource::<Complex<f32>>::new());
+/// ```
 pub struct NullSource<T: Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }

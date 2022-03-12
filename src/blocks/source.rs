@@ -11,6 +11,26 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
+/// Repeatedly applies a function to generate samples.
+///
+/// # Inputs
+///
+/// No inputs.
+///
+/// # Outputs
+///
+/// `out`: Output samples
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Source;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// // Generate zeroes
+/// let source = fg.add_block(Source::<f32>::new(|| { 0.0 }));
+/// ```
 pub struct Source<A>
 where
     A: 'static,
