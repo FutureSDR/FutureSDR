@@ -157,8 +157,8 @@ impl SoapySourceBuilder {
     }
 
     /// See [`soapysdr::Device::new()`]
-    pub fn filter(mut self, filter: String) -> SoapySourceBuilder {
-        self.filter = filter;
+    pub fn filter<S: Into<String>>(mut self, filter: S) -> SoapySourceBuilder {
+        self.filter = filter.into();
         self
     }
 
