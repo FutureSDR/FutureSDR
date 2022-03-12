@@ -13,6 +13,31 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Writes samples to a file.
+///
+/// Samples are encoded using the in-memory format of the machine the runtime is
+/// running on, like for [FileSource]. For most machines, this means little
+/// endian. Complex numbers are written with the real component coming before
+/// the complex component.
+///
+/// # Inputs
+///
+/// `in`: Input
+///
+/// # Outputs
+///
+/// No outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::FileSink;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
+/// ```
 pub struct FileSink<T: Send + 'static> {
     file_name: String,
     file: Option<File>,
