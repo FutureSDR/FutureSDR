@@ -23,7 +23,7 @@
 //! ## Message blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [MessageSourceBuilder] | Repeats a fixed message on an interval | ❌ |
+//! | [MessageSource](MessageSourceBuilder) | Repeats a fixed message on an interval | ❌ |
 
 mod apply;
 pub use apply::Apply;
