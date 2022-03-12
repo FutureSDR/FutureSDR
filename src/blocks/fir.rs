@@ -11,12 +11,13 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 use futuredsp::fir::*;
+use futuredsp::{TapsAccessor, UnaryKernel};
 
 pub struct Fir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
-    Core: 'static + FirKernel<SampleType>,
+    Core: 'static + UnaryKernel<SampleType>,
 {
     core: Core,
     _sampletype: std::marker::PhantomData<SampleType>,
@@ -27,7 +28,7 @@ unsafe impl<SampleType, TapType, Core> Send for Fir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
-    Core: 'static + FirKernel<SampleType>,
+    Core: 'static + UnaryKernel<SampleType>,
 {
 }
 
@@ -35,7 +36,7 @@ impl<SampleType, TapType, Core> Fir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
-    Core: 'static + FirKernel<SampleType>,
+    Core: 'static + UnaryKernel<SampleType>,
 {
     pub fn new(core: Core) -> Block {
         Block::new_sync(
@@ -59,7 +60,7 @@ impl<SampleType, TapType, Core> SyncKernel for Fir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
-    Core: 'static + FirKernel<SampleType>,
+    Core: 'static + UnaryKernel<SampleType>,
 {
     fn work(
         &mut self,
@@ -127,7 +128,7 @@ impl FirBuilder {
         SampleType: 'static + Send,
         TapType: 'static,
         Taps: 'static + TapsAccessor,
-        NonResamplingFirKernel<SampleType, Taps>: FirKernel<SampleType>,
+        NonResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
     {
         Fir::<SampleType, TapType, NonResamplingFirKernel<SampleType, Taps>>::new(
             NonResamplingFirKernel::new(taps),
