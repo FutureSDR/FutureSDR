@@ -51,7 +51,7 @@ pub trait StatefulUnaryKernel<SampleType>: Send {
     /// * A given instantiated kernel must be called sequentially on a single
     ///   stream of data. Switching between data streams with a single kernel
     ///   will result in undefined behaviour.
-    /// 
+    ///
     /// Note that all `StatefulUnaryKernel`s implement `UnaryKernel` by
     /// definition.
     ///
@@ -86,8 +86,8 @@ mod test {
 
     impl UnaryKernel<f32> for NopKernel {
         fn work(&self, _input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
-            for i in 0..output.len() {
-                output[i] = i as f32;
+            for (i, out) in output.iter_mut().enumerate() {
+                *out = i as f32;
             }
             (0, output.len(), ComputationStatus::BothSufficient)
         }
