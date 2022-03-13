@@ -42,6 +42,9 @@ pub use finite_source::FiniteSource;
 mod head;
 pub use head::Head;
 
+mod iir;
+pub use iir::{Iir, IirBuilder};
+
 #[cfg(feature = "lttng")]
 pub mod lttng;
 
