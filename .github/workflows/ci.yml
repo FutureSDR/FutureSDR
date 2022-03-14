@@ -104,7 +104,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --exclude zigbee --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude audio --exclude rx-to-file --exclude zigbee --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
 
       - name: Run cargo benches
         uses: actions-rs/cargo@v1
@@ -142,7 +142,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --exclude zigbee --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
+          args: --bins --examples --tests --workspace --exclude androidfs --exclude androidhw --exclude fm-receiver --exclude fir_latency --exclude null_rand_latency --exclude zeromq --exclude perf-zynq --exclude audio --exclude rx-to-file --exclude zigbee --features=flow_scheduler,tpb_scheduler -- --nocapture --skip vulkan
 
       - name: Run cargo benches
         uses: actions-rs/cargo@v1
