@@ -1,0 +1,8 @@
+[package]
+name = "firdes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futuresdr = { path = "../..", features = ["audio"] }
+futuredsp = { path = "../../futuredsp", version = "0.0.2" }
