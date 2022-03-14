@@ -14,18 +14,15 @@ fn main() -> Result<()> {
     const TONE_FREQ: (f32, f32, f32) = (2000.0, 6000.0, 10000.0);
     let enable_filter = true;
 
-    static mut T: usize = 0;
-    let src = Source::<f32>::new(|| {
-        let x = unsafe {
-            T += 1;
-            T
-        };
-        let freq = match (x as f32 % SAMPLING_FREQ as f32) as u32 {
+    let mut t: usize = 0;
+    let src = Source::<f32>::new(move || {
+        t = t + 1;
+        let freq = match (t as f32 % SAMPLING_FREQ as f32) as u32 {
             x if x < SAMPLING_FREQ / 3 => TONE_FREQ.0,
             x if x < 2 * SAMPLING_FREQ / 3 => TONE_FREQ.1,
             _ => TONE_FREQ.2,
         };
-        (2.0 * std::f32::consts::PI * x as f32 * freq / SAMPLING_FREQ as f32).sin()
+        (2.0 * std::f32::consts::PI * t as f32 * freq / SAMPLING_FREQ as f32).sin()
     });
 
     // Design bandpass filter for the middle tone
