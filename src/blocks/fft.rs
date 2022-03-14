@@ -74,7 +74,7 @@ impl AsyncKernel for Fft {
 }
 
 /// Computes a FFT
-/// 
+///
 /// This block computes the FFT on 2048 samples at a time, outputting 2048 samples per FFT.
 ///
 /// # Inputs

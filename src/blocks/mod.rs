@@ -26,7 +26,7 @@
 //! | [NullSource] | Generates a stream of zeros | ✅ |
 //! | [FileSink] | Writes samples to a file | ❌ |
 //! | [NullSink] | Drops samples | ✅ |
-//! 
+//!
 //! ## Message blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
