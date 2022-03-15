@@ -135,7 +135,7 @@ impl AsyncKernel for Wgpu {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for m in o(sio, 0).buffers().drain(..) {
+        for m in o(sio, 0).buffers().into_iter() {
             info!("**** Empty Output Buffer is added to output_buffers");
             self.output_buffers.push(m.buffer);
         }

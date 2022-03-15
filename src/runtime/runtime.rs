@@ -244,7 +244,7 @@ async fn run_flowgraph<S: Scheduler>(
         }
     }
 
-    for m in queue.drain(..) {
+    for m in queue.into_iter() {
         main_channel
             .try_send(m)
             .expect("main inbox exceeded capacity during startup");

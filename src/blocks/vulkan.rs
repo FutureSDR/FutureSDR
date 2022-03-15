@@ -140,7 +140,7 @@ impl AsyncKernel for Vulkan {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for m in o(sio, 0).buffers().drain(..) {
+        for m in o(sio, 0).buffers().into_iter() {
             debug!("vulkan: forwarding buff from output to input");
             i(sio, 0).submit(m);
         }
@@ -148,7 +148,7 @@ impl AsyncKernel for Vulkan {
         let pipeline = self.pipeline.as_ref().context("no pipeline")?.clone();
         let layout = self.layout.as_ref().context("no layout")?.clone();
 
-        for m in i(sio, 0).buffers().drain(..) {
+        for m in i(sio, 0).buffers().into_iter() {
             debug!("vulkan block: launching full buffer");
 
             let set = PersistentDescriptorSet::new(

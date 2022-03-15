@@ -223,6 +223,7 @@ impl FilterWindow<f32> for KaiserWindow {
 }
 
 #[cfg(test)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
 

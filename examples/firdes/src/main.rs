@@ -16,7 +16,7 @@ fn main() -> Result<()> {
 
     let mut t: usize = 0;
     let src = Source::<f32>::new(move || {
-        t = t + 1;
+        t += 1;
         let freq = match (t as f32 % SAMPLING_FREQ as f32) as u32 {
             x if x < SAMPLING_FREQ / 3 => TONE_FREQ.0,
             x if x < 2 * SAMPLING_FREQ / 3 => TONE_FREQ.1,

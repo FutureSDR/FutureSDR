@@ -45,6 +45,7 @@ pub fn besseli0(x: f64) -> f64 {
 }
 
 #[cfg(test)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
 

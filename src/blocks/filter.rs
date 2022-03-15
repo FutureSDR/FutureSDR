@@ -30,7 +30,7 @@ use crate::runtime::WorkIo;
 ///
 /// // Remove samples above 1.0
 /// let filter = fg.add_block(Filter::<f32, f32>::new(|i| {
-///     if i < 1.0 {
+///     if *i < 1.0 {
 ///         Some(*i)
 ///     } else {
 ///         None
