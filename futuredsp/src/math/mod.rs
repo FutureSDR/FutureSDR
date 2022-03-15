@@ -1,3 +1,3 @@
-//! Mathematical constants, functions, etc.
+//! Mathematical functions, etc.
 
 pub mod special_funs;
