@@ -64,7 +64,7 @@ pub fn highpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) -
     // Number of taps must be odd
     let num_taps = match num_taps % 2 {
         0 => {
-            // println!("Warning: num_taps must be odd. Adding one.");
+            warn!("num_taps must be odd. Adding one.");
             num_taps + 1
         }
         _ => num_taps,

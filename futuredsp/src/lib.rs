@@ -1,6 +1,9 @@
 #![no_std]
 #![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
 
+#[macro_use]
+pub extern crate log;
+
 pub mod fir;
 pub mod firdes;
 pub mod iir;
