@@ -270,13 +270,13 @@ mod tests {
             0.000000000000000,
         ]; // Computed using MATLAB bartlett()
         let window = BartlettWindow::new(n_taps);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
@@ -327,13 +327,13 @@ mod tests {
             0.000000000000000,
         ]; // Computed using MATLAB blackman()
         let window = BlackmanWindow::new(n_taps);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
@@ -385,13 +385,13 @@ mod tests {
             0.088921617459386,
         ]; // Computed using MATLAB gausswin()
         let window = GaussianWindow::new(n_taps, alpha);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
@@ -442,13 +442,13 @@ mod tests {
             0.080000000000000,
         ]; // Computed using MATLAB hamming()
         let window = HammingWindow::new(n_taps);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
@@ -499,13 +499,13 @@ mod tests {
             0.000000000000000,
         ]; // Computed using MATLAB hann()
         let window = HannWindow::new(n_taps);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
@@ -557,13 +557,13 @@ mod tests {
             0.020392806629217,
         ]; // Computed using MATLAB kaiser()
         let window = KaiserWindow::new(n_taps, beta);
-        for i in 0..n_taps {
+        for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - test_taps[i]).abs() < tol,
+                (window.get(i) - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
                 window.get(i),
-                test_taps[i],
+                tap,
                 tol,
                 i
             );
