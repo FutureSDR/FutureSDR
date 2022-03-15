@@ -1,7 +1,6 @@
 //! Methods for designing FIR filters.
 
 extern crate alloc;
-use crate::math::consts;
 use crate::windows::FilterWindow;
 use alloc::vec::Vec;
 
@@ -26,13 +25,13 @@ pub fn lowpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) ->
         "cutoff must be in (0, 1/2)"
     );
     let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let omega_c = 2.0 * consts::f32::PI * cutoff;
+    let omega_c = 2.0 * core::f32::consts::PI * cutoff;
     let alpha = (num_taps - 1) as f32 / 2.0;
     for n in 0..num_taps {
         let x = n as f32 - alpha;
         let tap = match x == 0.0 {
             true => 1.0,
-            false => (omega_c * x).sin() / (consts::f32::PI * x),
+            false => (omega_c * x).sin() / (core::f32::consts::PI * x),
         };
         taps.push(tap * window.get(n));
     }
@@ -70,13 +69,13 @@ pub fn highpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) -
         _ => num_taps,
     };
     let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let omega_c = 2.0 * consts::f32::PI * cutoff;
+    let omega_c = 2.0 * core::f32::consts::PI * cutoff;
     let alpha = (num_taps - 1) as f32 / 2.0;
     for n in 0..num_taps {
         let x = n as f32 - alpha;
         let tap = match x == 0.0 {
-            true => 1.0 - omega_c / consts::f32::PI,
-            false => -(omega_c * x).sin() / (consts::f32::PI * x),
+            true => 1.0 - omega_c / core::f32::consts::PI,
+            false => -(omega_c * x).sin() / (core::f32::consts::PI * x),
         };
         taps.push(tap * window.get(n));
     }
@@ -114,18 +113,18 @@ pub fn bandpass<T: FilterWindow<f32>>(
         "higher_cutoff must be in (lower_cutoff, 1/2)"
     );
     let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let lower_omega_c = 2.0 * consts::f32::PI * lower_cutoff;
-    let higher_omega_c = 2.0 * consts::f32::PI * higher_cutoff;
+    let lower_omega_c = 2.0 * core::f32::consts::PI * lower_cutoff;
+    let higher_omega_c = 2.0 * core::f32::consts::PI * higher_cutoff;
     let omega_passband_bw = higher_omega_c - lower_omega_c;
     let omega_passband_center = (lower_omega_c + higher_omega_c) / 2.0;
     let alpha = (num_taps - 1) as f32 / 2.0;
     for n in 0..num_taps {
         let x = n as f32 - alpha;
         let tap = match x == 0.0 {
-            true => omega_passband_bw / consts::f32::PI,
+            true => omega_passband_bw / core::f32::consts::PI,
             false => {
                 2.0 * (omega_passband_center * x).cos() * (omega_passband_bw / 2.0 * x).sin()
-                    / (consts::f32::PI * x)
+                    / (core::f32::consts::PI * x)
             }
         };
         taps.push(tap * window.get(n));
