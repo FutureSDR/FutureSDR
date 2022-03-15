@@ -1,6 +1,6 @@
 //! A collection of filter window functions.
 
-use crate::math::{consts, special_funs};
+use crate::math::special_funs;
 
 /// A generic trait for filter window functions.
 pub trait FilterWindow<TapsType> {
@@ -93,8 +93,8 @@ impl FilterWindow<f32> for BlackmanWindow {
             return 0.0;
         }
         let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.42 - 0.5 * (consts::f32::PI * (index as f32) / alpha).cos()
-            + 0.08 * (2.0 * consts::f32::PI * (index as f32) / alpha).cos()
+        0.42 - 0.5 * (core::f32::consts::PI * (index as f32) / alpha).cos()
+            + 0.08 * (2.0 * core::f32::consts::PI * (index as f32) / alpha).cos()
     }
 }
 
@@ -158,7 +158,7 @@ impl FilterWindow<f32> for HammingWindow {
             return 0.0;
         }
         let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.54 - 0.46 * (consts::f32::PI * (index as f32) / alpha).cos()
+        0.54 - 0.46 * (core::f32::consts::PI * (index as f32) / alpha).cos()
     }
 }
 
@@ -187,7 +187,7 @@ impl FilterWindow<f32> for HannWindow {
             return 0.0;
         }
         let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.5 * (1.0 - (consts::f32::PI * (index as f32) / alpha).cos())
+        0.5 * (1.0 - (core::f32::consts::PI * (index as f32) / alpha).cos())
     }
 }
 
