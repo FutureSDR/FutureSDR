@@ -26,6 +26,7 @@
 //! | [NullSource] | Generates a stream of zeros | ✅ |
 //! | [FileSink] | Writes samples to a file | ❌ |
 //! | [NullSink] | Drops samples | ✅ |
+//! | [WavSink] | Writes samples to a WAV file | ❌ |
 //!
 //! ## Message blocks
 //! | Block | Usage | WebAssembly? |
@@ -133,6 +134,12 @@ pub use vector_source::{VectorSource, VectorSourceBuilder};
 mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::{Vulkan, VulkanBuilder};
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "wav"))]
+mod wav;
+#[cfg(all(not(target_arch = "wasm32"), feature = "wav"))]
+pub use wav::WavSink;
+
 
 #[cfg(target_arch = "wasm32")]
 mod wasm_sdr;
