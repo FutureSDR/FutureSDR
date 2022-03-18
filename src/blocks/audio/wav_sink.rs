@@ -2,6 +2,7 @@ use hound;
 use std::path;
 
 use crate::anyhow::Result;
+use crate::async_trait::async_trait;
 use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -11,10 +12,9 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use crate::async_trait::async_trait;
 
 /// A sink serializing into Wav file
-/// 
+///
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Apply;
@@ -37,16 +37,19 @@ use crate::async_trait::async_trait;
 /// let snk = fg.add_block(WavSink::<f32>::new(path, spec));
 /// Runtime::new().run(fg);
 /// ```
-pub struct WavSink<T> 
+pub struct WavSink<T>
 where
-    T: Send + 'static + hound::Sample + Copy
+    T: Send + 'static + hound::Sample + Copy,
 {
     writer: hound::WavWriter<std::io::BufWriter<std::fs::File>>,
     _type: std::marker::PhantomData<T>,
 }
 
 impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
-    pub fn   new<P: AsRef<path::Path>+ std::marker::Send + Copy>(file_name: P, spec: hound::WavSpec) -> Block {
+    pub fn new<P: AsRef<path::Path> + std::marker::Send + Copy>(
+        file_name: P,
+        spec: hound::WavSpec,
+    ) -> Block {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
         Block::new_async(
             BlockMetaBuilder::new("WavSink").build(),
@@ -74,9 +77,9 @@ impl<T: Send + 'static + hound::Sample + Copy> AsyncKernel for WavSink<T> {
         let i = sio.input(0).slice::<T>();
         let items = i.len();
         if items > 0 {
-                for t in i {
-                    self.writer.write_sample(*t).unwrap();
-                }
+            for t in i {
+                self.writer.write_sample(*t).unwrap();
+            }
         }
 
         if sio.input(0).finished() {

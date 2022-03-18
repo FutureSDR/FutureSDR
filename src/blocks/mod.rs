@@ -134,11 +134,6 @@ mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::{Vulkan, VulkanBuilder};
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "wav"))]
-mod wav;
-#[cfg(all(not(target_arch = "wasm32"), feature = "wav"))]
-pub use wav::WavSink;
-
 #[cfg(target_arch = "wasm32")]
 mod wasm_sdr;
 #[cfg(target_arch = "wasm32")]
