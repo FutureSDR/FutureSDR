@@ -1,3 +1,4 @@
+use hound;
 use std::path;
 
 use crate::anyhow::Result;
@@ -11,7 +12,6 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 use crate::async_trait::async_trait;
-use hound;
 
 /// A sink serializing into Wav file
 /// 
@@ -84,26 +84,6 @@ impl<T: Send + 'static + hound::Sample + Copy> AsyncKernel for WavSink<T> {
         }
 
         sio.input(0).consume(items);
-        Ok(())
-    }
-
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    async fn deinit(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-       // self.file.as_mut().unwrap().sync_all().await.unwrap();
-        //self.writer.finalize().with_context(|| format!("Failed to finalize wav file"))
         Ok(())
     }
 }
