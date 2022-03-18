@@ -34,7 +34,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A> SyncKernel for FiniteSource<A>
 where
     A: 'static,

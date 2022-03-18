@@ -55,7 +55,6 @@ where
     }
 }
 
-#[async_trait]
 impl<SampleType, TapType, Core> SyncKernel for Iir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,

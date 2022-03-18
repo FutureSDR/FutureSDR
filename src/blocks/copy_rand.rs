@@ -35,7 +35,6 @@ impl<T: Send + 'static> CopyRand<T> {
     }
 }
 
-#[async_trait]
 impl<T: Send + 'static> SyncKernel for CopyRand<T> {
     fn work(
         &mut self,

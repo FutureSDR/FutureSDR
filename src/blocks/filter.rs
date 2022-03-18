@@ -63,7 +63,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A, B> SyncKernel for Filter<A, B>
 where
     A: 'static,

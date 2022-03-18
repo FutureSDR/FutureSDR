@@ -43,7 +43,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A, B> SyncKernel for ApplyIntoIter<A, B>
 where
     A: 'static,
@@ -76,7 +75,7 @@ where
                 break;
             }
         }
-        //println!("produced: {}, consumed: {}, i.len: {}, o.len: {}", produced, consumed, i.len(), o.len());
+
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
         if sio.input(0).finished() && consumed == i.len() && produced < o.len() {

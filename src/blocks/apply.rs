@@ -74,7 +74,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A, B> SyncKernel for Apply<A, B>
 where
     A: 'static,

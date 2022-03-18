@@ -40,7 +40,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A, B, C> SyncKernel for Split<A, B, C>
 where
     A: 'static,

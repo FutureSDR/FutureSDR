@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -32,7 +31,6 @@ impl<T: Copy + Send + 'static> FftShift<T> {
     }
 }
 
-#[async_trait]
 impl<T: Copy + Send + 'static> SyncKernel for FftShift<T> {
     fn work(
         &mut self,

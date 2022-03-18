@@ -54,7 +54,6 @@ where
     }
 }
 
-#[async_trait]
 impl<A> SyncKernel for Source<A>
 where
     A: 'static,

@@ -1,7 +1,6 @@
 use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -39,7 +38,6 @@ impl Keep1InN {
     }
 }
 
-#[async_trait]
 impl SyncKernel for Keep1InN {
     fn work(
         &mut self,
