@@ -39,7 +39,6 @@ pub use apply::Apply;
 mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
 
-#[cfg(feature = "audio")]
 pub mod audio;
 
 mod combine;

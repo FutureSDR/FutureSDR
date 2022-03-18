@@ -18,7 +18,7 @@ use crate::async_trait::async_trait;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Apply;
-/// use futuresdr::blocks::WavSink;
+/// use futuresdr::blocks::audio::WavSink;
 /// use futuresdr::blocks::VectorSourceBuilder;
 /// use futuresdr::runtime::Flowgraph;
 /// use futuresdr::runtime::Runtime;
@@ -55,7 +55,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
                 .build(),
             MessageIoBuilder::new().build(),
             WavSink::<T> {
-                writer: writer,
+                writer,
                 _type: std::marker::PhantomData,
             },
         )
