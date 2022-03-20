@@ -31,7 +31,7 @@ pub fn besseli0(x: f64) -> f64 {
     } else {
         if x < -3.75 {
             // The approximation is not made for this range
-            //warn!("Bessel approximation may be inaccurate for x < -3.75");
+            warn!("Bessel approximation may be inaccurate for x < -3.75");
         }
         (x.abs().sqrt() * (-x).exp()).recip()
             * (0.39894228 + 0.01328592 * t.powi(-1) + 0.00225319 * t.powi(-2)
