@@ -2,9 +2,12 @@
 
 extern crate alloc;
 use alloc::vec::Vec;
+use num_traits::FromPrimitive;
 
 /// Constructs a lowpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
 /// using the specified window. The length of the filter equals the length of `window`.
+/// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
+/// using [`num_traits::FromPrimitive::from_f64()`].
 ///
 /// Example usage:
 /// ```
@@ -15,9 +18,9 @@ use alloc::vec::Vec;
 /// let cutoff = 2_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
 /// let rect_win = windows::rect(num_taps);
-/// let taps = firdes::lowpass(cutoff, rect_win.as_slice());
+/// let taps = firdes::lowpass::<f32>(cutoff, rect_win.as_slice());
 /// ```
-pub fn lowpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
+pub fn lowpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
     assert!(
         cutoff > 0.0 && cutoff < 1.0 / 2.0,
         "cutoff must be in (0, 1/2)"
@@ -25,20 +28,25 @@ pub fn lowpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
     let mut taps = window.to_vec();
     let omega_c = 2.0 * core::f64::consts::PI * cutoff;
     let alpha = (taps.len() - 1) as f64 / 2.0;
-    for n in 0..taps.len() {
+    for (n, tap) in taps.iter_mut().enumerate() {
         let x = n as f64 - alpha;
-        let tap = match x == 0.0 {
+        let filter_tap = match x == 0.0 {
             true => 1.0,
             false => (omega_c * x).sin() / (core::f64::consts::PI * x),
         };
-        taps[n] *= tap;
+        *tap *= filter_tap;
     }
-    taps
+    taps.iter()
+        .map(|x| T::from_f64(*x))
+        .collect::<Option<Vec<T>>>()
+        .unwrap()
 }
 
 /// Constructs a highpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
 /// using the specified window.  The length of the filter equals the length of `window`.
 /// Note that `window.len()` must be odd.
+/// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
+/// using [`num_traits::FromPrimitive::from_f64()`].
 ///
 /// Example usage:
 /// ```
@@ -49,9 +57,9 @@ pub fn lowpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
 /// let cutoff = 4_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
 /// let rect_win = windows::rect(num_taps);
-/// let taps = firdes::highpass(cutoff, rect_win.as_slice());
+/// let taps = firdes::highpass::<f32>(cutoff, rect_win.as_slice());
 /// ```
-pub fn highpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
+pub fn highpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
     assert!(
         cutoff > 0.0 && cutoff < 1.0 / 2.0,
         "cutoff must be in (0, 1/2)"
@@ -60,20 +68,25 @@ pub fn highpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
     let mut taps = window.to_vec();
     let omega_c = 2.0 * core::f64::consts::PI * cutoff;
     let alpha = (taps.len() - 1) as f64 / 2.0;
-    for n in 0..taps.len() {
+    for (n, tap) in taps.iter_mut().enumerate() {
         let x = n as f64 - alpha;
-        let tap = match x == 0.0 {
+        let filter_tap = match x == 0.0 {
             true => 1.0 - omega_c / core::f64::consts::PI,
             false => -(omega_c * x).sin() / (core::f64::consts::PI * x),
         };
-        taps[n] *= tap;
+        *tap *= filter_tap;
     }
-    taps
+    taps.iter()
+        .map(|x| T::from_f64(*x))
+        .collect::<Option<Vec<T>>>()
+        .unwrap()
 }
 
 /// Constructs a bandpass FIR filter with unit gain and cutoff frequencies
 /// `lower_cutoff` and `higher_cutoff` (in cycles/sample) using the specified window.
 ///  The length of the filter equals the length of `window`.
+/// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
+/// using [`num_traits::FromPrimitive::from_f64()`].
 ///
 /// Example usage:
 /// ```
@@ -85,9 +98,9 @@ pub fn highpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
 /// let higher_cutoff = 4_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
 /// let rect_win = windows::rect(num_taps);
-/// let taps = firdes::bandpass(lower_cutoff, higher_cutoff, rect_win.as_slice());
+/// let taps = firdes::bandpass::<f32>(lower_cutoff, higher_cutoff, rect_win.as_slice());
 /// ```
-pub fn bandpass(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<f64> {
+pub fn bandpass<T: FromPrimitive>(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<T> {
     assert!(
         lower_cutoff > 0.0 && lower_cutoff < 1.0 / 2.0,
         "lower_cutoff must be in (0, 1/2)"
@@ -102,23 +115,28 @@ pub fn bandpass(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<f6
     let omega_passband_bw = higher_omega_c - lower_omega_c;
     let omega_passband_center = (lower_omega_c + higher_omega_c) / 2.0;
     let alpha = (taps.len() - 1) as f64 / 2.0;
-    for n in 0..taps.len() {
+    for (n, tap) in taps.iter_mut().enumerate() {
         let x = n as f64 - alpha;
-        let tap = match x == 0.0 {
+        let filter_tap = match x == 0.0 {
             true => omega_passband_bw / core::f64::consts::PI,
             false => {
                 2.0 * (omega_passband_center * x).cos() * (omega_passband_bw / 2.0 * x).sin()
                     / (core::f64::consts::PI * x)
             }
         };
-        taps[n] *= tap;
+        *tap *= filter_tap;
     }
-    taps
+    taps.iter()
+        .map(|x| T::from_f64(*x))
+        .collect::<Option<Vec<T>>>()
+        .unwrap()
 }
 
 /// Constructs a root raised cosine filter with roll-off factor `roll_off`, truncated to
 /// `span` symbols. Each symbol is represented using `sps` samples. `span * sps` must be
 /// even. The returned filter has a length `span * sps + 1`.
+/// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
+/// using [`num_traits::FromPrimitive::from_f64()`].
 ///
 /// Example usage:
 /// ```
@@ -127,9 +145,9 @@ pub fn bandpass(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<f6
 /// let span = 8;
 /// let sps = 4;
 /// let roll_off = 0.25;
-/// let taps = firdes::root_raised_cosine(span, sps, roll_off);
+/// let taps = firdes::root_raised_cosine::<f32>(span, sps, roll_off);
 /// ```
-pub fn root_raised_cosine(span: usize, sps: usize, roll_off: f64) -> Vec<f64> {
+pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f64) -> Vec<T> {
     assert!((span * sps) % 2 == 0, "span * sps must be even");
     assert!(
         roll_off > 0.0 && roll_off <= 1.0,
@@ -159,7 +177,10 @@ pub fn root_raised_cosine(span: usize, sps: usize, roll_off: f64) -> Vec<f64> {
         };
         taps.push(tap);
     }
-    taps
+    taps.iter()
+        .map(|x| T::from_f64(*x))
+        .collect::<Option<Vec<T>>>()
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -182,7 +203,7 @@ mod tests {
             0.0297, -0.0186, -0.0525, -0.0709, -0.0744, -0.0654, -0.0478, -0.0255, -0.0029, 0.0165,
             0.0302, 0.0368, 0.0364, 0.0301, 0.0197, 0.0075, -0.0041, -0.0134,
         ];
-        let filter_taps = root_raised_cosine(span, sps, roll_off);
+        let filter_taps = root_raised_cosine::<f64>(span, sps, roll_off);
         assert_eq!(filter_taps.len(), test_taps.len());
         for i in 0..filter_taps.len() {
             let tol = 1e-2;
@@ -210,6 +231,7 @@ pub mod kaiser {
     extern crate alloc;
     use crate::windows::kaiser;
     use alloc::vec::Vec;
+    use num_traits::FromPrimitive;
 
     /// Designs a lowpass FIR filter with cutoff frequency `cutoff` and
     /// transition width `transition_bw` (in cycles/sample).
@@ -224,9 +246,9 @@ pub mod kaiser {
     /// let cutoff = 2_000.0 / sampling_freq as f64;
     /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
-    /// let taps = firdes::kaiser::lowpass(cutoff, transition_bw, max_ripple);
+    /// let taps = firdes::kaiser::lowpass::<f32>(cutoff, transition_bw, max_ripple);
     /// ```
-    pub fn lowpass(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<f64> {
+    pub fn lowpass<T: FromPrimitive>(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<T> {
         assert!(cutoff > 0.0, "cutoff must be greater than 0");
         assert!(transition_bw > 0.0, "transition_bw must be greater than 0");
         assert!(
@@ -252,9 +274,9 @@ pub mod kaiser {
     /// let cutoff = 4_000.0 / sampling_freq as f64;
     /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
-    /// let taps = firdes::kaiser::highpass(cutoff, transition_bw, max_ripple);
+    /// let taps = firdes::kaiser::highpass::<f32>(cutoff, transition_bw, max_ripple);
     /// ```
-    pub fn highpass(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<f64> {
+    pub fn highpass<T: FromPrimitive>(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<T> {
         assert!(cutoff > 0.0, "cutoff must be greater than 0");
         assert!(transition_bw > 0.0, "transition_bw must be greater than 0");
         assert!(
@@ -286,14 +308,14 @@ pub mod kaiser {
     /// let higher_cutoff = 4_000.0 / sampling_freq as f64;
     /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
-    /// let taps = firdes::kaiser::bandpass(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
+    /// let taps = firdes::kaiser::bandpass::<f32>(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
     /// ```
-    pub fn bandpass(
+    pub fn bandpass<T: FromPrimitive>(
         lower_cutoff: f64,
         higher_cutoff: f64,
         transition_bw: f64,
         max_ripple: f64,
-    ) -> Vec<f64> {
+    ) -> Vec<T> {
         assert!(lower_cutoff > 0.0, "lower_cutoff must be greater than 0");
         assert!(
             higher_cutoff > lower_cutoff,
@@ -386,7 +408,7 @@ pub mod kaiser {
                 -0.002365829920883,
                 0.000801064154378,
             ];
-            let filter_taps = lowpass(cutoff, transition_bw, max_ripple);
+            let filter_taps = lowpass::<f64>(cutoff, transition_bw, max_ripple);
             assert_eq!(filter_taps.len(), test_taps.len());
             for i in 0..filter_taps.len() {
                 let tol = 1e-2;
@@ -476,7 +498,7 @@ pub mod kaiser {
                 0.000987622783890,
                 0.001101862089183,
             ];
-            let filter_taps = highpass(cutoff, transition_bw, max_ripple);
+            let filter_taps = highpass::<f64>(cutoff, transition_bw, max_ripple);
             assert_eq!(filter_taps.len(), test_taps.len());
             for i in 0..filter_taps.len() {
                 let tol = 1e-2;
@@ -542,7 +564,8 @@ pub mod kaiser {
                 -0.000000000000000,
                 -0.008169897601110,
             ];
-            let filter_taps = bandpass(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
+            let filter_taps =
+                bandpass::<f64>(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
             assert_eq!(filter_taps.len(), test_taps.len());
             for i in 0..filter_taps.len() {
                 let tol = 1e-2;

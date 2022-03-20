@@ -13,6 +13,7 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 
 [dependencies]
 num-complex = "0.4.0"
+num-traits = "0.2"
 log = "0.4"
 
 [build-dependencies]
