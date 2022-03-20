@@ -26,9 +26,9 @@ fn main() -> Result<()> {
     });
 
     // Design bandpass filter for the middle tone
-    let lower_cutoff = (TONE_FREQ.1 - 200.0) / SAMPLING_FREQ as f32;
-    let higher_cutoff = (TONE_FREQ.1 + 200.0) / SAMPLING_FREQ as f32;
-    let transition_bw = 500.0 / SAMPLING_FREQ as f32;
+    let lower_cutoff = (TONE_FREQ.1 - 200.0) as f64 / SAMPLING_FREQ as f64;
+    let higher_cutoff = (TONE_FREQ.1 + 200.0) as f64 / SAMPLING_FREQ as f64;
+    let transition_bw = 500.0 / SAMPLING_FREQ as f64;
     let max_ripple = 0.01;
 
     let filter_taps =
@@ -36,7 +36,9 @@ fn main() -> Result<()> {
     println!("Filter has {} taps", filter_taps.len());
 
     let filter_block = match enable_filter {
-        true => FirBuilder::new::<f32, f32, _>(filter_taps),
+        true => FirBuilder::new::<f32, f32, _>(
+            filter_taps.iter().map(|&x| x as f32).collect::<Vec<_>>(),
+        ),
         _ => FirBuilder::new::<f32, f32, _>([1.0_f32]),
     };
 

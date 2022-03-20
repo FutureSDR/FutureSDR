@@ -1,101 +1,134 @@
-//! A collection of filter window functions.
+//! A collection of window functions.
 
+extern crate alloc;
 use crate::math::special_funs;
-
-/// A generic trait for filter window functions.
-pub trait FilterWindow<TapsType> {
-    /// Returns the window function at index `index`
-    fn get(&self, index: usize) -> TapsType;
-}
+use alloc::vec::Vec;
 
 /// A rectangular window of a given length.
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::windows::{FilterWindow, RectWindow};
+/// use futuredsp::windows;
 ///
-/// let window = RectWindow::new(64);
-/// let tap0 = window.get(0);
+/// let taps = windows::rect(64);
 /// ```
-pub struct RectWindow {
-    num_taps: usize,
-}
-
-impl RectWindow {
-    /// Create a new rectangular window with `num_taps` taps.
-    pub fn new(num_taps: usize) -> Self {
-        Self { num_taps }
-    }
-}
-impl FilterWindow<f32> for RectWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        1.0
-    }
+pub fn rect(len: usize) -> Vec<f64> {
+    vec![1.0; len]
 }
 
 /// A Bartlett window of a given length.
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::windows::{FilterWindow, BartlettWindow};
+/// use futuredsp::windows;
 ///
-/// let window = BartlettWindow::new(38);
-/// let tap0 = window.get(0);
+/// let taps = windows::bartlett(38);
 /// ```
-pub struct BartlettWindow {
-    num_taps: usize,
+pub fn bartlett(len: usize) -> Vec<f64> {
+    let alpha = (len - 1) as f64 / 2.0;
+    (0..len)
+        .map(|n| match n as f64 {
+            n if n < alpha => (n as f64) / alpha,
+            n => 2.0 - (n as f64) / alpha,
+        })
+        .collect()
 }
-
-impl BartlettWindow {
-    /// Create a new Bartlett window with `num_taps` taps.
-    pub fn new(num_taps: usize) -> Self {
-        Self { num_taps }
-    }
-}
-impl FilterWindow<f32> for BartlettWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let alpha = (self.num_taps - 1) as f32 / 2.0;
-        match (index as f32) < alpha {
-            true => (index as f32) / alpha,
-            false => 2.0 - (index as f32) / alpha,
-        }
-    }
-}
-
-/// A Blackman window of a given length.
+/// A generalized cosine window of a given length with coefficients `coeffs`.
+/// If `periodic` is `false`, a symmetric filter is returned, which is suitable for
+/// filter design. If `periodic` is true, a perfect periodic window is
+/// returned, which is useful for spectral analysis. The periodic window is generated
+/// by computing a window of length `len+1` and then truncating it to the first `len` taps.
+///
+/// The generalized cosine window is on the form:
+///```text
+/// w[n] = sum_k (-1)^k * coeffs[k] * cos(2*π*k*n/N),     0 ≤ n ≤ N.
+///```
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::windows::{FilterWindow, BlackmanWindow};
+/// use futuredsp::windows;
 ///
-/// let window = BlackmanWindow::new(38);
-/// let tap0 = window.get(0);
+/// let taps = windows::gen_cos(38, &[0.1, 0.2], false);
 /// ```
-pub struct BlackmanWindow {
-    num_taps: usize,
+pub fn gen_cos(len: usize, coeffs: &[f64], periodic: bool) -> Vec<f64> {
+    let (len, truncate) = match periodic {
+        true => (len + 1, true),
+        false => (len, false),
+    };
+    let alpha = (len - 1) as f64 / 2.0;
+    let mut taps: Vec<f64> = (0..len)
+        .map(|n| {
+            (0..coeffs.len())
+                .map(|k| {
+                    (-1.0f64).powi(k as i32)
+                        * coeffs[k]
+                        * (core::f64::consts::PI * ((k * n) as f64) / alpha).cos()
+                })
+                .sum()
+        })
+        .collect();
+    if truncate {
+        taps.remove(len);
+    }
+    taps
 }
 
-impl BlackmanWindow {
-    /// Create a new Blackman window with `num_taps` taps.
-    pub fn new(num_taps: usize) -> Self {
-        Self { num_taps }
-    }
+/// A Blackman window of a given length. If `periodic` is `true` a periodic
+/// window is returned, otherwise a symmetric window. See [`gen_cos`] for more details.
+///
+/// Example usage:
+/// ```
+/// use futuredsp::windows;
+///
+/// let taps = windows::blackman(38, false);
+/// ```
+pub fn blackman(len: usize, periodic: bool) -> Vec<f64> {
+    gen_cos(len, &[0.42, 0.5, 0.08], periodic)
 }
-impl FilterWindow<f32> for BlackmanWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.42 - 0.5 * (core::f32::consts::PI * (index as f32) / alpha).cos()
-            + 0.08 * (2.0 * core::f32::consts::PI * (index as f32) / alpha).cos()
-    }
+
+/// A Hamming window of a given length. If `periodic` is `true` a periodic
+/// window is returned, otherwise a symmetric window. See [`gen_cos`] for more details.
+///
+/// Example usage:
+/// ```
+/// use futuredsp::windows;
+///
+/// let taps = windows::hamming(38, false);
+/// ```
+pub fn hamming(len: usize, periodic: bool) -> Vec<f64> {
+    gen_cos(len, &[0.54, 0.46], periodic)
+}
+
+/// A Hann window of a given length (sometimes also referred to as Hanning window).
+/// If `periodic` is `true` a periodic window is returned, otherwise a symmetric window.
+/// See [`gen_cos`] for more details.
+///
+/// Example usage:
+/// ```
+/// use futuredsp::windows;
+///
+/// let taps = windows::hann(38, false);
+/// ```
+pub fn hann(len: usize, periodic: bool) -> Vec<f64> {
+    gen_cos(len, &[0.5, 0.5], periodic)
+}
+
+/// A Kaiser window of a given length and shape parameter.
+///
+/// Example usage:
+/// ```
+/// use futuredsp::windows;
+///
+/// let taps = windows::kaiser(38, 0.5);
+/// ```
+pub fn kaiser(len: usize, beta: f64) -> Vec<f64> {
+    let alpha = (len - 1) as f64 / 2.0;
+    (0..len)
+        .map(|n| {
+            let x = beta * (1.0 - ((n as f64 - alpha) / alpha).powi(2)).sqrt();
+            special_funs::besseli0(x) / special_funs::besseli0(beta)
+        })
+        .collect()
 }
 
 /// A Gaussian window of a given length with width factor `alpha`, which is
@@ -105,121 +138,16 @@ impl FilterWindow<f32> for BlackmanWindow {
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::windows::{FilterWindow, GaussianWindow};
+/// use futuredsp::windows;
 ///
-/// let window = GaussianWindow::new(38, 2.5);
-/// let tap0 = window.get(0);
+/// let taps = windows::gaussian(38, 2.5);
 /// ```
-pub struct GaussianWindow {
-    num_taps: usize,
-    alpha: f32,
-}
-
-impl GaussianWindow {
-    /// Create a new Blackman window with `num_taps` taps and width factor `alpha`.
-    pub fn new(num_taps: usize, alpha: f32) -> Self {
-        Self { num_taps, alpha }
-    }
-}
-impl FilterWindow<f32> for GaussianWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let mid = ((self.num_taps - 1) as f32) / 2.0;
-        let std_dev = mid / self.alpha;
-        let n = index as f32 - mid;
-        (-n.powi(2) / (2.0 * std_dev.powi(2))).exp()
-    }
-}
-
-/// A Hamming window of a given length.
-///
-/// Example usage:
-/// ```
-/// use futuredsp::windows::{FilterWindow, HammingWindow};
-///
-/// let window = HammingWindow::new(38);
-/// let tap0 = window.get(0);
-/// ```
-pub struct HammingWindow {
-    num_taps: usize,
-}
-
-impl HammingWindow {
-    /// Create a new Hamming window with `num_taps` taps.
-    pub fn new(num_taps: usize) -> Self {
-        Self { num_taps }
-    }
-}
-impl FilterWindow<f32> for HammingWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.54 - 0.46 * (core::f32::consts::PI * (index as f32) / alpha).cos()
-    }
-}
-
-/// A Hann window of a given length (sometimes also referred to as Hanning window).
-///
-/// Example usage:
-/// ```
-/// use futuredsp::windows::{FilterWindow, HannWindow};
-///
-/// let window = HannWindow::new(38);
-/// let tap0 = window.get(0);
-/// ```
-pub struct HannWindow {
-    num_taps: usize,
-}
-
-impl HannWindow {
-    /// Create a new Hann window with `num_taps` taps.
-    pub fn new(num_taps: usize) -> Self {
-        Self { num_taps }
-    }
-}
-impl FilterWindow<f32> for HannWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let alpha = (self.num_taps - 1) as f32 / 2.0;
-        0.5 * (1.0 - (core::f32::consts::PI * (index as f32) / alpha).cos())
-    }
-}
-
-/// A Kaiser window of a given length and shape parameter.
-///
-/// Example usage:
-/// ```
-/// use futuredsp::windows::{FilterWindow, KaiserWindow};
-///
-/// let window = KaiserWindow::new(38, 0.5);
-/// let tap0 = window.get(0);
-/// ```
-pub struct KaiserWindow {
-    num_taps: usize,
-    beta: f32,
-}
-
-impl KaiserWindow {
-    /// Create a new Kaiser window with `num_taps` taps and shape `beta`.
-    pub fn new(num_taps: usize, beta: f32) -> Self {
-        Self { num_taps, beta }
-    }
-}
-impl FilterWindow<f32> for KaiserWindow {
-    fn get(&self, index: usize) -> f32 {
-        if index >= self.num_taps {
-            return 0.0;
-        }
-        let alpha = (self.num_taps - 1) as f32 / 2.0;
-        let x = self.beta * (1.0 - ((index as f32 - alpha) / alpha).powi(2)).sqrt();
-        (special_funs::besseli0(x as f64) / special_funs::besseli0(self.beta as f64)) as f32
-    }
+pub fn gaussian(len: usize, alpha: f64) -> Vec<f64> {
+    let mid = ((len - 1) as f64) / 2.0;
+    let std_dev = mid / alpha;
+    (0..len)
+        .map(|n| (-(n as f64 - mid).powi(2) / (2.0 * std_dev.powi(2))).exp())
+        .collect()
 }
 
 #[cfg(test)]
@@ -270,13 +198,13 @@ mod tests {
             0.054054054054054,
             0.000000000000000,
         ]; // Computed using MATLAB bartlett()
-        let window = BartlettWindow::new(n_taps);
+        let window = bartlett(n_taps);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i
@@ -327,13 +255,13 @@ mod tests {
             0.002622240463032,
             0.000000000000000,
         ]; // Computed using MATLAB blackman()
-        let window = BlackmanWindow::new(n_taps);
+        let window = blackman(n_taps, false);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i
@@ -385,13 +313,13 @@ mod tests {
             0.114698396715108,
             0.088921617459386,
         ]; // Computed using MATLAB gausswin()
-        let window = GaussianWindow::new(n_taps, alpha);
+        let window = gaussian(n_taps, alpha);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i
@@ -442,13 +370,13 @@ mod tests {
             0.086616681240054,
             0.080000000000000,
         ]; // Computed using MATLAB hamming()
-        let window = HammingWindow::new(n_taps);
+        let window = hamming(n_taps, false);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i
@@ -499,13 +427,13 @@ mod tests {
             0.007192044826146,
             0.000000000000000,
         ]; // Computed using MATLAB hann()
-        let window = HannWindow::new(n_taps);
+        let window = hann(n_taps, false);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i
@@ -557,13 +485,13 @@ mod tests {
             0.041484435695145,
             0.020392806629217,
         ]; // Computed using MATLAB kaiser()
-        let window = KaiserWindow::new(n_taps, beta);
+        let window = kaiser(n_taps, beta);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(
-                (window.get(i) - tap).abs() < tol,
+                (window[i] - tap).abs() < tol,
                 "abs({} - {}) < {} (tap {})",
-                window.get(i),
+                window[i],
                 tap,
                 tol,
                 i

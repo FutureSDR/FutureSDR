@@ -1,11 +1,10 @@
 //! Methods for designing FIR filters.
 
 extern crate alloc;
-use crate::windows::FilterWindow;
 use alloc::vec::Vec;
 
 /// Constructs a lowpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
-/// using the specified window.
+/// using the specified window. The length of the filter equals the length of `window`.
 ///
 /// Example usage:
 /// ```
@@ -13,35 +12,33 @@ use alloc::vec::Vec;
 ///
 /// let sampling_freq = 10_000;
 /// // 2000 Hz cutoff frequency, rectangular window
-/// let cutoff = 2_000.0 / sampling_freq as f32;
+/// let cutoff = 2_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
-/// let rect_win = windows::RectWindow::new(num_taps);
-/// let taps = firdes::lowpass(num_taps, cutoff, rect_win);
+/// let rect_win = windows::rect(num_taps);
+/// let taps = firdes::lowpass(cutoff, rect_win.as_slice());
 /// ```
-pub fn lowpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) -> Vec<f32> {
-    assert!(num_taps > 0, "num_taps must be greater than 0");
+pub fn lowpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
     assert!(
         cutoff > 0.0 && cutoff < 1.0 / 2.0,
         "cutoff must be in (0, 1/2)"
     );
-    let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let omega_c = 2.0 * core::f32::consts::PI * cutoff;
-    let alpha = (num_taps - 1) as f32 / 2.0;
-    for n in 0..num_taps {
-        let x = n as f32 - alpha;
+    let mut taps = window.to_vec();
+    let omega_c = 2.0 * core::f64::consts::PI * cutoff;
+    let alpha = (taps.len() - 1) as f64 / 2.0;
+    for n in 0..taps.len() {
+        let x = n as f64 - alpha;
         let tap = match x == 0.0 {
             true => 1.0,
-            false => (omega_c * x).sin() / (core::f32::consts::PI * x),
+            false => (omega_c * x).sin() / (core::f64::consts::PI * x),
         };
-        taps.push(tap * window.get(n));
+        taps[n] *= tap;
     }
-
     taps
 }
 
 /// Constructs a highpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
-/// using the specified window.
-/// Note that `num_taps` must be odd, otherwise one tap is added to the generated filter.
+/// using the specified window.  The length of the filter equals the length of `window`.
+/// Note that `window.len()` must be odd.
 ///
 /// Example usage:
 /// ```
@@ -49,41 +46,34 @@ pub fn lowpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) ->
 ///
 /// let sampling_freq = 10_000;
 /// // 2000 Hz cutoff frequency, rectangular window
-/// let cutoff = 4_000.0 / sampling_freq as f32;
+/// let cutoff = 4_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
-/// let rect_win = windows::RectWindow::new(num_taps);
-/// let taps = firdes::highpass(num_taps, cutoff, rect_win);
+/// let rect_win = windows::rect(num_taps);
+/// let taps = firdes::highpass(cutoff, rect_win.as_slice());
 /// ```
-pub fn highpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) -> Vec<f32> {
-    assert!(num_taps > 0, "num_taps must be greater than 0");
+pub fn highpass(cutoff: f64, window: &[f64]) -> Vec<f64> {
     assert!(
         cutoff > 0.0 && cutoff < 1.0 / 2.0,
         "cutoff must be in (0, 1/2)"
     );
-    // Number of taps must be odd
-    let num_taps = match num_taps % 2 {
-        0 => {
-            warn!("num_taps must be odd. Adding one.");
-            num_taps + 1
-        }
-        _ => num_taps,
-    };
-    let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let omega_c = 2.0 * core::f32::consts::PI * cutoff;
-    let alpha = (num_taps - 1) as f32 / 2.0;
-    for n in 0..num_taps {
-        let x = n as f32 - alpha;
+    assert!(window.len() % 2 == 1, "window.len() must be odd");
+    let mut taps = window.to_vec();
+    let omega_c = 2.0 * core::f64::consts::PI * cutoff;
+    let alpha = (taps.len() - 1) as f64 / 2.0;
+    for n in 0..taps.len() {
+        let x = n as f64 - alpha;
         let tap = match x == 0.0 {
-            true => 1.0 - omega_c / core::f32::consts::PI,
-            false => -(omega_c * x).sin() / (core::f32::consts::PI * x),
+            true => 1.0 - omega_c / core::f64::consts::PI,
+            false => -(omega_c * x).sin() / (core::f64::consts::PI * x),
         };
-        taps.push(tap * window.get(n));
+        taps[n] *= tap;
     }
     taps
 }
 
 /// Constructs a bandpass FIR filter with unit gain and cutoff frequencies
 /// `lower_cutoff` and `higher_cutoff` (in cycles/sample) using the specified window.
+///  The length of the filter equals the length of `window`.
 ///
 /// Example usage:
 /// ```
@@ -91,19 +81,13 @@ pub fn highpass<T: FilterWindow<f32>>(num_taps: usize, cutoff: f32, window: T) -
 ///
 /// let sampling_freq = 10_000;
 /// // 2000 Hz cutoff frequency, rectangular window
-/// let lower_cutoff = 2_000.0 / sampling_freq as f32;
-/// let higher_cutoff = 4_000.0 / sampling_freq as f32;
+/// let lower_cutoff = 2_000.0 / sampling_freq as f64;
+/// let higher_cutoff = 4_000.0 / sampling_freq as f64;
 /// let num_taps = 65;
-/// let rect_win = windows::RectWindow::new(num_taps);
-/// let taps = firdes::bandpass(num_taps, lower_cutoff, higher_cutoff, rect_win);
+/// let rect_win = windows::rect(num_taps);
+/// let taps = firdes::bandpass(lower_cutoff, higher_cutoff, rect_win.as_slice());
 /// ```
-pub fn bandpass<T: FilterWindow<f32>>(
-    num_taps: usize,
-    lower_cutoff: f32,
-    higher_cutoff: f32,
-    window: T,
-) -> Vec<f32> {
-    assert!(num_taps > 0, "num_taps must be greater than 0");
+pub fn bandpass(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<f64> {
     assert!(
         lower_cutoff > 0.0 && lower_cutoff < 1.0 / 2.0,
         "lower_cutoff must be in (0, 1/2)"
@@ -112,19 +96,26 @@ pub fn bandpass<T: FilterWindow<f32>>(
         higher_cutoff > lower_cutoff && higher_cutoff < 1.0 / 2.0,
         "higher_cutoff must be in (lower_cutoff, 1/2)"
     );
-    let mut taps: Vec<f32> = Vec::with_capacity(num_taps);
-    let lower_omega_c = 2.0 * core::f32::consts::PI * lower_cutoff;
-    let higher_omega_c = 2.0 * core::f32::consts::PI * higher_cutoff;
+    let mut taps = window.to_vec();
+    let lower_omega_c = 2.0 * core::f64::consts::PI * lower_cutoff;
+    let higher_omega_c = 2.0 * core::f64::consts::PI * higher_cutoff;
     let omega_passband_bw = higher_omega_c - lower_omega_c;
     let omega_passband_center = (lower_omega_c + higher_omega_c) / 2.0;
-    let alpha = (num_taps - 1) as f32 / 2.0;
-    for n in 0..num_taps {
-        let x = n as f32 - alpha;
+    let alpha = (taps.len() - 1) as f64 / 2.0;
+    for n in 0..taps.len() {
+        let x = n as f64 - alpha;
         let tap = match x == 0.0 {
-            true => omega_passband_bw / core::f32::consts::PI,
+            true => omega_passband_bw / core::f64::consts::PI,
             false => {
                 2.0 * (omega_passband_center * x).cos() * (omega_passband_bw / 2.0 * x).sin()
-                    / (core::f32::consts::PI * x)
+                    / (core::f64::consts::PI * x)
+            }
+        };
+        taps[n] *= tap;
+    }
+    taps
+}
+
             }
         };
         taps.push(tap * window.get(n));
@@ -142,7 +133,7 @@ pub fn bandpass<T: FilterWindow<f32>>(
 /// - A. V. Oppenheim and R. W. Schafer "Digital Signal Processing," 3rd Edition.
 pub mod kaiser {
     extern crate alloc;
-    use crate::windows::KaiserWindow;
+    use crate::windows::kaiser;
     use alloc::vec::Vec;
 
     /// Designs a lowpass FIR filter with cutoff frequency `cutoff` and
@@ -155,12 +146,12 @@ pub mod kaiser {
     ///
     /// let sampling_freq = 10_000;
     /// // 2000 Hz cutoff frequency and 500 Hz transtion band
-    /// let cutoff = 2_000.0 / sampling_freq as f32;
-    /// let transition_bw = 500.0 / sampling_freq as f32;
+    /// let cutoff = 2_000.0 / sampling_freq as f64;
+    /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
     /// let taps = firdes::kaiser::lowpass(cutoff, transition_bw, max_ripple);
     /// ```
-    pub fn lowpass(cutoff: f32, transition_bw: f32, max_ripple: f32) -> Vec<f32> {
+    pub fn lowpass(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<f64> {
         assert!(cutoff > 0.0, "cutoff must be greater than 0");
         assert!(transition_bw > 0.0, "transition_bw must be greater than 0");
         assert!(
@@ -168,9 +159,9 @@ pub mod kaiser {
             "cutoff+transition_bw must be less than 1/2"
         );
         let (num_taps, beta) = design_kaiser_window(transition_bw, max_ripple);
-        let win = KaiserWindow::new(num_taps, beta);
+        let win = kaiser(num_taps, beta);
         let omega_c = (2.0 * cutoff + transition_bw) / 2.0;
-        super::lowpass(num_taps, omega_c, win)
+        super::lowpass(omega_c, win.as_slice())
     }
 
     /// Designs a highpass FIR filter with cutoff frequency `cutoff` and
@@ -183,12 +174,12 @@ pub mod kaiser {
     ///
     /// let sampling_freq = 10_000;
     /// // 4000 Hz cutoff frequency and 500 Hz transtion band
-    /// let cutoff = 4_000.0 / sampling_freq as f32;
-    /// let transition_bw = 500.0 / sampling_freq as f32;
+    /// let cutoff = 4_000.0 / sampling_freq as f64;
+    /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
     /// let taps = firdes::kaiser::highpass(cutoff, transition_bw, max_ripple);
     /// ```
-    pub fn highpass(cutoff: f32, transition_bw: f32, max_ripple: f32) -> Vec<f32> {
+    pub fn highpass(cutoff: f64, transition_bw: f64, max_ripple: f64) -> Vec<f64> {
         assert!(cutoff > 0.0, "cutoff must be greater than 0");
         assert!(transition_bw > 0.0, "transition_bw must be greater than 0");
         assert!(
@@ -198,10 +189,10 @@ pub mod kaiser {
         // Determine cutoff frequency of the underlying ideal lowpass filter
         let (num_taps, beta) = design_kaiser_window(transition_bw, max_ripple);
         // Number of taps must be odd
-        let num_taps = num_taps + (num_taps % 2);
-        let win = KaiserWindow::new(num_taps, beta);
+        let num_taps = num_taps + ((num_taps + 1) % 2);
+        let win = kaiser(num_taps, beta);
         let omega_c = (2.0 * cutoff - transition_bw) / 2.0;
-        super::highpass(num_taps, omega_c, win)
+        super::highpass(omega_c, win.as_slice())
     }
 
     /// Designs a bandpass FIR filter with lower cutoff frequency `lower_cutoff`,
@@ -216,18 +207,18 @@ pub mod kaiser {
     /// let sampling_freq = 10_000;
     /// // 1000 Hz lower cutoff frequency, 2000 Hz higher cutoff frequency,
     /// // and 500 Hz transtion bands
-    /// let lower_cutoff = 1_000.0 / sampling_freq as f32;
-    /// let higher_cutoff = 4_000.0 / sampling_freq as f32;
-    /// let transition_bw = 500.0 / sampling_freq as f32;
+    /// let lower_cutoff = 1_000.0 / sampling_freq as f64;
+    /// let higher_cutoff = 4_000.0 / sampling_freq as f64;
+    /// let transition_bw = 500.0 / sampling_freq as f64;
     /// let max_ripple = 0.001;
     /// let taps = firdes::kaiser::bandpass(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
     /// ```
     pub fn bandpass(
-        lower_cutoff: f32,
-        higher_cutoff: f32,
-        transition_bw: f32,
-        max_ripple: f32,
-    ) -> Vec<f32> {
+        lower_cutoff: f64,
+        higher_cutoff: f64,
+        transition_bw: f64,
+        max_ripple: f64,
+    ) -> Vec<f64> {
         assert!(lower_cutoff > 0.0, "lower_cutoff must be greater than 0");
         assert!(
             higher_cutoff > lower_cutoff,
@@ -239,13 +230,13 @@ pub mod kaiser {
             "higher_cutoff+transition_bw must be less than 1/2"
         );
         let (num_taps, beta) = design_kaiser_window(transition_bw, max_ripple);
-        let win = KaiserWindow::new(num_taps, beta);
+        let win = kaiser(num_taps, beta);
         let lower_omega_c = (2.0 * lower_cutoff - transition_bw) / 2.0;
         let higher_omega_c = (2.0 * higher_cutoff + transition_bw) / 2.0;
-        super::bandpass(num_taps, lower_omega_c, higher_omega_c, win)
+        super::bandpass(lower_omega_c, higher_omega_c, win.as_slice())
     }
 
-    fn design_kaiser_window(transition_bw: f32, max_ripple: f32) -> (usize, f32) {
+    fn design_kaiser_window(transition_bw: f64, max_ripple: f64) -> (usize, f64) {
         // Determine Kaiser window parameters
         let ripple_db = -20.0 * max_ripple.log10();
         let beta = match ripple_db {

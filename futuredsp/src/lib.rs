@@ -4,6 +4,9 @@
 #[macro_use]
 pub extern crate log;
 
+#[macro_use]
+extern crate alloc;
+
 pub mod fir;
 pub mod firdes;
 pub mod iir;
