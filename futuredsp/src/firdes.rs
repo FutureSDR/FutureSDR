@@ -116,11 +116,86 @@ pub fn bandpass(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<f6
     taps
 }
 
+/// Constructs a root raised cosine filter with roll-off factor `roll_off`, truncated to
+/// `span` symbols. Each symbol is represented using `sps` samples. `span * sps` must be
+/// even. The returned filter has a length `span * sps + 1`.
+///
+/// Example usage:
+/// ```
+/// use futuredsp::firdes;
+///
+/// let span = 8;
+/// let sps = 4;
+/// let roll_off = 0.25;
+/// let taps = firdes::root_raised_cosine(span, sps, roll_off);
+/// ```
+pub fn root_raised_cosine(span: usize, sps: usize, roll_off: f64) -> Vec<f64> {
+    assert!((span * sps) % 2 == 0, "span * sps must be even");
+    assert!(
+        roll_off > 0.0 && roll_off <= 1.0,
+        "roll_off must be in (0,1]"
+    );
+    let num_taps = span * sps + 1;
+    let mut taps = Vec::<f64>::with_capacity(num_taps);
+    for n in 0..num_taps {
+        let t = (n as f64 - (num_taps - 1) as f64 / 2.0) / sps as f64;
+        let tap = match t {
+            t if t == 0.0 => {
+                ((1.0 - roll_off) + (4.0 * roll_off / core::f64::consts::PI)) / (sps as f64).sqrt()
+            }
+            t if (t.abs() - (4.0 * roll_off).recip()).abs() < 1e-5 => {
+                roll_off / ((2.0f64 * sps as f64).sqrt())
+                    * ((1.0 + 2.0 / core::f64::consts::PI)
+                        * (core::f64::consts::PI / (4.0 * roll_off)).sin()
+                        + (1.0 - 2.0 / core::f64::consts::PI)
+                            * (core::f64::consts::PI / (4.0 * roll_off)).cos())
+            }
+            _ => {
+                let tmp = 4.0 * roll_off * t;
+                (((1.0 - roll_off) * core::f64::consts::PI * t).sin()
+                    + tmp * ((1.0 + roll_off) * core::f64::consts::PI * t).cos())
+                    / (core::f64::consts::PI * t * (1.0 - tmp.powi(2)) * (sps as f64).sqrt())
             }
         };
-        taps.push(tap * window.get(n));
+        taps.push(tap);
     }
     taps
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn root_raised_cosine_accuracy() {
+        let span = 6;
+        let sps = 8;
+        let roll_off = 0.2;
+        // Test taps generated using matlab:
+        // ```
+        // taps = rcosdesign(0.2, 8, 6, 'sqrt')
+        // ```
+        let test_taps = [
+            -0.0134, -0.0041, 0.0075, 0.0197, 0.0301, 0.0364, 0.0368, 0.0302, 0.0165, -0.0029,
+            -0.0255, -0.0478, -0.0654, -0.0744, -0.0709, -0.0525, -0.0186, 0.0297, 0.0894, 0.1555,
+            0.2222, 0.2829, 0.3314, 0.3628, 0.3736, 0.3628, 0.3314, 0.2829, 0.2222, 0.1555, 0.0894,
+            0.0297, -0.0186, -0.0525, -0.0709, -0.0744, -0.0654, -0.0478, -0.0255, -0.0029, 0.0165,
+            0.0302, 0.0368, 0.0364, 0.0301, 0.0197, 0.0075, -0.0041, -0.0134,
+        ];
+        let filter_taps = root_raised_cosine(span, sps, roll_off);
+        assert_eq!(filter_taps.len(), test_taps.len());
+        for i in 0..filter_taps.len() {
+            let tol = 1e-2;
+            assert!(
+                (filter_taps[i] - test_taps[i]).abs() < tol,
+                "abs({} - {}) < {} (tap {})",
+                filter_taps[i],
+                test_taps[i],
+                tol,
+                i
+            );
+        }
+    }
 }
 
 /// FIR filter design methods based on the Kaiser window method. The resulting
