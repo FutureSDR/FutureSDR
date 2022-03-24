@@ -32,13 +32,11 @@ fn main() -> Result<()> {
     let max_ripple = 0.01;
 
     let filter_taps =
-        firdes::kaiser::bandpass(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
+        firdes::kaiser::bandpass::<f32>(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
     println!("Filter has {} taps", filter_taps.len());
 
     let filter_block = match enable_filter {
-        true => FirBuilder::new::<f32, f32, _>(
-            filter_taps.iter().map(|&x| x as f32).collect::<Vec<_>>(),
-        ),
+        true => FirBuilder::new::<f32, f32, _>(filter_taps),
         _ => FirBuilder::new::<f32, f32, _>([1.0_f32]),
     };
 
