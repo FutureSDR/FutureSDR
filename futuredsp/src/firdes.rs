@@ -25,21 +25,21 @@ pub fn lowpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
         cutoff > 0.0 && cutoff < 1.0 / 2.0,
         "cutoff must be in (0, 1/2)"
     );
-    let mut taps = window.to_vec();
     let omega_c = 2.0 * core::f64::consts::PI * cutoff;
-    let alpha = (taps.len() - 1) as f64 / 2.0;
-    for (n, tap) in taps.iter_mut().enumerate() {
-        let x = n as f64 - alpha;
-        let filter_tap = match x == 0.0 {
-            true => 1.0,
-            false => (omega_c * x).sin() / (core::f64::consts::PI * x),
-        };
-        *tap *= filter_tap;
-    }
-    taps.iter()
-        .map(|x| T::from_f64(*x))
-        .collect::<Option<Vec<T>>>()
-        .unwrap()
+    let alpha = (window.len() - 1) as f64 / 2.0;
+    window
+        .iter()
+        .enumerate()
+        .map(|(n, tap)| {
+            let x = n as f64 - alpha;
+            let filter_tap = match x == 0.0 {
+                true => 1.0,
+                false => (omega_c * x).sin() / (core::f64::consts::PI * x),
+            };
+            tap * filter_tap
+        })
+        .map(|x| T::from_f64(x).unwrap())
+        .collect()
 }
 
 /// Constructs a highpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
@@ -65,21 +65,21 @@ pub fn highpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
         "cutoff must be in (0, 1/2)"
     );
     assert!(window.len() % 2 == 1, "window.len() must be odd");
-    let mut taps = window.to_vec();
     let omega_c = 2.0 * core::f64::consts::PI * cutoff;
-    let alpha = (taps.len() - 1) as f64 / 2.0;
-    for (n, tap) in taps.iter_mut().enumerate() {
-        let x = n as f64 - alpha;
-        let filter_tap = match x == 0.0 {
-            true => 1.0 - omega_c / core::f64::consts::PI,
-            false => -(omega_c * x).sin() / (core::f64::consts::PI * x),
-        };
-        *tap *= filter_tap;
-    }
-    taps.iter()
-        .map(|x| T::from_f64(*x))
-        .collect::<Option<Vec<T>>>()
-        .unwrap()
+    let alpha = (window.len() - 1) as f64 / 2.0;
+    window
+        .iter()
+        .enumerate()
+        .map(|(n, tap)| {
+            let x = n as f64 - alpha;
+            let filter_tap = match x == 0.0 {
+                true => 1.0 - omega_c / core::f64::consts::PI,
+                false => -(omega_c * x).sin() / (core::f64::consts::PI * x),
+            };
+            tap * filter_tap
+        })
+        .map(|x| T::from_f64(x).unwrap())
+        .collect()
 }
 
 /// Constructs a bandpass FIR filter with unit gain and cutoff frequencies
@@ -109,27 +109,27 @@ pub fn bandpass<T: FromPrimitive>(lower_cutoff: f64, higher_cutoff: f64, window:
         higher_cutoff > lower_cutoff && higher_cutoff < 1.0 / 2.0,
         "higher_cutoff must be in (lower_cutoff, 1/2)"
     );
-    let mut taps = window.to_vec();
     let lower_omega_c = 2.0 * core::f64::consts::PI * lower_cutoff;
     let higher_omega_c = 2.0 * core::f64::consts::PI * higher_cutoff;
     let omega_passband_bw = higher_omega_c - lower_omega_c;
     let omega_passband_center = (lower_omega_c + higher_omega_c) / 2.0;
-    let alpha = (taps.len() - 1) as f64 / 2.0;
-    for (n, tap) in taps.iter_mut().enumerate() {
-        let x = n as f64 - alpha;
-        let filter_tap = match x == 0.0 {
-            true => omega_passband_bw / core::f64::consts::PI,
-            false => {
-                2.0 * (omega_passband_center * x).cos() * (omega_passband_bw / 2.0 * x).sin()
-                    / (core::f64::consts::PI * x)
-            }
-        };
-        *tap *= filter_tap;
-    }
-    taps.iter()
-        .map(|x| T::from_f64(*x))
-        .collect::<Option<Vec<T>>>()
-        .unwrap()
+    let alpha = (window.len() - 1) as f64 / 2.0;
+    window
+        .iter()
+        .enumerate()
+        .map(|(n, tap)| {
+            let x = n as f64 - alpha;
+            let filter_tap = match x == 0.0 {
+                true => omega_passband_bw / core::f64::consts::PI,
+                false => {
+                    2.0 * (omega_passband_center * x).cos() * (omega_passband_bw / 2.0 * x).sin()
+                        / (core::f64::consts::PI * x)
+                }
+            };
+            tap * filter_tap
+        })
+        .map(|x| T::from_f64(x).unwrap())
+        .collect()
 }
 
 /// Constructs a root raised cosine filter with roll-off factor `roll_off`, truncated to
@@ -177,10 +177,7 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
         };
         taps.push(tap);
     }
-    taps.iter()
-        .map(|x| T::from_f64(*x))
-        .collect::<Option<Vec<T>>>()
-        .unwrap()
+    taps.iter().map(|x| T::from_f64(*x).unwrap()).collect()
 }
 
 #[cfg(test)]
