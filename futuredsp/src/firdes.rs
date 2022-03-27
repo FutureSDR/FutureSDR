@@ -33,7 +33,7 @@ pub fn lowpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
         .map(|(n, tap)| {
             let x = n as f64 - alpha;
             let filter_tap = match x == 0.0 {
-                true => 1.0,
+                true => omega_c / core::f64::consts::PI,
                 false => (omega_c * x).sin() / (core::f64::consts::PI * x),
             };
             tap * filter_tap
