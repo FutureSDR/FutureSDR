@@ -6,10 +6,6 @@ edition = "2021"
 [workspace]
 
 [[bin]]
-name = "loopback"
-path = "loopback.rs"
-
-[[bin]]
 name = "play-file"
 path = "play_file.rs"
 
