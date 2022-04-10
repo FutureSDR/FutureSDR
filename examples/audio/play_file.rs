@@ -21,32 +21,24 @@ fn main() -> Result<()> {
     let _inner = src.as_async::<FileSource>().unwrap();
 
 
-    // Linear interpolation
+    // Linear interpolation and keep one out of <decimation> samples.
+    let mut counter: usize = 0;
     let mut previous = Option::None::<f32>;
     let upsampler = fg.add_block(ApplyIntoIter::new(
         move |current: &f32| -> Vec<f32> {
             let mut vec = Vec::<f32>::with_capacity(interpolation);
             if let Some(previous) = previous {
                 for i in 0..interpolation {
-                    vec.push(previous + (i as f32) * (current - previous)/ (interpolation as f32))
+                    if (counter == 0) {
+                        vec.push(previous + (i as f32) * (current - previous)/ (interpolation as f32));
+                    }
+                    counter = (counter + 1) % decimation;
                 }
             }
             previous = Some(*current);
             vec
         },
     ));
-
-    // Keep one out of <decimation> samples.
-    let mut counter: usize = 0;
-    let downsampler = fg.add_block(Filter::new(move |i: &u32| -> Option<u32> {
-        let result = if counter == 0 {
-            Some(*i)
-        } else {
-            None
-        };
-        counter = (counter + 1) % decimation;
-        result
-    }));
 
     // Force the output to be 48kHz and stereo.
     let snk = AudioSink::new(48000, 2);
@@ -73,8 +65,7 @@ fn main() -> Result<()> {
     let duplicator = fg.add_block(duplicator);
 
     fg.connect_stream(src, "out", upsampler, "in")?;
-    fg.connect_stream(upsampler, "out", downsampler, "in")?;
-    fg.connect_stream(downsampler, "out", duplicator, "in")?;
+    fg.connect_stream(upsampler, "out", duplicator, "in")?;
     fg.connect_stream(duplicator, "out", snk, "in")?;
 
     Runtime::new().run(fg)?;
