@@ -39,6 +39,10 @@ pub use apply::Apply;
 mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
 
+mod resettableiterator;
+pub use resettableiterator::ResettableIteratorBlock;
+pub use resettableiterator::Resettable;
+
 pub mod audio;
 
 mod combine;
