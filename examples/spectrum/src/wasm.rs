@@ -25,7 +25,7 @@ async fn run() -> Result<()> {
     let fft = fg.add_block(Fft::new());
     let power = fg.add_block(power_block());
     let broker = wgpu::Broker::new().await;
-    let log = fg.add_block(Wgpu::new(broker, 2048));
+    let log = fg.add_block(Wgpu::new(broker, 2048, 2, 2));
     let shift = fg.add_block(FftShift::<f32>::new());
     let keep = fg.add_block(Keep1InN::new(0.1, 10));
     let snk = fg.add_block(WasmFreq::new());
@@ -37,6 +37,6 @@ async fn run() -> Result<()> {
     fg.connect_stream(shift, "out", keep, "in")?;
     fg.connect_stream(keep, "out", snk, "in")?;
 
-    Runtime::new().run(fg).await?;
+    Runtime::new().run_async(fg).await?;
     Ok(())
 }
