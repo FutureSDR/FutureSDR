@@ -1,5 +1,9 @@
+use std::future::Future;
+use std::pin::Pin;
+
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
+use futuresdr::futures::FutureExt;
 use futuresdr::log::{info, warn};
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -18,7 +22,7 @@ impl Mac {
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .add_sync_input("in", Self::received)
+                .add_input("in", Self::received)
                 .build(),
             Mac {},
         )
@@ -45,40 +49,43 @@ impl Mac {
         crc == 0
     }
 
-    fn received(
-        &mut self,
-        _mio: &mut MessageIo<Mac>,
-        _meta: &mut BlockMeta,
+    fn received<'a>(
+        &'a mut self,
+        _mio: &'a mut MessageIo<Mac>,
+        _meta: &'a mut BlockMeta,
         p: Pmt,
-    ) -> Result<Pmt> {
-        match p {
-            Pmt::Blob(data) => {
-                if Self::check_crc(&data) {
-                    info!("received frame, crc correct, payload length {}", data.len());
-                    let l = data.len();
-                    let s = String::from_iter(
-                        data[7..l - 4]
-                            .iter()
-                            .map(|x| char::from(*x))
-                            .map(|x| if x.is_ascii() { x } else { '.' })
-                            .map(|x| {
-                                if ['\x0b', '\x0c', '\n', '\t', '\r'].contains(&x) {
-                                    '.'
-                                } else {
-                                    x
-                                }
-                            }),
-                    );
-                    info!("{}", s);
-                } else {
-                    info!("crc wrong");
+    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
+        async move {
+            match p {
+                Pmt::Blob(data) => {
+                    if Self::check_crc(&data) {
+                        info!("received frame, crc correct, payload length {}", data.len());
+                        let l = data.len();
+                        let s = String::from_iter(
+                            data[7..l - 4]
+                                .iter()
+                                .map(|x| char::from(*x))
+                                .map(|x| if x.is_ascii() { x } else { '.' })
+                                .map(|x| {
+                                    if ['\x0b', '\x0c', '\n', '\t', '\r'].contains(&x) {
+                                        '.'
+                                    } else {
+                                        x
+                                    }
+                                }),
+                        );
+                        info!("{}", s);
+                    } else {
+                        info!("crc wrong");
+                    }
+                }
+                _ => {
+                    warn!("ZigBee Mac: received wrong PMT type");
                 }
             }
-            _ => {
-                warn!("ZigBee Mac: received wrong PMT type");
-            }
+            Ok(Pmt::Null)
         }
-        Ok(Pmt::Null)
+        .boxed()
     }
 }
 

@@ -33,7 +33,7 @@ impl SoapySource {
                 .add_output("out", mem::size_of::<Complex<f32>>())
                 .build(),
             MessageIoBuilder::new()
-                .add_async_input(
+                .add_input(
                     "freq",
                     |block: &mut SoapySource,
                      _mio: &mut MessageIo<SoapySource>,

@@ -5,7 +5,6 @@ use std::pin::Pin;
 
 use crate::anyhow::Result;
 use crate::runtime::BlockMeta;
-use crate::runtime::MessageInput;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageOutput;
 use crate::runtime::Pmt;
@@ -93,7 +92,6 @@ pub trait BlockT: Send + Any {
     fn stream_output_name_to_id(&self, name: &str) -> Option<usize>;
 
     // ##### MESSAGE IO
-    fn message_input_is_async(&self, id: usize) -> bool;
     fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
     fn message_outputs(&self) -> &Vec<MessageOutput>;
     fn message_outputs_mut(&mut self) -> &mut Vec<MessageOutput>;
@@ -101,8 +99,7 @@ pub trait BlockT: Send + Any {
     fn message_output_mut(&mut self, id: usize) -> &mut MessageOutput;
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 
-    fn call_sync_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt>;
-    async fn call_async_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt>;
+    async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt>;
     async fn post(&mut self, id: usize, p: Pmt);
 }
 
@@ -187,9 +184,6 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     }
 
     // ##### MESSAGE IO
-    fn message_input_is_async(&self, id: usize) -> bool {
-        self.mio.input_is_async(id)
-    }
     fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.input_name_to_id(name)
     }
@@ -208,20 +202,10 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.output_name_to_id(name)
     }
-    async fn call_async_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
-        let h = match self.mio.input(id) {
-            MessageInput::Async(t) => t.get_handler(),
-            _ => panic!("message handler is not async!"),
-        };
+    async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
+        let h = self.mio.input(id).get_handler();
         let f = (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p);
         f.await
-    }
-    fn call_sync_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
-        let h = match self.mio.input(id) {
-            MessageInput::Sync(t) => t.get_handler(),
-            _ => panic!("message handler is not sync!"),
-        };
-        (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p)
     }
     async fn post(&mut self, id: usize, p: Pmt) {
         self.mio.post(id, p).await;
@@ -318,9 +302,6 @@ impl Block {
     }
 
     // ##### MESSAGE IO
-    pub fn message_input_is_async(&self, id: usize) -> bool {
-        self.0.message_input_is_async(id)
-    }
     pub fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_input_name_to_id(name)
     }
@@ -339,11 +320,8 @@ impl Block {
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
     }
-    pub fn call_sync_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
-        self.0.call_sync_handler(id, p)
-    }
-    pub async fn call_async_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
-        self.0.call_async_handler(id, p).await
+    pub async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
+        self.0.call_handler(id, p).await
     }
     pub async fn post(&mut self, id: usize, p: Pmt) {
         self.0.post(id, p).await

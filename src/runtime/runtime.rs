@@ -360,20 +360,10 @@ pub(crate) async fn run_block(
                     work_io.finished = true;
                 }
                 Some(Some(AsyncMessage::Call { port_id, data })) => {
-                    if block.message_input_is_async(port_id) {
-                        block.call_async_handler(port_id, data).await?;
-                    } else {
-                        block.call_sync_handler(port_id, data)?;
-                    }
+                    block.call_handler(port_id, data).await?;
                 }
                 Some(Some(AsyncMessage::Callback { port_id, data, tx })) => {
-                    let res = {
-                        if block.message_input_is_async(port_id) {
-                            block.call_async_handler(port_id, data).await?
-                        } else {
-                            block.call_sync_handler(port_id, data)?
-                        }
-                    };
+                    let res = { block.call_handler(port_id, data).await? };
 
                     tx.send(res).unwrap();
                 }

@@ -1,3 +1,7 @@
+use futures::FutureExt;
+use std::future::Future;
+use std::pin::Pin;
+
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
@@ -32,20 +36,23 @@ impl CtrlPortDemo {
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .add_output("out")
-                .add_sync_input("in", Self::handler)
+                .add_input("in", Self::handler)
                 .build(),
             Self { counter: 5 },
         )
     }
 
-    fn handler(
-        &mut self,
-        _mio: &mut MessageIo<CtrlPortDemo>,
-        _meta: &mut BlockMeta,
+    fn handler<'a>(
+        &'a mut self,
+        _mio: &'a mut MessageIo<Self>,
+        _meta: &'a mut BlockMeta,
         _p: Pmt,
-    ) -> Result<Pmt> {
-        self.counter += 1;
-        Ok(Pmt::U64(self.counter - 1))
+    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
+        async move {
+            self.counter += 1;
+            Ok(Pmt::U64(self.counter - 1))
+        }
+        .boxed()
     }
 }
 

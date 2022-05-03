@@ -21,7 +21,7 @@ impl MessageCopy {
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .add_output("out")
-                .add_async_input("in", MessageCopy::handler)
+                .add_input("in", MessageCopy::handler)
                 .build(),
             MessageCopy {},
         )

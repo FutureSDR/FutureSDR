@@ -1,3 +1,7 @@
+use futures::FutureExt;
+// use std::future::Future;
+// use std::pin::Pin;
+
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -19,14 +23,17 @@ impl MessageSink {
             BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .add_sync_input(
+                .add_input(
                     "in",
                     |block: &mut MessageSink,
                      _mio: &mut MessageIo<MessageSink>,
                      _meta: &mut BlockMeta,
                      _p: Pmt| {
-                        block.n_received += 1;
-                        Ok(Pmt::U64(block.n_received))
+                        async move {
+                            block.n_received += 1;
+                            Ok(Pmt::U64(block.n_received))
+                        }
+                        .boxed()
                     },
                 )
                 .build(),
