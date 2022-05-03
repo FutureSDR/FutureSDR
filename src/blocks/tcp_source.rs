@@ -2,10 +2,10 @@ use async_net::{TcpListener, TcpStream};
 use futures::AsyncReadExt;
 
 use crate::anyhow::{Context, Result};
-use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;

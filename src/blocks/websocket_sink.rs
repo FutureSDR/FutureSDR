@@ -14,10 +14,10 @@ use std::task::{Context, Poll};
 
 use crate::anyhow::Context as _;
 use crate::anyhow::Result;
-use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;

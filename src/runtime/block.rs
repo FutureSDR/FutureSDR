@@ -247,15 +247,17 @@ impl Block {
     }
 
     pub fn kernel<T: Kernel + Send + 'static>(&self) -> Option<&T> {
-        self.0.as_any()
-                .downcast_ref::<TypedBlock<T>>()
-                .map(|b| &b.kernel)
+        self.0
+            .as_any()
+            .downcast_ref::<TypedBlock<T>>()
+            .map(|b| &b.kernel)
     }
 
     pub fn kernel_mut<T: Kernel + Send + 'static>(&mut self) -> Option<&T> {
-        self.0.as_any_mut()
-                .downcast_mut::<TypedBlock<T>>()
-                .map(|b| &b.kernel)
+        self.0
+            .as_any_mut()
+            .downcast_mut::<TypedBlock<T>>()
+            .map(|b| &b.kernel)
     }
 
     // ##### META
@@ -363,4 +365,3 @@ impl fmt::Debug for dyn BlockT {
             .finish()
     }
 }
-

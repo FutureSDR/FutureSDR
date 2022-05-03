@@ -5,10 +5,10 @@ use std::mem;
 
 use crate::anyhow::{Context, Result};
 use crate::num_complex::Complex;
-use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;

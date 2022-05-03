@@ -1,10 +1,10 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;

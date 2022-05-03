@@ -8,10 +8,10 @@ use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
-use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;

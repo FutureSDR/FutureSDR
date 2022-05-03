@@ -11,11 +11,11 @@ use crate::runtime::buffer::zynq::WriterD2H;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 
 pub struct ZynqSync<I, O>

@@ -12,9 +12,9 @@ use crate::runtime::buffer::circular::Circular;
 use crate::runtime::buffer::slab::Slab;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::Kernel;
 use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
+use crate::runtime::Kernel;
 use crate::runtime::Pmt;
 use crate::runtime::Topology;
 

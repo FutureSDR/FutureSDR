@@ -5,11 +5,11 @@ use futuresdr::anyhow::Result;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::WorkIo;
 
 pub struct FftShift<T> {

@@ -7,10 +7,10 @@ use futures::channel::mpsc;
 use futures::SinkExt;
 
 use crate::anyhow::Result;
-use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
