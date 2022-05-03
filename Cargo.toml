@@ -36,6 +36,7 @@ members = [
     "perf/msg",
     "perf/null_rand",
     "perf/null_rand_latency",
+    "perf/sync",
     "perf/vulkan",
     "perf/wgpu",
     "perf/zynq",
