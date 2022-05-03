@@ -3,7 +3,7 @@ use std::mem;
 use std::ptr;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -20,7 +20,7 @@ pub struct VectorSource<T> {
 
 impl<T: Send + 'static> VectorSource<T> {
     pub fn new(items: Vec<T>) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("VectorSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<T>())
@@ -32,7 +32,7 @@ impl<T: Send + 'static> VectorSource<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for VectorSource<T> {
+impl<T: Send + 'static> Kernel for VectorSource<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

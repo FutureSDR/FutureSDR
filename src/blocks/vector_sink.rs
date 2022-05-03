@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -18,7 +18,7 @@ pub struct VectorSink<T> {
 
 impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
     pub fn new(capacity: usize) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("VectorSink").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<T>())
@@ -36,7 +36,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
 }
 
 #[async_trait]
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> AsyncKernel for VectorSink<T> {
+impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

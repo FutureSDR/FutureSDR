@@ -12,11 +12,10 @@ use crate::runtime::buffer::circular::Circular;
 use crate::runtime::buffer::slab::Slab;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
 use crate::runtime::Pmt;
-use crate::runtime::SyncKernel;
 use crate::runtime::Topology;
 
 /// The main component of any FutureSDR program.
@@ -82,32 +81,18 @@ impl Flowgraph {
             .connect_message(src_block, src_port, dst_block, dst_port)
     }
 
-    pub fn block_async<T: AsyncKernel + 'static>(&self, id: usize) -> Option<&T> {
+    pub fn block<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
         self.topology
             .as_ref()
             .and_then(|t| t.block_ref(id))
-            .and_then(|b| b.as_async())
+            .and_then(|b| b.downcast())
     }
 
-    pub fn block_async_mut<T: AsyncKernel + 'static>(&mut self, id: usize) -> Option<&T> {
+    pub fn block_mut<T: Kernel + 'static>(&mut self, id: usize) -> Option<&T> {
         self.topology
             .as_mut()
             .and_then(|t| t.block_mut(id))
-            .and_then(|b| b.as_async_mut())
-    }
-
-    pub fn block_sync<T: SyncKernel + 'static>(&self, id: usize) -> Option<&T> {
-        self.topology
-            .as_ref()
-            .and_then(|t| t.block_ref(id))
-            .and_then(|b| b.as_sync())
-    }
-
-    pub fn block_sync_mut<T: SyncKernel + 'static>(&mut self, id: usize) -> Option<&T> {
-        self.topology
-            .as_mut()
-            .and_then(|t| t.block_mut(id))
-            .and_then(|b| b.as_sync_mut())
+            .and_then(|b| b.downcast_mut())
     }
 }
 
