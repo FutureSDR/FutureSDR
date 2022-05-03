@@ -5,7 +5,7 @@ use std::mem;
 
 use crate::anyhow::{Context, Result};
 use crate::num_complex::Complex;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -27,7 +27,7 @@ pub struct SoapySource {
 
 impl SoapySource {
     pub fn new(freq: f64, sample_rate: f64, gain: f64, filter: String) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<Complex<f32>>())
@@ -67,7 +67,7 @@ impl SoapySource {
 }
 
 #[async_trait]
-impl AsyncKernel for SoapySource {
+impl Kernel for SoapySource {
     async fn work(
         &mut self,
         io: &mut WorkIo,

@@ -8,7 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 
 /// Applies a function to filter a stream
@@ -51,7 +51,7 @@ where
     B: 'static,
 {
     pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Filter").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<A, B> SyncKernel for Filter<A, B>
+impl<A, B> Kernel for Filter<A, B>
 where
     A: 'static,
     B: 'static,

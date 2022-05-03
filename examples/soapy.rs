@@ -7,7 +7,7 @@ use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::num_complex::Complex;
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -51,7 +51,7 @@ pub struct ComplexToMag {}
 impl ComplexToMag {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("ComplexToMag").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<Complex<f32>>())
@@ -64,7 +64,7 @@ impl ComplexToMag {
 }
 
 #[async_trait]
-impl AsyncKernel for ComplexToMag {
+impl Kernel for ComplexToMag {
     async fn work(
         &mut self,
         io: &mut WorkIo,

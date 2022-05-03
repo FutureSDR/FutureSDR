@@ -17,7 +17,7 @@ use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::ReaderH2D;
 use crate::runtime::buffer::vulkan::WriterD2H;
 use crate::runtime::buffer::BufferReaderCustom;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -57,7 +57,7 @@ pub struct Vulkan {
 
 impl Vulkan {
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Vulkan").build(),
             StreamIoBuilder::new()
                 .add_input("in", 4)
@@ -85,7 +85,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl AsyncKernel for Vulkan {
+impl Kernel for Vulkan {
     async fn init(
         &mut self,
         sio: &mut StreamIo,

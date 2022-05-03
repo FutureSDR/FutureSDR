@@ -5,7 +5,7 @@ use cpal::Stream;
 use cpal::StreamConfig;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -32,7 +32,7 @@ unsafe impl Send for AudioSource {}
 impl AudioSource {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("AudioSource").build(),
             StreamIoBuilder::new().add_output("out", 4).build(),
             MessageIoBuilder::new().build(),
@@ -48,7 +48,7 @@ impl AudioSource {
 }
 
 #[async_trait]
-impl AsyncKernel for AudioSource {
+impl Kernel for AudioSource {
     async fn init(
         &mut self,
         _s: &mut StreamIo,

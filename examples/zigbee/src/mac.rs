@@ -1,7 +1,7 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::log::{info, warn};
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -14,7 +14,7 @@ pub struct Mac {}
 
 impl Mac {
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
@@ -83,4 +83,4 @@ impl Mac {
 }
 
 #[async_trait]
-impl AsyncKernel for Mac {}
+impl Kernel for Mac {}

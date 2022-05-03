@@ -1,6 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -27,7 +27,7 @@ pub struct CtrlPortDemo {
 impl CtrlPortDemo {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("CtrlPortDemo").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
@@ -50,4 +50,4 @@ impl CtrlPortDemo {
 }
 
 #[async_trait]
-impl AsyncKernel for CtrlPortDemo {}
+impl Kernel for CtrlPortDemo {}

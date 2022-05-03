@@ -1,7 +1,7 @@
 use lttng_ust::import_tracepoints;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -23,7 +23,7 @@ pub struct NullSink<T: Send + 'static> {
 impl<T: Send + 'static> NullSink<T> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(probe_granularity: u64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("LTTngNullSink").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -44,7 +44,7 @@ impl<T: Send + 'static> NullSink<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for NullSink<T> {
+impl<T: Send + 'static> Kernel for NullSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,

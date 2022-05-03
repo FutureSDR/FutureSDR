@@ -1,6 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -57,7 +57,7 @@ pub struct Decoder {
 
 impl Decoder {
     pub fn new(threshold: u32) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<f32>())
@@ -80,7 +80,7 @@ impl Decoder {
 }
 
 #[async_trait]
-impl AsyncKernel for Decoder {
+impl Kernel for Decoder {
     async fn work(
         &mut self,
         io: &mut WorkIo,

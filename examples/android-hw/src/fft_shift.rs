@@ -9,7 +9,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::SyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::WorkIo;
 
 pub struct FftShift<T> {
@@ -19,7 +19,7 @@ pub struct FftShift<T> {
 impl<T: Copy + Send + 'static> FftShift<T> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("FftShift").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<T>())
@@ -31,7 +31,7 @@ impl<T: Copy + Send + 'static> FftShift<T> {
     }
 }
 
-impl<T: Copy + Send + 'static> SyncKernel for FftShift<T> {
+impl<T: Copy + Send + 'static> Kernel for FftShift<T> {
     fn work(
         &mut self,
         io: &mut WorkIo,

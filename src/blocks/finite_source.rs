@@ -8,7 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 
 pub struct FiniteSource<A>
@@ -23,7 +23,7 @@ where
     A: 'static,
 {
     pub fn new(f: impl FnMut() -> Option<A> + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("FiniteSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<A>())
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<A> SyncKernel for FiniteSource<A>
+impl<A> Kernel for FiniteSource<A>
 where
     A: 'static,
 {

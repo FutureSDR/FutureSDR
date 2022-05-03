@@ -8,7 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 
 /// Repeatedly applies a function to generate samples.
@@ -43,7 +43,7 @@ where
     A: 'static,
 {
     pub fn new(f: impl FnMut() -> A + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Source").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<A>())
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<A> SyncKernel for Source<A>
+impl<A> Kernel for Source<A>
 where
     A: 'static,
 {

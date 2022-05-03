@@ -8,7 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 
 /// Applies the specified function sample-by-sample to two streams to form one.
@@ -50,7 +50,7 @@ where
     C: 'static,
 {
     pub fn new(f: impl FnMut(&A, &B) -> C + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Combine").build(),
             StreamIoBuilder::new()
                 .add_input("in0", mem::size_of::<A>())
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<A, B, C> SyncKernel for Combine<A, B, C>
+impl<A, B, C> Kernel for Combine<A, B, C>
 where
     A: 'static,
     B: 'static,

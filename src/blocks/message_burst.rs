@@ -1,5 +1,5 @@
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -17,7 +17,7 @@ pub struct MessageBurst {
 
 impl MessageBurst {
     pub fn new(message: Pmt, n_messages: u64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("MessageBurst").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().add_output("out").build(),
@@ -30,7 +30,7 @@ impl MessageBurst {
 }
 
 #[async_trait]
-impl AsyncKernel for MessageBurst {
+impl Kernel for MessageBurst {
     async fn work(
         &mut self,
         io: &mut WorkIo,

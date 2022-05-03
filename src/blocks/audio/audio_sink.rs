@@ -7,7 +7,7 @@ use futures::channel::mpsc;
 use futures::SinkExt;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -35,7 +35,7 @@ const QUEUE_SIZE: usize = 5;
 impl AudioSink {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("AudioSink").build(),
             StreamIoBuilder::new().add_input("in", 4).build(),
             MessageIoBuilder::new().build(),
@@ -52,7 +52,7 @@ impl AudioSink {
 }
 
 #[async_trait]
-impl AsyncKernel for AudioSink {
+impl Kernel for AudioSink {
     async fn init(
         &mut self,
         _s: &mut StreamIo,

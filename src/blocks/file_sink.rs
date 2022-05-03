@@ -3,7 +3,7 @@ use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -46,7 +46,7 @@ pub struct FileSink<T: Send + 'static> {
 
 impl<T: Send + 'static> FileSink<T> {
     pub fn new<S: Into<String>>(file_name: S) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("FileSink").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -62,7 +62,7 @@ impl<T: Send + 'static> FileSink<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for FileSink<T> {
+impl<T: Send + 'static> Kernel for FileSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

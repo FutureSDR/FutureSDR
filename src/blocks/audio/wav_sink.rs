@@ -3,7 +3,7 @@ use std::path;
 
 use crate::anyhow::Result;
 use crate::async_trait::async_trait;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -51,7 +51,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
         spec: hound::WavSpec,
     ) -> Block {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("WavSink").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -66,7 +66,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static + hound::Sample + Copy> AsyncKernel for WavSink<T> {
+impl<T: Send + 'static + hound::Sample + Copy> Kernel for WavSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

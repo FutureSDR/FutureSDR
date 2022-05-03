@@ -1,5 +1,5 @@
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -15,7 +15,7 @@ pub struct MessageSink {
 
 impl MessageSink {
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
@@ -40,7 +40,7 @@ impl MessageSink {
 }
 
 #[async_trait]
-impl AsyncKernel for MessageSink {
+impl Kernel for MessageSink {
     async fn deinit(
         &mut self,
         _sio: &mut StreamIo,

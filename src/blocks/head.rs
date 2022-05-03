@@ -2,7 +2,7 @@ use std::cmp;
 use std::ptr;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -38,7 +38,7 @@ pub struct Head<T: Send + 'static> {
 }
 impl<T: Send + 'static> Head<T> {
     pub fn new(n_items: u64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Head").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -54,7 +54,7 @@ impl<T: Send + 'static> Head<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for Head<T> {
+impl<T: Send + 'static> Kernel for Head<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

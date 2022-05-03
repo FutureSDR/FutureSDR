@@ -13,7 +13,7 @@ use futuresdr::blocks::NullSource;
 use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -204,7 +204,7 @@ pub struct CopyRandAsync<T: Send + 'static> {
 
 impl<T: Send + 'static> CopyRandAsync<T> {
     pub fn new(max_copy: usize) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("CopyRandAsync").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -220,7 +220,7 @@ impl<T: Send + 'static> CopyRandAsync<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for CopyRandAsync<T> {
+impl<T: Send + 'static> Kernel for CopyRandAsync<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

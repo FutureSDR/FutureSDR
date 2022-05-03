@@ -16,7 +16,7 @@ use std::borrow::Cow;
 use crate::anyhow::Result;
 use crate::runtime::buffer::wgpu;
 use crate::runtime::buffer::BufferReaderCustom;
-use crate::runtime::AsyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -50,7 +50,7 @@ impl Wgpu {
             mapped_at_creation: false,
         });
 
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Wgpu").build(),
             StreamIoBuilder::new()
                 .add_input("in", 4)
@@ -81,7 +81,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut wgpu::ReaderH2D {
 }
 
 #[async_trait]
-impl AsyncKernel for Wgpu {
+impl Kernel for Wgpu {
     async fn init(
         &mut self,
         sio: &mut StreamIo,

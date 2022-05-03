@@ -229,7 +229,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
 }
 
 #[derive(Debug)]
-pub struct Block(Box<dyn BlockT>)
+pub struct Block(Box<dyn BlockT>);
 
 impl Block {
     pub fn new<T: Kernel + Send + 'static>(
@@ -238,7 +238,7 @@ impl Block {
         mio: MessageIo<T>,
         kernel: T,
     ) -> Block {
-        Self(Box::new(AsyncBlock {
+        Self(Box::new(TypedBlock {
             meta,
             sio,
             mio,
@@ -246,13 +246,13 @@ impl Block {
         }))
     }
 
-    pub fn kernel<T: AsyncKernel + Send + 'static>(&self) -> Option<&T> {
+    pub fn kernel<T: Kernel + Send + 'static>(&self) -> Option<&T> {
         self.0.as_any()
                 .downcast_ref::<AsyncBlock<T>>()
                 .map(|b| &b.kernel)
     }
 
-    pub fn kernel_mut<T: AsyncKernel + Send + 'static>(&mut self) -> Option<&T> {
+    pub fn kernel_mut<T: Kernel + Send + 'static>(&mut self) -> Option<&T> {
         self.0.as_any_mut()
                 .downcast_mut::<AsyncBlock<T>>()
                 .map(|b| &b.kernel)
@@ -260,7 +260,7 @@ impl Block {
 
     // ##### META
     pub fn instance_name(&self) -> Option<&str> {
-        self.0.instance.name()
+        self.0.instance_name()
     }
     pub fn set_instance_name(&mut self, name: &str) {
         self.0.set_instance_name(name)
@@ -348,6 +348,14 @@ impl Block {
 impl<T: Kernel + Send + 'static> fmt::Debug for AsyncBlock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncBlock")
+            .field("type_name", &self.type_name().to_string())
+            .finish()
+    }
+}
+
+impl fmt::Debug for dyn BlockT {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BlockT")
             .field("type_name", &self.type_name().to_string())
             .finish()
     }

@@ -19,7 +19,7 @@ use futuresdr::runtime::buffer::vulkan::BufferEmpty;
 use futuresdr::runtime::buffer::vulkan::ReaderH2D;
 use futuresdr::runtime::buffer::vulkan::WriterD2H;
 use futuresdr::runtime::buffer::BufferReaderCustom;
-use futuresdr::runtime::AsyncKernel;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -60,7 +60,7 @@ pub struct Vulkan {
 impl Vulkan {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Vulkan").build(),
             StreamIoBuilder::new()
                 .add_input("in", 4)
@@ -88,7 +88,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl AsyncKernel for Vulkan {
+impl Kernel for Vulkan {
     async fn init(
         &mut self,
         sio: &mut StreamIo,

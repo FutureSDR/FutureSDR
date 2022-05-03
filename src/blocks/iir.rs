@@ -8,7 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
+use crate::runtime::Kernel;
 use crate::runtime::WorkIo;
 use futuredsp::iir::IirKernel;
 use futuredsp::{StatefulUnaryKernel, TapsAccessor};
@@ -39,7 +39,7 @@ where
     Core: 'static + StatefulUnaryKernel<SampleType>,
 {
     pub fn new(core: Core) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Iir").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<SampleType>())
@@ -55,7 +55,7 @@ where
     }
 }
 
-impl<SampleType, TapType, Core> SyncKernel for Iir<SampleType, TapType, Core>
+impl<SampleType, TapType, Core> Kernel for Iir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
