@@ -106,7 +106,7 @@ where
         Ok(())
     }
 
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

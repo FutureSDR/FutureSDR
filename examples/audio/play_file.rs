@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = FileSource::new("rick.mp3");
-    let inner = src.as_async::<FileSource>().unwrap();
+    let inner = src.kernel::<FileSource>().unwrap();
     let snk = AudioSink::new(inner.sample_rate(), inner.channels());
 
     let src = fg.add_block(src);
