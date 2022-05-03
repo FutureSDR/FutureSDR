@@ -182,7 +182,7 @@ impl Kernel for Wgpu {
                     cpass.set_pipeline(self.pipeline.as_ref().unwrap());
                     cpass.set_bind_group(0, &bind_group, &[]);
                     cpass.insert_debug_marker("FutureSDR compute");
-                    cpass.dispatch(dispatch, 1, 1);
+                    cpass.dispatch_workgroups(dispatch, 1, 1);
                 }
 
                 encoder.copy_buffer_to_buffer(
