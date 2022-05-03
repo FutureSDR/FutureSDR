@@ -132,6 +132,7 @@ rodio = { version = "0.15.0", optional = true }
 soapysdr = { version = "0.3.1", optional = true }
 tokio = { version = "1.14", features = ["rt"] }
 tower-http = { version = "0.2.0", features = ["add-extension", "cors", "fs"] }
+vmcircbuffer = "0.0.5"
 vulkano = { version = "0.28.0", optional = true }
 vulkano-shaders = { version = "0.28.0", optional = true }
 
@@ -141,9 +142,6 @@ xilinx-dma = { version = "0.0.7", optional = true }
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.10.1"
 openssl-sys = { version = "0.9.71", features = ["vendored"] }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "handleapi", "memoryapi"] }
 
 [build-dependencies]
 rustc_version = "0.4.0"
