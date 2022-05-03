@@ -54,11 +54,12 @@ where
     }
 }
 
+#[async_trait]
 impl<A> Kernel for Source<A>
 where
     A: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,

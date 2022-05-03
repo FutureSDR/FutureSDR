@@ -91,7 +91,7 @@ fn main() -> Result<()> {
         let elapsed = now.elapsed();
 
         for s in snks {
-            let snk = fg.block_async::<MessageSink>(s).unwrap();
+            let snk = fg.kernel::<MessageSink>(s).unwrap();
             assert_eq!(snk.received(), burst_size);
         }
 

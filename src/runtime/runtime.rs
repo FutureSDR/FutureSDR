@@ -445,10 +445,7 @@ pub(crate) async fn run_block(
 
         // ================== work
         work_io.call_again = false;
-        match &mut block {
-            Block::Sync(b) => b.work(&mut work_io)?,
-            Block::Async(b) => b.work(&mut work_io).await?,
-        }
+        block.work(&mut work_io).await?;
 
         futures_lite::future::yield_now().await;
     }

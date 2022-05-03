@@ -63,12 +63,13 @@ where
     }
 }
 
+#[async_trait]
 impl<A, B> Kernel for Filter<A, B>
 where
     A: 'static,
     B: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

@@ -55,13 +55,14 @@ where
     }
 }
 
+#[async_trait]
 impl<SampleType, TapType, Core> Kernel for Iir<SampleType, TapType, Core>
 where
     SampleType: 'static + Send,
     TapType: 'static,
     Core: 'static + StatefulUnaryKernel<SampleType>,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

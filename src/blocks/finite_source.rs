@@ -34,11 +34,12 @@ where
     }
 }
 
+#[async_trait]
 impl<A> Kernel for FiniteSource<A>
 where
     A: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

@@ -63,13 +63,14 @@ where
     }
 }
 
+#[async_trait]
 impl<A, B, C> Kernel for Combine<A, B, C>
 where
     A: 'static,
     B: 'static,
     C: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

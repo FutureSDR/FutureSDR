@@ -81,18 +81,18 @@ impl Flowgraph {
             .connect_message(src_block, src_port, dst_block, dst_port)
     }
 
-    pub fn block<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
+    pub fn kernel<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
         self.topology
             .as_ref()
             .and_then(|t| t.block_ref(id))
-            .and_then(|b| b.downcast())
+            .and_then(|b| b.kernel())
     }
 
-    pub fn block_mut<T: Kernel + 'static>(&mut self, id: usize) -> Option<&T> {
+    pub fn kernel_mut<T: Kernel + 'static>(&mut self, id: usize) -> Option<&T> {
         self.topology
             .as_mut()
             .and_then(|t| t.block_mut(id))
-            .and_then(|b| b.downcast_mut())
+            .and_then(|b| b.kernel_mut())
     }
 }
 

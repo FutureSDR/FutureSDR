@@ -21,7 +21,7 @@ fn combine_const_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
     let res = vec![6u32, 8, 10, 12];
@@ -48,7 +48,7 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
     let res = vec![6u32, 8, 10, 12];
@@ -75,7 +75,7 @@ fn combine_const_fn_diff_len_second() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
     let res = vec![6u32, 8, 10, 12];

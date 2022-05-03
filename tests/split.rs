@@ -25,7 +25,7 @@ fn split_const_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<i32>>(snk0).unwrap();
+    let snk = fg.kernel::<VectorSink<i32>>(snk0).unwrap();
     let v = snk.items();
 
     let res = 0..10;
@@ -34,7 +34,7 @@ fn split_const_fn() -> Result<()> {
         assert_eq!(o, *i);
     }
 
-    let snk = fg.block_async::<VectorSink<i32>>(snk1).unwrap();
+    let snk = fg.kernel::<VectorSink<i32>>(snk1).unwrap();
     let v = snk.items();
 
     let res = 1..11;

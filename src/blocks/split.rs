@@ -40,6 +40,7 @@ where
     }
 }
 
+#[async_trait]
 impl<A, B, C> Kernel for Split<A, B, C>
 where
     A: 'static,

@@ -20,7 +20,7 @@ fn apply_const_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());
@@ -50,7 +50,7 @@ fn apply_mut_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u8>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<u8>>(vect_sink).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());

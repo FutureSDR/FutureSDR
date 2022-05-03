@@ -107,7 +107,7 @@ fn main() -> Result<()> {
         elapsed.as_secs_f64()
     );
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

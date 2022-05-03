@@ -248,13 +248,13 @@ impl Block {
 
     pub fn kernel<T: Kernel + Send + 'static>(&self) -> Option<&T> {
         self.0.as_any()
-                .downcast_ref::<AsyncBlock<T>>()
+                .downcast_ref::<TypedBlock<T>>()
                 .map(|b| &b.kernel)
     }
 
     pub fn kernel_mut<T: Kernel + Send + 'static>(&mut self) -> Option<&T> {
         self.0.as_any_mut()
-                .downcast_mut::<AsyncBlock<T>>()
+                .downcast_mut::<TypedBlock<T>>()
                 .map(|b| &b.kernel)
     }
 
@@ -275,6 +275,9 @@ impl Block {
     // ##### KERNEL
     pub async fn init(&mut self) -> Result<()> {
         self.0.init().await
+    }
+    pub async fn work(&mut self, io: &mut WorkIo) -> Result<()> {
+        self.0.work(io).await
     }
     pub async fn deinit(&mut self) -> Result<()> {
         self.0.deinit().await
@@ -345,7 +348,7 @@ impl Block {
     }
 }
 
-impl<T: Kernel + Send + 'static> fmt::Debug for AsyncBlock<T> {
+impl<T: Kernel + Send + 'static> fmt::Debug for TypedBlock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncBlock")
             .field("type_name", &self.type_name().to_string())

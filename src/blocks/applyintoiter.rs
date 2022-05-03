@@ -43,6 +43,7 @@ where
     }
 }
 
+#[async_trait]
 impl<A, B> Kernel for ApplyIntoIter<A, B>
 where
     A: 'static,
@@ -50,7 +51,7 @@ where
     B::Item: 'static,
     <B as IntoIterator>::IntoIter: Send,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

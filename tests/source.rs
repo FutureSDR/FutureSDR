@@ -19,7 +19,7 @@ fn source_const_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), 10);
@@ -47,7 +47,7 @@ fn source_mut_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), 10);
