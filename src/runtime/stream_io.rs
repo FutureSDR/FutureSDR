@@ -140,6 +140,11 @@ impl StreamOutput {
     pub fn finished(&self) -> bool {
         self.writer.as_ref().unwrap().finished()
     }
+
+    pub(super) fn writer_mut(&mut self) -> &mut BufferWriter {
+        let w = self.writer.as_mut().unwrap();
+        w
+    }
 }
 
 #[derive(Debug)]

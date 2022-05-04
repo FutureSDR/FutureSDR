@@ -58,6 +58,10 @@ wav = ["hound"]
 name = "flowgraph"
 harness = false
 
+[[bench]]
+name = "apply"
+harness = false
+
 [[example]]
 name = "scheduler"
 required-features = ["tpb_scheduler", "flow_scheduler"]
