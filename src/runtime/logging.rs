@@ -18,9 +18,8 @@ impl log::Log for Logger {
 
 pub fn init() {
     if log::set_boxed_logger(Box::new(Logger)).is_err() {
-        println!("logger already initialized");
-        return;
+        debug!("logger already initialized");
+    } else {
+        log::set_max_level(config::config().log_level);
     }
-
-    log::set_max_level(config::config().log_level);
 }
