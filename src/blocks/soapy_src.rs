@@ -53,6 +53,25 @@ impl SoapySource {
                         .boxed()
                     },
                 )
+                .add_async_input(
+                    "sample_rate",
+                    |block: &mut SoapySource,
+                     _mio: &mut MessageIo<SoapySource>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
+                        async move {
+                            if let Pmt::U32(ref r) = &p {
+                                block.dev.as_mut().context("no dev")?.set_sample_rate(
+                                    Rx,
+                                    0,
+                                    *r as f64,
+                                )?;
+                            }
+                            Ok(p)
+                        }
+                        .boxed()
+                    },
+                )
                 .build(),
             SoapySource {
                 dev: None,
