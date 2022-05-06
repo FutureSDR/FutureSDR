@@ -8,10 +8,10 @@ use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
 use crate::runtime::buffer::zynq::WriterD2H;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -44,7 +44,7 @@ where
         assert!(dma_buffs.len() > 1);
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
 
-        Ok(Block::new_async(
+        Ok(Block::new(
             BlockMetaBuilder::new("Zynq").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<I>())
@@ -74,7 +74,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[async_trait]
-impl<I, O> AsyncKernel for Zynq<I, O>
+impl<I, O> Kernel for Zynq<I, O>
 where
     I: Send + 'static,
     O: Send + 'static,

@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     let elapsed = now.elapsed();
 
     let snk = fg
-        .block_async::<VectorSink<f32>>(snk)
+        .kernel::<VectorSink<f32>>(snk)
         .context("block not found")?;
     let v = snk.items();
 

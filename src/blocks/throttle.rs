@@ -5,10 +5,10 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -46,7 +46,7 @@ pub struct Throttle<T: Send + 'static> {
 impl<T: Send + 'static> Throttle<T> {
     /// Creates a new Throttle block which will throttle to the specified rate.
     pub fn new(rate: f64) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Throttle").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -64,7 +64,7 @@ impl<T: Send + 'static> Throttle<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for Throttle<T> {
+impl<T: Send + 'static> Kernel for Throttle<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

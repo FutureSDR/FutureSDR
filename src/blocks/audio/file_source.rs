@@ -4,10 +4,10 @@ use std::fs::File;
 use std::io::BufReader;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -24,7 +24,7 @@ impl FileSource {
         let file = BufReader::new(File::open(file).unwrap());
         let source = Decoder::new(file).unwrap();
 
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output("out", 4).build(),
             MessageIoBuilder::new().build(),
@@ -44,7 +44,7 @@ impl FileSource {
 }
 
 #[async_trait]
-impl AsyncKernel for FileSource {
+impl Kernel for FileSource {
     async fn work(
         &mut self,
         _io: &mut WorkIo,

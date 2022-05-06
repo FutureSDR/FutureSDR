@@ -4,11 +4,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 /// Repeatedly applies a function to generate samples.
@@ -43,7 +43,7 @@ where
     A: 'static,
 {
     pub fn new(f: impl FnMut() -> A + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Source").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<A>())
@@ -54,11 +54,12 @@ where
     }
 }
 
-impl<A> SyncKernel for Source<A>
+#[async_trait]
+impl<A> Kernel for Source<A>
 where
     A: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,

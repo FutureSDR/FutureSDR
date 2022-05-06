@@ -14,10 +14,10 @@ use std::task::{Context, Poll};
 
 use crate::anyhow::Context as _;
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -40,7 +40,7 @@ pub struct WebsocketSink<T> {
 
 impl<T: Send + Sync + 'static> WebsocketSink<T> {
     pub fn new(port: u32, mode: WebsocketSinkMode) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("WebsocketSink").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<T>())
@@ -58,7 +58,7 @@ impl<T: Send + Sync + 'static> WebsocketSink<T> {
 }
 
 #[async_trait]
-impl<T: Send + Sync + 'static> AsyncKernel for WebsocketSink<T> {
+impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

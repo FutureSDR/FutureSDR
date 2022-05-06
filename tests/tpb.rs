@@ -28,7 +28,7 @@ fn flowgraph_tpb() -> Result<()> {
 
     fg = Runtime::with_scheduler(TpbScheduler::new()).run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);

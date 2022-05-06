@@ -6,11 +6,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 pub struct CopyRand<T: Send + 'static> {
@@ -20,7 +20,7 @@ pub struct CopyRand<T: Send + 'static> {
 
 impl<T: Send + 'static> CopyRand<T> {
     pub fn new(max_copy: usize) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("CopyRand").build(),
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<T>())
@@ -35,8 +35,9 @@ impl<T: Send + 'static> CopyRand<T> {
     }
 }
 
-impl<T: Send + 'static> SyncKernel for CopyRand<T> {
-    fn work(
+#[async_trait]
+impl<T: Send + 'static> Kernel for CopyRand<T> {
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

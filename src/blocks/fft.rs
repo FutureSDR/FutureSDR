@@ -5,10 +5,10 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -25,7 +25,7 @@ impl Fft {
         let mut planner = FftPlanner::<f32>::new();
         let plan = planner.plan_fft_forward(2048);
 
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<Complex<f32>>())
@@ -41,7 +41,7 @@ impl Fft {
 }
 
 #[async_trait]
-impl AsyncKernel for Fft {
+impl Kernel for Fft {
     async fn work(
         &mut self,
         io: &mut WorkIo,

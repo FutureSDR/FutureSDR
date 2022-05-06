@@ -9,63 +9,7 @@ use crate::runtime::AsyncMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
 
-pub enum MessageInput<T: ?Sized> {
-    Sync(SyncMessageInput<T>),
-    Async(AsyncMessageInput<T>),
-}
-
-impl<T: Send + ?Sized> MessageInput<T> {
-    fn name(&self) -> &str {
-        match self {
-            MessageInput::Sync(i) => i.name(),
-            MessageInput::Async(i) => i.name(),
-        }
-    }
-}
-
-pub struct SyncMessageInput<T: ?Sized> {
-    name: String,
-    #[allow(clippy::type_complexity)]
-    handler: Arc<
-        dyn for<'a> Fn(&'a mut T, &'a mut MessageIo<T>, &'a mut BlockMeta, Pmt) -> Result<Pmt>
-            + Send
-            + Sync,
-    >,
-}
-
-impl<T: Send + ?Sized> SyncMessageInput<T> {
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        name: &str,
-        handler: Arc<
-            dyn for<'a> Fn(&'a mut T, &'a mut MessageIo<T>, &'a mut BlockMeta, Pmt) -> Result<Pmt>
-                + Send
-                + Sync,
-        >,
-    ) -> SyncMessageInput<T> {
-        SyncMessageInput {
-            name: name.to_string(),
-            handler,
-        }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn get_handler(
-        &self,
-    ) -> Arc<
-        dyn for<'a> Fn(&'a mut T, &'a mut MessageIo<T>, &'a mut BlockMeta, Pmt) -> Result<Pmt>
-            + Send
-            + Sync,
-    > {
-        self.handler.clone()
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
-
-pub struct AsyncMessageInput<T: ?Sized> {
+pub struct MessageInput<T: ?Sized> {
     name: String,
     #[allow(clippy::type_complexity)]
     handler: Arc<
@@ -80,7 +24,7 @@ pub struct AsyncMessageInput<T: ?Sized> {
     >,
 }
 
-impl<T: Send + ?Sized> AsyncMessageInput<T> {
+impl<T: Send + ?Sized> MessageInput<T> {
     #[allow(clippy::type_complexity)]
     pub fn new(
         name: &str,
@@ -95,8 +39,8 @@ impl<T: Send + ?Sized> AsyncMessageInput<T> {
                 + Send
                 + Sync,
         >,
-    ) -> AsyncMessageInput<T> {
-        AsyncMessageInput {
+    ) -> MessageInput<T> {
+        MessageInput {
             name: name.to_string(),
             handler,
         }
@@ -174,13 +118,6 @@ impl<T: Send + ?Sized> MessageIo<T> {
         MessageIo { inputs, outputs }
     }
 
-    pub fn input_is_async(&self, id: usize) -> bool {
-        match self.inputs.get(id).unwrap() {
-            MessageInput::Sync(_) => false,
-            MessageInput::Async(_) => true,
-        }
-    }
-
     pub fn input_name_to_id(&self, name: &str) -> Option<usize> {
         self.inputs
             .iter()
@@ -236,7 +173,7 @@ impl<T: Send> MessageIoBuilder<T> {
     }
 
     #[must_use]
-    pub fn add_async_input(
+    pub fn add_input(
         mut self,
         name: &str,
         c: impl for<'a> Fn(
@@ -249,24 +186,7 @@ impl<T: Send> MessageIoBuilder<T> {
             + Sync
             + 'static,
     ) -> MessageIoBuilder<T> {
-        self.inputs.push(MessageInput::Async(AsyncMessageInput::new(
-            name,
-            Arc::new(c),
-        )));
-        self
-    }
-
-    #[must_use]
-    pub fn add_sync_input(
-        mut self,
-        name: &str,
-        c: impl for<'a> Fn(&'a mut T, &'a mut MessageIo<T>, &'a mut BlockMeta, Pmt) -> Result<Pmt>
-            + Send
-            + Sync
-            + 'static,
-    ) -> MessageIoBuilder<T> {
-        self.inputs
-            .push(MessageInput::Sync(SyncMessageInput::new(name, Arc::new(c))));
+        self.inputs.push(MessageInput::new(name, Arc::new(c)));
         self
     }
 

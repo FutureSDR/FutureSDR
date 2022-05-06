@@ -41,7 +41,7 @@ pub async fn run() -> Result<()> {
     fg = Runtime::new().run_async(fg).await?;
 
     let snk = fg
-        .block_async::<VectorSink<f32>>(snk)
+        .kernel::<VectorSink<f32>>(snk)
         .context("wrong block type")?;
     let v = snk.items();
 

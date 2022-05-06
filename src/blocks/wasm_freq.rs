@@ -2,10 +2,10 @@ use std::mem::size_of;
 use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -22,7 +22,7 @@ pub struct WasmFreq;
 impl WasmFreq {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("WasmFreq").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<f32>())
@@ -34,7 +34,7 @@ impl WasmFreq {
 }
 
 #[async_trait]
-impl AsyncKernel for WasmFreq {
+impl Kernel for WasmFreq {
     async fn work(
         &mut self,
         _io: &mut WorkIo,

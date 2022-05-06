@@ -4,11 +4,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 pub struct Split<A, B, C>
@@ -27,7 +27,7 @@ where
     C: 'static,
 {
     pub fn new(f: impl FnMut(&A) -> (B, C) + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Split").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
@@ -40,13 +40,14 @@ where
     }
 }
 
-impl<A, B, C> SyncKernel for Split<A, B, C>
+#[async_trait]
+impl<A, B, C> Kernel for Split<A, B, C>
 where
     A: 'static,
     B: 'static,
     C: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

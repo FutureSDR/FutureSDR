@@ -20,17 +20,15 @@ mod logging;
 
 mod flowgraph;
 mod message_io;
+mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
 mod stream_io;
 mod topology;
 
-pub use block::AsyncBlock;
-pub use block::AsyncKernel;
 pub use block::Block;
-pub use block::SyncBlock;
-pub use block::SyncKernel;
+pub use block::Kernel;
 pub use block::WorkIo;
 pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
@@ -41,6 +39,7 @@ pub use message_io::MessageInput;
 pub use message_io::MessageIo;
 pub use message_io::MessageIoBuilder;
 pub use message_io::MessageOutput;
+pub use mocker::Mocker;
 pub(crate) use runtime::run_block;
 pub use runtime::Runtime;
 pub use runtime::RuntimeBuilder;

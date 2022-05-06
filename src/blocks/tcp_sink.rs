@@ -2,10 +2,10 @@ use async_net::{TcpListener, TcpStream};
 use futures::AsyncWriteExt;
 
 use crate::anyhow::{bail, Context, Result};
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -20,7 +20,7 @@ pub struct TcpSink {
 
 impl TcpSink {
     pub fn new(port: u32) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("TcpSink").build(),
             StreamIoBuilder::new().add_input("in", 1).build(),
             MessageIoBuilder::new().build(),
@@ -34,7 +34,7 @@ impl TcpSink {
 }
 
 #[async_trait]
-impl AsyncKernel for TcpSink {
+impl Kernel for TcpSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,

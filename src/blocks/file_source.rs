@@ -1,10 +1,10 @@
 use futures::AsyncReadExt;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -45,7 +45,7 @@ pub struct FileSource<T: Send + 'static> {
 
 impl<T: Send + 'static> FileSource<T> {
     pub fn new<S: Into<String>>(file_name: S) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", std::mem::size_of::<T>())
@@ -61,7 +61,7 @@ impl<T: Send + 'static> FileSource<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for FileSource<T> {
+impl<T: Send + 'static> Kernel for FileSource<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,

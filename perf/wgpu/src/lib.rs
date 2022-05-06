@@ -71,7 +71,7 @@ pub async fn run(run: u64, scheduler: String, samples: u64, buffer_size: u64) ->
     let elapsed = start.elapsed();
 
     let snk = fg
-        .block_async::<VectorSink<f32>>(snk)
+        .kernel::<VectorSink<f32>>(snk)
         .context("wrong block type")?;
     let v = snk.items();
 

@@ -4,11 +4,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 pub struct ApplyIntoIter<A, B>
@@ -28,7 +28,7 @@ where
     <B as IntoIterator>::IntoIter: Send,
 {
     pub fn new(f: impl FnMut(&A) -> B + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("ApplyIntoIter").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
@@ -43,14 +43,15 @@ where
     }
 }
 
-impl<A, B> SyncKernel for ApplyIntoIter<A, B>
+#[async_trait]
+impl<A, B> Kernel for ApplyIntoIter<A, B>
 where
     A: 'static,
     B: 'static + IntoIterator,
     B::Item: 'static,
     <B as IntoIterator>::IntoIter: Send,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

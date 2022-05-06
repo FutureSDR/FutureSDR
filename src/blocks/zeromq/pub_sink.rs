@@ -1,8 +1,8 @@
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -17,7 +17,7 @@ pub struct PubSink {
 
 impl PubSink {
     pub fn new(item_size: usize, address: &str) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
@@ -31,7 +31,7 @@ impl PubSink {
 }
 
 #[async_trait]
-impl AsyncKernel for PubSink {
+impl Kernel for PubSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,

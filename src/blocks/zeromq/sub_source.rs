@@ -1,8 +1,8 @@
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -17,7 +17,7 @@ pub struct SubSource {
 
 impl SubSource {
     pub fn new(item_size: usize, address: &str) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("SubSource").blocking().build(),
             StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
@@ -31,7 +31,7 @@ impl SubSource {
 }
 
 #[async_trait]
-impl AsyncKernel for SubSource {
+impl Kernel for SubSource {
     async fn work(
         &mut self,
         _io: &mut WorkIo,

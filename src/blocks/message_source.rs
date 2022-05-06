@@ -3,10 +3,10 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
@@ -23,7 +23,7 @@ pub struct MessageSource {
 
 impl MessageSource {
     pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("MessageSource").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().add_output("out").build(),
@@ -42,7 +42,7 @@ impl MessageSource {
 }
 
 #[async_trait]
-impl AsyncKernel for MessageSource {
+impl Kernel for MessageSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,

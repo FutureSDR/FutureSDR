@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

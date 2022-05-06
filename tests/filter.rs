@@ -26,7 +26,7 @@ fn apply_const_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     let res = vec![2u32, 4];
@@ -60,7 +60,7 @@ fn apply_mut_fn() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<u32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
     let res = vec![1u32, 3];

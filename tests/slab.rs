@@ -31,7 +31,7 @@ fn flowgraph() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -62,7 +62,7 @@ fn fg_rand_vec() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(snk).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

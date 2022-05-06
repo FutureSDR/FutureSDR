@@ -35,7 +35,7 @@ fn base_test(multiplier: usize, buf1_size: usize, buf2_size: usize) -> Result<()
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
     let v = snk.items();
 
     assert_eq!(v.len(), multiplier * orig.len());

@@ -4,11 +4,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 pub struct FiniteSource<A>
@@ -23,7 +23,7 @@ where
     A: 'static,
 {
     pub fn new(f: impl FnMut() -> Option<A> + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("FiniteSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<A>())
@@ -34,11 +34,12 @@ where
     }
 }
 
-impl<A> SyncKernel for FiniteSource<A>
+#[async_trait]
+impl<A> Kernel for FiniteSource<A>
 where
     A: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,

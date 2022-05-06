@@ -2,10 +2,10 @@ use async_net::{TcpListener, TcpStream};
 use futures::AsyncReadExt;
 
 use crate::anyhow::{Context, Result};
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -20,7 +20,7 @@ pub struct TcpSource {
 
 impl TcpSource {
     pub fn new(port: u32) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("TcpSource").build(),
             StreamIoBuilder::new().add_output("out", 1).build(),
             MessageIoBuilder::new().build(),
@@ -34,7 +34,7 @@ impl TcpSource {
 }
 
 #[async_trait]
-impl AsyncKernel for TcpSource {
+impl Kernel for TcpSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,

@@ -22,7 +22,7 @@ fn fir_f32() -> Result<()> {
 
     fg = Runtime::new().run(fg)?;
 
-    let snk = fg.block_async::<VectorSink<f32>>(snk).unwrap();
+    let snk = fg.kernel::<VectorSink<f32>>(snk).unwrap();
     let v = snk.items();
 
     let res = vec![6.0f32, 9.0, 12.0, 15.0];

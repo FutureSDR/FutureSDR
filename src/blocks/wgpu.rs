@@ -16,10 +16,10 @@ use std::borrow::Cow;
 use crate::anyhow::Result;
 use crate::runtime::buffer::wgpu;
 use crate::runtime::buffer::BufferReaderCustom;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -50,7 +50,7 @@ impl Wgpu {
             mapped_at_creation: false,
         });
 
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("Wgpu").build(),
             StreamIoBuilder::new()
                 .add_input("in", 4)
@@ -81,7 +81,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut wgpu::ReaderH2D {
 }
 
 #[async_trait]
-impl AsyncKernel for Wgpu {
+impl Kernel for Wgpu {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
@@ -182,7 +182,7 @@ impl AsyncKernel for Wgpu {
                     cpass.set_pipeline(self.pipeline.as_ref().unwrap());
                     cpass.set_bind_group(0, &bind_group, &[]);
                     cpass.insert_debug_marker("FutureSDR compute");
-                    cpass.dispatch(dispatch, 1, 1);
+                    cpass.dispatch_workgroups(dispatch, 1, 1);
                 }
 
                 encoder.copy_buffer_to_buffer(

@@ -3,10 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
@@ -16,12 +16,12 @@ pub struct MessageCopy {}
 
 impl MessageCopy {
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .add_output("out")
-                .add_async_input("in", MessageCopy::handler)
+                .add_input("in", MessageCopy::handler)
                 .build(),
             MessageCopy {},
         )
@@ -42,7 +42,7 @@ impl MessageCopy {
 }
 
 #[async_trait]
-impl AsyncKernel for MessageCopy {}
+impl Kernel for MessageCopy {}
 
 pub struct MessageCopyBuilder {}
 

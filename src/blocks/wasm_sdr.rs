@@ -8,10 +8,10 @@ use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -47,7 +47,7 @@ impl WasmSdr {
         let (sender, receiver) = mpsc::channel(1);
         SENDER.set(Mutex::new(sender)).unwrap();
 
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("WasmSDR").build(),
             StreamIoBuilder::new()
                 .add_output("out", size_of::<Complex32>())
@@ -63,7 +63,7 @@ impl WasmSdr {
 }
 
 #[async_trait]
-impl AsyncKernel for WasmSdr {
+impl Kernel for WasmSdr {
     async fn work(
         &mut self,
         io: &mut WorkIo,

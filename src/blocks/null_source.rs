@@ -1,8 +1,8 @@
 use crate::anyhow::Result;
-use crate::runtime::AsyncKernel;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
@@ -35,7 +35,7 @@ pub struct NullSource<T: Send + 'static> {
 
 impl<T: Send + 'static> NullSource<T> {
     pub fn new() -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("NullSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", std::mem::size_of::<T>())
@@ -49,7 +49,7 @@ impl<T: Send + 'static> NullSource<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> AsyncKernel for NullSource<T> {
+impl<T: Send + 'static> Kernel for NullSource<T> {
     async fn work(
         &mut self,
         _io: &mut WorkIo,

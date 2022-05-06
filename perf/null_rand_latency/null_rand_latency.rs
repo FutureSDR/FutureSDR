@@ -129,7 +129,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let snk = fg.block_async::<NullSink<f32>>(s).context("no block")?;
+        let snk = fg.kernel::<NullSink<f32>>(s).context("no block")?;
         let v = snk.n_received();
         assert_eq!(v, samples as u64);
     }

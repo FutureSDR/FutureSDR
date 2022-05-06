@@ -1,14 +1,15 @@
 use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
+use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::SyncKernel;
 use futuresdr::runtime::WorkIo;
 
 pub struct Keep1InN {
@@ -21,7 +22,7 @@ pub struct Keep1InN {
 impl Keep1InN {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(alpha: f32, n: usize) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("Keep1InN").build(),
             StreamIoBuilder::new()
                 .add_input("in", size_of::<f32>())
@@ -38,8 +39,9 @@ impl Keep1InN {
     }
 }
 
-impl SyncKernel for Keep1InN {
-    fn work(
+#[async_trait]
+impl Kernel for Keep1InN {
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
