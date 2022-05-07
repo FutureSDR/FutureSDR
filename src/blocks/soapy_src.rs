@@ -19,10 +19,12 @@ use crate::runtime::WorkIo;
 
 /// [`soapysdr::Device`] source block
 /// 
-/// # Ports
-/// * `out`: _output_ port providing a stream of [`Complex<f32>`] values
-/// * `freq`: _message input_ port for setting the SDR's frequency; accepts a [`Pmt::U32`] value
-/// * `sample_rate`: _message input_ port for setting the SDR's sample rate; accepts a [`Pmt::U32`] value
+/// # Inputs
+/// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
+/// * **Message**: `sample_rate`: set the SDR's sample rate; accepts a [`Pmt::U32`] value
+/// 
+/// # Outputs
+/// * **Stream**: `out`: stream of [`Complex<f32>`] values
 /// 
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
