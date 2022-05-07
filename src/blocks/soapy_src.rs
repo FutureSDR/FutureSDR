@@ -16,6 +16,14 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+
+/// [`soapysdr::Device`] source block
+/// 
+/// # Ports
+/// * `out`: _output_ port providing a stream of [`Complex<f32>`] values
+/// * `freq`: _message input_ port for setting the SDR's frequency; accepts a [`Pmt::U32`] value
+/// * `sample_rate`: _message input_ port for setting the SDR's sample rate; accepts a [`Pmt::U32`] value
+/// 
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
     stream: Option<soapysdr::RxStream<Complex<f32>>>,
@@ -53,7 +61,7 @@ impl SoapySource {
                         .boxed()
                     },
                 )
-                .add_async_input(
+                .add_input(
                     "sample_rate",
                     |block: &mut SoapySource,
                      _mio: &mut MessageIo<SoapySource>,
