@@ -4,10 +4,3 @@ target
 node_modules
 perf-data
 package-lock.json
-
-# for macOS
-.DS_Store
-
-# for intellij-based IDEs
-.idea/
-
