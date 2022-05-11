@@ -11,6 +11,7 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
 use crate::runtime::AsyncMessage;
+use crate::runtime::ItemTag;
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
@@ -24,6 +25,24 @@ impl generic::Notifier for MyNotifier {
     fn notify(&mut self) {
         let _ = self.sender.try_send(AsyncMessage::Notify);
     }
+}
+
+struct MyMetadata {
+    tags: Vec<ItemTag>,
+}
+
+impl generic::Metadata for MyMetadata {
+
+    type Item = ItemTag;
+
+    fn new() -> Self {
+        MyMetadata {
+            tags: Vec::new(),
+        }
+    }
+    fn add(&mut self, offset: usize, tags: Vec<Self::Item>) {}
+    fn get(&self) -> Vec<Self::Item> {}
+    fn consume(&mut self, items: usize) {}
 }
 
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -67,7 +86,7 @@ impl BufferBuilder for Circular {
 }
 
 pub struct Writer {
-    writer: generic::Writer<u8, MyNotifier>,
+    writer: generic::Writer<u8, MyNotifier, MyMetadata>,
     readers: Vec<(Sender<AsyncMessage>, usize)>,
     item_size: usize,
     inbox: Sender<AsyncMessage>,
@@ -138,7 +157,7 @@ impl BufferWriterHost for Writer {
         self
     }
 
-    fn produce(&mut self, items: usize) {
+    fn produce(&mut self, items: usize, tags: Vec<ItemTag>) {
         self.writer.produce(items * self.item_size);
     }
 

@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::usize;
 
 use crate::runtime::AsyncMessage;
+use crate::runtime::ItemTag;
 
 pub trait BufferBuilder: Send + Sync + Any {
     fn build(
@@ -24,7 +25,7 @@ pub trait BufferWriterHost: Send + Any + Debug {
 
     fn as_any(&mut self) -> &mut dyn Any;
 
-    fn produce(&mut self, amount: usize);
+    fn produce(&mut self, amount: usize, tags: Vec<ItemTag>);
 
     fn bytes(&mut self) -> (*mut u8, usize);
 
@@ -77,9 +78,9 @@ impl BufferWriter {
         }
     }
 
-    pub fn produce(&mut self, amount: usize) {
+    pub fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
         match self {
-            BufferWriter::Host(w) => w.produce(amount),
+            BufferWriter::Host(w) => w.produce(amount, tags),
             _ => unimplemented!(),
         }
     }
@@ -117,7 +118,7 @@ impl BufferWriter {
 pub trait BufferReaderHost: Send + Any + Debug {
     fn as_any(&mut self) -> &mut dyn Any;
 
-    fn bytes(&mut self) -> (*const u8, usize);
+    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>);
 
     fn consume(&mut self, amount: usize);
 
@@ -146,7 +147,7 @@ pub enum BufferReader {
 }
 
 impl BufferReader {
-    pub fn bytes(&mut self) -> (*const u8, usize) {
+    pub fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
         match self {
             BufferReader::Host(w) => w.bytes(),
             _ => unimplemented!(),

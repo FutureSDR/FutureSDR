@@ -1,17 +1,33 @@
 use futures::channel::mpsc::Sender;
+use std::fmt;
 use std::mem;
 use std::slice;
 
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::tag::default_tag_propagation;
 use crate::runtime::AsyncMessage;
+use crate::runtime::Tag;
+use crate::runtime::ItemTag;
+use crate::runtime::TagOutputQueue;
+
+#[derive(Debug)]
+struct CurrentInput {
+    ptr: *const u8,
+    len: usize,
+    index: usize,
+}
 
 #[derive(Debug)]
 pub struct StreamInput {
     name: String,
     item_size: usize,
     reader: Option<BufferReader>,
+    current: Option<CurrentInput>,
+    tags: Vec<ItemTag>,
 }
+
+unsafe impl Send for StreamInput {}
 
 impl StreamInput {
     pub fn new(name: &str, item_size: usize) -> StreamInput {
@@ -19,6 +35,8 @@ impl StreamInput {
             name: name.to_string(),
             item_size,
             reader: None,
+            current: None,
+            tags: Vec::new(),
         }
     }
 
@@ -35,22 +53,40 @@ impl StreamInput {
     }
 
     pub fn consume(&mut self, amount: usize) {
-        if amount == 0 {
-            return;
+        debug_assert!(self.current.is_some());
+        debug_assert!(amount <= self.current.as_mut().unwrap().len - self.current.as_mut().unwrap().index * self.item_size);
+
+        self.current.as_mut().unwrap().index += amount * self.item_size;
+        self.tags.retain(|x| x.index >= amount);
+    }
+
+    pub fn slice<T>(&mut self) -> &'static [T] {
+        if self.current.is_none() {
+            let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
+            self.current = Some(CurrentInput {
+                ptr,
+                len,
+                index: 0,
+            });
+            self.tags = tags;
+        } 
+
+        let c = self.current.as_ref().unwrap();
+        unsafe { slice::from_raw_parts(c.ptr as *const T, c.len / mem::size_of::<T>()) }
+    }
+
+    pub fn tags(&mut self) -> &mut Vec<ItemTag> {
+        &mut self.tags
+    }
+
+    fn commit(&mut self) {
+        if let Some(ref c) = self.current {
+            let amount = c.index / self.item_size;
+            if amount != 0 {
+                self.reader.as_mut().unwrap().consume(amount);
+            }
+            self.current = None;
         }
-        self.reader.as_mut().unwrap().consume(amount);
-    }
-
-    pub fn slice<T>(&mut self) -> &'static mut [T] {
-        let (ptr, len) = self.reader.as_mut().unwrap().bytes();
-
-        unsafe { slice::from_raw_parts_mut(ptr as *mut T, len / mem::size_of::<T>()) }
-    }
-
-    pub fn as_slice<T>(&mut self) -> &'static [T] {
-        let (ptr, len) = self.reader.as_mut().unwrap().bytes();
-
-        unsafe { slice::from_raw_parts(ptr as *const T, len / mem::size_of::<T>()) }
     }
 
     pub fn set_reader(&mut self, reader: BufferReader) {
@@ -76,6 +112,8 @@ pub struct StreamOutput {
     name: String,
     item_size: usize,
     writer: Option<BufferWriter>,
+    tags: TagOutputQueue,
+    offset: usize,
 }
 
 impl StreamOutput {
@@ -84,6 +122,8 @@ impl StreamOutput {
             name: name.to_string(),
             item_size,
             writer: None,
+            tags: TagOutputQueue::new(),
+            offset: 0,
         }
     }
 
@@ -98,6 +138,10 @@ impl StreamOutput {
     pub fn init(&mut self, writer: BufferWriter) {
         debug_assert!(self.writer.is_none());
         self.writer = Some(writer);
+    }
+
+    pub fn add_tag(&mut self, index: usize, tag: Tag) {
+        self.tags.add(index + self.offset, tag);
     }
 
     pub fn add_reader(
@@ -117,16 +161,27 @@ impl StreamOutput {
     }
 
     pub fn produce(&mut self, amount: usize) {
-        if amount == 0 {
-            return;
-        }
-        self.writer.as_mut().unwrap().produce(amount)
+        self.offset += amount;
     }
 
     pub fn slice<T>(&mut self) -> &'static mut [T] {
         let (ptr, len) = self.writer.as_mut().unwrap().bytes();
 
-        unsafe { slice::from_raw_parts_mut(ptr.cast::<T>(), len / mem::size_of::<T>()) }
+        unsafe {
+            slice::from_raw_parts_mut(
+                ptr.cast::<T>().add(self.offset),
+                (len / mem::size_of::<T>()) - self.offset,
+            )
+        }
+    }
+
+    fn commit(&mut self) {
+        if self.offset == 0 {
+            return;
+        }
+        let tags = self.tags.produce(self.offset);
+        self.writer.as_mut().unwrap().produce(self.offset, tags);
+        self.offset = 0;
     }
 
     pub async fn notify_finished(&mut self) {
@@ -147,15 +202,34 @@ impl StreamOutput {
     }
 }
 
-#[derive(Debug)]
 pub struct StreamIo {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
+    tag_propagation: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+}
+
+impl fmt::Debug for StreamIo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StreamIo")
+            .field("inputs", &self.inputs)
+            .field("outputs", &self.outputs)
+            .finish()
+    }
 }
 
 impl StreamIo {
-    fn new(inputs: Vec<StreamInput>, outputs: Vec<StreamOutput>) -> StreamIo {
-        StreamIo { inputs, outputs }
+    fn new(
+        inputs: Vec<StreamInput>,
+        outputs: Vec<StreamOutput>,
+        tag_propagation: Box<
+            dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static,
+        >,
+    ) -> StreamIo {
+        StreamIo {
+            inputs,
+            outputs,
+            tag_propagation,
+        }
     }
 
     pub fn inputs(&self) -> &Vec<StreamInput> {
@@ -221,11 +295,29 @@ impl StreamIo {
             .find(|item| item.1.name() == name)
             .map(|(i, _)| i)
     }
+
+    pub fn commmit(&mut self) {
+        (self.tag_propagation)(&mut self.inputs, &mut self.outputs);
+        for i in self.inputs_mut() {
+            i.commit();
+        }
+        for o in self.outputs_mut() {
+            o.commit();
+        }
+    }
+
+    pub fn set_tag_propagation(
+        &mut self,
+        f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+    ) {
+        self.set_tag_propagation(f);
+    }
 }
 
 pub struct StreamIoBuilder {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
+    tag_propagation: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
 }
 
 impl StreamIoBuilder {
@@ -233,6 +325,7 @@ impl StreamIoBuilder {
         StreamIoBuilder {
             inputs: Vec::new(),
             outputs: Vec::new(),
+            tag_propagation: Box::new(default_tag_propagation),
         }
     }
 
@@ -248,8 +341,19 @@ impl StreamIoBuilder {
         self
     }
 
+    #[must_use]
+    pub fn tag_propagation<
+        F: FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static,
+    >(
+        mut self,
+        f: F,
+    ) -> StreamIoBuilder {
+        self.tag_propagation = Box::new(f);
+        self
+    }
+
     pub fn build(self) -> StreamIo {
-        StreamIo::new(self.inputs, self.outputs)
+        StreamIo::new(self.inputs, self.outputs, self.tag_propagation)
     }
 }
 

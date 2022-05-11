@@ -436,6 +436,7 @@ pub(crate) async fn run_block(
         // ================== work
         work_io.call_again = false;
         block.work(&mut work_io).await?;
+        block.commit();
 
         futures_lite::future::yield_now().await;
     }

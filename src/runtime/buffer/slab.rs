@@ -11,6 +11,7 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
 use crate::runtime::AsyncMessage;
+use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
 pub struct Slab {
@@ -88,6 +89,7 @@ struct BufferEmpty {
 struct BufferFull {
     buffer: Box<[u8]>,
     items: usize,
+    tags: Vec<ItemTag>,
 }
 
 // everything is measured in items, e.g., offsets, capacity, space available
@@ -97,6 +99,7 @@ struct CurrentBuffer {
     buffer: Box<[u8]>,
     offset: usize,
     capacity: usize,
+    tags: Vec<ItemTag>,
 }
 
 #[derive(Debug)]
@@ -194,6 +197,7 @@ impl BufferWriterHost for Writer {
                     buffer: b.buffer,
                     offset: self.reserved_items,
                     capacity,
+                    tags: Vec::new(),
                 });
             } else {
                 return (std::ptr::null_mut::<u8>(), 0);
@@ -210,11 +214,15 @@ impl BufferWriterHost for Writer {
         }
     }
 
-    fn produce(&mut self, amount: usize) {
+    fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
         debug_assert!(amount > 0);
 
         let c = self.current.as_mut().unwrap();
         debug_assert!(amount <= c.capacity - c.offset);
+        for t in tags.iter_mut() {
+            t.index += c.offset;
+        }
+        c.tags.append(&mut tags);
         c.offset += amount;
         if c.offset == c.capacity {
             let c = self.current.take().unwrap();
@@ -223,6 +231,7 @@ impl BufferWriterHost for Writer {
             state.reader_input.push_back(BufferFull {
                 buffer: c.buffer,
                 items: c.capacity - self.reserved_items,
+                tags: c.tags,
             });
 
             let _ = self
@@ -243,13 +252,14 @@ impl BufferWriterHost for Writer {
             return;
         }
 
-        if let Some(CurrentBuffer { buffer, offset, .. }) = self.current.take() {
+        if let Some(CurrentBuffer { buffer, offset, tags, .. }) = self.current.take() {
             if offset > self.reserved_items {
                 let mut state = self.state.lock().unwrap();
 
                 state.reader_input.push_back(BufferFull {
                     buffer,
                     items: offset - self.reserved_items,
+                    tags,
                 });
             }
         }
@@ -293,7 +303,7 @@ impl BufferReaderHost for Reader {
         self
     }
 
-    fn bytes(&mut self) -> (*const u8, usize) {
+    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
         if let Some(cur) = self.current.as_mut() {
             let left = cur.capacity - cur.offset;
             debug_assert!(left > 0);
@@ -309,6 +319,11 @@ impl BufferReaderHost for Reader {
                             left * self.item_size,
                         );
                     }
+
+                    for t in b.tags.iter_mut() {
+                        t.index += left;
+                    } 
+                    b.tags.append(&mut cur.tags);
 
                     let old = std::mem::replace(&mut cur.buffer, b.buffer);
                     state.writer_input.push_back(BufferEmpty { buffer: old });
@@ -326,9 +341,10 @@ impl BufferReaderHost for Reader {
                     buffer: b.buffer,
                     offset: self.reserved_items,
                     capacity,
+                    tags: b.tags,
                 });
             } else {
-                return (std::ptr::null::<u8>(), 0);
+                return (std::ptr::null::<u8>(), 0, Vec::new());
             }
         }
 
@@ -338,6 +354,7 @@ impl BufferReaderHost for Reader {
             (
                 (c.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),
                 (c.capacity - c.offset) * self.item_size,
+                c.tags.clone(),
             )
         }
     }

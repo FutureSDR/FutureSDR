@@ -8,6 +8,7 @@ use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
+use crate::runtime::ItemTag;
 use crate::runtime::WorkIo;
 
 pub struct Mocker {
@@ -25,7 +26,19 @@ impl Mocker {
     {
         self.block
             .stream_input_mut(id)
-            .set_reader(BufferReader::Host(Box::new(MockReader::new(data))));
+            .set_reader(BufferReader::Host(Box::new(MockReader::new(
+                data,
+                Vec::new(),
+            ))));
+    }
+
+    pub fn input_with_tags<T>(&mut self, id: usize, data: Vec<T>, tags: Vec<ItemTag>)
+    where
+        T: Debug + Send + 'static,
+    {
+        self.block
+            .stream_input_mut(id)
+            .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
     }
 
     pub fn init_output<T>(&mut self, id: usize, size: usize)
@@ -73,11 +86,16 @@ impl Mocker {
 struct MockReader<T: Debug + Send + 'static> {
     data: Vec<T>,
     index: usize,
+    tags: Vec<ItemTag>,
 }
 
 impl<T: Debug + Send + 'static> MockReader<T> {
-    pub fn new(data: Vec<T>) -> Self {
-        MockReader { data, index: 0 }
+    pub fn new(data: Vec<T>, tags: Vec<ItemTag>) -> Self {
+        MockReader {
+            data,
+            index: 0,
+            tags,
+        }
     }
 }
 
@@ -86,16 +104,22 @@ impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
-    fn bytes(&mut self) -> (*const u8, usize) {
+    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
         unsafe {
             (
                 self.data.as_ptr().add(self.index) as *const u8,
                 (self.data.len() - self.index) * std::mem::size_of::<T>(),
+                self.tags.clone(),
             )
         }
     }
     fn consume(&mut self, amount: usize) {
         self.index += amount;
+        self.tags.retain(|x| x.index >= amount);
+
+        for t in self.tags.iter_mut() {
+            t.index - amount;
+        }
     }
     async fn notify_finished(&mut self) {}
     fn finish(&mut self) {}
@@ -134,7 +158,7 @@ impl<T: Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
         self
     }
 
-    fn produce(&mut self, amount: usize) {
+    fn produce(&mut self, amount: usize, _tags: Vec<ItemTag>) {
         unsafe {
             self.data.set_len(self.data.len() + amount);
         }

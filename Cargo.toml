@@ -140,7 +140,8 @@ rodio = { version = "0.15.0", optional = true }
 soapysdr = { version = "0.3.1", optional = true }
 tokio = { version = "1.14", features = ["rt"] }
 tower-http = { version = "0.2.0", features = ["add-extension", "cors", "fs"] }
-vmcircbuffer = "0.0.5"
+#vmcircbuffer = "0.0.5"
+vmcircbuffer = { path = "/home/basti/src/vmcircbuffer" }
 vulkano = { version = "0.28.0", optional = true }
 vulkano-shaders = { version = "0.28.0", optional = true }
 
