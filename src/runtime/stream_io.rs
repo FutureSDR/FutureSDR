@@ -75,6 +75,10 @@ impl StreamInput {
         unsafe { slice::from_raw_parts(c.ptr as *const T, c.len / mem::size_of::<T>()) }
     }
 
+    /// Returns a mutable slice to the input buffer.
+    ///
+    /// # Safety
+    /// The block has to be the sole reader for the input buffer.
     pub unsafe fn slice_mut<T>(&mut self) -> &'static mut [T] {
         let s = self.slice::<T>();
         slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
@@ -210,7 +214,7 @@ impl StreamOutput {
 pub struct StreamIo {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
-    tag_propagation: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+    tag_propagation: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
 }
 
 impl fmt::Debug for StreamIo {
@@ -226,9 +230,7 @@ impl StreamIo {
     fn new(
         inputs: Vec<StreamInput>,
         outputs: Vec<StreamOutput>,
-        tag_propagation: Box<
-            dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static,
-        >,
+        tag_propagation: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     ) -> StreamIo {
         StreamIo {
             inputs,
@@ -313,7 +315,7 @@ impl StreamIo {
 
     pub fn set_tag_propagation(
         &mut self,
-        f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     ) {
         self.tag_propagation = f;
     }
@@ -322,7 +324,7 @@ impl StreamIo {
 pub struct StreamIoBuilder {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
-    tag_propagation: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+    tag_propagation: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
 }
 
 impl StreamIoBuilder {
@@ -347,9 +349,7 @@ impl StreamIoBuilder {
     }
 
     #[must_use]
-    pub fn tag_propagation<
-        F: FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static,
-    >(
+    pub fn tag_propagation<F: FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>(
         mut self,
         f: F,
     ) -> StreamIoBuilder {

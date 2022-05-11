@@ -36,16 +36,16 @@ pub struct Mac {
 impl Mac {
     pub fn new() -> Block {
         let mut b = [0; 256];
-        b[00] = 0x0;
-        b[01] = 0x0;
-        b[02] = 0x0;
-        b[03] = 0x0;
-        b[04] = 0x0;
-        b[05] = 0x0;
-        b[06] = 0xa;
-        b[07] = 0x7;
-        b[08] = 0x0; // len
-        b[09] = FRAME_CONTROL.to_le_bytes()[0];
+        b[0] = 0x0;
+        b[1] = 0x0;
+        b[2] = 0x0;
+        b[3] = 0x0;
+        b[4] = 0x0;
+        b[5] = 0x0;
+        b[6] = 0xa;
+        b[7] = 0x7;
+        b[8] = 0x0; // len
+        b[9] = FRAME_CONTROL.to_le_bytes()[0];
         b[10] = FRAME_CONTROL.to_le_bytes()[1];
         b[11] = 0x0; // seq nr
         b[12] = DESTINATION_PAN.to_le_bytes()[0];
@@ -192,7 +192,7 @@ impl Kernel for Mac {
             if self.current_len == 0 {
                 if let Some(v) = self.tx_frames.pop_front() {
                     sio.output(0).add_tag(0, Tag::Id(0));
-                    self.current_frame[08] = (v.len() + 11) as u8;
+                    self.current_frame[8] = (v.len() + 11) as u8;
                     self.current_frame[11] = self.sequence_number;
                     self.sequence_number = self.sequence_number.wrapping_add(1);
                     unsafe {

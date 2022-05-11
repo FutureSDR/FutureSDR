@@ -13,6 +13,7 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
 use crate::runtime::AsyncMessage;
+use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
 pub struct H2D {
@@ -150,7 +151,7 @@ impl BufferWriterHost for WriterH2D {
         }
     }
 
-    fn produce(&mut self, amount: usize) {
+    fn produce(&mut self, amount: usize, _tags: Vec<ItemTag>) {
         // debug!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
         let capacity = std::cmp::min(buffer.buffer.buffer.size(), self.max_bytes) / self.item_size;

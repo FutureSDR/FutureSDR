@@ -17,7 +17,7 @@ pub struct ItemTag {
     pub tag: Tag,
 }
 
-pub fn default_tag_propagation(_inputs: &mut Vec<StreamInput>, _outputs: &mut Vec<StreamOutput>) {}
+pub fn default_tag_propagation(_inputs: &mut [StreamInput], _outputs: &mut [StreamOutput]) {}
 
 #[derive(Debug)]
 pub struct TagOutputQueue {
@@ -51,5 +51,11 @@ impl TagOutputQueue {
         }
 
         tags
+    }
+}
+
+impl Default for TagOutputQueue {
+    fn default() -> Self {
+        Self::new()
     }
 }

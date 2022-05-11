@@ -12,6 +12,7 @@ use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterCustom;
 use crate::runtime::AsyncMessage;
+use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
 pub struct D2H;
@@ -167,7 +168,7 @@ impl BufferReaderHost for ReaderD2H {
         self
     }
 
-    fn bytes(&mut self) -> (*const u8, usize) {
+    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
         if self.buffer.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop_front() {
                 self.buffer = Some(CurrentBuffer {
@@ -175,7 +176,7 @@ impl BufferReaderHost for ReaderD2H {
                     offset: 0,
                 });
             } else {
-                return (std::ptr::null::<u8>(), 0);
+                return (std::ptr::null::<u8>(), 0, Vec::new());
             }
         }
 
@@ -187,6 +188,7 @@ impl BufferReaderHost for ReaderD2H {
             (
                 (buffer.buffer.buffer.buffer() as *const u8).add(offset * self.item_size),
                 (capacity - offset) * self.item_size,
+                Vec::new(),
             )
         }
     }

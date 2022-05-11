@@ -83,7 +83,7 @@ pub trait BlockT: Send + Any {
     fn commit(&mut self);
     fn set_tag_propagation(
         &mut self,
-        f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     );
     fn stream_inputs(&self) -> &Vec<StreamInput>;
     fn stream_inputs_mut(&mut self) -> &mut Vec<StreamInput>;
@@ -162,7 +162,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     }
     fn set_tag_propagation(
         &mut self,
-        f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     ) {
         self.sio.set_tag_propagation(f);
     }
@@ -289,7 +289,7 @@ impl Block {
     }
     pub fn set_tag_propagation(
         &mut self,
-        f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
+        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     ) {
         self.0.set_tag_propagation(f);
     }
