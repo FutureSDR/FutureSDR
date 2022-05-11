@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
-use vulkano::device::Device;
 use vulkano::device::DeviceExtensions;
-use vulkano::device::Features;
 use vulkano::device::Queue;
-use vulkano::instance::Instance;
+use vulkano::device::QueueCreateInfo;
+use vulkano::device::{Device, DeviceCreateInfo};
 use vulkano::instance::InstanceExtensions;
+use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::Version;
 
 mod d2h;
@@ -39,12 +39,17 @@ pub struct Broker {
 
 impl Broker {
     pub fn new() -> Broker {
-        let instance_extensions = InstanceExtensions {
+        let enabled_extensions = InstanceExtensions {
             khr_get_physical_device_properties2: true,
             ..InstanceExtensions::none()
         };
 
-        let instance = Instance::new(None, Version::V1_1, &instance_extensions, None).unwrap();
+        let instance = Instance::new(InstanceCreateInfo {
+            enabled_extensions,
+            max_api_version: Some(Version::V1_1),
+            ..Default::default()
+        })
+        .unwrap();
 
         let device_extensions = DeviceExtensions {
             khr_storage_buffer_storage_class: true,
@@ -74,11 +79,13 @@ impl Broker {
 
         let (device, mut queues) = Device::new(
             physical_device,
-            &Features::none(),
-            &physical_device
-                .required_extensions()
-                .union(&device_extensions),
-            [(queue_family, 0.5)].iter().cloned(),
+            DeviceCreateInfo {
+                enabled_extensions: physical_device
+                    .required_extensions()
+                    .union(&device_extensions),
+                queue_create_infos: vec![QueueCreateInfo::family(queue_family)],
+                ..Default::default()
+            },
         )
         .unwrap();
 

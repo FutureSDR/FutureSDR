@@ -20,7 +20,7 @@ pub fn get<T: FromStr>(name: &str) -> Option<T> {
     CONFIG
         .misc
         .get(name)
-        .and_then(|v| v.clone().into_str().ok())
+        .and_then(|v| v.clone().into_string().ok())
         .and_then(|v| v.parse::<T>().ok())
 }
 
@@ -30,34 +30,27 @@ pub fn get_or_default<T: FromStr>(name: &str, default: T) -> T {
 
 #[cfg(not(target_arch = "wasm32"))]
 static CONFIG: Lazy<Config> = Lazy::new(|| {
-    let mut settings = ::config::Config::new();
+    let mut settings = ::config::Config::builder();
 
     // user config
     if let Some(mut path) = dirs::config_dir() {
         path.push("futuresdr");
         path.push("config.toml");
 
-        if let Err(e) = settings.merge(File::from(path.clone()).required(false)) {
-            println!("user config error ({:?}): {:?}", path, e);
-        }
+        settings = settings.add_source(File::from(path.clone()).required(false));
     }
 
     // project config
-    if let Err(e) =
-        settings.merge(File::new("config.toml", config::FileFormat::Toml).required(false))
-    {
-        println!("project config error (config.toml): {:?}", e);
-    }
+    settings =
+        settings.add_source(File::new("config.toml", config::FileFormat::Toml).required(false));
 
     // env config
-    if let Err(e) = settings.merge(config::Environment::with_prefix("futuresdr")) {
-        println!("env config error: {:?}", e);
-    }
+    settings = settings.add_source(config::Environment::with_prefix("futuresdr"));
 
     // start from default config
     let mut c = Config::default();
 
-    if let Ok(config) = settings.collect() {
+    if let Ok(config) = settings.build().unwrap().collect() {
         for (k, v) in config.iter() {
             match k.as_str() {
                 "queue_size" => {
@@ -147,7 +140,7 @@ impl Default for Config {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn config_parse<T: FromStr>(v: &Value) -> T {
-    if let Ok(v) = v.clone().into_str() {
+    if let Ok(v) = v.clone().into_string() {
         if let Ok(v) = v.parse::<T>() {
             return v;
         }

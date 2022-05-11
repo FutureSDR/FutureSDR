@@ -127,7 +127,7 @@ impl Kernel for Vulkan {
                 .as_ref()
                 .context("no pipeline")?
                 .layout()
-                .descriptor_set_layouts()
+                .set_layouts()
                 .get(0)
                 .context("no desc layout")?
                 .clone(),
