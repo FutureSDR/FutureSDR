@@ -214,7 +214,7 @@ impl BufferWriterHost for Writer {
         }
     }
 
-    fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
+    fn produce(&mut self, amount: usize, mut tags: Vec<ItemTag>) {
         debug_assert!(amount > 0);
 
         let c = self.current.as_mut().unwrap();
@@ -252,7 +252,13 @@ impl BufferWriterHost for Writer {
             return;
         }
 
-        if let Some(CurrentBuffer { buffer, offset, tags, .. }) = self.current.take() {
+        if let Some(CurrentBuffer {
+            buffer,
+            offset,
+            tags,
+            ..
+        }) = self.current.take()
+        {
             if offset > self.reserved_items {
                 let mut state = self.state.lock().unwrap();
 
@@ -322,7 +328,7 @@ impl BufferReaderHost for Reader {
 
                     for t in b.tags.iter_mut() {
                         t.index += left;
-                    } 
+                    }
                     b.tags.append(&mut cur.tags);
 
                     let old = std::mem::replace(&mut cur.buffer, b.buffer);

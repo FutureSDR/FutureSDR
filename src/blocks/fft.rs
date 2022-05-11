@@ -49,7 +49,7 @@ impl Kernel for Fft {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<Complex<f32>>();
+        let i = unsafe { sio.input(0).slice_mut::<Complex<f32>>() };
         let o = sio.output(0).slice::<Complex<f32>>();
 
         let m = cmp::min(i.len(), o.len());

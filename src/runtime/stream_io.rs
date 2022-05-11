@@ -7,8 +7,8 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::tag::default_tag_propagation;
 use crate::runtime::AsyncMessage;
-use crate::runtime::Tag;
 use crate::runtime::ItemTag;
+use crate::runtime::Tag;
 use crate::runtime::TagOutputQueue;
 
 #[derive(Debug)]
@@ -54,7 +54,11 @@ impl StreamInput {
 
     pub fn consume(&mut self, amount: usize) {
         debug_assert!(self.current.is_some());
-        debug_assert!(amount <= self.current.as_mut().unwrap().len - self.current.as_mut().unwrap().index * self.item_size);
+        debug_assert!(
+            amount
+                <= self.current.as_mut().unwrap().len
+                    - self.current.as_mut().unwrap().index * self.item_size
+        );
 
         self.current.as_mut().unwrap().index += amount * self.item_size;
         self.tags.retain(|x| x.index >= amount);
@@ -63,16 +67,17 @@ impl StreamInput {
     pub fn slice<T>(&mut self) -> &'static [T] {
         if self.current.is_none() {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
-            self.current = Some(CurrentInput {
-                ptr,
-                len,
-                index: 0,
-            });
+            self.current = Some(CurrentInput { ptr, len, index: 0 });
             self.tags = tags;
-        } 
+        }
 
         let c = self.current.as_ref().unwrap();
         unsafe { slice::from_raw_parts(c.ptr as *const T, c.len / mem::size_of::<T>()) }
+    }
+
+    pub unsafe fn slice_mut<T>(&mut self) -> &'static mut [T] {
+        let s = self.slice::<T>();
+        slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
     }
 
     pub fn tags(&mut self) -> &mut Vec<ItemTag> {
@@ -310,7 +315,7 @@ impl StreamIo {
         &mut self,
         f: Box<dyn FnMut(&mut Vec<StreamInput>, &mut Vec<StreamOutput>) + Send + 'static>,
     ) {
-        self.set_tag_propagation(f);
+        self.tag_propagation = f;
     }
 }
 

@@ -118,7 +118,7 @@ impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
         self.tags.retain(|x| x.index >= amount);
 
         for t in self.tags.iter_mut() {
-            t.index - amount;
+            t.index -= amount;
         }
     }
     async fn notify_finished(&mut self) {}

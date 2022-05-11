@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
+use crate::runtime::Pmt;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamOutput;
-use crate::runtime::Pmt;
 
 #[derive(Clone, Debug)]
 pub enum Tag {

@@ -32,17 +32,26 @@ struct MyMetadata {
 }
 
 impl generic::Metadata for MyMetadata {
-
     type Item = ItemTag;
 
     fn new() -> Self {
-        MyMetadata {
-            tags: Vec::new(),
+        MyMetadata { tags: Vec::new() }
+    }
+    fn add(&mut self, offset: usize, mut tags: Vec<Self::Item>) {
+        for t in tags.iter_mut() {
+            t.index += offset;
+        }
+        self.tags.append(&mut tags);
+    }
+    fn get(&self) -> Vec<Self::Item> {
+        self.tags.clone()
+    }
+    fn consume(&mut self, items: usize) {
+        self.tags.retain(|x| x.index >= items);
+        for t in self.tags.iter_mut() {
+            t.index -= items;
         }
     }
-    fn add(&mut self, offset: usize, tags: Vec<Self::Item>) {}
-    fn get(&self) -> Vec<Self::Item> {}
-    fn consume(&mut self, items: usize) {}
 }
 
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -158,7 +167,7 @@ impl BufferWriterHost for Writer {
     }
 
     fn produce(&mut self, items: usize, tags: Vec<ItemTag>) {
-        self.writer.produce(items * self.item_size);
+        self.writer.produce(items * self.item_size, tags);
     }
 
     fn bytes(&mut self) -> (*mut u8, usize) {
@@ -192,7 +201,7 @@ unsafe impl Send for Writer {}
 unsafe impl Sync for Writer {}
 
 pub struct Reader {
-    reader: generic::Reader<u8, MyNotifier>,
+    reader: generic::Reader<u8, MyNotifier, MyMetadata>,
     item_size: usize,
     finished: bool,
     writer_inbox: Sender<AsyncMessage>,
@@ -205,11 +214,11 @@ impl BufferReaderHost for Reader {
         self
     }
 
-    fn bytes(&mut self) -> (*const u8, usize) {
-        if let Some(s) = self.reader.slice(false) {
-            (s.as_ptr(), s.len())
+    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
+        if let Some((s, tags)) = self.reader.slice(false) {
+            (s.as_ptr(), s.len(), tags)
         } else {
-            (std::ptr::null(), 0)
+            (std::ptr::null(), 0, Vec::new())
         }
     }
 

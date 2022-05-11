@@ -48,8 +48,8 @@ pub use stream_io::StreamInput;
 pub use stream_io::StreamIo;
 pub use stream_io::StreamIoBuilder;
 pub use stream_io::StreamOutput;
-pub use tag::Tag;
 pub use tag::ItemTag;
+pub use tag::Tag;
 pub use tag::TagOutputQueue;
 pub use topology::Topology;
 
