@@ -70,7 +70,15 @@ impl<T: Send + 'static> Kernel for TagDebug<T> {
             .tags()
             .iter()
             .filter(|x| x.index < n)
-            .for_each(|x| println!("TagDebug {}: buf {}/abs {} -- {:?}", &self.name, x.index, self.n_received + x.index, x.tag));
+            .for_each(|x| {
+                println!(
+                    "TagDebug {}: buf {}/abs {} -- {:?}",
+                    &self.name,
+                    x.index,
+                    self.n_received + x.index,
+                    x.tag
+                )
+            });
 
         if n > 0 {
             sio.input(0).consume(n);

@@ -72,9 +72,7 @@ where
                 produced += 1;
             } else if let Some(v) = i_iter.next() {
                 self.current_it = Box::new(((self.f)(v)).into_iter());
-                if let Some(ItemTag {
-                    tag, ..
-                }) = sio
+                if let Some(ItemTag { tag, .. }) = sio
                     .input(0)
                     .tags()
                     .iter()

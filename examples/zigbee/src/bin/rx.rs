@@ -1,16 +1,16 @@
 use clap::{Arg, Command};
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::Apply;
-use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::NullSink;
+use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
+use zigbee::channel_to_freq;
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::Mac;
-use zigbee::channel_to_freq;
 
 fn main() -> Result<()> {
     let matches = Command::new("ZigBee Receiver")

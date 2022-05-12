@@ -150,7 +150,10 @@ impl StreamOutput {
     }
 
     pub fn add_tag(&mut self, index: usize, tag: Tag) {
-        self.tags.push(ItemTag { index: index + self.offset, tag });
+        self.tags.push(ItemTag {
+            index: index + self.offset,
+            tag,
+        });
     }
 
     pub fn add_reader(
@@ -189,7 +192,10 @@ impl StreamOutput {
             return;
         }
 
-        self.writer.as_mut().unwrap().produce(self.offset, std::mem::take(&mut self.tags));
+        self.writer
+            .as_mut()
+            .unwrap()
+            .produce(self.offset, std::mem::take(&mut self.tags));
         self.offset = 0;
     }
 

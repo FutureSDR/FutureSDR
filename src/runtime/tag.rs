@@ -16,4 +16,3 @@ pub struct ItemTag {
 }
 
 pub fn default_tag_propagation(_inputs: &mut [StreamInput], _outputs: &mut [StreamOutput]) {}
-

@@ -91,7 +91,7 @@ impl Kernel for IqDelay {
                         consumed += 1;
                         self.state = State::Copy(left - 1);
                     }
-                },
+                }
                 State::Tail(left) => {
                     if left == 0 && consumed == i.len() {
                         break;
