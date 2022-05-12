@@ -4,7 +4,8 @@ use futuresdr::runtime::Block;
 
 const DSSS: [[Complex32; 16]; 16] = [
     //  0
-    [ // 0
+    [
+        // 0
         Complex32::new(1.0, 1.0),
         Complex32::new(-1.0, 1.0),
         Complex32::new(1.0, -1.0),
@@ -23,7 +24,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, -1.0),
     ],
     //  1
-    [ // 8
+    [
+        // 8
         Complex32::new(1.0, 1.0),
         Complex32::new(1.0, -1.0),
         Complex32::new(1.0, 1.0),
@@ -42,7 +44,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, -1.0),
     ],
     //  2
-    [ // 4
+    [
+        // 4
         Complex32::new(-1.0, -1.0),
         Complex32::new(1.0, -1.0),
         Complex32::new(1.0, 1.0),
@@ -61,7 +64,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, -1.0),
     ],
     //  3
-    [ // 12
+    [
+        // 12
         Complex32::new(-1.0, -1.0),
         Complex32::new(1.0, -1.0),
         Complex32::new(-1.0, -1.0),
@@ -80,7 +84,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, 1.0),
     ],
     //  4
-    [ // 2
+    [
+        // 2
         Complex32::new(-1.0, 1.0),
         Complex32::new(-1.0, 1.0),
         Complex32::new(-1.0, -1.0),
@@ -99,7 +104,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, 1.0),
     ],
     //  5
-    [ // 10
+    [
+        // 10
         Complex32::new(-1.0, -1.0),
         Complex32::new(1.0, 1.0),
         Complex32::new(-1.0, 1.0),
@@ -118,7 +124,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, -1.0),
     ],
     //  6
-    [ // 6
+    [
+        // 6
         Complex32::new(1.0, 1.0),
         Complex32::new(-1.0, -1.0),
         Complex32::new(-1.0, -1.0),
@@ -137,7 +144,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, 1.0),
     ],
     //  7
-    [ // 14
+    [
+        // 14
         Complex32::new(1.0, -1.0),
         Complex32::new(-1.0, 1.0),
         Complex32::new(1.0, 1.0),
@@ -156,7 +164,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, 1.0),
     ],
     //  8
-    [ // 1
+    [
+        // 1
         Complex32::new(1.0, -1.0),
         Complex32::new(-1.0, -1.0),
         Complex32::new(1.0, 1.0),
@@ -175,7 +184,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, 1.0),
     ],
     //  9
-    [ // 9
+    [
+        // 9
         Complex32::new(1.0, -1.0),
         Complex32::new(1.0, 1.0),
         Complex32::new(1.0, -1.0),
@@ -194,7 +204,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, 1.0),
     ],
     // 10
-    [ // 5
+    [
+        // 5
         Complex32::new(-1.0, 1.0),
         Complex32::new(1.0, 1.0),
         Complex32::new(1.0, -1.0),
@@ -213,7 +224,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, 1.0),
     ],
     // 11
-    [ // 13
+    [
+        // 13
         Complex32::new(-1.0, 1.0),
         Complex32::new(1.0, 1.0),
         Complex32::new(-1.0, 1.0),
@@ -232,7 +244,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, -1.0),
     ],
     // 12
-    [ // 3
+    [
+        // 3
         Complex32::new(-1.0, -1.0),
         Complex32::new(-1.0, -1.0),
         Complex32::new(-1.0, 1.0),
@@ -251,7 +264,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(1.0, -1.0),
     ],
     // 13
-    [ // 11
+    [
+        // 11
         Complex32::new(-1.0, 1.0),
         Complex32::new(1.0, -1.0),
         Complex32::new(-1.0, -1.0),
@@ -270,7 +284,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, 1.0),
     ],
     // 14
-    [ // 7
+    [
+        // 7
         Complex32::new(1.0, -1.0),
         Complex32::new(-1.0, 1.0),
         Complex32::new(-1.0, 1.0),
@@ -289,7 +304,8 @@ const DSSS: [[Complex32; 16]; 16] = [
         Complex32::new(-1.0, -1.0),
     ],
     // 15
-    [ // 15
+    [
+        // 15
         Complex32::new(1.0, 1.0),
         Complex32::new(-1.0, -1.0),
         Complex32::new(1.0, -1.0),
@@ -319,10 +335,6 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
         .map(|(x, y)| x * y)
 }
 
-fn make_iter(i: &u8) -> Box<dyn Iterator<Item = Complex32> + Send> {
-    Box::new(make_nibble(i & 0x0F).chain(make_nibble(i >> 4)))
-}
-
 pub fn modulator() -> Block {
-    ApplyIntoIter::new(make_iter)
+    ApplyIntoIter::new(|i: &u8| make_nibble(i & 0x0F).chain(make_nibble(i >> 4)))
 }
