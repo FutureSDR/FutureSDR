@@ -18,7 +18,6 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use std::thread;
 
 fn main() -> ! {
     let freq_mhz = 100.0;
@@ -67,9 +66,6 @@ fn main() -> ! {
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = Runtime::new().start(fg);
-
-    // Give it some time to connect SoapySDR
-    thread::sleep(std::time::Duration::from_secs(10));
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

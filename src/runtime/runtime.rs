@@ -3,6 +3,7 @@ use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
 use async_task::Task;
 use futures::channel::mpsc::{channel, Receiver, Sender};
+use futures::channel::oneshot;
 use futures::future::join_all;
 use futures::future::Either;
 use futures::prelude::*;
@@ -107,12 +108,15 @@ impl<S: Scheduler> Runtime<S> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<AsyncMessage>(queue_size);
 
+        let (tx, rx) = oneshot::channel::<()>();
         let task = self.scheduler.spawn(run_flowgraph(
             fg,
             self.scheduler.clone(),
             fg_inbox.clone(),
             fg_inbox_rx,
+            tx,
         ));
+        block_on(rx).expect("run_flowgraph did not signal startup completed");
         (task, FlowgraphHandle::new(fg_inbox))
     }
 
@@ -147,6 +151,7 @@ async fn run_flowgraph<S: Scheduler>(
     scheduler: S,
     mut main_channel: Sender<AsyncMessage>,
     mut main_rx: Receiver<AsyncMessage>,
+    initialized: oneshot::Sender<()>,
 ) -> Result<Flowgraph> {
     debug!("in run_flowgraph");
     let mut topology = fg.topology.take().context("flowgraph not initialized")?;
@@ -253,6 +258,10 @@ async fn run_flowgraph<S: Scheduler>(
     // Start Control Port
     #[cfg(not(target_arch = "wasm32"))]
     ctrl_port::start_control_port(inboxes.clone()).await;
+
+    initialized
+        .send(())
+        .expect("failed to signal flowgraph startup complete.");
 
     // main loop
     loop {
