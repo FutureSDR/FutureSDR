@@ -2,6 +2,7 @@
 name = "zigbee"
 version = "0.0.1"
 edition = "2021"
+default-run = "rx"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -9,6 +10,10 @@ crate-type = ["cdylib", "rlib"]
 [[bin]]
 name = "rx"
 path = "src/bin/rx.rs"
+
+[[bin]]
+name = "tx"
+path = "src/bin/tx.rs"
 
 [dependencies]
 

@@ -1,23 +1,16 @@
 use clap::{Arg, Command};
-use futuresdr::anyhow::{bail, Context, Result};
+use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::NullSink;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::Mac;
-
-fn channel_to_freq(chan: u32) -> Result<f64> {
-    if (11..=26).contains(&chan) {
-        Ok((2400.0 + 5.0 * (chan as f64 - 10.0)) * 1e6)
-    } else {
-        bail!("wrong channel {}", chan);
-    }
-}
+use zigbee::channel_to_freq;
 
 fn main() -> Result<()> {
     let matches = Command::new("ZigBee Receiver")
@@ -28,7 +21,7 @@ fn main() -> Result<()> {
                 .takes_value(true)
                 .value_name("CHANNEL")
                 .default_value("26")
-                .help("Channel (11..27)."),
+                .help("Channel (11..=26)."),
         )
         .get_matches();
 
@@ -70,11 +63,13 @@ fn main() -> Result<()> {
 
     let decoder = fg.add_block(Decoder::new(6));
     let mac = fg.add_block(Mac::new());
+    let snk = fg.add_block(NullSink::<u8>::new());
 
-    fg.connect_stream_with_type(src, "out", avg, "in", Slab::new())?;
-    fg.connect_stream_with_type(avg, "out", mm, "in", Slab::new())?;
-    fg.connect_stream_with_type(mm, "out", decoder, "in", Slab::new())?;
-    fg.connect_message(decoder, "out", mac, "in")?;
+    fg.connect_stream(src, "out", avg, "in")?;
+    fg.connect_stream(avg, "out", mm, "in")?;
+    fg.connect_stream(mm, "out", decoder, "in")?;
+    fg.connect_stream(mac, "out", snk, "in")?;
+    fg.connect_message(decoder, "out", mac, "rx")?;
 
     Runtime::new().run(fg)?;
 

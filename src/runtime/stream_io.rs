@@ -9,7 +9,6 @@ use crate::runtime::tag::default_tag_propagation;
 use crate::runtime::AsyncMessage;
 use crate::runtime::ItemTag;
 use crate::runtime::Tag;
-use crate::runtime::TagOutputQueue;
 
 #[derive(Debug)]
 struct CurrentInput {
@@ -69,6 +68,7 @@ impl StreamInput {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
             self.current = Some(CurrentInput { ptr, len, index: 0 });
             self.tags = tags;
+            self.tags.sort_by_key(|x| x.index);
         }
 
         let c = self.current.as_ref().unwrap();
@@ -121,7 +121,7 @@ pub struct StreamOutput {
     name: String,
     item_size: usize,
     writer: Option<BufferWriter>,
-    tags: TagOutputQueue,
+    tags: Vec<ItemTag>,
     offset: usize,
 }
 
@@ -131,7 +131,7 @@ impl StreamOutput {
             name: name.to_string(),
             item_size,
             writer: None,
-            tags: TagOutputQueue::new(),
+            tags: Vec::new(),
             offset: 0,
         }
     }
@@ -150,7 +150,7 @@ impl StreamOutput {
     }
 
     pub fn add_tag(&mut self, index: usize, tag: Tag) {
-        self.tags.add(index + self.offset, tag);
+        self.tags.push(ItemTag { index: index + self.offset, tag });
     }
 
     pub fn add_reader(
@@ -188,8 +188,8 @@ impl StreamOutput {
         if self.offset == 0 {
             return;
         }
-        let tags = self.tags.produce(self.offset);
-        self.writer.as_mut().unwrap().produce(self.offset, tags);
+
+        self.writer.as_mut().unwrap().produce(self.offset, std::mem::take(&mut self.tags));
         self.offset = 0;
     }
 

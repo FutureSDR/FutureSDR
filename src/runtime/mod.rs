@@ -50,7 +50,6 @@ pub use stream_io::StreamIoBuilder;
 pub use stream_io::StreamOutput;
 pub use tag::ItemTag;
 pub use tag::Tag;
-pub use tag::TagOutputQueue;
 pub use topology::Topology;
 
 use crate::runtime::buffer::BufferReader;

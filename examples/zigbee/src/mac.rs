@@ -39,21 +39,17 @@ impl Mac {
         b[0] = 0x0;
         b[1] = 0x0;
         b[2] = 0x0;
-        b[3] = 0x0;
-        b[4] = 0x0;
-        b[5] = 0x0;
-        b[6] = 0xa;
-        b[7] = 0x7;
-        b[8] = 0x0; // len
-        b[9] = FRAME_CONTROL.to_le_bytes()[0];
-        b[10] = FRAME_CONTROL.to_le_bytes()[1];
-        b[11] = 0x0; // seq nr
-        b[12] = DESTINATION_PAN.to_le_bytes()[0];
-        b[13] = DESTINATION_PAN.to_le_bytes()[1];
-        b[14] = DESTINATION_ADDRESS.to_le_bytes()[0];
-        b[15] = DESTINATION_ADDRESS.to_le_bytes()[1];
-        b[16] = SOURCE_ADDRESS.to_le_bytes()[0];
-        b[17] = SOURCE_ADDRESS.to_le_bytes()[1];
+        b[3] = 0xa7;
+        b[4] = 0x0; // len
+        b[5] = FRAME_CONTROL.to_le_bytes()[0];
+        b[6] = FRAME_CONTROL.to_le_bytes()[1];
+        b[7] = 0x0; // seq nr
+        b[8] = DESTINATION_PAN.to_le_bytes()[0];
+        b[9] = DESTINATION_PAN.to_le_bytes()[1];
+        b[10] = DESTINATION_ADDRESS.to_le_bytes()[0];
+        b[11] = DESTINATION_ADDRESS.to_le_bytes()[1];
+        b[12] = SOURCE_ADDRESS.to_le_bytes()[0];
+        b[13] = SOURCE_ADDRESS.to_le_bytes()[1];
 
         Block::new(
             BlockMetaBuilder::new("Mac").build(),
@@ -191,25 +187,27 @@ impl Kernel for Mac {
         while !out.is_empty() {
             if self.current_len == 0 {
                 if let Some(v) = self.tx_frames.pop_front() {
-                    sio.output(0).add_tag(0, Tag::Id(0));
-                    self.current_frame[8] = (v.len() + 11) as u8;
-                    self.current_frame[11] = self.sequence_number;
+                    self.current_frame[4] = (v.len() + 11) as u8;
+                    self.current_frame[7] = self.sequence_number;
                     self.sequence_number = self.sequence_number.wrapping_add(1);
                     unsafe {
                         std::ptr::copy_nonoverlapping(
                             v.as_ptr(),
-                            self.current_frame.as_mut_ptr().add(18),
+                            self.current_frame.as_mut_ptr().add(14),
                             v.len(),
                         );
                     }
 
-                    let crc = Self::calc_crc(&self.current_frame[9..18 + v.len()]);
-                    self.current_frame[18 + v.len()] = crc.to_le_bytes()[0];
-                    self.current_frame[19 + v.len()] = crc.to_le_bytes()[1];
+                    let crc = Self::calc_crc(&self.current_frame[5..14 + v.len()]);
+                    self.current_frame[14 + v.len()] = crc.to_le_bytes()[0];
+                    self.current_frame[15 + v.len()] = crc.to_le_bytes()[1];
 
-                    // 8 preamble + 1 len + 9 header + 2 crc
-                    self.current_len = v.len() + 20;
+                    // 4 preamble + 1 len + 9 header + 2 crc
+                    self.current_len = v.len() + 16;
                     self.current_index = 0;
+                    sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
+                    println!("new frame len {}", self.current_len);
+                    println!("{:?}", self.current_frame);
                 } else {
                     break;
                 }

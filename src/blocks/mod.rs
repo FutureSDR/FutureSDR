@@ -26,6 +26,7 @@
 //! | [NullSource] | Generates a stream of zeros | ✅ |
 //! | [FileSink] | Writes samples to a file | ❌ |
 //! | [NullSink] | Drops samples | ✅ |
+//! | [TagSink] | Drops samples, printing tags. | ✅ |
 //! | [WavSink] | Writes samples to a WAV file | ❌ |
 //!
 //! ## Message blocks
@@ -108,6 +109,9 @@ mod source;
 pub use source::Source;
 mod split;
 pub use split::Split;
+
+mod tag_debug;
+pub use tag_debug::TagDebug;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod tcp_sink;
