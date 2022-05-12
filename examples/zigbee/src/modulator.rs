@@ -325,7 +325,7 @@ const DSSS: [[Complex32; 16]; 16] = [
     ],
 ];
 
-const SHAPE: [f32; 4] = [0.0, 0.7071067811865475, 1.0, 0.7071067811865476];
+const SHAPE: [f32; 4] = [0.0, 0.707_106_77, 1.0, 0.707_106_77];
 
 fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
     DSSS[i as usize]
