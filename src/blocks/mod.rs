@@ -21,6 +21,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [FileSource] | Reads samples from a file | ❌ |
+//! | [SoapySink](SoapySinkBuilder) | Transmit samples with a soapy device | ❌ |
 //! | [SoapySource](SoapySourceBuilder) | Read samples from a soapy device | ❌ |
 //! | [Source] | Repeatedly apply a function to generate samples | ✅ |
 //! | [NullSource] | Generates a stream of zeros | ✅ |
@@ -100,6 +101,10 @@ pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
 
+#[cfg(feature = "soapy")]
+mod soapy_snk;
+#[cfg(feature = "soapy")]
+pub use soapy_snk::{SoapySink, SoapySinkBuilder};
 #[cfg(feature = "soapy")]
 mod soapy_src;
 #[cfg(feature = "soapy")]

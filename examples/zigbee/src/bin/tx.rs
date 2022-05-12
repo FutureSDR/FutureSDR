@@ -4,10 +4,7 @@ use std::time::Duration;
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
-use futuresdr::blocks::FileSink;
-use futuresdr::blocks::NullSink;
-use futuresdr::blocks::TagDebug;
-use futuresdr::num_complex::Complex32;
+use futuresdr::blocks::SoapySinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -31,24 +28,24 @@ fn main() -> Result<()> {
         .get_matches();
 
     let channel: u32 = matches.value_of_t("channel").context("invalid channel")?;
-    let _freq = channel_to_freq(channel)?;
+    let freq = channel_to_freq(channel)?;
 
     let mut fg = Flowgraph::new();
 
     let mac = fg.add_block(Mac::new());
     let modulator = fg.add_block(modulator());
-    let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/foo.cf32"));
     let iq_delay = fg.add_block(IqDelay::new());
-    let snk = fg.add_block(NullSink::<Complex32>::new());
-    let tag_debug = fg.add_block(TagDebug::<u8>::new("mac"));
-    let tag_debug_mod = fg.add_block(TagDebug::<Complex32>::new("mod"));
+    let soapy_snk = fg.add_block(
+        SoapySinkBuilder::new()
+            .freq(freq)
+            .sample_rate(4e6)
+            .gain(18.0)
+            .build(),
+    );
 
     fg.connect_stream(mac, "out", modulator, "in")?;
-    fg.connect_stream(mac, "out", tag_debug, "in")?;
-    fg.connect_stream(modulator, "out", snk, "in")?;
     fg.connect_stream(modulator, "out", iq_delay, "in")?;
-    fg.connect_stream(iq_delay, "out", file_snk, "in")?;
-    fg.connect_stream(modulator, "out", tag_debug_mod, "in")?;
+    fg.connect_stream(iq_delay, "out", soapy_snk, "in")?;
 
     let rt = Runtime::new();
     let (fg, mut handle) = rt.start(fg);

@@ -207,7 +207,7 @@ impl Kernel for Mac {
                     self.current_index = 0;
                     sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
                     println!("new frame len {}", self.current_len);
-                    println!("{:?}", self.current_frame);
+                    println!("{:?}", &self.current_frame[0..self.current_len]);
                 } else {
                     break;
                 }

@@ -3,7 +3,6 @@ use std::collections::VecDeque;
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::num_complex::Complex32;
-use futuresdr::log::debug;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -65,7 +64,6 @@ impl Kernel for IqDelay {
         while produced < o.len() {
             match self.state {
                 State::Front(left, size) => {
-                    debug!("front {} {}", left, size);
                     let n = std::cmp::min(o.len() - produced, left);
                     o[produced..produced + n].fill(Complex32::new(0.0, 0.0));
                     produced += n;
@@ -77,7 +75,6 @@ impl Kernel for IqDelay {
                     }
                 }
                 State::Copy(left) => {
-                    debug!("copy {}", left);
                     if left == 0 {
                         if let Some(q) = self.buf.pop_front() {
                             o[produced] = Complex32::new(0.0, q);
@@ -96,7 +93,6 @@ impl Kernel for IqDelay {
                     }
                 },
                 State::Tail(left) => {
-                    debug!("tail {}", left);
                     if left == 0 && consumed == i.len() {
                         break;
                     } else if left == 0 {

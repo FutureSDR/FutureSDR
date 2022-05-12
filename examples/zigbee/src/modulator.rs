@@ -320,8 +320,6 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
 }
 
 fn make_iter(i: &u8) -> Box<dyn Iterator<Item = Complex32> + Send> {
-    println!("{:#0x}", i & 0x0F);
-    println!("{:#0x}", i >> 4);
     Box::new(make_nibble(i & 0x0F).chain(make_nibble(i >> 4)))
 }
 
