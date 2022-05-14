@@ -1,5 +1,6 @@
 use std::mem;
 
+use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -9,7 +10,6 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
-use crate::anyhow::Result;
 
 /// Applies a function on N samples in the input stream,
 /// and creates M samples in the output stream.
@@ -45,7 +45,7 @@ where
     A: 'static,
     B: 'static,
 {
-    f: Box<dyn FnMut(&[A], &mut [B])  + Send + 'static>,
+    f: Box<dyn FnMut(&[A], &mut [B]) + Send + 'static>,
 }
 
 impl<A, B, const N: usize, const M: usize> ApplyNM<A, B, N, M>
