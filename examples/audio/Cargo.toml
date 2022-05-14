@@ -15,5 +15,9 @@ path = "play_file.rs"
 name = "play-tone"
 path = "play_tone.rs"
 
+[[bin]]
+name = "play-stereo"
+path = "play_stereo.rs"
+
 [dependencies]
 futuresdr = { path = "../..", features = ["audio"] }

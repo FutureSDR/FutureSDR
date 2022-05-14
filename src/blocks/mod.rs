@@ -2,6 +2,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [Apply] | Apply a function to each sample | ✅ |
+//! | [ApplyNM] | ApplyNM a function to each N input samples and produce M output samples | ✅ |
 //! | [Combine] | Apply a function to combine two streams into one | ✅ |
 //! | [Filter] | Apply a function to filter samples | ✅ |
 //!
@@ -37,6 +38,9 @@
 
 mod apply;
 pub use apply::Apply;
+
+mod applynm;
+pub use applynm::ApplyNM;
 
 mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
