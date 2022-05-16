@@ -14,7 +14,7 @@ cargo run --bin play-file --release
 To listen a 440Hz sound, execute:
 ```sh
 cd examples/audio/
-cargo run --bin play-file --release
+cargo run --bin play-tone --release
 ```
 
 To listen the rick.mp3 file in stereo mode with different sound levels, execute:

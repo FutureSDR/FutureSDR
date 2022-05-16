@@ -4,11 +4,11 @@ use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
-use crate::runtime::SyncKernel;
 use crate::runtime::WorkIo;
 
 /// Applies a function on N samples in the input stream,
@@ -54,7 +54,7 @@ where
     B: 'static,
 {
     pub fn new(f: impl FnMut(&[A], &mut [B]) + Send + 'static) -> Block {
-        Block::new_sync(
+        Block::new(
             BlockMetaBuilder::new("ApplyNM").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
@@ -66,12 +66,13 @@ where
     }
 }
 
-impl<A, B, const N: usize, const M: usize> SyncKernel for ApplyNM<A, B, N, M>
+#[async_trait]
+impl<A, B, const N: usize, const M: usize> Kernel for ApplyNM<A, B, N, M>
 where
     A: 'static,
     B: 'static,
 {
-    fn work(
+    async fn work(
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
@@ -81,6 +82,8 @@ where
         let i = sio.input(0).slice::<A>();
         let o = sio.output(0).slice::<B>();
 
+        // See https://www.nickwilcox.com/blog/autovec/ for a discussion
+        // on auto-vectorization of these types of functions.
         let m = std::cmp::min(i.len() / N, o.len() / M);
         if m > 0 {
             for (v, r) in i.chunks_exact(N).zip(o.chunks_exact_mut(M)) {
