@@ -12,6 +12,10 @@ name = "rx"
 path = "src/bin/rx.rs"
 
 [[bin]]
+name = "trx"
+path = "src/bin/trx.rs"
+
+[[bin]]
 name = "tx"
 path = "src/bin/tx.rs"
 
@@ -19,7 +23,7 @@ path = "src/bin/tx.rs"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 futuresdr = { path = "../..", features = ["soapy"] }
-clap = "3.1.0"
+clap = { version = "3.1.18", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futuresdr = { path = "../.." }
