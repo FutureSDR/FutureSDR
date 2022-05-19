@@ -106,7 +106,7 @@ impl Mac {
                         info!("received frame, crc correct, payload length {}", data.len());
                         let l = data.len();
                         let s = String::from_iter(
-                            data[7..l - 4]
+                            data[9..l - 2]
                                 .iter()
                                 .map(|x| char::from(*x))
                                 .map(|x| if x.is_ascii() { x } else { '.' })
