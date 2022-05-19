@@ -51,3 +51,18 @@ impl TapsAccessor for Vec<f32> {
         *self.get_unchecked(index)
     }
 }
+
+use num_complex::Complex;
+
+impl TapsAccessor for Vec<Complex<f32>> {
+    type TapType = Complex<f32>;
+
+    fn num_taps(&self) -> usize {
+        self.len()
+    }
+
+    unsafe fn get(&self, index: usize) -> Complex<f32> {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
