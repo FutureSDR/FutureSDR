@@ -23,6 +23,7 @@ members = [
     "examples/logging",
     "examples/rx-to-file",
     "examples/spectrum",
+    "examples/ssb-receiver",
     "examples/wasm",
     "examples/wgpu",
     "examples/zeromq",
