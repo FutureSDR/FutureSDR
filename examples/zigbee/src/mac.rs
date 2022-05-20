@@ -206,8 +206,8 @@ impl Kernel for Mac {
                     self.current_len = v.len() + 16;
                     self.current_index = 0;
                     sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
-                    println!("new frame len {}", self.current_len);
-                    println!("{:?}", &self.current_frame[0..self.current_len]);
+                    info!("sending frame, len {}", self.current_len);
+                    info!("{:?}", &self.current_frame[0..self.current_len]);
                 } else {
                     break;
                 }
