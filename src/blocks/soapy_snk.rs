@@ -30,10 +30,20 @@ pub struct SoapySink {
     sample_rate: f64,
     gain: f64,
     filter: String,
+    antenna: Option<String>,
 }
 
 impl SoapySink {
-    pub fn new(freq: f64, sample_rate: f64, gain: f64, filter: String) -> Block {
+    pub fn new<S>(
+        freq: f64,
+        sample_rate: f64,
+        gain: f64,
+        filter: String,
+        antenna: Option<S>,
+    ) -> Block
+    where
+        S: Into<String>,
+    {
         Block::new(
             BlockMetaBuilder::new("SoapySink").blocking().build(),
             StreamIoBuilder::new()
@@ -87,6 +97,7 @@ impl SoapySink {
                 sample_rate,
                 gain,
                 filter,
+                antenna: antenna.map(Into::into),
             },
         )
     }
@@ -130,11 +141,14 @@ impl Kernel for SoapySink {
         soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         let dev = self.dev.as_ref().context("no dev")?;
-        dev.set_frequency(Tx, channel, self.freq, ()).unwrap();
-        dev.set_sample_rate(Tx, channel, self.sample_rate).unwrap();
-        dev.set_gain(Tx, channel, self.gain).unwrap();
+        dev.set_frequency(Tx, channel, self.freq, ())?;
+        dev.set_sample_rate(Tx, channel, self.sample_rate)?;
+        dev.set_gain(Tx, channel, self.gain)?;
+        if let Some(ref a) = self.antenna {
+            dev.set_antenna(Tx, channel, a.as_bytes())?;
+        }
 
-        self.stream = Some(dev.tx_stream::<Complex<f32>>(&[channel]).unwrap());
+        self.stream = Some(dev.tx_stream::<Complex<f32>>(&[channel])?);
         self.stream.as_mut().context("no stream")?.activate(None)?;
 
         Ok(())
@@ -186,6 +200,7 @@ pub struct SoapySinkBuilder {
     sample_rate: f64,
     gain: f64,
     filter: String,
+    antenna: Option<String>,
 }
 
 impl SoapySinkBuilder {
@@ -211,6 +226,15 @@ impl SoapySinkBuilder {
         self
     }
 
+    /// See [`soapysdr::Device::set_antenna()`]
+    pub fn antenna<S>(mut self, antenna: S) -> SoapySinkBuilder
+    where
+        S: Into<String>,
+    {
+        self.antenna = Some(antenna.into());
+        self
+    }
+
     /// See [`soapysdr::Device::new()`]
     pub fn filter<S: Into<String>>(mut self, filter: S) -> SoapySinkBuilder {
         self.filter = filter.into();
@@ -219,6 +243,12 @@ impl SoapySinkBuilder {
 
     /// Build [`SoapySink`]
     pub fn build(self) -> Block {
-        SoapySink::new(self.freq, self.sample_rate, self.gain, self.filter)
+        SoapySink::new(
+            self.freq,
+            self.sample_rate,
+            self.gain,
+            self.filter,
+            self.antenna,
+        )
     }
 }

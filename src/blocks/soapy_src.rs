@@ -32,10 +32,20 @@ pub struct SoapySource {
     sample_rate: f64,
     gain: f64,
     filter: String,
+    antenna: Option<String>,
 }
 
 impl SoapySource {
-    pub fn new(freq: f64, sample_rate: f64, gain: f64, filter: String) -> Block {
+    pub fn new<S>(
+        freq: f64,
+        sample_rate: f64,
+        gain: f64,
+        filter: String,
+        antenna: Option<S>,
+    ) -> Block
+    where
+        S: Into<String>,
+    {
         Block::new(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
             StreamIoBuilder::new()
@@ -89,6 +99,7 @@ impl SoapySource {
                 sample_rate,
                 gain,
                 filter,
+                antenna: antenna.map(Into::into),
             },
         )
     }
@@ -127,11 +138,14 @@ impl Kernel for SoapySource {
         soapysdr::configure_logging();
         self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         let dev = self.dev.as_ref().context("no dev")?;
-        dev.set_frequency(Rx, channel, self.freq, ()).unwrap();
-        dev.set_sample_rate(Rx, channel, self.sample_rate).unwrap();
-        dev.set_gain(Rx, channel, self.gain).unwrap();
+        dev.set_frequency(Rx, channel, self.freq, ())?;
+        dev.set_sample_rate(Rx, channel, self.sample_rate)?;
+        dev.set_gain(Rx, channel, self.gain)?;
+        if let Some(ref a) = self.antenna {
+            dev.set_antenna(Rx, 0, a.as_bytes())?;
+        }
 
-        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel]).unwrap());
+        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel])?);
         self.stream.as_mut().context("no stream")?.activate(None)?;
 
         Ok(())
@@ -186,6 +200,7 @@ pub struct SoapySourceBuilder {
     sample_rate: f64,
     gain: f64,
     filter: String,
+    antenna: Option<String>,
 }
 
 impl SoapySourceBuilder {
@@ -211,6 +226,15 @@ impl SoapySourceBuilder {
         self
     }
 
+    /// See [`soapysdr::Device::set_antenna()`]
+    pub fn antenna<S>(mut self, antenna: S) -> SoapySourceBuilder
+    where
+        S: Into<String>,
+    {
+        self.antenna = Some(antenna.into());
+        self
+    }
+
     /// See [`soapysdr::Device::new()`]
     pub fn filter<S: Into<String>>(mut self, filter: S) -> SoapySourceBuilder {
         self.filter = filter.into();
@@ -219,6 +243,12 @@ impl SoapySourceBuilder {
 
     /// Build [`SoapySource`]
     pub fn build(self) -> Block {
-        SoapySource::new(self.freq, self.sample_rate, self.gain, self.filter)
+        SoapySource::new(
+            self.freq,
+            self.sample_rate,
+            self.gain,
+            self.filter,
+            self.antenna,
+        )
     }
 }
