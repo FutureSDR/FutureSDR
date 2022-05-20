@@ -102,6 +102,7 @@ impl Default for Flowgraph {
     }
 }
 
+#[derive(Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<AsyncMessage>,
 }
