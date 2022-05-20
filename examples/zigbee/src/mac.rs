@@ -57,6 +57,7 @@ impl Mac {
             MessageIoBuilder::new()
                 .add_input("rx", Self::received)
                 .add_input("tx", Self::transmit)
+                .add_output("rxed")
                 .build(),
             Mac {
                 tx_frames: VecDeque::new(),
@@ -95,7 +96,7 @@ impl Mac {
 
     fn received<'a>(
         &'a mut self,
-        _mio: &'a mut MessageIo<Mac>,
+        mio: &'a mut MessageIo<Mac>,
         _meta: &'a mut BlockMeta,
         p: Pmt,
     ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
@@ -119,6 +120,7 @@ impl Mac {
                                 }),
                         );
                         info!("{}", s);
+                        mio.output_mut(0).post(Pmt::Blob(data.clone())).await;
                     } else {
                         info!("crc wrong");
                     }
