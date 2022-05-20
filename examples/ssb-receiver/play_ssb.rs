@@ -17,14 +17,14 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     const FILE_SAMPLING_RATE: u32 = 256_000;
-    const CENTER_FREQ: u32 = 51_500 - 6960; // explanation in http://www.csun.edu/~skatz/katzpage/sdr_project/sdr/grc_tutorial4.pdf
+    const CENTER_FREQ: i32 = 51_500; // explanation in http://www.csun.edu/~skatz/katzpage/sdr_project/sdr/grc_tutorial4.pdf
 
     // To be downloaded from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip
     let src = FileSource::<Complex<f32>>::repeat("ssb_lsb_256k_complex2.dat");
 
     const FILE_LEVEL_ADJUSTEMENT: f32 = 0.0001;
     let mut xlating_local_oscillator_index: u32 = 0;
-    const FWT0 : f32 = 2.0 * std::f32::consts::PI * (CENTER_FREQ as f32) / (FILE_SAMPLING_RATE as f32);
+    const FWT0 : f32 = -2.0 * std::f32::consts::PI * (CENTER_FREQ as f32) / (FILE_SAMPLING_RATE as f32);
     let freq_xlating = Apply::<Complex<f32>, Complex<f32>>::new(move |v| {
         let lo_v = Complex::<f32>::new( 0.0, (xlating_local_oscillator_index as f32) * FWT0).exp();
         xlating_local_oscillator_index = (xlating_local_oscillator_index + 1) % FILE_SAMPLING_RATE;
