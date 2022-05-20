@@ -47,6 +47,11 @@ pub use applyintoiter::ApplyIntoIter;
 
 pub mod audio;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod blob_to_udp;
+#[cfg(not(target_arch = "wasm32"))]
+pub use blob_to_udp::BlobToUdp;
+
 mod combine;
 pub use combine::Combine;
 
