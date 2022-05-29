@@ -41,7 +41,7 @@ pub enum Msg {
     Reply(String, u64),
 }
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
     pub block: u32,

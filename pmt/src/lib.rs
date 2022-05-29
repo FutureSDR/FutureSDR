@@ -52,7 +52,7 @@ impl Pmt {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PmtKind {
     String,
     U32,

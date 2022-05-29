@@ -15,7 +15,7 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 enum State {
     Front(usize, usize),
     Copy(usize),

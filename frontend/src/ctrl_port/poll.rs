@@ -9,7 +9,7 @@ pub enum Msg {
     Reply(String),
 }
 
-#[derive(Clone, Properties, Default, PartialEq)]
+#[derive(Clone, Properties, Default, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
     pub block: u64,
