@@ -68,7 +68,11 @@ where
         for k in 0..n {
             let mut sum = init();
             for t in 0..taps.num_taps() {
-                sum = mac(sum, *i.get_unchecked(k + t), taps.get(t));
+                sum = mac(
+                    sum,
+                    *i.get_unchecked(k + t),
+                    taps.get(taps.num_taps() - 1 - t),
+                );
             }
             *o.get_unchecked_mut(k) = sum;
         }
@@ -165,7 +169,7 @@ mod tests {
             kernel.work(&input, &mut output),
             (1, 1, ComputationStatus::InsufficientInput)
         );
-        assert_eq!(output[0], 14.0);
+        assert_eq!(output[0], 10.0);
 
         let mut output = [];
         assert_eq!(
@@ -178,7 +182,7 @@ mod tests {
             kernel.work(&input, &mut output),
             (1, 1, ComputationStatus::InsufficientInput)
         );
-        assert_eq!(output[0], 14.0);
+        assert_eq!(output[0], 10.0);
 
         let input = [1.0, 2.0, 3.0, 4.0, 5.0];
         let mut output = [0.0; 2];
@@ -186,8 +190,8 @@ mod tests {
             kernel.work(&input, &mut output),
             (2, 2, ComputationStatus::InsufficientOutput)
         );
-        assert_eq!(output[0], 14.0);
-        assert_eq!(output[1], 20.0);
+        assert_eq!(output[0], 10.0);
+        assert_eq!(output[1], 16.0);
     }
 
     /// Tests the "terminating condition" where the input is finished and the
