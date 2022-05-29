@@ -97,7 +97,7 @@ config = "0.13.1"
 dirs = "4.0"
 futures = "0.3.18"
 futures-lite = "1.10.0"
-futuredsp = { path = "futuredsp", version = "0.0.2" }
+futuredsp = { path = "futuredsp", version = "0.0.3" }
 futuresdr-pmt = { path = "pmt", version = "0.0.2" }
 log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 lttng-ust = { version = "0.1.0", optional = true}
