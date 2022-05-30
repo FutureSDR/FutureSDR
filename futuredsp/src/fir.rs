@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(output[2], 16.0);
         let input = &input[2..input.len()];
         assert_eq!(
-            kernel.work(&input, &mut output),
+            kernel.work(input, &mut output),
             (2, 3, ComputationStatus::InsufficientOutput)
         );
         assert_eq!(output[0], 16.0);
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(output[2], 30.0);
         let input = &input[2..input.len()];
         assert_eq!(
-            kernel.work(&input, &mut output),
+            kernel.work(input, &mut output),
             (2, 3, ComputationStatus::BothSufficient)
         );
         assert_eq!(output[0], 26.0);
