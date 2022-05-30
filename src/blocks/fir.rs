@@ -11,7 +11,9 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 use futuredsp::fir::*;
+use futuredsp::firdes;
 use futuredsp::{TapsAccessor, UnaryKernel};
+use num_integer;
 
 pub struct Fir<SampleType, TapType, Core>
 where
@@ -117,12 +119,15 @@ where
 /// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]));
 /// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]));
 /// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]));
+///
+/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0, 2.0, 3.0]));
 /// ```
 pub struct FirBuilder {
     //
 }
 
 impl FirBuilder {
+    /// Create a new non-resampling FIR filter with the specified taps.
     pub fn new<SampleType, TapType, Taps>(taps: Taps) -> Block
     where
         SampleType: 'static + Send,
@@ -132,6 +137,42 @@ impl FirBuilder {
     {
         Fir::<SampleType, TapType, NonResamplingFirKernel<SampleType, Taps>>::new(
             NonResamplingFirKernel::new(taps),
+        )
+    }
+
+    /// Create a new rationally resampling FIR filter that changes the sampling
+    /// rate by a factor `interp/decim`. The interpolation filter is constructed
+    /// using default parameters.
+    pub fn new_resampling<SampleType>(interp: usize, decim: usize) -> Block
+    where
+        SampleType: 'static + Send,
+        PolyphaseResamplingFirKernel<SampleType, Vec<f32>>: UnaryKernel<SampleType>,
+    {
+        // Reduce factors
+        let gcd = num_integer::gcd(interp, decim);
+        let interp = interp / gcd;
+        let decim = decim / gcd;
+        // Design filter
+        let taps = firdes::kaiser::multirate::<f32>(interp, decim, 12, 0.0001);
+        FirBuilder::new_resampling_with_taps::<SampleType, f32, _>(interp, decim, taps)
+    }
+
+    /// Create a new rationally resampling FIR filter that changes the sampling
+    /// rate by a factor `interp/decim` and uses `taps` as the interpolation/decimation filter.
+    /// The length of `taps` must be divisible by `interp`.
+    pub fn new_resampling_with_taps<SampleType, TapType, Taps>(
+        interp: usize,
+        decim: usize,
+        taps: Taps,
+    ) -> Block
+    where
+        SampleType: 'static + Send,
+        TapType: 'static,
+        Taps: 'static + TapsAccessor,
+        PolyphaseResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
+    {
+        Fir::<SampleType, TapType, PolyphaseResamplingFirKernel<SampleType, Taps>>::new(
+            PolyphaseResamplingFirKernel::new(interp, decim, taps),
         )
     }
 }
