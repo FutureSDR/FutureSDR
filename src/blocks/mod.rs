@@ -9,7 +9,7 @@
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [fir](FirBuilder) | Generic FIR filter | ✅ |
+//! | [fir](FirBuilder) | Generic FIR filter, resampler | ✅ |
 //! | [fft](FftBuilder) | Computes FFT | ✅ |
 //!
 //! ## Limiting blocks

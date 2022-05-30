@@ -330,7 +330,52 @@ pub mod kaiser {
         super::bandpass(lower_omega_c, higher_omega_c, win.as_slice())
     }
 
-    fn design_kaiser_window(transition_bw: f64, max_ripple: f64) -> (usize, f64) {
+    /// Designs a Nyquist FIR filter (L-th band filter) for polyphase resampling with
+    /// interpolation factor `interp` and decimation factor `decim`. Each polyphase
+    /// filter will contain `2 * half_polyphase_len` taps.
+    ///
+    /// Setting `half_polyphase_len = 12` and `max_ripple = 0.0001` seems
+    /// reasonable for most applications.
+    ///
+    /// Example usage:
+    /// ```
+    /// use futuredsp::firdes;
+    ///
+    /// let taps = firdes::kaiser::multirate::<f32>(3, 2, 12, 0.0001);
+    /// ```
+    pub fn multirate<T: FromPrimitive>(
+        interp: usize,
+        decim: usize,
+        half_polyphase_len: usize,
+        max_ripple: f64,
+    ) -> Vec<T> {
+        assert!(interp > 0, "interp must be greater than 0");
+        assert!(decim > 0, "decim must be greater than 0");
+        assert!(
+            half_polyphase_len > 0,
+            "polyphase_taps must be greater than 0"
+        );
+        if interp == 1 && decim == 1 {
+            return vec![T::from_f64(1.0).unwrap()];
+        }
+        let band = match interp {
+            1 => decim,
+            _ => interp,
+        };
+        let num_taps = 2 * half_polyphase_len * band;
+        let beta = compute_kaiser_beta(max_ripple);
+        // Scale window by interp to get unit gain
+        let win: Vec<f64> = kaiser(num_taps + 1, beta)
+            .iter()
+            .map(|x| interp as f64 * x)
+            .collect();
+        let omega_c = 1.0 / (2.0 * core::cmp::max(interp, decim) as f64);
+        let mut taps = super::lowpass(omega_c, win.as_slice());
+        taps.truncate(num_taps);
+        taps
+    }
+
+    fn compute_kaiser_beta(max_ripple: f64) -> f64 {
         // Determine Kaiser window parameters
         let ripple_db = -20.0 * max_ripple.log10();
         let beta = match ripple_db {
@@ -338,6 +383,12 @@ pub mod kaiser {
             x if x >= 21.0 => 0.5842 * (x - 21.0).powf(0.4) + 0.07886 * (x - 21.0),
             _ => 0.0,
         };
+        beta
+    }
+
+    fn design_kaiser_window(transition_bw: f64, max_ripple: f64) -> (usize, f64) {
+        let beta = compute_kaiser_beta(max_ripple);
+        let ripple_db = -20.0 * max_ripple.log10();
         let num_taps = (((ripple_db - 7.95) / (14.36 * transition_bw)).ceil() + 1.0) as usize;
         (num_taps, beta)
     }
@@ -566,6 +617,71 @@ pub mod kaiser {
             assert_eq!(filter_taps.len(), test_taps.len());
             for i in 0..filter_taps.len() {
                 let tol = 1e-2;
+                assert!(
+                    (filter_taps[i] - test_taps[i]).abs() < tol,
+                    "abs({} - {}) < {} (tap {})",
+                    filter_taps[i],
+                    test_taps[i],
+                    tol,
+                    i
+                );
+            }
+        }
+
+        #[test]
+        fn multirate_accuracy() {
+            let interp = 3;
+            let decim = 2;
+            let half_len = 6;
+            let max_ripple = 0.0001;
+            // Test taps generated using matlab:
+            // ```
+            // interp = 3;
+            // decim = 2
+            // taps = designMultirateFIR(interp,decim,6,80);
+            // ```
+            let test_taps = [
+                0.000000000000000,
+                -0.000456080632562,
+                -0.001109227477145,
+                0.000000000000000,
+                0.004072775613512,
+                0.006844614119589,
+                0.000000000000000,
+                -0.016512756288837,
+                -0.024225080517374,
+                0.000000000000000,
+                0.048278505847958,
+                0.066425028523671,
+                0.000000000000000,
+                -0.123967404911009,
+                -0.172122083496355,
+                0.000000000000000,
+                0.395134052036115,
+                0.817675050290108,
+                1.000000000000000,
+                0.817675050290108,
+                0.395134052036115,
+                0.000000000000000,
+                -0.172122083496355,
+                -0.123967404911009,
+                0.000000000000000,
+                0.066425028523671,
+                0.048278505847958,
+                0.000000000000000,
+                -0.024225080517374,
+                -0.016512756288837,
+                0.000000000000000,
+                0.006844614119589,
+                0.004072775613512,
+                0.000000000000000,
+                -0.001109227477145,
+                -0.000456080632562,
+            ];
+            let filter_taps = multirate::<f64>(interp, decim, half_len, max_ripple);
+            assert_eq!(filter_taps.len(), test_taps.len());
+            for i in 0..filter_taps.len() {
+                let tol = 1e-5;
                 assert!(
                     (filter_taps[i] - test_taps[i]).abs() < tol,
                     "abs({} - {}) < {} (tap {})",
