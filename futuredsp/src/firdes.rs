@@ -378,12 +378,11 @@ pub mod kaiser {
     fn compute_kaiser_beta(max_ripple: f64) -> f64 {
         // Determine Kaiser window parameters
         let ripple_db = -20.0 * max_ripple.log10();
-        let beta = match ripple_db {
+        match ripple_db {
             x if x > 50.0 => 0.1102 * (x - 8.7),
             x if x >= 21.0 => 0.5842 * (x - 21.0).powf(0.4) + 0.07886 * (x - 21.0),
             _ => 0.0,
-        };
-        beta
+        }
     }
 
     fn design_kaiser_window(transition_bw: f64, max_ripple: f64) -> (usize, f64) {
