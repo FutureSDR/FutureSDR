@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 futuresdr = { path = "../..", features=["soapy", "audio"] }
+futuredsp = { path = "../../futuredsp", version = "0.0.3" }

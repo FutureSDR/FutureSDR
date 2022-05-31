@@ -10,9 +10,11 @@
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
 
+use futuredsp::firdes;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
+use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
@@ -21,7 +23,7 @@ use futuresdr::runtime::Runtime;
 
 fn main() -> ! {
     let freq_mhz = 100.0;
-    let sample_rate = 250_000.0;
+    let sample_rate = 1_920_000.0;
 
     println!(
         "Default Frequency is {} MHz. Sample rate set to {}",
@@ -43,8 +45,9 @@ fn main() -> ! {
         .message_input_name_to_id("freq")
         .expect("No freq port found!");
 
-    // Single-channel `AudioSink` with the same samplerate as the `SoapySource`
-    let snk = AudioSink::new(sample_rate as u32, 1);
+    // Downsample before demodulation
+    let resamp1 = FirBuilder::new_resampling::<Complex32>(1, 8);
+    let sample_rate = sample_rate / 8.0;
 
     // Demodulation block using the conjugate delay method
     // See https://en.wikipedia.org/wiki/Detector_(radio)#Quadrature_detector
@@ -55,14 +58,28 @@ fn main() -> ! {
         arg
     });
 
+    // Design filter for the audio and decimate by 5.
+    // Ideally, this should be a FM de-emphasis filter, but the following works.
+    let audio_filter_taps =
+        firdes::kaiser::lowpass::<f32>(2_000.0 / sample_rate, 10_000.0 / sample_rate, 0.1);
+    let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(1, 5, audio_filter_taps);
+    let sample_rate = sample_rate / 5.0;
+
+    // Single-channel `AudioSink` with the downsampled rate (sample_rate / (8*5) = 48_000)
+    let snk = AudioSink::new(sample_rate as u32, 1);
+
     // Add all the blocks to the `Flowgraph`...
     let src = fg.add_block(src);
+    let resamp1 = fg.add_block(resamp1);
     let demod = fg.add_block(demod);
+    let resamp2 = fg.add_block(resamp2);
     let snk = fg.add_block(snk);
 
     // ... and connect the ports appropriately
-    fg.connect_stream(src, "out", demod, "in").unwrap();
-    fg.connect_stream(demod, "out", snk, "in").unwrap();
+    fg.connect_stream(src, "out", resamp1, "in").unwrap();
+    fg.connect_stream(resamp1, "out", demod, "in").unwrap();
+    fg.connect_stream(demod, "out", resamp2, "in").unwrap();
+    fg.connect_stream(resamp2, "out", snk, "in").unwrap();
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = Runtime::new().start(fg);
