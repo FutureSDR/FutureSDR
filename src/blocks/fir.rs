@@ -76,6 +76,8 @@ where
 
         let (consumed, produced, status) = self.core.work(i, o);
 
+        println!("i.len {}    o.len {}   consumed {}   produced {}   status {:?}", i.len(), o.len(), consumed, produced, status);
+
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
 
@@ -171,6 +173,9 @@ impl FirBuilder {
         Taps: 'static + TapsAccessor,
         PolyphaseResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
     {
+        let gcd = num_integer::gcd(interp, decim);
+        let interp = interp / gcd;
+        let decim = decim / gcd;
         Fir::<SampleType, TapType, PolyphaseResamplingFirKernel<SampleType, Taps>>::new(
             PolyphaseResamplingFirKernel::new(interp, decim, taps),
         )

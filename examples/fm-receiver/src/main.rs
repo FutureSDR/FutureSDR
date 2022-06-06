@@ -9,6 +9,7 @@
 //! be periodically asked to enter a new frequency that the SDR will be tuned to.
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
+use clap::Parser;
 
 use futuredsp::firdes;
 use futuresdr::async_io;
@@ -21,23 +22,43 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-fn main() -> ! {
-    let freq_mhz = 100.0;
-    let sample_rate = 1_920_000.0;
+#[derive(Parser, Debug)]
+struct Args {
+    /// Gain to apply to the soapy source
+    #[clap(short, long, default_value_t = 30.0)]
+    gain: f64,
 
-    println!(
-        "Default Frequency is {} MHz. Sample rate set to {}",
-        freq_mhz, sample_rate
-    );
+    /// Center frequency
+    #[clap(short, long, default_value_t = 100_000_000.0)]
+    frequency: f64,
+
+    /// Sample rate
+    #[clap(short, long, default_value_t = 1000000.0)]
+    rate: f64,
+
+    /// Soapy source to use as a source
+    #[clap(long, default_value = "")]
+    soapy: String,
+}
+
+fn main() -> ! {
+    let args = Args::parse();
+
+    let sample_rate = args.rate as u32;
+    let audio_rate = AudioSink::default_sample_rate().unwrap();
+
+    println!("Configuration {:?}", args);
+    println!("Audio Rate {:?}", audio_rate);
 
     // Create the `Flowgraph` where the `Block`s will be added later on
     let mut fg = Flowgraph::new();
 
     // Create a new SoapySDR block with the given parameters
     let src = SoapySourceBuilder::new()
-        .freq(freq_mhz * 1e6)
-        .sample_rate(sample_rate)
-        .gain(34.0)
+        .filter(args.soapy)
+        .freq(args.frequency)
+        .sample_rate(args.rate)
+        .gain(args.gain)
         .build();
 
     // Store the `freq` port ID for later use
@@ -46,8 +67,10 @@ fn main() -> ! {
         .expect("No freq port found!");
 
     // Downsample before demodulation
-    let resamp1 = FirBuilder::new_resampling::<Complex32>(1, 8);
-    let sample_rate = sample_rate / 8.0;
+    let interp = (audio_rate * 5) as usize;
+    let decim = sample_rate as usize;
+    println!("interp {}   decim {}", interp, decim);
+    let resamp1 = FirBuilder::new_resampling::<Complex32>(interp, decim);
 
     // Demodulation block using the conjugate delay method
     // See https://en.wikipedia.org/wiki/Detector_(radio)#Quadrature_detector
@@ -60,14 +83,14 @@ fn main() -> ! {
 
     // Design filter for the audio and decimate by 5.
     // Ideally, this should be a FM de-emphasis filter, but the following works.
-    let audio_filter_taps =
-        firdes::kaiser::lowpass::<f32>(2_000.0 / sample_rate, 10_000.0 / sample_rate, 0.1);
+    let cutoff = 2_000.0 / (audio_rate * 5) as f64;
+    let transition = 10_000.0 / (audio_rate * 5) as f64;
+    println!("cutoff {}   transition {}", cutoff, transition);
+    let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
     let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(1, 5, audio_filter_taps);
-    let sample_rate = sample_rate / 5.0;
 
     // Single-channel `AudioSink` with the downsampled rate (sample_rate / (8*5) = 48_000)
-    let snk = AudioSink::new(sample_rate as u32, 1);
-
+    let snk = AudioSink::new(audio_rate, 1);
     // Add all the blocks to the `Flowgraph`...
     let src = fg.add_block(src);
     let resamp1 = fg.add_block(resamp1);
