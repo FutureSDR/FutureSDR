@@ -49,6 +49,17 @@ impl AudioSink {
             },
         )
     }
+
+    pub fn default_sample_rate() -> Option<u32> {
+        Some(
+            cpal::default_host()
+                .default_output_device()?
+                .default_output_config()
+                .ok()?
+                .sample_rate()
+                .0,
+        )
+    }
 }
 
 #[async_trait]
