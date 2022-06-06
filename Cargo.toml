@@ -141,7 +141,7 @@ rodio = { version = "0.15.0", optional = true }
 soapysdr = { version = "0.3.1", optional = true }
 tokio = { version = "1.18.2", features = ["rt"] }
 tower-http = { version = "0.3.3", features = ["add-extension", "cors", "fs"] }
-vmcircbuffer = "0.0.7"
+vmcircbuffer = "0.0.9"
 vulkano = { version = "0.29.0", optional = true }
 vulkano-shaders = { version = "0.29.0", optional = true }
 zmq = { version = "0.9.2", optional = true}
