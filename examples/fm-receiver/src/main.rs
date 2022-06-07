@@ -12,6 +12,8 @@
 use clap::Parser;
 
 use futuredsp::firdes;
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
@@ -41,11 +43,15 @@ struct Args {
     soapy: String,
 }
 
-fn main() -> ! {
+const OFFSET: f64 = 1e6;
+const AUDIO_MULT: u32 = 5;
+
+fn main() -> Result<()> {
     let args = Args::parse();
 
     let sample_rate = args.rate as u32;
-    let audio_rate = AudioSink::default_sample_rate().unwrap();
+    let audio_rate =
+        AudioSink::default_sample_rate().context("couldn't determine output sample rate")?;
 
     println!("Configuration {:?}", args);
     println!("Audio Rate {:?}", audio_rate);
@@ -56,7 +62,7 @@ fn main() -> ! {
     // Create a new SoapySDR block with the given parameters
     let src = SoapySourceBuilder::new()
         .filter(args.soapy)
-        .freq(args.frequency)
+        .freq(args.frequency + OFFSET)
         .sample_rate(args.rate)
         .gain(args.gain)
         .build();
@@ -67,7 +73,7 @@ fn main() -> ! {
         .expect("No freq port found!");
 
     // Downsample before demodulation
-    let interp = (audio_rate * 5) as usize;
+    let interp = (audio_rate * AUDIO_MULT) as usize;
     let decim = sample_rate as usize;
     println!("interp {}   decim {}", interp, decim);
     let resamp1 = FirBuilder::new_resampling::<Complex32>(interp, decim);
@@ -81,28 +87,50 @@ fn main() -> ! {
         arg
     });
 
+    let mut last = Complex32::new(1.0, 0.0);
+    let add = Complex32::from_polar(
+        1.0,
+        (2.0 * std::f64::consts::PI * OFFSET / args.rate) as f32,
+    );
+    let shift = Apply::new(move |v: &Complex32| -> Complex32 {
+        last = last * add;
+        last * v
+    });
+
     // Design filter for the audio and decimate by 5.
     // Ideally, this should be a FM de-emphasis filter, but the following works.
-    let cutoff = 2_000.0 / (audio_rate * 5) as f64;
-    let transition = 10_000.0 / (audio_rate * 5) as f64;
+    let cutoff = 2_000.0 / (audio_rate * AUDIO_MULT) as f64;
+    let transition = 10_000.0 / (audio_rate * AUDIO_MULT) as f64;
     println!("cutoff {}   transition {}", cutoff, transition);
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
-    let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(1, 5, audio_filter_taps);
+    let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(
+        1,
+        AUDIO_MULT as usize,
+        audio_filter_taps,
+    );
 
     // Single-channel `AudioSink` with the downsampled rate (sample_rate / (8*5) = 48_000)
     let snk = AudioSink::new(audio_rate, 1);
+
     // Add all the blocks to the `Flowgraph`...
     let src = fg.add_block(src);
+    let shift = fg.add_block(shift);
     let resamp1 = fg.add_block(resamp1);
     let demod = fg.add_block(demod);
     let resamp2 = fg.add_block(resamp2);
     let snk = fg.add_block(snk);
 
+    // let file = fg.add_block(futuresdr::blocks::FileSink::<Complex32>::new(
+    //     "/tmp/foo.cf32",
+    // ));
+    // fg.connect_stream(resamp1, "out", file, "in")?;
+
     // ... and connect the ports appropriately
-    fg.connect_stream(src, "out", resamp1, "in").unwrap();
-    fg.connect_stream(resamp1, "out", demod, "in").unwrap();
-    fg.connect_stream(demod, "out", resamp2, "in").unwrap();
-    fg.connect_stream(resamp2, "out", snk, "in").unwrap();
+    fg.connect_stream(src, "out", shift, "in")?;
+    fg.connect_stream(shift, "out", resamp1, "in")?;
+    fg.connect_stream(resamp1, "out", demod, "in")?;
+    fg.connect_stream(demod, "out", resamp2, "in")?;
+    fg.connect_stream(resamp2, "out", snk, "in")?;
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = Runtime::new().start(fg);
@@ -120,7 +148,7 @@ fn main() -> ! {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_freq) = input.parse::<u32>() {
             println!("Setting frequency to {}", input);
-            async_io::block_on(handle.call(src, freq_port_id, Pmt::U32(new_freq))).unwrap();
+            async_io::block_on(handle.call(src, freq_port_id, Pmt::U32(new_freq + OFFSET as u32)))?;
         } else {
             println!("Input not parsable to u32: {}", input);
         }
