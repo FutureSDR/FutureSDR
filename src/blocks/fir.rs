@@ -76,8 +76,6 @@ where
 
         let (consumed, produced, status) = self.core.work(i, o);
 
-        println!("i.len {}    o.len {}   consumed {}   produced {}   status {:?}", i.len(), o.len(), consumed, produced, status);
-
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
 

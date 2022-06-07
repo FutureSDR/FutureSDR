@@ -227,7 +227,6 @@ where
     SampleType: Copy,
     TapsType::TapType: Copy,
 {
-    info!("interp {}    decim {}    tap len {}", interp, decim, taps.num_taps());
     // Assume same number of taps in all filters
     let num_taps = taps.num_taps() / interp;
     let num_producable_samples =
