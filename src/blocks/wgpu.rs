@@ -197,11 +197,12 @@ impl Kernel for Wgpu {
             }
 
             let buffer_slice = output.slice(0..m.used_bytes as u64);
-            let buffer_future = buffer_slice.map_async(MapMode::Read);
+            let (sender, receiver) = futures::channel::oneshot::channel();
+            buffer_slice.map_async(MapMode::Read, move |v| sender.send(v).unwrap());
 
             self.broker.device.poll(Maintain::Wait);
 
-            if let Ok(()) = buffer_future.await {
+            if let Ok(Ok(())) = receiver.await {
                 o(sio, 0).submit(wgpu::OutputBufferFull {
                     buffer: output,
                     used_bytes: m.used_bytes,
