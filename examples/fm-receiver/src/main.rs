@@ -93,7 +93,7 @@ fn main() -> Result<()> {
         (2.0 * std::f64::consts::PI * OFFSET / args.rate) as f32,
     );
     let shift = Apply::new(move |v: &Complex32| -> Complex32 {
-        last = last * add;
+        last *= add;
         last * v
     });
 

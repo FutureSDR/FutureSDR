@@ -355,6 +355,7 @@ impl FlowExecutor {
 }
 
 impl Drop for FlowExecutor {
+    #[allow(clippy::significant_drop_in_scrutinee)]
     fn drop(&mut self) {
         debug!("dropping flow executor");
         if let Some(state) = self.state.get() {
