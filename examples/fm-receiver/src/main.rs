@@ -12,7 +12,6 @@
 use clap::Parser;
 
 use futuredsp::firdes;
-use futuresdr::anyhow::Context;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
@@ -20,6 +19,7 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::num_complex::Complex32;
+use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -39,22 +39,47 @@ struct Args {
     rate: f64,
 
     /// Soapy source to use as a source
-    #[clap(long, default_value = "")]
+    #[clap(short, long, default_value = "")]
     soapy: String,
-}
 
-const OFFSET: f64 = 1e6;
-const AUDIO_MULT: u32 = 5;
+    /// Multiplier for intermedia sample rate
+    #[clap(long)]
+    audio_mult: Option<u32>,
+
+    /// Audio Rate
+    #[clap(short, long)]
+    audio_rate: Option<u32>,
+}
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    println!("Configuration {:?}", args);
 
     let sample_rate = args.rate as u32;
-    let audio_rate =
-        AudioSink::default_sample_rate().context("couldn't determine output sample rate")?;
+    let freq_offset = args.rate / 4.0;
+    println!("Frequency Offset {:?}", freq_offset);
 
-    println!("Configuration {:?}", args);
-    println!("Audio Rate {:?}", audio_rate);
+    let audio_rate = if let Some(r) = args.audio_rate {
+        r
+    } else {
+        let mut audio_rates = AudioSink::supported_sample_rates();
+        assert!(audio_rates.len() > 0);
+        audio_rates.sort_by(|a, b| gcd(*b, sample_rate).cmp(&gcd(*a, sample_rate)));
+        println!("Supported Audio Rates {:?}", audio_rates);
+        audio_rates[0]
+    };
+    println!("Selected Audio Rate {:?}", audio_rate);
+
+    let audio_mult = if let Some(m) = args.audio_mult {
+        m
+    } else {
+        let mut m = 5;
+        while (m * audio_rate) as f64 > freq_offset + 100e3 {
+            m -= 1;
+        }
+        m
+    };
+    println!("Audio Mult {:?}", audio_mult);
 
     // Create the `Flowgraph` where the `Block`s will be added later on
     let mut fg = Flowgraph::new();
@@ -62,7 +87,7 @@ fn main() -> Result<()> {
     // Create a new SoapySDR block with the given parameters
     let src = SoapySourceBuilder::new()
         .filter(args.soapy)
-        .freq(args.frequency + OFFSET)
+        .freq(args.frequency + freq_offset)
         .sample_rate(args.rate)
         .gain(args.gain)
         .build();
@@ -73,7 +98,7 @@ fn main() -> Result<()> {
         .expect("No freq port found!");
 
     // Downsample before demodulation
-    let interp = (audio_rate * AUDIO_MULT) as usize;
+    let interp = (audio_rate * audio_mult) as usize;
     let decim = sample_rate as usize;
     println!("interp {}   decim {}", interp, decim);
     let resamp1 = FirBuilder::new_resampling::<Complex32>(interp, decim);
@@ -90,7 +115,7 @@ fn main() -> Result<()> {
     let mut last = Complex32::new(1.0, 0.0);
     let add = Complex32::from_polar(
         1.0,
-        (2.0 * std::f64::consts::PI * OFFSET / args.rate) as f32,
+        (2.0 * std::f64::consts::PI * freq_offset / args.rate) as f32,
     );
     let shift = Apply::new(move |v: &Complex32| -> Complex32 {
         last *= add;
@@ -99,13 +124,13 @@ fn main() -> Result<()> {
 
     // Design filter for the audio and decimate by 5.
     // Ideally, this should be a FM de-emphasis filter, but the following works.
-    let cutoff = 2_000.0 / (audio_rate * AUDIO_MULT) as f64;
-    let transition = 10_000.0 / (audio_rate * AUDIO_MULT) as f64;
+    let cutoff = 2_000.0 / (audio_rate * audio_mult) as f64;
+    let transition = 10_000.0 / (audio_rate * audio_mult) as f64;
     println!("cutoff {}   transition {}", cutoff, transition);
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
     let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(
         1,
-        AUDIO_MULT as usize,
+        audio_mult as usize,
         audio_filter_taps,
     );
 
@@ -120,11 +145,6 @@ fn main() -> Result<()> {
     let resamp2 = fg.add_block(resamp2);
     let snk = fg.add_block(snk);
 
-    // let file = fg.add_block(futuresdr::blocks::FileSink::<Complex32>::new(
-    //     "/tmp/foo.cf32",
-    // ));
-    // fg.connect_stream(resamp1, "out", file, "in")?;
-
     // ... and connect the ports appropriately
     fg.connect_stream(src, "out", shift, "in")?;
     fg.connect_stream(shift, "out", resamp1, "in")?;
@@ -137,7 +157,7 @@ fn main() -> Result<()> {
 
     // Keep asking user for a new frequency and a new sample rate
     loop {
-        println!("Please enter a new frequency");
+        println!("Enter a new frequency (in MHz)");
         // Get input from stdin and remove all whitespace (most importantly '\n' at the end)
         let mut input = String::new(); // Input buffer
         std::io::stdin()
@@ -146,11 +166,15 @@ fn main() -> Result<()> {
         input.retain(|c| !c.is_whitespace());
 
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
-        if let Ok(new_freq) = input.parse::<u32>() {
+        if let Ok(new_freq) = input.parse::<f64>() {
             println!("Setting frequency to {}", input);
-            async_io::block_on(handle.call(src, freq_port_id, Pmt::U32(new_freq + OFFSET as u32)))?;
+            async_io::block_on(handle.call(
+                src,
+                freq_port_id,
+                Pmt::Double(new_freq * 1e6 + freq_offset),
+            ))?;
         } else {
-            println!("Input not parsable to u32: {}", input);
+            println!("Input not parsable: {}", input);
         }
     }
 }
