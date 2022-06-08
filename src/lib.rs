@@ -52,3 +52,4 @@ pub extern crate log;
 
 pub use anyhow;
 pub use num_complex;
+pub use num_integer;
