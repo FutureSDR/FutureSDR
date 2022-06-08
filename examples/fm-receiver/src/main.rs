@@ -63,8 +63,8 @@ fn main() -> Result<()> {
         r
     } else {
         let mut audio_rates = AudioSink::supported_sample_rates();
-        assert!(audio_rates.len() > 0);
-        audio_rates.sort_by(|a, b| gcd(*b, sample_rate).cmp(&gcd(*a, sample_rate)));
+        assert!(!audio_rates.is_empty());
+        audio_rates.sort_by_key(|a| std::cmp::Reverse(gcd(*a, sample_rate)));
         println!("Supported Audio Rates {:?}", audio_rates);
         audio_rates[0]
     };
