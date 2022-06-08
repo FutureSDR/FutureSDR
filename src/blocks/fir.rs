@@ -171,9 +171,6 @@ impl FirBuilder {
         Taps: 'static + TapsAccessor,
         PolyphaseResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
     {
-        let gcd = num_integer::gcd(interp, decim);
-        let interp = interp / gcd;
-        let decim = decim / gcd;
         Fir::<SampleType, TapType, PolyphaseResamplingFirKernel<SampleType, Taps>>::new(
             PolyphaseResamplingFirKernel::new(interp, decim, taps),
         )
