@@ -31,6 +31,7 @@ pub struct AudioSink {
 unsafe impl Send for AudioSink {}
 
 const QUEUE_SIZE: usize = 5;
+const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
 impl AudioSink {
     #[allow(clippy::new_ret_no_self)]
@@ -59,6 +60,30 @@ impl AudioSink {
                 .sample_rate()
                 .0,
         )
+    }
+
+    pub fn supported_sample_rates() -> Vec<u32> {
+        if let Some(d) = cpal::default_host().default_output_device() {
+            if let Ok(configs) = d.supported_output_configs() {
+                let mut v = Vec::new();
+                for c in configs {
+                    let min = c.min_sample_rate().0;
+                    let max = c.max_sample_rate().0;
+                    if min >= 10000 {
+                        v.push(min);
+                    }
+                    if max >= 10000 {
+                        v.push(max);
+                    }
+
+                    v.extend(STANDARD_RATES.iter().filter(|x| *x >= &min && *x <= &max));
+                }
+                v.sort();
+                v.dedup();
+                return v;
+            }
+        }
+        Vec::new()
     }
 }
 
