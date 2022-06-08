@@ -66,6 +66,15 @@ impl SoapySource {
                                     *f as f64,
                                     (),
                                 )?;
+                            } else if let Pmt::Double(ref f) = &p {
+                                block.dev.as_mut().context("no dev")?.set_frequency(
+                                    Rx,
+                                    0,
+                                    *f,
+                                    (),
+                                )?;
+                            } else {
+                                warn!("SoapySource/freq Handler received wrong PMT {:?}", &p);
                             }
                             Ok(p)
                         }
