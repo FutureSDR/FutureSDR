@@ -153,7 +153,7 @@ fn main() -> Result<()> {
     fg.connect_stream(resamp2, "out", snk, "in")?;
 
     // Start the flowgraph and save the handle
-    let (_res, mut handle) = Runtime::new().start(fg);
+    let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

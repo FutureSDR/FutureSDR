@@ -48,7 +48,7 @@ fn main() -> Result<()> {
     fg.connect_stream(iq_delay, "out", soapy_snk, "in")?;
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start(fg);
+    let (fg, mut handle) = block_on(rt.start(fg));
 
     let mut seq = 0u64;
     rt.spawn_background(async move {

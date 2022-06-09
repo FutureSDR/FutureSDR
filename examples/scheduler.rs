@@ -26,8 +26,8 @@ fn main() -> Result<()> {
 
     let rt = Runtime::new();
 
-    let (h1, _) = rt.start(create_fg());
-    let (h2, _) = rt.start(create_fg());
+    let (h1, _) = block_on(rt.start(create_fg()));
+    let (h2, _) = block_on(rt.start(create_fg()));
 
     block_on(h1)?;
     block_on(h2)?;
@@ -35,8 +35,8 @@ fn main() -> Result<()> {
     let rt1 = Runtime::new();
     let rt2 = Runtime::new();
 
-    let (h1, _) = rt1.start(create_fg());
-    let (h2, _) = rt2.start(create_fg());
+    let (h1, _) = block_on(rt1.start(create_fg()));
+    let (h2, _) = block_on(rt2.start(create_fg()));
 
     block_on(h1)?;
     block_on(h2)?;

@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     fg.connect_message(decoder, "out", mac, "rx")?;
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start(fg);
+    let (fg, mut handle) = block_on(rt.start(fg));
 
     // send a message every 0.8 seconds
     let mut seq = 0u64;
