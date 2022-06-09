@@ -104,7 +104,7 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    pub fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
+    pub async fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<AsyncMessage>(queue_size);
 
@@ -116,19 +116,19 @@ impl<S: Scheduler> Runtime<S> {
             fg_inbox_rx,
             tx,
         ));
-        block_on(rx).expect("run_flowgraph did not signal startup completed");
+        rx.await.expect("run_flowgraph did not signal startup completed");
         (task, FlowgraphHandle::new(fg_inbox))
     }
 
     /// Main method that kicks-off the running of a [Flowgraph].
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
-        let (handle, _) = self.start(fg);
+        let (handle, _) = block_on(self.start(fg));
         block_on(handle)
     }
 
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
-        let (handle, _) = self.start(fg);
+        let (handle, _) = self.start(fg).await;
         handle.await
     }
 }
