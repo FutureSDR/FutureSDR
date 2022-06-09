@@ -90,8 +90,14 @@
          Module.setStatus('Downloading...');
 
          var samples = new Float32Array(2048);
+         var read_samples;
+         var set_freq;
+         var resolver = function () {};
+         var new_freq = false;
+         var freq = 0;
 
          function put_samples(s) {
+             /* console.log("putting samples") */
              samples = s;
          }
 
@@ -101,16 +107,6 @@
              r();
              return samples;
          }
-
-         function rendered() {
-             let r = resolver;
-             resolver = function () {};
-             r();
-         }
-
-         var read_samples;
-         var set_freq;
-         var resolver = function () {};
 
          Module['onRuntimeInitialized'] = function() {
              console.log("EMSCRIPTEN LOADED");
@@ -122,14 +118,15 @@
          function update_slider(f) {
              let i = parseInt(f, 10);
              console.log("setting freq " + i/1000000)
-             set_freq(i);
+             new_freq = true;
+             freq = i;
          }
 
          var myLink = document.getElementById('start');
          myLink.onclick = function() {
             var script = document.createElement("script");
             script.type = "text/javascript";
-            script.src = "rtl_open.js"; 
+            script.src = "hackrf_open.js"; 
             document.getElementsByTagName("head")[0].appendChild(script);
             return false;
          }
@@ -159,19 +156,44 @@
          });
 
          async function push() {
+             let samples = false;
+             let index = 0;
              while(true) {
-                 if(produced > 2048 * 2 * 7) {
+                 if(new_freq) {
+                     /* console.log("setting freq " . freq); */
+                     set_freq(freq);
+                     new_freq = false;
+                 }
+                 if(produced >= 2048 * 2 * 40) {
+                     /* console.log("awaiting promise in push"); */
                      await p;
                      p = new Promise(function(resolve) {
                          resolver = resolve;
                      });
                      produced = 0;
+                     /* console.log("resolved promise in push"); */
                  } else {
-                     let res = await push_samples(read_samples());
-                     if(res) {
-                         produced += 8192;
+                     if(samples) {
+                         /* console.log("push having samples"); */
+                         let n = Math.min(samples.length - index, 2048 * 2 * 10);
+                         index += n;
+                         produced += n;
+                         let s = samples.slice(index, index+n);
+                         /* console.log(s); */
+                         await push_samples(s);
+                         if(index == samples.length) {
+                             samples = false;
+                             index = 0;
+                         }
                      } else {
-                         await Sleep(1000);
+                         /* console.log("push NOT having samples"); */
+                         let s = read_samples();
+                         if(s.length > 0) {
+                             samples = s.slice(0, 2048 * 2 * 80);
+                         } else {
+                             /* console.log("sleeping, no samples"); */
+                             await Sleep(200);
+                         }
                      }
                  }
              }

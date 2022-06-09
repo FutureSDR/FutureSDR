@@ -1394,7 +1394,7 @@ function isFileURI(filename) {
 }
 
 // end include: URIUtils.js
-var wasmBinaryFile = 'rtl_open.wasm';
+var wasmBinaryFile = 'hackrf_open.wasm';
 if (!isDataURI(wasmBinaryFile)) {
   wasmBinaryFile = locateFile(wasmBinaryFile);
 }
@@ -1541,7 +1541,7 @@ WasmSourceMap.prototype.normalizeOffset = function (offset) {
   return this.offsets[lo - 1];
 }
 
-var wasmSourceMapFile = 'rtl_open.wasm.map';
+var wasmSourceMapFile = 'hackrf_open.wasm.map';
 if (!isDataURI(wasmBinaryFile)) {
   wasmSourceMapFile = locateFile(wasmSourceMapFile);
 }
@@ -1866,10 +1866,10 @@ var tempI64;
 // === Body ===
 
 var ASM_CONSTS = {
-  84292: function() {throw 'Canceled!'},  
- 84310: function($0, $1) {setTimeout(function() { __emscripten_do_dispatch_to_thread($0, $1); }, 0);},  
- 84389: function() {return withBuiltinMalloc(function () { return allocateUTF8(Module['UBSAN_OPTIONS'] || 0); });},  
- 84487: function() {var setting = Module['printWithColors']; if (setting != null) { return setting; } else { return ENVIRONMENT_IS_NODE && process.stderr.isTTY; }}
+  81316: function() {throw 'Canceled!'},  
+ 81334: function($0, $1) {setTimeout(function() { __emscripten_do_dispatch_to_thread($0, $1); }, 0);},  
+ 81413: function() {return withBuiltinMalloc(function () { return allocateUTF8(Module['UBSAN_OPTIONS'] || 0); });},  
+ 81511: function() {var setting = Module['printWithColors']; if (setting != null) { return setting; } else { return ENVIRONMENT_IS_NODE && process.stderr.isTTY; }}
 };
 function initPthreadsJS(){ PThread.initRuntime(); }
 
@@ -2224,7 +2224,7 @@ function initPthreadsJS(){ PThread.initRuntime(); }
         // Allow HTML module to configure the location where the 'worker.js' file will be loaded from,
         // via Module.locateFile() function. If not specified, then the default URL 'worker.js' relative
         // to the main html file is loaded.
-        var pthreadMainJs = locateFile('rtl_open.worker.js');
+        var pthreadMainJs = locateFile('hackrf_open.worker.js');
         PThread.unusedWorkers.push(new Worker(pthreadMainJs));
       },getNewWorker:function() {
         if (PThread.unusedWorkers.length == 0) {
@@ -8627,13 +8627,13 @@ var _pthread_self = Module["_pthread_self"] = function() {
 };
 
 /** @type {function(...*):?} */
-var ___pthread_tsd_run_dtors = Module["___pthread_tsd_run_dtors"] = function() {
-  return (___pthread_tsd_run_dtors = Module["___pthread_tsd_run_dtors"] = Module["asm"]["__pthread_tsd_run_dtors"]).apply(null, arguments);
+var _emscripten_main_browser_thread_id = Module["_emscripten_main_browser_thread_id"] = function() {
+  return (_emscripten_main_browser_thread_id = Module["_emscripten_main_browser_thread_id"] = Module["asm"]["emscripten_main_browser_thread_id"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
-var _emscripten_current_thread_process_queued_calls = Module["_emscripten_current_thread_process_queued_calls"] = function() {
-  return (_emscripten_current_thread_process_queued_calls = Module["_emscripten_current_thread_process_queued_calls"] = Module["asm"]["emscripten_current_thread_process_queued_calls"]).apply(null, arguments);
+var ___pthread_tsd_run_dtors = Module["___pthread_tsd_run_dtors"] = function() {
+  return (___pthread_tsd_run_dtors = Module["___pthread_tsd_run_dtors"] = Module["asm"]["__pthread_tsd_run_dtors"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
@@ -8642,13 +8642,13 @@ var _emscripten_main_thread_process_queued_calls = Module["_emscripten_main_thre
 };
 
 /** @type {function(...*):?} */
-var _emscripten_register_main_browser_thread_id = Module["_emscripten_register_main_browser_thread_id"] = function() {
-  return (_emscripten_register_main_browser_thread_id = Module["_emscripten_register_main_browser_thread_id"] = Module["asm"]["emscripten_register_main_browser_thread_id"]).apply(null, arguments);
+var _emscripten_current_thread_process_queued_calls = Module["_emscripten_current_thread_process_queued_calls"] = function() {
+  return (_emscripten_current_thread_process_queued_calls = Module["_emscripten_current_thread_process_queued_calls"] = Module["asm"]["emscripten_current_thread_process_queued_calls"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
-var _emscripten_main_browser_thread_id = Module["_emscripten_main_browser_thread_id"] = function() {
-  return (_emscripten_main_browser_thread_id = Module["_emscripten_main_browser_thread_id"] = Module["asm"]["emscripten_main_browser_thread_id"]).apply(null, arguments);
+var _emscripten_register_main_browser_thread_id = Module["_emscripten_register_main_browser_thread_id"] = function() {
+  return (_emscripten_register_main_browser_thread_id = Module["_emscripten_register_main_browser_thread_id"] = Module["asm"]["emscripten_register_main_browser_thread_id"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
@@ -8742,6 +8742,11 @@ var dynCall_iii = Module["dynCall_iii"] = function() {
 };
 
 /** @type {function(...*):?} */
+var dynCall_iiiii = Module["dynCall_iiiii"] = function() {
+  return (dynCall_iiiii = Module["dynCall_iiiii"] = Module["asm"]["dynCall_iiiii"]).apply(null, arguments);
+};
+
+/** @type {function(...*):?} */
 var dynCall_iiiiiiiii = Module["dynCall_iiiiiiiii"] = function() {
   return (dynCall_iiiiiiiii = Module["dynCall_iiiiiiiii"] = Module["asm"]["dynCall_iiiiiiiii"]).apply(null, arguments);
 };
@@ -8779,11 +8784,6 @@ var dynCall_viiii = Module["dynCall_viiii"] = function() {
 /** @type {function(...*):?} */
 var dynCall_v = Module["dynCall_v"] = function() {
   return (dynCall_v = Module["dynCall_v"] = Module["asm"]["dynCall_v"]).apply(null, arguments);
-};
-
-/** @type {function(...*):?} */
-var dynCall_iiiii = Module["dynCall_iiiii"] = function() {
-  return (dynCall_iiiii = Module["dynCall_iiiii"] = Module["asm"]["dynCall_iiiii"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
@@ -8851,9 +8851,9 @@ var _asyncify_stop_rewind = Module["_asyncify_stop_rewind"] = function() {
   return (_asyncify_stop_rewind = Module["_asyncify_stop_rewind"] = Module["asm"]["asyncify_stop_rewind"]).apply(null, arguments);
 };
 
-var __emscripten_allow_main_runtime_queued_calls = Module['__emscripten_allow_main_runtime_queued_calls'] = 75592;
-var __emscripten_main_thread_futex = Module['__emscripten_main_thread_futex'] = 93060;
-var ___heap_base = Module['___heap_base'] = 5780432;
+var __emscripten_allow_main_runtime_queued_calls = Module['__emscripten_allow_main_runtime_queued_calls'] = 72616;
+var __emscripten_main_thread_futex = Module['__emscripten_main_thread_futex'] = 81980;
+var ___heap_base = Module['___heap_base'] = 5769344;
 var ___global_base = Module['___global_base'] = 1024;
 
 
