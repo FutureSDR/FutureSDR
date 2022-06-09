@@ -62,6 +62,7 @@ impl Mocker {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
         let mut io = WorkIo {
             call_again: false,
@@ -79,6 +80,23 @@ impl Mocker {
                 }
             }
         });
+    }
+
+    pub async fn run_async(&mut self) {
+        let mut io = WorkIo {
+            call_again: false,
+            finished: false,
+            block_on: None,
+        };
+
+        loop {
+            self.block.work(&mut io).await.unwrap();
+            if !io.call_again {
+                break;
+            } else {
+                io.call_again = false;
+            }
+        }
     }
 }
 
