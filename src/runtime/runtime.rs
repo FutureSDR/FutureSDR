@@ -116,7 +116,8 @@ impl<S: Scheduler> Runtime<S> {
             fg_inbox_rx,
             tx,
         ));
-        rx.await.expect("run_flowgraph did not signal startup completed");
+        rx.await
+            .expect("run_flowgraph did not signal startup completed");
         (task, FlowgraphHandle::new(fg_inbox))
     }
 
