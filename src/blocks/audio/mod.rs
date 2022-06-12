@@ -11,9 +11,7 @@ pub use audio_source::AudioSource;
 mod file_source;
 #[cfg(all(not(target_arch = "wasm32"), feature = "rodio"))]
 pub use file_source::FileSource;
-#[cfg(all(not(target_arch = "wasm32"), feature = "rodio"))]
 mod oscillator;
-#[cfg(all(not(target_arch = "wasm32"), feature = "rodio"))]
 pub use oscillator::Oscillator;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "hound"))]

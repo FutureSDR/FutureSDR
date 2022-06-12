@@ -125,7 +125,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let switch_command = fg.add_block(ApplyIntoIter::<CWAlphabet, CWAlphabet>::new(
         |c: &CWAlphabet| *c,
     ));
-    let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2));
+    let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2, SAMPLE_RATE as f32));
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
 
     fg.connect_stream(src, "out", morse, "in")?;

@@ -7,7 +7,7 @@ use futuresdr::runtime::Runtime;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = Oscillator::new(440.0, 0.3);
+    let src = Oscillator::new(440.0, 0.3, 48000.0);
     let snk = AudioSink::new(48_000, 1);
 
     let src = fg.add_block(src);
