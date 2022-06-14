@@ -5,7 +5,7 @@ use std::pin::Pin;
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::futures::FutureExt;
-use futuresdr::log::{info, warn};
+use futuresdr::log::{info, debug, warn};
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -119,10 +119,10 @@ impl Mac {
                                     }
                                 }),
                         );
-                        info!("{}", s);
-                        mio.output_mut(0).post(Pmt::Blob(data.clone())).await;
+                        debug!("{}", s);
+                        mio.output_mut(0).post(Pmt::Blob(data)).await;
                     } else {
-                        info!("crc wrong");
+                        debug!("received frame, crc wrong");
                     }
                 }
                 _ => {
@@ -184,9 +184,13 @@ impl Kernel for Mac {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<u8>();
 
-        while !out.is_empty() {
+        loop{
+            let out = sio.output(0).slice::<u8>();
+            if out.is_empty() {
+                break;
+            }
+
             if self.current_len == 0 {
                 if let Some(v) = self.tx_frames.pop_front() {
                     self.current_frame[4] = (v.len() + 11) as u8;
@@ -209,7 +213,7 @@ impl Kernel for Mac {
                     self.current_index = 0;
                     sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
                     info!("sending frame, len {}", self.current_len);
-                    info!("{:?}", &self.current_frame[0..self.current_len]);
+                    debug!("{:?}", &self.current_frame[0..self.current_len]);
                 } else {
                     break;
                 }
