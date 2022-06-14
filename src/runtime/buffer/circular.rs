@@ -166,7 +166,10 @@ impl BufferWriterHost for Writer {
         self
     }
 
-    fn produce(&mut self, items: usize, tags: Vec<ItemTag>) {
+    fn produce(&mut self, items: usize, mut tags: Vec<ItemTag>) {
+        for t in tags.iter_mut() {
+            t.index *= self.item_size;
+        }
         self.writer.produce(items * self.item_size, tags);
     }
 
