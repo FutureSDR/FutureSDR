@@ -218,7 +218,10 @@ impl BufferReaderHost for Reader {
     }
 
     fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
-        if let Some((s, tags)) = self.reader.slice(false) {
+        if let Some((s, mut tags)) = self.reader.slice(false) {
+            for t in tags.iter_mut() {
+                t.index /= self.item_size;
+            }
             (s.as_ptr(), s.len(), tags)
         } else {
             (std::ptr::null(), 0, Vec::new())
