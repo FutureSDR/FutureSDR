@@ -22,7 +22,7 @@ enum State {
     Tail(usize),
 }
 
-const PADDING: usize = 5000;
+const PADDING: usize = 500;
 
 pub struct IqDelay {
     state: State,
