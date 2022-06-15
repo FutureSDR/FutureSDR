@@ -8,6 +8,7 @@ pub enum Pmt {
     U64(u64),
     Double(f64),
     VecF32(Vec<f32>),
+    VecU64(Vec<u64>),
     Blob(Vec<u8>),
 }
 
