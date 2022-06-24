@@ -39,7 +39,7 @@ fn main() -> Result<()> {
         SoapySinkBuilder::new()
             .freq(freq)
             .sample_rate(4e6)
-            .gain(18.0)
+            .gain(28.0)
             .build(),
     );
 

@@ -111,10 +111,8 @@ impl Mac {
                     if Self::check_crc(&data) && data.len() > 2 {
                         debug!("received frame, crc correct, payload length {}", data.len());
                         self.n_received += 1;
-                        let l = data.len();
                         let s = String::from_iter(
-                            data[9..l - 2]
-                                .iter()
+                            data.iter()
                                 .map(|x| char::from(*x))
                                 .map(|x| if x.is_ascii() { x } else { '.' })
                                 .map(|x| {
