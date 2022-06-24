@@ -220,6 +220,7 @@ impl StreamOutput {
 pub struct StreamIo {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
+    #[allow(clippy::type_complexity)]
     tag_propagation: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
 }
 
@@ -233,6 +234,7 @@ impl fmt::Debug for StreamIo {
 }
 
 impl StreamIo {
+    #[allow(clippy::type_complexity)]
     fn new(
         inputs: Vec<StreamInput>,
         outputs: Vec<StreamOutput>,
@@ -319,6 +321,7 @@ impl StreamIo {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn set_tag_propagation(
         &mut self,
         f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
@@ -327,6 +330,7 @@ impl StreamIo {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct StreamIoBuilder {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,

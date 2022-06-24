@@ -37,6 +37,7 @@ use crate::runtime::WorkIo;
 ///     }
 /// }));
 /// ```
+#[allow(clippy::type_complexity)]
 pub struct Filter<A, B>
 where
     A: 'static,

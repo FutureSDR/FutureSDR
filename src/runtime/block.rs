@@ -81,6 +81,7 @@ pub trait BlockT: Send + Any {
 
     // ##### STREAM IO
     fn commit(&mut self);
+    #[allow(clippy::type_complexity)]
     fn set_tag_propagation(
         &mut self,
         f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
@@ -287,6 +288,7 @@ impl Block {
     pub fn commit(&mut self) {
         self.0.commit();
     }
+    #[allow(clippy::type_complexity)]
     pub fn set_tag_propagation(
         &mut self,
         f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,

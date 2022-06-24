@@ -11,6 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+#[allow(clippy::type_complexity)]
 pub struct Split<A, B, C>
 where
     A: 'static,

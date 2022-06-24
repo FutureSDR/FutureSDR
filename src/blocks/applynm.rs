@@ -40,6 +40,7 @@ use crate::runtime::WorkIo;
 /// // Note that the closure can also hold state
 /// // Additionally, the closure can change the type of the sample
 /// ```
+#[allow(clippy::type_complexity)]
 pub struct ApplyNM<A, B, const N: usize, const M: usize>
 where
     A: 'static,

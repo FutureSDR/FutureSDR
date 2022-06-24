@@ -34,6 +34,7 @@ use crate::runtime::WorkIo;
 ///     a + b
 /// }));
 /// ```
+#[allow(clippy::type_complexity)]
 pub struct Combine<A, B, C>
 where
     A: 'static,
