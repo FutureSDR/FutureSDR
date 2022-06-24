@@ -352,13 +352,145 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --bins --examples --tests --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy --exclude androidfs --exclude fir_latency --exclude null_rand_latency -- --nocapture --skip vulkan
+          args: --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- --nocapture --skip vulkan
 
-      - name: Run cargo benches
+      - name: Run cargo test (perf/buffer_rand)
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --benches --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy --exclude androidfs --exclude fir_latency --exclude null_rand_latency -- --nocapture
+          args: --all-targets --manifest-path=perf/buffer_rand/Cargo.toml
+
+      - name: Run cargo test (perf/buffer_size)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/buffer_size/Cargo.toml
+
+      - name: Run cargo test (perf/fir)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/fir/Cargo.toml
+
+      - name: Run cargo test (perf/fir_latency)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/fir_latency/Cargo.toml
+
+      - name: Run cargo test (perf/msg)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/msg/Cargo.toml
+
+      - name: Run cargo test (perf/null_rand)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/null_rand/Cargo.toml
+
+      - name: Run cargo test (perf/null_rand_latency)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/null_rand_latency/Cargo.toml
+
+      - name: Run cargo test (perf/vulkan)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/vulkan/Cargo.toml
+
+      - name: Run cargo test (perf/wgpu)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/wgpu/Cargo.toml
+
+      - name: Run cargo test (perf/zynq)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=perf/zynq/Cargo.toml
+
+      - name: Run cargo test (examples/android)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/android/Cargo.toml
+
+      - name: Run cargo test (examples/android-hw)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/android-hw/Cargo.toml
+
+      - name: Run cargo test (examples/audio)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/audio/Cargo.toml
+
+      - name: Run cargo test (examples/cw)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/cw/Cargo.toml
+
+      - name: Run cargo test (examples/firdes)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/firdes/Cargo.toml
+
+      - name: Run cargo test (examples/fm-receiver)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/fm-receiver/Cargo.toml
+
+      - name: Run cargo test (examples/logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/logging/Cargo.toml
+
+      - name: Run cargo test (examples/rx-to-file)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/rx-to-file/Cargo.toml
+
+      - name: Run cargo test (examples/spectrum)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/spectrum/Cargo.toml
+
+      - name: Run cargo test (examples/wasm)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/wasm/Cargo.toml
+
+      - name: Run cargo test (examples/wgpu)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/wgpu/Cargo.toml
+
+      - name: Run cargo test (examples/zeromq)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/zeromq/Cargo.toml
+
+      - name: Run cargo test (examples/zigbee)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets --manifest-path=examples/zigbee/Cargo.toml
 
   test-macos:
     name: Unit Tests macOS

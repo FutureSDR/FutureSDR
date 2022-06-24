@@ -107,7 +107,7 @@ impl Mac {
     ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
         async move {
             match p {
-                Pmt::Blob(mut data) => {
+                Pmt::Blob(data) => {
                     if Self::check_crc(&data) && data.len() > 2 {
                         debug!("received frame, crc correct, payload length {}", data.len());
                         self.n_received += 1;
@@ -186,10 +186,7 @@ impl Mac {
         _meta: &'a mut BlockMeta,
         _p: Pmt,
     ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            Ok(Pmt::VecU64(vec![self.n_sent, self.n_received]))
-        }
-        .boxed()
+        async move { Ok(Pmt::VecU64(vec![self.n_sent, self.n_received])) }.boxed()
     }
 }
 
@@ -202,8 +199,7 @@ impl Kernel for Mac {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
-        loop{
+        loop {
             let out = sio.output(0).slice::<u8>();
             if out.is_empty() {
                 break;
