@@ -5,7 +5,6 @@ set -xe
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
 
-
 ###########################################################
 # FMT
 ###########################################################
@@ -37,7 +36,6 @@ cd ${SCRIPTPATH}/examples/wasm && cargo fmt
 cd ${SCRIPTPATH}/examples/wgpu && cargo fmt
 cd ${SCRIPTPATH}/examples/zeromq && cargo fmt
 cd ${SCRIPTPATH}/examples/zigbee && cargo fmt
-
 
 ###########################################################
 # CLIPPY
@@ -71,8 +69,34 @@ cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zeromq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --all-targets -- -D warnings
 
-
 ###########################################################
 # Test
 ###########################################################
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
+cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -j 4
+
+# perf
+cd ${SCRIPTPATH}/perf/buffer_rand && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/buffer_size && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/null_rand && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/null_rand_latency && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/vulkan && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/wgpu && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
+
+# examples
+cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/rx-to-file && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/wasm && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/wgpu && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/zeromq && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/zigbee && cargo test --all-targets
