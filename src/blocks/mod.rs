@@ -98,7 +98,7 @@ pub use message_burst::{MessageBurst, MessageBurstBuilder};
 mod message_copy;
 pub use message_copy::{MessageCopy, MessageCopyBuilder};
 mod message_pipe;
-pub use message_pipe::{MessagePipe};
+pub use message_pipe::MessagePipe;
 mod message_sink;
 pub use message_sink::{MessageSink, MessageSinkBuilder};
 

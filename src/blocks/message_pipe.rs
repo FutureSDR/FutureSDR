@@ -1,6 +1,6 @@
+use futures::channel::mpsc;
 use futures::FutureExt;
 use futures::SinkExt;
-use futures::channel::mpsc;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -26,9 +26,7 @@ impl MessagePipe {
             MessageIoBuilder::new()
                 .add_input("in", MessagePipe::handler)
                 .build(),
-            MessagePipe {
-                sender,
-            },
+            MessagePipe { sender },
         )
     }
 
@@ -48,4 +46,3 @@ impl MessagePipe {
 
 #[async_trait]
 impl Kernel for MessagePipe {}
-
