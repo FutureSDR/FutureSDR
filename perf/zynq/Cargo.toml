@@ -3,6 +3,8 @@ name = "perf-zynq"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
 clap = "3.1.0"
 futuresdr = { path = "../..", features = ["zynq"] }

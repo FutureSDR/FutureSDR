@@ -3,6 +3,8 @@ name = "rx-to-file"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
 futuresdr = { path = "../..", features = ["soapy"] }
 num-complex = "0.4.0"

@@ -3,6 +3,8 @@ name = "zeromq"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
 futuresdr = { path = "../..", features = ["zeromq"] }
 
