@@ -352,7 +352,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- --nocapture --skip vulkan
+          args: --all-targets --workspace --features=zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
 
       - name: Run cargo test (perf/buffer_rand)
         uses: actions-rs/cargo@v1
