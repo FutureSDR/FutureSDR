@@ -185,6 +185,8 @@ jobs:
 
       - name: Run cargo clippy for wasm32-unknown-unknown (main)
         uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         with:
           command: clippy
           args: --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
@@ -245,6 +247,8 @@ jobs:
 
       - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
         uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         with:
           command: clippy
           args: --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
