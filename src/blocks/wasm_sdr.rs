@@ -20,10 +20,14 @@ use crate::runtime::WorkIo;
 
 static SENDER: OnceCell<Mutex<mpsc::Sender<Vec<i8>>>> = OnceCell::new();
 
+// there should be no one else contenting for this lock
+// to make sure, we use try_lock().unwrap(), which would panic
+// if the lock is held by someone else
+#[allow(clippy::await_holding_lock)]
 #[wasm_bindgen]
 pub async fn push_samples(s: Vec<i8>) -> bool {
     if let Some(tx) = SENDER.get() {
-        if tx.lock().unwrap().send(s).await.is_err() {
+        if tx.try_lock().unwrap().send(s).await.is_err() {
             info!("WasmSdr, pushing while closed");
             false
         } else {
@@ -80,8 +84,8 @@ impl Kernel for WasmSdr {
 
         let n = std::cmp::min((self.samples.len() - self.index) / 2, output.len());
 
-        for i in 0..n {
-            output[i] = Complex32::new(
+        for (i, o) in output.iter_mut().enumerate().take(n) {
+            *o = Complex32::new(
                 (self.samples[self.index + i * 2] as f32) / 128.0,
                 (self.samples[self.index + i * 2 + 1] as f32) / 128.0,
             );

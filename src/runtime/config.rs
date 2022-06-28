@@ -83,7 +83,7 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
 });
 
 #[cfg(target_arch = "wasm32")]
-static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());
+static CONFIG: Lazy<Config> = Lazy::new(Config::default);
 
 #[derive(Debug)]
 pub struct Config {
