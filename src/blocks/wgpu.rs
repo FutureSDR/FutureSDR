@@ -108,7 +108,7 @@ impl Kernel for Wgpu {
         let cs_module = self
             .broker
             .device
-            .create_shader_module(&ShaderModuleDescriptor {
+            .create_shader_module(ShaderModuleDescriptor {
                 label: None,
                 source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
             });
