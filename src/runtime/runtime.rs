@@ -10,13 +10,12 @@ use futures::prelude::*;
 use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
-use axum::routing::{get, get_service, post};
+use axum::routing::get;
 use axum::response::Html;
 use axum::Router;
 use axum::Extension;
-use crate::runtime::buffer::slab::Slab;
-use slab::Slab as SlabSlab;
 use tower_http::add_extension::AddExtensionLayer;
+use std::io::BufWriter;
 
 
 use crate::anyhow::{Context, Result};
@@ -158,6 +157,30 @@ impl<S: Scheduler> RuntimeBuilder<S> {
     }
 }
 
+#[cfg(feature="apidoc")]
+async fn index_html(Extension(mermaid): Extension<String>) -> Html<String> {
+    let mut body = String::new();
+
+    fmt::write(&mut body, format_args!("<html>
+    <head>
+        <meta charset='utf-8' />
+        <title>FutureSDR</title>
+    </head>
+    <body>
+    <script src='https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js'></script>
+    <script>
+        mermaid.initialize({{ startOnLoad: true }});
+    </script>
+    <h1>FutureSDR</h1>
+    <div class='mermaid'>")).expect("safe");
+    fmt::write(&mut body, format_args!("{}", mermaid)).expect("cannot output mermaid");
+    // fmt::write(&mut body, format_args!("number of Blocks {:?}", boxes.len())).expect("cannot write into string");
+    fmt::write(&mut body, format_args!("</div>\n")).expect("safe");
+    fmt::write(&mut body, format_args!("\n</body>
+</html>")).expect("safe");
+    Html(body)
+}
+
 async fn run_flowgraph<S: Scheduler>(
     mut fg: Flowgraph,
     scheduler: S,
@@ -167,7 +190,25 @@ async fn run_flowgraph<S: Scheduler>(
 ) -> Result<Flowgraph> {
     debug!("in run_flowgraph");
     let mut topology = fg.topology.take().context("flowgraph not initialized")?;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut apidoc_router: Option<Router> = None;
+    #[cfg(feature="apidoc")]
+    {
+        let mut buf = BufWriter::new(Vec::new());
+        topology.to_mermaid(&mut buf);
+        let buf = buf.into_inner().expect("");
+        let mermaid = String::from_utf8(buf).expect("cannot convert to UT8");
+        let main_router= Router::new()
+            .route("/test/", get(index_html))
+            .layer(AddExtensionLayer::new(mermaid));
+
+        apidoc_router = Some(main_router);
+    }
+
     topology.validate()?;
+
+
 
     let mut inboxes = scheduler.run_topology(&mut topology, &main_channel);
 
@@ -266,39 +307,6 @@ async fn run_flowgraph<S: Scheduler>(
             .try_send(m)
             .expect("main inbox exceeded capacity during startup");
     }
-
-
-    #[cfg(feature="apidoc")]
-    async fn index_html() -> Html<String> {
-        let mut body = String::new();
-    
-        fmt::write(&mut body, format_args!("<html>
-        <head>
-            <meta charset='utf-8' />
-            <title>FutureSDR</title>
-        </head>
-        <body>
-        <script src='https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js'></script>
-        <script>
-            mermaid.initialize({{ startOnLoad: true }});
-        </script>
-        <h1>FutureSDR</h1>
-        <div>")).expect("safe");
-    
-        // fmt::write(&mut body, format_args!("number of Blocks {:?}", boxes.len())).expect("cannot write into string");
-        fmt::write(&mut body, format_args!("</div>\n")).expect("safe");
-        fmt::write(&mut body, format_args!("\n</body>
-    </html>")).expect("safe");
-        Html(body)
-    }
-
-    #[cfg(not(feature="apidoc"))]
-    let apidoc_router: Option<Router> = None;
-    #[cfg(feature="apidoc")]
-    let apidoc_router= Router::new()
-        .route("/test/", get(index_html));
-    #[cfg(feature="apidoc")]
-    let apidoc_router = Some(apidoc_router);
 
     // Start Control Port
     #[cfg(not(target_arch = "wasm32"))]

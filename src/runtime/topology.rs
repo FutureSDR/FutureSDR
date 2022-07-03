@@ -326,20 +326,21 @@ impl Topology {
     {
         o.write(b"graph LR;\n");
         for (i, node) in &self.blocks {
-            let node = node.as_ref().unwrap();
-            o.write(format!("    N{}[{}<br/><b>name:</b>{}<br/><b>is blocking</b>:{}];\n",
-                i,
-                node.type_name(),
-                node.instance_name().unwrap(),
-                node.is_blocking(),
-            ).as_bytes());
+            if let Some(node) = node.as_ref() {
+                o.write(format!("    N{}[{}<br/><b>name:</b>{}<br/><b>is blocking</b>:{}];\n",
+                    i,
+                    node.type_name(),
+                    node.instance_name().unwrap(),
+                    node.is_blocking(),
+                ).as_bytes());
+            }
         }
         for ((src_blk, _, _), targets) in &self.stream_edges {
             for (dst_blk, _) in targets {
                 o.write(format!("    N{}-->N{};\n", src_blk, dst_blk).as_bytes());
             }
         }
-        for (src_blk, src_port, dst_blk, dst_port) in &self.message_edges {
+        for (src_blk, _src_port, dst_blk, _dst_port) in &self.message_edges {
             o.write(format!("    N{}-.->N{};\n", src_blk, dst_blk).as_bytes());
         }
     }

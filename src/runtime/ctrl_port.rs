@@ -7,7 +7,6 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::prelude::*;
 use slab::Slab;
-use std::fmt;
 use std::path;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;

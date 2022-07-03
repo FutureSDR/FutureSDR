@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.0.13", features = ["derive"] }
-futuresdr = { path = "../..", features=["soapy", "audio"] }
+futuresdr = { path = "../..", features=["soapy", "audio", "apidoc"] }
 futuredsp = { path = "../../futuredsp", version = "0.0.4" }
