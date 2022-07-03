@@ -22,6 +22,7 @@ members = [
 
 [features]
 default = []
+apidoc = []
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
 lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
