@@ -10,6 +10,14 @@ use futures::prelude::*;
 use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
+use axum::routing::{get, get_service, post};
+use axum::response::Html;
+use axum::Router;
+use axum::Extension;
+use crate::runtime::buffer::slab::Slab;
+use slab::Slab as SlabSlab;
+use tower_http::add_extension::AddExtensionLayer;
+
 
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
@@ -26,6 +34,9 @@ use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
+
+use std::fmt;
+
 
 /// This is the [Runtime] that runs a [Flowgraph] to completion.
 ///
@@ -265,9 +276,42 @@ async fn run_flowgraph<S: Scheduler>(
             .expect("main inbox exceeded capacity during startup");
     }
 
+
+    #[cfg(feature="apidoc")]
+    async fn index_html() -> Html<String> {
+        let mut body = String::new();
+    
+        fmt::write(&mut body, format_args!("<html>
+        <head>
+            <meta charset='utf-8' />
+            <title>FutureSDR</title>
+        </head>
+        <body>
+        <script src='https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js'></script>
+        <script>
+            mermaid.initialize({{ startOnLoad: true }});
+        </script>
+        <h1>FutureSDR</h1>
+        <div>")).expect("safe");
+    
+        // fmt::write(&mut body, format_args!("number of Blocks {:?}", boxes.len())).expect("cannot write into string");
+        fmt::write(&mut body, format_args!("</div>\n")).expect("safe");
+        fmt::write(&mut body, format_args!("\n</body>
+    </html>")).expect("safe");
+        Html(body)
+    }
+
+    #[cfg(not(feature="apidoc"))]
+    let apidoc_router: Option<Router> = None;
+    #[cfg(feature="apidoc")]
+    let apidoc_router= Router::new()
+        .route("/test/", get(index_html));
+    #[cfg(feature="apidoc")]
+    let apidoc_router = Some(apidoc_router);
+
     // Start Control Port
     #[cfg(not(target_arch = "wasm32"))]
-    ctrl_port::start_control_port(inboxes.clone()).await;
+    ctrl_port::start_control_port(inboxes.clone(), apidoc_router).await;
 
     initialized
         .send(())

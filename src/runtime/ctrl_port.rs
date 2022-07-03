@@ -7,6 +7,7 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::prelude::*;
 use slab::Slab;
+use std::fmt;
 use std::path;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
@@ -79,7 +80,7 @@ async fn handler_id_post(
     format!("{:?}", ret)
 }
 
-pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>) {
+pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>, svc: Option<Router>) {
     if !config::config().ctrlport_enable {
         return;
     }
@@ -90,6 +91,9 @@ pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>
         .route("/api/block/:blk/call/:handler/", post(handler_id_post))
         .layer(AddExtensionLayer::new(inboxes))
         .layer(CorsLayer::permissive());
+    if let Some(svc) = svc {
+        app = app.nest("/main", svc);
+    }
 
     let frontend = if let Some(ref p) = config::config().frontend_path {
         Some(ServeDir::new(p))
@@ -119,9 +123,10 @@ pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>
         runtime.block_on(async move {
             let addr = config::config().ctrlport_bind.unwrap();
             if let Ok(s) = axum::Server::try_bind(&addr) {
+                debug!("Listening on {}", addr);
                 s.serve(app.into_make_service()).await.unwrap();
             } else {
-                warn!("CtrlPort address already in use");
+                warn!("CtrlPort address {} already in use", addr);
             }
         });
     });
