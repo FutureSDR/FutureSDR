@@ -41,6 +41,7 @@ pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,
     _type: std::marker::PhantomData<T>,
+    do_repeat: bool,
 }
 
 impl<T: Send + 'static> FileSource<T> {
@@ -55,6 +56,23 @@ impl<T: Send + 'static> FileSource<T> {
                 file_name: file_name.into(),
                 file: None,
                 _type: std::marker::PhantomData,
+                do_repeat: false,
+            },
+        )
+    }
+
+    pub fn repeat<S: Into<String>>(file_name: S) -> Block {
+        Block::new_async(
+            BlockMetaBuilder::new("RepeatFileSource").build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
+            MessageIoBuilder::new().build(),
+            FileSource::<T> {
+                file_name: file_name.into(),
+                file: None,
+                _type: std::marker::PhantomData,
+                do_repeat: true,
             },
         )
     }
@@ -79,8 +97,13 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
         while i < out.len() {
             match self.file.as_mut().unwrap().read(&mut out[i..]).await {
                 Ok(0) => {
-                    io.finished = true;
-                    break;
+                    if self.do_repeat {
+                        self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+                    } else {
+                        io.finished = true;
+                        break;
+                    }
+                   
                 }
                 Ok(written) => {
                     i += written;

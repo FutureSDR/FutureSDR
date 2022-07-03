@@ -6,6 +6,10 @@ use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
+/// Just like in https://www.nickwilcox.com/blog/autovec/
+/// the goal is to check wether current implementation
+/// enable autovectorization. It does. ;-)
+
 fn main() -> Result<()> {
     const SLAB_SIZE: usize = 2048;
     let gain_l: f32 = 1.0;
