@@ -94,6 +94,18 @@ impl Flowgraph {
             .and_then(|t| t.block_mut(id))
             .and_then(|b| b.kernel_mut())
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn to_mermaid<T>(&self, o: T)
+    where
+        T: std::io::Write
+    {
+        self
+            .topology
+            .as_ref()
+            .unwrap()
+            .to_mermaid(o);
+    }
 }
 
 impl Default for Flowgraph {
