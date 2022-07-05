@@ -1,5 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
+use futuresdr::blocks::NullSink;
 use futuresdr::blocks::WasmSdr;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
@@ -46,11 +47,13 @@ async fn run_fg_impl() -> Result<()> {
 
     let decoder = fg.add_block(Decoder::new(6));
     let mac = fg.add_block(Mac::new());
+    let snk = fg.add_block(NullSink::<u8>::new());
 
     fg.connect_stream(src, "out", avg, "in")?;
     fg.connect_stream(avg, "out", mm, "in")?;
     fg.connect_stream(mm, "out", decoder, "in")?;
-    fg.connect_message(decoder, "out", mac, "in")?;
+    fg.connect_stream(mac, "out", snk, "in")?;
+    fg.connect_message(decoder, "out", mac, "rx")?;
 
     Runtime::new().run_async(fg).await?;
 

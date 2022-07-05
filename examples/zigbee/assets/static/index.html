@@ -93,11 +93,19 @@
 
          var read_samples;
          var set_freq;
+         var set_amp;
+         var set_lna;
+         var set_vga;
+         var set_sample_rate;
 
          Module['onRuntimeInitialized'] = function() {
              console.log("EMSCRIPTEN LOADED");
              read_samples = Module.read_samples;
              set_freq = Module.set_freq;
+             set_amp = Module.set_amp;
+             set_lna = Module.set_lna;
+             set_vga = Module.set_vga;
+             set_sample_rate = Module.set_sample_rate;
              console.log(Module);
          }
 
