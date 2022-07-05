@@ -16,14 +16,14 @@ pub struct PubSink {
 }
 
 impl PubSink {
-    pub fn new(item_size: usize, address: &str) -> Block {
+    pub fn new(item_size: usize, address: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input("in", item_size).build(),
             MessageIoBuilder::new().build(),
             PubSink {
                 item_size,
-                address: address.to_string(),
+                address: address.into(),
                 publisher: None,
             },
         )
@@ -90,7 +90,7 @@ impl PubSinkBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Block {
-        PubSink::new(self.item_size, &*self.address)
+    pub fn build(self) -> Block {
+        PubSink::new(self.item_size, self.address)
     }
 }

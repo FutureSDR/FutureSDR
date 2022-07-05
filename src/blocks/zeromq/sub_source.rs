@@ -16,14 +16,14 @@ pub struct SubSource {
 }
 
 impl SubSource {
-    pub fn new(item_size: usize, address: &str) -> Block {
+    pub fn new(item_size: usize, address: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("SubSource").blocking().build(),
             StreamIoBuilder::new().add_output("out", item_size).build(),
             MessageIoBuilder::new().build(),
             SubSource {
                 item_size,
-                address: address.to_string(),
+                address: address.into(),
                 receiver: None,
             },
         )
@@ -87,7 +87,7 @@ impl SubSourceBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Block {
-        SubSource::new(self.item_size, &*self.address)
+    pub fn build(self) -> Block {
+        SubSource::new(self.item_size, self.address)
     }
 }

@@ -148,12 +148,7 @@ impl Topology {
             .collect();
 
         // delete associated message edges
-        self.message_edges = self
-            .message_edges
-            .iter()
-            .filter(|x| x.0 != id && x.2 != id)
-            .copied()
-            .collect();
+        self.message_edges.retain(|x| x.0 != id && x.2 != id);
     }
 
     pub fn connect_stream<B: BufferBuilder + Debug + Eq + Hash>(
