@@ -315,27 +315,27 @@ impl BufferReaderHost for Reader {
             debug_assert!(left > 0);
             if left <= self.reserved_items {
                 let mut state = self.state.lock().unwrap();
-                if let Some(mut b) = state.reader_input.pop_front() {
+                if let Some(BufferFull { mut buffer, mut tags, items }) = state.reader_input.pop_front() {
                     unsafe {
                         std::ptr::copy_nonoverlapping(
                             cur.buffer.as_ptr().add(cur.offset * self.item_size),
-                            b.buffer
+                            buffer
                                 .as_mut_ptr()
                                 .add((self.reserved_items - left) * self.item_size),
                             left * self.item_size,
                         );
                     }
 
-                    for t in b.tags.iter_mut() {
+                    for t in tags.iter_mut() {
                         t.index += left;
                     }
-                    b.tags.append(&mut cur.tags);
+                    cur.tags.append(&mut tags);
 
-                    let old = std::mem::replace(&mut cur.buffer, b.buffer);
+                    let old = std::mem::replace(&mut cur.buffer, buffer);
                     state.writer_input.push_back(BufferEmpty { buffer: old });
                     let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
 
-                    cur.capacity = b.items + self.reserved_items;
+                    cur.capacity = items + self.reserved_items;
                     cur.offset = self.reserved_items - left;
                 }
             }
