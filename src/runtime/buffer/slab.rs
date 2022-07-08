@@ -315,7 +315,12 @@ impl BufferReaderHost for Reader {
             debug_assert!(left > 0);
             if left <= self.reserved_items {
                 let mut state = self.state.lock().unwrap();
-                if let Some(BufferFull { mut buffer, mut tags, items }) = state.reader_input.pop_front() {
+                if let Some(BufferFull {
+                    mut buffer,
+                    mut tags,
+                    items,
+                }) = state.reader_input.pop_front()
+                {
                     unsafe {
                         std::ptr::copy_nonoverlapping(
                             cur.buffer.as_ptr().add(cur.offset * self.item_size),
