@@ -39,7 +39,7 @@ fg.connect_stream(demod, "out", resamp2, "in")?;
 fg.connect_stream(resamp2, "out", snk, "in")?;
 ```
 
-When ports have different name than standard `in` and `out` can use following notation.
+When ports have different name than standard `in` and `out`, one can use following notation.
 
 NB: `in` is a reserved rust keyword and thus must be escaped as `r#in`.
 
