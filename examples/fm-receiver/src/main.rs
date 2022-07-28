@@ -9,6 +9,10 @@
 //! be periodically asked to enter a new frequency that the SDR will be tuned to.
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
+
+#![feature(stmt_expr_attributes)]
+#![feature(proc_macro_hygiene)]
+
 use clap::Parser;
 
 use futuredsp::firdes;
@@ -23,6 +27,7 @@ use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr_macros::flowgraph;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -138,19 +143,29 @@ fn main() -> Result<()> {
     let snk = AudioSink::new(audio_rate, 1);
 
     // Add all the blocks to the `Flowgraph`...
-    let src = fg.add_block(src);
-    let shift = fg.add_block(shift);
-    let resamp1 = fg.add_block(resamp1);
-    let demod = fg.add_block(demod);
-    let resamp2 = fg.add_block(resamp2);
-    let snk = fg.add_block(snk);
+    // let src = fg.add_block(src);
+    // let shift = fg.add_block(shift);
+    // let resamp1 = fg.add_block(resamp1);
+    // let demod = fg.add_block(demod);
+    // let resamp2 = fg.add_block(resamp2);
+    // let snk = fg.add_block(snk);
 
     // ... and connect the ports appropriately
-    fg.connect_stream(src, "out", shift, "in")?;
-    fg.connect_stream(shift, "out", resamp1, "in")?;
-    fg.connect_stream(resamp1, "out", demod, "in")?;
-    fg.connect_stream(demod, "out", resamp2, "in")?;
-    fg.connect_stream(resamp2, "out", snk, "in")?;
+    // fg.connect_stream(src, "out", shift, "in")?;
+    // fg.connect_stream(shift, "out", resamp1, "in")?;
+    // fg.connect_stream(resamp1, "out", demod, "in")?;
+    // fg.connect_stream(demod, "out", resamp2, "in")?;
+    // fg.connect_stream(resamp2, "out", snk, "in")?;
+
+    #[flowgraph(fg)]
+    {
+        src.out > shift;
+        shift > resamp1;
+        resamp1 > demod;
+        demod > resamp2;
+        resamp2 > snk.r#in;
+    };
+
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
