@@ -56,7 +56,7 @@ where
 {
     pub fn new(f: impl FnMut(&[A], &mut [B]) + Send + 'static) -> Block {
         Block::new(
-            BlockMetaBuilder::new("ApplyNM").build(),
+            BlockMetaBuilder::new(&format!("ApplyNM {} {}", N, M)).build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<B>())

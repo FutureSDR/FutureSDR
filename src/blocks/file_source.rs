@@ -62,7 +62,7 @@ impl<T: Send + 'static> FileSource<T> {
     }
 
     pub fn repeat<S: Into<String>>(file_name: S) -> Block {
-        Block::new_async(
+        Block::new(
             BlockMetaBuilder::new("RepeatFileSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", std::mem::size_of::<T>())

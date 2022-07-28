@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futuresdr = { path = "../..", features=["soapy", "audio", "zeromq"] }
-futuredsp = { path = "../../futuredsp", version = "0.0.2" }
+futuresdr = { path = "../..", features=["soapy", "audio", "zeromq", "apidoc"] }
+futuredsp = { path = "../../futuredsp", version = "0.0.4" }
 num-complex = "0.4.0"
 
 
