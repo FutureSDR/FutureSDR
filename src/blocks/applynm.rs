@@ -26,7 +26,7 @@ use crate::runtime::WorkIo;
 ///
 /// # Usage
 /// ```
-/// use futuresdr::blocks::Apply;
+/// use futuresdr::blocks::ApplyNM;
 /// use futuresdr::runtime::Flowgraph;
 /// use num_complex::Complex;
 ///
@@ -34,8 +34,8 @@ use crate::runtime::WorkIo;
 ///
 /// // Convert mono stream to stereo interleaved stream
 /// let mono_to_stereo = fg.add_block(ApplyNM::<f32, f32, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
-///     d[0] =  v[0] * gain_l;
-///     d[1] =  v[0] * gain_r;
+///     d[0] =  v[0] * 0.5; // gain left
+///     d[1] =  v[0] * 0.9; // gain right
 /// }));
 /// // Note that the closure can also hold state
 /// // Additionally, the closure can change the type of the sample
