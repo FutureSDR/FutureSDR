@@ -2,9 +2,14 @@
 name = "wlan"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+default-run = "rx"
 
 [workspace]
 
+[[bin]]
+name = "rx"
+path = "src/bin/rx.rs"
+
 [dependencies]
+clap = { version = "3.1.18", features = ["derive"] }
+futuresdr = { path = "../..", features = ["soapy"] }
