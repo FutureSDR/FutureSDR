@@ -93,11 +93,14 @@ wgpu = { version = "0.13.1", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "0.2.0"
 cpal = { version = "0.13.4", optional = true, features = ['wasm-bindgen'] }
-futuresdr-frontend = { path = "frontend", version = "0.0.2" }
 getrandom = { version = "0.2.3", features = ["js"] }
 rodio = { version = "0.15.0", default-features = false, optional = true }
 wasm-bindgen = "0.2.79"
 wasm-bindgen-futures = "0.4.28"
+# web-sys 3.59 breaks wgpu
+# pin to 0.3.58 to avoid that crates pull in newer versions
+# delete, once fixed
+web-sys = "=0.3.58"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"
