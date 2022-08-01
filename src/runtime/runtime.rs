@@ -82,6 +82,14 @@ impl<S: Scheduler> Runtime<S> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn block_on<T: Send + 'static>(
+        &self,
+        future: impl Future<Output = T> + Send + 'static,
+    ) -> T {
+        block_on(self.scheduler.spawn(future))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_background<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
@@ -301,6 +309,15 @@ async fn run_flowgraph<S: Scheduler>(
                 *topology.blocks.get_mut(id).unwrap() = Some(block);
 
                 active_blocks -= 1;
+            }
+            AsyncMessage::Terminate => {
+                for (_, opt) in inboxes.iter_mut() {
+                    if let Some(ref mut chan) = opt {
+                        if chan.send(AsyncMessage::Terminate).await.is_err() {
+                            debug!("runtime wanted tried to terminate block that was already terminated");
+                        }
+                    }
+                }
             }
             _ => warn!("main loop received unhandled message"),
         }

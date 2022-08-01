@@ -136,6 +136,11 @@ impl FlowgraphHandle {
         let p = rx.await?;
         Ok(p)
     }
+
+    pub async fn terminate(&mut self) -> Result<()> {
+        self.inbox.send(AsyncMessage::Terminate).await?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Hash)]

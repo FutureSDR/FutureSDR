@@ -1,9 +1,12 @@
 use std::iter::repeat_with;
 
 use futuresdr::anyhow::Result;
+use futuresdr::async_io::block_on;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::blocks::Throttle;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSourceBuilder;
@@ -37,6 +40,32 @@ fn flowgraph() -> Result<()> {
     for i in v {
         assert!(i.abs() < f32::EPSILON);
     }
+
+    Ok(())
+}
+
+#[test]
+fn fg_terminate() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let null_source = NullSource::<f32>::new();
+    let throttle = Throttle::<f32>::new(10.0);
+    let null_sink = NullSink::<f32>::new();
+
+    let null_source = fg.add_block(null_source);
+    let throttle = fg.add_block(throttle);
+    let null_sink = fg.add_block(null_sink);
+
+    fg.connect_stream(null_source, "out", throttle, "in")?;
+    fg.connect_stream(throttle, "out", null_sink, "in")?;
+
+    let rt = Runtime::new();
+    let (fg, mut handle) = block_on(rt.start(fg));
+    block_on(async move {
+        futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
+        handle.terminate().await.unwrap();
+        _ = fg.await.unwrap();
+    });
 
     Ok(())
 }
