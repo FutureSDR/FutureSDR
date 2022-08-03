@@ -1,6 +1,9 @@
 mod delay;
 pub use delay::Delay;
 
+mod frame_equalizer;
+pub use frame_equalizer::FrameEqualizer;
+
 mod moving_average;
 pub use moving_average::MovingAverage;
 

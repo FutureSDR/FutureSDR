@@ -118,7 +118,7 @@ impl Kernel for SyncLong {
             State::Sync(freq_offset_short) => {
                 if m >= SEARCH_WINDOW + 63 {
                     let (offset, freq_offset) = self.sync(&input[0..SEARCH_WINDOW + 63]);
-                    debug!("long start: offset {}   freq {}", offset, freq_offset);
+                    // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
                     sio.input(0).consume(offset);
                     sio.output(0).add_tag(

@@ -11,6 +11,8 @@ use futuresdr::blocks::TagDebug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::StreamInput;
+use futuresdr::runtime::StreamOutput;
 
 use wlan::Delay;
 use wlan::MovingAverage;
@@ -60,15 +62,17 @@ fn main() -> Result<()> {
     let sync_long = fg.add_block(SyncLong::new());
     fg.connect_stream(sync_short, "out", sync_long, "in")?;
 
-    let fft = fg.add_block(Fft::new(64));
+    let mut fft = Fft::new(64);
+    fft.set_tag_propagation(Box::new(fft_tag_propagation));
+    let fft = fg.add_block(fft);
     fg.connect_stream(sync_long, "out", fft, "in")?;
 
-    // // DEBUG
-    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync long"));
-    // fg.connect_stream(sync_long, "out", tag_debug, "in")?;
+    // Debug
+    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("fft out"));
+    fg.connect_stream(fft, "out", tag_debug, "in")?;
 
-    let snk = fg.add_block(NullSink::<Complex32>::new());
-    fg.connect_stream(fft, "out", snk, "in")?;
+    // let snk = fg.add_block(NullSink::<Complex32>::new());
+    // fg.connect_stream(fft, "out", snk, "in")?;
 
     // let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
     // let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
@@ -77,4 +81,12 @@ fn main() -> Result<()> {
 
     let _ = Runtime::new().run(fg)?;
     Ok(())
+}
+
+fn fft_tag_propagation(inputs: &mut [StreamInput], outputs: &mut [StreamOutput]) {
+    debug_assert_eq!(inputs[0].consumed().0, outputs[0].produced());
+    let (n, tags) = inputs[0].consumed();
+    for t in tags.iter().filter(|x| x.index < n) {
+        outputs[0].add_tag(t.index, t.tag.clone());
+    }
 }
