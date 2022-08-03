@@ -3,8 +3,9 @@ use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
-use futuresdr::blocks::FileSource;
+use futuresdr::blocks::Fft;
 use futuresdr::blocks::FileSink;
+use futuresdr::blocks::FileSource;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::TagDebug;
 use futuresdr::num_complex::Complex32;
@@ -59,17 +60,20 @@ fn main() -> Result<()> {
     let sync_long = fg.add_block(SyncLong::new());
     fg.connect_stream(sync_short, "out", sync_long, "in")?;
 
-    // DEBUG
-    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync long"));
-    fg.connect_stream(sync_long, "out", tag_debug, "in")?;
+    let fft = fg.add_block(Fft::new(64));
+    fg.connect_stream(sync_long, "out", fft, "in")?;
+
+    // // DEBUG
+    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync long"));
+    // fg.connect_stream(sync_long, "out", tag_debug, "in")?;
 
     let snk = fg.add_block(NullSink::<Complex32>::new());
-    fg.connect_stream(sync_long, "out", snk, "in")?;
+    fg.connect_stream(fft, "out", snk, "in")?;
 
-    let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
-    let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
-    fg.connect_stream(divide_mag, "out", float_to_complex, "in")?;
-    fg.connect_stream(float_to_complex, "out", file_snk, "in")?;
+    // let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
+    // let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
+    // fg.connect_stream(divide_mag, "out", float_to_complex, "in")?;
+    // fg.connect_stream(float_to_complex, "out", file_snk, "in")?;
 
     let _ = Runtime::new().run(fg)?;
     Ok(())
