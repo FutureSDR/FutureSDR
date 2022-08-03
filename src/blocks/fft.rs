@@ -77,21 +77,19 @@ impl Kernel for Fft {
         let o = sio.output(0).slice::<Complex<f32>>();
 
         let m = cmp::min(i.len(), o.len());
-        let n = (m / self.len) * self.len;
+        let m = (m / self.len) * self.len;
 
-        if sio.input(0).finished() {
+        if m > 0 {
+            self.plan
+                .process_outofplace_with_scratch(&mut i[0..m], &mut o[0..m], &mut self.scratch);
+
+            sio.input(0).consume(m);
+            sio.output(0).produce(m);
+        }
+
+        if sio.input(0).finished() && m == (m / self.len) * self.len {
             io.finished = true;
         }
-
-        if n == 0 {
-            return Ok(());
-        }
-
-        self.plan
-            .process_outofplace_with_scratch(&mut i[0..n], &mut o[0..n], &mut self.scratch);
-
-        sio.input(0).consume(n);
-        sio.output(0).produce(n);
 
         Ok(())
     }
