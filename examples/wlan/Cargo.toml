@@ -13,3 +13,4 @@ path = "src/bin/rx.rs"
 [dependencies]
 clap = { version = "3.1.18", features = ["derive"] }
 futuresdr = { path = "../..", features = ["soapy"] }
+futuredsp = { path = "../../futuredsp" }

@@ -13,6 +13,7 @@ use futuresdr::runtime::Runtime;
 
 use wlan::Delay;
 use wlan::MovingAverage;
+use wlan::SyncLong;
 use wlan::SyncShort;
 
 #[derive(Parser, Debug)]
@@ -55,11 +56,17 @@ fn main() -> Result<()> {
     fg.connect_stream(complex_avg, "out", sync_short, "in_abs")?;
     fg.connect_stream(divide_mag, "out", sync_short, "in_cor")?;
 
-    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync short"));
-    fg.connect_stream(sync_short, "out", tag_debug, "in")?;
+    let sync_long = fg.add_block(SyncLong::new());
+    fg.connect_stream(sync_short, "out", sync_long, "in")?;
+
+
+
+    // DEBUG
+    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync short"));
+    // fg.connect_stream(sync_short, "out", tag_debug, "in")?;
 
     let snk = fg.add_block(NullSink::<Complex32>::new());
-    fg.connect_stream(sync_short, "out", snk, "in")?;
+    fg.connect_stream(sync_long, "out", snk, "in")?;
 
     let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
     let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
