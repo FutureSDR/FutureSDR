@@ -15,15 +15,38 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+
+/// Computes an FFT
+///
+/// This block computes the FFT on `len` samples at a time, outputting `len` samples per FFT.
+///
+/// # Inputs
+///
+/// `in`: Input samples (Complex32)
+///
+/// # Outputs
+///
+/// `out`: FFT results (Complex32)
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Fft;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let fft = fg.add_block(Fft::new(1024).build());
+/// ```
 pub struct Fft {
+    len: usize,
     plan: Arc<dyn rustfft::Fft<f32>>,
-    scratch: [Complex<f32>; 2048 * 10],
+    scratch: Box<[Complex<f32>]>,
 }
 
 impl Fft {
-    pub fn new() -> Block {
+    pub fn new(len: usize) -> Block {
         let mut planner = FftPlanner::<f32>::new();
-        let plan = planner.plan_fft_forward(2048);
+        let plan = planner.plan_fft_forward(len);
 
         Block::new(
             BlockMetaBuilder::new("Fft").build(),
@@ -33,8 +56,9 @@ impl Fft {
                 .build(),
             MessageIoBuilder::<Fft>::new().build(),
             Fft {
+                len,
                 plan,
-                scratch: [Complex::new(0.0, 0.0); 2048 * 10],
+                scratch: vec![Complex::new(0.0, 0.0); len * 10].into_boxed_slice(),
             },
         )
     }
@@ -53,7 +77,7 @@ impl Kernel for Fft {
         let o = sio.output(0).slice::<Complex<f32>>();
 
         let m = cmp::min(i.len(), o.len());
-        let n = (m / 2048) * 2048;
+        let n = (m / self.len) * self.len;
 
         if sio.input(0).finished() {
             io.finished = true;
@@ -70,44 +94,5 @@ impl Kernel for Fft {
         sio.output(0).produce(n);
 
         Ok(())
-    }
-}
-
-/// Computes a FFT
-///
-/// This block computes the FFT on 2048 samples at a time, outputting 2048 samples per FFT.
-///
-/// # Inputs
-///
-/// `in`: Input samples
-///
-/// # Outputs
-///
-/// `out`: FFT results
-///
-/// # Usage
-/// ```
-/// use futuresdr::blocks::FftBuilder;
-/// use futuresdr::runtime::Flowgraph;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let fft = fg.add_block(FftBuilder::new().build());
-/// ```
-pub struct FftBuilder {}
-
-impl FftBuilder {
-    pub fn new() -> FftBuilder {
-        FftBuilder {}
-    }
-
-    pub fn build(self) -> Block {
-        Fft::new()
-    }
-}
-
-impl Default for FftBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

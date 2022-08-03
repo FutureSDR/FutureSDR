@@ -10,7 +10,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [fir](FirBuilder) | Generic FIR filter, resampler | ✅ |
-//! | [fft](FftBuilder) | Computes FFT | ✅ |
+//! | [fft](Fft) | Computes FFT | ✅ |
 //!
 //! ## Limiting blocks
 //! | Block| Usage | WebAssembly? |
@@ -70,7 +70,7 @@ mod fir;
 pub use fir::FirBuilder;
 
 mod fft;
-pub use fft::{Fft, FftBuilder};
+pub use fft::Fft;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod file_sink;
