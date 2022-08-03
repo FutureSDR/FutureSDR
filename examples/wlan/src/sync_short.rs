@@ -76,7 +76,7 @@ impl Kernel for SyncShort {
                 }
                 State::Found => {
                     if in_cor[i] > THRESHOLD {
-                        let f_offset = in_abs[i].arg() / 16.0;
+                        let f_offset = - in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
                         debug!("Frame Start {} (f_offset {})", self.consumed + i, f_offset);
                         sio.output(0)
@@ -89,7 +89,7 @@ impl Kernel for SyncShort {
                     if in_cor[i] > THRESHOLD {
                         // resync
                         if last_above_threshold && n_copied > MIN_GAP {
-                            let f_offset = in_abs[i].arg() / 16.0;
+                            let f_offset = - in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
                             debug!("Frame Start {} (f_offset {})", self.consumed + i, f_offset);
                             sio.output(0)
@@ -103,7 +103,7 @@ impl Kernel for SyncShort {
                         last_above_threshold = false;
                     }
 
-                    out[o] = in_sig[i] * Complex32::from_polar(1.0, -f_offset * n_copied as f32); // accum?
+                    out[o] = in_sig[i] * Complex32::from_polar(1.0, f_offset * n_copied as f32); // accum?
                     o += 1;
 
                     if n_copied + 1 == MAX_SAMPLES {

@@ -59,11 +59,9 @@ fn main() -> Result<()> {
     let sync_long = fg.add_block(SyncLong::new());
     fg.connect_stream(sync_short, "out", sync_long, "in")?;
 
-
-
     // DEBUG
-    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync short"));
-    // fg.connect_stream(sync_short, "out", tag_debug, "in")?;
+    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("sync long"));
+    fg.connect_stream(sync_long, "out", tag_debug, "in")?;
 
     let snk = fg.add_block(NullSink::<Complex32>::new());
     fg.connect_stream(sync_long, "out", snk, "in")?;

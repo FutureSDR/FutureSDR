@@ -1,5 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
+use futuresdr::futures::stream::iter;
 use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
@@ -20,7 +21,7 @@ const SEARCH_WINDOW: usize = 320;
 enum State {
     Broken,
     Sync(f32),
-    Copy(f32, f32),
+    Copy(usize, f32),
 }
 
 pub struct SyncLong {
@@ -61,11 +62,9 @@ impl SyncLong {
 
         self.cor_index = self.cor.iter().map(|x| x.norm_sqr()).enumerate().collect();
         self.cor_index.sort_by(|x, y| y.1.total_cmp(&x.1));
+        let index = std::cmp::max(self.cor_index[0].0, self.cor_index[1].0);
 
-        println!("long top matches {:?}", &self.cor_index[0..5]);
-
-
-        (320, 0.0)
+        (index + 63 + 16, - self.cor[index].arg() / 64.0)
     }
 }
 
@@ -84,7 +83,7 @@ impl Kernel for SyncLong {
         let mut m = std::cmp::min(input.len(), out.len());
 
         let tags = sio.input(0).tags();
-        println!("long tags {:?}", &tags);
+        // println!("long tags {:?}", &tags);
         if let Some((index, freq)) = tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
@@ -99,10 +98,14 @@ impl Kernel for SyncLong {
             _ => None,
         }) {
             if *index == 0 {
-                debug!("new frame index {}  freq {}", index, freq);
+                debug_assert!(!matches!(self.state, State::Sync(_)));
                 self.state = State::Sync(*freq);
             } else {
                 m = std::cmp::min(m, *index);
+                if m < 80 {
+                    sio.input(0).consume(m);
+                    return Ok(());
+                }
             }
         }
 
@@ -115,20 +118,32 @@ impl Kernel for SyncLong {
             State::Sync(freq_offset_short) => {
                 if m >= SEARCH_WINDOW + 63 {
                     let (offset, freq_offset) = self.sync(&input[0..SEARCH_WINDOW + 63]);
+                    debug!("long start: offset {}   freq {}", offset, freq_offset);
+
                     sio.input(0).consume(offset);
+                    sio.output(0).add_tag(
+                        0,
+                        Tag::NamedF32("wifi_start".to_string(), freq_offset_short + freq_offset),
+                    );
                     io.call_again = true;
 
-                    let freq_offset = 123.0;
-                    self.state = State::Copy(freq_offset_short, freq_offset);
+                    self.state = State::Copy(0, freq_offset);
                 }
             }
-            State::Copy(freq_offset_from_short, freq_offset) => {
-                sio.input(0).consume(m);
+            State::Copy(n_copied, freq_offset) => {
+                let syms = m / 80;
+                for i in 0..syms {
+                    for k in 0..64 {
+                        out[i * 64 + k] = input[i * 80 + k] * Complex32::from_polar(1.0, (n_copied + i * 80 + k) as f32 * freq_offset);
+                    }
+                }
+                sio.input(0).consume(syms * 80);
+                sio.output(0).produce(syms * 64);
+                self.state = State::Copy(n_copied + syms * 80, freq_offset);
             }
-
         }
 
-        if sio.input(0).finished() {
+        if sio.input(0).finished() && input.len() - m < 80 {
             io.finished = true;
         }
 
