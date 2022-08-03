@@ -64,22 +64,7 @@ impl Mocker {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
-        let mut io = WorkIo {
-            call_again: false,
-            finished: false,
-            block_on: None,
-        };
-
-        crate::async_io::block_on(async move {
-            loop {
-                self.block.work(&mut io).await.unwrap();
-                if !io.call_again {
-                    break;
-                } else {
-                    io.call_again = false;
-                }
-            }
-        });
+        crate::async_io::block_on(self.run_async());
     }
 
     pub async fn run_async(&mut self) {
@@ -91,6 +76,7 @@ impl Mocker {
 
         loop {
             self.block.work(&mut io).await.unwrap();
+            self.block.commit();
             if !io.call_again {
                 break;
             } else {
