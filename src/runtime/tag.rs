@@ -7,6 +7,7 @@ pub enum Tag {
     Id(u64),
     String(String),
     Data(Pmt),
+    NamedF32(String, f32),
 }
 
 #[derive(Clone, Debug)]
