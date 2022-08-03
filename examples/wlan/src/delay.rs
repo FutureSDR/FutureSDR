@@ -1,23 +1,20 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-
 use futuresdr::runtime::WorkIo;
-#[derive(PartialEq, Eq)]
+
+#[derive(Debug)]
 enum State {
-    Pad(u64),
+    Pad(usize),
     Copy,
-    Skip(u64),
+    Skip(usize),
 }
 
 pub struct Delay<T: Send + 'static> {
@@ -26,12 +23,12 @@ pub struct Delay<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> Delay<T> {
-    pub fn new(n: i64) -> Block {
+    pub fn new(n: isize) -> Block {
 
         let state = if n > 0 {
-            State::Pad(n);
+            State::Pad(n.try_into().unwrap())
         } else {
-            State::Skip(-n as u64);
+            State::Skip((-n).try_into().unwrap())
         };
 
         Block::new(
@@ -43,6 +40,7 @@ impl<T: Send + 'static> Delay<T> {
             MessageIoBuilder::new().build(),
             Self {
                 state,
+                _type: std::marker::PhantomData,
             },
         )
     }
@@ -79,9 +77,9 @@ impl<T: Send + 'static> Kernel for Delay<T> {
             },
             State::Skip(n) => {
                 let m = std::cmp::min(i.len(), n);
-                sio.input(0).consume(n);
+                sio.input(0).consume(m);
 
-                if m == n {
+                if n == m {
                     self.state = State::Copy;
                     io.call_again = true;
                 } else {
@@ -93,11 +91,16 @@ impl<T: Send + 'static> Kernel for Delay<T> {
                 }
             },
             State::Copy => {
-                let m = cmp::min(i.len(), o.len());
+                let m = std::cmp::min(i.len(), o.len());
                 if m > 0 {
                     unsafe {
-                        ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
+                        std::ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
                     }
+                }
+                sio.input(0).consume(m);
+                sio.output(0).produce(m);
+                if sio.input(0).finished() && m == i.len() {
+                    io.finished = true;
                 }
             }
         }
