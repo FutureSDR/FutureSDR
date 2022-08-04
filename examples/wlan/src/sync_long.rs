@@ -62,9 +62,9 @@ impl SyncLong {
 
         self.cor_index = self.cor.iter().map(|x| x.norm_sqr()).enumerate().collect();
         self.cor_index.sort_by(|x, y| y.1.total_cmp(&x.1));
-        let index = std::cmp::max(self.cor_index[0].0, self.cor_index[1].0);
+        let index = std::cmp::min(self.cor_index[0].0, self.cor_index[1].0);
 
-        (index + 63 + 16, - self.cor[index].arg() / 64.0)
+        (index, -self.cor[index].arg() / 64.0)
     }
 }
 
@@ -120,11 +120,13 @@ impl Kernel for SyncLong {
                     let (offset, freq_offset) = self.sync(&input[0..SEARCH_WINDOW + 63]);
                     // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
-                    sio.input(0).consume(offset);
+                    out[0..128].copy_from_slice(&input[offset..offset+128]);
                     sio.output(0).add_tag(
                         0,
                         Tag::NamedF32("wifi_start".to_string(), freq_offset_short + freq_offset),
                     );
+                    sio.input(0).consume(offset + 128);
+                    sio.output(0).produce(128);
                     io.call_again = true;
 
                     self.state = State::Copy(0, freq_offset);
@@ -134,7 +136,7 @@ impl Kernel for SyncLong {
                 let syms = m / 80;
                 for i in 0..syms {
                     for k in 0..64 {
-                        out[i * 64 + k] = input[i * 80 + k] * Complex32::from_polar(1.0, (n_copied + i * 80 + k) as f32 * freq_offset);
+                        out[i * 64 + k] = input[i * 80 + 16 + k] * Complex32::from_polar(1.0, (n_copied + i * 80 + k) as f32 * freq_offset);
                     }
                 }
                 sio.input(0).consume(syms * 80);
