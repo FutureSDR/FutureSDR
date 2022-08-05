@@ -15,6 +15,8 @@ use futuresdr::runtime::StreamInput;
 use futuresdr::runtime::StreamOutput;
 
 use wlan::Delay;
+use wlan::FftShift;
+use wlan::FrameEqualizer;
 use wlan::MovingAverage;
 use wlan::SyncLong;
 use wlan::SyncShort;
@@ -67,17 +69,23 @@ fn main() -> Result<()> {
     let fft = fg.add_block(fft);
     fg.connect_stream(sync_long, "out", fft, "in")?;
 
+    let fft_shift = fg.add_block(FftShift::<Complex32>::new());
+    fg.connect_stream(fft, "out", fft_shift, "in")?;
+
+    let frame_equalizer = fg.add_block(FrameEqualizer::new());
+    fg.connect_stream(fft, "out", frame_equalizer, "in")?;
+
     // Debug
-    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("fft out"));
+    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("equalizer out"));
     fg.connect_stream(fft, "out", tag_debug, "in")?;
 
-    // let snk = fg.add_block(NullSink::<Complex32>::new());
-    // fg.connect_stream(fft, "out", snk, "in")?;
+    let snk = fg.add_block(NullSink::<u8>::new());
+    fg.connect_stream(frame_equalizer, "out", snk, "in")?;
 
     // let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
-    // let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
+    let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
     // fg.connect_stream(divide_mag, "out", float_to_complex, "in")?;
-    // fg.connect_stream(float_to_complex, "out", file_snk, "in")?;
+    fg.connect_stream(fft_shift, "out", file_snk, "in")?;
 
     let _ = Runtime::new().run(fg)?;
     Ok(())

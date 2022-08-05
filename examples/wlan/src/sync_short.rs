@@ -103,7 +103,7 @@ impl Kernel for SyncShort {
                         last_above_threshold = false;
                     }
 
-                    out[o] = in_sig[i] * Complex32::from_polar(1.0, f_offset * n_copied as f32); // accum?
+                    out[o] = in_sig[i];// * Complex32::from_polar(1.0, f_offset * n_copied as f32); // accum?
                     o += 1;
 
                     if n_copied + 1 == MAX_SAMPLES {
