@@ -154,6 +154,10 @@ impl FrameParam {
         self.mcs.modulation()
     }
 
+    pub fn n_data_bits(&self) -> usize {
+        self.n_symbols() & self.mcs().dbps()
+    }
+
     pub fn n_symbols(&self) -> usize {
         let bits = 16 + 8 * self.bytes + 6;
 

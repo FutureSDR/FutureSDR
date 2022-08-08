@@ -11,6 +11,7 @@ const MAX_ENCODED_BITS: usize = (16 + 8 * MAX_PSDU_SIZE + 6) * 2 + 288;
 pub struct Decoder {
     frame_param: FrameParam,
     n_traceback: usize,
+    store_pos: usize,
 
     metric0: [u8; 64],
     metric1: [u8; 64],
@@ -34,6 +35,7 @@ impl Decoder {
                 bytes: 0,
             },
             n_traceback: 0,
+            store_pos: 0,
 
             metric0: [0; 64],
             metric1: [0; 64],
@@ -78,10 +80,10 @@ impl Decoder {
         }
     }
 
-    pub fn depuncture<'a>(&'a mut self, in_bits: &'a [u8]) -> &'a [u8] {
+    pub fn depuncture(&mut self, in_bits: &[u8]) {
 
         if self.n_traceback == 5 {
-            in_bits 
+            self.depunctured[0..in_bits.len()].copy_from_slice(in_bits); 
         } else {
             let pattern = self.frame_param.mcs.depuncture_pattern();
             let n_cbps = self.frame_param.mcs().cbps();
@@ -104,9 +106,59 @@ impl Decoder {
                     }
                 }
             }
-
-            &self.depunctured
         }
+    }
+
+
+    fn viterbi_butterfly2_generic(&mut self, input: u8) {
+        todo!()
+    }
+
+    fn viterbi_get_output_generic(&mut self) -> u8 {
+        let mut mm0 = self.metric0;
+        let mut pp0 = self.path0;
+
+        self.store_pos = (self.store_pos + 1) % self.n_traceback;
+
+        for i in 0..4 {
+            for j in 0..16 {
+                self.mmresult[(i * 16) + j] = mm0[(i * 16) + j];
+                self.ppresult[self.store_pos][(i * 16) + j] = pp0[(i * 16) + j];
+            }
+        }
+
+        // Find out the best final state
+        let mut beststate = 0;
+        let mut bestmetric = self.mmresult[beststate];
+        let mut minmetric = self.mmresult[beststate];
+
+        for i in 1..64 {
+            if self.mmresult[i] > bestmetric {
+                bestmetric = self.mmresult[i];
+                beststate = i;
+            }
+            if self.mmresult[i] < minmetric {
+                minmetric = self.mmresult[i];
+            }
+        }
+
+        let mut pos = self.store_pos;
+        for _ in 0..(self.n_traceback - 1) {
+            // Obtain the state from the output bits
+            // by clocking in the output bits in reverse order.
+            // The state has only 6 bits
+            beststate = (self.ppresult[pos][beststate] >> 2) as usize;
+            pos = (pos - 1 + self.n_traceback) % self.n_traceback;
+        }
+
+        for i in 0..4 {
+            for j in 0..16 {
+                pp0[(i * 16) + j] = 0;
+                mm0[(i * 16) + j] = mm0[(i * 16) + j] - minmetric;
+            }
+        }
+
+        self.ppresult[pos][beststate]
     }
 
     pub fn decode(&mut self, mcs: Mcs, in_bits: &[u8]) -> &[u8] {
@@ -115,7 +167,34 @@ impl Decoder {
             bytes: mcs.bytes_from_symbols(in_bits.len()),
         });
 
-        todo!()
+        self.depuncture(in_bits);
+
+        let mut in_count = 0;
+        let mut out_count = 0;
+        let mut n_decoded = 0;
+
+        while n_decoded < self.frame_param.n_data_bits() {
+
+            if (in_count % 4) == 0 {
+                self.viterbi_butterfly2_generic(self.depunctured[in_count & !0b11]);
+
+                if (in_count > 0) && (in_count % 16) == 8 { // 8 or 11
+                    let c = self.viterbi_get_output_generic();
+
+                    if out_count >= self.n_traceback {
+
+                        for i in 0..8 {
+                            self.decoded[(out_count - self.n_traceback) * 8 + i] = (c >> (7 - i)) & 0x1;
+                            n_decoded += 1;
+                        }
+                    }
+                    out_count += 1;
+                }
+            }
+            in_count += 1;
+        }
+
+        &self.decoded
     }
 }
 
