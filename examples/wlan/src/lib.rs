@@ -85,26 +85,6 @@ impl Mcs {
         }
     }
 
-    pub fn bytes_from_symbols(&self, l: usize) -> usize {
-        let coded_bits = l * self.modulation().bps();
-        let bits = match self {
-            Mcs::Bpsk_1_2 | Mcs::Qpsk_1_2 | Mcs::Qam16_1_2 => {
-                debug_assert_eq!(coded_bits % 2, 0);
-                coded_bits / 2
-            }
-            Mcs::Bpsk_3_4 | Mcs::Qpsk_3_4 | Mcs::Qam16_3_4 | Mcs::Qam64_3_4 => {
-                debug_assert_eq!(coded_bits * 3 % 4, 0);
-                coded_bits * 3 / 4
-            }
-            Mcs::Qam64_2_3 => {
-                debug_assert_eq!(coded_bits * 2 % 3, 0);
-                coded_bits * 2 / 3
-            }
-        };
-        debug_assert_eq!(bits % 8, 0);
-        bits / 8
-    }
-
     // coded bits per symbol
     pub fn cbps(&self) -> usize {
         match self {
@@ -134,7 +114,7 @@ impl Mcs {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FrameParam {
     mcs: Mcs,
     bytes: usize,

@@ -81,9 +81,8 @@ impl Decoder {
     }
 
     pub fn depuncture(&mut self, in_bits: &[u8]) {
-
         if self.n_traceback == 5 {
-            self.depunctured[0..in_bits.len()].copy_from_slice(in_bits); 
+            self.depunctured[0..in_bits.len()].copy_from_slice(in_bits);
         } else {
             let pattern = self.frame_param.mcs.depuncture_pattern();
             let n_cbps = self.frame_param.mcs().cbps();
@@ -109,9 +108,328 @@ impl Decoder {
         }
     }
 
+    fn viterbi_butterfly2_generic(&mut self, symbols: &[u8; 4]) {
+        let mut metric0 = self.metric0;
+        let mut path0 = self.path0;
+        let mut metric1 = self.metric1;
+        let mut path1 = self.path1;
 
-    fn viterbi_butterfly2_generic(&mut self, input: u8) {
-        todo!()
+        let mut m0 = [0u8; 16];
+        let mut m1 = [0u8; 16];
+        let mut m2 = [0u8; 16];
+        let mut m3 = [0u8; 16];
+        let mut decision0 = [0u8; 16];
+        let mut decision1 = [0u8; 16];
+        let mut survivor0 = [0u8; 16];
+        let mut survivor1 = [0u8; 16];
+        let mut metsv = [0u8; 16];
+        let mut metsvm = [0u8; 16];
+        let mut shift0 = [0u8; 16];
+        let mut shift1 = [0u8; 16];
+        let mut tmp0 = [0u8; 16];
+        let mut tmp1 = [0u8; 16];
+        let mut sym0v = [0u8; 16];
+        let mut sym1v = [0u8; 16];
+        let mut simd_epi16 = 0u16;
+
+        // for (j = 0; j < 16; j++) {
+        //     sym0v[j] = symbols[0];
+        //     sym1v[j] = symbols[1];
+        // }
+        sym0v[0..16].fill(symbols[0]);
+        sym1v[0..16].fill(symbols[0]);
+
+        // for (i = 0; i < 2; i++) {
+        for i in 0..2 {
+            // if (symbols[0] == 2) {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = d_branchtab27_generic[1].c[(i * 16) + j] ^ sym1v[j];
+            //         metsv[j] = 1 - metsvm[j];
+            //     }
+            // } else if (symbols[1] == 2) {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = d_branchtab27_generic[0].c[(i * 16) + j] ^ sym0v[j];
+            //         metsv[j] = 1 - metsvm[j];
+            //     }
+            // } else {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = (d_branchtab27_generic[0].c[(i * 16) + j] ^ sym0v[j]) +
+            //                     (d_branchtab27_generic[1].c[(i * 16) + j] ^ sym1v[j]);
+            //         metsv[j] = 2 - metsvm[j];
+            //     }
+            // }
+            if symbols[0] == 2 {
+                for j in 0..16 {
+                    metsvm[j] = self.branchtab27[1][(i * 16) + j] ^ sym1v[j];
+                    metsv[j] = 1 - metsvm[j];
+                }
+            } else if symbols[1] == 2 {
+                for j in 0..16 {
+                    metsvm[j] = self.branchtab27[0][(i * 16) + j] ^ sym0v[j];
+                    metsv[j] = 1 - metsvm[j];
+                }
+            } else {
+                for j in 0..16 {
+                    metsvm[j] = (self.branchtab27[0][(i * 16) + j] ^ sym0v[j])
+                        + (self.branchtab27[1][(i * 16) + j] ^ sym1v[j]);
+                    metsv[j] = 2 - metsvm[j];
+                }
+            }
+            // for (j = 0; j < 16; j++) {
+            //     m0[j] = metric0[(i * 16) + j] + metsv[j];
+            //     m1[j] = metric0[((i + 2) * 16) + j] + metsvm[j];
+            //     m2[j] = metric0[(i * 16) + j] + metsvm[j];
+            //     m3[j] = metric0[((i + 2) * 16) + j] + metsv[j];
+            // }
+            for j in 0..16 {
+                m0[j] = metric0[(i * 16) + j] + metsv[j];
+                m1[j] = metric0[((i + 2) * 16) + j] + metsvm[j];
+                m2[j] = metric0[(i * 16) + j] + metsvm[j];
+                m3[j] = metric0[((i + 2) * 16) + j] + metsv[j];
+            }
+
+            // for (j = 0; j < 16; j++) {
+            //     decision0[j] = ((m0[j] - m1[j]) > 0) ? 0xff : 0x0;
+            //     decision1[j] = ((m2[j] - m3[j]) > 0) ? 0xff : 0x0;
+            //     survivor0[j] = (decision0[j] & m0[j]) | ((~decision0[j]) & m1[j]);
+            //     survivor1[j] = (decision1[j] & m2[j]) | ((~decision1[j]) & m3[j]);
+            // }
+            for j in 0..16 {
+                decision0[j] = if (m0[j] - m1[j]) > 0 { 0xff } else { 0x0 };
+                decision1[j] = if (m2[j] - m3[j]) > 0 { 0xff } else { 0x0 };
+                survivor0[j] = (decision0[j] & m0[j]) | ((!decision0[j]) & m1[j]);
+                survivor1[j] = (decision1[j] & m2[j]) | ((!decision1[j]) & m3[j]);
+            }
+            // for (j = 0; j < 16; j += 2) {
+            //     simd_epi16 = path0[(i * 16) + j];
+            //     simd_epi16 |= path0[(i * 16) + (j + 1)] << 8;
+            //     simd_epi16 <<= 1;
+            //     shift0[j] = simd_epi16;
+            //     shift0[j + 1] = simd_epi16 >> 8;
+
+            //     simd_epi16 = path0[((i + 2) * 16) + j];
+            //     simd_epi16 |= path0[((i + 2) * 16) + (j + 1)] << 8;
+            //     simd_epi16 <<= 1;
+            //     shift1[j] = simd_epi16;
+            //     shift1[j + 1] = simd_epi16 >> 8;
+            // }
+            for j in (0..16).step_by(2) {
+                simd_epi16 = path0[(i * 16) + j] as u16;
+                simd_epi16 |= (path0[(i * 16) + (j + 1)] as u16) << 8;
+                simd_epi16 <<= 1;
+                shift0[j] = simd_epi16 as u8;
+                shift0[j + 1] = (simd_epi16 >> 8) as u8;
+
+                simd_epi16 = path0[((i + 2) * 16) + j] as u16;
+                simd_epi16 |= (path0[((i + 2) * 16) + (j + 1)] as u16) << 8;
+                simd_epi16 <<= 1;
+                shift1[j] = simd_epi16 as u8;
+                shift1[j + 1] = (simd_epi16 >> 8) as u8;
+            }
+
+            // for (j = 0; j < 16; j++) {
+            //     shift1[j] = shift1[j] + 1;
+            // }
+            for j in 0..16 {
+                shift1[j] = shift1[j] + 1;
+            }
+            // for (j = 0, k = 0; j < 16; j += 2, k++) {
+            //     metric1[(2 * i * 16) + j] = survivor0[k];
+            //     metric1[(2 * i * 16) + (j + 1)] = survivor1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(0..) {
+                metric1[(2 * i * 16) + j] = survivor0[k];
+                metric1[(2 * i * 16) + (j + 1)] = survivor1[k];
+            }
+
+            // for (j = 0; j < 16; j++) {
+            //     tmp0[j] = (decision0[j] & shift0[j]) | ((~decision0[j]) & shift1[j]);
+            // }
+            for j in 0..16 {
+                tmp0[j] = (decision0[j] & shift0[j]) | ((!decision0[j]) & shift1[j]);
+            }
+            // for (j = 0, k = 8; j < 16; j += 2, k++) {
+            //     metric1[((2 * i + 1) * 16) + j] = survivor0[k];
+            //     metric1[((2 * i + 1) * 16) + (j + 1)] = survivor1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(8..) {
+                metric1[((2 * i + 1) * 16) + j] = survivor0[k];
+                metric1[((2 * i + 1) * 16) + (j + 1)] = survivor1[k];
+            }
+            // for (j = 0; j < 16; j++) {
+            //     tmp1[j] = (decision1[j] & shift0[j]) | ((~decision1[j]) & shift1[j]);
+            // }
+            for j in 0..16 {
+                tmp1[j] = (decision1[j] & shift0[j]) | ((!decision1[j]) & shift1[j]);
+            }
+
+            // for (j = 0, k = 0; j < 16; j += 2, k++) {
+            //     path1[(2 * i * 16) + j] = tmp0[k];
+            //     path1[(2 * i * 16) + (j + 1)] = tmp1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(0..) {
+                path1[(2 * i * 16) + j] = tmp0[k];
+                path1[(2 * i * 16) + (j + 1)] = tmp1[k];
+            }
+            // for (j = 0, k = 8; j < 16; j += 2, k++) {
+            //     path1[((2 * i + 1) * 16) + j] = tmp0[k];
+            //     path1[((2 * i + 1) * 16) + (j + 1)] = tmp1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(8..) {
+                path1[((2 * i + 1) * 16) + j] = tmp0[k];
+                path1[((2 * i + 1) * 16) + (j + 1)] = tmp1[k];
+            }
+        }
+
+        metric0 = self.metric1;
+        path0 = self.path1;
+        metric1 = self.metric0;
+        path1 = self.path1;
+
+        // for (j = 0; j < 16; j++) {
+        //     sym0v[j] = symbols[2];
+        //     sym1v[j] = symbols[3];
+        // }
+        sym0v[0..16].fill(symbols[2]);
+        sym1v[0..16].fill(symbols[3]);
+
+        // for (i = 0; i < 2; i++) {
+        for i in 0..2 {
+            // if (symbols[2] == 2) {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = d_branchtab27_generic[1].c[(i * 16) + j] ^ sym1v[j];
+            //         metsv[j] = 1 - metsvm[j];
+            //     }
+            // } else if (symbols[3] == 2) {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = d_branchtab27_generic[0].c[(i * 16) + j] ^ sym0v[j];
+            //         metsv[j] = 1 - metsvm[j];
+            //     }
+            // } else {
+            //     for (j = 0; j < 16; j++) {
+            //         metsvm[j] = (d_branchtab27_generic[0].c[(i * 16) + j] ^ sym0v[j]) +
+            //                     (d_branchtab27_generic[1].c[(i * 16) + j] ^ sym1v[j]);
+            //         metsv[j] = 2 - metsvm[j];
+            //     }
+            // }
+            if symbols[2] == 2 {
+                for j in 0..16 {
+                    metsvm[j] = self.branchtab27[1][(i * 16) + j] ^ sym1v[j];
+                    metsv[j] = 1 - metsvm[j];
+                }
+            } else if symbols[3] == 2 {
+                for j in 0..16 {
+                    metsvm[j] = self.branchtab27[0][(i * 16) + j] ^ sym0v[j];
+                    metsv[j] = 1 - metsvm[j];
+                }
+            } else {
+                for j in 0..16 {
+                    metsvm[j] = (self.branchtab27[0][(i * 16) + j] ^ sym0v[j]) +
+                        (self.branchtab27[1][(i * 16) + j] ^ sym1v[j]);
+                    metsv[j] = 2 - metsvm[j];
+                }
+            }
+            // for (j = 0; j < 16; j++) {
+            //     m0[j] = metric0[(i * 16) + j] + metsv[j];
+            //     m1[j] = metric0[((i + 2) * 16) + j] + metsvm[j];
+            //     m2[j] = metric0[(i * 16) + j] + metsvm[j];
+            //     m3[j] = metric0[((i + 2) * 16) + j] + metsv[j];
+            // }
+            for j in 0..16 {
+                m0[j] = metric0[(i * 16) + j] + metsv[j];
+                m1[j] = metric0[((i + 2) * 16) + j] + metsvm[j];
+                m2[j] = metric0[(i * 16) + j] + metsvm[j];
+                m3[j] = metric0[((i + 2) * 16) + j] + metsv[j];
+            }
+            // for (j = 0; j < 16; j++) {
+            //     decision0[j] = ((m0[j] - m1[j]) > 0) ? 0xff : 0x0;
+            //     decision1[j] = ((m2[j] - m3[j]) > 0) ? 0xff : 0x0;
+            //     survivor0[j] = (decision0[j] & m0[j]) | ((~decision0[j]) & m1[j]);
+            //     survivor1[j] = (decision1[j] & m2[j]) | ((~decision1[j]) & m3[j]);
+            // }
+            for j in 0..16 {
+                decision0[j] = if (m0[j] - m1[j]) > 0 { 0xff } else { 0x0 };
+                decision1[j] = if (m2[j] - m3[j]) > 0 { 0xff } else { 0x0 };
+                survivor0[j] = (decision0[j] & m0[j]) | ((!decision0[j]) & m1[j]);
+                survivor1[j] = (decision1[j] & m2[j]) | ((!decision1[j]) & m3[j]);
+            }
+            // for (j = 0; j < 16; j += 2) {
+            //     simd_epi16 = path0[(i * 16) + j];
+            //     simd_epi16 |= path0[(i * 16) + (j + 1)] << 8;
+            //     simd_epi16 <<= 1;
+            //     shift0[j] = simd_epi16;
+            //     shift0[j + 1] = simd_epi16 >> 8;
+
+            //     simd_epi16 = path0[((i + 2) * 16) + j];
+            //     simd_epi16 |= path0[((i + 2) * 16) + (j + 1)] << 8;
+            //     simd_epi16 <<= 1;
+            //     shift1[j] = simd_epi16;
+            //     shift1[j + 1] = simd_epi16 >> 8;
+            // }
+            for j in (0..16).step_by(2) {
+                simd_epi16 = path0[(i * 16) + j] as u16;
+                simd_epi16 |= (path0[(i * 16) + (j + 1)] as u16) << 8;
+                simd_epi16 <<= 1;
+                shift0[j] = simd_epi16 as u8;
+                shift0[j + 1] = (simd_epi16 >> 8) as u8;
+
+                simd_epi16 = path0[((i + 2) * 16) + j] as u16;
+                simd_epi16 |= (path0[((i + 2) * 16) + (j + 1)] as u16) << 8;
+                simd_epi16 <<= 1;
+                shift1[j] = simd_epi16 as u8;
+                shift1[j + 1] = (simd_epi16 >> 8) as u8;
+            }
+            // for (j = 0; j < 16; j++) {
+            //     shift1[j] = shift1[j] + 1;
+            // }
+            for j in 0..16 {
+                shift1[j] = shift1[j] + 1;
+            }
+            // for (j = 0, k = 0; j < 16; j += 2, k++) {
+            //     metric1[(2 * i * 16) + j] = survivor0[k];
+            //     metric1[(2 * i * 16) + (j + 1)] = survivor1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(0..) {
+                metric1[(2 * i * 16) + j] = survivor0[k];
+                metric1[(2 * i * 16) + (j + 1)] = survivor1[k];
+            }
+            // for (j = 0; j < 16; j++) {
+            //     tmp0[j] = (decision0[j] & shift0[j]) | ((~decision0[j]) & shift1[j]);
+            // }
+            for j in 0..16 {
+                tmp0[j] = (decision0[j] & shift0[j]) | ((!decision0[j]) & shift1[j]);
+            }
+            // for (j = 0, k = 8; j < 16; j += 2, k++) {
+            //     metric1[((2 * i + 1) * 16) + j] = survivor0[k];
+            //     metric1[((2 * i + 1) * 16) + (j + 1)] = survivor1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(8..) {
+                metric1[((2 * i + 1) * 16) + j] = survivor0[k];
+                metric1[((2 * i + 1) * 16) + (j + 1)] = survivor1[k];
+            }
+            // for (j = 0; j < 16; j++) {
+            //     tmp1[j] = (decision1[j] & shift0[j]) | ((~decision1[j]) & shift1[j]);
+            // }
+            for j in 0..16 {
+                tmp1[j] = (decision1[j] & shift0[j]) | ((!decision1[j]) & shift1[j]);
+            }
+            // for (j = 0, k = 0; j < 16; j += 2, k++) {
+            //     path1[(2 * i * 16) + j] = tmp0[k];
+            //     path1[(2 * i * 16) + (j + 1)] = tmp1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(0..) {
+                path1[(2 * i * 16) + j] = tmp0[k];
+                path1[(2 * i * 16) + (j + 1)] = tmp1[k];
+            }
+            // for (j = 0, k = 8; j < 16; j += 2, k++) {
+            //     path1[((2 * i + 1) * 16) + j] = tmp0[k];
+            //     path1[((2 * i + 1) * 16) + (j + 1)] = tmp1[k];
+            // }
+            for (j, k) in (0..16).step_by(2).zip(8..) {
+                path1[((2 * i + 1) * 16) + j] = tmp0[k];
+                path1[((2 * i + 1) * 16) + (j + 1)] = tmp1[k];
+            }
+        }
     }
 
     fn viterbi_get_output_generic(&mut self) -> u8 {
@@ -161,11 +479,8 @@ impl Decoder {
         self.ppresult[pos][beststate]
     }
 
-    pub fn decode(&mut self, mcs: Mcs, in_bits: &[u8]) -> &[u8] {
-        self.reset(FrameParam {
-            mcs,
-            bytes: mcs.bytes_from_symbols(in_bits.len()),
-        });
+    pub fn decode(&mut self, frame: FrameParam, in_bits: &[u8]) -> &[u8] {
+        self.reset(frame);
 
         self.depuncture(in_bits);
 
@@ -174,17 +489,20 @@ impl Decoder {
         let mut n_decoded = 0;
 
         while n_decoded < self.frame_param.n_data_bits() {
-
             if (in_count % 4) == 0 {
-                self.viterbi_butterfly2_generic(self.depunctured[in_count & !0b11]);
+                let index = in_count & !0b11;
+                self.viterbi_butterfly2_generic(
+                    &self.depunctured[index..index + 4].try_into().unwrap(),
+                );
 
-                if (in_count > 0) && (in_count % 16) == 8 { // 8 or 11
+                if (in_count > 0) && (in_count % 16) == 8 {
+                    // 8 or 11
                     let c = self.viterbi_get_output_generic();
 
                     if out_count >= self.n_traceback {
-
                         for i in 0..8 {
-                            self.decoded[(out_count - self.n_traceback) * 8 + i] = (c >> (7 - i)) & 0x1;
+                            self.decoded[(out_count - self.n_traceback) * 8 + i] =
+                                (c >> (7 - i)) & 0x1;
                             n_decoded += 1;
                         }
                     }

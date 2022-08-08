@@ -1,4 +1,5 @@
 use crate::FrameParam;
+use crate::Decoder;
 use crate::Mcs;
 use crate::LONG;
 use crate::POLARITY;
@@ -86,6 +87,7 @@ pub struct FrameEqualizer {
     sym_in: [Complex32; 64],
     sym_out: [Complex32; 48],
     bits_out: [u8; 48],
+    decoder: Decoder,
 }
 
 impl FrameEqualizer {
@@ -103,21 +105,71 @@ impl FrameEqualizer {
                 sym_in: [Complex32::new(0.0, 0.0); 64],
                 sym_out: [Complex32::new(0.0, 0.0); 48],
                 bits_out: [0; 48],
+                decoder: Decoder::new(),
             },
         )
     }
 
-    fn decode_signal_field(bits: &[u8; 48]) -> Option<FrameParam> {
+    fn decode_signal_field(&mut self) -> Option<FrameParam> {
+        let bits = self.bits_out;
 
         let mut deinterleaved = [0u8; 48];
         for i in 0..48 {
             deinterleaved[i] = bits[INTERLEAVER_PATTERN[i]];
         }
 
+        let decoded_bits = self.decoder.decode(FrameParam{mcs: Mcs::Bpsk_1_2, bytes: 0}, &deinterleaved);
 
+        let mut r = 0;
+        let mut bytes = 0;
+        let mut parity = false;
+        for i in 0..17 {
+            parity ^= decoded_bits[i] > 0;
 
+            if (i < 4) && (decoded_bits[i] > 0) {
+                r |= 1 << i;
+            }
 
-        None
+            if (decoded_bits[i] > 0) && (i > 4) && (i < 17) {
+                bytes |= 1 << (i - 5);
+            }
+        }
+
+        if parity as u8 != decoded_bits[17] {
+            debug!("signal wrong parity");
+            return None;
+        }
+
+        match r {
+            11 => {
+                Some(FrameParam{ mcs: Mcs::Bpsk_1_2, bytes})
+            },
+            15 => {
+                Some(FrameParam{ mcs: Mcs::Bpsk_3_4, bytes})
+            },
+            10 => {
+                Some(FrameParam{ mcs: Mcs::Qpsk_1_2, bytes})
+            },
+            14 => {
+                Some(FrameParam{ mcs: Mcs::Qpsk_3_4, bytes})
+            },
+            9 => {
+                Some(FrameParam{ mcs: Mcs::Qam16_1_2, bytes})
+            },
+            13 => {
+                Some(FrameParam{ mcs: Mcs::Qam16_3_4, bytes})
+            },
+            8 => {
+                Some(FrameParam{ mcs: Mcs::Qam64_2_3, bytes})
+            },
+            12 => {
+                Some(FrameParam{ mcs: Mcs::Qam64_3_4, bytes})
+            },
+            _ => {
+                debug!("signal: wrong encoding");
+                None
+            },
+        }
     }
 }
 
@@ -195,10 +247,13 @@ impl Kernel for FrameEqualizer {
                         .equalize(&self.sym_in, &mut self.sym_out, &mut self.bits_out, Modulation::Bpsk);
                     info!("{:?}", &self.bits_out);
                     i += 1;
-                    if let Some(frame) = Self::decode_signal_field(&self.bits_out) {
+                    if let Some(frame) = self.decode_signal_field() {
+                        info!("signal field decoded {:?}", &frame);
+                        
                         sio.output(0).add_tag(o * 48, Tag::Id(123));
                         self.state = State::Copy(frame.n_symbols(), frame.modulation());
                     } else {
+                        info!("signal field could not be decoded");
                         self.state = State::Skip;
                     }
                 }
