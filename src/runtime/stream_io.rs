@@ -166,6 +166,13 @@ impl StreamOutput {
         });
     }
 
+    pub fn add_tag_abs(&mut self, index: usize, tag: Tag) {
+        self.tags.push(ItemTag {
+            index,
+            tag,
+        });
+    }
+
     pub fn add_reader(
         &mut self,
         reader_inbox: Sender<AsyncMessage>,
