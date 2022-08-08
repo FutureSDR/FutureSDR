@@ -73,6 +73,7 @@ anyhow = "1.0"
 async-trait = "0.1.52"
 config = "0.13.1"
 dirs = "4.0"
+dyn-clone = "1.0.9"
 futures = "0.3.18"
 futures-lite = "1.10.0"
 futuredsp = { path = "futuredsp", version = "0.0.4" }
