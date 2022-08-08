@@ -1,8 +1,9 @@
+use futuresdr::log::info;
+
 use crate::FrameParam;
 use crate::Mcs;
 
 const TRACEBACK_MAX: usize = 24;
-
 const MAX_PAYLOAD_SIZE: usize = 1500;
 const MAX_PSDU_SIZE: usize = MAX_PAYLOAD_SIZE + 28; // MAC, CRC
 const MAX_SYM: usize = ((16 + 8 * MAX_PSDU_SIZE + 6) / 24) + 1;
@@ -63,7 +64,10 @@ impl Decoder {
             self.branchtab27[0][i] = PARTAB[(2 * i) & polys[0]];
             self.branchtab27[1][i] = PARTAB[(2 * i) & polys[1]];
         }
+        // info!("branchtab27 0: {:?}", self.branchtab27[0]);
+        // info!("branchtab27 1: {:?}", self.branchtab27[1]);
 
+        self.store_pos = 0;
         self.mmresult.fill(0);
         self.ppresult.fill([0; 64]);
 
@@ -109,10 +113,12 @@ impl Decoder {
     }
 
     fn viterbi_butterfly2_generic(&mut self, symbols: &[u8; 4]) {
-        let mut metric0 = self.metric0;
-        let mut path0 = self.path0;
-        let mut metric1 = self.metric1;
-        let mut path1 = self.path1;
+        let mut metric0 = &mut self.metric0;
+        let mut path0 = &mut self.path0;
+        let mut metric1 = &mut self.metric1;
+        let mut path1 = &mut self.path1;
+
+        info!("symbols: {:?}", symbols);
 
         let mut m0 = [0u8; 16];
         let mut m1 = [0u8; 16];
@@ -137,7 +143,7 @@ impl Decoder {
         //     sym1v[j] = symbols[1];
         // }
         sym0v[0..16].fill(symbols[0]);
-        sym1v[0..16].fill(symbols[0]);
+        sym1v[0..16].fill(symbols[1]);
 
         // for (i = 0; i < 2; i++) {
         for i in 0..2 {
@@ -195,8 +201,8 @@ impl Decoder {
             //     survivor1[j] = (decision1[j] & m2[j]) | ((~decision1[j]) & m3[j]);
             // }
             for j in 0..16 {
-                decision0[j] = if (m0[j] - m1[j]) > 0 { 0xff } else { 0x0 };
-                decision1[j] = if (m2[j] - m3[j]) > 0 { 0xff } else { 0x0 };
+                decision0[j] = if m0[j] > m1[j] { 0xff } else { 0x0 };
+                decision1[j] = if m2[j] > m3[j] { 0xff } else { 0x0 };
                 survivor0[j] = (decision0[j] & m0[j]) | ((!decision0[j]) & m1[j]);
                 survivor1[j] = (decision1[j] & m2[j]) | ((!decision1[j]) & m3[j]);
             }
@@ -281,10 +287,10 @@ impl Decoder {
             }
         }
 
-        metric0 = self.metric1;
-        path0 = self.path1;
-        metric1 = self.metric0;
-        path1 = self.path1;
+        metric0 = &mut self.metric1;
+        path0 = &mut self.path1;
+        metric1 = &mut self.metric0;
+        path1 = &mut self.path0;
 
         // for (j = 0; j < 16; j++) {
         //     sym0v[j] = symbols[2];
@@ -324,8 +330,8 @@ impl Decoder {
                 }
             } else {
                 for j in 0..16 {
-                    metsvm[j] = (self.branchtab27[0][(i * 16) + j] ^ sym0v[j]) +
-                        (self.branchtab27[1][(i * 16) + j] ^ sym1v[j]);
+                    metsvm[j] = (self.branchtab27[0][(i * 16) + j] ^ sym0v[j])
+                        + (self.branchtab27[1][(i * 16) + j] ^ sym1v[j]);
                     metsv[j] = 2 - metsvm[j];
                 }
             }
@@ -348,8 +354,8 @@ impl Decoder {
             //     survivor1[j] = (decision1[j] & m2[j]) | ((~decision1[j]) & m3[j]);
             // }
             for j in 0..16 {
-                decision0[j] = if (m0[j] - m1[j]) > 0 { 0xff } else { 0x0 };
-                decision1[j] = if (m2[j] - m3[j]) > 0 { 0xff } else { 0x0 };
+                decision0[j] = if m0[j] > m1[j] { 0xff } else { 0x0 };
+                decision1[j] = if m2[j] > m3[j] { 0xff } else { 0x0 };
                 survivor0[j] = (decision0[j] & m0[j]) | ((!decision0[j]) & m1[j]);
                 survivor1[j] = (decision1[j] & m2[j]) | ((!decision1[j]) & m3[j]);
             }
@@ -433,10 +439,14 @@ impl Decoder {
     }
 
     fn viterbi_get_output_generic(&mut self) -> u8 {
-        let mut mm0 = self.metric0;
-        let mut pp0 = self.path0;
+        let mut mm0 = &mut self.metric0;
+        let mut pp0 = &mut self.path0;
 
         self.store_pos = (self.store_pos + 1) % self.n_traceback;
+
+        info!("get output mm0 {:?}", mm0);
+        info!("get output pp0 {:?}", pp0);
+        info!("get output store pos {:?}", self.store_pos);
 
         for i in 0..4 {
             for j in 0..16 {
@@ -466,7 +476,7 @@ impl Decoder {
             // by clocking in the output bits in reverse order.
             // The state has only 6 bits
             beststate = (self.ppresult[pos][beststate] >> 2) as usize;
-            pos = (pos - 1 + self.n_traceback) % self.n_traceback;
+            pos = (pos + self.n_traceback - 1) % self.n_traceback;
         }
 
         for i in 0..4 {
@@ -480,9 +490,17 @@ impl Decoder {
     }
 
     pub fn decode(&mut self, frame: FrameParam, in_bits: &[u8]) -> &[u8] {
+        info!(
+            "frame {:?}, n_data_bits {}, n_syms {}",
+            &frame,
+            frame.n_data_bits(),
+            frame.n_symbols()
+        );
+
         self.reset(frame);
 
         self.depuncture(in_bits);
+        info!("depunctured {:?}", &self.depunctured[0..48]);
 
         let mut in_count = 0;
         let mut out_count = 0;
@@ -498,8 +516,10 @@ impl Decoder {
                 if (in_count > 0) && (in_count % 16) == 8 {
                     // 8 or 11
                     let c = self.viterbi_get_output_generic();
+                    info!("c: {}", c);
 
                     if out_count >= self.n_traceback {
+                        info!("c used: {}", c);
                         for i in 0..8 {
                             self.decoded[(out_count - self.n_traceback) * 8 + i] =
                                 (c >> (7 - i)) & 0x1;
@@ -511,6 +531,7 @@ impl Decoder {
             }
             in_count += 1;
         }
+        info!("decoded bits {}", n_decoded);
 
         &self.decoded
     }

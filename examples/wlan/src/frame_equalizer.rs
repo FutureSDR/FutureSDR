@@ -55,7 +55,7 @@ impl Equalizer {
             self.h[i] += s[i];
             self.h[i] /= LONG[i] + LONG[i];
         }
-        println!("snr {}", 10.0 * (signal / noise / 2.0).log10());
+        info!("snr {}", 10.0 * (signal / noise / 2.0).log10());
     }
 
     fn equalize(
@@ -112,13 +112,16 @@ impl FrameEqualizer {
 
     fn decode_signal_field(&mut self) -> Option<FrameParam> {
         let bits = self.bits_out;
+        info!("bits: {:?}", &bits);
 
         let mut deinterleaved = [0u8; 48];
         for i in 0..48 {
             deinterleaved[i] = bits[INTERLEAVER_PATTERN[i]];
         }
+        info!("deinterleaved: {:?}", &deinterleaved);
 
         let decoded_bits = self.decoder.decode(FrameParam{mcs: Mcs::Bpsk_1_2, bytes: 0}, &deinterleaved);
+        info!("decoded: {:?}", &decoded_bits[0..24]);
 
         let mut r = 0;
         let mut bytes = 0;
@@ -136,7 +139,7 @@ impl FrameEqualizer {
         }
 
         if parity as u8 != decoded_bits[17] {
-            debug!("signal wrong parity");
+            info!("signal wrong parity");
             return None;
         }
 
@@ -166,7 +169,7 @@ impl FrameEqualizer {
                 Some(FrameParam{ mcs: Mcs::Qam64_3_4, bytes})
             },
             _ => {
-                debug!("signal: wrong encoding");
+                info!("signal: wrong encoding (r = {})", r);
                 None
             },
         }
@@ -245,7 +248,7 @@ impl Kernel for FrameEqualizer {
                 State::Signal => {
                     self.equalizer
                         .equalize(&self.sym_in, &mut self.sym_out, &mut self.bits_out, Modulation::Bpsk);
-                    info!("{:?}", &self.bits_out);
+                    // info!("{:?}", &self.bits_out);
                     i += 1;
                     if let Some(frame) = self.decode_signal_field() {
                         info!("signal field decoded {:?}", &frame);

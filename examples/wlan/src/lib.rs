@@ -42,7 +42,7 @@ impl Modulation {
 
     pub fn demap(&self, i: &Complex32) -> u8 {
         match self {
-            Modulation::Bpsk => (i.re < 0.0) as u8,
+            Modulation::Bpsk => (i.re > 0.0) as u8,
             Modulation::Qpsk => 2 * (i.im > 0.0) as u8 + (i.re > 0.0) as u8,
             Modulation::Qam16 => todo!(),
             Modulation::Qam64 => todo!(),
@@ -135,7 +135,7 @@ impl FrameParam {
     }
 
     pub fn n_data_bits(&self) -> usize {
-        self.n_symbols() & self.mcs().dbps()
+        self.n_symbols() * self.mcs().dbps()
     }
 
     pub fn n_symbols(&self) -> usize {
