@@ -1,5 +1,8 @@
 use futuresdr::num_complex::Complex32;
 
+mod decoder;
+pub use decoder::Decoder;
+
 mod delay;
 pub use delay::Delay;
 
@@ -18,7 +21,7 @@ pub use sync_long::SyncLong;
 mod sync_short;
 pub use sync_short::SyncShort;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Modulation {
     Bpsk,
     Qpsk,
@@ -26,7 +29,28 @@ pub enum Modulation {
     Qam64,
 }
 
-#[derive(Clone, Copy)]
+impl Modulation {
+    /// bits per symbol
+    pub fn bps(&self) -> usize {
+        match self {
+            Modulation::Bpsk => 1,
+            Modulation::Qpsk => 2,
+            Modulation::Qam16 => 4,
+            Modulation::Qam64 => 6,
+        }
+    }
+
+    pub fn demap(&self, i: &Complex32) -> u8 {
+        match self {
+            Modulation::Bpsk => (i.re < 0.0) as u8,
+            Modulation::Qpsk => 2 * (i.im > 0.0) as u8 + (i.re > 0.0) as u8,
+            Modulation::Qam16 => todo!(),
+            Modulation::Qam64 => todo!(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 #[allow(non_camel_case_types)]
 pub enum Mcs {
     Bpsk_1_2,
@@ -40,6 +64,14 @@ pub enum Mcs {
 }
 
 impl Mcs {
+    pub fn depuncture_pattern(&self) -> &'static [usize] {
+        match self {
+            Mcs::Bpsk_1_2 | Mcs::Qpsk_1_2 | Mcs::Qam16_1_2 => &[1, 1],
+            Mcs::Bpsk_3_4 | Mcs::Qpsk_3_4 | Mcs::Qam16_3_4 | Mcs::Qam64_3_4 => &[1, 1, 1, 0, 0, 1],
+            Mcs::Qam64_2_3 => &[1, 1, 1, 0],
+        }
+    }
+
     pub fn modulation(&self) -> Modulation {
         match self {
             Mcs::Bpsk_1_2 => Modulation::Bpsk,
@@ -51,6 +83,26 @@ impl Mcs {
             Mcs::Qam64_2_3 => Modulation::Qam64,
             Mcs::Qam64_3_4 => Modulation::Qam64,
         }
+    }
+
+    pub fn bytes_from_symbols(&self, l: usize) -> usize {
+        let coded_bits = l * self.modulation().bps();
+        let bits = match self {
+            Mcs::Bpsk_1_2 | Mcs::Qpsk_1_2 | Mcs::Qam16_1_2 => {
+                debug_assert_eq!(coded_bits % 2, 0);
+                coded_bits / 2
+            }
+            Mcs::Bpsk_3_4 | Mcs::Qpsk_3_4 | Mcs::Qam16_3_4 | Mcs::Qam64_3_4 => {
+                debug_assert_eq!(coded_bits * 3 % 4, 0);
+                coded_bits * 3 / 4
+            }
+            Mcs::Qam64_2_3 => {
+                debug_assert_eq!(coded_bits * 2 % 3, 0);
+                coded_bits * 2 / 3
+            }
+        };
+        debug_assert_eq!(bits % 8, 0);
+        bits / 8
     }
 
     // coded bits per symbol
@@ -82,12 +134,14 @@ impl Mcs {
     }
 }
 
+#[derive(Clone)]
 pub struct FrameParam {
     mcs: Mcs,
     bytes: usize,
 }
 
 impl FrameParam {
+
     pub fn psdu_size(&self) -> usize {
         self.bytes
     }
@@ -100,7 +154,7 @@ impl FrameParam {
         self.mcs.modulation()
     }
 
-    pub fn symbols(&self) -> usize {
+    pub fn n_symbols(&self) -> usize {
         let bits = 16 + 8 * self.bytes + 6;
 
         let mut syms = bits / self.mcs.dbps();

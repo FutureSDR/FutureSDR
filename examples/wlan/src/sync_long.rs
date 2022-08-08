@@ -62,7 +62,7 @@ impl SyncLong {
 
         let mut foo : Vec<(usize, Complex32)> = self.cor.iter().copied().enumerate().collect();
         foo.sort_by(|x, y| y.1.norm().total_cmp(&x.1.norm()));
-        println!("top {:?}", &foo[0..5]);
+        // println!("top {:?}", &foo[0..5]);
 
         self.cor_index = self.cor.iter().map(|x| x.norm_sqr()).enumerate().collect();
         self.cor_index.sort_by(|x, y| y.1.total_cmp(&x.1));

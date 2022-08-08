@@ -76,8 +76,8 @@ fn main() -> Result<()> {
     fg.connect_stream(fft, "out", frame_equalizer, "in")?;
 
     // Debug
-    let tag_debug = fg.add_block(TagDebug::<Complex32>::new("equalizer out"));
-    fg.connect_stream(fft, "out", tag_debug, "in")?;
+    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("equalizer out"));
+    // fg.connect_stream(fft, "out", tag_debug, "in")?;
 
     let snk = fg.add_block(NullSink::<u8>::new());
     fg.connect_stream(frame_equalizer, "out", snk, "in")?;
@@ -94,7 +94,8 @@ fn main() -> Result<()> {
 fn fft_tag_propagation(inputs: &mut [StreamInput], outputs: &mut [StreamOutput]) {
     debug_assert_eq!(inputs[0].consumed().0, outputs[0].produced());
     let (n, tags) = inputs[0].consumed();
+    // println!("fft produced {}   consumed {}   tags {:?}", outputs[0].produced(), n, tags);
     for t in tags.iter().filter(|x| x.index < n) {
-        outputs[0].add_tag(t.index, t.tag.clone());
+        outputs[0].add_tag_abs(t.index, t.tag.clone());
     }
 }
