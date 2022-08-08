@@ -1,4 +1,4 @@
-use futuresdr::num_complex::Complex32;
+use futuresdr::{num_complex::Complex32, runtime::tag::TagAny};
 
 mod decoder;
 pub use decoder::Decoder;
@@ -119,6 +119,8 @@ pub struct FrameParam {
     mcs: Mcs,
     bytes: usize,
 }
+
+impl TagAny for FrameParam {}
 
 impl FrameParam {
 
