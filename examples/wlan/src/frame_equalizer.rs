@@ -85,6 +85,7 @@ pub struct FrameEqualizer {
     state: State,
     sym_in: [Complex32; 64],
     sym_out: [Complex32; 48],
+    decoded_bits: [u8; 24],
     bits_out: [u8; 48],
     decoder: ViterbiDecoder,
 }
@@ -103,6 +104,7 @@ impl FrameEqualizer {
                 state: State::Skip,
                 sym_in: [Complex32::new(0.0, 0.0); 64],
                 sym_out: [Complex32::new(0.0, 0.0); 48],
+                decoded_bits: [0; 24],
                 bits_out: [0; 48],
                 decoder: ViterbiDecoder::new(),
             },
@@ -119,7 +121,8 @@ impl FrameEqualizer {
         }
         // info!("deinterleaved: {:?}", &deinterleaved);
 
-        let decoded_bits = self.decoder.decode(FrameParam{mcs: Mcs::Bpsk_1_2, bytes: 0}, &deinterleaved);
+        self.decoder.decode(FrameParam{mcs: Mcs::Bpsk_1_2, bytes: 0}, &deinterleaved, &mut self.decoded_bits);
+        let decoded_bits = self.decoded_bits;
         // info!("decoded: {:?}", &decoded_bits[0..24]);
 
         let mut r = 0;
@@ -225,7 +228,7 @@ impl Kernel for FrameEqualizer {
                 self.sym_in[m] = input[i * 64 + k];
             }
 
-            println!("equalizer state {:?}", self.state);
+            // println!("equalizer state {:?}", self.state);
 
             // let b : Vec<u8> = (6..=58).filter(|i| *i != 32).map(|x| if self.sym_in[x].re > 0.0 { 0 } else { 1 }).collect();
             // info!("{:?} {:?}", &self.state, b);
@@ -266,7 +269,7 @@ impl Kernel for FrameEqualizer {
                         self.equalizer.equalize(
                             &self.sym_in,
                             &mut self.sym_out,
-                            &mut out[o * 48..(o + 1) * 48].try_into().unwrap(),
+                            (&mut out[o * 48..(o + 1) * 48]).try_into().unwrap(),
                             *modulation,
                         );
 

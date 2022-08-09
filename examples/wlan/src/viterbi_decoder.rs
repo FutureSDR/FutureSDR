@@ -22,7 +22,6 @@ pub struct ViterbiDecoder {
     ppresult: [[u8; 64]; TRACEBACK_MAX],
 
     depunctured: [u8; MAX_ENCODED_BITS],
-    decoded: [u8; MAX_ENCODED_BITS * 3 / 4],
 }
 
 impl ViterbiDecoder {
@@ -46,7 +45,6 @@ impl ViterbiDecoder {
             ppresult: [[0; 64]; TRACEBACK_MAX],
 
             depunctured: [0; MAX_ENCODED_BITS],
-            decoded: [0; MAX_ENCODED_BITS * 3 / 4],
         }
     }
 
@@ -486,7 +484,7 @@ impl ViterbiDecoder {
         self.ppresult[pos][beststate]
     }
 
-    pub fn decode(&mut self, frame: FrameParam, in_bits: &[u8]) -> &[u8] {
+    pub fn decode(&mut self, frame: FrameParam, in_bits: &[u8], out_bits: &mut [u8]) {
         // info!(
         //     "frame {:?}, n_data_bits {}, n_syms {}",
         //     &frame,
@@ -518,7 +516,7 @@ impl ViterbiDecoder {
                     if out_count >= self.n_traceback {
                         // info!("c used: {}", c);
                         for i in 0..8 {
-                            self.decoded[(out_count - self.n_traceback) * 8 + i] =
+                            out_bits[(out_count - self.n_traceback) * 8 + i] =
                                 (c >> (7 - i)) & 0x1;
                             n_decoded += 1;
                         }
@@ -529,8 +527,6 @@ impl ViterbiDecoder {
             in_count += 1;
         }
         // info!("decoded bits {}", n_decoded);
-
-        &self.decoded
     }
 }
 
