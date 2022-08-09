@@ -2,7 +2,7 @@ use std::any::Any;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::warn;
+use futuresdr::log::{info, warn};
 use futuresdr::runtime::tag::Downcast;
 use futuresdr::runtime::tag::TagAny;
 use futuresdr::runtime::Block;
@@ -55,6 +55,10 @@ impl Decoder {
             },
         )
     }
+
+    fn decode(&mut self) -> bool {
+        false
+    }
 }
 
 #[async_trait]
@@ -84,16 +88,48 @@ impl Kernel for Decoder {
         }) {
             if *index == 0 {
                 if !self.frame_complete {
-                    warn!("decoder: canceling frame");
+                    warn!("decoder: previous frame not complete, canceling.");
                 }
                 let frame_param = any.downcast_ref::<FrameParam>().unwrap();
-                warn!("decoder frame param {:?}", frame_param);
+                if frame_param.n_symbols() <= MAX_SYM && frame_param.psdu_size() <= MAX_PSDU_SIZE {
+                    self.frame_param = frame_param.clone();
+                    self.copied = 0;
+                    self.frame_complete = false;
+                } else {
+                    warn!("decoder: frame too large, dropping. ({:?})", frame_param);
+                }
             } else {
                 input = &input[0..*index];
             }
         }
 
-        if sio.input(0).finished() {
+        println!("decoder: input len {}, complete {}, copied {}, frame {:?}, tags {:?}", input.len(), self.frame_complete, self.copied, self.frame_param, tags);
+
+        let max_i = input.len() / 48;
+        let mut i = 0;
+
+        while i < max_i {
+            if self.copied < self.frame_param.n_symbols() {
+                println!("copying {} of {}", self.copied, self.frame_param.n_symbols());
+                self.rx_symbols[(self.copied * 48)..((self.copied + 1) * 48)].copy_from_slice(&input[(i * 48)..((i + 1) * 48)]);
+            }
+
+            i += 1;
+            self.copied += 1;
+
+            if self.copied == self.frame_param.n_symbols() {
+                self.frame_complete = true;
+
+                info!("decoding");
+                self.decode();
+
+                i = max_i;
+                break;
+            }
+        }
+
+        sio.input(0).consume(i * 48);
+        if sio.input(0).finished() && i == max_i {
             io.finished = true;
         }
 

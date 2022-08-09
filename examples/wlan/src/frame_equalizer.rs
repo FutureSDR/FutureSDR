@@ -225,6 +225,8 @@ impl Kernel for FrameEqualizer {
                 self.sym_in[m] = input[i * 64 + k];
             }
 
+            println!("equalizer state {:?}", self.state);
+
             // let b : Vec<u8> = (6..=58).filter(|i| *i != 32).map(|x| if self.sym_in[x].re > 0.0 { 0 } else { 1 }).collect();
             // info!("{:?} {:?}", &self.state, b);
             // for i in 0..64 {
@@ -261,9 +263,6 @@ impl Kernel for FrameEqualizer {
                 }
                 State::Copy(mut n_sym, modulation) => {
                     if o < max_o {
-                        i += 1;
-                        o += 1;
-
                         self.equalizer.equalize(
                             &self.sym_in,
                             &mut self.sym_out,
@@ -271,9 +270,14 @@ impl Kernel for FrameEqualizer {
                             *modulation,
                         );
 
+                        i += 1;
+                        o += 1;
+
                         n_sym -= 1;
                         if n_sym == 0 {
                             self.state = State::Skip;
+                        } else {
+                            self.state = State::Copy(n_sym, *modulation);
                         }
                     } else {
                         break;
