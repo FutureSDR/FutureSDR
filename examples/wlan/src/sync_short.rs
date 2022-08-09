@@ -25,7 +25,6 @@ enum State {
 
 pub struct SyncShort {
     state: State,
-    consumed: usize,
 }
 
 impl SyncShort {
@@ -41,7 +40,6 @@ impl SyncShort {
             MessageIoBuilder::new().build(),
             Self {
                 state: State::Search,
-                consumed: 0,
             },
         )
     }
@@ -77,7 +75,6 @@ impl Kernel for SyncShort {
                     if in_cor[i] > THRESHOLD {
                         let f_offset = - in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
-                        // debug!("Frame Start {} (f_offset {})", self.consumed + i, f_offset);
                         sio.output(0)
                             .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                     } else {
@@ -90,7 +87,6 @@ impl Kernel for SyncShort {
                         if last_above_threshold && n_copied > MIN_GAP {
                             let f_offset = - in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
-                            // debug!("Frame Start {} (f_offset {})", self.consumed + i, f_offset);
                             sio.output(0)
                                 .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                             i += 1;
@@ -115,7 +111,6 @@ impl Kernel for SyncShort {
             i += 1;
         }
 
-        self.consumed += i;
         sio.input(0).consume(i);
         sio.input(1).consume(i);
         sio.input(2).consume(i);

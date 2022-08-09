@@ -1,6 +1,5 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -65,7 +64,6 @@ impl SyncLong {
 
         self.cor_index = self.cor.iter().map(|x| x.norm_sqr()).enumerate().collect();
         self.cor_index.sort_by(|x, y| y.1.total_cmp(&x.1));
-        let index = std::cmp::min(self.cor_index[0].0, self.cor_index[1].0);
         let (first, second) = if self.cor_index[0].0 < self.cor_index[1].0 {
             (self.cor_index[0].0, self.cor_index[1].0)
         } else {
@@ -106,7 +104,6 @@ impl Kernel for SyncLong {
             _ => None,
         }) {
             if *index == 0 {
-                debug_assert!(!matches!(self.state, State::Sync(_)));
                 self.state = State::Sync(*freq);
             } else {
                 m = std::cmp::min(m, *index);
@@ -136,6 +133,7 @@ impl Kernel for SyncLong {
                         0,
                         Tag::NamedF32("wifi_start".to_string(), freq_offset_short + freq_offset),
                     );
+
                     sio.input(0).consume(offset + 128);
                     sio.output(0).produce(128);
                     io.call_again = true;
