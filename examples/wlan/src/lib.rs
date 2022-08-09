@@ -1,4 +1,4 @@
-use futuresdr::{num_complex::Complex32, runtime::tag::TagAny};
+use futuresdr::num_complex::Complex32;
 
 mod decoder;
 pub use decoder::Decoder;
@@ -8,9 +8,6 @@ pub use delay::Delay;
 
 mod frame_equalizer;
 pub use frame_equalizer::FrameEqualizer;
-
-mod fft_shift;
-pub use fft_shift::FftShift;
 
 mod moving_average;
 pub use moving_average::MovingAverage;
@@ -52,8 +49,34 @@ impl Modulation {
         match self {
             Modulation::Bpsk => (i.re > 0.0) as u8,
             Modulation::Qpsk => 2 * (i.im > 0.0) as u8 + (i.re > 0.0) as u8,
-            Modulation::Qam16 => todo!(),
-            Modulation::Qam64 => todo!(),
+            Modulation::Qam16 => {
+                let mut ret = 0u8;
+                const LEVEL : f32 = 0.6324555320336759;
+                let re = i.re;
+                let im = i.im;
+
+                ret |= if re > 0.0 { 1 } else { 0 };
+                ret |= if re.abs() < LEVEL { 2 } else { 0 } << 1;
+                ret |= if im > 0.0 { 4 } else { 0 };
+                ret |= if im.abs() < LEVEL { 8 } else { 0 };
+                ret
+            },
+            Modulation::Qam64 => {
+                const LEVEL : f32 = 0.1543033499620919;
+
+                let mut ret = 0;
+                let re = i.re;
+                let im = i.im;
+
+                ret |= if re > 0.0 { 1 }  else { 0 };
+                ret |= if re.abs() < (4.0 * LEVEL) { 2 } else { 0 };
+                ret |= if (re.abs() < (6.0 * LEVEL)) && (re.abs() > (2.0 * LEVEL)) { 4 } else { 0 };
+                ret |= if im > 0.0 { 8 } else { 0 };
+                ret |= if im.abs() < (4.0 * LEVEL) { 16 } else { 0 };
+                ret |= if (im.abs() < (6.0 * LEVEL)) && (im.abs() > (2.0 * LEVEL)) { 32 } else { 0 };
+
+                return ret;
+            },
         }
     }
 }

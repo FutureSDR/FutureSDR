@@ -1,20 +1,23 @@
 use clap::Parser;
+use futuresdr::futures::channel::mpsc;
+use futuresdr::futures::StreamExt;
 
 use futuresdr::anyhow::Result;
+use futuresdr::async_io::block_on;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FileSource;
+use futuresdr::blocks::MessagePipe;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamInput;
 use futuresdr::runtime::StreamOutput;
 
 use wlan::Decoder;
 use wlan::Delay;
-use wlan::FftShift;
 use wlan::FrameEqualizer;
 use wlan::MovingAverage;
 use wlan::SyncLong;
@@ -36,7 +39,8 @@ fn main() -> Result<()> {
     // ========================================
     // Receiver
     // ========================================
-    let src = fg.add_block(FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
+    // let src = fg.add_block(FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
+    let src = fg.add_block(futuresdr::blocks::SoapySourceBuilder::new().freq(5.18e9).sample_rate(20e6).gain(60.0).build());
     let delay = fg.add_block(Delay::<Complex32>::new(16));
     fg.connect_stream(src, "out", delay, "in")?;
 
@@ -68,28 +72,33 @@ fn main() -> Result<()> {
     let fft = fg.add_block(fft);
     fg.connect_stream(sync_long, "out", fft, "in")?;
 
-    let fft_shift = fg.add_block(FftShift::<Complex32>::new());
-    fg.connect_stream(fft, "out", fft_shift, "in")?;
-
     let frame_equalizer = fg.add_block(FrameEqualizer::new());
     fg.connect_stream(fft, "out", frame_equalizer, "in")?;
 
     let decoder = fg.add_block(Decoder::new());
     fg.connect_stream(frame_equalizer, "out", decoder, "in")?;
 
-    // Debug
-    // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("equalizer out"));
-    // fg.connect_stream(fft, "out", tag_debug, "in")?;
+    let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
+    let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
+    fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
 
-    // let snk = fg.add_block(NullSink::<u8>::new());
-    // fg.connect_stream(frame_equalizer, "out", snk, "in")?;
+    let rt = Runtime::new();
+    let (_fg, _handle) = block_on(rt.start(fg));
+    rt.block_on(async move {
+        loop {
+            if let Some(x) = rx_frame.next().await {
+                match x {
+                    Pmt::Blob(data) => {
+                        println!("xxxxxxxx {:?}", data);
+                    }
+                    _ => break,
+                }
+            } else {
+                break;
+            }
+        }
+    });
 
-    // let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
-    let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));
-    // fg.connect_stream(divide_mag, "out", float_to_complex, "in")?;
-    fg.connect_stream(fft_shift, "out", file_snk, "in")?;
-
-    let _ = Runtime::new().run(fg)?;
     Ok(())
 }
 

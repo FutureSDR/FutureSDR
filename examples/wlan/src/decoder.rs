@@ -1,10 +1,7 @@
-use std::any::Any;
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::{info, warn};
+use futuresdr::log::warn;
 use futuresdr::runtime::tag::Downcast;
-use futuresdr::runtime::tag::TagAny;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -62,7 +59,6 @@ impl Decoder {
     }
     fn deinterleave(&mut self) {
         let n_cbps = self.frame_param.mcs().cbps();
-        let n_dbps = self.frame_param.mcs().dbps();
         let n_bpsc = self.frame_param.mcs().modulation().bps();
         let mut first = vec![0usize; n_cbps];
         let mut second = vec![0usize; n_cbps];
@@ -128,8 +124,8 @@ impl Decoder {
 
         self.out_bytes[0] = state;
 
-        let mut feedback = 0;
-        let mut bit = 0;
+        let mut feedback;
+        let mut bit;
 
         for i in 7..self.frame_param.psdu_size() * 8 + 16 {
             feedback = if (state & 64) > 0 { 1 } else { 0 } ^ if (state & 8) > 0 { 1 } else { 0 };
@@ -203,13 +199,13 @@ impl Kernel for Decoder {
                 self.frame_complete = true;
 
                 if self.decode() {
-                    println!(
-                        "decoded: {:?}",
-                        &self.out_bytes[0..self.frame_param.psdu_size() + 2]
-                    );
+                    // println!(
+                    //     "decoded: {:?}",
+                    //     &self.out_bytes[0..self.frame_param.psdu_size() + 2]
+                    // );
                     let mut blob = vec![0; self.frame_param.psdu_size() - 4];
                     blob.copy_from_slice(&self.out_bytes[2..self.frame_param.psdu_size() - 2]);
-                    mio.output_mut(0).post(Pmt::Blob(blob));
+                    mio.output_mut(0).post(Pmt::Blob(blob)).await;
                 }
 
                 i = max_i;
@@ -219,6 +215,7 @@ impl Kernel for Decoder {
 
         sio.input(0).consume(i * 48);
         if sio.input(0).finished() && i == max_i {
+            mio.output_mut(0).post(Pmt::Null).await;
             io.finished = true;
         }
 

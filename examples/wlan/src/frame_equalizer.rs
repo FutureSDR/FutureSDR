@@ -1,4 +1,5 @@
 use crate::FrameParam;
+use crate::POLARITY;
 use crate::Mcs;
 use crate::LONG;
 use crate::Modulation;
@@ -28,12 +29,14 @@ const INTERLEAVER_PATTERN : [usize; 48] = [
 
 struct Equalizer {
     h: [Complex32; 64],
+    snr: f32,
 }
 
 impl Equalizer {
     fn new() -> Self {
         Equalizer {
             h: [Complex32::new(0.0, 0.0); 64],
+            snr: 0.0,
         }
     }
     fn sync1(&mut self, s: &[Complex32; 64]) {
@@ -54,7 +57,7 @@ impl Equalizer {
             self.h[i] += s[i];
             self.h[i] /= LONG[i] + LONG[i];
         }
-        info!("snr {}", 10.0 * (signal / noise / 2.0).log10());
+        self.snr = 10.0 * (signal / noise / 2.0).log10();
     }
 
     fn equalize(
@@ -69,6 +72,10 @@ impl Equalizer {
             output_bits[o] = modulation.demap(&output_symbols[o]);
         }
     }
+
+    fn snr(&self) -> f32 {
+        self.snr
+    }
 }
 
 #[derive(Debug)]
@@ -76,7 +83,7 @@ enum State {
     Sync1,
     Sync2,
     Signal,
-    Copy(usize, Modulation),
+    Copy(usize, usize, Modulation),
     Skip,
 }
 
@@ -141,7 +148,6 @@ impl FrameEqualizer {
         }
 
         if parity as u8 != decoded_bits[17] {
-            info!("signal wrong parity");
             return None;
         }
 
@@ -209,7 +215,6 @@ impl Kernel for FrameEqualizer {
                 if !matches!(self.state, State::Skip) {
                     info!("frame equalizer: canceling frame");
                 }
-                info!("############################### new frame");
                 self.state = State::Sync1;
             } else {
                 input = &input[0..*index];
@@ -226,6 +231,31 @@ impl Kernel for FrameEqualizer {
             for k in 0..64 {
                 let m = (k + 32) % 64;
                 self.sym_in[m] = input[i * 64 + k];
+            }
+
+            match self.state {
+                State::Sync1 | State::Sync2 => {
+                    let beta = (self.sym_in[11] - self.sym_in[25] + self.sym_in[39] + self.sym_in[53]).arg();
+                    for i in 0..64 {
+                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
+                    }
+                }, 
+                State::Signal => {
+                    let p = POLARITY[0];
+                    let beta = ((self.sym_in[11] * p) + (self.sym_in[39] * p) + (self.sym_in[25] * p) + (self.sym_in[53] * -p)).arg();
+                    for i in 0..64 {
+                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
+                    }
+                },
+                State::Copy(left, n, _) => {
+                    let p = POLARITY[(n - left + 1) % 127];
+                    let beta = ((self.sym_in[11] * p) + (self.sym_in[39] * p) + (self.sym_in[25] * p) + (self.sym_in[53] * -p)).arg();
+                    for i in 0..64 {
+                        self.sym_in[i] *= Complex32::from_polar(1.0, -beta);
+                    }
+                },
+                _ => {
+                },
             }
 
             // println!("equalizer state {:?}", self.state);
@@ -255,16 +285,16 @@ impl Kernel for FrameEqualizer {
                     // info!("{:?}", &self.bits_out);
                     i += 1;
                     if let Some(frame) = self.decode_signal_field() {
-                        info!("signal field decoded {:?}", &frame);
+                        // info!("signal field decoded {:?}, snr {}", &frame, self.equalizer.snr());
                         
-                        self.state = State::Copy(frame.n_symbols(), frame.modulation());
+                        self.state = State::Copy(frame.n_symbols(), frame.n_symbols(), frame.modulation());
                         sio.output(0).add_tag(o * 48, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
                     } else {
-                        info!("signal field could not be decoded");
+                        info!("signal field could not be decoded, snr {}", self.equalizer.snr());
                         self.state = State::Skip;
                     }
                 }
-                State::Copy(mut n_sym, modulation) => {
+                State::Copy(mut n_sym, all_sym, modulation) => {
                     if o < max_o {
                         self.equalizer.equalize(
                             &self.sym_in,
@@ -280,7 +310,7 @@ impl Kernel for FrameEqualizer {
                         if n_sym == 0 {
                             self.state = State::Skip;
                         } else {
-                            self.state = State::Copy(n_sym, *modulation);
+                            self.state = State::Copy(n_sym, *all_sym, *modulation);
                         }
                     } else {
                         break;
