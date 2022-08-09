@@ -1,4 +1,5 @@
 use clap::Parser;
+use futuresdr::blocks::BlobToUdp;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
 
@@ -80,6 +81,8 @@ fn main() -> Result<()> {
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
+    let blob_to_udp = fg.add_block(BlobToUdp::new("localhost:55555"));
+    fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
     let (_fg, _handle) = block_on(rt.start(fg));
@@ -88,7 +91,7 @@ fn main() -> Result<()> {
             if let Some(x) = rx_frame.next().await {
                 match x {
                     Pmt::Blob(data) => {
-                        println!("xxxxxxxx {:?}", data);
+                        println!("received frame ({:?} bytes)", data.len());
                     }
                     _ => break,
                 }
