@@ -1,13 +1,12 @@
 use crate::FrameParam;
-use crate::Decoder;
 use crate::Mcs;
 use crate::LONG;
-use crate::POLARITY;
 use crate::Modulation;
+use crate::ViterbiDecoder;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::{debug, info};
+use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -87,7 +86,7 @@ pub struct FrameEqualizer {
     sym_in: [Complex32; 64],
     sym_out: [Complex32; 48],
     bits_out: [u8; 48],
-    decoder: Decoder,
+    decoder: ViterbiDecoder,
 }
 
 impl FrameEqualizer {
@@ -105,23 +104,23 @@ impl FrameEqualizer {
                 sym_in: [Complex32::new(0.0, 0.0); 64],
                 sym_out: [Complex32::new(0.0, 0.0); 48],
                 bits_out: [0; 48],
-                decoder: Decoder::new(),
+                decoder: ViterbiDecoder::new(),
             },
         )
     }
 
     fn decode_signal_field(&mut self) -> Option<FrameParam> {
         let bits = self.bits_out;
-        info!("bits: {:?}", &bits);
+        // info!("bits: {:?}", &bits);
 
         let mut deinterleaved = [0u8; 48];
         for i in 0..48 {
             deinterleaved[i] = bits[INTERLEAVER_PATTERN[i]];
         }
-        info!("deinterleaved: {:?}", &deinterleaved);
+        // info!("deinterleaved: {:?}", &deinterleaved);
 
         let decoded_bits = self.decoder.decode(FrameParam{mcs: Mcs::Bpsk_1_2, bytes: 0}, &deinterleaved);
-        info!("decoded: {:?}", &decoded_bits[0..24]);
+        // info!("decoded: {:?}", &decoded_bits[0..24]);
 
         let mut r = 0;
         let mut bytes = 0;
@@ -190,7 +189,7 @@ impl Kernel for FrameEqualizer {
 
         let tags = sio.input(0).tags();
         // info!("eq: input {} output {} tags {:?}", input.len(), out.len(), tags);
-        if let Some((index, freq)) = tags.iter().find_map(|x| match x {
+        if let Some((index, _freq)) = tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedF32(n, f),
@@ -253,8 +252,8 @@ impl Kernel for FrameEqualizer {
                     if let Some(frame) = self.decode_signal_field() {
                         info!("signal field decoded {:?}", &frame);
                         
-                        sio.output(0).add_tag(o * 48, Tag::NamedAny("wifi_start".to_string(), Box::new(frame.clone())));
                         self.state = State::Copy(frame.n_symbols(), frame.modulation());
+                        sio.output(0).add_tag(o * 48, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
                     } else {
                         info!("signal field could not be decoded");
                         self.state = State::Skip;
@@ -288,6 +287,10 @@ impl Kernel for FrameEqualizer {
 
         sio.input(0).consume(i * 64);
         sio.output(0).produce(o * 48);
+
+        if sio.input(0).finished() && i == max_i {
+            io.finished = true;
+        }
 
         Ok(())
     }

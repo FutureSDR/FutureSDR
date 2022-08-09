@@ -6,14 +6,13 @@ use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FileSource;
-use futuresdr::blocks::NullSink;
-use futuresdr::blocks::TagDebug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamInput;
 use futuresdr::runtime::StreamOutput;
 
+use wlan::Decoder;
 use wlan::Delay;
 use wlan::FftShift;
 use wlan::FrameEqualizer;
@@ -75,12 +74,15 @@ fn main() -> Result<()> {
     let frame_equalizer = fg.add_block(FrameEqualizer::new());
     fg.connect_stream(fft, "out", frame_equalizer, "in")?;
 
+    let decoder = fg.add_block(Decoder::new());
+    fg.connect_stream(frame_equalizer, "out", decoder, "in")?;
+
     // Debug
     // let tag_debug = fg.add_block(TagDebug::<Complex32>::new("equalizer out"));
     // fg.connect_stream(fft, "out", tag_debug, "in")?;
 
-    let snk = fg.add_block(NullSink::<u8>::new());
-    fg.connect_stream(frame_equalizer, "out", snk, "in")?;
+    // let snk = fg.add_block(NullSink::<u8>::new());
+    // fg.connect_stream(frame_equalizer, "out", snk, "in")?;
 
     // let float_to_complex = fg.add_block(Apply::new(|i: &f32| Complex32::new(*i, 0.0)));
     let file_snk = fg.add_block(FileSink::<Complex32>::new("/tmp/fs.cf32"));

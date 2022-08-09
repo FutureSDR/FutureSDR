@@ -21,6 +21,14 @@ pub use sync_long::SyncLong;
 mod sync_short;
 pub use sync_short::SyncShort;
 
+mod viterbi_decoder;
+pub use viterbi_decoder::ViterbiDecoder;
+
+pub const MAX_PAYLOAD_SIZE: usize = 1500;
+pub const MAX_PSDU_SIZE: usize = MAX_PAYLOAD_SIZE + 28; // MAC, CRC
+pub const MAX_SYM: usize = ((16 + 8 * MAX_PSDU_SIZE + 6) / 24) + 1;
+pub const MAX_ENCODED_BITS: usize = (16 + 8 * MAX_PSDU_SIZE + 6) * 2 + 288;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Modulation {
     Bpsk,
@@ -119,8 +127,6 @@ pub struct FrameParam {
     mcs: Mcs,
     bytes: usize,
 }
-
-impl TagAny for FrameParam {}
 
 impl FrameParam {
 
