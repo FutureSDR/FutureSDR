@@ -23,7 +23,7 @@ pub trait Downcast {
 
 impl Downcast for &Box<dyn TagAny> {
     fn downcast_ref<T: TagAny>(&self) -> Option<&T> {
-        (&***self).as_any().downcast_ref::<T>()
+        (***self).as_any().downcast_ref::<T>()
     }
 }
 

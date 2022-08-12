@@ -46,8 +46,8 @@ impl Equalizer {
         // println!("{:?}", s);
         let mut signal = 0.0f32;
         let mut noise = 0.0f32;
-        for i in 0..64 {
-            if (i == 32) || (i < 6) || (i > 58) {
+        for i in 6..=58 {
+            if i == 32 {
                 continue;
             }
             noise += (self.h[i] - s[i]).norm_sqr();

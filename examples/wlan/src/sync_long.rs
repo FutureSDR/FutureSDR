@@ -130,7 +130,7 @@ impl Kernel for SyncLong {
 
                     for i in 0..128 {
                         out[i] =
-                            &input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
+                            input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
                     }
                     // out[0..128].copy_from_slice(&input[offset..offset+128]);
                     sio.output(0).add_tag(

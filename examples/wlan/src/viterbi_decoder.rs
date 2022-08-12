@@ -232,7 +232,7 @@ impl ViterbiDecoder {
             //     shift1[j] = shift1[j] + 1;
             // }
             for j in 0..16 {
-                shift1[j] = shift1[j] + 1;
+                shift1[j] += 1;
             }
             // for (j = 0, k = 0; j < 16; j += 2, k++) {
             //     metric1[(2 * i * 16) + j] = survivor0[k];
@@ -384,7 +384,7 @@ impl ViterbiDecoder {
             //     shift1[j] = shift1[j] + 1;
             // }
             for j in 0..16 {
-                shift1[j] = shift1[j] + 1;
+                shift1[j] += 1;
             }
             // for (j = 0, k = 0; j < 16; j += 2, k++) {
             //     metric1[(2 * i * 16) + j] = survivor0[k];
@@ -477,7 +477,7 @@ impl ViterbiDecoder {
         for i in 0..4 {
             for j in 0..16 {
                 pp0[(i * 16) + j] = 0;
-                mm0[(i * 16) + j] = mm0[(i * 16) + j] - minmetric;
+                mm0[(i * 16) + j] -= minmetric;
             }
         }
 
@@ -526,6 +526,12 @@ impl ViterbiDecoder {
             in_count += 1;
         }
         // info!("decoded bits {}", n_decoded);
+    }
+}
+
+impl Default for ViterbiDecoder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

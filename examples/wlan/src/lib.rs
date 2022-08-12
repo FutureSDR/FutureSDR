@@ -1,3 +1,6 @@
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::excessive_precision)]
 use futuresdr::num_complex::Complex32;
 
 mod decoder;
@@ -83,7 +86,7 @@ impl Modulation {
                     0
                 };
 
-                return ret;
+                ret
             }
         }
     }

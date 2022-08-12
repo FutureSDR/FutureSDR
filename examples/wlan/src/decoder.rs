@@ -103,11 +103,7 @@ impl Decoder {
         self.descramble();
 
         let crc = crc32fast::hash(&self.out_bytes[2..self.frame_param.psdu_size() + 2]);
-        if crc == 558161692 {
-            true
-        } else {
-            false
-        }
+        crc == 558161692
     }
 
     fn descramble(&mut self) {

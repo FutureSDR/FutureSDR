@@ -93,16 +93,12 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
     let (_fg, _handle) = block_on(rt.start(fg));
     rt.block_on(async move {
-        loop {
-            if let Some(x) = rx_frame.next().await {
-                match x {
-                    Pmt::Blob(data) => {
-                        println!("received frame ({:?} bytes)", data.len());
-                    }
-                    _ => break,
+        while let Some(x) = rx_frame.next().await {
+            match x {
+                Pmt::Blob(data) => {
+                    println!("received frame ({:?} bytes)", data.len());
                 }
-            } else {
-                break;
+                _ => break,
             }
         }
     });
