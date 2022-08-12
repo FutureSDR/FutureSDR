@@ -40,7 +40,13 @@ fn main() -> Result<()> {
     // Receiver
     // ========================================
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
-    let src = fg.add_block(futuresdr::blocks::SoapySourceBuilder::new().freq(5.18e9).sample_rate(20e6).gain(60.0).build());
+    let src = fg.add_block(
+        futuresdr::blocks::SoapySourceBuilder::new()
+            .freq(5.18e9)
+            .sample_rate(20e6)
+            .gain(60.0)
+            .build(),
+    );
     let delay = fg.add_block(Delay::<Complex32>::new(16));
     fg.connect_stream(src, "out", delay, "in")?;
 

@@ -70,7 +70,10 @@ impl SyncLong {
             (self.cor_index[1].0, self.cor_index[0].0)
         };
 
-        (first, (self.cor[first] * self.cor[second].conj()).arg() / 64.0)
+        (
+            first,
+            (self.cor[first] * self.cor[second].conj()).arg() / 64.0,
+        )
     }
 }
 
@@ -126,7 +129,8 @@ impl Kernel for SyncLong {
                     // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
                     for i in 0..128 {
-                        out[i] = &input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
+                        out[i] =
+                            &input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
                     }
                     // out[0..128].copy_from_slice(&input[offset..offset+128]);
                     sio.output(0).add_tag(
@@ -145,7 +149,11 @@ impl Kernel for SyncLong {
                 let syms = m / 80;
                 for i in 0..syms {
                     for k in 0..64 {
-                        out[i * 64 + k] = input[i * 80 + 16 + k] * Complex32::from_polar(1.0, ((n_copied + i) * 80 + 128 + 16 + k) as f32 * freq_offset);
+                        out[i * 64 + k] = input[i * 80 + 16 + k]
+                            * Complex32::from_polar(
+                                1.0,
+                                ((n_copied + i) * 80 + 128 + 16 + k) as f32 * freq_offset,
+                            );
                     }
                 }
                 sio.input(0).consume(syms * 80);

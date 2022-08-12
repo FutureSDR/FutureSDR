@@ -73,7 +73,7 @@ impl Kernel for SyncShort {
                 }
                 State::Found => {
                     if in_cor[i] > THRESHOLD {
-                        let f_offset = - in_abs[i].arg() / 16.0;
+                        let f_offset = -in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
                         sio.output(0)
                             .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
@@ -85,7 +85,7 @@ impl Kernel for SyncShort {
                     if in_cor[i] > THRESHOLD {
                         // resync
                         if last_above_threshold && n_copied > MIN_GAP {
-                            let f_offset = - in_abs[i].arg() / 16.0;
+                            let f_offset = -in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
                             sio.output(0)
                                 .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));

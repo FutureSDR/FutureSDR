@@ -24,7 +24,6 @@ pub struct Delay<T: Send + 'static> {
 
 impl<T: Send + 'static> Delay<T> {
     pub fn new(n: isize) -> Block {
-
         let state = if n > 0 {
             State::Pad(n.try_into().unwrap())
         } else {
@@ -62,7 +61,7 @@ impl<T: Send + 'static> Kernel for Delay<T> {
             State::Pad(n) => {
                 let m = std::cmp::min(o.len(), n);
                 let o = sio.output(0).slice::<u8>();
-                o[0..m*std::mem::size_of::<T>()].fill(0);
+                o[0..m * std::mem::size_of::<T>()].fill(0);
                 sio.output(0).produce(m);
 
                 if m == n {
@@ -74,7 +73,7 @@ impl<T: Send + 'static> Kernel for Delay<T> {
                 } else {
                     self.state = State::Pad(n - m);
                 }
-            },
+            }
             State::Skip(n) => {
                 let m = std::cmp::min(i.len(), n);
                 sio.input(0).consume(m);
@@ -89,7 +88,7 @@ impl<T: Send + 'static> Kernel for Delay<T> {
                 if sio.input(0).finished() {
                     io.finished = true;
                 }
-            },
+            }
             State::Copy => {
                 let m = std::cmp::min(i.len(), o.len());
                 if m > 0 {

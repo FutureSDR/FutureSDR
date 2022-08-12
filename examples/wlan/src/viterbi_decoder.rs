@@ -131,7 +131,7 @@ impl ViterbiDecoder {
         let mut tmp1 = [0u8; 16];
         let mut sym0v = [0u8; 16];
         let mut sym1v = [0u8; 16];
-        let mut simd_epi16 : u16;
+        let mut simd_epi16: u16;
 
         // for (j = 0; j < 16; j++) {
         //     sym0v[j] = symbols[0];
@@ -516,8 +516,7 @@ impl ViterbiDecoder {
                     if out_count >= self.n_traceback {
                         // info!("c used: {}", c);
                         for i in 0..8 {
-                            out_bits[(out_count - self.n_traceback) * 8 + i] =
-                                (c >> (7 - i)) & 0x1;
+                            out_bits[(out_count - self.n_traceback) * 8 + i] = (c >> (7 - i)) & 0x1;
                             n_decoded += 1;
                         }
                     }
