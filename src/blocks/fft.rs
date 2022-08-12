@@ -15,7 +15,6 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-
 /// Computes an FFT
 ///
 /// This block computes the FFT on `len` samples at a time, outputting `len` samples per FFT.
@@ -80,8 +79,11 @@ impl Kernel for Fft {
         let m = (m / self.len) * self.len;
 
         if m > 0 {
-            self.plan
-                .process_outofplace_with_scratch(&mut i[0..m], &mut o[0..m], &mut self.scratch);
+            self.plan.process_outofplace_with_scratch(
+                &mut i[0..m],
+                &mut o[0..m],
+                &mut self.scratch,
+            );
 
             sio.input(0).consume(m);
             sio.output(0).produce(m);

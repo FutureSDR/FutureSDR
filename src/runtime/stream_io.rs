@@ -70,7 +70,12 @@ impl StreamInput {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
             self.tags = tags;
             self.tags.sort_by_key(|x| x.index);
-            self.current = Some(CurrentInput { ptr, len, index: 0, tags: self.tags.clone()});
+            self.current = Some(CurrentInput {
+                ptr,
+                len,
+                index: 0,
+                tags: self.tags.clone(),
+            });
         }
 
         let c = self.current.as_ref().unwrap();
@@ -167,10 +172,7 @@ impl StreamOutput {
     }
 
     pub fn add_tag_abs(&mut self, index: usize, tag: Tag) {
-        self.tags.push(ItemTag {
-            index,
-            tag,
-        });
+        self.tags.push(ItemTag { index, tag });
     }
 
     pub fn add_reader(

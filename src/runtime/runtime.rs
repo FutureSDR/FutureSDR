@@ -20,11 +20,11 @@ use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::SmolScheduler;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
-use crate::runtime::BlockMessage;
 use crate::runtime::Block;
+use crate::runtime::BlockMessage;
 use crate::runtime::Flowgraph;
-use crate::runtime::FlowgraphMessage;
 use crate::runtime::FlowgraphHandle;
+use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
 
 /// This is the [Runtime] that runs a [Flowgraph] to completion.

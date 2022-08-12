@@ -1,6 +1,6 @@
-use std::fmt;
-use std::any::Any;
 use dyn_clone::DynClone;
+use std::any::Any;
+use std::fmt;
 
 use crate::runtime::Pmt;
 use crate::runtime::StreamInput;

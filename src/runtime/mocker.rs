@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriterHost;
-use crate::runtime::BlockMessage;
 use crate::runtime::Block;
+use crate::runtime::BlockMessage;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
 use crate::runtime::ItemTag;

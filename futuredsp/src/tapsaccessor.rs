@@ -1,6 +1,6 @@
 extern crate alloc;
-use num_complex::Complex32;
 use alloc::vec::Vec;
+use num_complex::Complex32;
 
 pub trait TapsAccessor: Send {
     type TapType;
