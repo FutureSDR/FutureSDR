@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::anyhow::Result;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
 
@@ -70,7 +70,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
 #[derive(Debug)]
 pub struct MessageOutput {
     name: String,
-    handlers: Vec<(usize, Sender<AsyncMessage>)>,
+    handlers: Vec<(usize, Sender<BlockMessage>)>,
 }
 
 impl MessageOutput {
@@ -85,20 +85,20 @@ impl MessageOutput {
         &self.name
     }
 
-    pub fn connect(&mut self, port: usize, sender: Sender<AsyncMessage>) {
+    pub fn connect(&mut self, port: usize, sender: Sender<BlockMessage>) {
         self.handlers.push((port, sender));
     }
 
     pub async fn notify_finished(&mut self) {
         for (_, sender) in self.handlers.iter_mut() {
-            sender.send(AsyncMessage::Terminate).await.unwrap();
+            sender.send(BlockMessage::Terminate).await.unwrap();
         }
     }
 
     pub async fn post(&mut self, p: Pmt) {
         for (port_id, sender) in self.handlers.iter_mut() {
             sender
-                .send(AsyncMessage::Call {
+                .send(BlockMessage::Call {
                     port_id: *port_id,
                     data: p.clone(),
                 })

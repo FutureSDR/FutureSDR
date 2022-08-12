@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::Block;
 use slab::Slab;
 use std::any::{Any, TypeId};
@@ -51,7 +51,7 @@ pub struct BufferBuilderEntry {
 impl BufferBuilderEntry {
     pub(crate) fn build(
         &self,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         self.builder

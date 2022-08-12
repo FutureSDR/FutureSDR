@@ -12,7 +12,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterCustom;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
@@ -36,7 +36,7 @@ impl BufferBuilder for D2H {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         WriterD2H::new(item_size, writer_inbox, writer_output_id)
@@ -51,16 +51,16 @@ pub struct WriterD2H {
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull>>>,
     finished: bool,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
-    reader_inbox: Option<Sender<AsyncMessage>>,
+    reader_inbox: Option<Sender<BlockMessage>>,
     reader_input_id: Option<usize>,
 }
 
 impl WriterD2H {
     pub fn new(
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         BufferWriter::Custom(Box::new(WriterD2H {
@@ -86,7 +86,7 @@ impl WriterD2H {
             .reader_inbox
             .as_mut()
             .unwrap()
-            .try_send(AsyncMessage::Notify);
+            .try_send(BlockMessage::Notify);
     }
 }
 
@@ -94,7 +94,7 @@ impl WriterD2H {
 impl BufferWriterCustom for WriterD2H {
     fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader {
         debug_assert!(self.reader_inbox.is_none());
@@ -127,7 +127,7 @@ impl BufferWriterCustom for WriterD2H {
         self.reader_inbox
             .as_mut()
             .unwrap()
-            .send(AsyncMessage::StreamInputDone {
+            .send(BlockMessage::StreamInputDone {
                 input_id: self.reader_input_id.unwrap(),
             })
             .await
@@ -151,9 +151,9 @@ pub struct ReaderD2H {
     inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     item_size: usize,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
-    my_inbox: Sender<AsyncMessage>,
+    my_inbox: Sender<BlockMessage>,
     finished: bool,
 }
 
@@ -222,12 +222,12 @@ impl BufferReaderHost for ReaderD2H {
             let buffer = c.buffer;
             buffer.unmap();
             self.outbound.lock().unwrap().push(BufferEmpty { buffer });
-            let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+            let _ = self.writer_inbox.try_send(BlockMessage::Notify);
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.my_inbox.try_send(AsyncMessage::Notify);
+            let _ = self.my_inbox.try_send(BlockMessage::Notify);
         }
     }
 
@@ -238,7 +238,7 @@ impl BufferReaderHost for ReaderD2H {
         }
 
         self.writer_inbox
-            .send(AsyncMessage::StreamOutputDone {
+            .send(BlockMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
             })
             .await

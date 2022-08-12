@@ -58,17 +58,32 @@ use crate::runtime::buffer::BufferWriter;
 pub fn init() {
     logging::init();
 }
-
 #[derive(Debug)]
-pub enum AsyncMessage {
-    Initialize,
-    Initialized,
-    Notify,
+pub enum FlowgraphMessage {
     Terminate,
+    Initialized,
     BlockDone {
         id: usize,
         block: Block,
     },
+    BlockCall {
+        block_id: usize,
+        port_id: usize,
+        data: Pmt,
+    },
+    BlockCallback {
+        block_id: usize,
+        port_id: usize,
+        data: Pmt,
+        tx: oneshot::Sender<Pmt>,
+    },
+}
+
+#[derive(Debug)]
+pub enum BlockMessage {
+    Initialize,
+    Terminate,
+    Notify,
     StreamOutputInit {
         src_port: usize,
         writer: BufferWriter,
@@ -86,24 +101,13 @@ pub enum AsyncMessage {
     MessageOutputConnect {
         src_port: usize,
         dst_port: usize,
-        dst_inbox: mpsc::Sender<AsyncMessage>,
+        dst_inbox: mpsc::Sender<BlockMessage>,
     },
     Call {
         port_id: usize,
         data: Pmt,
     },
     Callback {
-        port_id: usize,
-        data: Pmt,
-        tx: oneshot::Sender<Pmt>,
-    },
-    BlockCall {
-        block_id: usize,
-        port_id: usize,
-        data: Pmt,
-    },
-    BlockCallback {
-        block_id: usize,
         port_id: usize,
         data: Pmt,
         tx: oneshot::Sender<Pmt>,

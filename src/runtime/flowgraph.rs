@@ -12,8 +12,9 @@ use crate::runtime::buffer::circular::Circular;
 use crate::runtime::buffer::slab::Slab;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
+use crate::runtime::BlockMessage;
+use crate::runtime::FlowgraphMessage;
 use crate::runtime::Kernel;
 use crate::runtime::Pmt;
 use crate::runtime::Topology;
@@ -104,17 +105,17 @@ impl Default for Flowgraph {
 
 #[derive(Clone)]
 pub struct FlowgraphHandle {
-    inbox: Sender<AsyncMessage>,
+    inbox: Sender<FlowgraphMessage>,
 }
 
 impl FlowgraphHandle {
-    pub(crate) fn new(inbox: Sender<AsyncMessage>) -> FlowgraphHandle {
+    pub(crate) fn new(inbox: Sender<FlowgraphMessage>) -> FlowgraphHandle {
         FlowgraphHandle { inbox }
     }
 
     pub async fn call(&mut self, block_id: usize, port_id: usize, data: Pmt) -> Result<()> {
         self.inbox
-            .send(AsyncMessage::BlockCall {
+            .send(FlowgraphMessage::BlockCall {
                 block_id,
                 port_id,
                 data,
@@ -126,7 +127,7 @@ impl FlowgraphHandle {
     pub async fn callback(&mut self, block_id: usize, port_id: usize, data: Pmt) -> Result<Pmt> {
         let (tx, rx) = oneshot::channel::<Pmt>();
         self.inbox
-            .send(AsyncMessage::BlockCallback {
+            .send(FlowgraphMessage::BlockCallback {
                 block_id,
                 port_id,
                 data,
@@ -138,7 +139,7 @@ impl FlowgraphHandle {
     }
 
     pub async fn terminate(&mut self) -> Result<()> {
-        self.inbox.send(AsyncMessage::Terminate).await?;
+        self.inbox.send(FlowgraphMessage::Terminate).await?;
         Ok(())
     }
 }
@@ -159,7 +160,7 @@ impl BufferBuilder for DefaultBuffer {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         Circular::new().build(item_size, writer_inbox, writer_output_id)
@@ -168,7 +169,7 @@ impl BufferBuilder for DefaultBuffer {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         Slab::new().build(item_size, writer_inbox, writer_output_id)

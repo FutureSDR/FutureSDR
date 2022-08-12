@@ -11,7 +11,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
@@ -35,7 +35,7 @@ impl BufferBuilder for H2D {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         WriterH2D::new(item_size, writer_inbox, writer_output_id)
@@ -52,9 +52,9 @@ pub struct WriterH2D {
     outbound: Arc<Mutex<Vec<BufferFull>>>,
     item_size: usize,
     finished: bool,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
-    reader_inbox: Option<Sender<AsyncMessage>>,
+    reader_inbox: Option<Sender<BlockMessage>>,
     reader_input_id: Option<usize>,
 }
 
@@ -67,7 +67,7 @@ struct CurrentBuffer {
 impl WriterH2D {
     pub fn new(
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         debug!("H2D writer created");
@@ -90,7 +90,7 @@ impl WriterH2D {
 impl BufferWriterHost for WriterH2D {
     fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader {
         debug!("H2D writer called add reader");
@@ -164,7 +164,7 @@ impl BufferWriterHost for WriterH2D {
                 .reader_inbox
                 .as_mut()
                 .unwrap()
-                .try_send(AsyncMessage::Notify);
+                .try_send(BlockMessage::Notify);
         }
     }
 
@@ -186,7 +186,7 @@ impl BufferWriterHost for WriterH2D {
         self.reader_inbox
             .as_mut()
             .unwrap()
-            .send(AsyncMessage::StreamInputDone {
+            .send(BlockMessage::StreamInputDone {
                 input_id: self.reader_input_id.unwrap(),
             })
             .await
@@ -210,7 +210,7 @@ pub struct ReaderH2D {
     inbound: Arc<Mutex<Vec<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     writer_output_id: usize,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     finished: bool,
 }
 
@@ -218,7 +218,7 @@ impl ReaderH2D {
     pub fn submit(&mut self, buffer: BufferEmpty) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
-        let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+        let _ = self.writer_inbox.try_send(BlockMessage::Notify);
     }
 
     pub fn buffers(&mut self) -> Vec<BufferFull> {
@@ -240,7 +240,7 @@ impl BufferReaderCustom for ReaderH2D {
         }
 
         self.writer_inbox
-            .send(AsyncMessage::StreamOutputDone {
+            .send(BlockMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
             })
             .await

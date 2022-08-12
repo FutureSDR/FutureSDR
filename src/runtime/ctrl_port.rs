@@ -13,7 +13,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 use crate::runtime::config;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::Pmt;
 
 macro_rules! relative {
@@ -26,13 +26,13 @@ macro_rules! relative {
     };
 }
 
-async fn index(Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>) -> String {
+async fn index(Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>) -> String {
     format!("number of Blocks {:?}", boxes.len())
 }
 
 async fn handler_id(
     Path((blk, handler)): Path<(usize, usize)>,
-    Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
+    Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>,
 ) -> String {
     let mut b = match boxes.get(blk) {
         Some(Some(s)) => s.clone(),
@@ -41,7 +41,7 @@ async fn handler_id(
 
     let (tx, rx) = oneshot::channel::<Pmt>();
 
-    b.send(AsyncMessage::Callback {
+    b.send(BlockMessage::Callback {
         port_id: handler,
         data: Pmt::Null,
         tx,
@@ -57,7 +57,7 @@ async fn handler_id(
 async fn handler_id_post(
     Path((blk, handler)): Path<(usize, usize)>,
     Json(pmt): Json<Pmt>,
-    Extension(boxes): Extension<Slab<Option<mpsc::Sender<AsyncMessage>>>>,
+    Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>,
 ) -> String {
     let mut b = match boxes.get(blk) {
         Some(Some(s)) => s.clone(),
@@ -66,7 +66,7 @@ async fn handler_id_post(
 
     let (tx, rx) = oneshot::channel::<Pmt>();
 
-    b.send(AsyncMessage::Callback {
+    b.send(BlockMessage::Callback {
         port_id: handler,
         data: pmt,
         tx,
@@ -79,7 +79,7 @@ async fn handler_id_post(
     format!("{:?}", ret)
 }
 
-pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<AsyncMessage>>>) {
+pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>) {
     if !config::config().ctrlport_enable {
         return;
     }

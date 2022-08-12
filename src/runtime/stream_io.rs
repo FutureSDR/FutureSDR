@@ -6,7 +6,7 @@ use std::slice;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::tag::default_tag_propagation;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 use crate::runtime::Tag;
 
@@ -175,7 +175,7 @@ impl StreamOutput {
 
     pub fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_port: usize,
     ) -> BufferReader {
         debug_assert!(self.writer.is_some());

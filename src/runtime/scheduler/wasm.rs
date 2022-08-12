@@ -10,7 +10,8 @@ use std::pin::Pin;
 use crate::runtime::config;
 use crate::runtime::run_block;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
+use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
 
 #[derive(Clone, Debug)]
@@ -26,8 +27,8 @@ impl Scheduler for WasmScheduler {
     fn run_topology(
         &self,
         topology: &mut Topology,
-        main_channel: &Sender<AsyncMessage>,
-    ) -> Slab<Option<Sender<AsyncMessage>>> {
+        main_channel: &Sender<FlowgraphMessage>,
+    ) -> Slab<Option<Sender<BlockMessage>>> {
         let mut inboxes = Slab::new();
         let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
         for _ in 0..=max {
@@ -39,7 +40,7 @@ impl Scheduler for WasmScheduler {
         for (id, block_o) in topology.blocks.iter_mut() {
             let block = block_o.take().unwrap();
 
-            let (sender, receiver) = channel::<AsyncMessage>(queue_size);
+            let (sender, receiver) = channel::<BlockMessage>(queue_size);
             inboxes[id] = Some(sender);
 
             if block.is_blocking() {

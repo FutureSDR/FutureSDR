@@ -10,7 +10,7 @@ use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
 #[derive(Debug, PartialEq, Hash)]
@@ -66,7 +66,7 @@ impl BufferBuilder for Slab {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         Writer::new(
@@ -108,9 +108,9 @@ pub struct Writer {
     state: Arc<Mutex<State>>,
     item_size: usize,
     reserved_items: usize,
-    reader_inbox: Option<Sender<AsyncMessage>>,
+    reader_inbox: Option<Sender<BlockMessage>>,
     reader_input_id: Option<usize>,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
     finished: bool,
 }
@@ -127,7 +127,7 @@ impl Writer {
         min_bytes: usize,
         n_buffer: usize,
         reserved_items: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         let mut buffer_size = min_bytes;
@@ -163,7 +163,7 @@ impl Writer {
 impl BufferWriterHost for Writer {
     fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader {
         debug_assert!(self.reader_inbox.is_none());
@@ -238,11 +238,11 @@ impl BufferWriterHost for Writer {
                 .reader_inbox
                 .as_mut()
                 .unwrap()
-                .try_send(AsyncMessage::Notify);
+                .try_send(BlockMessage::Notify);
 
             // make sure to be called again, if we have another buffer queued
             if !state.writer_input.is_empty() {
-                let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+                let _ = self.writer_inbox.try_send(BlockMessage::Notify);
             }
         }
     }
@@ -274,7 +274,7 @@ impl BufferWriterHost for Writer {
             .reader_inbox
             .as_mut()
             .unwrap()
-            .send(AsyncMessage::StreamInputDone {
+            .send(BlockMessage::StreamInputDone {
                 input_id: self.reader_input_id.unwrap(),
             })
             .await;
@@ -297,8 +297,8 @@ pub struct Reader {
     state: Arc<Mutex<State>>,
     item_size: usize,
     reserved_items: usize,
-    reader_inbox: Sender<AsyncMessage>,
-    writer_inbox: Sender<AsyncMessage>,
+    reader_inbox: Sender<BlockMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
     finished: bool,
 }
@@ -338,7 +338,7 @@ impl BufferReaderHost for Reader {
 
                     let old = std::mem::replace(&mut cur.buffer, buffer);
                     state.writer_input.push_back(BufferEmpty { buffer: old });
-                    let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+                    let _ = self.writer_inbox.try_send(BlockMessage::Notify);
 
                     cur.capacity = items + self.reserved_items;
                     cur.offset = self.reserved_items - left;
@@ -385,16 +385,16 @@ impl BufferReaderHost for Reader {
                 .writer_input
                 .push_back(BufferEmpty { buffer: b.buffer });
 
-            let _ = self.writer_inbox.try_send(AsyncMessage::Notify);
+            let _ = self.writer_inbox.try_send(BlockMessage::Notify);
 
             // make sure to be called again, if we have another buffer queued
             if !state.reader_input.is_empty() {
-                let _ = self.reader_inbox.try_send(AsyncMessage::Notify);
+                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
             }
         } else if c.capacity - c.offset <= self.reserved_items {
             let state = self.state.lock().unwrap();
             if !state.reader_input.is_empty() {
-                let _ = self.reader_inbox.try_send(AsyncMessage::Notify);
+                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
             }
         }
     }
@@ -406,7 +406,7 @@ impl BufferReaderHost for Reader {
 
         let _ = self
             .writer_inbox
-            .send(AsyncMessage::StreamOutputDone {
+            .send(BlockMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
             })
             .await;

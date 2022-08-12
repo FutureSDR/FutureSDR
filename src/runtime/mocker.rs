@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriterHost;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::Block;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
@@ -153,7 +153,7 @@ impl<T: Debug + Send + 'static> MockWriter<T> {
 impl<T: Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
     fn add_reader(
         &mut self,
-        _reader_inbox: Sender<AsyncMessage>,
+        _reader_inbox: Sender<BlockMessage>,
         _reader_input_id: usize,
     ) -> BufferReader {
         unimplemented!();
