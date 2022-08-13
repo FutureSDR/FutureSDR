@@ -32,7 +32,10 @@ where
                 .add_output("out", mem::size_of::<A>())
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
-            FiniteSource { f, _p: std::marker::PhantomData },
+            FiniteSource {
+                f,
+                _p: std::marker::PhantomData,
+            },
         )
     }
 }
