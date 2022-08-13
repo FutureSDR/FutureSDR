@@ -11,7 +11,7 @@ use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
-use crate::anyhow::{Context, Result, bail};
+use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;
@@ -347,7 +347,10 @@ pub(crate) async fn run_block(
         match inbox.next().await.context("no msg")? {
             BlockMessage::Initialize => {
                 if let Err(e) = block.init().await {
-                    error!("{}: Error during initialization. Terminating.", block.instance_name().unwrap());
+                    error!(
+                        "{}: Error during initialization. Terminating.",
+                        block.instance_name().unwrap()
+                    );
                     main_inbox.send(FlowgraphMessage::Terminate).await?;
                     return Err(e);
                 } else {
@@ -395,7 +398,11 @@ pub(crate) async fn run_block(
                 }
                 Some(Some(BlockMessage::Call { port_id, data })) => {
                     if let Err(e) = block.call_handler(port_id, data).await {
-                        error!("{}: Error in callback. Terminating. ({:?})", block.instance_name().unwrap(), e);
+                        error!(
+                            "{}: Error in callback. Terminating. ({:?})",
+                            block.instance_name().unwrap(),
+                            e
+                        );
                         main_inbox.send(FlowgraphMessage::Terminate).await?;
                         return Err(e);
                     }
@@ -405,8 +412,12 @@ pub(crate) async fn run_block(
                         Ok(res) => {
                             tx.send(res).unwrap();
                         }
-                        Err(e) =>  {
-                            error!("{}: Error in callback. Terminating. ({:?})", block.instance_name().unwrap(), e);
+                        Err(e) => {
+                            error!(
+                                "{}: Error in callback. Terminating. ({:?})",
+                                block.instance_name().unwrap(),
+                                e
+                            );
                             main_inbox.send(FlowgraphMessage::Terminate).await?;
                             return Err(e);
                         }
@@ -480,7 +491,11 @@ pub(crate) async fn run_block(
         // ================== work
         work_io.call_again = false;
         if let Err(e) = block.work(&mut work_io).await {
-            error!("{}: Error in work(). Terminating. ({:?})", block.instance_name().unwrap(), e);
+            error!(
+                "{}: Error in work(). Terminating. ({:?})",
+                block.instance_name().unwrap(),
+                e
+            );
             main_inbox.send(FlowgraphMessage::Terminate).await?;
             return Err(e);
         }
