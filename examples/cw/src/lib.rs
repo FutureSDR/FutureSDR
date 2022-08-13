@@ -130,10 +130,8 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let mut fg = Flowgraph::new();
     let src = fg.add_block(VectorSourceBuilder::<char>::new(msg).build());
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
-    let morse = fg.add_block(ApplyIntoIter::<char, Vec<CWAlphabet>>::new(&morse));
-    let switch_command = fg.add_block(ApplyIntoIter::<CWAlphabet, CWAlphabet>::new(
-        |c: &CWAlphabet| *c,
-    ));
+    let morse = fg.add_block(ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(&morse));
+    let switch_command = fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c));
     let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2, SAMPLE_RATE as f32));
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
 
