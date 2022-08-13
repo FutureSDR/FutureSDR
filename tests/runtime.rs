@@ -64,7 +64,7 @@ fn fg_terminate() -> Result<()> {
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
         handle.terminate().await.unwrap();
-        _ = fg.await.unwrap();
+        let _ = fg.await;
     });
 
     Ok(())
