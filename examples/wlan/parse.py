@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket
 from scapy.layers.dot11 import *
 from scapy.packet import Packet

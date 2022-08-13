@@ -39,11 +39,11 @@ fn main() -> Result<()> {
     // Receiver
     // ========================================
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
-    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/all-mcs-30db.cf32"));
-    let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
+    let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/all-mcs-30db.cf32"));
+    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
     // let src = fg.add_block(
     //     futuresdr::blocks::SoapySourceBuilder::new()
-    //         .freq(5.18e9)
+    //         .freq(5.22e9)
     //         .sample_rate(20e6)
     //         .gain(60.0)
     //         .build(),
@@ -88,8 +88,8 @@ fn main() -> Result<()> {
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
-    // let blob_to_udp = fg.add_block(BlobToUdp::new("localhost:55555"));
-    // fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
+    fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
     let (_fg, _handle) = block_on(rt.start(fg));
