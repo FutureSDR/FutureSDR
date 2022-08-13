@@ -11,7 +11,7 @@ use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::{Context, Result, bail};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;
@@ -319,6 +319,7 @@ async fn run_flowgraph<S: Scheduler>(
                         }
                     }
                 }
+                bail!("Flowgraph was terminated");
             }
             _ => warn!("main loop received unhandled message"),
         }
@@ -345,8 +346,13 @@ pub(crate) async fn run_block(
     loop {
         match inbox.next().await.context("no msg")? {
             BlockMessage::Initialize => {
-                block.init().await?;
-                main_inbox.send(FlowgraphMessage::Initialized).await?;
+                if let Err(e) = block.init().await {
+                    error!("{}: Error during initialization. Terminating.", block.instance_name().unwrap());
+                    main_inbox.send(FlowgraphMessage::Terminate).await?;
+                    return Err(e);
+                } else {
+                    main_inbox.send(FlowgraphMessage::Initialized).await?;
+                }
                 break;
             }
             BlockMessage::StreamOutputInit { src_port, writer } => {
@@ -388,12 +394,23 @@ pub(crate) async fn run_block(
                     work_io.finished = true;
                 }
                 Some(Some(BlockMessage::Call { port_id, data })) => {
-                    block.call_handler(port_id, data).await?;
+                    if let Err(e) = block.call_handler(port_id, data).await {
+                        error!("{}: Error in callback. Terminating. ({:?})", block.instance_name().unwrap(), e);
+                        main_inbox.send(FlowgraphMessage::Terminate).await?;
+                        return Err(e);
+                    }
                 }
                 Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
-                    let res = { block.call_handler(port_id, data).await? };
-
-                    tx.send(res).unwrap();
+                    match block.call_handler(port_id, data).await {
+                        Ok(res) => {
+                            tx.send(res).unwrap();
+                        }
+                        Err(e) =>  {
+                            error!("{}: Error in callback. Terminating. ({:?})", block.instance_name().unwrap(), e);
+                            main_inbox.send(FlowgraphMessage::Terminate).await?;
+                            return Err(e);
+                        }
+                    }
                 }
                 Some(Some(BlockMessage::Terminate)) => work_io.finished = true,
                 Some(Some(t)) => warn!("block unhandled message in main loop {:?}", t),
@@ -431,13 +448,12 @@ pub(crate) async fn run_block(
             block.deinit().await?;
 
             // ============= notify main thread
-            main_inbox
+            let _ = main_inbox
                 .send(FlowgraphMessage::BlockDone {
                     id: block_id,
                     block,
                 })
-                .await
-                .unwrap();
+                .await;
             break;
         }
 
@@ -463,7 +479,11 @@ pub(crate) async fn run_block(
 
         // ================== work
         work_io.call_again = false;
-        block.work(&mut work_io).await?;
+        if let Err(e) = block.work(&mut work_io).await {
+            error!("{}: Error in work(). Terminating. ({:?})", block.instance_name().unwrap(), e);
+            main_inbox.send(FlowgraphMessage::Terminate).await?;
+            return Err(e);
+        }
         block.commit();
 
         futures_lite::future::yield_now().await;

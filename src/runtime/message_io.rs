@@ -91,7 +91,7 @@ impl MessageOutput {
 
     pub async fn notify_finished(&mut self) {
         for (_, sender) in self.handlers.iter_mut() {
-            sender.send(BlockMessage::Terminate).await.unwrap();
+            let _ = sender.send(BlockMessage::Terminate).await;
         }
     }
 
