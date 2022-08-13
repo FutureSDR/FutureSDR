@@ -34,7 +34,7 @@ use crate::runtime::WorkIo;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let fft = fg.add_block(Fft::new(2048).build());
+/// let fft = fg.add_block(Fft::new(2048));
 /// ```
 pub struct Fft {
     len: usize,

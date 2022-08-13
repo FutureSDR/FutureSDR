@@ -11,33 +11,37 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct FiniteSource<A>
+pub struct FiniteSource<F, A>
 where
-    A: 'static,
+    F: FnMut() -> Option<A> + Send + 'static,
+    A: Send + 'static,
 {
-    f: Box<dyn FnMut() -> Option<A> + Send + 'static>,
+    f: F,
+    _p: std::marker::PhantomData<A>,
 }
 
-impl<A> FiniteSource<A>
+impl<F, A> FiniteSource<F, A>
 where
-    A: 'static,
+    F: FnMut() -> Option<A> + Send + 'static,
+    A: Send + 'static,
 {
-    pub fn new(f: impl FnMut() -> Option<A> + Send + 'static) -> Block {
+    pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("FiniteSource").build(),
             StreamIoBuilder::new()
                 .add_output("out", mem::size_of::<A>())
                 .build(),
-            MessageIoBuilder::<FiniteSource<A>>::new().build(),
-            FiniteSource { f: Box::new(f) },
+            MessageIoBuilder::<Self>::new().build(),
+            FiniteSource { f, _p: std::marker::PhantomData },
         )
     }
 }
 
 #[async_trait]
-impl<A> Kernel for FiniteSource<A>
+impl<F, A> Kernel for FiniteSource<F, A>
 where
-    A: 'static,
+    F: FnMut() -> Option<A> + Send + 'static,
+    A: Send + 'static,
 {
     async fn work(
         &mut self,

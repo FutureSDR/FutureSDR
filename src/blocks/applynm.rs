@@ -33,7 +33,7 @@ use crate::runtime::WorkIo;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Convert mono stream to stereo interleaved stream
-/// let mono_to_stereo = fg.add_block(ApplyNM::<f32, f32, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
+/// let mono_to_stereo = fg.add_block(ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
 ///     d[0] =  v[0] * 0.5; // gain left
 ///     d[1] =  v[0] * 0.9; // gain right
 /// }));
@@ -41,37 +41,46 @@ use crate::runtime::WorkIo;
 /// // Additionally, the closure can change the type of the sample
 /// ```
 #[allow(clippy::type_complexity)]
-pub struct ApplyNM<A, B, const N: usize, const M: usize>
+pub struct ApplyNM<F, A, B, const N: usize, const M: usize>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&[A], &mut [B]) + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
-    f: Box<dyn FnMut(&[A], &mut [B]) + Send + 'static>,
+    f: F,
+    _p1: std::marker::PhantomData<A>,
+    _p2: std::marker::PhantomData<B>,
 }
 
-impl<A, B, const N: usize, const M: usize> ApplyNM<A, B, N, M>
+impl<F, A, B, const N: usize, const M: usize> ApplyNM<F, A, B, N, M>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&[A], &mut [B]) + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
-    pub fn new(f: impl FnMut(&[A], &mut [B]) + Send + 'static) -> Block {
+    pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("ApplyNM").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<B>())
                 .build(),
-            MessageIoBuilder::<ApplyNM<A, B, N, M>>::new().build(),
-            ApplyNM { f: Box::new(f) },
+            MessageIoBuilder::<Self>::new().build(),
+            ApplyNM {
+                f,
+                _p1: std::marker::PhantomData,
+                _p2: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl<A, B, const N: usize, const M: usize> Kernel for ApplyNM<A, B, N, M>
+impl<F, A, B, const N: usize, const M: usize> Kernel for ApplyNM<F, A, B, N, M>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&[A], &mut [B]) + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
     async fn work(
         &mut self,

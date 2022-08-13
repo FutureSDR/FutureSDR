@@ -30,27 +30,32 @@ use crate::runtime::WorkIo;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let adder = fg.add_block(Combine::<f32, f32, f32>::new(|a, b| {
+/// let adder = fg.add_block(Combine::new(|a: &f32, b: &f32| {
 ///     a + b
 /// }));
 /// ```
 #[allow(clippy::type_complexity)]
-pub struct Combine<A, B, C>
+pub struct Combine<F, A, B, C>
 where
-    A: 'static,
-    B: 'static,
-    C: 'static,
+    F: FnMut(&A, &B) -> C + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
+    C: Send + 'static,
 {
-    f: Box<dyn FnMut(&A, &B) -> C + Send + 'static>,
+    f: F,
+    _p1: std::marker::PhantomData<A>,
+    _p2: std::marker::PhantomData<B>,
+    _p3: std::marker::PhantomData<C>,
 }
 
-impl<A, B, C> Combine<A, B, C>
+impl<F, A, B, C> Combine<F, A, B, C>
 where
-    A: 'static,
-    B: 'static,
-    C: 'static,
+    F: FnMut(&A, &B) -> C + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
+    C: Send + 'static,
 {
-    pub fn new(f: impl FnMut(&A, &B) -> C + Send + 'static) -> Block {
+    pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Combine").build(),
             StreamIoBuilder::new()
@@ -58,18 +63,24 @@ where
                 .add_input("in1", mem::size_of::<B>())
                 .add_output("out", mem::size_of::<C>())
                 .build(),
-            MessageIoBuilder::<Combine<A, B, C>>::new().build(),
-            Combine { f: Box::new(f) },
+            MessageIoBuilder::<Self>::new().build(),
+            Combine {
+                f,
+                _p1: std::marker::PhantomData,
+                _p2: std::marker::PhantomData,
+                _p3: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl<A, B, C> Kernel for Combine<A, B, C>
+impl<F, A, B, C> Kernel for Combine<F, A, B, C>
 where
-    A: 'static,
-    B: 'static,
-    C: 'static,
+    F: FnMut(&A, &B) -> C + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
+    C: Send + 'static,
 {
     async fn work(
         &mut self,
