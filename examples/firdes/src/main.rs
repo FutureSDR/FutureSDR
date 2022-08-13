@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     let enable_filter = true;
 
     let mut t: usize = 0;
-    let src = Source::<f32>::new(move || {
+    let src = Source::new(move || {
         t += 1;
         let freq = match (t as f32 % SAMPLING_FREQ as f32) as u32 {
             x if x < SAMPLING_FREQ / 3 => TONE_FREQ.0,
