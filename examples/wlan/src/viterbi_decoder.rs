@@ -51,13 +51,15 @@ impl ViterbiDecoder {
     fn reset(&mut self, param: FrameParam) {
         self.frame_param = param;
 
-        self.metric0[0..4].fill(0);
-        self.path0[0..4].fill(0);
+        self.metric0.fill(0);
+        self.metric1.fill(0);
+        self.path0.fill(0);
+        self.path1.fill(0);
 
         let polys: [usize; 2] = [0x6d, 0x4f];
         for i in 0..32 {
-            self.branchtab27[0][i] = PARTAB[(2 * i) & polys[0]];
-            self.branchtab27[1][i] = PARTAB[(2 * i) & polys[1]];
+            self.branchtab27[0][i] = if PARTAB[(2 * i) & polys[0]] > 0 { 1 } else { 0 };
+            self.branchtab27[1][i] = if PARTAB[(2 * i) & polys[1]] > 0 { 1 } else { 0 };
         }
         // info!("branchtab27 0: {:?}", self.branchtab27[0]);
         // info!("branchtab27 1: {:?}", self.branchtab27[1]);

@@ -59,7 +59,7 @@ impl Modulation {
                 let im = i.im;
 
                 ret |= if re > 0.0 { 1 } else { 0 };
-                ret |= if re.abs() < LEVEL { 2 } else { 0 } << 1;
+                ret |= if re.abs() < LEVEL { 2 } else { 0 };
                 ret |= if im > 0.0 { 4 } else { 0 };
                 ret |= if im.abs() < LEVEL { 8 } else { 0 };
                 ret
