@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let src = FileSource::new("rick.mp3");
     let inner = src.kernel::<FileSource>().unwrap();
     assert_eq!(inner.channels(), 1, "We expect mp3 to be single channel.");
-    let mono_to_stereo = ApplyNM::<f32, f32, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
+    let mono_to_stereo = ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
         d[0] = v[0] * gain_l;
         d[1] = v[0] * gain_r;
     });
