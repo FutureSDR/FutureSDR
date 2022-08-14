@@ -1,9 +1,10 @@
 use clap::Parser;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
+use std::time::Duration;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_io::block_on;
+use futuresdr::async_io::{block_on, Timer};
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
@@ -18,6 +19,8 @@ use futuresdr::runtime::StreamOutput;
 use wlan::Decoder;
 use wlan::Delay;
 use wlan::FrameEqualizer;
+use wlan::Mac;
+use wlan::Mcs;
 use wlan::MovingAverage;
 use wlan::SyncLong;
 use wlan::SyncShort;
@@ -34,6 +37,9 @@ fn main() -> Result<()> {
     println!("Configuration: {:?}", args);
 
     let mut fg = Flowgraph::new();
+    let mac = fg.add_block(Mac::new([0x23; 6], [0x42; 6], [0xff; 6], Mcs::Qpsk_1_2));
+    let null = fg.add_block(futuresdr::blocks::NullSink::<u8>::new());
+    fg.connect_stream(mac, "out", null, "in")?;
 
     // ========================================
     // Receiver
@@ -94,7 +100,27 @@ fn main() -> Result<()> {
     // fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
-    let (_fg, _handle) = block_on(rt.start(fg));
+    let (_fg, mut handle) = block_on(rt.start(fg));
+
+    let mut seq = 0u64;
+    rt.spawn_background(async move {
+        loop {
+            Timer::after(Duration::from_secs_f32(0.8)).await;
+            handle
+                .call(
+                    0,
+                    0,
+                    Pmt::Any(Box::new((
+                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        Mcs::Qam16_1_2,
+                    ))),
+                )
+                .await
+                .unwrap();
+            seq += 1;
+        }
+    });
+
     rt.block_on(async move {
         while let Some(x) = rx_frame.next().await {
             match x {

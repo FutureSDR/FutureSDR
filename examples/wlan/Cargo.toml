@@ -2,13 +2,17 @@
 name = "wlan"
 version = "0.1.0"
 edition = "2021"
-default-run = "rx"
+default-run = "loopback"
 
 [workspace]
 
 [[bin]]
 name = "rx"
 path = "src/bin/rx.rs"
+
+[[bin]]
+name = "loopback"
+path = "src/bin/loopback.rs"
 
 [dependencies]
 clap = { version = "3.1.18", features = ["derive"] }

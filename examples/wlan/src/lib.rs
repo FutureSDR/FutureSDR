@@ -12,6 +12,9 @@ pub use delay::Delay;
 mod frame_equalizer;
 pub use frame_equalizer::FrameEqualizer;
 
+mod mac;
+pub use mac::Mac;
+
 mod moving_average;
 pub use moving_average::MovingAverage;
 
