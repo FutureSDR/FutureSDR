@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-frontend"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 console_error_panic_hook = "0.1.6"
 futures = "0.3.19"
-futuresdr-pmt = { path = "../pmt", version = "0.0.3" }
+futuresdr-pmt = { path = "../pmt", version = "0.0.4" }
 gloo-console = "0.2.1"
 gloo-render = "0.1.0"
 gloo-timers = { version = "0.2.2", features = ["futures"] }

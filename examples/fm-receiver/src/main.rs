@@ -171,7 +171,7 @@ fn main() -> Result<()> {
             async_io::block_on(handle.call(
                 src,
                 freq_port_id,
-                Pmt::Double(new_freq * 1e6 + freq_offset),
+                Pmt::F64(new_freq * 1e6 + freq_offset),
             ))?;
         } else {
             println!("Input not parsable: {}", input);

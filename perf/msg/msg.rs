@@ -72,7 +72,7 @@ fn main() -> Result<()> {
         let mut snks = Vec::new();
 
         for _ in 0..pipes {
-            prev = fg.add_block(MessageBurst::new(Pmt::Double(1.23), burst_size));
+            prev = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size));
 
             for _ in 1..stages {
                 let block = fg.add_block(MessageCopy::new());
