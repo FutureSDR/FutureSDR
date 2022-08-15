@@ -71,6 +71,7 @@ pub use fir::FirBuilder;
 
 mod fft;
 pub use fft::Fft;
+pub use fft::FftDirection;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod file_sink;

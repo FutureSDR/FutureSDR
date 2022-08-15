@@ -1,4 +1,4 @@
-use rustfft::num_complex::Complex;
+use rustfft::num_complex::Complex32;
 use rustfft::{self, FftPlanner};
 use std::cmp;
 use std::mem::size_of;
@@ -38,26 +38,51 @@ use crate::runtime::WorkIo;
 /// ```
 pub struct Fft {
     len: usize,
+    fft_shift: bool,
+    normalize: Option<f32>,
     plan: Arc<dyn rustfft::Fft<f32>>,
-    scratch: Box<[Complex<f32>]>,
+    scratch: Box<[Complex32]>,
+}
+
+pub enum FftDirection {
+    Forward,
+    Inverse,
 }
 
 impl Fft {
     pub fn new(len: usize) -> Block {
+        Self::with_direction(len, FftDirection::Forward)
+    }
+
+    pub fn with_direction(len: usize, direction: FftDirection) -> Block {
+        Self::with_options(len, direction, false, None)
+    }
+
+    pub fn with_options(
+        len: usize,
+        direction: FftDirection,
+        fft_shift: bool,
+        normalize: Option<f32>,
+    ) -> Block {
         let mut planner = FftPlanner::<f32>::new();
-        let plan = planner.plan_fft_forward(len);
+        let plan = match direction {
+            FftDirection::Forward => planner.plan_fft_forward(len),
+            FftDirection::Inverse => planner.plan_fft_inverse(len),
+        };
 
         Block::new(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<Complex<f32>>())
-                .add_output("out", size_of::<Complex<f32>>())
+                .add_input("in", size_of::<Complex32>())
+                .add_output("out", size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::<Fft>::new().build(),
             Fft {
                 len,
                 plan,
-                scratch: vec![Complex::new(0.0, 0.0); len * 10].into_boxed_slice(),
+                fft_shift,
+                normalize,
+                scratch: vec![Complex32::new(0.0, 0.0); len * 10].into_boxed_slice(),
             },
         )
     }
@@ -72,8 +97,8 @@ impl Kernel for Fft {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = unsafe { sio.input(0).slice_mut::<Complex<f32>>() };
-        let o = sio.output(0).slice::<Complex<f32>>();
+        let i = unsafe { sio.input(0).slice_mut::<Complex32>() };
+        let o = sio.output(0).slice::<Complex32>();
 
         let m = cmp::min(i.len(), o.len());
         let m = (m / self.len) * self.len;
@@ -84,6 +109,22 @@ impl Kernel for Fft {
                 &mut o[0..m],
                 &mut self.scratch,
             );
+
+            if let Some(fac) = self.normalize {
+                for item in o[0..m].iter_mut() {
+                    *item *= fac;
+                }
+            }
+
+            if self.fft_shift {
+                for f in 0..(m / self.len) {
+                    let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
+                    sym.copy_from_slice(&o[f * self.len..(f + 1) * self.len]);
+                    for k in 0..self.len {
+                        o[f * 64 + k] = sym[(k + self.len / 2) % self.len]
+                    }
+                }
+            }
 
             sio.input(0).consume(m);
             sio.output(0).produce(m);
