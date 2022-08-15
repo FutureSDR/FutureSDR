@@ -24,6 +24,9 @@ pub use mapper::Mapper;
 mod moving_average;
 pub use moving_average::MovingAverage;
 
+mod prefix;
+pub use prefix::Prefix;
+
 mod sync_long;
 pub use sync_long::SyncLong;
 
