@@ -36,11 +36,13 @@ impl fmt::Debug for Box<dyn TagAny> {
     }
 }
 
+#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub enum Tag {
     Id(u64),
     String(String),
     Data(Pmt),
+    NamedUsize(String, usize),
     NamedF32(String, f32),
     NamedAny(String, Box<dyn TagAny>),
 }
