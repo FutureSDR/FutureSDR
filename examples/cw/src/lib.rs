@@ -70,6 +70,15 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
         '7' => vec![Dash, Dash, Dot, Dot, Dot, LetterSpace],
         '8' => vec![Dash, Dash, Dash, Dot, Dot, LetterSpace],
         '9' => vec![Dash, Dash, Dash, Dash, Dot, LetterSpace],
+        '.' => vec![Dot, Dash, Dot, Dash, Dot, Dash, LetterSpace],
+        ',' => vec![Dash, Dash, Dot, Dot, Dash, Dash, LetterSpace],
+        '?' => vec![Dot, Dot, Dash, Dash, Dot, Dot, LetterSpace],
+        ';' => vec![Dash, Dot, Dash, Dot, Dash, Dot, LetterSpace],
+        ':' => vec![Dash, Dash, Dash, Dot, Dot, Dot, LetterSpace],
+        '-' => vec![Dash, Dot, Dot, Dot, Dot, Dash, LetterSpace],
+        '/' => vec![Dash, Dot, Dot, Dash, Dot, LetterSpace],
+        '"' => vec![Dot, Dash, Dot, Dot, Dash, Dot, LetterSpace],
+        '\'' => vec![Dot, Dash, Dash, Dash, Dot, LetterSpace],
         _ => vec![WordSpace],
     }
 }
