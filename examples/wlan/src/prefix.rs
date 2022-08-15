@@ -4,6 +4,7 @@ use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
+use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -17,24 +18,28 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 
-pub struct Mapper {
-    signal: [u8; 24],
-    signal_encoded: [u8; 48],
-    signal_interleaved: [u8; 48],
-    current_mod: Modulation,
-    index: usize,
+enum State {
+    PadFront(usize),
+    Preamble(usize),
+    Frame(usize),
+    PadTail(usize),
 }
 
-impl Mapper {
+pub struct Prefix {
+    pad_front: usize,
+    pad_tail: usize,
+}
+
+impl Prefix {
     pub fn new() -> Block {
         Block::new(
-            BlockMetaBuilder::new("Mapper").build(),
+            BlockMetaBuilder::new("Prefix").build(),
             StreamIoBuilder::new()
                 .add_input("in", 1)
                 .add_output("out", std::mem::size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::new().build(),
-            Mapper {
+            Prefix {
                 signal: [0; 24],
                 signal_encoded: [0; 48],
                 signal_interleaved: [0; 48],
@@ -107,6 +112,11 @@ impl Mapper {
         for i in 0..48 {
             self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
+
+        info!(
+            "signal param {:?}\nsig: {:?}\nbits: {:?}",
+            frame, &self.signal, &self.signal_interleaved
+        );
     }
 
     fn map(input: &[u8; 48], output: &mut [Complex32; 64], modulation: Modulation, index: usize) {
@@ -136,7 +146,7 @@ impl Mapper {
 }
 
 #[async_trait]
-impl Kernel for Mapper {
+impl Kernel for Prefix {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -152,7 +162,7 @@ impl Kernel for Mapper {
 
         let mut o = 0;
 
-        let tags = sio.input(0).tags().clone();
+        let tags = sio.input(0).tags();
         if let Some((index, frame)) = tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
@@ -177,7 +187,6 @@ impl Kernel for Mapper {
                 o += 1;
                 let l = output.len();
                 output = &mut output[64..l];
-                sio.output(0).add_tag(0, Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1));
                 self.current_mod = frame.mcs().modulation();
                 self.index = 1;
             } else {
