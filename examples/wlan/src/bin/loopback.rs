@@ -18,6 +18,7 @@ use futuresdr::runtime::StreamOutput;
 
 use wlan::Decoder;
 use wlan::Delay;
+use wlan::Encoder;
 use wlan::FrameEqualizer;
 use wlan::Mac;
 use wlan::Mapper;
@@ -39,8 +40,10 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let mac = fg.add_block(Mac::new([0x23; 6], [0x42; 6], [0xff; 6]));
-    let mapper = fg.add_block(Mapper::new(Mcs::Qpsk_1_2));
-    fg.connect_message(mac, "tx", mapper, "tx")?;
+    let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2));
+    fg.connect_message(mac, "tx", encoder, "tx")?;
+    let mapper = fg.add_block(Mapper::new());
+    fg.connect_stream(encoder, "out", mapper, "in")?;
     let null = fg.add_block(futuresdr::blocks::NullSink::<u8>::new());
     fg.connect_stream(mapper, "out", null, "in")?;
 

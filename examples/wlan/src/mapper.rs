@@ -1,12 +1,10 @@
 use crate::FrameParam;
-use crate::MAX_ENCODED_BITS;
 use crate::Mcs;
-use crate::MAX_PSDU_SIZE;
+use crate::Modulation;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
-use futuresdr::log::warn;
+use futuresdr::log::{info, warn};
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -17,222 +15,95 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::WorkIo;
-use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
 
 /// Maximum number of frames to queue for transmission
 const MAX_FRAMES: usize = 1000;
 
 pub struct Mapper {
-    tx_frames: VecDeque<(Vec<u8>, Mcs)>,
-    default_mcs: Mcs,
-    current_len: usize,
-    current_index: usize,
-    scrambler_seed: u8,
-
-    bits: [u8; MAX_ENCODED_BITS],
-    scrambled: [u8; MAX_ENCODED_BITS],
-    encoded: [u8; 2 * MAX_ENCODED_BITS],
-    punctured: [u8; 2 * MAX_ENCODED_BITS],
-    interleaved: [u8; 2 * MAX_ENCODED_BITS],
-    symbols: [u8; 2 * MAX_ENCODED_BITS],
+    signal: [u8; 24],
+    signal_encoded: [u8; 48],
+    signal_interleaved: [u8; 48],
+    current_mod: Modulation,
+    index: usize,
 }
 
 impl Mapper {
-    pub fn new(default_mcs: Mcs) -> Block {
+    pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("Mapper").build(),
-            StreamIoBuilder::new().add_output("out", 1).build(),
-            MessageIoBuilder::new()
-                .add_input("tx", Self::transmit)
+            StreamIoBuilder::new()
+                .add_input("in", 1)
+                .add_output("out", 1)
                 .build(),
+            MessageIoBuilder::new().build(),
             Mapper {
-                tx_frames: VecDeque::new(),
-                default_mcs,
-                current_len: 0,
-                current_index: 0,
-                scrambler_seed: 1,
-
-                bits: [0; MAX_ENCODED_BITS],
-                scrambled: [0; MAX_ENCODED_BITS],
-                encoded: [0; 2 * MAX_ENCODED_BITS],
-                punctured: [0; 2 * MAX_ENCODED_BITS],
-                interleaved: [0; 2 * MAX_ENCODED_BITS],
-                symbols: [0; 2 * MAX_ENCODED_BITS],
+                signal: [0; 24],
+                signal_encoded: [0; 48],
+                signal_interleaved: [0; 48],
+                current_mod: Modulation::Bpsk,
+                index: 0,
             },
         )
     }
 
-    fn transmit<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Mapper>,
-        _meta: &'a mut BlockMeta,
-        p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Blob(data) => {
-                    if self.tx_frames.len() >= MAX_FRAMES {
-                        warn!(
-                            "WLAN Mapper: max number of frames already in TX queue ({}). Dropping.",
-                            MAX_FRAMES
-                        );
-                    } else if data.len() > MAX_PSDU_SIZE {
-                        warn!(
-                            "WLAN Mapper: TX frame too large ({}, max {}). Dropping.",
-                            data.len(),
-                            MAX_PSDU_SIZE
-                        );
-                    } else {
-                        self.tx_frames.push_back((data, self.default_mcs));
-                    }
-                }
-                Pmt::Any(a) => {
-                    if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Option<Mcs>)>() {
-                        let data = data.clone();
-                        if self.tx_frames.len() >= MAX_FRAMES {
-                            warn!(
-                                "WLAN Mapper: max number of frames already in TX queue ({}). Dropping.",
-                                MAX_FRAMES
-                            );
-                        } else if data.len() > MAX_PSDU_SIZE {
-                            warn!(
-                                "WLAN Mapper: TX frame too large ({}, max {}). Dropping.",
-                                data.len(),
-                                MAX_PSDU_SIZE
-                            );
-                        } else {
-                            if let Some(m) = mcs {
-                                self.tx_frames.push_back((data, *m));
-                            } else {
-                                self.tx_frames.push_back((data, self.default_mcs));
-                            }
-                        }
-                    }
-                }
-                x => {
-                    warn!("WLAN Mapper: received wrong PMT type in TX callback. {:?}", x);
-                }
-            }
-            Ok(Pmt::Null)
-        }
-        .boxed()
+    #[inline(always)]
+    fn get_bit(data: u8, bit: usize) -> u8 {
+        if data & (1 << bit) > 0 { 1 } else { 0 }
+    }
+    #[inline(always)]
+    fn get_bit_usize(data: usize, bit: usize) -> u8 {
+        if data & (1 << bit) > 0 { 1 } else { 0 }
     }
 
-    fn generate_bits(&mut self, data: &Vec<u8>) {
-        for i in 0..data.len() {
-            for b in 0..8 {
-                self.bits[16 + i * 8 + b] = if (data[i] & (1 << b)) > 0 { 1 } else { 0 };
-            }
-        }
-    }
+    fn generate_signal_field(&mut self, frame: &FrameParam) {
+        let length = frame.psdu_size();
+        let rate = frame.mcs().rate_field();
 
-    fn scramble(&mut self, n_data_bits: usize, n_pad: usize) {
+        // first 4 bits represent the modulation and coding scheme
+        self.signal[0] = Self::get_bit(rate, 3);
+        self.signal[1] = Self::get_bit(rate, 2);
+        self.signal[2] = Self::get_bit(rate, 1);
+        self.signal[3] = Self::get_bit(rate, 0);
+        // 5th bit is reserved and must be set to 0
+        self.signal[4] = 0;
+        // then 12 bits represent the length
+        self.signal[5] = Self::get_bit_usize(length, 0);
+        self.signal[6] = Self::get_bit_usize(length, 1);
+        self.signal[7] = Self::get_bit_usize(length, 2);
+        self.signal[8] = Self::get_bit_usize(length, 3);
+        self.signal[9] = Self::get_bit_usize(length, 4);
+        self.signal[10] = Self::get_bit_usize(length, 5);
+        self.signal[11] = Self::get_bit_usize(length, 6);
+        self.signal[12] = Self::get_bit_usize(length, 7);
+        self.signal[13] = Self::get_bit_usize(length, 8);
+        self.signal[14] = Self::get_bit_usize(length, 9);
+        self.signal[15] = Self::get_bit_usize(length, 10);
+        self.signal[16] = Self::get_bit_usize(length, 11);
+        // 18-th bit is the parity bit for the first 17 bits
+        let sum : u8 = self.signal[0..17].iter().sum();
+        self.signal[17] = sum % 2;
 
-        let mut state = self.scrambler_seed;
-        self.scrambler_seed += 1;
-        if self.scrambler_seed > 127 {
-            self.scrambler_seed = 1;
-        }
-
-        let mut feedback;
-
-        for i in 0..n_data_bits {
-            feedback = if (state & 64) > 0 { 1 } else { 0 } ^ if (state & 8) > 0 { 1 } else { 0 };
-            self.scrambled[i] = feedback ^ self.bits[i];
-            state = ((state << 1) & 0x7e) | feedback;
-        }
-
-        // reset tail bits
-        let offset = n_data_bits - n_pad - 6;
-        self.scrambled[offset..offset + 6].fill(0);
-    }
-
-    fn convolutional_encode(&mut self, n_data_bits: usize) {
+        // encode
         let mut state = 0;
-
-        for i in 0..n_data_bits {
-            state = ((state << 1) & 0x7e) | self.scrambled[i];
-            self.encoded[i * 2] = (state & 0o155).count_ones() as u8 % 2;
-            self.encoded[i * 2 + 1] = (state & 0o117).count_ones() as u8 % 2;
-        }
-    }
-
-    fn puncture(&mut self, n_data_bits: usize, mcs: Mcs) {
-        if matches!(mcs, Mcs::Bpsk_1_2 | Mcs::Qpsk_1_2 | Mcs::Qam16_1_2) {
-            self.punctured[0..n_data_bits * 2 ].copy_from_slice(&self.encoded[0..n_data_bits * 2]);
-            return;
+        for i in 0..24 {
+            state = ((state << 1) & 0x7e) | self.signal[i];
+            self.signal_encoded[i * 2] = (state & 0o155).count_ones() as u8 % 2;
+            self.signal_encoded[i * 2 + 1] = (state & 0o117).count_ones() as u8 % 2;
         }
 
-        let mut out = 0;
+        // interleave 
+        const INTERLEAVER_PATTERN: [usize; 48] = [
+            0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 1, 4, 7, 10, 13, 16, 19, 22, 25,
+            28, 31, 34, 37, 40, 43, 46, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47,
+        ];
 
-        for i in 0..2 * n_data_bits {
-            match mcs {
-                Mcs::Qam64_2_3 => {
-                    if i % 4 != 3 {
-                        self.punctured[out] = self.encoded[i];
-                        out += 1;
-                    }
-                }
-                Mcs::Bpsk_3_4 | Mcs::Qpsk_3_4 | Mcs::Qam16_3_4 | Mcs::Qam64_3_4 => {
-                    let m = i % 6;
-                    if !(m == 3 || m == 4) {
-                        self.punctured[out] = self.encoded[i];
-                        out += 1;
-                    }
-                }
-                _ => panic!("half-rate case should be handled separately")
-            }
-        }
-    }
-
-    fn interleave(&mut self, n_cbps: usize, n_bpsc: usize, n_sym: usize) {
-
-        let mut first = vec![0; n_cbps];
-        let mut second = vec![0; n_cbps];
-        let s = std::cmp::max(n_bpsc / 2, 1);
-
-        for j in 0..n_cbps {
-            first[j] = s * (j / s) + ((j + (16 * j / n_cbps)) % s);
+        for i in 0..48 {
+            self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
 
-        for i in 0..n_cbps {
-            second[i] = 16 * i - (n_cbps - 1) * (16 * i / n_cbps);
-        }
-
-        for i in 0..n_sym {
-            for k in 0..n_cbps {
-                self.interleaved[i * n_cbps + k] = self.punctured[i * n_cbps + second[first[k]]];
-            }
-        }
-    }
-
-    fn split_symbols(&mut self, n_bpsc: usize, n_sym: usize) {
-        let symbols = n_sym * 48;
-
-        for i in 0..symbols {
-            self.symbols[i] = 0;
-            for k in 0..n_bpsc {
-                self.symbols[i] |= self.interleaved[i * n_bpsc + k] << k;
-            }
-        }
-    }
-
-    fn encode(&mut self, data: &Vec<u8>, mcs: Mcs) -> usize {
-        let frame = FrameParam {
-            mcs,
-            bytes: data.len(),
-        };
-        self.generate_bits(data);
-        self.scramble(frame.n_data_bits(), frame.n_pad());
-        self.convolutional_encode(frame.n_data_bits());
-        self.puncture(frame.n_data_bits(), frame.mcs());
-        self.interleave(frame.mcs.cbps(), frame.mcs.modulation().bps(), frame.n_symbols());
-        self.split_symbols(frame.mcs.modulation().bps(), frame.n_symbols());
-
-        frame.n_symbols() * 48
+        info!("signal param {:?}\nsig: {:?}\nbits: {:?}", frame, &self.signal, &self.signal_interleaved);
     }
 }
 
@@ -245,38 +116,77 @@ impl Kernel for Mapper {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        loop {
-            let out = sio.output(0).slice::<u8>();
-            if out.is_empty() {
-                break;
-            }
 
-            if self.current_len == 0 {
-                if let Some((data, mcs)) = self.tx_frames.pop_front() {
-                    self.current_len = self.encode(&data, mcs);
-                    self.current_index = 0;
-                    sio.output(0).add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new((self.current_len, mcs))));
+        let mut input = sio.input(0).slice::<u8>();
+        let output = sio.output(0).slice::<u8>();
+        if output.len() < 64 {
+            return Ok(());
+        }
+
+        let tags = sio.input(0).tags();
+        if let Some((index, frame)) = tags.iter().find_map(|x| match x {
+            ItemTag {
+                index,
+                tag: Tag::NamedAny(n, any),
+            } => {
+                if n == "wifi_start" {
+                    any.downcast_ref::<FrameParam>().map(|x| (index, x))
                 } else {
-                    break;
+                    None
                 }
+            }
+            _ => None,
+        }) {
+            if *index == 0 {
+                self.generate_signal_field(frame);
             } else {
-                let n = std::cmp::min(out.len(), self.current_len - self.current_index);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        self.symbols.as_ptr().add(self.current_index),
-                        out.as_mut_ptr(),
-                        n,
-                    );
-                }
-
-                sio.output(0).produce(n);
-                self.current_index += n;
-
-                if self.current_index == self.current_len {
-                    self.current_len = 0;
-                }
+                input = &input[0..*index];
             }
         }
+
+
+
+
+
+
+
+
+
+        // loop {
+        //     let out = sio.output(0).slice::<u8>();
+        //     if out.is_empty() {
+        //         break;
+        //     }
+
+        //     if self.current_len == 0 {
+        //         if let Some((data, mcs)) = self.tx_frames.pop_front() {
+        //             self.current_len = self.encode(&data, mcs);
+        //             self.current_index = 0;
+        //             sio.output(0).add_tag(
+        //                 0,
+        //                 Tag::NamedAny("wifi_start".to_string(), Box::new((self.current_len, mcs))),
+        //             );
+        //         } else {
+        //             break;
+        //         }
+        //     } else {
+        //         let n = std::cmp::min(out.len(), self.current_len - self.current_index);
+        //         unsafe {
+        //             std::ptr::copy_nonoverlapping(
+        //                 self.symbols.as_ptr().add(self.current_index),
+        //                 out.as_mut_ptr(),
+        //                 n,
+        //             );
+        //         }
+
+        //         sio.output(0).produce(n);
+        //         self.current_index += n;
+
+        //         if self.current_index == self.current_len {
+        //             self.current_len = 0;
+        //         }
+        //     }
+        // }
 
         Ok(())
     }

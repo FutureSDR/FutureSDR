@@ -9,6 +9,9 @@ pub use decoder::Decoder;
 mod delay;
 pub use delay::Delay;
 
+mod encoder;
+pub use encoder::Encoder;
+
 mod frame_equalizer;
 pub use frame_equalizer::FrameEqualizer;
 
@@ -45,7 +48,7 @@ pub enum Modulation {
 
 impl Modulation {
     /// bits per symbol
-    pub fn bps(&self) -> usize {
+    pub fn n_bpsc(&self) -> usize {
         match self {
             Modulation::Bpsk => 1,
             Modulation::Qpsk => 2,
@@ -134,7 +137,7 @@ impl Mcs {
     }
 
     // coded bits per symbol
-    pub fn cbps(&self) -> usize {
+    pub fn n_cbps(&self) -> usize {
         match self {
             Mcs::Bpsk_1_2 => 48,
             Mcs::Bpsk_3_4 => 48,
@@ -148,7 +151,7 @@ impl Mcs {
     }
 
     // data bits per symbol
-    pub fn dbps(&self) -> usize {
+    pub fn n_dbps(&self) -> usize {
         match self {
             Mcs::Bpsk_1_2 => 24,
             Mcs::Bpsk_3_4 => 36,
@@ -160,44 +163,69 @@ impl Mcs {
             Mcs::Qam64_3_4 => 216,
         }
     }
+    // rate field for signal field
+    pub fn rate_field(&self) -> u8 {
+        match self {
+            Mcs::Bpsk_1_2 => 0x0d,
+            Mcs::Bpsk_3_4 => 0x0f,
+            Mcs::Qpsk_1_2 => 0x05,
+            Mcs::Qpsk_3_4 => 0x07,
+            Mcs::Qam16_1_2 => 0x09,
+            Mcs::Qam16_3_4 => 0x0b,
+            Mcs::Qam64_2_3 => 0x01,
+            Mcs::Qam64_3_4 => 0x03,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct FrameParam {
     mcs: Mcs,
-    bytes: usize,
+    psdu_size: usize,
+    n_data_bits: usize,
+    n_symbols: usize,
+    n_pad: usize,
 }
 
 impl FrameParam {
+    pub fn new(mcs: Mcs, psdu_size: usize) -> Self {
+        // n_symbols
+        let bits = 16 + 8 * psdu_size + 6;
+        let mut n_symbols = bits / mcs.n_dbps();
+        if bits % mcs.n_dbps() > 0 {
+            n_symbols += 1;
+        }
+
+        // n_pad
+        let n_data_bits = n_symbols * mcs.n_dbps();
+        let n_pad = n_data_bits - (16 + 8 * psdu_size + 6);
+
+        FrameParam {
+            mcs,
+            psdu_size,
+            n_data_bits,
+            n_symbols,
+            n_pad,
+        }
+    }
     pub fn psdu_size(&self) -> usize {
-        self.bytes
+        self.psdu_size
     }
 
     pub fn mcs(&self) -> Mcs {
         self.mcs
     }
 
-    pub fn modulation(&self) -> Modulation {
-        self.mcs.modulation()
-    }
-
     pub fn n_data_bits(&self) -> usize {
-        self.n_symbols() * self.mcs().dbps()
+        self.n_data_bits
     }
 
     pub fn n_pad(&self) -> usize {
-        self.n_data_bits() - (16 + 8 * self.psdu_size() + 6)
+        self.n_pad
     }
 
     pub fn n_symbols(&self) -> usize {
-        let bits = 16 + 8 * self.bytes + 6;
-
-        let mut syms = bits / self.mcs.dbps();
-        if bits % self.mcs.dbps() > 0 {
-            syms += 1;
-        }
-
-        syms
+        self.n_symbols
     }
 }
 

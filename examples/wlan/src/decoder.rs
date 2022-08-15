@@ -42,10 +42,7 @@ impl Decoder {
             MessageIoBuilder::new().add_output("rx_frames").build(),
             Self {
                 frame_complete: true,
-                frame_param: FrameParam {
-                    mcs: Mcs::Bpsk_1_2,
-                    bytes: 0,
-                },
+                frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
                 decoder: ViterbiDecoder::new(),
                 copied: 0,
                 rx_symbols: [0; 48 * MAX_SYM],
@@ -57,8 +54,8 @@ impl Decoder {
         )
     }
     fn deinterleave(&mut self) {
-        let n_cbps = self.frame_param.mcs().cbps();
-        let n_bpsc = self.frame_param.mcs().modulation().bps();
+        let n_cbps = self.frame_param.mcs().n_cbps();
+        let n_bpsc = self.frame_param.mcs().modulation().n_bpsc();
         let mut first = vec![0usize; n_cbps];
         let mut second = vec![0usize; n_cbps];
         let s = std::cmp::max(n_bpsc / 2, 1);
@@ -80,7 +77,7 @@ impl Decoder {
 
     fn decode(&mut self) -> bool {
         let syms = self.frame_param.n_symbols();
-        let bpsc = self.frame_param.mcs().modulation().bps();
+        let bpsc = self.frame_param.mcs().modulation().n_bpsc();
         for i in 0..syms * 48 {
             for k in 0..bpsc {
                 self.rx_bits[i * bpsc + k] = if (self.rx_symbols[i] & (1 << k)) > 0 {

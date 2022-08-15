@@ -27,10 +27,7 @@ pub struct ViterbiDecoder {
 impl ViterbiDecoder {
     pub fn new() -> Self {
         ViterbiDecoder {
-            frame_param: FrameParam {
-                mcs: Mcs::Bpsk_1_2,
-                bytes: 0,
-            },
+            frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
             n_traceback: 0,
             store_pos: 0,
 
@@ -86,7 +83,7 @@ impl ViterbiDecoder {
             self.depunctured[0..in_bits.len()].copy_from_slice(in_bits);
         } else {
             let pattern = self.frame_param.mcs.depuncture_pattern();
-            let n_cbps = self.frame_param.mcs().cbps();
+            let n_cbps = self.frame_param.mcs().n_cbps();
             let mut count = 0;
 
             for i in 0..self.frame_param.n_symbols() {

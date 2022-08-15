@@ -131,10 +131,7 @@ impl FrameEqualizer {
         // info!("deinterleaved: {:?}", &deinterleaved);
 
         self.decoder.decode(
-            FrameParam {
-                mcs: Mcs::Bpsk_1_2,
-                bytes: 0,
-            },
+            FrameParam::new(Mcs::Bpsk_1_2, 0),
             &deinterleaved,
             &mut self.decoded_bits,
         );
@@ -161,38 +158,14 @@ impl FrameEqualizer {
         }
 
         match r {
-            11 => Some(FrameParam {
-                mcs: Mcs::Bpsk_1_2,
-                bytes,
-            }),
-            15 => Some(FrameParam {
-                mcs: Mcs::Bpsk_3_4,
-                bytes,
-            }),
-            10 => Some(FrameParam {
-                mcs: Mcs::Qpsk_1_2,
-                bytes,
-            }),
-            14 => Some(FrameParam {
-                mcs: Mcs::Qpsk_3_4,
-                bytes,
-            }),
-            9 => Some(FrameParam {
-                mcs: Mcs::Qam16_1_2,
-                bytes,
-            }),
-            13 => Some(FrameParam {
-                mcs: Mcs::Qam16_3_4,
-                bytes,
-            }),
-            8 => Some(FrameParam {
-                mcs: Mcs::Qam64_2_3,
-                bytes,
-            }),
-            12 => Some(FrameParam {
-                mcs: Mcs::Qam64_3_4,
-                bytes,
-            }),
+            11 => Some(FrameParam::new(Mcs::Bpsk_1_2, bytes)),
+            15 => Some(FrameParam::new(Mcs::Bpsk_3_4, bytes)),
+            10 => Some(FrameParam::new(Mcs::Qpsk_1_2, bytes)),
+            14 => Some(FrameParam::new(Mcs::Qpsk_3_4, bytes)),
+            9 => Some(FrameParam::new(Mcs::Qam16_1_2, bytes)),
+            13 => Some(FrameParam::new(Mcs::Qam16_3_4, bytes)),
+            8 => Some(FrameParam::new(Mcs::Qam64_2_3, bytes)),
+            12 => Some(FrameParam::new(Mcs::Qam64_3_4, bytes)),
             _ => {
                 info!("signal: wrong encoding (r = {})", r);
                 None
@@ -318,7 +291,7 @@ impl Kernel for FrameEqualizer {
                         // info!("signal field decoded {:?}, snr {}", &frame, self.equalizer.snr());
 
                         self.state =
-                            State::Copy(frame.n_symbols(), frame.n_symbols(), frame.modulation());
+                            State::Copy(frame.n_symbols(), frame.n_symbols(), frame.mcs().modulation());
                         sio.output(0).add_tag(
                             o * 48,
                             Tag::NamedAny("wifi_start".to_string(), Box::new(frame)),
