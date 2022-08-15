@@ -33,6 +33,7 @@ impl dyn PmtAny {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Pmt {
     Null,
@@ -113,6 +114,7 @@ impl Pmt {
     }
 }
 
+#[non_exhaustive]
 #[derive(Clone, PartialEq, Eq)]
 pub enum PmtKind {
     Null,
