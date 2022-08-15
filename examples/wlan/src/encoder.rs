@@ -1,6 +1,6 @@
 use crate::FrameParam;
-use crate::MAX_ENCODED_BITS;
 use crate::Mcs;
+use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 
 use futuresdr::anyhow::Result;
@@ -103,12 +103,10 @@ impl Encoder {
                                 data.len(),
                                 MAX_PSDU_SIZE
                             );
+                        } else if let Some(m) = mcs {
+                            self.tx_frames.push_back((data, *m));
                         } else {
-                            if let Some(m) = mcs {
-                                self.tx_frames.push_back((data, *m));
-                            } else {
-                                self.tx_frames.push_back((data, self.default_mcs));
-                            }
+                            self.tx_frames.push_back((data, self.default_mcs));
                         }
                     }
                 }
@@ -130,7 +128,6 @@ impl Encoder {
     }
 
     fn scramble(&mut self, n_data_bits: usize, n_pad: usize) {
-
         let mut state = self.scrambler_seed;
         self.scrambler_seed += 1;
         if self.scrambler_seed > 127 {
@@ -162,7 +159,7 @@ impl Encoder {
 
     fn puncture(&mut self, n_data_bits: usize, mcs: Mcs) {
         if matches!(mcs, Mcs::Bpsk_1_2 | Mcs::Qpsk_1_2 | Mcs::Qam16_1_2) {
-            self.punctured[0..n_data_bits * 2 ].copy_from_slice(&self.encoded[0..n_data_bits * 2]);
+            self.punctured[0..n_data_bits * 2].copy_from_slice(&self.encoded[0..n_data_bits * 2]);
             return;
         }
 
@@ -183,13 +180,12 @@ impl Encoder {
                         out += 1;
                     }
                 }
-                _ => panic!("half-rate case should be handled separately")
+                _ => panic!("half-rate case should be handled separately"),
             }
         }
     }
 
     fn interleave(&mut self, n_cbps: usize, n_bpsc: usize, n_sym: usize) {
-
         let mut first = vec![0; n_cbps];
         let mut second = vec![0; n_cbps];
         let s = std::cmp::max(n_bpsc / 2, 1);
@@ -225,7 +221,11 @@ impl Encoder {
         self.scramble(frame.n_data_bits(), frame.n_pad());
         self.convolutional_encode(frame.n_data_bits());
         self.puncture(frame.n_data_bits(), frame.mcs());
-        self.interleave(frame.mcs.n_cbps(), frame.mcs.modulation().n_bpsc(), frame.n_symbols());
+        self.interleave(
+            frame.mcs.n_cbps(),
+            frame.mcs.modulation().n_bpsc(),
+            frame.n_symbols(),
+        );
         self.split_symbols(frame.mcs.modulation().n_bpsc(), frame.n_symbols());
     }
 }
@@ -251,7 +251,8 @@ impl Kernel for Encoder {
                     self.encode(&data, &frame);
                     self.current_len = frame.n_symbols() * 48;
                     self.current_index = 0;
-                    sio.output(0).add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
+                    sio.output(0)
+                        .add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
                 } else {
                     break;
                 }

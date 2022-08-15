@@ -1,25 +1,22 @@
 use crate::FrameParam;
-use crate::Mcs;
 use crate::Modulation;
+use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::{info, warn};
+use futuresdr::log::info;
+use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
-use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::WorkIo;
-
-/// Maximum number of frames to queue for transmission
-const MAX_FRAMES: usize = 1000;
 
 pub struct Mapper {
     signal: [u8; 24],
@@ -35,7 +32,7 @@ impl Mapper {
             BlockMetaBuilder::new("Mapper").build(),
             StreamIoBuilder::new()
                 .add_input("in", 1)
-                .add_output("out", 1)
+                .add_output("out", std::mem::size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::new().build(),
             Mapper {
@@ -50,11 +47,19 @@ impl Mapper {
 
     #[inline(always)]
     fn get_bit(data: u8, bit: usize) -> u8 {
-        if data & (1 << bit) > 0 { 1 } else { 0 }
+        if data & (1 << bit) > 0 {
+            1
+        } else {
+            0
+        }
     }
     #[inline(always)]
     fn get_bit_usize(data: usize, bit: usize) -> u8 {
-        if data & (1 << bit) > 0 { 1 } else { 0 }
+        if data & (1 << bit) > 0 {
+            1
+        } else {
+            0
+        }
     }
 
     fn generate_signal_field(&mut self, frame: &FrameParam) {
@@ -82,7 +87,7 @@ impl Mapper {
         self.signal[15] = Self::get_bit_usize(length, 10);
         self.signal[16] = Self::get_bit_usize(length, 11);
         // 18-th bit is the parity bit for the first 17 bits
-        let sum : u8 = self.signal[0..17].iter().sum();
+        let sum: u8 = self.signal[0..17].iter().sum();
         self.signal[17] = sum % 2;
 
         // encode
@@ -93,17 +98,46 @@ impl Mapper {
             self.signal_encoded[i * 2 + 1] = (state & 0o117).count_ones() as u8 % 2;
         }
 
-        // interleave 
+        // interleave
         const INTERLEAVER_PATTERN: [usize; 48] = [
-            0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 1, 4, 7, 10, 13, 16, 19, 22, 25,
-            28, 31, 34, 37, 40, 43, 46, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47,
+            0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 1, 4, 7, 10, 13, 16, 19,
+            22, 25, 28, 31, 34, 37, 40, 43, 46, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38,
+            41, 44, 47,
         ];
 
         for i in 0..48 {
             self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
 
-        info!("signal param {:?}\nsig: {:?}\nbits: {:?}", frame, &self.signal, &self.signal_interleaved);
+        info!(
+            "signal param {:?}\nsig: {:?}\nbits: {:?}",
+            frame, &self.signal, &self.signal_interleaved
+        );
+    }
+
+    fn map(input: &[u8; 48], output: &mut [Complex32; 64], modulation: Modulation, index: usize) {
+        // dc
+        output[0] = Complex32::new(0.0, 0.0);
+        // guard
+        for i in (0..6).chain(59..64) {
+            output[(i + 32) % 64] = Complex32::new(0.0, 0.0);
+        }
+        // pilots
+        for i in [11, 25, 39] {
+            output[(i + 32) % 64] = POLARITY[index];
+        }
+        output[(53 + 32) % 64] = -POLARITY[index];
+        // data
+        for (i, c) in (6..11)
+            .chain(12..25)
+            .chain(26..32)
+            .chain(33..39)
+            .chain(40..53)
+            .chain(54..59)
+            .enumerate()
+        {
+            output[(c + 32) % 64] = modulation.map(input[i]);
+        }
     }
 }
 
@@ -111,17 +145,18 @@ impl Mapper {
 impl Kernel for Mapper {
     async fn work(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         sio: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
         let mut input = sio.input(0).slice::<u8>();
-        let output = sio.output(0).slice::<u8>();
+        let mut output = sio.output(0).slice::<Complex32>();
         if output.len() < 64 {
             return Ok(());
         }
+
+        let mut o = 0;
 
         let tags = sio.input(0).tags();
         if let Some((index, frame)) = tags.iter().find_map(|x| match x {
@@ -139,54 +174,40 @@ impl Kernel for Mapper {
         }) {
             if *index == 0 {
                 self.generate_signal_field(frame);
+                Self::map(
+                    &self.signal_interleaved,
+                    &mut output[0..64].try_into().unwrap(),
+                    Modulation::Bpsk,
+                    0,
+                );
+                o += 1;
+                let l = output.len();
+                output = &mut output[64..l];
+                self.current_mod = frame.mcs().modulation();
+                self.index = 1;
             } else {
                 input = &input[0..*index];
             }
         }
 
+        let n = std::cmp::min(input.len() / 48, output.len() / 64);
 
+        for i in 0..n {
+            Self::map(
+                &input[i * 48..(i + 1) * 48].try_into().unwrap(),
+                &mut output[(i + o) * 64..(i + o + 1) * 64].try_into().unwrap(),
+                self.current_mod,
+                self.index,
+            );
+            self.index += 1;
+        }
 
+        sio.input(0).consume(n * 48);
+        sio.output(0).produce((n + o) * 64);
 
-
-
-
-
-
-        // loop {
-        //     let out = sio.output(0).slice::<u8>();
-        //     if out.is_empty() {
-        //         break;
-        //     }
-
-        //     if self.current_len == 0 {
-        //         if let Some((data, mcs)) = self.tx_frames.pop_front() {
-        //             self.current_len = self.encode(&data, mcs);
-        //             self.current_index = 0;
-        //             sio.output(0).add_tag(
-        //                 0,
-        //                 Tag::NamedAny("wifi_start".to_string(), Box::new((self.current_len, mcs))),
-        //             );
-        //         } else {
-        //             break;
-        //         }
-        //     } else {
-        //         let n = std::cmp::min(out.len(), self.current_len - self.current_index);
-        //         unsafe {
-        //             std::ptr::copy_nonoverlapping(
-        //                 self.symbols.as_ptr().add(self.current_index),
-        //                 out.as_mut_ptr(),
-        //                 n,
-        //             );
-        //         }
-
-        //         sio.output(0).produce(n);
-        //         self.current_index += n;
-
-        //         if self.current_index == self.current_len {
-        //             self.current_len = 0;
-        //         }
-        //     }
-        // }
+        if sio.input(0).finished() && n == input.len() * 48 {
+            io.finished = true;
+        }
 
         Ok(())
     }

@@ -8,6 +8,7 @@ use futuresdr::async_io::{block_on, Timer};
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
+use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
@@ -44,8 +45,15 @@ fn main() -> Result<()> {
     fg.connect_message(mac, "tx", encoder, "tx")?;
     let mapper = fg.add_block(Mapper::new());
     fg.connect_stream(encoder, "out", mapper, "in")?;
-    let null = fg.add_block(futuresdr::blocks::NullSink::<u8>::new());
-    fg.connect_stream(mapper, "out", null, "in")?;
+    let fft = fg.add_block(Fft::with_options(
+        64,
+        FftDirection::Inverse,
+        true,
+        Some((1.0f32 / 52.0).sqrt() * 64.0),
+    ));
+    fg.connect_stream(mapper, "out", fft, "in")?;
+    let null = fg.add_block(futuresdr::blocks::NullSink::<Complex32>::new());
+    fg.connect_stream(fft, "out", null, "in")?;
 
     // ========================================
     // Receiver

@@ -69,7 +69,9 @@ impl Mac {
                         debug!("mac frame {:?}", &self.current_frame[0..len]);
                         let mut vec = vec![0; len];
                         vec.copy_from_slice(&self.current_frame[0..len]);
-                        mio.output_mut(0).post(Pmt::Any(Box::new((vec, None as Option<Mcs>)))).await;
+                        mio.output_mut(0)
+                            .post(Pmt::Any(Box::new((vec, None as Option<Mcs>))))
+                            .await;
                     }
                 }
                 Pmt::Any(a) => {
@@ -85,7 +87,9 @@ impl Mac {
                             debug!("mac frame {:?}", &self.current_frame[0..len]);
                             let mut vec = vec![0; len];
                             vec.copy_from_slice(&self.current_frame[0..len]);
-                            mio.output_mut(0).post(Pmt::Any(Box::new((vec, Some(*mcs))))).await;
+                            mio.output_mut(0)
+                                .post(Pmt::Any(Box::new((vec, Some(*mcs)))))
+                                .await;
                         }
                     }
                 }

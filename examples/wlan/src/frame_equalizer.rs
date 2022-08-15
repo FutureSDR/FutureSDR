@@ -290,8 +290,11 @@ impl Kernel for FrameEqualizer {
                     if let Some(frame) = self.decode_signal_field() {
                         // info!("signal field decoded {:?}, snr {}", &frame, self.equalizer.snr());
 
-                        self.state =
-                            State::Copy(frame.n_symbols(), frame.n_symbols(), frame.mcs().modulation());
+                        self.state = State::Copy(
+                            frame.n_symbols(),
+                            frame.n_symbols(),
+                            frame.mcs().modulation(),
+                        );
                         sio.output(0).add_tag(
                             o * 48,
                             Tag::NamedAny("wifi_start".to_string(), Box::new(frame)),

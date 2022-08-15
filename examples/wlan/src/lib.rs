@@ -56,6 +56,116 @@ impl Modulation {
             Modulation::Qam64 => 6,
         }
     }
+    pub fn map(&self, i: u8) -> Complex32 {
+        match self {
+            Modulation::Bpsk => {
+                const BPSK: [Complex32; 2] = [Complex32::new(-1.0, 0.0), Complex32::new(1.0, 0.0)];
+                BPSK[i as usize]
+            }
+            Modulation::Qpsk => {
+                const LEVEL: f32 = std::f32::consts::FRAC_1_SQRT_2;
+                const QPSK: [Complex32; 4] = [
+                    Complex32::new(-LEVEL, -LEVEL),
+                    Complex32::new(LEVEL, -LEVEL),
+                    Complex32::new(-LEVEL, LEVEL),
+                    Complex32::new(LEVEL, LEVEL),
+                ];
+                QPSK[i as usize]
+            }
+            Modulation::Qam16 => {
+                const LEVEL: f32 = 0.31622776601683794;
+                const QAM16: [Complex32; 16] = [
+                    Complex32::new(-3.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 1.0 * LEVEL),
+                ];
+                QAM16[i as usize]
+            }
+            Modulation::Qam64 => {
+                const LEVEL: f32 = 0.1543033499620919;
+                const QAM64: [Complex32; 64] = [
+                    Complex32::new(-7.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -7.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 7.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -1.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 1.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -5.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 5.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, -3.0 * LEVEL),
+                    Complex32::new(-7.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(7.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(-1.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(1.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(-5.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(5.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(-3.0 * LEVEL, 3.0 * LEVEL),
+                    Complex32::new(3.0 * LEVEL, 3.0 * LEVEL),
+                ];
+                QAM64[i as usize]
+            }
+        }
+    }
 
     pub fn demap(&self, i: &Complex32) -> u8 {
         match self {
