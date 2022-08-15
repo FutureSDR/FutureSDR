@@ -20,6 +20,7 @@ use wlan::Decoder;
 use wlan::Delay;
 use wlan::FrameEqualizer;
 use wlan::Mac;
+use wlan::Mapper;
 use wlan::Mcs;
 use wlan::MovingAverage;
 use wlan::SyncLong;
@@ -37,9 +38,11 @@ fn main() -> Result<()> {
     println!("Configuration: {:?}", args);
 
     let mut fg = Flowgraph::new();
-    let mac = fg.add_block(Mac::new([0x23; 6], [0x42; 6], [0xff; 6], Mcs::Qpsk_1_2));
+    let mac = fg.add_block(Mac::new([0x23; 6], [0x42; 6], [0xff; 6]));
+    let mapper = fg.add_block(Mapper::new(Mcs::Qpsk_1_2));
+    fg.connect_message(mac, "tx", mapper, "tx")?;
     let null = fg.add_block(futuresdr::blocks::NullSink::<u8>::new());
-    fg.connect_stream(mac, "out", null, "in")?;
+    fg.connect_stream(mapper, "out", null, "in")?;
 
     // ========================================
     // Receiver

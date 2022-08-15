@@ -5,7 +5,7 @@ use crate::MAX_PSDU_SIZE;
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::futures::FutureExt;
-use futuresdr::log::{info, warn};
+use futuresdr::log::{debug, warn};
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -13,71 +13,67 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::WorkIo;
-use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 
-/// Maximum number of frames to queue for transmission
-const MAX_FRAMES: usize = 1000;
-
 pub struct Mac {
-    tx_frames: VecDeque<(Vec<u8>, Mcs)>,
-
     current_frame: [u8; MAX_PSDU_SIZE],
-    current_index: usize,
-    current_len: usize,
-    current_mcs: Mcs,
-
-    default_mcs: Mcs,
     sequence_number: u16,
-    src_mac: [u8; 6],
-    dst_mac: [u8; 6],
-    bss_mac: [u8; 6],
 }
 
 impl Mac {
-    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6], default_mcs: Mcs) -> Block {
+    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6]) -> Block {
+        let mut current_frame = [0; MAX_PSDU_SIZE];
+
+        // frame control
+        current_frame[0..2].copy_from_slice(&0x0008u16.to_le_bytes());
+        // duration
+        current_frame[2..4].copy_from_slice(&0x0000u16.to_le_bytes());
+        // mac addresses
+        current_frame[4..10].copy_from_slice(&src_mac);
+        current_frame[10..16].copy_from_slice(&dst_mac);
+        current_frame[16..22].copy_from_slice(&bss_mac);
+
         Block::new(
             BlockMetaBuilder::new("Mac").build(),
-            StreamIoBuilder::new().add_output("out", 1).build(),
+            StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .add_input("tx", Self::transmit)
+                .add_output("tx")
                 .build(),
             Mac {
-                tx_frames: VecDeque::new(),
-
-                current_frame: [0; MAX_PSDU_SIZE],
-                current_index: 0,
-                current_len: 0,
-                current_mcs: Mcs::Bpsk_1_2,
-
-                default_mcs,
+                current_frame,
                 sequence_number: 0,
-                src_mac,
-                dst_mac,
-                bss_mac,
             },
         )
     }
 
     fn transmit<'a>(
         &'a mut self,
-        _mio: &'a mut MessageIo<Mac>,
+        mio: &'a mut MessageIo<Mac>,
         _meta: &'a mut BlockMeta,
         p: Pmt,
     ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
         async move {
             match p {
                 Pmt::Blob(data) => {
-                    if self.tx_frames.len() >= MAX_FRAMES {
+                    if data.len() > MAX_PAYLOAD_SIZE {
                         warn!(
-                            "WLAN Mac: max number of frames already in TX queue ({}). Dropping.",
-                            MAX_FRAMES
+                            "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
+                            data.len(),
+                            MAX_PAYLOAD_SIZE
                         );
                     } else {
+                        let len = self.generate_mac_data_frame(&data);
+                        debug!("mac frame {:?}", &self.current_frame[0..len]);
+                        let mut vec = vec![0; len];
+                        vec.copy_from_slice(&self.current_frame[0..len]);
+                        mio.output_mut(0).post(Pmt::Any(Box::new((vec, None as Option<Mcs>)))).await;
+                    }
+                }
+                Pmt::Any(a) => {
+                    if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Mcs)>() {
                         if data.len() > MAX_PAYLOAD_SIZE {
                             warn!(
                                 "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
@@ -85,30 +81,11 @@ impl Mac {
                                 MAX_PAYLOAD_SIZE
                             );
                         } else {
-                            info!("QUEUED BLOB");
-                            self.tx_frames.push_back((data, self.default_mcs));
-                        }
-                    }
-                }
-                Pmt::Any(a) => {
-                    if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Mcs)>() {
-                        let data = data.clone();
-                        if self.tx_frames.len() >= MAX_FRAMES {
-                            warn!(
-                                "WLAN Mac: max number of frames already in TX queue ({}). Dropping.",
-                                MAX_FRAMES
-                            );
-                        } else {
-                            if data.len() > MAX_PAYLOAD_SIZE {
-                                warn!(
-                                    "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
-                                    data.len(),
-                                    MAX_PAYLOAD_SIZE
-                                );
-                            } else {
-                                info!("QUEUED ANY {:?}", mcs);
-                                self.tx_frames.push_back((data, *mcs));
-                            }
+                            let len = self.generate_mac_data_frame(data);
+                            debug!("mac frame {:?}", &self.current_frame[0..len]);
+                            let mut vec = vec![0; len];
+                            vec.copy_from_slice(&self.current_frame[0..len]);
+                            mio.output_mut(0).post(Pmt::Any(Box::new((vec, Some(*mcs))))).await;
                         }
                     }
                 }
@@ -120,69 +97,27 @@ impl Mac {
         }
         .boxed()
     }
+
+    fn generate_mac_data_frame(&mut self, data: &Vec<u8>) -> usize {
+        self.current_frame[22..24].copy_from_slice(&(self.sequence_number).to_le_bytes());
+        self.sequence_number = (self.sequence_number + 1) % (1 << 12);
+
+        let len = data.len() + 24;
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                data.as_ptr(),
+                self.current_frame.as_mut_ptr().add(24),
+                data.len(),
+            );
+        }
+
+        let crc = crc32fast::hash(&self.current_frame[0..len]);
+        self.current_frame[len..len + 4].copy_from_slice(&crc.to_le_bytes());
+
+        len + 4
+    }
 }
 
 #[async_trait]
-impl Kernel for Mac {
-    async fn work(
-        &mut self,
-        _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        // loop {
-        //     let out = sio.output(0).slice::<u8>();
-        //     if out.is_empty() {
-        //         break;
-        //     }
-
-        //     if self.current_len == 0 {
-        //         if let Some(v) = self.tx_frames.pop_front() {
-        //             self.current_frame[4] = (v.len() + 11) as u8;
-        //             self.current_frame[7] = self.sequence_number;
-        //             self.sequence_number = self.sequence_number.wrapping_add(1);
-        //             unsafe {
-        //                 std::ptr::copy_nonoverlapping(
-        //                     v.as_ptr(),
-        //                     self.current_frame.as_mut_ptr().add(14),
-        //                     v.len(),
-        //                 );
-        //             }
-
-        //             let crc = Self::calc_crc(&self.current_frame[5..14 + v.len()]);
-        //             self.current_frame[14 + v.len()] = crc.to_le_bytes()[0];
-        //             self.current_frame[15 + v.len()] = crc.to_le_bytes()[1];
-
-        //             // 4 preamble + 1 len + 9 header + 2 crc
-        //             self.current_len = v.len() + 16;
-        //             self.current_index = 0;
-        //             sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
-        //             debug!("sending frame, len {}", self.current_len);
-        //             self.n_sent += 1;
-        //             debug!("{:?}", &self.current_frame[0..self.current_len]);
-        //         } else {
-        //             break;
-        //         }
-        //     } else {
-        //         let n = std::cmp::min(out.len(), self.current_len - self.current_index);
-        //         unsafe {
-        //             std::ptr::copy_nonoverlapping(
-        //                 self.current_frame.as_ptr().add(self.current_index),
-        //                 out.as_mut_ptr(),
-        //                 n,
-        //             );
-        //         }
-
-        //         sio.output(0).produce(n);
-        //         self.current_index += n;
-
-        //         if self.current_index == self.current_len {
-        //             self.current_len = 0;
-        //         }
-        //     }
-        // }
-
-        Ok(())
-    }
-}
+impl Kernel for Mac {}

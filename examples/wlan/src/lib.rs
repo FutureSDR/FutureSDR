@@ -15,6 +15,9 @@ pub use frame_equalizer::FrameEqualizer;
 mod mac;
 pub use mac::Mac;
 
+mod mapper;
+pub use mapper::Mapper;
+
 mod moving_average;
 pub use moving_average::MovingAverage;
 
@@ -180,6 +183,10 @@ impl FrameParam {
 
     pub fn n_data_bits(&self) -> usize {
         self.n_symbols() * self.mcs().dbps()
+    }
+
+    pub fn n_pad(&self) -> usize {
+        self.n_data_bits() - (16 + 8 * self.psdu_size() + 6)
     }
 
     pub fn n_symbols(&self) -> usize {
