@@ -177,7 +177,10 @@ impl Kernel for Mapper {
                 o += 1;
                 let l = output.len();
                 output = &mut output[64..l];
-                sio.output(0).add_tag(0, Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1));
+                sio.output(0).add_tag(
+                    0,
+                    Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1),
+                );
                 self.current_mod = frame.mcs().modulation();
                 self.index = 1;
             } else {

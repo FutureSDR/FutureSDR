@@ -31,7 +31,7 @@ pub struct Prefix {
 }
 
 impl Prefix {
-    pub fn new() -> Block {
+    pub fn new(pad_front: usize, pad_tail: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("Prefix").build(),
             StreamIoBuilder::new()
@@ -40,11 +40,8 @@ impl Prefix {
                 .build(),
             MessageIoBuilder::new().build(),
             Prefix {
-                signal: [0; 24],
-                signal_encoded: [0; 48],
-                signal_interleaved: [0; 48],
-                current_mod: Modulation::Bpsk,
-                index: 0,
+                pad_front,
+                pad_tail,
             },
         )
     }
@@ -59,14 +56,14 @@ impl Kernel for Prefix {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let mut input = sio.input(0).slice::<u8>();
-        let mut output = sio.output(0).slice::<Complex32>();
+        // let mut input = sio.input(0).slice::<u8>();
+        // let mut output = sio.output(0).slice::<Complex32>();
 
         Ok(())
     }
 }
 
-const SYNC_WORDS : [Complex32; 320] = [
+const SYNC_WORDS: [Complex32; 320] = [
     Complex32::new(0.4082482904638631, 0.4082482904638631),
     Complex32::new(-1.1754648916223063, 0.020764353243054506),
     Complex32::new(-0.11957315586905014, -0.696923425058676),
