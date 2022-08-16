@@ -129,8 +129,8 @@ fn main() -> Result<()> {
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
-    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
-    fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
+    // let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
+    // fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
     let (_fg, mut handle) = block_on(rt.start(fg));
@@ -145,8 +145,7 @@ fn main() -> Result<()> {
                     0,
                     Pmt::Any(Box::new((
                         format!("FutureSDR {}", seq).as_bytes().to_vec(),
-                        // "xxxxxxxxxxx".as_bytes().to_vec(),
-                        Mcs::Qpsk_3_4,
+                        Mcs::Qpsk_1_2,
                     ))),
                 )
                 .await
