@@ -55,7 +55,6 @@ impl Kernel for Prefix {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-
         debug!("Prefix: {:?}", self.state);
 
         let tags = sio.input(0).tags().clone();
@@ -73,7 +72,13 @@ impl Kernel for Prefix {
             _ => None,
         }) {
             if *index == 0 {
-                debug_assert!(matches!(self.state, State::PadTail(0) | State::PadFront(_, _) | State::Preamble(_, _) | State::Frame(_)));
+                debug_assert!(matches!(
+                    self.state,
+                    State::PadTail(0)
+                        | State::PadFront(_, _)
+                        | State::Preamble(_, _)
+                        | State::Frame(_)
+                ));
                 if matches!(self.state, State::PadTail(0)) {
                     self.state = State::PadFront(self.pad_front, len * 64);
                 }
@@ -143,13 +148,11 @@ impl Kernel for Prefix {
                 output[0..o].fill(Complex32::new(0.0, 0.0));
 
                 // terminate
-                if sio.input(0).finished() && input.len() == 0 {
+                if sio.input(0).finished() && input.is_empty() {
                     io.finished = true;
                 }
-                if o == left {
-                    if o < output.len() && !input.is_empty() {
-                        io.call_again = true;
-                    }
+                if o == left && o < output.len() && !input.is_empty() {
+                    io.call_again = true;
                 }
                 self.state = State::PadTail(left - o);
             }

@@ -4,7 +4,6 @@ use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -108,8 +107,6 @@ impl Mapper {
         for i in 0..48 {
             self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
-        debug!("mapper frame {:?}", frame);
-        debug!("mapper bits {:?}", self.signal_interleaved);
     }
 
     fn map(input: &[u8; 48], output: &mut [Complex32; 64], modulation: Modulation, index: usize) {
@@ -178,7 +175,6 @@ impl Kernel for Mapper {
                     Modulation::Bpsk,
                     0,
                 );
-                debug!("mapped {:?}", &output[0..64]);
                 o += 1;
                 sio.output(0).add_tag(
                     0,

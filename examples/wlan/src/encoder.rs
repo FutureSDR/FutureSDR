@@ -247,11 +247,9 @@ impl Kernel for Encoder {
 
             if self.current_len == 0 {
                 if let Some((data, mcs)) = self.tx_frames.pop_front() {
-                    println!("data {:?}", &data);
                     let frame = FrameParam::new(mcs, data.len());
                     self.encode(&data, &frame);
                     self.current_len = frame.n_symbols() * 48;
-                    println!("encoded {:?}", &self.symbols[0..self.current_len]);
                     self.current_index = 0;
                     sio.output(0)
                         .add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));

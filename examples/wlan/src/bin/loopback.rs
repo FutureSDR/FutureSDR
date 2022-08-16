@@ -1,8 +1,8 @@
 use clap::Parser;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
+use rand_distr::{Distribution, Normal};
 use std::time::Duration;
-use rand_distr::{Normal, Distribution};
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::{block_on, Timer};
@@ -59,10 +59,6 @@ fn main() -> Result<()> {
     let prefix = fg.add_block(Prefix::new(2000, 10000));
     fg.connect_stream(fft, "out", prefix, "in")?;
 
-
-
-
-
     // add noise
     let normal = Normal::new(0.0f32, 0.001).unwrap();
     let noise = fg.add_block(Apply::new(move |i: &Complex32| -> Complex32 {
@@ -83,7 +79,7 @@ fn main() -> Result<()> {
     // ========================================
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new(
-        // "data/all-mcs-30db.cf32",
+    // "data/all-mcs-30db.cf32",
     // ));
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
     // let src = fg.add_block(
@@ -133,8 +129,8 @@ fn main() -> Result<()> {
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
-    // let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
-    // fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
+    fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
     let (_fg, mut handle) = block_on(rt.start(fg));
@@ -148,9 +144,9 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        // format!("FutureSDR {}", seq).as_bytes().to_vec(),
-                        "xxxxxxxxxxx".as_bytes().to_vec(),
-                        Mcs::Qam16_1_2,
+                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        // "xxxxxxxxxxx".as_bytes().to_vec(),
+                        Mcs::Qpsk_3_4,
                     ))),
                 )
                 .await
