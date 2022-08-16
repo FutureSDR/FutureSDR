@@ -39,6 +39,7 @@ use crate::runtime::WorkIo;
 pub struct Fft {
     len: usize,
     fft_shift: bool,
+    direction: FftDirection,
     normalize: Option<f32>,
     plan: Arc<dyn rustfft::Fft<f32>>,
     scratch: Box<[Complex32]>,
@@ -80,6 +81,7 @@ impl Fft {
             Fft {
                 len,
                 plan,
+                direction,
                 fft_shift,
                 normalize,
                 scratch: vec![Complex32::new(0.0, 0.0); len * 10].into_boxed_slice(),
@@ -104,25 +106,35 @@ impl Kernel for Fft {
         let m = (m / self.len) * self.len;
 
         if m > 0 {
+            if matches!(self.direction, FftDirection::Inverse) && self.fft_shift {
+                for f in 0..(m / self.len) {
+                    let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
+                    sym.copy_from_slice(&i[f * self.len..(f + 1) * self.len]);
+                    for k in 0..self.len {
+                        i[f * self.len + k] = sym[(k + self.len / 2) % self.len]
+                    }
+                }
+            }
+
             self.plan.process_outofplace_with_scratch(
                 &mut i[0..m],
                 &mut o[0..m],
                 &mut self.scratch,
             );
 
-            if let Some(fac) = self.normalize {
-                for item in o[0..m].iter_mut() {
-                    *item *= fac;
-                }
-            }
-
-            if self.fft_shift {
+            if matches!(self.direction, FftDirection::Forward) && self.fft_shift {
                 for f in 0..(m / self.len) {
                     let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
                     sym.copy_from_slice(&o[f * self.len..(f + 1) * self.len]);
                     for k in 0..self.len {
-                        o[f * 64 + k] = sym[(k + self.len / 2) % self.len]
+                        o[f * self.len + k] = sym[(k + self.len / 2) % self.len]
                     }
+                }
+            }
+
+            if let Some(fac) = self.normalize {
+                for item in o[0..m].iter_mut() {
+                    *item *= fac;
                 }
             }
 
