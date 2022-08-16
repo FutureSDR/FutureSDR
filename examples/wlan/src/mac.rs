@@ -103,7 +103,7 @@ impl Mac {
     }
 
     fn generate_mac_data_frame(&mut self, data: &Vec<u8>) -> usize {
-        self.current_frame[22..24].copy_from_slice(&(self.sequence_number).to_le_bytes());
+        self.current_frame[22..24].copy_from_slice(&(self.sequence_number << 4).to_le_bytes());
         self.sequence_number = (self.sequence_number + 1) % (1 << 12);
 
         let len = data.len() + 24;
