@@ -44,3 +44,40 @@ plt.plot(ref.real)
 plt.figure()
 plt.plot(sync.imag)
 plt.plot(ref.imag)
+
+
+
+alloc_gr = np.fromfile("/home/basti/tmp/carrier-alloc-gr.cf32", dtype=np.complex64)
+alloc_fs = np.fromfile("/home/basti/tmp/carrier-alloc-fs.cf32", dtype=np.complex64)
+
+sym = 5
+plt.plot(alloc_gr.real[sym*64:(sym+1)*64])
+plt.plot(alloc_fs.real[sym*64:(sym+1)*64])
+plt.figure()
+plt.plot(alloc_gr.imag[sym*64:(sym+1)*64])
+plt.plot(alloc_fs.imag[sym*64:(sym+1)*64])
+
+
+fft_gr = np.fromfile("/home/basti/tmp/fft.cf32", dtype=np.complex64)
+print("avg power gr: " + str(sum([abs(x)**2 for x in fft_gr])/64))
+fft_fs = np.fromfile("/home/basti/tmp/fft-fs.cf32", dtype=np.complex64)
+print("avg power fs: " + str(sum([abs(x)**2 for x in fft_fs])/64))
+
+plt.ion()
+plt.plot(fft_gr.real)
+plt.plot(fft_fs.real)
+plt.figure()
+plt.plot(fft_gr.imag)
+plt.plot(fft_fs.imag)
+
+frame_gr = np.fromfile("/home/basti/tmp/frame-gr.cf32", dtype=np.complex64)
+print("avg power gr: " + str(sum([abs(x)**2 for x in frame_gr])/len(frame_gr)))
+frame_fs = np.fromfile("/home/basti/tmp/frame-fs.cf32", dtype=np.complex64)
+print("avg power fs: " + str(sum([abs(x)**2 for x in frame_fs])/len(frame_fs)))
+
+plt.ion()
+plt.plot(frame_gr.real)
+plt.plot(frame_fs.real)
+plt.figure()
+plt.plot(frame_gr.imag)
+plt.plot(frame_fs.imag)

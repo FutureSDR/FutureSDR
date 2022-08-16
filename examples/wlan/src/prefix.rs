@@ -1,10 +1,6 @@
-use crate::FrameParam;
-use crate::Modulation;
-use crate::POLARITY;
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::info;
+use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -18,9 +14,10 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 
+#[derive(Debug)]
 enum State {
-    PadFront(usize),
-    Preamble(usize),
+    PadFront(usize, usize),
+    Preamble(usize, usize),
     Frame(usize),
     PadTail(usize),
 }
@@ -28,6 +25,7 @@ enum State {
 pub struct Prefix {
     pad_front: usize,
     pad_tail: usize,
+    state: State,
 }
 
 impl Prefix {
@@ -35,13 +33,14 @@ impl Prefix {
         Block::new(
             BlockMetaBuilder::new("Prefix").build(),
             StreamIoBuilder::new()
-                .add_input("in", 1)
+                .add_input("in", std::mem::size_of::<Complex32>())
                 .add_output("out", std::mem::size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::new().build(),
             Prefix {
                 pad_front,
                 pad_tail,
+                state: State::PadTail(0),
             },
         )
     }
@@ -56,8 +55,110 @@ impl Kernel for Prefix {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        // let mut input = sio.input(0).slice::<u8>();
-        // let mut output = sio.output(0).slice::<Complex32>();
+
+        debug!("Prefix: {:?}", self.state);
+
+        let tags = sio.input(0).tags().clone();
+        if let Some((index, len)) = tags.iter().find_map(|x| match x {
+            ItemTag {
+                index,
+                tag: Tag::NamedUsize(n, len),
+            } => {
+                if n == "wifi_start" {
+                    Some((index, len))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }) {
+            if *index == 0 {
+                debug_assert!(matches!(self.state, State::PadTail(0) | State::PadFront(_, _) | State::Preamble(_, _) | State::Frame(_)));
+                if matches!(self.state, State::PadTail(0)) {
+                    self.state = State::PadFront(self.pad_front, len * 64);
+                }
+            } else {
+                debug_assert!(match self.state {
+                    State::PadFront(_, left) | State::Preamble(_, left) | State::Frame(left) =>
+                        left == *index,
+                    _ => false,
+                });
+            }
+        }
+
+        let input = sio.input(0).slice::<Complex32>();
+        let output = sio.output(0).slice::<Complex32>();
+        let mut i = 0;
+        let o;
+
+        match self.state {
+            State::PadFront(left, size) => {
+                o = std::cmp::min(left, output.len());
+                output[0..o].fill(Complex32::new(0.0, 0.0));
+                if o < output.len() {
+                    io.call_again = true;
+                }
+                if o == left {
+                    self.state = State::Preamble(0, size);
+                } else {
+                    self.state = State::PadFront(left - o, size);
+                }
+            }
+            State::Preamble(index, size) => {
+                o = std::cmp::min(320 - index, output.len());
+                output[0..o].copy_from_slice(&SYNC_WORDS[index..index + o]);
+                if o < output.len() {
+                    io.call_again = true;
+                }
+                if index + o == 320 {
+                    self.state = State::Frame(size);
+                } else {
+                    self.state = State::Preamble(index + o, size);
+                }
+            }
+            State::Frame(left) => {
+                let syms = std::cmp::min(input.len() / 64, output.len() / 80);
+                let syms = std::cmp::min(left, syms);
+
+                for k in 0..syms {
+                    let in_offset = k * 64;
+                    let out_offset = k * 80;
+                    output[out_offset..out_offset + 16]
+                        .copy_from_slice(&input[in_offset + 48..in_offset + 64]);
+                    output[out_offset + 16..out_offset + 80]
+                        .copy_from_slice(&input[in_offset..in_offset + 64]);
+                }
+
+                i = syms * 64;
+                o = syms * 80;
+
+                if i == left {
+                    self.state = State::PadTail(self.pad_tail);
+                } else {
+                    self.state = State::Frame(left - i);
+                }
+            }
+            State::PadTail(left) => {
+                o = std::cmp::min(left, output.len());
+                output[0..o].fill(Complex32::new(0.0, 0.0));
+
+                // terminate
+                if sio.input(0).finished() && input.len() == 0 {
+                    io.finished = true;
+                }
+                if o == left {
+                    if o < output.len() && !input.is_empty() {
+                        io.call_again = true;
+                    }
+                }
+                self.state = State::PadTail(left - o);
+            }
+        }
+
+        sio.input(0).consume(i);
+        sio.output(0).produce(o);
+
+        debug!("prefix: consume {}  produce {}", i, o);
 
         Ok(())
     }

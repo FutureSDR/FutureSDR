@@ -4,6 +4,7 @@ use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
+use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -107,20 +108,22 @@ impl Mapper {
         for i in 0..48 {
             self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
+        debug!("mapper frame {:?}", frame);
+        debug!("mapper bits {:?}", self.signal_interleaved);
     }
 
     fn map(input: &[u8; 48], output: &mut [Complex32; 64], modulation: Modulation, index: usize) {
         // dc
-        output[0] = Complex32::new(0.0, 0.0);
+        output[32] = Complex32::new(0.0, 0.0);
         // guard
         for i in (0..6).chain(59..64) {
-            output[(i + 32) % 64] = Complex32::new(0.0, 0.0);
+            output[i] = Complex32::new(0.0, 0.0);
         }
         // pilots
         for i in [11, 25, 39] {
-            output[(i + 32) % 64] = POLARITY[index];
+            output[i] = POLARITY[index];
         }
-        output[(53 + 32) % 64] = -POLARITY[index];
+        output[53] = -POLARITY[index];
         // data
         for (i, c) in (6..11)
             .chain(12..25)
@@ -130,7 +133,8 @@ impl Mapper {
             .chain(54..59)
             .enumerate()
         {
-            output[(c + 32) % 64] = modulation.map(input[i]);
+            // debug!("data {} {} mapped {}", i, c, modulation.map(input[i]));
+            output[c] = modulation.map(input[i]);
         }
     }
 }
@@ -145,7 +149,7 @@ impl Kernel for Mapper {
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<u8>();
-        let mut output = sio.output(0).slice::<Complex32>();
+        let output = sio.output(0).slice::<Complex32>();
         if output.len() < 64 {
             return Ok(());
         }
@@ -170,13 +174,12 @@ impl Kernel for Mapper {
                 self.generate_signal_field(frame);
                 Self::map(
                     &self.signal_interleaved,
-                    &mut output[0..64].try_into().unwrap(),
+                    (&mut output[0..64]).try_into().unwrap(),
                     Modulation::Bpsk,
                     0,
                 );
+                debug!("mapped {:?}", &output[0..64]);
                 o += 1;
-                let l = output.len();
-                output = &mut output[64..l];
                 sio.output(0).add_tag(
                     0,
                     Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1),
@@ -188,12 +191,14 @@ impl Kernel for Mapper {
             }
         }
 
-        let n = std::cmp::min(input.len() / 48, output.len() / 64);
+        let n = std::cmp::min(input.len() / 48, (output.len() / 64) - o);
 
         for i in 0..n {
             Self::map(
-                &input[i * 48..(i + 1) * 48].try_into().unwrap(),
-                &mut output[(i + o) * 64..(i + o + 1) * 64].try_into().unwrap(),
+                (&input[i * 48..(i + 1) * 48]).try_into().unwrap(),
+                (&mut output[(i + o) * 64..(i + o + 1) * 64])
+                    .try_into()
+                    .unwrap(),
                 self.current_mod,
                 self.index,
             );

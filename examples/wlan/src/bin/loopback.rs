@@ -2,6 +2,7 @@ use clap::Parser;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
 use std::time::Duration;
+use rand_distr::{Normal, Distribution};
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::{block_on, Timer};
@@ -25,6 +26,7 @@ use wlan::Mac;
 use wlan::Mapper;
 use wlan::Mcs;
 use wlan::MovingAverage;
+use wlan::Prefix;
 use wlan::SyncLong;
 use wlan::SyncShort;
 
@@ -40,7 +42,7 @@ fn main() -> Result<()> {
     println!("Configuration: {:?}", args);
 
     let mut fg = Flowgraph::new();
-    let mac = fg.add_block(Mac::new([0x23; 6], [0x42; 6], [0xff; 6]));
+    let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]));
     let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2));
     fg.connect_message(mac, "tx", encoder, "tx")?;
     let mapper = fg.add_block(Mapper::new());
@@ -49,21 +51,40 @@ fn main() -> Result<()> {
         64,
         FftDirection::Inverse,
         true,
-        Some((1.0f32 / 52.0).sqrt() * 64.0),
+        Some((1.0f32 / 52.0).sqrt()),
     );
     fft.set_tag_propagation(Box::new(fft_tag_propagation));
     let fft = fg.add_block(fft);
     fg.connect_stream(mapper, "out", fft, "in")?;
-    let null = fg.add_block(futuresdr::blocks::NullSink::<Complex32>::new());
-    fg.connect_stream(fft, "out", null, "in")?;
+    let prefix = fg.add_block(Prefix::new(2000, 10000));
+    fg.connect_stream(fft, "out", prefix, "in")?;
+
+
+
+
+
+    // add noise
+    let normal = Normal::new(0.0f32, 0.001).unwrap();
+    let noise = fg.add_block(Apply::new(move |i: &Complex32| -> Complex32 {
+        let re = normal.sample(&mut rand::thread_rng());
+        let imag = normal.sample(&mut rand::thread_rng());
+        i + Complex32::new(re, imag)
+    }));
+    fg.connect_stream(prefix, "out", noise, "in")?;
+    let src = noise;
+
+    // let head = fg.add_block(futuresdr::blocks::Head::<Complex32>::new(12000 + 720));
+    // fg.connect_stream(noise, "out", head, "in")?;
+    // let file_snk = fg.add_block(futuresdr::blocks::FileSink::<Complex32>::new("/home/basti/tmp/frame-padded-fs.cf32"));
+    // fg.connect_stream(head, "out", file_snk, "in")?;
 
     // ========================================
     // Receiver
     // ========================================
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
-    let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new(
-        "data/all-mcs-30db.cf32",
-    ));
+    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new(
+        // "data/all-mcs-30db.cf32",
+    // ));
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
     // let src = fg.add_block(
     //     futuresdr::blocks::SoapySourceBuilder::new()
@@ -127,7 +148,8 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        // format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        "xxxxxxxxxxx".as_bytes().to_vec(),
                         Mcs::Qam16_1_2,
                     ))),
                 )
