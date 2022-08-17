@@ -31,21 +31,21 @@ use wlan::SyncLong;
 use wlan::SyncShort;
 
 use wlan::MAX_SYM;
-const PAD_FRONT : usize = 10000;
-const PAD_TAIL : usize = 10000;
+const PAD_FRONT: usize = 10000;
+const PAD_TAIL: usize = 10000;
 
 fn main() -> Result<()> {
     let mut size = 4096;
     let prefix_in_size = loop {
         if size / 8 >= MAX_SYM * 64 {
-            break size
+            break size;
         }
         size += 4096
     };
     let mut size = 4096;
     let prefix_out_size = loop {
         if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
-            break size
+            break size;
         }
         size += 4096
     };
@@ -66,7 +66,13 @@ fn main() -> Result<()> {
     let fft = fg.add_block(fft);
     fg.connect_stream(mapper, "out", fft, "in")?;
     let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL));
-    fg.connect_stream_with_type(fft, "out", prefix, "in", Circular::with_size(prefix_in_size))?;
+    fg.connect_stream_with_type(
+        fft,
+        "out",
+        prefix,
+        "in",
+        Circular::with_size(prefix_in_size),
+    )?;
 
     // add noise
     let normal = Normal::new(0.0f32, 0.001).unwrap();
@@ -75,7 +81,13 @@ fn main() -> Result<()> {
         let imag = normal.sample(&mut rand::thread_rng());
         i + Complex32::new(re, imag)
     }));
-    fg.connect_stream_with_type(prefix, "out", noise, "in", Circular::with_size(prefix_out_size))?;
+    fg.connect_stream_with_type(
+        prefix,
+        "out",
+        noise,
+        "in",
+        Circular::with_size(prefix_out_size),
+    )?;
     let src = noise;
 
     // let head = fg.add_block(futuresdr::blocks::Head::<Complex32>::new(720));
@@ -153,7 +165,7 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        "xxxxxxxxxxx".as_bytes().to_vec(),
+                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
                         Mcs::Qam16_1_2,
                     ))),
                 )

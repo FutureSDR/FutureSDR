@@ -1,6 +1,5 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::log::debug;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -87,16 +86,12 @@ impl Kernel for Prefix {
                 }
 
                 let out_offset = self.pad_front + 320 + len * 80;
-                output[out_offset + 1..out_offset + std::cmp::max(self.pad_tail, 1)].fill(Complex32::new(0.0, 0.0));
+                output[out_offset + 1..out_offset + std::cmp::max(self.pad_tail, 1)]
+                    .fill(Complex32::new(0.0, 0.0));
 
                 sio.input(0).consume(len * 64);
                 sio.output(0)
                     .produce(self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320);
-                debug!(
-                    "prefix: consume {}  produce {}",
-                    len * 64,
-                    self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
-                );
 
                 if sio.input(0).finished() && input.len() < len * 64 {
                     io.finished = true;
