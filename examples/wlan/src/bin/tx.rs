@@ -13,6 +13,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamInput;
 use futuresdr::runtime::StreamOutput;
 
+use wlan::parse_channel;
 use wlan::Encoder;
 use wlan::Mac;
 use wlan::Mapper;
@@ -22,8 +23,18 @@ use wlan::Prefix;
 #[derive(Parser, Debug)]
 #[clap(version)]
 struct Args {
-    #[clap(long, default_value_t = 26)]
-    rx_channel: u32,
+    /// Antenna
+    #[clap(short, long)]
+    antenna: Option<String>,
+    // Gain
+    #[clap(short, long, default_value_t = 60.0)]
+    gain: f64,
+    // Sample Rate
+    #[clap(short, long, default_value_t = 20e6)]
+    sample_rate: f64,
+    // WLAN Channel Number
+    #[clap(short, long, value_parser = parse_channel, default_value = "34")]
+    channel: f64,
 }
 
 use wlan::MAX_SYM;
@@ -72,13 +83,15 @@ fn main() -> Result<()> {
         "in",
         Circular::with_size(prefix_in_size),
     )?;
-    let soapy_snk = fg.add_block(
-        SoapySinkBuilder::new()
-            .freq(5.24e9)
-            .sample_rate(20e6)
-            .gain(60.0)
-            .build(),
-    );
+    let mut soapy = SoapySinkBuilder::new()
+        .freq(args.channel)
+        .sample_rate(args.sample_rate)
+        .gain(args.gain);
+    if let Some(a) = args.antenna {
+        soapy = soapy.antenna(a);
+    }
+
+    let soapy_snk = fg.add_block(soapy.build());
     fg.connect_stream_with_type(
         prefix,
         "out",

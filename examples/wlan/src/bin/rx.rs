@@ -8,6 +8,7 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
+use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
@@ -15,6 +16,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamInput;
 use futuresdr::runtime::StreamOutput;
 
+use wlan::parse_channel;
 use wlan::Decoder;
 use wlan::Delay;
 use wlan::FrameEqualizer;
@@ -25,8 +27,18 @@ use wlan::SyncShort;
 #[derive(Parser, Debug)]
 #[clap(version)]
 struct Args {
-    #[clap(long, default_value_t = 26)]
-    rx_channel: u32,
+    /// Antenna
+    #[clap(short, long)]
+    antenna: Option<String>,
+    /// Gain
+    #[clap(short, long, default_value_t = 60.0)]
+    gain: f64,
+    /// Sample Rate
+    #[clap(short, long, default_value_t = 20e6)]
+    sample_rate: f64,
+    /// WLAN Channel Number
+    #[clap(short, long, value_parser = parse_channel, default_value = "34")]
+    channel: f64,
 }
 
 fn main() -> Result<()> {
@@ -35,21 +47,14 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    // ========================================
-    // Receiver
-    // ========================================
-    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
-    let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new(
-        "data/all-mcs-30db.cf32",
-    ));
-    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
-    // let src = fg.add_block(
-    //     futuresdr::blocks::SoapySourceBuilder::new()
-    //         .freq(5.22e9)
-    //         .sample_rate(20e6)
-    //         .gain(60.0)
-    //         .build(),
-    // );
+    let mut soapy = SoapySourceBuilder::new()
+        .freq(args.channel)
+        .sample_rate(args.sample_rate)
+        .gain(args.gain);
+    if let Some(a) = args.antenna {
+        soapy = soapy.antenna(a);
+    }
+    let src = fg.add_block(soapy.build());
     let delay = fg.add_block(Delay::<Complex32>::new(16));
     fg.connect_stream(src, "out", delay, "in")?;
 

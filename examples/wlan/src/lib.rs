@@ -3,6 +3,10 @@
 #![allow(clippy::excessive_precision)]
 use futuresdr::num_complex::Complex32;
 
+mod channels;
+pub use channels::channel_to_freq;
+pub use channels::parse_channel;
+
 mod decoder;
 pub use decoder::Decoder;
 
