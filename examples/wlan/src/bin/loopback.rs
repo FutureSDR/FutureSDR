@@ -1,4 +1,3 @@
-use clap::Parser;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
 use rand_distr::{Distribution, Normal};
@@ -12,6 +11,7 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -30,16 +30,25 @@ use wlan::Prefix;
 use wlan::SyncLong;
 use wlan::SyncShort;
 
-#[derive(Parser, Debug)]
-#[clap(version)]
-struct Args {
-    #[clap(long, default_value_t = 26)]
-    rx_channel: u32,
-}
+use wlan::MAX_SYM;
+const PAD_FRONT : usize = 10000;
+const PAD_TAIL : usize = 10000;
 
 fn main() -> Result<()> {
-    let args = Args::parse();
-    println!("Configuration: {:?}", args);
+    let mut size = 4096;
+    let prefix_in_size = loop {
+        if size / 8 >= MAX_SYM * 64 {
+            break size
+        }
+        size += 4096
+    };
+    let mut size = 4096;
+    let prefix_out_size = loop {
+        if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
+            break size
+        }
+        size += 4096
+    };
 
     let mut fg = Flowgraph::new();
     let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]));
@@ -56,8 +65,8 @@ fn main() -> Result<()> {
     fft.set_tag_propagation(Box::new(fft_tag_propagation));
     let fft = fg.add_block(fft);
     fg.connect_stream(mapper, "out", fft, "in")?;
-    let prefix = fg.add_block(Prefix::new(2000, 10000));
-    fg.connect_stream(fft, "out", prefix, "in")?;
+    let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL));
+    fg.connect_stream_with_type(fft, "out", prefix, "in", Circular::with_size(prefix_in_size))?;
 
     // add noise
     let normal = Normal::new(0.0f32, 0.001).unwrap();
@@ -66,12 +75,12 @@ fn main() -> Result<()> {
         let imag = normal.sample(&mut rand::thread_rng());
         i + Complex32::new(re, imag)
     }));
-    fg.connect_stream(prefix, "out", noise, "in")?;
+    fg.connect_stream_with_type(prefix, "out", noise, "in", Circular::with_size(prefix_out_size))?;
     let src = noise;
 
-    // let head = fg.add_block(futuresdr::blocks::Head::<Complex32>::new(12000 + 720));
+    // let head = fg.add_block(futuresdr::blocks::Head::<Complex32>::new(720));
     // fg.connect_stream(noise, "out", head, "in")?;
-    // let file_snk = fg.add_block(futuresdr::blocks::FileSink::<Complex32>::new("/home/basti/tmp/frame-padded-fs.cf32"));
+    // let file_snk = fg.add_block(futuresdr::blocks::FileSink::<Complex32>::new("/home/basti/tmp/frame-fs.cf32"));
     // fg.connect_stream(head, "out", file_snk, "in")?;
 
     // ========================================
@@ -144,8 +153,8 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
-                        Mcs::Qpsk_1_2,
+                        "xxxxxxxxxxx".as_bytes().to_vec(),
+                        Mcs::Qam16_1_2,
                     ))),
                 )
                 .await

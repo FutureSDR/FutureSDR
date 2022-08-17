@@ -31,6 +31,7 @@ print("power short time: " + str(sum([abs(x)**2 for x in short_time])))
 print("power long time: " + str(sum([abs(x)**2 for x in long_time])))
 
 sync = np.concatenate((short_time, short_time, short_time[0:32], long_time[32:64], long_time, long_time))
+sync[160] = 0.5 * (sync[160] + short_time[0])
 print("avg sync power: " + str(sum([abs(x)**2 for x in sync])/320))
 
 for i in range(320):

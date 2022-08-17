@@ -14,18 +14,9 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 
-#[derive(Debug)]
-enum State {
-    PadFront(usize, usize),
-    Preamble(usize, usize),
-    Frame(usize),
-    PadTail(usize),
-}
-
 pub struct Prefix {
     pad_front: usize,
     pad_tail: usize,
-    state: State,
 }
 
 impl Prefix {
@@ -40,7 +31,6 @@ impl Prefix {
             Prefix {
                 pad_front,
                 pad_tail,
-                state: State::PadTail(0),
             },
         )
     }
@@ -55,7 +45,8 @@ impl Kernel for Prefix {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        debug!("Prefix: {:?}", self.state);
+        let input = sio.input(0).slice::<Complex32>();
+        let output = sio.output(0).slice::<Complex32>();
 
         let tags = sio.input(0).tags().clone();
         if let Some((index, len)) = tags.iter().find_map(|x| match x {
@@ -71,97 +62,47 @@ impl Kernel for Prefix {
             }
             _ => None,
         }) {
-            if *index == 0 {
-                debug_assert!(matches!(
-                    self.state,
-                    State::PadTail(0)
-                        | State::PadFront(_, _)
-                        | State::Preamble(_, _)
-                        | State::Frame(_)
-                ));
-                if matches!(self.state, State::PadTail(0)) {
-                    self.state = State::PadFront(self.pad_front, len * 64);
-                }
-            } else {
-                debug_assert!(match self.state {
-                    State::PadFront(_, left) | State::Preamble(_, left) | State::Frame(left) =>
-                        left == *index,
-                    _ => false,
-                });
-            }
-        }
+            assert_eq!(*index, 0);
+            if output.len() >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+                && input.len() >= len * 64
+            {
+                output[0..self.pad_front].fill(Complex32::new(0.0, 0.0));
+                output[self.pad_front..self.pad_front + 320].copy_from_slice(&SYNC_WORDS);
 
-        let input = sio.input(0).slice::<Complex32>();
-        let output = sio.output(0).slice::<Complex32>();
-        let mut i = 0;
-        let o;
-
-        match self.state {
-            State::PadFront(left, size) => {
-                o = std::cmp::min(left, output.len());
-                output[0..o].fill(Complex32::new(0.0, 0.0));
-                if o < output.len() {
-                    io.call_again = true;
-                }
-                if o == left {
-                    self.state = State::Preamble(0, size);
-                } else {
-                    self.state = State::PadFront(left - o, size);
-                }
-            }
-            State::Preamble(index, size) => {
-                o = std::cmp::min(320 - index, output.len());
-                output[0..o].copy_from_slice(&SYNC_WORDS[index..index + o]);
-                if o < output.len() {
-                    io.call_again = true;
-                }
-                if index + o == 320 {
-                    self.state = State::Frame(size);
-                } else {
-                    self.state = State::Preamble(index + o, size);
-                }
-            }
-            State::Frame(left) => {
-                let syms = std::cmp::min(input.len() / 64, output.len() / 80);
-                let syms = std::cmp::min(left, syms);
-
-                for k in 0..syms {
+                for k in 0..*len {
                     let in_offset = k * 64;
-                    let out_offset = k * 80;
+                    let out_offset = self.pad_front + 320 + k * 80;
                     output[out_offset..out_offset + 16]
                         .copy_from_slice(&input[in_offset + 48..in_offset + 64]);
                     output[out_offset + 16..out_offset + 80]
                         .copy_from_slice(&input[in_offset..in_offset + 64]);
                 }
 
-                i = syms * 64;
-                o = syms * 80;
-
-                if i == left {
-                    self.state = State::PadTail(self.pad_tail);
-                } else {
-                    self.state = State::Frame(left - i);
+                // windowing
+                let out_offset = self.pad_front + 320;
+                output[out_offset] = 0.5 * (output[out_offset] + SYNC_WORDS[320 - 64]);
+                for k in 0..*len {
+                    output[out_offset + (k + 1) * 80] = 0.5
+                        * (output[out_offset + (k + 1) * 80] + output[out_offset + k * 80 + 16]);
                 }
-            }
-            State::PadTail(left) => {
-                o = std::cmp::min(left, output.len());
-                output[0..o].fill(Complex32::new(0.0, 0.0));
 
-                // terminate
-                if sio.input(0).finished() && input.is_empty() {
+                let out_offset = self.pad_front + 320 + len * 80;
+                output[out_offset + 1..out_offset + std::cmp::max(self.pad_tail, 1)].fill(Complex32::new(0.0, 0.0));
+
+                sio.input(0).consume(len * 64);
+                sio.output(0)
+                    .produce(self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320);
+                debug!(
+                    "prefix: consume {}  produce {}",
+                    len * 64,
+                    self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+                );
+
+                if sio.input(0).finished() && input.len() < len * 64 {
                     io.finished = true;
                 }
-                if o == left && o < output.len() && !input.is_empty() {
-                    io.call_again = true;
-                }
-                self.state = State::PadTail(left - o);
             }
         }
-
-        sio.input(0).consume(i);
-        sio.output(0).produce(o);
-
-        debug!("prefix: consume {}  produce {}", i, o);
 
         Ok(())
     }
@@ -328,7 +269,7 @@ const SYNC_WORDS: [Complex32; 320] = [
     Complex32::new(-0.11228168465644238, 1.2669822230356942),
     Complex32::new(-0.696923425058676, -0.11957315586905014),
     Complex32::new(0.020764353243054506, -1.1754648916223063),
-    Complex32::new(-1.386750490563073, 0.0),
+    Complex32::new(-0.4892511000496049, 0.20412414523193154),
     Complex32::new(0.10902823580662051, -0.8662158644642738),
     Complex32::new(0.8140030047248232, -0.9396324876173663),
     Complex32::new(-0.8155207189587305, -1.0217906787851445),

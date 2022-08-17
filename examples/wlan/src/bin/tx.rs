@@ -6,6 +6,7 @@ use futuresdr::async_io::{block_on, Timer};
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::SoapySinkBuilder;
+use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -25,9 +26,28 @@ struct Args {
     rx_channel: u32,
 }
 
+use wlan::MAX_SYM;
+const PAD_FRONT: usize = 5000;
+const PAD_TAIL: usize = 5000;
+
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {:?}", args);
+
+    let mut size = 4096;
+    let prefix_in_size = loop {
+        if size / 8 >= MAX_SYM * 64 {
+            break size;
+        }
+        size += 4096
+    };
+    let mut size = 4096;
+    let prefix_out_size = loop {
+        if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
+            break size;
+        }
+        size += 4096
+    };
 
     let mut fg = Flowgraph::new();
     let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]));
@@ -44,10 +64,28 @@ fn main() -> Result<()> {
     fft.set_tag_propagation(Box::new(fft_tag_propagation));
     let fft = fg.add_block(fft);
     fg.connect_stream(mapper, "out", fft, "in")?;
-    let prefix = fg.add_block(Prefix::new(10000, 10000));
-    fg.connect_stream(fft, "out", prefix, "in")?;
-    let soapy_snk = fg.add_block(SoapySinkBuilder::new().freq(5.24e9).sample_rate(20e6).gain(60.0).build());
-    fg.connect_stream(prefix, "out", soapy_snk, "in")?;
+    let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL));
+    fg.connect_stream_with_type(
+        fft,
+        "out",
+        prefix,
+        "in",
+        Circular::with_size(prefix_in_size),
+    )?;
+    let soapy_snk = fg.add_block(
+        SoapySinkBuilder::new()
+            .freq(5.24e9)
+            .sample_rate(20e6)
+            .gain(60.0)
+            .build(),
+    );
+    fg.connect_stream_with_type(
+        prefix,
+        "out",
+        soapy_snk,
+        "in",
+        Circular::with_size(prefix_out_size),
+    )?;
 
     let rt = Runtime::new();
     let (_fg, mut handle) = block_on(rt.start(fg));
