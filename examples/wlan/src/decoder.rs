@@ -39,7 +39,10 @@ impl Decoder {
             StreamIoBuilder::new()
                 .add_input("in", std::mem::size_of::<u8>())
                 .build(),
-            MessageIoBuilder::new().add_output("rx_frames").build(),
+            MessageIoBuilder::new()
+                .add_output("rx_frames")
+                .add_output("rftap")
+                .build(),
             Self {
                 frame_complete: true,
                 frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
@@ -197,7 +200,15 @@ impl Kernel for Decoder {
                     // );
                     let mut blob = vec![0; self.frame_param.psdu_size() - 4];
                     blob.copy_from_slice(&self.out_bytes[2..self.frame_param.psdu_size() - 2]);
+
+                    let mut rftap = vec![0; blob.len() + 12];
+                    rftap[0..4].copy_from_slice("RFta".as_bytes());
+                    rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
+                    rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
+                    rftap[8..12].copy_from_slice(&105u32.to_le_bytes());
+                    rftap[12..].copy_from_slice(&blob);
                     mio.output_mut(0).post(Pmt::Blob(blob)).await;
+                    mio.output_mut(1).post(Pmt::Blob(rftap)).await;
                 }
 
                 i = max_i;

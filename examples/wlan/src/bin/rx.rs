@@ -95,8 +95,10 @@ fn main() -> Result<()> {
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
-    // let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
-    // fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55555"));
+    fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("localhost:55556"));
+    fg.connect_message(decoder, "rftap", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
     let (_fg, _handle) = block_on(rt.start(fg));
