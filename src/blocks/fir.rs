@@ -139,12 +139,16 @@ impl FirBuilder {
         InputType: 'static + Send,
         OutputType: 'static + Send,
         TapType: 'static,
-        Taps: 'static + TapsAccessor,
-        NonResamplingFirKernel<InputType, OutputType, Taps>: UnaryKernel<InputType, OutputType>,
+        Taps: 'static + TapsAccessor<TapType = TapType>,
+        NonResamplingFirKernel<InputType, OutputType, Taps, TapType>:
+            UnaryKernel<InputType, OutputType>,
     {
-        Fir::<InputType, OutputType, TapType, NonResamplingFirKernel<InputType, OutputType, Taps>>::new(
-            NonResamplingFirKernel::new(taps),
-        )
+        Fir::<
+            InputType,
+            OutputType,
+            TapType,
+            NonResamplingFirKernel<InputType, OutputType, Taps, TapType>,
+        >::new(NonResamplingFirKernel::new(taps))
     }
 
     /// Create a new rationally resampling FIR filter that changes the sampling
@@ -154,7 +158,7 @@ impl FirBuilder {
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
-        PolyphaseResamplingFirKernel<InputType, OutputType, Vec<f32>>:
+        PolyphaseResamplingFirKernel<InputType, OutputType, Vec<f32>, f32>:
             UnaryKernel<InputType, OutputType>,
     {
         // Reduce factors
@@ -178,15 +182,15 @@ impl FirBuilder {
         InputType: 'static + Send,
         OutputType: 'static + Send,
         TapType: 'static,
-        Taps: 'static + TapsAccessor,
-        PolyphaseResamplingFirKernel<InputType, OutputType, Taps>:
+        Taps: 'static + TapsAccessor<TapType = TapType>,
+        PolyphaseResamplingFirKernel<InputType, OutputType, Taps, TapType>:
             UnaryKernel<InputType, OutputType>,
     {
         Fir::<
             InputType,
             OutputType,
             TapType,
-            PolyphaseResamplingFirKernel<InputType, OutputType, Taps>,
+            PolyphaseResamplingFirKernel<InputType, OutputType, Taps, TapType>,
         >::new(PolyphaseResamplingFirKernel::new(interp, decim, taps))
     }
 }
