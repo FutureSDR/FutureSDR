@@ -17,23 +17,27 @@ use num_complex::Complex;
 /// use futuredsp::UnaryKernel;
 /// use futuredsp::fir::NonResamplingFirKernel;
 ///
-/// let fir = NonResamplingFirKernel::<f32, f32, _>::new([1.0, 2.0, 3.0]);
+/// let fir = NonResamplingFirKernel::<f32, f32, _, _>::new([1.0, 2.0, 3.0]);
 ///
 /// let input = [1.0, 2.0, 3.0];
 /// let mut output = [0.0];
 /// fir.work(&input, &mut output);
 /// ```
-pub struct NonResamplingFirKernel<InputType, OutputType, TapsType: TapsAccessor> {
-    taps: TapsType,
+pub struct NonResamplingFirKernel<InputType, OutputType, TA, TT>
+where
+    TA: TapsAccessor<TapType = TT>,
+{
+    taps: TA,
     _input_type: core::marker::PhantomData<InputType>,
     _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<InputType, OutputType, TapsType: TapsAccessor>
-    NonResamplingFirKernel<InputType, OutputType, TapsType>
+impl<InputType, OutputType, TA, TT> NonResamplingFirKernel<InputType, OutputType, TA, TT>
+where
+    TA: TapsAccessor<TapType = TT>,
 {
     /// Create a new non-resampling FIR filter using the given taps.
-    pub fn new(taps: TapsType) -> Self {
+    pub fn new(taps: TA) -> Self {
         Self {
             taps,
             _input_type: core::marker::PhantomData,
@@ -88,8 +92,8 @@ where
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
-    for NonResamplingFirKernel<f32, f32, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for NonResamplingFirKernel<f32, f32, TA, f32>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
@@ -103,8 +107,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
-    for NonResamplingFirKernel<f32, f32, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for NonResamplingFirKernel<f32, f32, TA, f32>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
@@ -118,8 +122,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
-    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TA, f32>
 {
     fn work(
         &self,
@@ -140,8 +144,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f3
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
-    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TA, f32>
 {
     fn work(
         &self,
@@ -157,6 +161,24 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f3
                 re: accum.re + sample.re * tap,
                 im: accum.im + sample.im * tap,
             },
+        )
+    }
+}
+
+impl<TA: TapsAccessor<TapType = Complex<f32>>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TA, Complex<f32>>
+{
+    fn work(
+        &self,
+        i: &[Complex<f32>],
+        o: &mut [Complex<f32>],
+    ) -> (usize, usize, ComputationStatus) {
+        fir_kernel_core(
+            &self.taps,
+            i,
+            o,
+            || Complex { re: 0.0, im: 0.0 },
+            |accum, sample, tap| accum + sample * tap,
         )
     }
 }
@@ -185,25 +207,29 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f3
 /// let decim = 2;
 /// let interp = 3;
 /// let taps = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-/// let fir = PolyphaseResamplingFirKernel::<f32, f32, _>::new(interp, decim, taps);
+/// let fir = PolyphaseResamplingFirKernel::<f32, f32, _, _>::new(interp, decim, taps);
 ///
 /// let input = [1.0, 2.0, 3.0];
 /// let mut output = [0.0; 3];
 /// fir.work(&input, &mut output);
 /// ```
-pub struct PolyphaseResamplingFirKernel<InputType, OutputType, TapsType: TapsAccessor> {
+pub struct PolyphaseResamplingFirKernel<InputType, OutputType, TA, TT>
+where
+    TA: TapsAccessor<TapType = TT>,
+{
     interp: usize,
     decim: usize,
-    taps: TapsType,
+    taps: TA,
     _input_type: core::marker::PhantomData<InputType>,
     _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<InputType, OutputType, TapsType: TapsAccessor>
-    PolyphaseResamplingFirKernel<InputType, OutputType, TapsType>
+impl<InputType, OutputType, TA, TT> PolyphaseResamplingFirKernel<InputType, OutputType, TA, TT>
+where
+    TA: TapsAccessor<TapType = TT>,
 {
     /// Create a new resampling FIR filter using the given filter bank taps.
-    pub fn new(interp: usize, decim: usize, taps: TapsType) -> Self {
+    pub fn new(interp: usize, decim: usize, taps: TA) -> Self {
         // Ensure number of taps is divisible by interp
         assert!(taps.num_taps() % interp == 0);
         Self {
@@ -275,8 +301,8 @@ where
     (n, num_producable_samples, status)
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
-    for PolyphaseResamplingFirKernel<f32, f32, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for PolyphaseResamplingFirKernel<f32, f32, TA, f32>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
@@ -291,8 +317,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
     }
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
-    for PolyphaseResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
+impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for PolyphaseResamplingFirKernel<Complex<f32>, Complex<f32>, TA, f32>
 {
     fn work(
         &self,
