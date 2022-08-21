@@ -17,23 +17,27 @@ use num_complex::Complex;
 /// use futuredsp::UnaryKernel;
 /// use futuredsp::fir::NonResamplingFirKernel;
 ///
-/// let fir = NonResamplingFirKernel::<f32, _>::new([1.0, 2.0, 3.0]);
+/// let fir = NonResamplingFirKernel::<f32, f32, _>::new([1.0, 2.0, 3.0]);
 ///
 /// let input = [1.0, 2.0, 3.0];
 /// let mut output = [0.0];
 /// fir.work(&input, &mut output);
 /// ```
-pub struct NonResamplingFirKernel<SampleType, TapsType: TapsAccessor> {
+pub struct NonResamplingFirKernel<InputType, OutputType, TapsType: TapsAccessor> {
     taps: TapsType,
-    _sampletype: core::marker::PhantomData<SampleType>,
+    _input_type: core::marker::PhantomData<InputType>,
+    _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<SampleType, TapsType: TapsAccessor> NonResamplingFirKernel<SampleType, TapsType> {
+impl<InputType, OutputType, TapsType: TapsAccessor>
+    NonResamplingFirKernel<InputType, OutputType, TapsType>
+{
     /// Create a new non-resampling FIR filter using the given taps.
     pub fn new(taps: TapsType) -> Self {
         Self {
             taps,
-            _sampletype: core::marker::PhantomData,
+            _input_type: core::marker::PhantomData,
+            _output_type: core::marker::PhantomData,
         }
     }
 }
@@ -42,19 +46,21 @@ impl<SampleType, TapsType: TapsAccessor> NonResamplingFirKernel<SampleType, Taps
 /// Note that this function gets heavily inlined, so there is no (runtime) performance
 /// overhead.
 fn fir_kernel_core<
-    SampleType,
+    InputType,
+    OutputType,
     TapsType: TapsAccessor,
-    InitFn: Fn() -> SampleType,
-    MacFn: Fn(SampleType, SampleType, TapsType::TapType) -> SampleType,
+    InitFn: Fn() -> OutputType,
+    MacFn: Fn(OutputType, InputType, TapsType::TapType) -> OutputType,
 >(
     taps: &TapsType,
-    i: &[SampleType],
-    o: &mut [SampleType],
+    i: &[InputType],
+    o: &mut [OutputType],
     init: InitFn,
     mac: MacFn,
 ) -> (usize, usize, ComputationStatus)
 where
-    SampleType: Copy,
+    InputType: Copy,
+    OutputType: Copy,
     TapsType::TapType: Copy,
 {
     let num_producable_samples = (i.len() + 1).saturating_sub(taps.num_taps());
@@ -82,8 +88,8 @@ where
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
-    for NonResamplingFirKernel<f32, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for NonResamplingFirKernel<f32, f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
@@ -97,8 +103,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
-    for NonResamplingFirKernel<f32, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for NonResamplingFirKernel<f32, f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
@@ -112,8 +118,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
-    for NonResamplingFirKernel<Complex<f32>, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
 {
     fn work(
         &self,
@@ -134,8 +140,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
 }
 
 #[cfg(RUSTC_IS_STABLE)]
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
-    for NonResamplingFirKernel<Complex<f32>, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for NonResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
 {
     fn work(
         &self,
@@ -179,20 +185,23 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
 /// let decim = 2;
 /// let interp = 3;
 /// let taps = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-/// let fir = PolyphaseResamplingFirKernel::<f32, _>::new(interp, decim, taps);
+/// let fir = PolyphaseResamplingFirKernel::<f32, f32, _>::new(interp, decim, taps);
 ///
 /// let input = [1.0, 2.0, 3.0];
 /// let mut output = [0.0; 3];
 /// fir.work(&input, &mut output);
 /// ```
-pub struct PolyphaseResamplingFirKernel<SampleType, TapsType: TapsAccessor> {
+pub struct PolyphaseResamplingFirKernel<InputType, OutputType, TapsType: TapsAccessor> {
     interp: usize,
     decim: usize,
     taps: TapsType,
-    _sampletype: core::marker::PhantomData<SampleType>,
+    _input_type: core::marker::PhantomData<InputType>,
+    _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<SampleType, TapsType: TapsAccessor> PolyphaseResamplingFirKernel<SampleType, TapsType> {
+impl<InputType, OutputType, TapsType: TapsAccessor>
+    PolyphaseResamplingFirKernel<InputType, OutputType, TapsType>
+{
     /// Create a new resampling FIR filter using the given filter bank taps.
     pub fn new(interp: usize, decim: usize, taps: TapsType) -> Self {
         // Ensure number of taps is divisible by interp
@@ -201,7 +210,8 @@ impl<SampleType, TapsType: TapsAccessor> PolyphaseResamplingFirKernel<SampleType
             interp,
             decim,
             taps,
-            _sampletype: core::marker::PhantomData,
+            _input_type: core::marker::PhantomData,
+            _output_type: core::marker::PhantomData,
         }
     }
 }
@@ -210,21 +220,23 @@ impl<SampleType, TapsType: TapsAccessor> PolyphaseResamplingFirKernel<SampleType
 /// Note that this function gets heavily inlined, so there is no (runtime) performance
 /// overhead.
 fn resampling_fir_kernel_core<
-    SampleType,
+    InputType,
+    OutputType,
     TapsType: TapsAccessor,
-    InitFn: Fn() -> SampleType,
-    MacFn: Fn(SampleType, SampleType, TapsType::TapType) -> SampleType,
+    InitFn: Fn() -> OutputType,
+    MacFn: Fn(OutputType, InputType, TapsType::TapType) -> OutputType,
 >(
     interp: usize,
     decim: usize,
     taps: &TapsType,
-    i: &[SampleType],
-    o: &mut [SampleType],
+    i: &[InputType],
+    o: &mut [OutputType],
     init: InitFn,
     mac: MacFn,
 ) -> (usize, usize, ComputationStatus)
 where
-    SampleType: Copy,
+    InputType: Copy,
+    OutputType: Copy,
     TapsType::TapType: Copy,
 {
     // Assume same number of taps in all filters
@@ -263,8 +275,8 @@ where
     (n, num_producable_samples, status)
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
-    for PolyphaseResamplingFirKernel<f32, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
+    for PolyphaseResamplingFirKernel<f32, f32, TapsType>
 {
     fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
@@ -279,8 +291,8 @@ impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<f32>
     }
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>>
-    for PolyphaseResamplingFirKernel<Complex<f32>, TapsType>
+impl<TapsType: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
+    for PolyphaseResamplingFirKernel<Complex<f32>, Complex<f32>, TapsType>
 {
     fn work(
         &self,
