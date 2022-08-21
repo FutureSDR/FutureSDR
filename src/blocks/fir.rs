@@ -15,54 +15,60 @@ use futuredsp::firdes;
 use futuredsp::{TapsAccessor, UnaryKernel};
 use num_integer;
 
-pub struct Fir<SampleType, TapType, Core>
+pub struct Fir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + UnaryKernel<SampleType>,
+    Core: 'static + UnaryKernel<InputType, OutputType>,
 {
     core: Core,
-    _sampletype: std::marker::PhantomData<SampleType>,
-    _taptype: std::marker::PhantomData<TapType>,
+    _input_type: std::marker::PhantomData<InputType>,
+    _output_type: std::marker::PhantomData<OutputType>,
+    _tap_type: std::marker::PhantomData<TapType>,
 }
 
-unsafe impl<SampleType, TapType, Core> Send for Fir<SampleType, TapType, Core>
+unsafe impl<InputType, OutputType, TapType, Core> Send for Fir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + UnaryKernel<SampleType>,
+    Core: 'static + UnaryKernel<InputType, OutputType>,
 {
 }
 
-impl<SampleType, TapType, Core> Fir<SampleType, TapType, Core>
+impl<InputType, OutputType, TapType, Core> Fir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + UnaryKernel<SampleType>,
+    Core: 'static + UnaryKernel<InputType, OutputType>,
 {
     pub fn new(core: Core) -> Block {
         Block::new(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<SampleType>())
-                .add_output("out", mem::size_of::<SampleType>())
+                .add_input("in", mem::size_of::<InputType>())
+                .add_output("out", mem::size_of::<OutputType>())
                 .build(),
-            MessageIoBuilder::<Fir<SampleType, TapType, Core>>::new().build(),
+            MessageIoBuilder::<Fir<InputType, OutputType, TapType, Core>>::new().build(),
             Fir {
                 core,
-                _sampletype: std::marker::PhantomData,
-                _taptype: std::marker::PhantomData,
+                _input_type: std::marker::PhantomData,
+                _output_type: std::marker::PhantomData,
+                _tap_type: std::marker::PhantomData,
             },
         )
     }
 }
 
 #[async_trait]
-impl<SampleType, TapType, Core> Kernel for Fir<SampleType, TapType, Core>
+impl<InputType, OutputType, TapType, Core> Kernel for Fir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + UnaryKernel<SampleType>,
+    Core: 'static + UnaryKernel<InputType, OutputType>,
 {
     async fn work(
         &mut self,
@@ -71,8 +77,8 @@ where
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<SampleType>();
-        let o = sio.output(0).slice::<SampleType>();
+        let i = sio.input(0).slice::<InputType>();
+        let o = sio.output(0).slice::<OutputType>();
 
         let (consumed, produced, status) = self.core.work(i, o);
 
@@ -116,11 +122,11 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, _>([1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, _>(vec![1.0, 2.0, 3.0]));
 ///
-/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, f32, _>(3, 2, vec![1.0, 2.0, 3.0]));
 /// ```
 pub struct FirBuilder {
     //
@@ -128,14 +134,15 @@ pub struct FirBuilder {
 
 impl FirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new<SampleType, TapType, Taps>(taps: Taps) -> Block
+    pub fn new<InputType, OutputType, TapType, Taps>(taps: Taps) -> Block
     where
-        SampleType: 'static + Send,
+        InputType: 'static + Send,
+        OutputType: 'static + Send,
         TapType: 'static,
         Taps: 'static + TapsAccessor,
-        NonResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
+        NonResamplingFirKernel<InputType, OutputType, Taps>: UnaryKernel<InputType, OutputType>,
     {
-        Fir::<SampleType, TapType, NonResamplingFirKernel<SampleType, Taps>>::new(
+        Fir::<InputType, OutputType, TapType, NonResamplingFirKernel<InputType, OutputType, Taps>>::new(
             NonResamplingFirKernel::new(taps),
         )
     }
@@ -143,10 +150,12 @@ impl FirBuilder {
     /// Create a new rationally resampling FIR filter that changes the sampling
     /// rate by a factor `interp/decim`. The interpolation filter is constructed
     /// using default parameters.
-    pub fn new_resampling<SampleType>(interp: usize, decim: usize) -> Block
+    pub fn new_resampling<InputType, OutputType>(interp: usize, decim: usize) -> Block
     where
-        SampleType: 'static + Send,
-        PolyphaseResamplingFirKernel<SampleType, Vec<f32>>: UnaryKernel<SampleType>,
+        InputType: 'static + Send,
+        OutputType: 'static + Send,
+        PolyphaseResamplingFirKernel<InputType, OutputType, Vec<f32>>:
+            UnaryKernel<InputType, OutputType>,
     {
         // Reduce factors
         let gcd = num_integer::gcd(interp, decim);
@@ -154,25 +163,30 @@ impl FirBuilder {
         let decim = decim / gcd;
         // Design filter
         let taps = firdes::kaiser::multirate::<f32>(interp, decim, 12, 0.0001);
-        FirBuilder::new_resampling_with_taps::<SampleType, f32, _>(interp, decim, taps)
+        FirBuilder::new_resampling_with_taps::<InputType, OutputType, f32, _>(interp, decim, taps)
     }
 
     /// Create a new rationally resampling FIR filter that changes the sampling
     /// rate by a factor `interp/decim` and uses `taps` as the interpolation/decimation filter.
     /// The length of `taps` must be divisible by `interp`.
-    pub fn new_resampling_with_taps<SampleType, TapType, Taps>(
+    pub fn new_resampling_with_taps<InputType, OutputType, TapType, Taps>(
         interp: usize,
         decim: usize,
         taps: Taps,
     ) -> Block
     where
-        SampleType: 'static + Send,
+        InputType: 'static + Send,
+        OutputType: 'static + Send,
         TapType: 'static,
         Taps: 'static + TapsAccessor,
-        PolyphaseResamplingFirKernel<SampleType, Taps>: UnaryKernel<SampleType>,
+        PolyphaseResamplingFirKernel<InputType, OutputType, Taps>:
+            UnaryKernel<InputType, OutputType>,
     {
-        Fir::<SampleType, TapType, PolyphaseResamplingFirKernel<SampleType, Taps>>::new(
-            PolyphaseResamplingFirKernel::new(interp, decim, taps),
-        )
+        Fir::<
+            InputType,
+            OutputType,
+            TapType,
+            PolyphaseResamplingFirKernel<InputType, OutputType, Taps>,
+        >::new(PolyphaseResamplingFirKernel::new(interp, decim, taps))
     }
 }

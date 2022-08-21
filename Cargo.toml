@@ -76,7 +76,7 @@ dirs = "4.0"
 dyn-clone = "1.0.9"
 futures = "0.3.18"
 futures-lite = "1.10.0"
-futuredsp = { path = "futuredsp", version = "0.0.4" }
+futuredsp = { path = "futuredsp", version = "0.0.5" }
 futuresdr-pmt = { path = "pmt", version = "0.0.5" }
 log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4.0"
