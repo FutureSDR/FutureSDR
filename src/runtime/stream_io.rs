@@ -6,7 +6,7 @@ use std::slice;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::tag::default_tag_propagation;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 use crate::runtime::Tag;
 
@@ -15,6 +15,7 @@ struct CurrentInput {
     ptr: *const u8,
     len: usize,
     index: usize,
+    tags: Vec<ItemTag>,
 }
 
 #[derive(Debug)]
@@ -61,14 +62,20 @@ impl StreamInput {
 
         self.current.as_mut().unwrap().index += amount * self.item_size;
         self.tags.retain(|x| x.index >= amount);
+        self.tags.iter_mut().for_each(|x| x.index -= amount);
     }
 
     pub fn slice<T>(&mut self) -> &'static [T] {
         if self.current.is_none() {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
-            self.current = Some(CurrentInput { ptr, len, index: 0 });
             self.tags = tags;
             self.tags.sort_by_key(|x| x.index);
+            self.current = Some(CurrentInput {
+                ptr,
+                len,
+                index: 0,
+                tags: self.tags.clone(),
+            });
         }
 
         let c = self.current.as_ref().unwrap();
@@ -95,6 +102,14 @@ impl StreamInput {
                 self.reader.as_mut().unwrap().consume(amount);
             }
             self.current = None;
+        }
+    }
+
+    pub fn consumed(&self) -> (usize, &Vec<ItemTag>) {
+        if let Some(ref c) = self.current {
+            (c.index / self.item_size, &c.tags)
+        } else {
+            (0, &self.tags)
         }
     }
 
@@ -156,9 +171,13 @@ impl StreamOutput {
         });
     }
 
+    pub fn add_tag_abs(&mut self, index: usize, tag: Tag) {
+        self.tags.push(ItemTag { index, tag });
+    }
+
     pub fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_port: usize,
     ) -> BufferReader {
         debug_assert!(self.writer.is_some());
@@ -192,11 +211,17 @@ impl StreamOutput {
             return;
         }
 
+        // fixme: this should probably keep the tags
+        // that correspond future samples
         self.writer
             .as_mut()
             .unwrap()
             .produce(self.offset, std::mem::take(&mut self.tags));
         self.offset = 0;
+    }
+
+    pub fn produced(&self) -> usize {
+        self.offset
     }
 
     pub async fn notify_finished(&mut self) {

@@ -13,54 +13,60 @@ use crate::runtime::WorkIo;
 use futuredsp::iir::IirKernel;
 use futuredsp::{StatefulUnaryKernel, TapsAccessor};
 
-pub struct Iir<SampleType, TapType, Core>
+pub struct Iir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<SampleType>,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
 {
     core: Core,
-    _sampletype: std::marker::PhantomData<SampleType>,
-    _taptype: std::marker::PhantomData<TapType>,
+    _input_type: std::marker::PhantomData<InputType>,
+    _output_type: std::marker::PhantomData<OutputType>,
+    _tap_type: std::marker::PhantomData<TapType>,
 }
 
-unsafe impl<SampleType, TapType, Core> Send for Iir<SampleType, TapType, Core>
+unsafe impl<InputType, OutputType, TapType, Core> Send for Iir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<SampleType>,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
 {
 }
 
-impl<SampleType, TapType, Core> Iir<SampleType, TapType, Core>
+impl<InputType, OutputType, TapType, Core> Iir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<SampleType>,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
 {
     pub fn new(core: Core) -> Block {
         Block::new(
             BlockMetaBuilder::new("Iir").build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<SampleType>())
-                .add_output("out", mem::size_of::<SampleType>())
+                .add_input("in", mem::size_of::<InputType>())
+                .add_output("out", mem::size_of::<OutputType>())
                 .build(),
-            MessageIoBuilder::<Iir<SampleType, TapType, Core>>::new().build(),
+            MessageIoBuilder::<Iir<InputType, OutputType, TapType, Core>>::new().build(),
             Iir {
                 core,
-                _sampletype: std::marker::PhantomData,
-                _taptype: std::marker::PhantomData,
+                _input_type: std::marker::PhantomData,
+                _output_type: std::marker::PhantomData,
+                _tap_type: std::marker::PhantomData,
             },
         )
     }
 }
 
 #[async_trait]
-impl<SampleType, TapType, Core> Kernel for Iir<SampleType, TapType, Core>
+impl<InputType, OutputType, TapType, Core> Kernel for Iir<InputType, OutputType, TapType, Core>
 where
-    SampleType: 'static + Send,
+    InputType: 'static + Send,
+    OutputType: 'static + Send,
     TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<SampleType>,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
 {
     async fn work(
         &mut self,
@@ -69,8 +75,8 @@ where
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<SampleType>();
-        let o = sio.output(0).slice::<SampleType>();
+        let i = sio.input(0).slice::<InputType>();
+        let o = sio.output(0).slice::<OutputType>();
 
         let (consumed, produced, status) = self.core.work(i, o);
 
@@ -122,20 +128,23 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let iir = fg.add_block(IirBuilder::new::<f32, f32, _>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
+/// let iir = fg.add_block(IirBuilder::new::<f32, f32, f32, _>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
 /// ```
 pub struct IirBuilder {
     //
 }
 
 impl IirBuilder {
-    pub fn new<SampleType, TapType, Taps>(a_taps: Taps, b_taps: Taps) -> Block
+    pub fn new<InputType, OutputType, TapType, Taps>(a_taps: Taps, b_taps: Taps) -> Block
     where
-        SampleType: 'static + Send + Clone,
+        InputType: 'static + Send + Clone,
+        OutputType: 'static + Send + Clone,
         TapType: 'static,
         Taps: 'static + TapsAccessor,
-        IirKernel<SampleType, Taps>: StatefulUnaryKernel<SampleType>,
+        IirKernel<InputType, OutputType, Taps>: StatefulUnaryKernel<InputType, OutputType>,
     {
-        Iir::<SampleType, TapType, IirKernel<SampleType, Taps>>::new(IirKernel::new(a_taps, b_taps))
+        Iir::<InputType, OutputType, TapType, IirKernel<InputType, OutputType, Taps>>::new(
+            IirKernel::new(a_taps, b_taps),
+        )
     }
 }

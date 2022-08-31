@@ -1,3 +1,6 @@
+use std::net::ToSocketAddrs;
+
+use async_net::SocketAddr;
 use async_net::UdpSocket;
 use futures::FutureExt;
 
@@ -14,13 +17,13 @@ use crate::runtime::StreamIoBuilder;
 
 pub struct BlobToUdp {
     socket: Option<UdpSocket>,
-    remote: String,
+    remote: SocketAddr,
 }
 
 impl BlobToUdp {
     pub fn new<S>(remote: S) -> Block
     where
-        S: Into<String>,
+        S: AsRef<str>,
     {
         Block::new(
             BlockMetaBuilder::new("BlobToUdp").build(),
@@ -34,7 +37,23 @@ impl BlobToUdp {
                      p: Pmt| {
                         async move {
                             if let Pmt::Blob(v) = p {
-                                block.socket.as_ref().unwrap().send(&v).await?;
+                                match block
+                                    .socket
+                                    .as_ref()
+                                    .unwrap()
+                                    .send_to(&v, block.remote)
+                                    .await
+                                {
+                                    Ok(s) => {
+                                        assert_eq!(s, v.len());
+                                    }
+                                    Err(e) => {
+                                        println!("udp error: {:?}", e);
+                                        return Err(e.into());
+                                    }
+                                }
+                            } else {
+                                warn!("BlockToUdp: received wrong PMT type. {:?}", p);
                             }
                             Ok(Pmt::Null)
                         }
@@ -44,7 +63,12 @@ impl BlobToUdp {
                 .build(),
             BlobToUdp {
                 socket: None,
-                remote: remote.into(),
+                remote: remote
+                    .as_ref()
+                    .to_socket_addrs()
+                    .expect("could not resolve socket address")
+                    .next()
+                    .unwrap(),
             },
         )
     }
@@ -59,7 +83,6 @@ impl Kernel for BlobToUdp {
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let socket = UdpSocket::bind("127.0.0.1:0").await?;
-        socket.connect(&self.remote).await?;
         self.socket = Some(socket);
         Ok(())
     }

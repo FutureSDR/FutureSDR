@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
+use crate::runtime::BlockMessage;
 use slab::Slab;
 use std::any::{Any, TypeId};
 use std::cmp::{Eq, PartialEq};
@@ -51,7 +51,7 @@ pub struct BufferBuilderEntry {
 impl BufferBuilderEntry {
     pub(crate) fn build(
         &self,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         self.builder
@@ -157,12 +157,7 @@ impl Topology {
             .collect();
 
         // delete associated message edges
-        self.message_edges = self
-            .message_edges
-            .iter()
-            .filter(|x| x.0 != id && x.2 != id)
-            .copied()
-            .collect();
+        self.message_edges.retain(|x| x.0 != id && x.2 != id);
     }
 
     pub fn connect_stream<B: BufferBuilder + Debug + Eq + Hash>(

@@ -30,55 +30,64 @@ use crate::runtime::WorkIo;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Double each sample
-/// let doubler = fg.add_block(Apply::<f32, f32>::new(|i| i * 2.0));
+/// let doubler = fg.add_block(Apply::new(|i: &f32| i * 2.0));
 ///
 /// // Note that the closure can also hold state
 /// let mut last_value = 0.0;
-/// let moving_average = fg.add_block(Apply::<f32, f32>::new(move |i| {
+/// let moving_average = fg.add_block(Apply::new(move |i: &f32| {
 ///     let new_value = (last_value + i) / 2.0;
 ///     last_value = *i;
 ///     new_value
 /// }));
 ///
 /// // Additionally, the closure can change the type of the sample
-/// let to_complex = fg.add_block(Apply::<f32, Complex<f32>>::new(|i| {
+/// let to_complex = fg.add_block(Apply::new(|i: &f32| {
 ///     Complex {
 ///         re: 0.0,
 ///         im: *i,
 ///     }
 /// }));
 /// ```
-pub struct Apply<A, B>
+pub struct Apply<F, A, B>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
-    f: Box<dyn FnMut(&A) -> B + Send + 'static>,
+    f: F,
+    _p1: std::marker::PhantomData<A>,
+    _p2: std::marker::PhantomData<B>,
 }
 
-impl<A, B> Apply<A, B>
+impl<F, A, B> Apply<F, A, B>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
-    pub fn new(f: impl FnMut(&A) -> B + Send + 'static) -> Block {
+    pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<B>())
                 .build(),
-            MessageIoBuilder::<Apply<A, B>>::new().build(),
-            Apply { f: Box::new(f) },
+            MessageIoBuilder::<Self>::new().build(),
+            Apply {
+                f,
+                _p1: std::marker::PhantomData,
+                _p2: std::marker::PhantomData,
+            },
         )
     }
 }
 
 #[async_trait]
-impl<A, B> Kernel for Apply<A, B>
+impl<F, A, B> Kernel for Apply<F, A, B>
 where
-    A: 'static,
-    B: 'static,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
 {
     async fn work(
         &mut self,

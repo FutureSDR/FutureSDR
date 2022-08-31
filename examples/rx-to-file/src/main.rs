@@ -4,9 +4,9 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::SoapySource;
 use futuresdr::blocks::{FileSink, FileSource};
+use futuresdr::num_complex::{Complex, Complex32};
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use num_complex::Complex;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]
@@ -77,11 +77,10 @@ fn main() -> Result<()> {
             match format.as_str() {
                 "cs8" => {
                     let src = fg.add_block(FileSource::<Complex<i8>>::new(input));
-                    let typecvt =
-                        fg.add_block(Apply::<Complex<i8>, Complex<f32>>::new(|i| Complex {
-                            re: i.re as f32 / 127.,
-                            im: i.im as f32 / 127.,
-                        }));
+                    let typecvt = fg.add_block(Apply::new(|i: &Complex32| Complex {
+                        re: i.re as f32 / 127.,
+                        im: i.im as f32 / 127.,
+                    }));
                     fg.connect_stream(src, "out", typecvt, "in")?;
                     typecvt
                 }
@@ -107,7 +106,7 @@ fn main() -> Result<()> {
     let mut last_power_print = Instant::now();
     let mut avgmag = 0.0;
     let mut maxmag = 0.0;
-    let powermeter = fg.add_block(Apply::<Complex<f32>, Complex<f32>>::new(move |i| {
+    let powermeter = fg.add_block(Apply::new(move |i: &Complex32| {
         let norm = i.norm();
         if norm > 0.95 && last_clip_warning.elapsed().as_secs_f32() > 0.1 {
             last_clip_warning = Instant::now();
@@ -136,7 +135,7 @@ fn main() -> Result<()> {
         .expect("Output format could not be determined!");
     match format.as_str() {
         "cs8" => {
-            let typecvt = fg.add_block(Apply::<Complex<f32>, Complex<i8>>::new(|i| Complex {
+            let typecvt = fg.add_block(Apply::new(|i: &Complex32| Complex {
                 re: (i.re * 127.) as i8,
                 im: (i.im * 127.) as i8,
             }));

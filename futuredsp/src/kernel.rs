@@ -22,7 +22,7 @@ impl ComputationStatus {
 }
 
 /// Implements a trait to run computations with stateless kernels.
-pub trait UnaryKernel<SampleType>: Send {
+pub trait UnaryKernel<InputType, OutputType>: Send {
     /// Computes the kernel on the given input, outputting into the given
     /// output. For a `UnaryKernel`, kernels will not have internal memory - in
     /// particular, this means that a single instantiated kernel does not need
@@ -36,13 +36,13 @@ pub trait UnaryKernel<SampleType>: Send {
     /// Elements of `output` beyond what is produced are left in an unspecified state.
     fn work(
         &self,
-        input: &[SampleType],
-        output: &mut [SampleType],
+        input: &[InputType],
+        output: &mut [OutputType],
     ) -> (usize, usize, ComputationStatus);
 }
 
 /// Implements a trait to run computations with stateful kernels.
-pub trait StatefulUnaryKernel<SampleType>: Send {
+pub trait StatefulUnaryKernel<InputType, OutputType>: Send {
     /// Computes the kernel on the given input, outputting into the given
     /// output. `StatefulUnaryKernel`s have internal state. This results in
     /// several properties:
@@ -63,18 +63,20 @@ pub trait StatefulUnaryKernel<SampleType>: Send {
     /// Elements of `output` beyond what is produced are left in an unspecified state.
     fn work(
         &mut self,
-        input: &[SampleType],
-        output: &mut [SampleType],
+        input: &[InputType],
+        output: &mut [OutputType],
     ) -> (usize, usize, ComputationStatus);
 }
 
-impl<SampleType, T: UnaryKernel<SampleType>> StatefulUnaryKernel<SampleType> for T {
+impl<InputType, OutputType, T: UnaryKernel<InputType, OutputType>>
+    StatefulUnaryKernel<InputType, OutputType> for T
+{
     fn work(
         &mut self,
-        input: &[SampleType],
-        output: &mut [SampleType],
+        input: &[InputType],
+        output: &mut [OutputType],
     ) -> (usize, usize, ComputationStatus) {
-        UnaryKernel::<SampleType>::work(self, input, output)
+        UnaryKernel::<InputType, OutputType>::work(self, input, output)
     }
 }
 
@@ -84,7 +86,7 @@ mod test {
 
     struct NopKernel;
 
-    impl UnaryKernel<f32> for NopKernel {
+    impl UnaryKernel<f32, f32> for NopKernel {
         fn work(&self, _input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
             for (i, out) in output.iter_mut().enumerate() {
                 *out = i as f32;
@@ -93,7 +95,7 @@ mod test {
         }
     }
 
-    fn exec_kernel<T: StatefulUnaryKernel<f32>>(mut kernel: T, output: &mut [f32]) {
+    fn exec_kernel<T: StatefulUnaryKernel<f32, f32>>(mut kernel: T, output: &mut [f32]) {
         kernel.work(&[], output);
     }
 

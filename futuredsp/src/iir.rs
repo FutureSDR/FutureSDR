@@ -17,34 +17,38 @@ use alloc::vec::Vec;
 /// use futuredsp::StatefulUnaryKernel;
 /// use futuredsp::iir::IirKernel;
 ///
-/// let mut iir = IirKernel::<f32, _>::new([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]);
+/// let mut iir = IirKernel::<f32, f32, _>::new([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]);
 ///
 /// let input = [1.0, 2.0, 3.0, 4.0, 5.0];
 /// let mut output = [0.0];
 /// iir.work(&input, &mut output);
 /// assert_eq!(output[0], 42.0);
 /// ```
-pub struct IirKernel<SampleType, TapsType: TapsAccessor> {
+pub struct IirKernel<InputType, OutputType, TapsType: TapsAccessor> {
     a_taps: TapsType,
     b_taps: TapsType,
-    memory: Vec<SampleType>,
-    _sampletype: core::marker::PhantomData<SampleType>,
+    memory: Vec<InputType>,
+    _input_type: core::marker::PhantomData<InputType>,
+    _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<SampleType, TapType, TapsType: TapsAccessor<TapType = TapType>>
-    IirKernel<SampleType, TapsType>
+impl<InputType, OutputType, TapType, TapsType: TapsAccessor<TapType = TapType>>
+    IirKernel<InputType, OutputType, TapsType>
 {
     pub fn new(a_taps: TapsType, b_taps: TapsType) -> Self {
         Self {
             a_taps,
             b_taps,
             memory: Vec::new(),
-            _sampletype: core::marker::PhantomData,
+            _input_type: core::marker::PhantomData,
+            _output_type: core::marker::PhantomData,
         }
     }
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> StatefulUnaryKernel<f32> for IirKernel<f32, TapsType> {
+impl<TapsType: TapsAccessor<TapType = f32>> StatefulUnaryKernel<f32, f32>
+    for IirKernel<f32, f32, TapsType>
+{
     fn work(&mut self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         if i.is_empty() {
             return (
@@ -144,7 +148,7 @@ mod test {
     use alloc::vec;
 
     struct Feeder {
-        filter: IirKernel<f32, Vec<f32>>,
+        filter: IirKernel<f32, f32, Vec<f32>>,
         input: Vec<f32>,
     }
 
@@ -172,7 +176,8 @@ mod test {
                 a_taps,
                 b_taps,
                 memory: vec![],
-                _sampletype: core::marker::PhantomData,
+                _input_type: core::marker::PhantomData,
+                _output_type: core::marker::PhantomData,
             },
             input: vec![],
         }

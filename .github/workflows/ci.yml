@@ -165,6 +165,12 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/wgpu/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/wlan)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/wlan/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/zeromq)
         uses: actions-rs/cargo@v1
         with:
@@ -344,6 +350,12 @@ jobs:
         with:
           command: clippy
           args: --all-targets --manifest-path=examples/wgpu/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/wlan)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/wlan/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/wgpu)
         uses: actions-rs/cargo@v1

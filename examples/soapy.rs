@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::blocks::FftBuilder;
+use futuresdr::blocks::Fft;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
         .sample_rate(3.2e6)
         .gain(34.0)
         .build();
-    let fft = FftBuilder::new().build();
+    let fft = Fft::new(2048);
     let mag = ComplexToMag::new();
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedDropping(2048))

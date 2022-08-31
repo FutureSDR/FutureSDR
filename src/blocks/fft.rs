@@ -1,4 +1,4 @@
-use rustfft::num_complex::Complex;
+use rustfft::num_complex::Complex32;
 use rustfft::{self, FftPlanner};
 use std::cmp;
 use std::mem::size_of;
@@ -15,26 +15,76 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Computes an FFT
+///
+/// This block computes the FFT on `len` samples at a time, outputting `len` samples per FFT.
+///
+/// # Inputs
+///
+/// `in`: Input samples (Complex32)
+///
+/// # Outputs
+///
+/// `out`: FFT results (Complex32)
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Fft;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let fft = fg.add_block(Fft::new(2048));
+/// ```
 pub struct Fft {
+    len: usize,
+    fft_shift: bool,
+    direction: FftDirection,
+    normalize: Option<f32>,
     plan: Arc<dyn rustfft::Fft<f32>>,
-    scratch: [Complex<f32>; 2048 * 10],
+    scratch: Box<[Complex32]>,
+}
+
+pub enum FftDirection {
+    Forward,
+    Inverse,
 }
 
 impl Fft {
-    pub fn new() -> Block {
+    pub fn new(len: usize) -> Block {
+        Self::with_direction(len, FftDirection::Forward)
+    }
+
+    pub fn with_direction(len: usize, direction: FftDirection) -> Block {
+        Self::with_options(len, direction, false, None)
+    }
+
+    pub fn with_options(
+        len: usize,
+        direction: FftDirection,
+        fft_shift: bool,
+        normalize: Option<f32>,
+    ) -> Block {
         let mut planner = FftPlanner::<f32>::new();
-        let plan = planner.plan_fft_forward(2048);
+        let plan = match direction {
+            FftDirection::Forward => planner.plan_fft_forward(len),
+            FftDirection::Inverse => planner.plan_fft_inverse(len),
+        };
 
         Block::new(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<Complex<f32>>())
-                .add_output("out", size_of::<Complex<f32>>())
+                .add_input("in", size_of::<Complex32>())
+                .add_output("out", size_of::<Complex32>())
                 .build(),
             MessageIoBuilder::<Fft>::new().build(),
             Fft {
+                len,
                 plan,
-                scratch: [Complex::new(0.0, 0.0); 2048 * 10],
+                direction,
+                fft_shift,
+                normalize,
+                scratch: vec![Complex32::new(0.0, 0.0); len * 10].into_boxed_slice(),
             },
         )
     }
@@ -49,65 +99,53 @@ impl Kernel for Fft {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = unsafe { sio.input(0).slice_mut::<Complex<f32>>() };
-        let o = sio.output(0).slice::<Complex<f32>>();
+        let i = unsafe { sio.input(0).slice_mut::<Complex32>() };
+        let o = sio.output(0).slice::<Complex32>();
 
         let m = cmp::min(i.len(), o.len());
-        let n = (m / 2048) * 2048;
+        let m = (m / self.len) * self.len;
 
-        if sio.input(0).finished() {
+        if m > 0 {
+            if matches!(self.direction, FftDirection::Inverse) && self.fft_shift {
+                for f in 0..(m / self.len) {
+                    let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
+                    sym.copy_from_slice(&i[f * self.len..(f + 1) * self.len]);
+                    for k in 0..self.len {
+                        i[f * self.len + k] = sym[(k + self.len / 2) % self.len]
+                    }
+                }
+            }
+
+            self.plan.process_outofplace_with_scratch(
+                &mut i[0..m],
+                &mut o[0..m],
+                &mut self.scratch,
+            );
+
+            if matches!(self.direction, FftDirection::Forward) && self.fft_shift {
+                for f in 0..(m / self.len) {
+                    let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
+                    sym.copy_from_slice(&o[f * self.len..(f + 1) * self.len]);
+                    for k in 0..self.len {
+                        o[f * self.len + k] = sym[(k + self.len / 2) % self.len]
+                    }
+                }
+            }
+
+            if let Some(fac) = self.normalize {
+                for item in o[0..m].iter_mut() {
+                    *item *= fac;
+                }
+            }
+
+            sio.input(0).consume(m);
+            sio.output(0).produce(m);
+        }
+
+        if sio.input(0).finished() && m == (m / self.len) * self.len {
             io.finished = true;
         }
 
-        if n == 0 {
-            return Ok(());
-        }
-
-        self.plan
-            .process_outofplace_with_scratch(&mut i[0..n], &mut o[0..n], &mut self.scratch);
-
-        sio.input(0).consume(n);
-        sio.output(0).produce(n);
-
         Ok(())
-    }
-}
-
-/// Computes a FFT
-///
-/// This block computes the FFT on 2048 samples at a time, outputting 2048 samples per FFT.
-///
-/// # Inputs
-///
-/// `in`: Input samples
-///
-/// # Outputs
-///
-/// `out`: FFT results
-///
-/// # Usage
-/// ```
-/// use futuresdr::blocks::FftBuilder;
-/// use futuresdr::runtime::Flowgraph;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let fft = fg.add_block(FftBuilder::new().build());
-/// ```
-pub struct FftBuilder {}
-
-impl FftBuilder {
-    pub fn new() -> FftBuilder {
-        FftBuilder {}
-    }
-
-    pub fn build(self) -> Block {
-        Fft::new()
-    }
-}
-
-impl Default for FftBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

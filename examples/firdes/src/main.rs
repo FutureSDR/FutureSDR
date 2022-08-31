@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     let enable_filter = true;
 
     let mut t: usize = 0;
-    let src = Source::<f32>::new(move || {
+    let src = Source::new(move || {
         t += 1;
         let freq = match (t as f32 % SAMPLING_FREQ as f32) as u32 {
             x if x < SAMPLING_FREQ / 3 => TONE_FREQ.0,
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let interp = 2;
     let decim = 3;
     const DOWNSAMPLED_FREQ: u32 = 44_100;
-    let resamp_block = FirBuilder::new_resampling::<f32>(interp, decim);
+    let resamp_block = FirBuilder::new_resampling::<f32, f32>(interp, decim);
 
     // Design bandpass filter for the middle tone
     let lower_cutoff = (TONE_FREQ.1 - 200.0) as f64 / DOWNSAMPLED_FREQ as f64;
@@ -42,8 +42,8 @@ fn main() -> Result<()> {
     println!("Filter has {} taps", filter_taps.len());
 
     let filter_block = match enable_filter {
-        true => FirBuilder::new::<f32, f32, _>(filter_taps),
-        _ => FirBuilder::new::<f32, f32, _>([1.0_f32]),
+        true => FirBuilder::new::<f32, f32, _, _>(filter_taps),
+        _ => FirBuilder::new::<f32, f32, _, _>([1.0_f32]),
     };
 
     let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1);

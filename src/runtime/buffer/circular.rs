@@ -10,20 +10,20 @@ use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
 struct MyNotifier {
-    sender: Sender<AsyncMessage>,
+    sender: Sender<BlockMessage>,
 }
 
 impl generic::Notifier for MyNotifier {
     fn arm(&mut self) {}
 
     fn notify(&mut self) {
-        let _ = self.sender.try_send(AsyncMessage::Notify);
+        let _ = self.sender.try_send(BlockMessage::Notify);
     }
 }
 
@@ -82,7 +82,7 @@ impl BufferBuilder for Circular {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
         BufferWriter::Host(Box::new(Writer::new(
@@ -96,9 +96,9 @@ impl BufferBuilder for Circular {
 
 pub struct Writer {
     writer: generic::Writer<u8, MyNotifier, MyMetadata>,
-    readers: Vec<(Sender<AsyncMessage>, usize)>,
+    readers: Vec<(Sender<BlockMessage>, usize)>,
     item_size: usize,
-    inbox: Sender<AsyncMessage>,
+    inbox: Sender<BlockMessage>,
     output_id: usize,
     finished: bool,
 }
@@ -107,7 +107,7 @@ impl Writer {
     pub fn new(
         item_size: usize,
         min_bytes: usize,
-        inbox: Sender<AsyncMessage>,
+        inbox: Sender<BlockMessage>,
         output_id: usize,
     ) -> Writer {
         let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
@@ -140,7 +140,7 @@ impl fmt::Debug for Writer {
 
 #[async_trait]
 impl BufferWriterHost for Writer {
-    fn add_reader(&mut self, inbox: Sender<AsyncMessage>, input_id: usize) -> BufferReader {
+    fn add_reader(&mut self, inbox: Sender<BlockMessage>, input_id: usize) -> BufferReader {
         let writer_notifier = MyNotifier {
             sender: self.inbox.clone(),
         };
@@ -185,7 +185,7 @@ impl BufferWriterHost for Writer {
 
         for i in self.readers.iter_mut() {
             let _ =
-                i.0.send(AsyncMessage::StreamInputDone { input_id: i.1 })
+                i.0.send(BlockMessage::StreamInputDone { input_id: i.1 })
                     .await;
         }
     }
@@ -207,7 +207,7 @@ pub struct Reader {
     reader: generic::Reader<u8, MyNotifier, MyMetadata>,
     item_size: usize,
     finished: bool,
-    writer_inbox: Sender<AsyncMessage>,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: usize,
 }
 
@@ -239,7 +239,7 @@ impl BufferReaderHost for Reader {
 
         let _ = self
             .writer_inbox
-            .send(AsyncMessage::StreamOutputDone {
+            .send(BlockMessage::StreamOutputDone {
                 output_id: self.writer_output_id,
             })
             .await;

@@ -29,61 +29,64 @@ impl Generatable for Complex<f32> {
     }
 }
 
-fn bench_fir_dynamic_taps<SampleType: Generatable, TapType: Generatable>(
+fn bench_fir_dynamic_taps<InputType, OutputType, TapType: Generatable>(
     b: &mut criterion::Bencher,
     ntaps: usize,
     nsamps: usize,
 ) where
-    SampleType: Clone,
+    InputType: Generatable + Clone,
+    OutputType: Generatable + Clone,
     Vec<TapType>: TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<SampleType, Vec<TapType>>: UnaryKernel<SampleType>,
+    NonResamplingFirKernel<InputType, OutputType, Vec<TapType>, TapType>:
+        UnaryKernel<InputType, OutputType>,
 {
     let taps: Vec<_> = (0..ntaps).map(|_| TapType::generate()).collect();
-    let input: Vec<_> = (0..nsamps + ntaps)
-        .map(|_| SampleType::generate())
-        .collect();
-    let mut output = vec![SampleType::generate(); nsamps];
-    let fir = NonResamplingFirKernel::<SampleType, _>::new(black_box(taps));
+    let input: Vec<_> = (0..nsamps + ntaps).map(|_| InputType::generate()).collect();
+    let mut output = vec![OutputType::generate(); nsamps];
+    let fir = NonResamplingFirKernel::<InputType, OutputType, _, _>::new(black_box(taps));
     b.iter(|| {
         fir.work(black_box(&input), black_box(&mut output));
     });
 }
 
-fn bench_fir_static_taps<SampleType: Generatable, TapType: Generatable, const N: usize>(
+fn bench_fir_static_taps<InputType, OutputType, TapType: Generatable, const N: usize>(
     b: &mut criterion::Bencher,
     nsamps: usize,
 ) where
-    SampleType: Clone,
+    InputType: Generatable + Clone,
+    OutputType: Generatable + Clone,
     TapType: std::fmt::Debug,
     [TapType; N]: TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<SampleType, [TapType; N]>: UnaryKernel<SampleType>,
+    NonResamplingFirKernel<InputType, OutputType, [TapType; N], TapType>:
+        UnaryKernel<InputType, OutputType>,
 {
     let taps: Vec<_> = (0..N).map(|_| TapType::generate()).collect();
     let taps: [TapType; N] = taps.try_into().unwrap();
-    let input: Vec<_> = (0..nsamps + N).map(|_| SampleType::generate()).collect();
-    let mut output = vec![SampleType::generate(); nsamps];
-    let fir = NonResamplingFirKernel::<SampleType, _>::new(black_box(taps));
+    let input: Vec<_> = (0..nsamps + N).map(|_| InputType::generate()).collect();
+    let mut output = vec![OutputType::generate(); nsamps];
+    let fir = NonResamplingFirKernel::<InputType, OutputType, _, _>::new(black_box(taps));
     b.iter(|| {
         fir.work(black_box(&input), black_box(&mut output));
     });
 }
 
-fn bench_iir<SampleType: Generatable, TapType: Generatable>(
+fn bench_iir<InputType, OutputType, TapType: Generatable>(
     b: &mut criterion::Bencher,
     n_a_taps: usize,
     n_b_taps: usize,
     nsamps: usize,
 ) where
-    SampleType: Clone,
+    InputType: Generatable + Clone,
+    OutputType: Generatable + Clone,
     Vec<TapType>: TapsAccessor<TapType = TapType>,
-    IirKernel<SampleType, Vec<TapType>>: StatefulUnaryKernel<SampleType>,
+    IirKernel<InputType, OutputType, Vec<TapType>>: StatefulUnaryKernel<InputType, OutputType>,
 {
     let a_taps: Vec<_> = (0..n_a_taps).map(|_| TapType::generate()).collect();
     let b_taps: Vec<_> = (0..n_b_taps).map(|_| TapType::generate()).collect();
     let input: Vec<_> = (0..nsamps + n_b_taps)
-        .map(|_| SampleType::generate())
+        .map(|_| InputType::generate())
         .collect();
-    let mut output = vec![SampleType::generate(); nsamps];
+    let mut output = vec![OutputType::generate(); nsamps];
     let mut iir = IirKernel::new(black_box(a_taps), black_box(b_taps));
     b.iter(|| {
         iir.work(black_box(&input), black_box(&mut output));
@@ -101,23 +104,23 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         group.bench_function(
             format!("fir-{}tap-dynamic real/real {}", ntaps, nsamps),
             |b| {
-                bench_fir_dynamic_taps::<f32, f32>(b, ntaps, nsamps);
+                bench_fir_dynamic_taps::<f32, f32, f32>(b, ntaps, nsamps);
             },
         );
         group.bench_function(
             format!("fir-{}tap-dynamic complex/real {}", ntaps, nsamps),
             |b| {
-                bench_fir_dynamic_taps::<Complex<f32>, f32>(b, ntaps, nsamps);
+                bench_fir_dynamic_taps::<Complex<f32>, Complex<f32>, f32>(b, ntaps, nsamps);
             },
         );
     }
 
     // Check some static taps as well
     group.bench_function(format!("fir-3tap-static complex/real {}", nsamps), |b| {
-        bench_fir_static_taps::<Complex<f32>, f32, 3>(b, nsamps);
+        bench_fir_static_taps::<Complex<f32>, Complex<f32>, f32, 3>(b, nsamps);
     });
     group.bench_function(format!("fir-64tap-static complex/real {}", nsamps), |b| {
-        bench_fir_static_taps::<Complex<f32>, f32, 64>(b, nsamps);
+        bench_fir_static_taps::<Complex<f32>, Complex<f32>, f32, 64>(b, nsamps);
     });
 
     group.finish();

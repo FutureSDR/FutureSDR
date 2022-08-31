@@ -1,5 +1,6 @@
 extern crate alloc;
 use alloc::vec::Vec;
+use num_complex::Complex32;
 
 pub trait TapsAccessor: Send {
     type TapType;
@@ -11,6 +12,32 @@ pub trait TapsAccessor: Send {
     /// # Safety
     /// The invariant `index < num_taps()` must be upheld.
     unsafe fn get(&self, index: usize) -> Self::TapType;
+}
+
+impl<const N: usize> TapsAccessor for [Complex32; N] {
+    type TapType = Complex32;
+
+    fn num_taps(&self) -> usize {
+        N
+    }
+
+    unsafe fn get(&self, index: usize) -> Complex32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
+}
+
+impl<const N: usize> TapsAccessor for &[Complex32; N] {
+    type TapType = Complex32;
+
+    fn num_taps(&self) -> usize {
+        N
+    }
+
+    unsafe fn get(&self, index: usize) -> Complex32 {
+        debug_assert!(index < self.num_taps());
+        *self.get_unchecked(index)
+    }
 }
 
 impl<const N: usize> TapsAccessor for [f32; N] {

@@ -43,7 +43,7 @@ pub fn run_fg() -> Result<()> {
         .build();
 
     let src = fg.add_block(src);
-    let fft = fg.add_block(Fft::new());
+    let fft = fg.add_block(Fft::new(2048));
     let power = fg.add_block(Apply::new(|x: &Complex32| x.norm()));
     let log = fg.add_block(Apply::new(|x: &f32| 10.0 * x.log10()));
     let shift = fg.add_block(FftShift::<f32>::new());

@@ -3,14 +3,14 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::usize;
 
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
 pub trait BufferBuilder: Send + Sync + Any {
     fn build(
         &self,
         item_size: usize,
-        writer_inbox: Sender<AsyncMessage>,
+        writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter;
 }
@@ -19,7 +19,7 @@ pub trait BufferBuilder: Send + Sync + Any {
 pub trait BufferWriterHost: Send + Any + Debug {
     fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader;
 
@@ -40,7 +40,7 @@ pub trait BufferWriterHost: Send + Any + Debug {
 pub trait BufferWriterCustom: Send + Any + Debug {
     fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader;
 
@@ -62,7 +62,7 @@ pub enum BufferWriter {
 impl BufferWriter {
     pub fn add_reader(
         &mut self,
-        reader_inbox: Sender<AsyncMessage>,
+        reader_inbox: Sender<BlockMessage>,
         reader_input_id: usize,
     ) -> BufferReader {
         match self {

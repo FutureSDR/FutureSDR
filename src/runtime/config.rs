@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 pub fn config() -> &'static Config {
-    &*CONFIG
+    &CONFIG
 }
 
 pub fn get_value(name: &str) -> Option<Value> {

@@ -24,7 +24,7 @@ fn main() -> Result<()> {
         .build();
 
     let src = fg.add_block(src);
-    let fft = fg.add_block(Fft::new());
+    let fft = fg.add_block(Fft::new(2048));
     let power = fg.add_block(power_block());
     let log = fg.add_block(lin2db_block());
     let shift = fg.add_block(FftShift::<f32>::new());

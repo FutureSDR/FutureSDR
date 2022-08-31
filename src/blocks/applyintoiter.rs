@@ -12,32 +12,36 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct ApplyIntoIter<A, B>
+pub struct ApplyIntoIter<F, A, B>
 where
-    A: 'static,
-    B: 'static + IntoIterator,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static + IntoIterator,
 {
-    f: Box<dyn FnMut(&A) -> B + Send + 'static>,
+    f: F,
+    _p: std::marker::PhantomData<A>,
     current_it: Box<dyn Iterator<Item = B::Item> + Send>,
 }
 
-impl<A, B> ApplyIntoIter<A, B>
+impl<F, A, B> ApplyIntoIter<F, A, B>
 where
-    A: 'static,
-    B: 'static + IntoIterator,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static + IntoIterator,
     B::Item: 'static,
     <B as IntoIterator>::IntoIter: Send,
 {
-    pub fn new(f: impl FnMut(&A) -> B + Send + 'static) -> Block {
+    pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("ApplyIntoIter").build(),
             StreamIoBuilder::new()
                 .add_input("in", mem::size_of::<A>())
                 .add_output("out", mem::size_of::<B::Item>())
                 .build(),
-            MessageIoBuilder::<ApplyIntoIter<A, B>>::new().build(),
+            MessageIoBuilder::<Self>::new().build(),
             ApplyIntoIter {
-                f: Box::new(f),
+                f,
+                _p: std::marker::PhantomData,
                 current_it: Box::new(std::iter::empty()),
             },
         )
@@ -45,10 +49,11 @@ where
 }
 
 #[async_trait]
-impl<A, B> Kernel for ApplyIntoIter<A, B>
+impl<F, A, B> Kernel for ApplyIntoIter<F, A, B>
 where
-    A: 'static,
-    B: 'static + IntoIterator,
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static + IntoIterator,
     B::Item: 'static,
     <B as IntoIterator>::IntoIter: Send,
 {

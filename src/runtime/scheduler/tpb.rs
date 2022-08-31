@@ -11,7 +11,8 @@ use std::thread;
 use crate::runtime::config;
 use crate::runtime::run_block;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::AsyncMessage;
+use crate::runtime::BlockMessage;
+use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
 
 static TPB: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
@@ -71,8 +72,8 @@ impl Scheduler for TpbScheduler {
     fn run_topology(
         &self,
         topology: &mut Topology,
-        main_channel: &Sender<AsyncMessage>,
-    ) -> Slab<Option<Sender<AsyncMessage>>> {
+        main_channel: &Sender<FlowgraphMessage>,
+    ) -> Slab<Option<Sender<BlockMessage>>> {
         let mut inboxes = Slab::new();
         let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
         for _ in 0..=max {
@@ -86,7 +87,7 @@ impl Scheduler for TpbScheduler {
         for (id, block_o) in topology.blocks.iter_mut() {
             let block = block_o.take().unwrap();
 
-            let (sender, receiver) = channel::<AsyncMessage>(queue_size);
+            let (sender, receiver) = channel::<BlockMessage>(queue_size);
             inboxes[id] = Some(sender);
 
             self.spawn_blocking(run_block(block, id, main_channel.clone(), receiver))

@@ -18,7 +18,7 @@ use tower_http::add_extension::AddExtensionLayer;
 use std::io::BufWriter;
 
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;
@@ -27,10 +27,11 @@ use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::SmolScheduler;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
-use crate::runtime::AsyncMessage;
 use crate::runtime::Block;
+use crate::runtime::BlockMessage;
 use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphHandle;
+use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
 
 use std::fmt;
@@ -92,6 +93,14 @@ impl<S: Scheduler> Runtime<S> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn block_on<T: Send + 'static>(
+        &self,
+        future: impl Future<Output = T> + Send + 'static,
+    ) -> T {
+        block_on(self.scheduler.spawn(future))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_background<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
@@ -116,7 +125,7 @@ impl<S: Scheduler> Runtime<S> {
 
     pub async fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
         let queue_size = config::config().queue_size;
-        let (fg_inbox, fg_inbox_rx) = channel::<AsyncMessage>(queue_size);
+        let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
         let (tx, rx) = oneshot::channel::<()>();
         let task = self.scheduler.spawn(run_flowgraph(
@@ -184,8 +193,8 @@ async fn index_html(Extension(mermaid): Extension<String>) -> Html<String> {
 async fn run_flowgraph<S: Scheduler>(
     mut fg: Flowgraph,
     scheduler: S,
-    mut main_channel: Sender<AsyncMessage>,
-    mut main_rx: Receiver<AsyncMessage>,
+    mut main_channel: Sender<FlowgraphMessage>,
+    mut main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<()>,
 ) -> Result<Flowgraph> {
     debug!("in run_flowgraph");
@@ -226,7 +235,7 @@ async fn run_flowgraph<S: Scheduler>(
             inboxes[*dst]
                 .as_mut()
                 .unwrap()
-                .send(AsyncMessage::StreamInputInit {
+                .send(BlockMessage::StreamInputInit {
                     dst_port: *dst_port,
                     reader: writer.add_reader(dst_inbox, *dst_port),
                 })
@@ -237,7 +246,7 @@ async fn run_flowgraph<S: Scheduler>(
         inboxes[*src]
             .as_mut()
             .unwrap()
-            .send(AsyncMessage::StreamOutputInit {
+            .send(BlockMessage::StreamOutputInit {
                 src_port: *src_port,
                 writer,
             })
@@ -252,7 +261,7 @@ async fn run_flowgraph<S: Scheduler>(
         inboxes[*src]
             .as_mut()
             .unwrap()
-            .send(AsyncMessage::MessageOutputConnect {
+            .send(BlockMessage::MessageOutputConnect {
                 src_port: *src_port,
                 dst_port: *dst_port,
                 dst_inbox: dst_box,
@@ -266,7 +275,7 @@ async fn run_flowgraph<S: Scheduler>(
     let mut active_blocks = 0u32;
     for (_, opt) in inboxes.iter_mut() {
         if let Some(ref mut chan) = opt {
-            chan.send(AsyncMessage::Initialize).await.unwrap();
+            chan.send(BlockMessage::Initialize).await.unwrap();
             active_blocks += 1;
         }
     }
@@ -282,7 +291,7 @@ async fn run_flowgraph<S: Scheduler>(
 
         let m = main_rx.next().await.context("no msg")?;
         match m {
-            AsyncMessage::Initialized => i -= 1,
+            FlowgraphMessage::Initialized => i -= 1,
             x => {
                 debug!(
                     "queueing unhandled message received during initialization {:?}",
@@ -296,7 +305,7 @@ async fn run_flowgraph<S: Scheduler>(
     debug!("running blocks");
     for (_, opt) in inboxes.iter_mut() {
         if let Some(ref mut chan) = opt {
-            if chan.send(AsyncMessage::Notify).await.is_err() {
+            if chan.send(BlockMessage::Notify).await.is_err() {
                 debug!("runtime wanted to start block that already terminated");
             }
         }
@@ -324,7 +333,7 @@ async fn run_flowgraph<S: Scheduler>(
 
         let m = main_rx.next().await.context("no msg")?;
         match m {
-            AsyncMessage::BlockCall {
+            FlowgraphMessage::BlockCall {
                 block_id,
                 port_id,
                 data,
@@ -332,11 +341,11 @@ async fn run_flowgraph<S: Scheduler>(
                 inboxes[block_id]
                     .as_mut()
                     .unwrap()
-                    .send(AsyncMessage::Call { port_id, data })
+                    .send(BlockMessage::Call { port_id, data })
                     .await
                     .unwrap();
             }
-            AsyncMessage::BlockCallback {
+            FlowgraphMessage::BlockCallback {
                 block_id,
                 port_id,
                 data,
@@ -345,14 +354,24 @@ async fn run_flowgraph<S: Scheduler>(
                 inboxes[block_id]
                     .as_mut()
                     .unwrap()
-                    .send(AsyncMessage::Callback { port_id, data, tx })
+                    .send(BlockMessage::Callback { port_id, data, tx })
                     .await
                     .unwrap();
             }
-            AsyncMessage::BlockDone { id, block } => {
+            FlowgraphMessage::BlockDone { id, block } => {
                 *topology.blocks.get_mut(id).unwrap() = Some(block);
 
                 active_blocks -= 1;
+            }
+            FlowgraphMessage::Terminate => {
+                for (_, opt) in inboxes.iter_mut() {
+                    if let Some(ref mut chan) = opt {
+                        if chan.send(BlockMessage::Terminate).await.is_err() {
+                            debug!("runtime tried to terminate block that was already terminated");
+                        }
+                    }
+                }
+                bail!("Flowgraph was terminated");
             }
             _ => warn!("main loop received unhandled message"),
         }
@@ -365,8 +384,8 @@ async fn run_flowgraph<S: Scheduler>(
 pub(crate) async fn run_block(
     mut block: Block,
     block_id: usize,
-    mut main_inbox: Sender<AsyncMessage>,
-    mut inbox: Receiver<AsyncMessage>,
+    mut main_inbox: Sender<FlowgraphMessage>,
+    mut inbox: Receiver<BlockMessage>,
 ) -> Result<()> {
     // init work io
     let mut work_io = WorkIo {
@@ -378,18 +397,26 @@ pub(crate) async fn run_block(
     // setup phase
     loop {
         match inbox.next().await.context("no msg")? {
-            AsyncMessage::Initialize => {
-                block.init().await?;
-                main_inbox.send(AsyncMessage::Initialized).await?;
+            BlockMessage::Initialize => {
+                if let Err(e) = block.init().await {
+                    error!(
+                        "{}: Error during initialization. Terminating.",
+                        block.instance_name().unwrap()
+                    );
+                    main_inbox.send(FlowgraphMessage::Terminate).await?;
+                    return Err(e);
+                } else {
+                    main_inbox.send(FlowgraphMessage::Initialized).await?;
+                }
                 break;
             }
-            AsyncMessage::StreamOutputInit { src_port, writer } => {
+            BlockMessage::StreamOutputInit { src_port, writer } => {
                 block.stream_output_mut(src_port).init(writer);
             }
-            AsyncMessage::StreamInputInit { dst_port, reader } => {
+            BlockMessage::StreamInputInit { dst_port, reader } => {
                 block.stream_input_mut(dst_port).set_reader(reader);
             }
-            AsyncMessage::MessageOutputConnect {
+            BlockMessage::MessageOutputConnect {
                 src_port,
                 dst_port,
                 dst_inbox,
@@ -414,22 +441,41 @@ pub(crate) async fn run_block(
         // ================== non blocking
         loop {
             match inbox.next().now_or_never() {
-                Some(Some(AsyncMessage::Notify)) => {}
-                Some(Some(AsyncMessage::StreamInputDone { input_id })) => {
+                Some(Some(BlockMessage::Notify)) => {}
+                Some(Some(BlockMessage::StreamInputDone { input_id })) => {
                     block.stream_input_mut(input_id).finish();
                 }
-                Some(Some(AsyncMessage::StreamOutputDone { .. })) => {
+                Some(Some(BlockMessage::StreamOutputDone { .. })) => {
                     work_io.finished = true;
                 }
-                Some(Some(AsyncMessage::Call { port_id, data })) => {
-                    block.call_handler(port_id, data).await?;
+                Some(Some(BlockMessage::Call { port_id, data })) => {
+                    if let Err(e) = block.call_handler(port_id, data).await {
+                        error!(
+                            "{}: Error in callback. Terminating. ({:?})",
+                            block.instance_name().unwrap(),
+                            e
+                        );
+                        main_inbox.send(FlowgraphMessage::Terminate).await?;
+                        return Err(e);
+                    }
                 }
-                Some(Some(AsyncMessage::Callback { port_id, data, tx })) => {
-                    let res = { block.call_handler(port_id, data).await? };
-
-                    tx.send(res).unwrap();
+                Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
+                    match block.call_handler(port_id, data).await {
+                        Ok(res) => {
+                            tx.send(res).unwrap();
+                        }
+                        Err(e) => {
+                            error!(
+                                "{}: Error in callback. Terminating. ({:?})",
+                                block.instance_name().unwrap(),
+                                e
+                            );
+                            main_inbox.send(FlowgraphMessage::Terminate).await?;
+                            return Err(e);
+                        }
+                    }
                 }
-                Some(Some(AsyncMessage::Terminate)) => work_io.finished = true,
+                Some(Some(BlockMessage::Terminate)) => work_io.finished = true,
                 Some(Some(t)) => warn!("block unhandled message in main loop {:?}", t),
                 _ => break,
             }
@@ -465,13 +511,12 @@ pub(crate) async fn run_block(
             block.deinit().await?;
 
             // ============= notify main thread
-            main_inbox
-                .send(AsyncMessage::BlockDone {
+            let _ = main_inbox
+                .send(FlowgraphMessage::BlockDone {
                     id: block_id,
                     block,
                 })
-                .await
-                .unwrap();
+                .await;
             break;
         }
 
@@ -497,7 +542,15 @@ pub(crate) async fn run_block(
 
         // ================== work
         work_io.call_again = false;
-        block.work(&mut work_io).await?;
+        if let Err(e) = block.work(&mut work_io).await {
+            error!(
+                "{}: Error in work(). Terminating. ({:?})",
+                block.instance_name().unwrap(),
+                e
+            );
+            main_inbox.send(FlowgraphMessage::Terminate).await?;
+            return Err(e);
+        }
         block.commit();
 
         futures_lite::future::yield_now().await;

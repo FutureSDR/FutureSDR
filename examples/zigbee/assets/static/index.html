@@ -4,52 +4,97 @@
         <meta charset="utf-8">
         <title>FutureSDR WASM Example</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="/css/futuresdr.css">
-        <link rel="shortcut icon" href="/favicon.png">
+        <link rel="stylesheet" href="./css/futuresdr.css">
+        <link rel="shortcut icon" href="./favicon.png">
         <style>
-         body {
-             font-family: arial;
-             margin: 0;
-             padding: none;
-             background-color: black;
-         }
-         canvas {
-             width: 80vw;
-             height: 80vh;
-         }
-
-         .flex-container {
-             height: 100%;
-             width: 100%;
-             padding: 0;
-             margin: 0;
-             display: flex;
-             align-items: center;
-             justify-content: flex-start;
-         }
-         .flex-item {
-             width: 100%;
-             line-height: 20px;
-             color: white;
-             font-weight: bold;
-             font-size: 1em;
-             text-align: center;
-             display: flex-item;
-             margin: 5px;
-         }
-
-         #start {
-             margin: 0;
-             padding: 20px;
-         }
         </style>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
     </head>
     <body>
-        <div class="flex-container">
-            <div class="flex-item">
-                <button id="start" type="button" value="Start">
-                    Start
-                </button>
+        <div class="container">
+            <button id="start" type="button" class="btn btn-primary" value="Start">
+                Start
+            </button>
+
+            <div>
+                Pre-Amp (+14dB):
+                <select class="form-select" id="amp">
+                    <option          value="0">Off</option>
+                    <option selected value="1">On</option>
+                </select>
+            </div>
+            <div>
+                LNA:
+                <select class="form-select" id="lna">
+                    <option          value="0"> 0</option>
+                    <option          value="8"> 8</option>
+                    <option          value="16">16</option>
+                    <option selected value="24">24</option>
+                    <option          value="32">32</option>
+                    <option          value="40">40</option>
+                </select>
+            </div>
+            <div>
+                VGA:
+                <select class="form-select" id="vga">
+                    <option          value=" 0"> 0</option>
+                    <option          value=" 2"> 2</option>
+                    <option          value=" 4"> 4</option>
+                    <option          value=" 6"> 6</option>
+                    <option          value=" 8"> 8</option>
+                    <option          value="10">10</option>
+                    <option          value="12">12</option>
+                    <option          value="14">14</option>
+                    <option          value="16">16</option>
+                    <option          value="18">18</option>
+                    <option selected value="20">20</option>
+                    <option          value="22">22</option>
+                    <option          value="24">24</option>
+                    <option          value="26">26</option>
+                    <option          value="28">28</option>
+                    <option          value="30">30</option>
+                    <option          value="32">32</option>
+                    <option          value="34">34</option>
+                    <option          value="36">36</option>
+                    <option          value="38">38</option>
+                    <option          value="40">40</option>
+                    <option          value="42">42</option>
+                    <option          value="44">44</option>
+                    <option          value="46">46</option>
+                    <option          value="48">48</option>
+                    <option          value="50">50</option>
+                    <option          value="52">52</option>
+                    <option          value="54">54</option>
+                    <option          value="56">56</option>
+                    <option          value="58">58</option>
+                    <option          value="60">60</option>
+                    <option          value="62">62</option>
+                </select>
+            </div>
+
+            <div>
+                Channel:
+                <select class="form-select" id="channel">
+                    <option selected value="2405000000">11</option>
+                    <option          value="2410000000">12</option>
+                    <option          value="2415000000">13</option>
+                    <option          value="2420000000">14</option>
+                    <option          value="2425000000">15</option>
+                    <option          value="2430000000">16</option>
+                    <option          value="2435000000">17</option>
+                    <option          value="2440000000">18</option>
+                    <option          value="2445000000">19</option>
+                    <option          value="2450000000">20</option>
+                    <option          value="2455000000">21</option>
+                    <option          value="2460000000">22</option>
+                    <option          value="2465000000">23</option>
+                    <option          value="2470000000">24</option>
+                    <option          value="2475000000">25</option>
+                    <option          value="2480000000">26</option>
+                </select>
+            </div>
+            <div>
+                Received Frames:
                 <div id="log">
                 </div>
             </div>
@@ -93,11 +138,19 @@
 
          var read_samples;
          var set_freq;
+         var set_amp;
+         var set_lna;
+         var set_vga;
+         var set_sample_rate;
 
          Module['onRuntimeInitialized'] = function() {
              console.log("EMSCRIPTEN LOADED");
              read_samples = Module.read_samples;
              set_freq = Module.set_freq;
+             set_amp = Module.set_amp;
+             set_lna = Module.set_lna;
+             set_vga = Module.set_vga;
+             set_sample_rate = Module.set_sample_rate;
              console.log(Module);
          }
 
@@ -124,25 +177,18 @@
                  if(samples.length > 0) {
                      await push_samples(samples);
                  } else {
-                     await Sleep(200);
+                     await Sleep(30);
                  }
              }
          }
 
-         (function () {
-             var old = console.info;
-             var logger = document.getElementById('log');
-             console.info = function (message) {
-                 if (typeof message == 'object') {
-                     logger.innerHTML += (JSON && JSON.stringify ? JSON.stringify(message) : message) + '<br />';
-                 } else {
-                     logger.innerHTML += message + '<br />';
-                 }
-             }
-         })();
-
          const runWasm = async () => {
-             await Sleep(5000);
+             await Sleep(3000);
+             set_amp(1);
+             set_lna(24);
+             set_vga(20);
+             set_freq(2405000000.0);
+             set_sample_rate(4000000);
              const rustWasm = await init();
              await Promise.all([run_fg(), push()]);
          };
@@ -158,6 +204,68 @@
          }
          waitForElement();
 
+        </script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2" crossorigin="anonymous"></script>
+
+        <script>
+         $('#channel').on('change', function(e){
+             console.log('setting freq ', this.value);
+             if(typeof(set_freq) == 'function') {
+                set_freq(parseInt(this.value));
+             } else {
+                 console.log('channel changed but module not yet loaded');
+             }
+         });
+         $('#amp').on('change', function(e){
+             console.log('setting amp ', this.value);
+             if(typeof(set_amp) == 'function') {
+                set_amp(parseInt(this.value));
+             } else {
+                 console.log('amp changed but module not yet loaded');
+             }
+         });
+         $('#lna').on('change', function(e){
+             console.log('setting lna ', this.value);
+             if(typeof(set_lna) == 'function') {
+                set_lna(parseInt(this.value));
+             } else {
+                 console.log('lna changed but module not yet loaded');
+             }
+         });
+         $('#vga').on('change', function(e){
+             console.log('setting vga ', this.value);
+             if(typeof(set_vga) == 'function') {
+                set_vga(parseInt(this.value));
+             } else {
+                 console.log('vga changed but module not yet loaded');
+             }
+         });
+
+         var logger = document.getElementById('log');
+         var rxed_frame = function(payload) {
+             console.log(payload);
+             var result = "";
+
+             result += "frame control: 0x";
+             result += (payload[1] * 256 + payload[0]).toString(16);
+             result += " | seq nr: ";
+             result += payload[2];
+             result += " | dst pan: 0x";
+             result += (payload[4] * 256 + payload[3]).toString(16);
+             result += " | dst addr: 0x";
+             result += (payload[6] * 256 + payload[5]).toString(16);
+             /* result += " | src addr: 0x";
+              * result += (payload[8] * 256 + payload[7]).toString(16); */
+             result += " | payload ";
+             for (var i = 7; i < payload.length - 2; i++) {
+                 result += String.fromCharCode(payload[i]);
+             }
+             result += " | crc : 0x";
+             result += (payload[payload.length-1] * 256 + payload[payload.length-2]).toString(16);
+             console.log(result);
+             logger.innerHTML += result + '<br />';
+         };
         </script>
     </body>
 </html>
