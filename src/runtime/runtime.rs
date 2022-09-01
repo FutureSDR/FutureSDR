@@ -209,7 +209,7 @@ async fn run_flowgraph<S: Scheduler>(
         let buf = buf.into_inner().expect("");
         let mermaid = String::from_utf8(buf).expect("cannot convert to UT8");
         let main_router= Router::new()
-            .route("/test/", get(index_html))
+            .route("/graph/", get(index_html))
             .layer(AddExtensionLayer::new(mermaid));
 
         apidoc_router = Some(main_router);
