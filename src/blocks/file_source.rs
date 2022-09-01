@@ -98,12 +98,12 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
             match self.file.as_mut().unwrap().read(&mut out[i..]).await {
                 Ok(0) => {
                     if self.do_repeat {
-                        self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+                        self.file =
+                            Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
                     } else {
                         io.finished = true;
                         break;
                     }
-                   
                 }
                 Ok(written) => {
                     i += written;

@@ -79,7 +79,10 @@ async fn handler_id_post(
     format!("{:?}", ret)
 }
 
-pub async fn start_control_port(inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>, svc: Option<Router>) {
+pub async fn start_control_port(
+    inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>,
+    svc: Option<Router>,
+) {
     if !config::config().ctrlport_enable {
         return;
     }

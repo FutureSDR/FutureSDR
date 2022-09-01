@@ -326,17 +326,21 @@ impl Topology {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn to_mermaid<T>(&self, mut o: T)
     where
-        T: std::io::Write
+        T: std::io::Write,
     {
         o.write(b"graph LR;\n");
         for (i, node) in &self.blocks {
             if let Some(node) = node.as_ref() {
-                o.write(format!("    N{}[{}<br/><b>name:</b>{}<br/><b>is blocking</b>:{}];\n",
-                    i,
-                    node.type_name(),
-                    node.instance_name().unwrap(),
-                    node.is_blocking(),
-                ).as_bytes());
+                o.write(
+                    format!(
+                        "    N{}[{}<br/><b>name:</b>{}<br/><b>is blocking</b>:{}];\n",
+                        i,
+                        node.type_name(),
+                        node.instance_name().unwrap(),
+                        node.is_blocking(),
+                    )
+                    .as_bytes(),
+                );
             }
         }
         for ((src_blk, _, _), targets) in &self.stream_edges {

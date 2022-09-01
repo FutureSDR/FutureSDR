@@ -99,13 +99,9 @@ impl Flowgraph {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn to_mermaid<T>(&self, o: T)
     where
-        T: std::io::Write
+        T: std::io::Write,
     {
-        self
-            .topology
-            .as_ref()
-            .unwrap()
-            .to_mermaid(o);
+        self.topology.as_ref().unwrap().to_mermaid(o);
     }
 }
 

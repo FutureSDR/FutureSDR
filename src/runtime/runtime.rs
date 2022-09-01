@@ -10,13 +10,12 @@ use futures::prelude::*;
 use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
-use axum::routing::get;
 use axum::response::Html;
-use axum::Router;
+use axum::routing::get;
 use axum::Extension;
-use tower_http::add_extension::AddExtensionLayer;
+use axum::Router;
 use std::io::BufWriter;
-
+use tower_http::add_extension::AddExtensionLayer;
 
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
@@ -35,7 +34,6 @@ use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
 
 use std::fmt;
-
 
 /// This is the [Runtime] that runs a [Flowgraph] to completion.
 ///
@@ -166,11 +164,14 @@ impl<S: Scheduler> RuntimeBuilder<S> {
     }
 }
 
-#[cfg(feature="apidoc")]
+#[cfg(feature = "apidoc")]
 async fn index_html(Extension(mermaid): Extension<String>) -> Html<String> {
     let mut body = String::new();
 
-    fmt::write(&mut body, format_args!("<html>
+    fmt::write(
+        &mut body,
+        format_args!(
+            "<html>
     <head>
         <meta charset='utf-8' />
         <title>FutureSDR</title>
@@ -181,12 +182,21 @@ async fn index_html(Extension(mermaid): Extension<String>) -> Html<String> {
         mermaid.initialize({{ startOnLoad: true }});
     </script>
     <h1>FutureSDR</h1>
-    <div class='mermaid'>")).expect("safe");
+    <div class='mermaid'>"
+        ),
+    )
+    .expect("safe");
     fmt::write(&mut body, format_args!("{}", mermaid)).expect("cannot output mermaid");
     // fmt::write(&mut body, format_args!("number of Blocks {:?}", boxes.len())).expect("cannot write into string");
     fmt::write(&mut body, format_args!("</div>\n")).expect("safe");
-    fmt::write(&mut body, format_args!("\n</body>
-</html>")).expect("safe");
+    fmt::write(
+        &mut body,
+        format_args!(
+            "\n</body>
+</html>"
+        ),
+    )
+    .expect("safe");
     Html(body)
 }
 
@@ -202,13 +212,13 @@ async fn run_flowgraph<S: Scheduler>(
 
     #[cfg(not(target_arch = "wasm32"))]
     let mut apidoc_router: Option<Router> = None;
-    #[cfg(feature="apidoc")]
+    #[cfg(feature = "apidoc")]
     {
         let mut buf = BufWriter::new(Vec::new());
         topology.to_mermaid(&mut buf);
         let buf = buf.into_inner().expect("");
         let mermaid = String::from_utf8(buf).expect("cannot convert to UT8");
-        let main_router= Router::new()
+        let main_router = Router::new()
             .route("/graph/", get(index_html))
             .layer(AddExtensionLayer::new(mermaid));
 
@@ -216,8 +226,6 @@ async fn run_flowgraph<S: Scheduler>(
     }
 
     topology.validate()?;
-
-
 
     let mut inboxes = scheduler.run_topology(&mut topology, &main_channel);
 
