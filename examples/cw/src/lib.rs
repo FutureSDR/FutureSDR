@@ -146,7 +146,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
         let console = fg.add_block(ConsoleSink::<CWAlphabet>::new(""));
         fg.connect_stream(morse, "out", console, "in")?;
 
-        fg.to_mermaid(std::io::stdout());        
+        fg.to_mermaid(std::io::stdout());
     }
 
     Runtime::new().run_async(fg).await?;

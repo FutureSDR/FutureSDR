@@ -129,7 +129,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.throughput(criterion::Throughput::Elements(nsamps as u64));
 
     group.bench_function("iir", |b| {
-        bench_iir(b, 7, 1, nsamps);
+        bench_iir::<_, _, f32>(b, 7, 1, nsamps);
     });
 
     group.finish();
