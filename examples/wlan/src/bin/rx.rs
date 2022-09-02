@@ -30,6 +30,9 @@ struct Args {
     /// Antenna
     #[clap(short, long)]
     antenna: Option<String>,
+    /// Soapy Filter
+    #[clap(short, long)]
+    filter: Option<String>,
     /// Gain
     #[clap(short, long, default_value_t = 60.0)]
     gain: f64,
@@ -53,6 +56,9 @@ fn main() -> Result<()> {
         .gain(args.gain);
     if let Some(a) = args.antenna {
         soapy = soapy.antenna(a);
+    }
+    if let Some(f) = args.filter {
+        soapy = soapy.filter(f);
     }
     let src = fg.add_block(soapy.build());
     let delay = fg.add_block(Delay::<Complex32>::new(16));

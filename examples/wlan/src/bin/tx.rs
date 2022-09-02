@@ -26,13 +26,16 @@ struct Args {
     /// Antenna
     #[clap(short, long)]
     antenna: Option<String>,
-    // Gain
+    /// Soapy Filter
+    #[clap(short, long)]
+    filter: Option<String>,
+    /// Gain
     #[clap(short, long, default_value_t = 60.0)]
     gain: f64,
-    // Sample Rate
+    /// Sample Rate
     #[clap(short, long, default_value_t = 20e6)]
     sample_rate: f64,
-    // WLAN Channel Number
+    /// WLAN Channel Number
     #[clap(short, long, value_parser = parse_channel, default_value = "34")]
     channel: f64,
 }
@@ -89,6 +92,9 @@ fn main() -> Result<()> {
         .gain(args.gain);
     if let Some(a) = args.antenna {
         soapy = soapy.antenna(a);
+    }
+    if let Some(f) = args.filter {
+        soapy = soapy.filter(f);
     }
 
     let soapy_snk = fg.add_block(soapy.build());
