@@ -120,7 +120,7 @@ impl Topology {
         let mut block_name;
         let base_name: String;
 
-        if let Some(original_name) = original_name  {
+        if let Some(original_name) = original_name {
             base_name = original_name.to_string();
             block_name = base_name.clone();
         } else {
@@ -341,16 +341,19 @@ impl Topology {
                         node.is_blocking(),
                     )
                     .as_bytes(),
-                ).ok();
+                )
+                .ok();
             }
         }
         for ((src_blk, _, _), targets) in &self.stream_edges {
             for (dst_blk, _) in targets {
-                o.write(format!("    N{}-->N{};\n", src_blk, dst_blk).as_bytes()).ok();
+                o.write(format!("    N{}-->N{};\n", src_blk, dst_blk).as_bytes())
+                    .ok();
             }
         }
         for (src_blk, _src_port, dst_blk, _dst_port) in &self.message_edges {
-            o.write(format!("    N{}-.->N{};\n", src_blk, dst_blk).as_bytes()).ok();
+            o.write(format!("    N{}-.->N{};\n", src_blk, dst_blk).as_bytes())
+                .ok();
         }
     }
 }
