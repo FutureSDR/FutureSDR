@@ -31,8 +31,7 @@ fn main() -> Result<()> {
     let mut freq_xlating = Apply::new(move |v: &Complex<f32>| {
         let lo_v = Complex::<f32>::new(0.0, (xlating_local_oscillator_index as f32) * FWT0).exp();
         xlating_local_oscillator_index = (xlating_local_oscillator_index + 1) % FILE_SAMPLING_RATE;
-        let result = FILE_LEVEL_ADJUSTEMENT * v * lo_v;
-        result
+        FILE_LEVEL_ADJUSTEMENT * v * lo_v
     });
     freq_xlating.set_instance_name(&format!("freq_xlating {}", CENTER_FREQ));
 

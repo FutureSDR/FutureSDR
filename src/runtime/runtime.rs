@@ -218,6 +218,7 @@ async fn run_flowgraph<S: Scheduler>(
 
     #[cfg(not(target_arch = "wasm32"))]
     #[allow(unused_mut)]
+    #[allow(unused_assignments)]
     let mut apidoc_router: Option<Router> = None;
     #[cfg(feature = "apidoc")]
     {
