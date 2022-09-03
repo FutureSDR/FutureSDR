@@ -10,11 +10,16 @@ use futures::prelude::*;
 use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
+#[cfg(feature = "apidoc")]
 use axum::response::Html;
+#[cfg(feature = "apidoc")]
 use axum::routing::get;
+#[cfg(feature = "apidoc")]
 use axum::Extension;
 use axum::Router;
+#[cfg(feature = "apidoc")]
 use std::io::BufWriter;
+#[cfg(feature = "apidoc")]
 use tower_http::add_extension::AddExtensionLayer;
 
 use crate::anyhow::{bail, Context, Result};
@@ -33,6 +38,7 @@ use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
 
+#[cfg(feature = "apidoc")]
 use std::fmt;
 
 /// This is the [Runtime] that runs a [Flowgraph] to completion.
@@ -211,6 +217,7 @@ async fn run_flowgraph<S: Scheduler>(
     let mut topology = fg.topology.take().context("flowgraph not initialized")?;
 
     #[cfg(not(target_arch = "wasm32"))]
+    #[allow(unused_mut)]
     let mut apidoc_router: Option<Router> = None;
     #[cfg(feature = "apidoc")]
     {

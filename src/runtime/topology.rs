@@ -119,12 +119,13 @@ impl Topology {
         let original_name = block.instance_name();
         let mut block_name;
         let base_name: String;
-        if original_name.is_none() {
+
+        if let Some(original_name) = original_name  {
+            base_name = original_name.to_string();
+            block_name = base_name.clone();
+        } else {
             base_name = type_name.to_string();
             block_name = format!("{}_0", base_name);
-        } else {
-            base_name = original_name.unwrap().to_string();
-            block_name = base_name.clone();
         };
 
         // find a unique name
@@ -328,7 +329,7 @@ impl Topology {
     where
         T: std::io::Write,
     {
-        o.write(b"graph LR;\n");
+        o.write(b"graph LR;\n").ok();
         for (i, node) in &self.blocks {
             if let Some(node) = node.as_ref() {
                 o.write(
@@ -340,16 +341,16 @@ impl Topology {
                         node.is_blocking(),
                     )
                     .as_bytes(),
-                );
+                ).ok();
             }
         }
         for ((src_blk, _, _), targets) in &self.stream_edges {
             for (dst_blk, _) in targets {
-                o.write(format!("    N{}-->N{};\n", src_blk, dst_blk).as_bytes());
+                o.write(format!("    N{}-->N{};\n", src_blk, dst_blk).as_bytes()).ok();
             }
         }
         for (src_blk, _src_port, dst_blk, _dst_port) in &self.message_edges {
-            o.write(format!("    N{}-.->N{};\n", src_blk, dst_blk).as_bytes());
+            o.write(format!("    N{}-.->N{};\n", src_blk, dst_blk).as_bytes()).ok();
         }
     }
 }
