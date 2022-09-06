@@ -263,8 +263,8 @@ impl Block {
     pub fn instance_name(&self) -> Option<&str> {
         self.0.instance_name()
     }
-    pub fn set_instance_name(&mut self, name: &str) {
-        self.0.set_instance_name(name)
+    pub fn set_instance_name(&mut self, name: impl AsRef<str>) {
+        self.0.set_instance_name(name.as_ref())
     }
     pub fn type_name(&self) -> &str {
         self.0.type_name()

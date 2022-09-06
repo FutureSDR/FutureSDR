@@ -127,7 +127,7 @@ impl Topology {
             i += 1;
         }
 
-        block.set_instance_name(&block_name);
+        block.set_instance_name(block_name);
         self.blocks.insert(Some(block))
     }
 

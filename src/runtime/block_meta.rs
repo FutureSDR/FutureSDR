@@ -25,8 +25,8 @@ impl BlockMeta {
         self.blocking
     }
 
-    pub fn set_instance_name(&mut self, name: &str) {
-        self.instance_name = Some(name.to_string());
+    pub fn set_instance_name(&mut self, name: impl Into<String>) {
+        self.instance_name = Some(name.into());
     }
 }
 
