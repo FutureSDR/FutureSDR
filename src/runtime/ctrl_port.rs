@@ -3,17 +3,15 @@ use axum::http::StatusCode;
 use axum::routing::{get, get_service, post};
 use axum::Json;
 use axum::Router;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
-use futures::prelude::*;
-use slab::Slab;
 use std::path;
 use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 use crate::runtime::config;
-use crate::runtime::BlockMessage;
+use crate::runtime::BlockDescription;
+use crate::runtime::FlowgraphDescription;
+use crate::runtime::FlowgraphHandle;
 use crate::runtime::Pmt;
 
 macro_rules! relative {
@@ -26,72 +24,52 @@ macro_rules! relative {
     };
 }
 
-async fn index(Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>) -> String {
-    format!("number of Blocks {:?}", boxes.len())
+async fn index(Extension(mut flowgraph): Extension<FlowgraphHandle>) -> String {
+    format!("flowgraph {:?}", flowgraph.description().await.unwrap())
+}
+
+async fn flowgraph_description(
+    Extension(mut flowgraph): Extension<FlowgraphHandle>,
+) -> Result<Json<FlowgraphDescription>, StatusCode> {
+    Ok(Json::from(flowgraph.description().await.unwrap()))
+}
+
+async fn block_description(
+    Path(blk): Path<usize>,
+    Extension(mut flowgraph): Extension<FlowgraphHandle>,
+) -> Result<Json<BlockDescription>, StatusCode> {
+    Ok(Json::from(flowgraph.block_description(blk).await.unwrap()))
 }
 
 async fn handler_id(
     Path((blk, handler)): Path<(usize, usize)>,
-    Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>,
+    Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> String {
-    let mut b = match boxes.get(blk) {
-        Some(Some(s)) => s.clone(),
-        _ => return "block not found".to_string(),
-    };
-
-    let (tx, rx) = oneshot::channel::<Pmt>();
-
-    b.send(BlockMessage::Callback {
-        port_id: handler,
-        data: Pmt::Null,
-        tx,
-    })
-    .await
-    .unwrap();
-
-    let ret = rx.await.unwrap();
-
+    let ret = flowgraph.callback(blk, handler, Pmt::Null).await.unwrap();
     format!("{:?}", ret)
 }
 
 async fn handler_id_post(
     Path((blk, handler)): Path<(usize, usize)>,
     Json(pmt): Json<Pmt>,
-    Extension(boxes): Extension<Slab<Option<mpsc::Sender<BlockMessage>>>>,
+    Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> String {
-    let mut b = match boxes.get(blk) {
-        Some(Some(s)) => s.clone(),
-        _ => return "block not found".to_string(),
-    };
-
-    let (tx, rx) = oneshot::channel::<Pmt>();
-
-    b.send(BlockMessage::Callback {
-        port_id: handler,
-        data: pmt,
-        tx,
-    })
-    .await
-    .unwrap();
-
-    let ret = rx.await.unwrap();
-
+    let ret = flowgraph.callback(blk, handler, pmt).await.unwrap();
     format!("{:?}", ret)
 }
 
-pub async fn start_control_port(
-    inboxes: Slab<Option<mpsc::Sender<BlockMessage>>>,
-    custom_routes: Option<Router>,
-) {
+pub async fn start_control_port(flowgraph: FlowgraphHandle, custom_routes: Option<Router>) {
     if !config::config().ctrlport_enable {
         return;
     }
 
     let mut app = Router::new()
         .route("/api/", get(index))
+        .route("/api/fg/", get(flowgraph_description))
+        .route("/api/block/:blk/", get(block_description))
         .route("/api/block/:blk/call/:handler/", get(handler_id))
         .route("/api/block/:blk/call/:handler/", post(handler_id_post))
-        .layer(AddExtensionLayer::new(inboxes))
+        .layer(AddExtensionLayer::new(flowgraph))
         .layer(CorsLayer::permissive());
     if let Some(c) = custom_routes {
         app = app.nest("/", c);

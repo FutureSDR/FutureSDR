@@ -4,8 +4,8 @@ use std::any::Any;
 use std::fmt;
 
 mod description;
-pub use description::FlowgraphDescription;
 pub use description::BlockDescription;
+pub use description::FlowgraphDescription;
 
 pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;

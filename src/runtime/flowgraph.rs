@@ -3,6 +3,8 @@ use axum::Router;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::SinkExt;
+use futuresdr_pmt::BlockDescription;
+use futuresdr_pmt::FlowgraphDescription;
 use std::cmp::{Eq, PartialEq};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -147,6 +149,24 @@ impl FlowgraphHandle {
             .await?;
         let p = rx.await?;
         Ok(p)
+    }
+
+    pub async fn description(&mut self) -> Result<FlowgraphDescription> {
+        let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
+        self.inbox
+            .send(FlowgraphMessage::FlowgraphDescription { tx })
+            .await?;
+        let d = rx.await?;
+        Ok(d)
+    }
+
+    pub async fn block_description(&mut self, block_id: usize) -> Result<BlockDescription> {
+        let (tx, rx) = oneshot::channel::<BlockDescription>();
+        self.inbox
+            .send(FlowgraphMessage::BlockDescription { block_id, tx })
+            .await?;
+        let d = rx.await?;
+        Ok(d)
     }
 
     pub async fn terminate(&mut self) -> Result<()> {

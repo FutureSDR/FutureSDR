@@ -21,8 +21,10 @@ use crate::runtime::scheduler::SmolScheduler;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::Block;
+use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::Flowgraph;
+use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::WorkIo;
@@ -269,7 +271,7 @@ async fn run_flowgraph<S: Scheduler>(
     #[cfg(not(target_arch = "wasm32"))]
     {
         let routes = fg.custom_routes.clone();
-        ctrl_port::start_control_port(inboxes.clone(), routes).await;
+        ctrl_port::start_control_port(FlowgraphHandle::new(main_channel.clone()), routes).await;
     }
 
     initialized
@@ -309,10 +311,46 @@ async fn run_flowgraph<S: Scheduler>(
                     .await
                     .unwrap();
             }
-            FlowgraphMessage::BlockDone { id, block } => {
-                *topology.blocks.get_mut(id).unwrap() = Some(block);
+            FlowgraphMessage::BlockDone { block_id, block } => {
+                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
 
                 active_blocks -= 1;
+            }
+            FlowgraphMessage::BlockDescription { block_id, tx } => {
+                inboxes[block_id]
+                    .as_mut()
+                    .unwrap()
+                    .send(BlockMessage::BlockDescription { tx })
+                    .await
+                    .unwrap();
+            }
+            FlowgraphMessage::FlowgraphDescription { tx } => {
+                let mut blocks = Vec::new();
+                let ids: Vec<usize> = topology.blocks.iter().map(|x| x.0).collect();
+                for id in ids {
+                    let (b_tx, rx) = oneshot::channel::<BlockDescription>();
+                    inboxes[id]
+                        .as_mut()
+                        .unwrap()
+                        .send(BlockMessage::BlockDescription { tx: b_tx })
+                        .await
+                        .unwrap();
+                    blocks.push(rx.await.unwrap());
+                }
+
+                let stream_edges = topology
+                    .stream_edges
+                    .iter()
+                    .flat_map(|x| x.1.iter().map(|y| (x.0 .0, x.0 .1, y.0, y.1)))
+                    .collect();
+                let message_edges = topology.message_edges.clone();
+
+                tx.send(FlowgraphDescription {
+                    blocks,
+                    stream_edges,
+                    message_edges,
+                })
+                .unwrap();
             }
             FlowgraphMessage::Terminate => {
                 for (_, opt) in inboxes.iter_mut() {
@@ -393,6 +431,36 @@ pub(crate) async fn run_block(
         loop {
             match inbox.next().now_or_never() {
                 Some(Some(BlockMessage::Notify)) => {}
+                Some(Some(BlockMessage::BlockDescription { tx })) => {
+                    let stream_inputs: Vec<String> = block
+                        .stream_inputs()
+                        .iter()
+                        .map(|x| x.name().to_string())
+                        .collect();
+                    let stream_outputs: Vec<String> = block
+                        .stream_outputs()
+                        .iter()
+                        .map(|x| x.name().to_string())
+                        .collect();
+                    let message_inputs: Vec<String> = block.message_input_names();
+                    let message_outputs: Vec<String> = block
+                        .message_outputs()
+                        .iter()
+                        .map(|x| x.name().to_string())
+                        .collect();
+
+                    let description = BlockDescription {
+                        id: block_id,
+                        type_name: block.type_name().to_string(),
+                        instance_name: block.instance_name().unwrap().to_string(),
+                        stream_inputs,
+                        stream_outputs,
+                        message_inputs,
+                        message_outputs,
+                        blocking: block.is_blocking(),
+                    };
+                    tx.send(description).unwrap();
+                }
                 Some(Some(BlockMessage::StreamInputDone { input_id })) => {
                     block.stream_input_mut(input_id).finish();
                 }
@@ -463,10 +531,7 @@ pub(crate) async fn run_block(
 
             // ============= notify main thread
             let _ = main_inbox
-                .send(FlowgraphMessage::BlockDone {
-                    id: block_id,
-                    block,
-                })
+                .send(FlowgraphMessage::BlockDone { block_id, block })
                 .await;
             break;
         }

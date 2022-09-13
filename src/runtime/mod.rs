@@ -35,6 +35,8 @@ pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
+pub use futuresdr_pmt::BlockDescription;
+pub use futuresdr_pmt::FlowgraphDescription;
 pub use futuresdr_pmt::Pmt;
 pub use message_io::MessageInput;
 pub use message_io::MessageIo;
@@ -63,7 +65,7 @@ pub enum FlowgraphMessage {
     Terminate,
     Initialized,
     BlockDone {
-        id: usize,
+        block_id: usize,
         block: Block,
     },
     BlockCall {
@@ -77,6 +79,13 @@ pub enum FlowgraphMessage {
         data: Pmt,
         tx: oneshot::Sender<Pmt>,
     },
+    FlowgraphDescription {
+        tx: oneshot::Sender<FlowgraphDescription>,
+    },
+    BlockDescription {
+        block_id: usize,
+        tx: oneshot::Sender<BlockDescription>,
+    },
 }
 
 #[derive(Debug)]
@@ -84,6 +93,9 @@ pub enum BlockMessage {
     Initialize,
     Terminate,
     Notify,
+    BlockDescription {
+        tx: oneshot::Sender<BlockDescription>,
+    },
     StreamOutputInit {
         src_port: usize,
         writer: BufferWriter,
