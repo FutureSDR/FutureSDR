@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;
 
+mod description;
+pub use description::FlowgraphDescription;
+pub use description::BlockDescription;
+
 pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
