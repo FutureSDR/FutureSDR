@@ -3,16 +3,17 @@
     <head>
         <meta charset="utf-8">
         <title>FutureSDR Web Interface</title>
-        <link rel="stylesheet" href="/css/futuresdr.css">
+        <link rel="shortcut icon" href="/favicon.png">
+        <script src="/js/mermaid.min.js"></script>
+        <script>
+         mermaid.mermaidAPI.initialize({'theme': 'dark'});
+        </script>
         <script type="module">
-         import init, {add_slider_u32, add_freq, add_time, kitchen_sink} from "./futuresdr.js"
+         import init, {add_flowgraph} from "./futuresdr.js"
 
             const runWasm = async () => {
                 const rustWasm = await init();
-                add_freq("#freq", "ws://localhost:9001", -20, 10);
-                /* add_time("#time", "ws://localhost:9001", -20, 10); */
-                add_slider_u32("#freq_slider", "http://localhost:1337", 0, 0, 800000000, 900000000, 1000000, 800000000);
-                /* kitchen_sink("#app"); */
+                add_flowgraph("#flowgraph", "http://localhost:1337");
             };
 
             runWasm();
@@ -25,9 +26,6 @@
         </style>
     </head>
     <body>
-        <div id="freq"></div>
-        <div id="time"></div>
-        <div id="freq_slider"></div>
-        <div id="app"></div>
+        <div id="flowgraph"></div>
     </body>
 </html>

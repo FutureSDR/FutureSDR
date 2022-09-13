@@ -11,7 +11,7 @@ gulp.task('assets:css', function() {
 });
 
 gulp.task('assets:js', function() {
-    return gulp.src('assets/js/**/*.js')
+    return gulp.src('assets/js/**/*')
         .pipe(gulp.dest('dist/js'))
         .pipe(browserSync.stream());
 });
