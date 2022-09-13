@@ -55,8 +55,8 @@ impl ViterbiDecoder {
 
         let polys: [usize; 2] = [0x6d, 0x4f];
         for i in 0..32 {
-            self.branchtab27[0][i] = if PARTAB[(2 * i) & polys[0]] > 0 { 1 } else { 0 };
-            self.branchtab27[1][i] = if PARTAB[(2 * i) & polys[1]] > 0 { 1 } else { 0 };
+            self.branchtab27[0][i] = u8::from(PARTAB[(2 * i) & polys[0]] > 0);
+            self.branchtab27[1][i] = u8::from(PARTAB[(2 * i) & polys[1]] > 0);
         }
         // info!("branchtab27 0: {:?}", self.branchtab27[0]);
         // info!("branchtab27 1: {:?}", self.branchtab27[1]);

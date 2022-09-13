@@ -184,7 +184,7 @@ impl Modulation {
                 let re = i.re;
                 let im = i.im;
 
-                ret |= if re > 0.0 { 1 } else { 0 };
+                ret |= u8::from(re > 0.0);
                 ret |= if re.abs() < LEVEL { 2 } else { 0 };
                 ret |= if im > 0.0 { 4 } else { 0 };
                 ret |= if im.abs() < LEVEL { 8 } else { 0 };
@@ -197,7 +197,7 @@ impl Modulation {
                 let re = i.re;
                 let im = i.im;
 
-                ret |= if re > 0.0 { 1 } else { 0 };
+                ret |= u8::from(re > 0.0);
                 ret |= if re.abs() < (4.0 * LEVEL) { 2 } else { 0 };
                 ret |= if (re.abs() < (6.0 * LEVEL)) && (re.abs() > (2.0 * LEVEL)) {
                     4

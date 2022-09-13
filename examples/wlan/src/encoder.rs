@@ -122,7 +122,7 @@ impl Encoder {
     fn generate_bits(&mut self, data: &Vec<u8>) {
         for i in 0..data.len() {
             for b in 0..8 {
-                self.bits[16 + i * 8 + b] = if (data[i] & (1 << b)) > 0 { 1 } else { 0 };
+                self.bits[16 + i * 8 + b] = u8::from((data[i] & (1 << b)) > 0);
             }
         }
     }
@@ -137,7 +137,7 @@ impl Encoder {
         let mut feedback;
 
         for i in 0..n_data_bits {
-            feedback = if (state & 64) > 0 { 1 } else { 0 } ^ if (state & 8) > 0 { 1 } else { 0 };
+            feedback = u8::from((state & 64) > 0) ^ u8::from((state & 8) > 0);
             self.scrambled[i] = feedback ^ self.bits[i];
             state = ((state << 1) & 0x7e) | feedback;
         }

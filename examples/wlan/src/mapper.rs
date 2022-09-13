@@ -46,19 +46,11 @@ impl Mapper {
 
     #[inline(always)]
     fn get_bit(data: u8, bit: usize) -> u8 {
-        if data & (1 << bit) > 0 {
-            1
-        } else {
-            0
-        }
+        u8::from(data & (1 << bit) > 0)
     }
     #[inline(always)]
     fn get_bit_usize(data: usize, bit: usize) -> u8 {
-        if data & (1 << bit) > 0 {
-            1
-        } else {
-            0
-        }
+        u8::from(data & (1 << bit) > 0)
     }
 
     fn generate_signal_field(&mut self, frame: &FrameParam) {

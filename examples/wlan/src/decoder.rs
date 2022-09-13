@@ -83,11 +83,7 @@ impl Decoder {
         let bpsc = self.frame_param.mcs().modulation().n_bpsc();
         for i in 0..syms * 48 {
             for k in 0..bpsc {
-                self.rx_bits[i * bpsc + k] = if (self.rx_symbols[i] & (1 << k)) > 0 {
-                    1
-                } else {
-                    0
-                };
+                self.rx_bits[i * bpsc + k] = u8::from((self.rx_symbols[i] & (1 << k)) > 0);
             }
         }
         // println!("rx_symbols: {:?}", &self.rx_symbols[0..syms * 48]);
@@ -123,7 +119,7 @@ impl Decoder {
         let mut bit;
 
         for i in 7..self.frame_param.psdu_size() * 8 + 16 {
-            feedback = if (state & 64) > 0 { 1 } else { 0 } ^ if (state & 8) > 0 { 1 } else { 0 };
+            feedback = u8::from((state & 64) > 0) ^ u8::from((state & 8) > 0);
             bit = feedback ^ (decoded_bits[i] & 1);
             self.out_bytes[i / 8] |= bit << (i % 8);
             state = ((state << 1) & 0x7e) | feedback;
