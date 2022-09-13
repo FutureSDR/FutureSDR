@@ -18,4 +18,4 @@ name = "play-stereo"
 path = "play_stereo.rs"
 
 [dependencies]
-futuresdr = { path = "../..", features = ["audio", "apidoc"] }
+futuresdr = { path = "../..", features = ["audio"] }
