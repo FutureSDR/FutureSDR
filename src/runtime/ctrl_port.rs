@@ -24,38 +24,48 @@ macro_rules! relative {
     };
 }
 
-async fn index(Extension(mut flowgraph): Extension<FlowgraphHandle>) -> String {
-    format!("flowgraph {:?}", flowgraph.description().await.unwrap())
-}
-
 async fn flowgraph_description(
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
-    Ok(Json::from(flowgraph.description().await.unwrap()))
+    if let Ok(d) = flowgraph.description().await {
+        Ok(Json::from(d))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
 }
 
 async fn block_description(
     Path(blk): Path<usize>,
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
-    Ok(Json::from(flowgraph.block_description(blk).await.unwrap()))
+    if let Ok(d) = flowgraph.block_description(blk).await {
+        Ok(Json::from(d))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
 }
 
 async fn handler_id(
     Path((blk, handler)): Path<(usize, usize)>,
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
-) -> String {
-    let ret = flowgraph.callback(blk, handler, Pmt::Null).await.unwrap();
-    format!("{:?}", ret)
+) -> Result<Json<Pmt>, StatusCode> {
+    if let Ok(ret) = flowgraph.callback(blk, handler, Pmt::Null).await {
+        Ok(Json::from(ret))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
 }
 
 async fn handler_id_post(
     Path((blk, handler)): Path<(usize, usize)>,
     Json(pmt): Json<Pmt>,
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
-) -> String {
-    let ret = flowgraph.callback(blk, handler, pmt).await.unwrap();
-    format!("{:?}", ret)
+) -> Result<Json<Pmt>, StatusCode> {
+    if let Ok(ret) = flowgraph.callback(blk, handler, pmt).await {
+        Ok(Json::from(ret))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
 }
 
 pub async fn start_control_port(flowgraph: FlowgraphHandle, custom_routes: Option<Router>) {
@@ -64,7 +74,6 @@ pub async fn start_control_port(flowgraph: FlowgraphHandle, custom_routes: Optio
     }
 
     let mut app = Router::new()
-        .route("/api/", get(index))
         .route("/api/fg/", get(flowgraph_description))
         .route("/api/block/:blk/", get(block_description))
         .route("/api/block/:blk/call/:handler/", get(handler_id))
