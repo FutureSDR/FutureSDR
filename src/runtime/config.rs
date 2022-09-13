@@ -117,7 +117,7 @@ impl Default for Config {
             slab_reserved: 128,
             log_level: LevelFilter::Debug,
             ctrlport_enable: true,
-            ctrlport_bind: "127.0.0.1:26125".parse::<SocketAddr>().ok(),
+            ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
             frontend_path: None,
             misc: HashMap::new(),
         }
