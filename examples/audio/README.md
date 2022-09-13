@@ -1,24 +1,39 @@
-FutureSDR & Audio
-=================
+FutureSDR Audio Examples
+========================
 
 ## Introduction
 
-FutureSDR come with some blocks interfacing the [cpal crate](https://crates.io/crates/cpal) so as to interact with sound files and audio card.
+FutureSDR come with some blocks interfacing the [cpal
+crate](https://crates.io/crates/cpal) so as to interact with sound files and
+audio card.
 
-To listen the rick.mp3 file, execute:
+## Play Tone
+
+To play a 440Hz tone through a 48kHz mono `AudioSink`, execute:
 ```sh
-cd examples/audio/
-cargo run --bin play-file --release
+cargo run --bin play-tone
 ```
 
-To listen a 440Hz sound, execute:
+## Play File
+
+To listen the `rick.mp3` file, execute:
 ```sh
-cd examples/audio/
-cargo run --bin play-tone --release
+cargo run --bin play-file
 ```
 
-To listen the rick.mp3 file in stereo mode with different sound levels, execute:
+This detects the sample rate of the audio file (in this case 44.1kHz) and number
+of channels (in this case 1, i.e., mono) and tries to open an `AudioSink` with
+the corresponding parameters to play the file.
+
+## Play File Resampled in Stereo
+
+To listen the `rick.mp3` file in stereo with different left/right sound levels
+and resampled to 48kHz, execute:
+
 ```sh
-cd examples/audio/
-cargo run --bin play-stereo --release
+cargo run --bin play-stereo
 ```
+
+This detects the sample rate of the audio file (in this case 44.1kHz) and
+resamples it to 48kHz. It, furthermore, makes sure that the input file is a mono
+and maps it to stereo with different audio levels.
