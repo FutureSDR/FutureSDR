@@ -36,9 +36,9 @@ pub struct BlockMetaBuilder {
 }
 
 impl BlockMetaBuilder {
-    pub fn new(name: &str) -> BlockMetaBuilder {
+    pub fn new(name: impl Into<String>) -> BlockMetaBuilder {
         BlockMetaBuilder {
-            name: name.to_string(),
+            name: name.into(),
             blocking: false,
         }
     }
