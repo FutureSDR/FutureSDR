@@ -1,0 +1,17 @@
+[package]
+name = "ssb-receiver"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+clap = { version = "3.0.13", features = ["derive"] }
+futuresdr = { path = "../..", features=["soapy", "audio"] }
+futuredsp = { path = "../../futuredsp", version = "0.0.6" }
+num-complex = "0.4.0"
+
+
+[[bin]]
+name = "play-ssb"
+path = "play_ssb.rs"

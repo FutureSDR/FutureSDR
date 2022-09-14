@@ -135,6 +135,12 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/fm-receiver/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/ssb-receiver)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/ssb-receiver/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/logging)
         uses: actions-rs/cargo@v1
         with:
@@ -306,6 +312,12 @@ jobs:
         with:
           command: clippy
           args: --all-targets --manifest-path=examples/fm-receiver/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/ssb-receiver)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/ssb-receiver/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/logging)
         uses: actions-rs/cargo@v1
