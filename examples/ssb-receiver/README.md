@@ -17,8 +17,4 @@ Download file from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_
 - [x] Use low-pass filter
 - ~~[ ] Replace downsampling by decimation (ie with lowpass filtering)~~ Not needed because what is done with 2 previous points is working in a similar way than GNURadio.
 
-## Flow Graph
-
-Thanks to the apidoc feature, one could see the used flowgraph live at http://localhost:26125/main/test/
-
 ![](flowgraph-2022-07-28-124646.png)
