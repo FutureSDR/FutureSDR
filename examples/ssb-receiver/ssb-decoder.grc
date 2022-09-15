@@ -159,7 +159,7 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: /home/loic/projets/FutureSDR/examples/ssb-receiver/ssb_lsb_256k_complex2.dat
+    file: ssb_lsb_256k_complex2.dat
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
@@ -364,3 +364,4 @@ connections:
 
 metadata:
   file_format: 1
+  grc_version: v3.9.5.0-59-ge88fa9c3
