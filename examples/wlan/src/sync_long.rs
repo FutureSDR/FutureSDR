@@ -124,7 +124,7 @@ impl Kernel for SyncLong {
                 }
             }
             State::Sync(freq_offset_short) => {
-                if m >= SEARCH_WINDOW + 63 {
+                if m >= SEARCH_WINDOW + 128 {
                     let (offset, freq_offset) = self.sync(&input[0..SEARCH_WINDOW + 63]);
                     // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
@@ -132,7 +132,6 @@ impl Kernel for SyncLong {
                         out[i] =
                             input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
                     }
-                    // out[0..128].copy_from_slice(&input[offset..offset+128]);
                     sio.output(0).add_tag(
                         0,
                         Tag::NamedF32("wifi_start".to_string(), freq_offset_short + freq_offset),
