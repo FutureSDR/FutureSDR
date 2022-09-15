@@ -10,6 +10,7 @@ impl Oscillator {
         blocks::Source::new(move || {
             let s = amp * f32::sin(arg);
             arg += diff;
+            arg = arg.rem_euclid(std::f32::consts::PI * 2.0);
             s
         })
     }
