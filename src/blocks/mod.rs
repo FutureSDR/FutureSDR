@@ -186,3 +186,8 @@ pub use zynq::{Zynq, ZynqBuilder};
 mod zynq_sync;
 #[cfg(feature = "zynq")]
 pub use zynq_sync::{ZynqSync, ZynqSyncBuilder};
+
+#[cfg(target_arch = "wasm32")]
+mod wasm_ws_sink;
+#[cfg(target_arch = "wasm32")]
+pub use wasm_ws_sink::WasmWsSink;
