@@ -16,7 +16,7 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(FileSource::<u32>::new(&args[1]));
+    let src = fg.add_block(FileSource::<u32>::new(&args[1], false));
     let snk = fg.add_block(FileSink::<f32>::new(&args[2]));
 
     fg.connect_stream(src, "out", snk, "in")?;

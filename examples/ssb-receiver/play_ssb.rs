@@ -55,9 +55,8 @@ fn main() -> Result<()> {
 
     // To be downloaded from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip
     let file_name = args.filename;
-    let src_name = format!("File {}", file_name);
-    let mut src = FileSource::<Complex<f32>>::repeat(file_name);
-    src.set_instance_name(&src_name);
+    let mut src = FileSource::<Complex<f32>>::new(&file_name, true);
+    src.set_instance_name(format!("File {}", file_name));
 
     const FILE_LEVEL_ADJUSTEMENT: f32 = 0.0001;
     let mut xlating_local_oscillator_index: u32 = 0;

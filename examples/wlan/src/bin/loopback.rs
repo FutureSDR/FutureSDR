@@ -98,11 +98,11 @@ fn main() -> Result<()> {
     // ========================================
     // Receiver
     // ========================================
-    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32"));
+    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-1-2-15db.cf32", false));
     // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new(
-    // "data/all-mcs-30db.cf32",
+    // "data/all-mcs-30db.cf32", false
     // ));
-    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32"));
+    // let src = fg.add_block(futuresdr::blocks::FileSource::<Complex32>::new("data/bpsk-3-4-30db.cf32", false));
     // let src = fg.add_block(
     //     futuresdr::blocks::SoapySourceBuilder::new()
     //         .freq(5.22e9)
