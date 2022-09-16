@@ -38,8 +38,8 @@ where
     O: Send + 'static,
 {
     pub fn new<S: Into<String>>(
-        dma_h2d: String,
-        dma_d2h: String,
+        dma_h2d: impl AsRef<str>,
+        dma_d2h: impl AsRef<str>,
         dma_buffs: Vec<S>,
     ) -> Result<Block> {
         assert!(dma_buffs.len() > 1);
@@ -53,8 +53,8 @@ where
                 .build(),
             MessageIoBuilder::<ZynqSync<I, O>>::new().build(),
             ZynqSync {
-                dma_h2d: AxiDma::new(&dma_h2d)?,
-                dma_d2h: AxiDma::new(&dma_d2h)?,
+                dma_h2d: AxiDma::new(dma_h2d.as_ref())?,
+                dma_d2h: AxiDma::new(dma_d2h.as_ref())?,
                 dma_buffs,
                 output_buffers: Vec::new(),
                 input_data: PhantomData,
