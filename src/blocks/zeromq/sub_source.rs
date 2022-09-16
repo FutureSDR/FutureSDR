@@ -31,6 +31,7 @@ impl SubSource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for SubSource {
     async fn work(

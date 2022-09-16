@@ -51,6 +51,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<F, A, B, C> Kernel for Split<F, A, B, C>
 where

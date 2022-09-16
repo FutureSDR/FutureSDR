@@ -34,6 +34,7 @@ impl TcpSource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for TcpSource {
     async fn work(

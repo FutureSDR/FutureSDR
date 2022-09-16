@@ -54,6 +54,7 @@ impl<T: Send + 'static> TagDebug<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for TagDebug<T> {
     async fn work(

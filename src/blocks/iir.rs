@@ -61,6 +61,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<InputType, OutputType, TapType, Core> Kernel for Iir<InputType, OutputType, TapType, Core>
 where

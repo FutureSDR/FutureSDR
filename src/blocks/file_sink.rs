@@ -61,6 +61,7 @@ impl<T: Send + 'static> FileSink<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for FileSink<T> {
     async fn work(

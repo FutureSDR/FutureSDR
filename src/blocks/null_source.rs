@@ -48,6 +48,7 @@ impl<T: Send + 'static> NullSource<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for NullSource<T> {
     async fn work(

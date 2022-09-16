@@ -36,6 +36,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T> {
     async fn work(

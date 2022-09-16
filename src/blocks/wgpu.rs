@@ -26,6 +26,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Interface GPU w/ native API.
 pub struct Wgpu {
     broker: wgpu::Broker,
     buffer_items: u64,
@@ -80,6 +81,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut wgpu::ReaderH2D {
     sio.input(id).try_as::<wgpu::ReaderH2D>().unwrap()
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for Wgpu {
     async fn init(

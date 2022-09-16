@@ -63,6 +63,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<InputType, OutputType, TapType, Core> Kernel for Fir<InputType, OutputType, TapType, Core>
 where

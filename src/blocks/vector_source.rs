@@ -32,6 +32,7 @@ impl<T: Send + 'static> VectorSource<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for VectorSource<T> {
     async fn work(

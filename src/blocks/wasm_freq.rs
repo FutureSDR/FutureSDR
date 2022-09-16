@@ -33,6 +33,7 @@ impl WasmFreq {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for WasmFreq {
     async fn work(

@@ -66,6 +66,7 @@ impl WasmSdr {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for WasmSdr {
     async fn work(

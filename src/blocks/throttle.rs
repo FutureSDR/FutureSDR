@@ -63,6 +63,7 @@ impl<T: Send + 'static> Throttle<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for Throttle<T> {
     async fn work(

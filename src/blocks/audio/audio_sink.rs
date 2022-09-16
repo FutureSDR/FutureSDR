@@ -88,6 +88,7 @@ impl AudioSink {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for AudioSink {
     async fn init(

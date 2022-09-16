@@ -1,3 +1,4 @@
+//! ## SDR Runtime
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 
@@ -25,7 +26,7 @@ mod mocker;
 mod runtime;
 pub mod scheduler;
 mod stream_io;
-pub mod tag;
+mod tag;
 mod topology;
 
 pub use block::Block;
@@ -35,8 +36,6 @@ pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
-pub use futuresdr_pmt::BlockDescription;
-pub use futuresdr_pmt::FlowgraphDescription;
 pub use futuresdr_pmt::Pmt;
 pub use message_io::MessageInput;
 pub use message_io::MessageIo;
@@ -54,12 +53,15 @@ pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
 
+use crate::runtime::ctrl_port::BlockDescription;
+use crate::runtime::ctrl_port::FlowgraphDescription;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 
 pub fn init() {
     logging::init();
 }
+
 #[derive(Debug)]
 pub enum FlowgraphMessage {
     Terminate,

@@ -42,6 +42,7 @@ impl MessageSource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for MessageSource {
     async fn work(

@@ -103,6 +103,7 @@ impl SoapySink {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for SoapySink {
     async fn work(

@@ -31,6 +31,7 @@ impl PubSink {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for PubSink {
     async fn work(

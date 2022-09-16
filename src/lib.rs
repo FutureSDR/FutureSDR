@@ -40,13 +40,13 @@ pub mod runtime;
 
 // re-exports
 #[cfg(not(target_arch = "wasm32"))]
-pub extern crate async_io;
+pub use async_io;
 #[cfg(not(target_arch = "wasm32"))]
-pub extern crate async_net;
+pub use async_net;
 #[macro_use]
 pub extern crate async_trait;
-pub extern crate futures;
-pub extern crate futures_lite;
+pub use futures;
+pub use futures_lite;
 #[macro_use]
 pub extern crate log;
 

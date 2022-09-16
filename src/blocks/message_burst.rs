@@ -30,6 +30,7 @@ impl MessageBurst {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for MessageBurst {
     async fn work(

@@ -62,6 +62,7 @@ impl<T: Send + Sync + 'static> WebsocketSink<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
     async fn work(

@@ -65,6 +65,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static + hound::Sample + Copy> Kernel for WavSink<T> {
     async fn work(

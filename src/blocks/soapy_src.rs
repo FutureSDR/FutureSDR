@@ -114,6 +114,7 @@ impl SoapySource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for SoapySource {
     async fn work(

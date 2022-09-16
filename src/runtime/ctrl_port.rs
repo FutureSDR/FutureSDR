@@ -8,9 +8,10 @@ use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
+pub use futuresdr_pmt::BlockDescription;
+pub use futuresdr_pmt::FlowgraphDescription;
+
 use crate::runtime::config;
-use crate::runtime::BlockDescription;
-use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::Pmt;
 

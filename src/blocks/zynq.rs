@@ -18,6 +18,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Interface Zynq FPGA w/ AXI DMA (async mode).
 pub struct Zynq<I, O>
 where
     I: Send + 'static,
@@ -73,6 +74,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
     sio.input(id).try_as::<ReaderH2D>().unwrap()
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<I, O> Kernel for Zynq<I, O>
 where
@@ -146,39 +148,3 @@ where
     }
 }
 
-pub struct ZynqBuilder<I, O>
-where
-    I: Send + 'static,
-    O: Send + 'static,
-{
-    dma_h2d: String,
-    dma_d2h: String,
-    dma_buffs: Vec<String>,
-    _in: PhantomData<I>,
-    _out: PhantomData<O>,
-}
-
-impl<I, O> ZynqBuilder<I, O>
-where
-    I: Send + 'static,
-    O: Send + 'static,
-{
-    pub fn new<S: Into<String>>(
-        dma_h2d: &str,
-        dma_d2h: &str,
-        dma_buffs: Vec<S>,
-    ) -> ZynqBuilder<I, O> {
-        let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
-        ZynqBuilder {
-            dma_h2d: dma_h2d.to_string(),
-            dma_d2h: dma_d2h.to_string(),
-            dma_buffs,
-            _in: PhantomData,
-            _out: PhantomData,
-        }
-    }
-
-    pub fn build(self) -> Result<Block> {
-        Zynq::<I, O>::new(self.dma_h2d, self.dma_d2h, self.dma_buffs)
-    }
-}

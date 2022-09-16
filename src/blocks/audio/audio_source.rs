@@ -48,6 +48,7 @@ impl AudioSource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for AudioSource {
     async fn init(

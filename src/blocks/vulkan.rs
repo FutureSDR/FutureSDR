@@ -85,6 +85,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
     sio.input(id).try_as::<ReaderH2D>().unwrap()
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for Vulkan {
     async fn init(

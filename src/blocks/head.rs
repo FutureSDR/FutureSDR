@@ -53,6 +53,7 @@ impl<T: Send + 'static> Head<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for Head<T> {
     async fn work(

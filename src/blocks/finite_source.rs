@@ -41,6 +41,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<F, A> Kernel for FiniteSource<F, A>
 where

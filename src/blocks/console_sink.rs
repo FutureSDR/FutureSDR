@@ -31,6 +31,7 @@ impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static + std::fmt::Debug> Kernel for ConsoleSink<T> {
     async fn work(

@@ -44,6 +44,7 @@ impl FileSource {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for FileSource {
     async fn work(

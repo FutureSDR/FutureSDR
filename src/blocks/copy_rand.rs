@@ -36,6 +36,7 @@ impl<T: Send + 'static> CopyRand<T> {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for CopyRand<T> {
     async fn work(

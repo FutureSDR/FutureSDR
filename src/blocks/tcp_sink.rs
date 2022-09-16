@@ -34,6 +34,7 @@ impl TcpSink {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for TcpSink {
     async fn work(

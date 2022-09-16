@@ -60,6 +60,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<F, A> Kernel for Source<F, A>
 where

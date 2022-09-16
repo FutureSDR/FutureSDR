@@ -42,5 +42,6 @@ impl MessageCopy {
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for MessageCopy {}

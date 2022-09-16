@@ -74,6 +74,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<F, A, B, C> Kernel for Combine<F, A, B, C>
 where

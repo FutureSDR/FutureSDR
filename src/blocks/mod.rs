@@ -68,10 +68,10 @@
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | Vulkan | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
-//! | Wgpu | Interface GPU w/ native API. | ✅ | `wgpu` |
-//! | Zynq | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
-//! | ZynqSync | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
+//! | [Vulkan] | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
+//! | [Wgpu] | Interface GPU w/ native API. | ✅ | `wgpu` |
+//! | [Zynq] | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
+//! | [ZynqSync] | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
 //!
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
@@ -235,12 +235,12 @@ pub mod zeromq;
 #[cfg(feature = "zynq")]
 mod zynq;
 #[cfg(feature = "zynq")]
-pub use zynq::{Zynq, ZynqBuilder};
+pub use zynq::Zynq;
 
 #[cfg(feature = "zynq")]
 mod zynq_sync;
 #[cfg(feature = "zynq")]
-pub use zynq_sync::{ZynqSync, ZynqSyncBuilder};
+pub use zynq_sync::ZynqSync;
 
 #[cfg(target_arch = "wasm32")]
 mod wasm_ws_sink;

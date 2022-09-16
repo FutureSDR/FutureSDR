@@ -82,6 +82,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<F, A, B> Kernel for Apply<F, A, B>
 where
