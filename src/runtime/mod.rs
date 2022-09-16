@@ -20,12 +20,12 @@ mod logging;
 mod logging;
 
 mod flowgraph;
-mod message_io;
+pub mod message_io;
 mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
-mod stream_io;
+pub mod stream_io;
 mod tag;
 mod topology;
 
