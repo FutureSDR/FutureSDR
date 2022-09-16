@@ -53,10 +53,10 @@ pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
 
-use crate::runtime::ctrl_port::BlockDescription;
-use crate::runtime::ctrl_port::FlowgraphDescription;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::ctrl_port::BlockDescription;
+use crate::runtime::ctrl_port::FlowgraphDescription;
 
 pub fn init() {
     logging::init();
