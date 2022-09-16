@@ -4,7 +4,7 @@ use std::sync::Arc;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
 use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::Broker;
@@ -20,7 +20,7 @@ fn fg_vulkan() -> Result<()> {
 
     let broker = Arc::new(Broker::new());
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let vulkan = VulkanBuilder::new(broker).build();
     let snk = VectorSinkBuilder::<f32>::new().build();
 

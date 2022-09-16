@@ -2,7 +2,7 @@ use std::iter::repeat_with;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Throttle;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let n_items = 100_000;
     let orig: Vec<u8> = repeat_with(rand::random::<u8>).take(n_items).collect();
 
-    let src = VectorSourceBuilder::<u8>::new(orig).build();
+    let src = VectorSource::<u8>::new(orig);
     let throttle = Throttle::<u8>::new(100.0);
     let snk = WebsocketSinkBuilder::<u8>::new(9001).build();
 

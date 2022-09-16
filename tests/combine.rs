@@ -2,7 +2,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -10,8 +10,8 @@ use futuresdr::runtime::Runtime;
 fn combine_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src0 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![1u32, 2, 3, 4]).build());
-    let src1 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![5u32, 6, 7, 8]).build());
+    let src0 = fg.add_block(VectorSource::<u32>::new(vec![1u32, 2, 3, 4]));
+    let src1 = fg.add_block(VectorSource::<u32>::new(vec![5u32, 6, 7, 8]));
     let combine = fg.add_block(Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b }));
     let vect_sink = fg.add_block(VectorSinkBuilder::<u32>::new().build());
 
@@ -37,8 +37,8 @@ fn combine_const_fn() -> Result<()> {
 fn combine_const_fn_diff_len_first() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src0 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![1u32, 2, 3, 4, 11, 12]).build());
-    let src1 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![5u32, 6, 7, 8]).build());
+    let src0 = fg.add_block(VectorSource::<u32>::new(vec![1u32, 2, 3, 4, 11, 12]));
+    let src1 = fg.add_block(VectorSource::<u32>::new(vec![5u32, 6, 7, 8]));
     let combine = fg.add_block(Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b }));
     let vect_sink = fg.add_block(VectorSinkBuilder::<u32>::new().build());
 
@@ -64,8 +64,8 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
 fn combine_const_fn_diff_len_second() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src0 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![1u32, 2, 3, 4]).build());
-    let src1 = fg.add_block(VectorSourceBuilder::<u32>::new(vec![5u32, 6, 7, 8, 9, 10]).build());
+    let src0 = fg.add_block(VectorSource::<u32>::new(vec![1u32, 2, 3, 4]));
+    let src1 = fg.add_block(VectorSource::<u32>::new(vec![5u32, 6, 7, 8, 9, 10]));
     let combine = fg.add_block(Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b }));
     let vect_sink = fg.add_block(VectorSinkBuilder::<u32>::new().build());
 

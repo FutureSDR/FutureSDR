@@ -9,7 +9,7 @@ use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -77,7 +77,7 @@ fn fg_rand_vec() -> Result<()> {
     let n_items = 10_000_000;
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let copy = Copy::<f32>::new();
     let snk = VectorSinkBuilder::<f32>::new().build();
 
@@ -109,7 +109,7 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
     let n_snks = 10;
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let copy = Copy::<f32>::new();
     let src = fg.add_block(src);
     let copy = fg.add_block(copy);

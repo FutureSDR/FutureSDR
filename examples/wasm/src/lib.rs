@@ -6,7 +6,7 @@ use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::log::info;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -25,7 +25,7 @@ pub async fn run() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let mul = Apply::new(|i: &f32| i * 12.0);
     let snk = VectorSinkBuilder::<f32>::new().build();
 

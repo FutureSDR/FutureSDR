@@ -2,7 +2,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Split;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::num_complex::Complex;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -12,7 +12,7 @@ fn split_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let input = (0..10).map(|x| Complex::new(x, x + 1)).collect();
-    let src = fg.add_block(VectorSourceBuilder::<Complex<i32>>::new(input).build());
+    let src = fg.add_block(VectorSource::<Complex<i32>>::new(input));
     let split = fg.add_block(Split::new(|a: &Complex<i32>| -> (i32, i32) {
         (a.re, a.im)
     }));

@@ -5,7 +5,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
 use futuresdr::log::info;
 use futuresdr::runtime::buffer::vulkan::Broker;
@@ -21,7 +21,7 @@ pub fn run_fg() -> Result<()> {
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
     let broker = Arc::new(Broker::new());
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let copy = Copy::<f32>::new();
     let vulkan = VulkanBuilder::new(broker).build();
     let snk = VectorSinkBuilder::<f32>::new().build();

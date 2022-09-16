@@ -5,7 +5,7 @@ use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
-    let src = fg.add_block(VectorSourceBuilder::new(orig.clone()).build());
+    let src = fg.add_block(VectorSource::new(orig.clone()));
     let snk = fg.add_block(
         VectorSinkBuilder::<f32>::new()
             .init_capacity(n_items)

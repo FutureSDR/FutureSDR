@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;
 use futuresdr::log::info;
 use futuresdr::runtime::buffer::wgpu;
@@ -36,7 +36,7 @@ pub async fn run(run: u64, scheduler: String, samples: u64, buffer_size: u64) ->
     let mut fg = Flowgraph::new();
     let broker = wgpu::Broker::new().await;
 
-    let src = VectorSourceBuilder::<f32>::new(orig.clone()).build();
+    let src = VectorSource::<f32>::new(orig.clone());
     let mul = Wgpu::new(broker, buffer_size / 4, 2, 2);
     let snk = VectorSink::<f32>::new(samples as usize);
 

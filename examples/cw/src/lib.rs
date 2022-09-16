@@ -5,7 +5,7 @@ use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
 #[cfg(not(target_arch = "wasm32"))]
 use futuresdr::blocks::ConsoleSink;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::fmt;
@@ -128,7 +128,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
     let mut fg = Flowgraph::new();
-    let src = fg.add_block(VectorSourceBuilder::<char>::new(msg).build());
+    let src = fg.add_block(VectorSource::<char>::new(msg));
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
     let morse = fg.add_block(ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(&morse));
     let switch_command = fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c));

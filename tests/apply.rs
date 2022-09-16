@@ -2,7 +2,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -11,7 +11,7 @@ fn apply_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let orig: Vec<f32> = vec![1.0, 2.0, 3.5, 4.5, 10.5];
-    let src = fg.add_block(VectorSourceBuilder::<f32>::new(orig.clone()).build());
+    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()));
     let apply = fg.add_block(Apply::new(|i: &f32| -> f32 { *i + 4.0 }));
     let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build());
 
@@ -37,7 +37,7 @@ fn apply_mut_fn() -> Result<()> {
 
     let mut v = 0;
     let orig: Vec<u8> = vec![1, 2, 3, 4, 10];
-    let src = fg.add_block(VectorSourceBuilder::<u8>::new(orig.clone()).build());
+    let src = fg.add_block(VectorSource::<u8>::new(orig.clone()));
     let add_const = fg.add_block(Apply::new(move |i: &u8| -> u8 {
         let ret = *i + v + 4;
         v += 1;

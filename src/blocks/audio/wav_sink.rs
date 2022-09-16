@@ -19,7 +19,7 @@ use crate::runtime::WorkIo;
 /// ```
 /// use futuresdr::blocks::Apply;
 /// use futuresdr::blocks::audio::WavSink;
-/// use futuresdr::blocks::VectorSourceBuilder;
+/// use futuresdr::blocks::VectorSource;
 /// use futuresdr::runtime::Flowgraph;
 /// use futuresdr::runtime::Runtime;
 /// use std::path::Path;
@@ -33,7 +33,7 @@ use crate::runtime::WorkIo;
 ///     sample_format: hound::SampleFormat::Float,
 /// };
 /// let mut fg = Flowgraph::new();
-/// let src = fg.add_block(VectorSourceBuilder::<f32>::new(vec![1.45, 2.4, 3.14, 4.2]).build());
+/// let src = fg.add_block(VectorSource::<f32>::new(vec![1.45, 2.4, 3.14, 4.2]));
 /// let snk = fg.add_block(WavSink::<f32>::new(path, spec));
 /// Runtime::new().run(fg);
 /// ```

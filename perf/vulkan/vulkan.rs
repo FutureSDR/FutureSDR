@@ -5,7 +5,7 @@ use std::time;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
 use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::Broker;
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
     let broker = Arc::new(Broker::new());
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(VectorSourceBuilder::<f32>::new(orig.clone()).build());
+    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()));
     let vulkan = fg.add_block(VulkanBuilder::new(broker).capacity(buffer_size).build());
     let snk = fg.add_block(VectorSink::<f32>::new(samples));
 

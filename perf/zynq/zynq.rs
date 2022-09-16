@@ -5,7 +5,7 @@ use std::time::Instant;
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::ZynqBuilder;
 use futuresdr::blocks::ZynqSyncBuilder;
 use futuresdr::runtime::buffer::zynq::D2H;
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
         .take(n_items)
         .collect();
 
-    let src = VectorSourceBuilder::<u32>::new(orig.clone()).build();
+    let src = VectorSource::<u32>::new(orig.clone());
     let zynq = if sync {
         ZynqSyncBuilder::<u32, u32>::new(
             "uio4",

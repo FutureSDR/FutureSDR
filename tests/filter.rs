@@ -2,7 +2,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Filter;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::VectorSourceBuilder;
+use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -11,7 +11,7 @@ fn apply_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let orig: Vec<u32> = vec![1u32, 2, 3, 4];
-    let src = fg.add_block(VectorSourceBuilder::<u32>::new(orig).build());
+    let src = fg.add_block(VectorSource::<u32>::new(orig));
     let filter = fg.add_block(Filter::new(|i: &u32| -> Option<u32> {
         if *i % 2 == 0 {
             Some(*i)
@@ -43,7 +43,7 @@ fn apply_mut_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let orig: Vec<u32> = vec![1u32, 2, 3, 4];
-    let src = fg.add_block(VectorSourceBuilder::<u32>::new(orig).build());
+    let src = fg.add_block(VectorSource::<u32>::new(orig));
     let mut output = false;
     let filter = fg.add_block(Filter::new(move |i: &u32| -> Option<u32> {
         output = !output;
