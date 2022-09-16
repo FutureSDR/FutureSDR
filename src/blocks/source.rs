@@ -11,7 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Repeatedly applies a function to generate samples.
+/// Repeatedly apply a function to generate samples.
 ///
 /// # Inputs
 ///

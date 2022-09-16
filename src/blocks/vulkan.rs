@@ -48,6 +48,7 @@ void main() {
     }
 }
 
+/// Interface GPU with Vulkan.
 pub struct Vulkan {
     broker: Arc<Broker>,
     capacity: u64,
@@ -198,6 +199,7 @@ impl Kernel for Vulkan {
     }
 }
 
+/// Build [Vulkan] block.
 pub struct VulkanBuilder {
     broker: Arc<Broker>,
     capacity: u64,

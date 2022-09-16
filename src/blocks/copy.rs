@@ -12,6 +12,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Copy input samples to the output.
 pub struct Copy<T: Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }

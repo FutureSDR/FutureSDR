@@ -11,7 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Applies a function to filter a stream
+/// Apply a function, returning an [Option] to allow filtering samples.
 ///
 /// # Inputs
 ///

@@ -16,7 +16,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// [`soapysdr::Device`] source block
+/// Receive samples from a Soapy SDR device.
 ///
 /// # Inputs
 /// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
@@ -176,7 +176,7 @@ impl Kernel for SoapySource {
 
 unsafe impl Sync for SoapySource {}
 
-/// Read samples from a SoapySDR source
+/// Build a [SoapySource].
 ///
 /// # Inputs
 ///

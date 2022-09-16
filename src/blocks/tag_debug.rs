@@ -9,7 +9,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Drops samples, printing tags.
+/// Drop samples, printing tags.
 ///
 /// Console output is prefixed with the `name` to help differentiate the output from multiple tag debug blocks.
 ///

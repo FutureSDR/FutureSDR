@@ -13,6 +13,7 @@ use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 
+/// Black hole for messages.
 pub struct MessageSink {
     n_received: u64,
 }
@@ -56,23 +57,5 @@ impl Kernel for MessageSink {
     ) -> Result<()> {
         debug!("n_received: {}", self.n_received);
         Ok(())
-    }
-}
-
-pub struct MessageSinkBuilder {}
-
-impl MessageSinkBuilder {
-    pub fn new() -> MessageSinkBuilder {
-        MessageSinkBuilder {}
-    }
-
-    pub fn build(&mut self) -> Block {
-        MessageSink::new()
-    }
-}
-
-impl Default for MessageSinkBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

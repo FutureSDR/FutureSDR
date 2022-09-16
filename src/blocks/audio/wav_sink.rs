@@ -13,7 +13,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// A sink serializing into Wav file
+/// Write samples to a WAV file.
 ///
 /// # Usage
 /// ```

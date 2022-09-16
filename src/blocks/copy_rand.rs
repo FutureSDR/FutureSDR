@@ -13,6 +13,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Copy input samples to the output, forwarding only a randomly selected number of samples.
 pub struct CopyRand<T: Send + 'static> {
     max_copy: usize,
     _type: PhantomData<T>,
@@ -73,6 +74,7 @@ impl<T: Send + 'static> Kernel for CopyRand<T> {
     }
 }
 
+/// Create a [CopyRand] block.
 pub struct CopyRandBuilder<T: Send + 'static> {
     max_copy: usize,
     _type: PhantomData<T>,

@@ -12,6 +12,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Store received samples in vector.
 pub struct VectorSink<T> {
     items: Vec<T>,
 }
@@ -58,6 +59,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T
     }
 }
 
+/// Build a [VectorSink].
 pub struct VectorSinkBuilder<T> {
     capacity: usize,
     _foo: PhantomData<T>,

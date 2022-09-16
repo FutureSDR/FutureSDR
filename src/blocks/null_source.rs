@@ -9,7 +9,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Generates a stream of zeroes
+/// Generate a stream of zeroes.
 ///
 /// # Inputs
 ///

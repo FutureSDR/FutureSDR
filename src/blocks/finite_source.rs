@@ -11,6 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Repeatedly apply a function to generate samples, using [Option] values to allow termination.
 pub struct FiniteSource<F, A>
 where
     F: FnMut() -> Option<A> + Send + 'static,

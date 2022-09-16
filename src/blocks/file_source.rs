@@ -11,7 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Loads samples from a file, then stops.
+/// Read samples from a file.
 ///
 /// Samples are assumed to be encoded in the native format for the runtime. For
 /// example, on most machines, that means little endian. For complex samples,

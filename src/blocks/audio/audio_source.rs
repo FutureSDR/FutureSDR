@@ -17,6 +17,7 @@ use crate::runtime::WorkIo;
 use futures::channel::mpsc;
 use futures::StreamExt;
 
+/// Audio Source.
 #[allow(clippy::type_complexity)]
 pub struct AudioSource {
     sample_rate: u32,

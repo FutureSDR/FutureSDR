@@ -13,10 +13,10 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Writes samples to a file.
+/// Write samples to a file.
 ///
 /// Samples are encoded using the in-memory format of the machine the runtime is
-/// running on, like for [FileSource]. For most machines, this means little
+/// running on, like for [FileSource](super::FileSource). For most machines, this means little
 /// endian. Complex numbers are written with the real component coming before
 /// the complex component.
 ///

@@ -12,6 +12,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Apply a function on each input sample to create an iterator and output its values.
 pub struct ApplyIntoIter<F, A, B>
 where
     F: FnMut(&A) -> B + Send + 'static,

@@ -1,3 +1,4 @@
+//! ## Audio Blocks
 #[cfg(feature = "audio")]
 mod audio_sink;
 #[cfg(feature = "audio")]

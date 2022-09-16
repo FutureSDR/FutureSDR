@@ -12,6 +12,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIoBuilder;
 
+/// Forward messages.
 pub struct MessageCopy {}
 
 impl MessageCopy {
@@ -43,21 +44,3 @@ impl MessageCopy {
 
 #[async_trait]
 impl Kernel for MessageCopy {}
-
-pub struct MessageCopyBuilder {}
-
-impl MessageCopyBuilder {
-    pub fn new() -> MessageCopyBuilder {
-        MessageCopyBuilder {}
-    }
-
-    pub fn build(&mut self) -> Block {
-        MessageCopy::new()
-    }
-}
-
-impl Default for MessageCopyBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}

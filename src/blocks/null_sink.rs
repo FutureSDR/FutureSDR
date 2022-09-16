@@ -9,7 +9,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Silently drops samples
+/// Drop samples.
 ///
 /// # Inputs
 ///

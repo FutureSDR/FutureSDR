@@ -15,6 +15,7 @@ use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 
+/// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
 pub struct BlobToUdp {
     socket: Option<UdpSocket>,
     remote: SocketAddr,

@@ -16,7 +16,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// [`soapysdr::Device`] sink block
+/// Transmit samples with a Soapy SDR device.
 ///
 /// # Inputs
 /// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
@@ -170,7 +170,7 @@ impl Kernel for SoapySink {
 
 unsafe impl Sync for SoapySink {}
 
-/// Read samples from a SoapySDR source
+/// Build a [SoapySink].
 ///
 /// # Inputs
 ///

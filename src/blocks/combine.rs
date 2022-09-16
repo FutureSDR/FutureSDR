@@ -11,7 +11,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Applies the specified function sample-by-sample to two streams to form one.
+/// Apply a function to combine two streams into one.
 ///
 /// # Inputs
 ///

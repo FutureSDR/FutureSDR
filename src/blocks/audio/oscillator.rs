@@ -1,6 +1,7 @@
 use crate::blocks;
 use crate::runtime::Block;
 
+/// Create Tone.
 pub struct Oscillator;
 
 impl Oscillator {

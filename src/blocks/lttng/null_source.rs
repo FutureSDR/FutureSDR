@@ -14,6 +14,7 @@ use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
+/// Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples.
 pub struct NullSource<T: Send + 'static> {
     probe_granularity: u64,
     id: Option<u64>,

@@ -12,6 +12,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Push samples into a TCP socket.
 pub struct TcpSink {
     port: u32,
     listener: Option<TcpListener>,
@@ -84,19 +85,5 @@ impl Kernel for TcpSink {
     ) -> Result<()> {
         self.listener = Some(TcpListener::bind(format!("127.0.0.1:{}", self.port)).await?);
         Ok(())
-    }
-}
-
-pub struct TcpSinkBuilder {
-    port: u32,
-}
-
-impl TcpSinkBuilder {
-    pub fn new(port: u32) -> TcpSinkBuilder {
-        TcpSinkBuilder { port }
-    }
-
-    pub fn build(self) -> Block {
-        TcpSink::new(self.port)
     }
 }

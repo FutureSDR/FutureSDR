@@ -14,6 +14,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIoBuilder;
 
+/// Push received messages into a channel.
 pub struct MessagePipe {
     sender: mpsc::Sender<Pmt>,
 }

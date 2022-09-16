@@ -11,6 +11,8 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Apply a function to each N input samples, producing M output samples.
+///
 /// Applies a function on N samples in the input stream,
 /// and creates M samples in the output stream.
 /// Handy for interleaved samples for example.

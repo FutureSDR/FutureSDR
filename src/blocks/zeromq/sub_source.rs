@@ -9,6 +9,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Read samples from [ZeroMQ](https://zeromq.org/) socket.
 pub struct SubSource {
     item_size: usize,
     address: String,
@@ -68,6 +69,7 @@ impl Kernel for SubSource {
     }
 }
 
+/// Build a ZeroMQ [SubSource].
 pub struct SubSourceBuilder {
     item_size: usize,
     address: String,
