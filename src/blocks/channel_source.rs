@@ -13,7 +13,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct ChannelSource<T: Send + 'static> {
+pub struct ChannelSource<T: Send + Copy + Sync + 'static> {
     receiver: Receiver<T>,
 }
 
