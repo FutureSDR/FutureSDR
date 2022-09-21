@@ -21,11 +21,11 @@ pub fn kitchen_sink(id: String) {
 pub fn kitchen_sink() -> Html {
     html! {
         <div>
-            <Call url="http://localhost:1337" block=0 callback=0 pmt_type={PmtKind::U32}/>
-            <Poll url="http://localhost:1337" block=0 callback=0/>
-            <PollPeriodic url="http://localhost:1337" block=0 callback=0 interval_secs=3.8/>
-            <Slider url="http://localhost:1337" block=0 callback=0 pmt_type={PmtKind::U32} min=0 max=100 step=1 value=30/>
-            <Radio url="http://localhost:1337" block=0 callback=0>
+            <Call url="http://127.0.0.1:1337" block=0 callback=0 pmt_type={PmtKind::U32}/>
+            <Poll url="http://127.0.0.1:1337" block=0 callback=0/>
+            <PollPeriodic url="http://127.0.0.1:1337" block=0 callback=0 interval_secs=3.8/>
+            <Slider url="http://127.0.0.1:1337" block=0 callback=0 pmt_type={PmtKind::U32} min=0 max=100 step=1 value=30/>
+            <Radio url="http://127.0.0.1:1337" block=0 callback=0>
                 <RadioItem value={Pmt::U32(100_000_000)}/>
                 <RadioItem value={Pmt::U32(811_000_000)}/>
             </Radio>

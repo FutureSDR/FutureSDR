@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
                val freq = 800e6 + progress * 1e6;
                 freqText.text = "%.2f MHz".format(freq / 1e6);
 
-                val url = "http://localhost:1337/api/block/0/call/0"
+                val url = "http://127.0.0.1:1337/api/block/0/call/0"
                 val pmt = JSONObject("""{"U32": %d}""".format(freq.toInt()))
                 val request = JsonObjectRequest(Request.Method.POST, url, pmt, Response.Listener {}, Response.ErrorListener {} )
 

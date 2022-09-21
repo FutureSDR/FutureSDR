@@ -11,8 +11,8 @@
 
             const runWasm = async () => {
                 const rustWasm = await init();
-                add_freq("#freq", "ws://localhost:9001", -100, 0);
-                add_slider_u32("#freq_slider", "http://localhost:1337", 0, 0, 800000000, 900000000, 1000000);
+                add_freq("#freq", "ws://127.0.0.1:9001", -100, 0);
+                add_slider_u32("#freq_slider", "http://127.0.0.1:1337", 0, 0, 800000000, 900000000, 1000000);
             };
 
             runWasm();

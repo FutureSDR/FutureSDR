@@ -13,7 +13,7 @@
 
             const runWasm = async () => {
                 const rustWasm = await init();
-                add_flowgraph("#flowgraph", "http://localhost:1337");
+                add_flowgraph("#flowgraph", "http://127.0.0.1:1337");
             };
 
             runWasm();
