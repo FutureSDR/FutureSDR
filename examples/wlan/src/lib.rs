@@ -2,6 +2,8 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::excessive_precision)]
 use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::StreamInput;
+use futuresdr::runtime::StreamOutput;
 
 mod channels;
 pub use channels::channel_to_freq;
@@ -44,6 +46,14 @@ pub const MAX_PAYLOAD_SIZE: usize = 1500;
 pub const MAX_PSDU_SIZE: usize = MAX_PAYLOAD_SIZE + 28; // MAC, CRC
 pub const MAX_SYM: usize = ((16 + 8 * MAX_PSDU_SIZE + 6) / 24) + 1;
 pub const MAX_ENCODED_BITS: usize = (16 + 8 * MAX_PSDU_SIZE + 6) * 2 + 288;
+
+pub fn fft_tag_propagation(inputs: &mut [StreamInput], outputs: &mut [StreamOutput]) {
+    debug_assert_eq!(inputs[0].consumed().0, outputs[0].produced());
+    let (n, tags) = inputs[0].consumed();
+    for t in tags.iter().filter(|x| x.index < n) {
+        outputs[0].add_tag_abs(t.index, t.tag.clone());
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Modulation {
@@ -291,6 +301,22 @@ impl Mcs {
             Mcs::Qam16_3_4 => 0x0b,
             Mcs::Qam64_2_3 => 0x01,
             Mcs::Qam64_3_4 => 0x03,
+        }
+    }
+
+    pub fn parse(s: &str) -> Result<Mcs, String> {
+        let mut m = s.to_string().replace(['-', '_'], "");
+        m.make_ascii_lowercase();
+        match m.as_str() {
+            "bpsk12" => Ok(Mcs::Bpsk_1_2),
+            "bpsk34" => Ok(Mcs::Bpsk_3_4),
+            "qpsk12" => Ok(Mcs::Qpsk_1_2),
+            "qpsk34" => Ok(Mcs::Qpsk_3_4),
+            "qam1612" => Ok(Mcs::Qam16_1_2),
+            "qam1634" => Ok(Mcs::Qam16_3_4),
+            "qam6423" => Ok(Mcs::Qam64_2_3),
+            "qam6434" => Ok(Mcs::Qam64_3_4),
+            _ => Err(format!("Invalid MCS {}", s)),
         }
     }
 }

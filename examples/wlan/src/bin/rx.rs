@@ -13,9 +13,8 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamInput;
-use futuresdr::runtime::StreamOutput;
 
+use wlan::fft_tag_propagation;
 use wlan::parse_channel;
 use wlan::Decoder;
 use wlan::Delay;
@@ -120,13 +119,4 @@ fn main() -> Result<()> {
     });
 
     Ok(())
-}
-
-fn fft_tag_propagation(inputs: &mut [StreamInput], outputs: &mut [StreamOutput]) {
-    debug_assert_eq!(inputs[0].consumed().0, outputs[0].produced());
-    let (n, tags) = inputs[0].consumed();
-    // println!("fft produced {}   consumed {}   tags {:?}", outputs[0].produced(), n, tags);
-    for t in tags.iter().filter(|x| x.index < n) {
-        outputs[0].add_tag_abs(t.index, t.tag.clone());
-    }
 }
