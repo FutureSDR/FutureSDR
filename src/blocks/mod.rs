@@ -169,7 +169,7 @@ mod null_source;
 pub use null_source::NullSource;
 
 #[cfg(feature = "soapy")]
-mod soapy_snk;
+pub(self) mod soapy_snk;
 #[cfg(feature = "soapy")]
 pub use soapy_snk::{SoapySink, SoapySinkBuilder};
 #[cfg(feature = "soapy")]
