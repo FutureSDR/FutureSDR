@@ -1,8 +1,8 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::NullSink;
 use futuresdr::blocks::MessageBurst;
+use futuresdr::blocks::NullSink;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
@@ -38,7 +38,10 @@ fn tags_vs_prefix() -> Result<()> {
     };
 
     let mut fg = Flowgraph::new();
-    let burst = fg.add_block(MessageBurst::new(Pmt::Blob("lol".as_bytes().to_vec()), 1000));
+    let burst = fg.add_block(MessageBurst::new(
+        Pmt::Blob("lol".as_bytes().to_vec()),
+        1000,
+    ));
     let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]));
     fg.connect_message(burst, "out", mac, "tx")?;
     let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2));
