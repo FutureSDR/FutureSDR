@@ -174,6 +174,7 @@ impl Kernel for Mapper {
                 );
                 self.current_mod = frame.mcs().modulation();
                 self.index = 1;
+                input = &input[0..std::cmp::min(input.len(), frame.n_symbols() * 48)];
             } else {
                 input = &input[0..*index];
             }
