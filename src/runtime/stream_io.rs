@@ -215,10 +215,7 @@ impl StreamOutput {
         tmp.retain(|x| x.index < self.offset);
         self.tags.retain(|x| x.index >= self.offset);
 
-        self.writer
-            .as_mut()
-            .unwrap()
-            .produce(self.offset, tmp);
+        self.writer.as_mut().unwrap().produce(self.offset, tmp);
         self.offset = 0;
     }
 
