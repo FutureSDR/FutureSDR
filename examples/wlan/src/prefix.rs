@@ -97,6 +97,10 @@ impl Kernel for Prefix {
                     io.finished = true;
                 }
             }
+        } else {
+            if sio.input(0).finished() {
+                io.finished = true;
+            }
         }
 
         Ok(())

@@ -197,7 +197,7 @@ impl Kernel for Mapper {
         sio.input(0).consume(n * 48);
         sio.output(0).produce((n + o) * 64);
 
-        if sio.input(0).finished() && n == input.len() * 48 {
+        if sio.input(0).finished() && n == input.len() / 48 {
             io.finished = true;
         }
 
