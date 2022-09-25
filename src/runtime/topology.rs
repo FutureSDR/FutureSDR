@@ -265,8 +265,8 @@ impl Topology {
                     // there should be exactly one buffer, with exactly one connection to the input
                     if self
                         .stream_edges
-                        .iter()
-                        .map(|(_, v)| v.iter().filter(|x| **x == (block_id, input_id)).count() == 1)
+                        .values()
+                        .map(|v| v.iter().filter(|x| **x == (block_id, input_id)).count() == 1)
                         .filter(|b| *b)
                         .count()
                         != 1
