@@ -65,6 +65,7 @@ fn main() -> Result<()> {
             args.gain,
             soapy,
             None as Option<String>,
+            0,
         )),
         (None, Some(input)) => {
             let format = args
