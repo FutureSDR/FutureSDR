@@ -1,5 +1,4 @@
-use std::ptr;
-use crate::futures::{StreamExt};
+use crate::futures::StreamExt;
 use crate::futures::channel::mpsc::Receiver;
 
 use crate::anyhow::{Result};
@@ -13,23 +12,26 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub struct ChannelSource<T: Send + Copy + Sync + 'static> {
-    receiver: Receiver<T>,
+pub struct ChannelSource<T: Send + 'static> {
+    receiver: Receiver<Box<[T]>>,
+    current_len: usize,
+    current_index: usize,
+    data: Option<Box<[T]>>,
 }
 
-impl<T: Send + Copy + Sync + 'static> ChannelSource<T> {
-    pub fn new(receiver: Receiver<T>) -> Block {
+impl<T: Send + 'static> ChannelSource<T> {
+    pub fn new(receiver: Receiver<Box<[T]>>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ChannelSource").build(),
             StreamIoBuilder::new().add_output("out", std::mem::size_of::<T>()).build(),
             MessageIoBuilder::new().build(),
-            ChannelSource::<T> { receiver },
+            ChannelSource::<T> { receiver, current_len: 0, current_index: 0, data: None },
         )
     }
 }
 
 #[async_trait]
-impl<T: Send + Copy + Sync + 'static> Kernel for ChannelSource<T> {
+impl<T: Send + 'static> Kernel for ChannelSource<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -42,39 +44,48 @@ impl<T: Send + Copy + Sync + 'static> Kernel for ChannelSource<T> {
             return Ok(());
         }
 
-        match self.receiver
-            .by_ref()
-            .ready_chunks(out.len())
-            .next().await {
-            Some(tmp_vec) => {
-                debug!("received data chunk on channel");
-                unsafe {
-                    let src_ptr = tmp_vec.as_ptr();
-                    let dst_ptr = out.as_mut_ptr();
-                    ptr::copy_nonoverlapping(src_ptr, dst_ptr, tmp_vec.len())
-                };
-                sio.output(0).produce(tmp_vec.len());
+        if self.current_len == 0 {
+            self.current_index = 0;
+            self.data = self.receiver.by_ref().next().await;
+            match &self.data {
+                Some(tmp_vec) => {
+                    debug!("received data chunk on channel");
+                    self.current_len = tmp_vec.len();
+
+                    let n = std::cmp::min(tmp_vec.len(), out.len());
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            self.data.as_ref().unwrap().as_ptr(),
+                            out.as_mut_ptr(),
+                            n,
+                        );
+                    };
+                    sio.output(0).produce(n);
+                    self.current_index += n;
+                }
+                None => {
+                    debug!("sender-end of channel was closed");
+                    io.finished = true;
+                }
             }
-            None => {
-                debug!("sender-end of channel was closed");
-                io.finished = true;
+        } else {
+            let n = std::cmp::min(out.len(), self.current_len - self.current_index);
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    self.data.as_ref().unwrap().as_ptr().add(self.current_index),
+                    out.as_mut_ptr(),
+                    n,
+                );
+            }
+
+            sio.output(0).produce(n);
+            self.current_index += n;
+
+            if self.current_index == self.current_len {
+                self.current_len = 0;
             }
         }
 
         Ok(())
-    }
-}
-
-pub struct ChannelSourceBuilder<T> {
-    receiver: Receiver<T>,
-}
-
-impl<T: Send + Copy + Sync + 'static> ChannelSourceBuilder<T> {
-    pub fn new(receiver: Receiver<T>) -> ChannelSourceBuilder<T> {
-        ChannelSourceBuilder { receiver }
-    }
-
-    pub fn build(self) -> Block {
-        ChannelSource::<T>::new(self.receiver)
     }
 }
