@@ -201,7 +201,7 @@ mod throttle;
 pub use throttle::Throttle;
 
 mod channel_source;
-pub use channel_source::{ChannelSource, ChannelSourceBuilder};
+pub use channel_source::ChannelSource;
 
 mod vector_sink;
 pub use vector_sink::{VectorSink, VectorSinkBuilder};
