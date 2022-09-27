@@ -50,7 +50,8 @@
 //! ## I/O
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [BlobToUdp] | Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.| ❌ |
+//! | [BlobToUdp] | Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
+//! | [ChannelSource] | Push samples through a channel into a stream connection. | ✅ |
 //! | [FileSink] | Write samples to a file. | ❌ |
 //! | [FileSource] | Read samples from a file. | ❌ |
 //! | [TcpSource] | Reads samples from a TCP socket. | ❌ |

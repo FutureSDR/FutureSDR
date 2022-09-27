@@ -1,7 +1,7 @@
-use crate::futures::StreamExt;
 use crate::futures::channel::mpsc::Receiver;
+use crate::futures::StreamExt;
 
-use crate::anyhow::{Result};
+use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -12,24 +12,47 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Push samples through a channel into a stream connection.
+///
+/// # Outputs
+///
+/// `out`: Samples pushed into the channel
+///
+/// # Usage
+/// ```
+/// use futuresdr::futures::channel::mpsc;
+/// use futuresdr::blocks::ChannelSource;
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+/// let (mut tx, rx) = mpsc::channel(10);
+///
+/// let cs = fg.add_block(ChannelSource::<u32>::new(rx));
+/// // start flowgraph
+/// tx.try_send(vec![0, 1, 2].into_boxed_slice());
+/// ```
 pub struct ChannelSource<T: Send + 'static> {
     receiver: Receiver<Box<[T]>>,
-    current_len: usize,
-    current_index: usize,
-    data: Option<Box<[T]>>,
+    current: Option<(Box<[T]>, usize)>,
 }
 
 impl<T: Send + 'static> ChannelSource<T> {
     pub fn new(receiver: Receiver<Box<[T]>>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ChannelSource").build(),
-            StreamIoBuilder::new().add_output("out", std::mem::size_of::<T>()).build(),
+            StreamIoBuilder::new()
+                .add_output("out", std::mem::size_of::<T>())
+                .build(),
             MessageIoBuilder::new().build(),
-            ChannelSource::<T> { receiver, current_len: 0, current_index: 0, data: None },
+            ChannelSource::<T> {
+                receiver,
+                current: None,
+            },
         )
     }
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl<T: Send + 'static> Kernel for ChannelSource<T> {
     async fn work(
@@ -44,46 +67,34 @@ impl<T: Send + 'static> Kernel for ChannelSource<T> {
             return Ok(());
         }
 
-        if self.current_len == 0 {
-            self.current_index = 0;
-            self.data = self.receiver.by_ref().next().await;
-            match &self.data {
-                Some(tmp_vec) => {
+        if self.current.is_none() {
+            match self.receiver.by_ref().next().await {
+                Some(data) => {
                     debug!("received data chunk on channel");
-                    self.current_len = tmp_vec.len();
-
-                    let n = std::cmp::min(tmp_vec.len(), out.len());
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            self.data.as_ref().unwrap().as_ptr(),
-                            out.as_mut_ptr(),
-                            n,
-                        );
-                    };
-                    sio.output(0).produce(n);
-                    self.current_index += n;
+                    self.current = Some((data, 0));
                 }
                 None => {
                     debug!("sender-end of channel was closed");
                     io.finished = true;
+                    return Ok(());
                 }
             }
-        } else {
-            let n = std::cmp::min(out.len(), self.current_len - self.current_index);
+        }
+
+        if let Some((data, index)) = &mut self.current {
+            let n = std::cmp::min(data.len() - *index, out.len());
             unsafe {
-                std::ptr::copy_nonoverlapping(
-                    self.data.as_ref().unwrap().as_ptr().add(self.current_index),
-                    out.as_mut_ptr(),
-                    n,
-                );
-            }
-
+                std::ptr::copy_nonoverlapping(data.as_ptr().add(*index), out.as_mut_ptr(), n);
+            };
             sio.output(0).produce(n);
-            self.current_index += n;
-
-            if self.current_index == self.current_len {
-                self.current_len = 0;
+            *index += n;
+            if *index == data.len() {
+                self.current = None;
             }
+        }
+
+        if self.current.is_none() {
+            io.call_again = true;
         }
 
         Ok(())
