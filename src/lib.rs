@@ -12,9 +12,9 @@
 //! ## Example
 //! An example flowgraph with a periodic message source, sending five messages to a sink:
 //! ```
-//! use anyhow::Result;
 //! use std::time::Duration;
 //!
+//! use futuresdr::anyhow::Result;
 //! use futuresdr::blocks::MessageSink;
 //! use futuresdr::blocks::MessageSource;
 //! use futuresdr::runtime::Flowgraph;

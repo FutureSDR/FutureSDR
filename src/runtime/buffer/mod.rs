@@ -1,3 +1,4 @@
+//! Buffer Implementations for CPU and Accelerator Memory
 #[allow(clippy::module_inception)]
 mod buffer;
 pub use buffer::BufferBuilder;

@@ -1,3 +1,4 @@
+//! Configuration Management
 use config::Value;
 #[cfg(not(target_arch = "wasm32"))]
 use config::{File, Source};

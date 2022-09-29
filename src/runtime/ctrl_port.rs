@@ -1,3 +1,4 @@
+//! Remote Control through REST API
 use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::routing::{get, get_service, post};

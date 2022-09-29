@@ -1,3 +1,4 @@
+//! Message/Event/RPC-based Ports
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::future::Future;

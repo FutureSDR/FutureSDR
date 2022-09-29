@@ -1,3 +1,4 @@
+//! Stream-based Ports
 use futures::channel::mpsc::Sender;
 use std::fmt;
 use std::mem;

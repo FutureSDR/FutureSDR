@@ -1,3 +1,4 @@
+//! Flowgraph Scheduler Trait and Implementations
 #[cfg(feature = "flow_scheduler")]
 mod flow;
 #[cfg(feature = "flow_scheduler")]
