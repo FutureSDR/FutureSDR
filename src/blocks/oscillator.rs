@@ -1,7 +1,7 @@
 use crate::blocks;
 use crate::runtime::Block;
 
-/// Create Tone.
+/// Create sine tone.
 pub struct Oscillator;
 
 impl Oscillator {

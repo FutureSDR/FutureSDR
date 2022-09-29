@@ -12,8 +12,6 @@ pub use audio_source::AudioSource;
 mod file_source;
 #[cfg(all(not(target_arch = "wasm32"), feature = "audio"))]
 pub use file_source::FileSource;
-mod oscillator;
-pub use oscillator::Oscillator;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "audio"))]
 mod wav_sink;

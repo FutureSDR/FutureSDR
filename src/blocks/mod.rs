@@ -81,13 +81,17 @@
 //! | WasmWsSink | Send samples via a WebSocket. | ✅ |
 //! | WasmFreq | Push samples to a GUI sink. | ✅ |
 //!
+//! ## Signal Sources
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [Oscillator](Oscillator) | Create sine tone. | ✅ |
+//!
 //! ## Audio (requires `audio` feature)
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [AudioSink](audio::AudioSink) | Audio sink. | ❌ |
 //! | [AudioSource](audio::AudioSource) | Audio source. | ❌ |
 //! | [FileSource](audio::FileSource) | Read an audio file and output its samples. | ❌ |
-//! | [Oscillator](audio::Oscillator) | Create tone. | ✅ |
 //! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
 
@@ -168,6 +172,9 @@ mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
+
+mod oscillator;
+pub use oscillator::Oscillator;
 
 #[cfg(feature = "soapy")]
 pub(self) mod soapy_snk;

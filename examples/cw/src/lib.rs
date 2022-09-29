@@ -1,10 +1,10 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::audio::Oscillator;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
 #[cfg(not(target_arch = "wasm32"))]
 use futuresdr::blocks::ConsoleSink;
+use futuresdr::blocks::Oscillator;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
