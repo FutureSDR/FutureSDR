@@ -17,5 +17,11 @@ path = "play_tone.rs"
 name = "play-stereo"
 path = "play_stereo.rs"
 
+[[bin]]
+name = "play-selectable-tone"
+path = "play_selectable_tone.rs"
+
 [dependencies]
 futuresdr = { path = "../..", features = ["audio"] }
+clap = { version = "3.0.13", features = ["derive"] }
+

@@ -185,6 +185,10 @@ mod soapy_src;
 #[cfg(feature = "soapy")]
 pub use soapy_src::{SoapySource, SoapySourceBuilder};
 
+mod selector;
+pub use selector::Selector;
+pub use selector::DropPolicy;
+
 mod source;
 pub use source::Source;
 mod split;
