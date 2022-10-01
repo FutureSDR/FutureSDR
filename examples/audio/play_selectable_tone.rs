@@ -2,27 +2,28 @@ use std::str::FromStr;
 
 use clap::Parser;
 use futuresdr::anyhow::Result;
+use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::Oscillator;
-use futuresdr::blocks::Selector;
 use futuresdr::blocks::DropPolicy;
+use futuresdr::blocks::Selector;
 use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
 use futuresdr::runtime::Pmt;
-use futuresdr::async_io;
+use futuresdr::runtime::Runtime;
 
 #[derive(Parser, Debug)]
 struct Args {
     // Drop policy to apply on the selector.
     #[clap(short, long, default_value = "same")]
-    drop_policy: String
+    drop_policy: String,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration {:?}", args);
 
-    let drop_policy = DropPolicy::from_str(&args.drop_policy).unwrap_or_else(|()| {DropPolicy::SameRate});
+    let drop_policy =
+        DropPolicy::from_str(&args.drop_policy).unwrap_or_else(|()| DropPolicy::SameRate);
 
     let mut fg = Flowgraph::new();
 
@@ -60,11 +61,7 @@ fn main() -> Result<()> {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_index) = input.parse::<u32>() {
             println!("Setting source index to {}", input);
-            async_io::block_on(handle.call(
-                selector,
-                input_index_port_id,
-                Pmt::U32(new_index),
-            ))?;
+            async_io::block_on(handle.call(selector, input_index_port_id, Pmt::U32(new_index)))?;
         } else {
             println!("Input not parsable: {}", input);
         }

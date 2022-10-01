@@ -186,8 +186,8 @@ mod soapy_src;
 pub use soapy_src::{SoapySource, SoapySourceBuilder};
 
 mod selector;
-pub use selector::Selector;
 pub use selector::DropPolicy;
+pub use selector::Selector;
 
 mod source;
 pub use source::Source;
