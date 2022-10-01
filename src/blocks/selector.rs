@@ -1,6 +1,6 @@
-use std::mem;
 use std::cmp;
 use std::fmt;
+use std::mem;
 use std::ptr;
 use std::str::FromStr;
 
@@ -30,7 +30,7 @@ pub enum DropPolicy {
     SameRate,
 
     /// Do not drop inputs that are unselected.
-    NoDrop
+    NoDrop,
 }
 
 impl FromStr for DropPolicy {
@@ -87,21 +87,23 @@ where
     pub fn new(drop_policy: DropPolicy) -> Block {
         let mut stream_builder = StreamIoBuilder::new();
         for i in 0..N {
-            stream_builder = stream_builder.add_input(format!("in{}", i).as_str(), mem::size_of::<A>());
+            stream_builder =
+                stream_builder.add_input(format!("in{}", i).as_str(), mem::size_of::<A>());
         }
         for i in 0..M {
-            stream_builder = stream_builder.add_output(format!("out{}", i).as_str(), mem::size_of::<A>());
+            stream_builder =
+                stream_builder.add_output(format!("out{}", i).as_str(), mem::size_of::<A>());
         }
         Block::new(
             BlockMetaBuilder::new(format!("Selector<{}, {}>", N, M)).build(),
-                stream_builder.build(),
+            stream_builder.build(),
             MessageIoBuilder::<Self>::new()
                 .add_input(
                     "input_index",
                     |block: &mut Selector<A, N, M>,
-                    _mio: &mut MessageIo<Selector<A, N, M>>,
-                    _meta: &mut BlockMeta,
-                    p: Pmt| {
+                     _mio: &mut MessageIo<Selector<A, N, M>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
                         async move {
                             match p {
                                 Pmt::U32(v) => block.input_index = (v as usize) % N,
@@ -112,12 +114,13 @@ where
                         }
                         .boxed()
                     },
-                ).add_input(
+                )
+                .add_input(
                     "output_index",
                     |block: &mut Selector<A, N, M>,
-                    _mio: &mut MessageIo<Selector<A, N, M>>,
-                    _meta: &mut BlockMeta,
-                    p: Pmt| {
+                     _mio: &mut MessageIo<Selector<A, N, M>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
                         async move {
                             match p {
                                 Pmt::U32(v) => block.output_index = (v as usize) % M,
@@ -153,7 +156,6 @@ where
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        
         let i = sio.input(self.input_index).slice::<u8>();
         let o = sio.output(self.output_index).slice::<u8>();
         let item_size = std::mem::size_of::<A>();
@@ -171,7 +173,6 @@ where
             sio.output(self.output_index).produce(m / item_size);
         }
 
-        
         if self.drop_policy != DropPolicy::NoDrop {
             let nb_drop = if self.drop_policy == DropPolicy::SameRate {
                 m / item_size // Drop at the same rate as the selected one
