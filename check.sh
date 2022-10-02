@@ -9,8 +9,9 @@ SCRIPTPATH=`dirname $SCRIPT`
 # FMT
 ###########################################################
 cd ${SCRIPTPATH} && cargo fmt --check
-cd ${SCRIPTPATH}/pmt && cargo fmt --check
 cd ${SCRIPTPATH}/frontend && cargo fmt --check
+cd ${SCRIPTPATH}/macros && cargo fmt --check
+cd ${SCRIPTPATH}/pmt && cargo fmt --check
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo fmt --check
@@ -28,6 +29,7 @@ cd ${SCRIPTPATH}/perf/zynq && cargo fmt --check
 cd ${SCRIPTPATH}/examples/android && cargo fmt --check
 cd ${SCRIPTPATH}/examples/android-hw && cargo fmt --check
 cd ${SCRIPTPATH}/examples/audio && cargo fmt --check
+cd ${SCRIPTPATH}/examples/connect-macro && cargo fmt --check
 cd ${SCRIPTPATH}/examples/custom-routes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/cw && cargo fmt --check
 cd ${SCRIPTPATH}/examples/firdes && cargo fmt --check
@@ -46,8 +48,12 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 ###########################################################
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 cd ${SCRIPTPATH} && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/pmt && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/macros && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/frontend && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/frontend && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/pmt && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/pmt && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo clippy --all-targets -- -D warnings
@@ -66,6 +72,7 @@ cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/connect-macro && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
@@ -105,6 +112,7 @@ cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/connect-macro && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets

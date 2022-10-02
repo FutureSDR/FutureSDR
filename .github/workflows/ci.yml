@@ -117,6 +117,18 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/audio/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/connect-macro)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/connect-macro/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/custom-routes)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/custom-routes/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/cw)
         uses: actions-rs/cargo@v1
         with:
@@ -158,6 +170,12 @@ jobs:
         with:
           command: fmt
           args: --all --manifest-path=examples/spectrum/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/ssb-receiver)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/ssb-receiver/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/wasm)
         uses: actions-rs/cargo@v1
@@ -202,6 +220,24 @@ jobs:
         with:
           command: clippy
           args: --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --lib --manifest-path=frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (macros)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --lib --manifest-path=macros/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (pmt)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --lib --manifest-path=pmt/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/buffer_rand)
         uses: actions-rs/cargo@v1
@@ -289,6 +325,18 @@ jobs:
           command: clippy
           args: --all-targets --manifest-path=examples/audio/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (examples/connect-macro)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/connect-macro/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/custom-routes)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/custom-routes/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (examples/cw)
         uses: actions-rs/cargo@v1
         with:
@@ -312,12 +360,6 @@ jobs:
         with:
           command: clippy
           args: --all-targets --manifest-path=examples/fm-receiver/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy (examples/ssb-receiver)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --manifest-path=examples/ssb-receiver/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/logging)
         uses: actions-rs/cargo@v1
@@ -344,6 +386,12 @@ jobs:
         with:
           command: clippy
           args: --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy (examples/ssb-receiver)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/ssb-receiver/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/wasm)
         uses: actions-rs/cargo@v1
@@ -394,12 +442,6 @@ jobs:
         with:
           command: clippy
           args: --lib --manifest-path=examples/zigbee/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --lib --manifest-path=frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
   test-linux:
     name: Unit Tests Linux
