@@ -9,4 +9,3 @@ edition = "2021"
 clap = { version = "3.0.13", features = ["derive"] }
 futuresdr = { path = "../..", features=["soapy", "audio"] }
 futuredsp = { path = "../../futuredsp" }
-futuresdr-macros = { path = "../../macros" }

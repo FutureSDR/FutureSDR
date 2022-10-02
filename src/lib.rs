@@ -49,6 +49,7 @@ pub use futures;
 pub use futures_lite;
 #[macro_use]
 pub extern crate log;
+pub use futuresdr_macros as macros;
 
 pub use anyhow;
 pub use num_complex;

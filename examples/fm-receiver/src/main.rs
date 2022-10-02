@@ -24,7 +24,7 @@ use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use futuresdr_macros::connect;
+use futuresdr::macros::connect;
 
 #[derive(Parser, Debug)]
 struct Args {

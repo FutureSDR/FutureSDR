@@ -168,6 +168,7 @@ fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> P
             return ParseResult::Done;
         }
     };
+    blocks.insert(prev.0.clone());
 
     loop {
         let con = match next_connection(attrs) {
@@ -194,6 +195,7 @@ fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> P
                 }
             }
         };
+        blocks.insert(e.0.clone());
 
         match con {
             Connection::Stream => {
