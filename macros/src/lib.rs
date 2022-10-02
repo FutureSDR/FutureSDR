@@ -92,6 +92,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Add the blocks to the flowgraph
     for blk_id in blocks {
         out.extend(quote! {
+            #[allow(unused_variables)]
             let #blk_id = #fg.add_block(#blk_id);
         });
     }
@@ -108,7 +109,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
         });
     }
 
-    println!("code {}", out);
+    // println!("code {}", out);
     out.into()
 }
 
@@ -136,18 +137,11 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
                 )
             }
         }
-        Some(t) => {
-            ConnectionResult::Error(
-                Some(t.span()),
-                "Exptected terminator (;), stream connector (>), or message connector (|)".into(),
-            )
-        }
-        None => {
-            ConnectionResult::Error(
-                None,
-                "Connections ended while looking for terminator (;), stream connector (>), or message connector (|)".into(),
-            )
-        }
+        Some(t) => ConnectionResult::Error(
+            Some(t.span()),
+            "Exptected terminator (;), stream connector (>), or message connector (|)".into(),
+        ),
+        None => ConnectionResult::Done,
     }
 }
 
@@ -195,7 +189,6 @@ fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> P
                 }
             }
         };
-        blocks.insert(e.0.clone());
 
         match con {
             Connection::Stream => {
@@ -259,7 +252,7 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
             );
         }
         None => {
-            return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
+            return EndpointResult::Point(Endpoint(block, None));
         }
     }
 
