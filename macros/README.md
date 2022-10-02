@@ -1,26 +1,24 @@
 FutureSDR Macros
 ================
 
-Helpers library of macros to ease FutureSDR usage
+Macros to make working with FutureSDR a bit nicer.
 
+## Connect Macro
 
-## Flowgraph macro
+Avoid boilerplate when creating the flowgraph. This macro simplifies adding
+blocks to the flowgraph and connecting them.
 
-Remove boilerplate when creating the flow graph.
-One just have to express the connexions like this:
+Assume you have created a flowgraph `fg` and several blocks (`src`, `shift`, ...) and need to add the block to the flowgraph and connect them. Using the `connect!` macro, this can be done with:
 
 ```rust
-#[flowgraph(fg)]
-{
-    src > shift;
-    shift > resamp1;
-    resamp1 > demod;
-    demod > resamp2;
-    resamp2 > snk;
-};
+connect!(fg,
+    src.out > shift.in;
+    shift > resamp1 > demod;
+    demod > resamp2 > snk;
+);
 ```
 
-And it generates a code equivalent to:
+It generates the following code:
 
 ```rust
 // Add all the blocks to the `Flowgraph`...
@@ -39,15 +37,16 @@ fg.connect_stream(demod, "out", resamp2, "in")?;
 fg.connect_stream(resamp2, "out", snk, "in")?;
 ```
 
+Connections endpoints are defined by `block.port_name`. Standard names (i.e.,
+
+`out`/`in`) can be omitted.
 When ports have different name than standard `in` and `out`, one can use following notation.
 
-NB: `in` is a reserved rust keyword and thus must be escaped as `r#in`.
+Stream connections are indicated as `>`, while message connections are indicated as `|`.
 
-```rust
-#[flowgraph(fg)]
-{
-    blk1.out2 > blk2.samples;
-    blk2 > blk3.input;
-    blk3.output > blk4.r#in;
-};
+It is possible to add blocks that have no connections by just putting them on a line separately.
+
+``` rust
+connect!(fg, dummy);
 ```
+

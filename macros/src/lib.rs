@@ -17,6 +17,52 @@ enum ParseResult {
     Error(Option<Span>, String),
 }
 
+/// Avoid boilerplate when connecting the flowgraph.
+///
+/// This macro simplifies adding blocks to the flowgraph and connecting them.
+/// Assume you have created a flowgraph `fg` and several blocks (`src`, `shift`,
+/// ...) and need to add the block to the flowgraph and connect them. Using the
+/// `connect!` macro, this can be done with:
+///
+/// ```ignore
+/// connect!(fg,
+///     src.out > shift.in;
+///     shift > resamp1 > demod;
+///     demod > resamp2 > snk;
+/// );
+/// ```
+///
+/// It generates the following code:
+///
+/// ```ignore
+/// // Add all the blocks to the `Flowgraph`...
+/// let src = fg.add_block(src);
+/// let shift = fg.add_block(shift);
+/// let resamp1 = fg.add_block(resamp1);
+/// let demod = fg.add_block(demod);
+/// let resamp2 = fg.add_block(resamp2);
+/// let snk = fg.add_block(snk);
+///
+/// // ... and connect the ports appropriately
+/// fg.connect_stream(src, "out", shift, "in")?;
+/// fg.connect_stream(shift, "out", resamp1, "in")?;
+/// fg.connect_stream(resamp1, "out", demod, "in")?;
+/// fg.connect_stream(demod, "out", resamp2, "in")?;
+/// fg.connect_stream(resamp2, "out", snk, "in")?;
+/// ```
+///
+/// Connections endpoints are defined by `block.port_name`. Standard names (i.e.,
+///
+/// `out`/`in`) can be omitted.
+/// When ports have different name than standard `in` and `out`, one can use following notation.
+///
+/// Stream connections are indicated as `>`, while message connections are indicated as `|`.
+///
+/// It is possible to add blocks that have no connections by just putting them on a line separately.
+///
+/// ```ignore
+/// connect!(fg, dummy);
+/// ```
 #[proc_macro]
 pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut attrs = TokenStream::from(attr).into_iter().peekable();

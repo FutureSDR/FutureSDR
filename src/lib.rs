@@ -49,7 +49,10 @@ pub use futures;
 pub use futures_lite;
 #[macro_use]
 pub extern crate log;
-pub use futuresdr_macros as macros;
+/// Macros to make working with FutureSDR a bit nicer.
+pub mod macros {
+    pub use futuresdr_macros::connect;
+}
 
 pub use anyhow;
 pub use num_complex;
