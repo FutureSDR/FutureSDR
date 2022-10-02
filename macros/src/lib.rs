@@ -1,27 +1,24 @@
-#![feature(stmt_expr_attributes)]
 #![feature(extend_one)]
-#![feature(proc_macro_internals)]
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
-use quote::__private::Span;
 use syn::{Block, Ident};
-use syn::__private::TokenStream2;
 use std::collections::HashSet;
 
 #[proc_macro_attribute]
-pub fn flowgraph(attr: TokenStream, item: TokenStream)-> TokenStream {
+pub fn flowgraph(attr: proc_macro::TokenStream, item: proc_macro::TokenStream)-> proc_macro::TokenStream {
     let flowgraph_name: Ident = syn::parse(attr).unwrap();
-    let mut r: TokenStream2 = impl_hello_macro(&flowgraph_name);
+    let mut r: TokenStream = impl_hello_macro(&flowgraph_name);
     if let Some(first_token) = item.into_iter().next() {
         let mut blocks_idents = HashSet::<Ident>::new();
         let s = first_token.to_string();
-        let gen: TokenStream2 = quote! {
+        let gen: TokenStream = quote! {
             println!("\ttoken {}", stringify!(#s));
         };
         r.extend_one(gen);
 
         // connect the ports appropriately
-        let mut connexions = TokenStream2::new();
+        let mut connexions = TokenStream::new();
         let flowgraph: Block = syn::parse(first_token.into()).expect("valid flowgraph block");
         for stmt in flowgraph.stmts {
             if let syn::Stmt::Semi(syn::Expr::Binary(binary_expr), _) = stmt {
@@ -32,7 +29,7 @@ pub fn flowgraph(attr: TokenStream, item: TokenStream)-> TokenStream {
                         blocks_idents.insert(blk2.clone());
                         let stream1 = stream1.unwrap_or(syn::Ident::new("out", Span::call_site())).to_string().replace("r#", "");
                         let stream2 = stream2.unwrap_or(syn::Ident::new_raw("in", Span::call_site())).to_string().replace("r#", "");
-                        let gen: TokenStream2 = quote! {
+                        let gen: TokenStream = quote! {
                             println!("{}.connect_stream({},\t\"{}\",\t{},\t\"{}\");",
                                 stringify!(#flowgraph_name),
                                 stringify!(#blk1),
@@ -49,9 +46,9 @@ pub fn flowgraph(attr: TokenStream, item: TokenStream)-> TokenStream {
         }
 
         // Add all the blocks to the `Flowgraph`...
-        let mut block_insertion = TokenStream2::new();
+        let mut block_insertion = TokenStream::new();
         for blk_id in blocks_idents {
-            let gen: TokenStream2 = quote! {
+            let gen: TokenStream = quote! {
                 let #blk_id = #flowgraph_name.add_block(#blk_id);
             };
             block_insertion.extend_one(gen);
@@ -93,19 +90,10 @@ fn retrieve_info(expr: syn::Expr) -> Option<(syn::Ident, Option<syn::Ident>)> {
     None
 }
 
-fn impl_hello_macro(ast: &Ident) -> TokenStream2 {
+fn impl_hello_macro(ast: &Ident) -> TokenStream {
     let name = ast;
     let gen = quote! {
         println!("Hello, Macro! My name is {}!", stringify!(#name));
     };
     gen
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 }

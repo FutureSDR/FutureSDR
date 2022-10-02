@@ -10,7 +10,6 @@
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
 
-#![feature(stmt_expr_attributes)]
 #![feature(proc_macro_hygiene)]
 
 use clap::Parser;
