@@ -10,8 +10,6 @@
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
 
-#![feature(proc_macro_hygiene)]
-
 use clap::Parser;
 
 use futuredsp::firdes;
@@ -26,7 +24,7 @@ use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use futuresdr_macros::flowgraph;
+use futuresdr_macros::connect;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -155,16 +153,13 @@ fn main() -> Result<()> {
     // fg.connect_stream(resamp1, "out", demod, "in")?;
     // fg.connect_stream(demod, "out", resamp2, "in")?;
     // fg.connect_stream(resamp2, "out", snk, "in")?;
-
-    #[flowgraph(fg)]
-    {
-        src.out > shift;
-        shift > resamp1;
-        resamp1 > demod;
-        demod > resamp2;
-        resamp2 > snk.r#in;
-    };
-
+    connect!(fg,
+             src.out > shift;
+             shift > resamp1;
+             resamp1 > demod;
+             demod > resamp2;
+             resamp2 > snk.in;
+    );
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
