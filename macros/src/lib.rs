@@ -231,10 +231,10 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
         Some(TokenTree::Ident(b)) => b,
         Some(t) => {
             return EndpointResult::Error(Some(t.span()), "Expected block identifier".into());
-        },
+        }
         None => {
             return EndpointResult::Done;
-        },
+        }
     };
 
     match attrs.peek() {
@@ -242,27 +242,33 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
             if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
                 return EndpointResult::Point(Endpoint(block, None));
             } else if p.to_string() != "." {
-                return EndpointResult::Error(Some(p.span()), "Expected dot or connection separator or terminator after block".into());
+                return EndpointResult::Error(
+                    Some(p.span()),
+                    "Expected dot or connection separator or terminator after block".into(),
+                );
             } else {
                 let _ = attrs.next();
             }
-        },
+        }
         Some(t) => {
-            return EndpointResult::Error(Some(t.span()), "Expected dot, connection separator, or terminator after block".into());
-        },
+            return EndpointResult::Error(
+                Some(t.span()),
+                "Expected dot, connection separator, or terminator after block".into(),
+            );
+        }
         None => {
             return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
-        },
+        }
     }
 
     let port = match attrs.next() {
         Some(TokenTree::Ident(p)) => p,
         Some(t) => {
             return EndpointResult::Error(Some(t.span()), "Expected port identifier".into());
-        },
+        }
         None => {
             return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
-        },
+        }
     };
 
     EndpointResult::Point(Endpoint(block, Some(port.to_string())))
