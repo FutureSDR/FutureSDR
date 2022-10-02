@@ -108,7 +108,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
         });
     }
 
-    println!("code {}", out.to_string());
+    println!("code {}", out);
     out.into()
 }
 
@@ -123,30 +123,30 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
     match attrs.next() {
         Some(TokenTree::Punct(p)) => {
             if p.to_string() == ";" {
-                return ConnectionResult::Done;
+                ConnectionResult::Done
             } else if p.to_string() == "|" {
-                return ConnectionResult::Message;
+                ConnectionResult::Message
             } else if p.to_string() == ">" {
-                return ConnectionResult::Stream;
+                ConnectionResult::Stream
             } else {
-                return ConnectionResult::Error(
+                ConnectionResult::Error(
                     Some(p.span()),
                     "Exptected terminator (;), stream connector (>), or message connector (|)"
                         .into(),
-                );
+                )
             }
         }
         Some(t) => {
-            return ConnectionResult::Error(
+            ConnectionResult::Error(
                 Some(t.span()),
                 "Exptected terminator (;), stream connector (>), or message connector (|)".into(),
-            );
+            )
         }
         None => {
-            return ConnectionResult::Error(
+            ConnectionResult::Error(
                 None,
                 "Connections ended while looking for terminator (;), stream connector (>), or message connector (|)".into(),
-            );
+            )
         }
     }
 }
