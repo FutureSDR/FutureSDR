@@ -44,6 +44,7 @@ impl SoapySink {
         filter: String,
         antenna: Option<S>,
         chan: usize,
+        dev: Option<soapysdr::Device>,
     ) -> Block
     where
         S: Into<String>,
@@ -95,7 +96,6 @@ impl SoapySink {
                 )
                 .build(),
             SoapySink {
-                dev: None,
                 stream: None,
                 freq,
                 sample_rate,
@@ -103,6 +103,7 @@ impl SoapySink {
                 filter,
                 antenna: antenna.map(Into::into),
                 chan,
+                dev,
             },
         )
     }
@@ -146,7 +147,9 @@ impl Kernel for SoapySink {
         let _ = SOAPY_INIT.lock().await;
         let channel = self.chan;
         soapysdr::configure_logging();
-        self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
+        if self.dev.is_none() {
+            self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
+        }
         let dev = self.dev.as_ref().context("no dev")?;
         dev.set_frequency(Tx, channel, self.freq, ())?;
         dev.set_sample_rate(Tx, channel, self.sample_rate)?;
@@ -209,6 +212,7 @@ pub struct SoapySinkBuilder {
     filter: String,
     antenna: Option<String>,
     chan: usize,
+    dev: Option<soapysdr::Device>,
 }
 
 impl SoapySinkBuilder {
@@ -255,6 +259,12 @@ impl SoapySinkBuilder {
         self
     }
 
+    /// Set device.
+    pub fn device(mut self, dev: soapysdr::Device) -> SoapySinkBuilder {
+        self.dev = Some(dev);
+        self
+    }
+
     /// Build [`SoapySink`]
     pub fn build(self) -> Block {
         SoapySink::new(
@@ -264,6 +274,7 @@ impl SoapySinkBuilder {
             self.filter,
             self.antenna,
             self.chan,
+            self.dev,
         )
     }
 }

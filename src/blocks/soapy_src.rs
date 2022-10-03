@@ -44,6 +44,7 @@ impl SoapySource {
         filter: String,
         antenna: Option<S>,
         chan: usize,
+        dev: Option<soapysdr::Device>,
     ) -> Block
     where
         S: Into<String>,
@@ -104,7 +105,6 @@ impl SoapySource {
                 )
                 .build(),
             SoapySource {
-                dev: None,
                 stream: None,
                 freq,
                 sample_rate,
@@ -112,6 +112,7 @@ impl SoapySource {
                 filter,
                 antenna: antenna.map(Into::into),
                 chan,
+                dev,
             },
         )
     }
@@ -150,7 +151,9 @@ impl Kernel for SoapySource {
         let _ = super::soapy_snk::SOAPY_INIT.lock().await;
         let channel = self.chan;
         soapysdr::configure_logging();
-        self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
+        if self.dev.is_none() {
+            self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
+        }
         let dev = self.dev.as_ref().context("no dev")?;
         dev.set_frequency(Rx, channel, self.freq, ())?;
         dev.set_sample_rate(Rx, channel, self.sample_rate)?;
@@ -216,6 +219,7 @@ pub struct SoapySourceBuilder {
     filter: String,
     antenna: Option<String>,
     chan: usize,
+    dev: Option<soapysdr::Device>,
 }
 
 impl SoapySourceBuilder {
@@ -262,6 +266,12 @@ impl SoapySourceBuilder {
         self
     }
 
+    /// Set channel number.
+    pub fn dev(mut self, dev: soapysdr::Device) -> SoapySourceBuilder {
+        self.dev = Some(dev);
+        self
+    }
+
     /// Build [`SoapySource`]
     pub fn build(self) -> Block {
         SoapySource::new(
@@ -271,6 +281,7 @@ impl SoapySourceBuilder {
             self.filter,
             self.antenna,
             self.chan,
+            self.dev,
         )
     }
 }
