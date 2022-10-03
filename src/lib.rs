@@ -52,6 +52,7 @@ pub extern crate log;
 /// Macros to make working with FutureSDR a bit nicer.
 pub mod macros {
     pub use futuresdr_macros::connect;
+    pub use futuresdr_macros::message_handler;
 }
 
 pub use anyhow;

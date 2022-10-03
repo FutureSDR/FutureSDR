@@ -117,12 +117,6 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/audio/Cargo.toml -- --check
 
-      - name: Run cargo fmt (examples/connect-macro)
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all --manifest-path=examples/connect-macro/Cargo.toml -- --check
-
       - name: Run cargo fmt (examples/custom-routes)
         uses: actions-rs/cargo@v1
         with:
@@ -147,17 +141,17 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/fm-receiver/Cargo.toml -- --check
 
-      - name: Run cargo fmt (examples/ssb-receiver)
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all --manifest-path=examples/ssb-receiver/Cargo.toml -- --check
-
       - name: Run cargo fmt (examples/logging)
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all --manifest-path=examples/logging/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/macros)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/macros/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/rx-to-file)
         uses: actions-rs/cargo@v1
@@ -325,12 +319,6 @@ jobs:
           command: clippy
           args: --all-targets --manifest-path=examples/audio/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy (examples/connect-macro)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --manifest-path=examples/connect-macro/Cargo.toml -- -D warnings
-
       - name: Run cargo clippy (examples/custom-routes)
         uses: actions-rs/cargo@v1
         with:
@@ -366,6 +354,12 @@ jobs:
         with:
           command: clippy
           args: --all-targets --manifest-path=examples/logging/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/macros)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/macros/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/rx-to-file)
         uses: actions-rs/cargo@v1

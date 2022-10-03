@@ -7,17 +7,11 @@ use quote::quote_spanned;
 use std::collections::HashSet;
 use std::iter::Peekable;
 
-enum ParseResult {
-    Connections {
-        stream: HashSet<(Ident, String, Ident, String)>,
-        message: HashSet<(Ident, String, Ident, String)>,
-        blocks: HashSet<Ident>,
-    },
-    Done,
-    Error(Option<Span>, String),
-}
+//=========================================================================
+// CONNECT
+//=========================================================================
 
-/// Avoid boilerplate when connecting the flowgraph.
+/// Avoid boilerplate when setting up the flowgraph.
 ///
 /// This macro simplifies adding blocks to the flowgraph and connecting them.
 /// Assume you have created a flowgraph `fg` and several blocks (`src`, `shift`,
@@ -170,6 +164,16 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     // println!("code {}", out);
     out.into()
+}
+
+enum ParseResult {
+    Connections {
+        stream: HashSet<(Ident, String, Ident, String)>,
+        message: HashSet<(Ident, String, Ident, String)>,
+        blocks: HashSet<Ident>,
+    },
+    Done,
+    Error(Option<Span>, String),
 }
 
 enum ConnectionResult {
@@ -327,4 +331,86 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
     };
 
     EndpointResult::Point(Endpoint(block, Some(port)))
+}
+
+//=========================================================================
+// MESSAGE_HANDLER
+//=========================================================================
+
+/// Avoid boilerplate when creating message handlers.
+///
+/// Assume a block with a message handler that refers to a block function
+/// `Self::my_handler`.
+///
+/// ```ignore
+/// pub fn new() -> Block {
+///     Block::new(
+///         BlockMetaBuilder::new("MyBlock").build(),
+///         StreamIoBuilder::new().build(),
+///         MessageIoBuilder::new()
+///             .add_input("handler", Self::my_handler)
+///             .build(),
+///         Self,
+///     )
+/// }
+/// ```
+///
+/// The underlying machinery of the handler implementation is rather involved.
+/// With the `message_handler` macro, it can be simplified to:
+///
+/// ```ignore
+/// #[message_handler]
+/// async fn my_handler(
+///     &mut self,
+///     _mio: &mut MessageIo<Self>,
+///     _meta: &mut BlockMeta,
+///     _p: Pmt,
+/// ) -> Result<Pmt> {
+///     Ok(Pmt::Null)
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn message_handler(
+    _attr: proc_macro::TokenStream,
+    fun: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let handler: syn::ItemFn = syn::parse(fun).unwrap();
+    let mut out = TokenStream::new();
+
+    let name = handler.sig.ident;
+    let mio = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
+    let meta = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
+    let pmt = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let body = handler.block.stmts;
+
+    // println!("name {}", name);
+    // println!("mio {}", mio);
+    // println!("meta {}", meta);
+    // println!("pmt {}", pmt);
+
+    out.extend(quote! {
+        fn #name<'a>(
+            &'a mut self,
+            #mio: &'a mut MessageIo<Self>,
+            #meta: &'a mut BlockMeta,
+            #pmt: Pmt,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + Send + 'a>> {
+            use futuresdr::futures::FutureExt;
+            async move {
+                #(#body)*
+            }.boxed()
+        }
+    });
+
+    // println!("out: {}", out);
+    out.into()
+}
+
+fn get_parameter_ident(arg: &syn::FnArg) -> Option<syn::Ident> {
+    if let syn::FnArg::Typed(syn::PatType { pat, .. }) = arg {
+        if let syn::Pat::Ident(ref i) = **pat {
+            return Some(i.ident.clone());
+        }
+    }
+    None
 }

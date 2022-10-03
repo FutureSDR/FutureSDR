@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-macros"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -14,6 +14,6 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 proc-macro = true
 
 [dependencies]
-syn = {version="1.0.98", features=["full"]}
+syn = {version="1.0.98", features=["full", "extra-traits"]}
 quote = "1.0"
 proc-macro2 = "1.0.46"

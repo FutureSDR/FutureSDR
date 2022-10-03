@@ -7,6 +7,7 @@ use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::connect;
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -114,6 +115,58 @@ impl Strange {
 
 #[async_trait]
 impl Kernel for Strange {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        io.finished = true;
+        Ok(())
+    }
+}
+
+pub struct Handler;
+
+impl Handler {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> Block {
+        Block::new(
+            BlockMetaBuilder::new("Handler").build(),
+            StreamIoBuilder::new().build(),
+            MessageIoBuilder::new()
+                .add_input("handler", Self::my_handler)
+                .add_input("other", Self::my_other_handler)
+                .build(),
+            Self,
+        )
+    }
+
+    #[message_handler]
+    async fn my_handler(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        println!("asdf");
+        Ok(Pmt::Null)
+    }
+
+    #[message_handler]
+    async fn my_other_handler(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        Ok(Pmt::U32(0))
+    }
+}
+
+#[async_trait]
+impl Kernel for Handler {
     async fn work(
         &mut self,
         io: &mut WorkIo,

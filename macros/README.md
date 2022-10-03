@@ -5,7 +5,7 @@ Macros to make working with FutureSDR a bit nicer.
 
 ## Connect Macro
 
-Avoid boilerplate when creating the flowgraph. This macro simplifies adding
+Avoid boilerplate when setting up the flowgraph. This macro simplifies adding
 blocks to the flowgraph and connecting them.
 
 Assume you have created a flowgraph `fg` and several blocks (`src`, `shift`, ...) and need to add the block to the flowgraph and connect them. Using the `connect!` macro, this can be done with:
@@ -38,9 +38,8 @@ fg.connect_stream(resamp2, "out", snk, "in")?;
 ```
 
 Connections endpoints are defined by `block.port_name`. Standard names (i.e.,
-
-`out`/`in`) can be omitted.
-When ports have different name than standard `in` and `out`, one can use following notation.
+`out`/`in`) can be omitted. When ports have different name than standard `in`
+and `out`, one can use following notation.
 
 Stream connections are indicated as `>`, while message connections are indicated as `|`.
 
@@ -56,4 +55,39 @@ Port names with spaces have to be quoted.
 connect!(fg,
     src."out port" > snk
 );
+```
+
+## Message Handler Macro
+
+Avoid boilerplate when creating message handlers.
+
+Assume a block with a message handler that refers to a block function
+`Self::my_handler`.
+
+```ignore
+pub fn new() -> Block {
+    Block::new(
+        BlockMetaBuilder::new("MyBlock").build(),
+        StreamIoBuilder::new().build(),
+        MessageIoBuilder::new()
+            .add_input("handler", Self::my_handler)
+            .build(),
+        Self,
+    )
+}
+```
+
+The underlying machinery of the handler implementation is rather involved.
+With the `message_handler` macro, it can be simplified to:
+
+```ignore
+#[message_handler]
+async fn my_handler(
+    &mut self,
+    _mio: &mut MessageIo<Self>,
+    _meta: &mut BlockMeta,
+    _p: Pmt,
+) -> Result<Pmt> {
+    Ok(Pmt::Null)
+}
 ```
