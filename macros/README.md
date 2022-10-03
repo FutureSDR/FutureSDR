@@ -50,3 +50,10 @@ It is possible to add blocks that have no connections by just putting them on a 
 connect!(fg, dummy);
 ```
 
+Port names with spaces have to be quoted.
+
+```ignore
+connect!(fg,
+    src."out port" > snk
+);
+```

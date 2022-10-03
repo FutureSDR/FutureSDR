@@ -4,7 +4,7 @@ use futuresdr::blocks::Copy;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
-use futuresdr::blocks::VectorSinkBuilder;
+use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Block;
@@ -28,7 +28,7 @@ fn main() -> Result<()> {
     let cpy1 = Copy::<u32>::new();
     let cpy2 = Copy::<u32>::new();
     let cpy3 = Copy::<u32>::new();
-    let snk = VectorSinkBuilder::<u32>::new().build();
+    let snk = NullSink::<u32>::new();
 
     // > indicates stream connections
     // default port names (out/in) can be omitted
@@ -59,6 +59,12 @@ fn main() -> Result<()> {
     let dummy = Dummy::new();
     connect!(fg, dummy);
 
+    // add a block with no inputs or outputs
+    let strange = Strange::new();
+    let snk = NullSink::<u8>::new();
+    connect!(fg,
+             strange."foo bar" > snk);
+
     Runtime::new().run(fg)?;
 
     Ok(())
@@ -88,7 +94,34 @@ impl Kernel for Dummy {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;
+        Ok(())
+    }
+}
 
+pub struct Strange;
+
+impl Strange {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> Block {
+        Block::new(
+            BlockMetaBuilder::new("Strange").build(),
+            StreamIoBuilder::new().add_output("foo bar", 1).build(),
+            MessageIoBuilder::new().build(),
+            Self,
+        )
+    }
+}
+
+#[async_trait]
+impl Kernel for Strange {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        io.finished = true;
         Ok(())
     }
 }

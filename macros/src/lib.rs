@@ -51,20 +51,33 @@ enum ParseResult {
 /// fg.connect_stream(resamp2, "out", snk, "in")?;
 /// ```
 ///
-/// Connections endpoints are defined by `block.port_name`. Standard names (i.e.,
+/// Connections endpoints are defined by `block.port_name`. Standard names
+/// (i.e., `out`/`in`) can be omitted. When ports have different name than
+/// standard `in` and `out`, one can use following notation.
 ///
-/// `out`/`in`) can be omitted.
-/// When ports have different name than standard `in` and `out`, one can use following notation.
+/// Stream connections are indicated as `>`, while message connections are
+/// indicated as `|`.
 ///
-/// Stream connections are indicated as `>`, while message connections are indicated as `|`.
-///
-/// It is possible to add blocks that have no connections by just putting them on a line separately.
+/// It is possible to add blocks that have no connections by just putting them
+/// on a line separately.
 ///
 /// ```ignore
 /// connect!(fg, dummy);
 /// ```
+///
+/// Port names with spaces have to be quoted.
+///
+/// ```ignore
+/// connect!(fg,
+///     src."out port" > snk
+/// );
+/// ```
 #[proc_macro]
 pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    // println!("{}", attr.clone());
+    // for a in attr.clone().into_iter() {
+    //     println!("{:?}", a);
+    // }
     let mut attrs = TokenStream::from(attr).into_iter().peekable();
     let mut out = TokenStream::new();
 
@@ -303,7 +316,8 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
     }
 
     let port = match attrs.next() {
-        Some(TokenTree::Ident(p)) => p,
+        Some(TokenTree::Ident(p)) => p.to_string(),
+        Some(TokenTree::Literal(l)) => l.to_string().replace('"', ""),
         Some(t) => {
             return EndpointResult::Error(Some(t.span()), "Expected port identifier".into());
         }
@@ -312,5 +326,5 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
         }
     };
 
-    EndpointResult::Point(Endpoint(block, Some(port.to_string())))
+    EndpointResult::Point(Endpoint(block, Some(port)))
 }
