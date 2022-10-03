@@ -259,7 +259,9 @@ impl SoapySinkBuilder {
         self
     }
 
-    /// Set device.
+    /// Set SoapySDR device manually.
+    ///
+    /// When this parameter is set, the filter parameter will not be used.
     pub fn device(mut self, dev: soapysdr::Device) -> SoapySinkBuilder {
         self.dev = Some(dev);
         self

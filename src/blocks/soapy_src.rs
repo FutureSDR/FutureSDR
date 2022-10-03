@@ -266,8 +266,10 @@ impl SoapySourceBuilder {
         self
     }
 
-    /// Set channel number.
-    pub fn dev(mut self, dev: soapysdr::Device) -> SoapySourceBuilder {
+    /// Set SoapySDR device manually.
+    ///
+    /// When this parameter is set, the filter parameter will not be used.
+    pub fn device(mut self, dev: soapysdr::Device) -> SoapySourceBuilder {
         self.dev = Some(dev);
         self
     }
