@@ -1,12 +1,10 @@
-use std::str::FromStr;
-
 use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::audio::Oscillator;
-use futuresdr::blocks::DropPolicy;
+use futuresdr::blocks::Oscillator;
 use futuresdr::blocks::Selector;
+use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -15,21 +13,18 @@ use futuresdr::runtime::Runtime;
 struct Args {
     // Drop policy to apply on the selector.
     #[clap(short, long, default_value = "same")]
-    drop_policy: String,
+    drop_policy: DropPolicy,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration {:?}", args);
 
-    let drop_policy =
-        DropPolicy::from_str(&args.drop_policy).unwrap_or_else(|()| DropPolicy::SameRate);
-
     let mut fg = Flowgraph::new();
 
     let src0 = Oscillator::new(440.0, 0.3, 48000.0);
     let src1 = Oscillator::new(261.63, 0.3, 48000.0);
-    let selector = Selector::<f32, 2, 1>::new(drop_policy);
+    let selector = Selector::<f32, 2, 1>::new(args.drop_policy);
     // Store the `input_index` port ID for later use
     let input_index_port_id = selector
         .message_input_name_to_id("input_index")
@@ -66,6 +61,4 @@ fn main() -> Result<()> {
             println!("Input not parsable: {}", input);
         }
     }
-
-    Ok(())
 }

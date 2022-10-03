@@ -34,9 +34,9 @@ pub enum DropPolicy {
 }
 
 impl FromStr for DropPolicy {
-    type Err = ();
+    type Err = String;
 
-    fn from_str(s: &str) -> Result<DropPolicy, ()> {
+    fn from_str(s: &str) -> Result<DropPolicy, Self::Err> {
         match s {
             "same" => Ok(DropPolicy::SameRate),
             "same-rate" => Ok(DropPolicy::SameRate),
@@ -54,7 +54,7 @@ impl FromStr for DropPolicy {
             "drop-all" => Ok(DropPolicy::DropAll),
             "DROP_ALL" => Ok(DropPolicy::DropAll),
 
-            _ => Err(()),
+            _ => Err("String didn't match value".to_string()),
         }
     }
 }
@@ -69,7 +69,8 @@ impl fmt::Display for DropPolicy {
     }
 }
 
-/// Forward the input at given index to the output at given index.
+/// Forward the input stream with a given index to the output stream with a
+/// given index.
 pub struct Selector<A, const N: usize, const M: usize>
 where
     A: Send + 'static + Copy,

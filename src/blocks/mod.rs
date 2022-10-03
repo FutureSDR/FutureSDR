@@ -25,6 +25,7 @@
 //! | [Head] | Copies only a given number of samples and stops. | ✅ |
 //! | [NullSink] | Drops samples. | ✅ |
 //! | [NullSource] | Generates a stream of zeros. | ✅ |
+//! | [Selector] | Forward the input stream with a given index to the output stream with a given index. | ✅ |
 //! | [TagDebug] | Drop samples, printing tags. | ✅ |
 //! | [Throttle] | Limit sample rate. | ❌ |
 //! | [VectorSink] | Store received samples in vector. | ✅ |
@@ -186,7 +187,7 @@ mod soapy_src;
 pub use soapy_src::{SoapySource, SoapySourceBuilder};
 
 mod selector;
-pub use selector::DropPolicy;
+pub use selector::DropPolicy as SelectorDropPolicy;
 pub use selector::Selector;
 
 mod source;
