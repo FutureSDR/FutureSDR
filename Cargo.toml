@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.26"
+version = "0.0.27"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 rust-version = "1.60"
