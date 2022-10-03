@@ -60,7 +60,7 @@ fn main() -> Result<()> {
     let dummy = Dummy::new();
     connect!(fg, dummy);
 
-    // add a block with no inputs or outputs
+    // add a block with space in the port name
     let strange = Strange::new();
     let snk = NullSink::<u8>::new();
     connect!(fg,
