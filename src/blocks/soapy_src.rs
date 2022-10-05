@@ -28,9 +28,9 @@ use crate::runtime::WorkIo;
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
     stream: Option<soapysdr::RxStream<Complex<f32>>>,
-    freq: f64,
-    sample_rate: f64,
-    gain: f64,
+    freq: Option<f64>,
+    sample_rate: Option<f64>,
+    gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
     chan: usize,
@@ -41,6 +41,29 @@ impl SoapySource {
         freq: f64,
         sample_rate: f64,
         gain: f64,
+        filter: String,
+        antenna: Option<S>,
+        chan: usize,
+        dev: Option<soapysdr::Device>,
+    ) -> Block
+    where
+        S: Into<String>,
+    {
+        Self::new_options(
+            Some(freq),
+            Some(sample_rate),
+            Some(gain),
+            filter,
+            antenna,
+            chan,
+            dev,
+        )
+    }
+
+    pub fn new_options<S>(
+        freq: Option<f64>,
+        sample_rate: Option<f64>,
+        gain: Option<f64>,
         filter: String,
         antenna: Option<S>,
         chan: usize,
@@ -155,9 +178,16 @@ impl Kernel for SoapySource {
             self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         }
         let dev = self.dev.as_ref().context("no dev")?;
-        dev.set_frequency(Rx, channel, self.freq, ())?;
-        dev.set_sample_rate(Rx, channel, self.sample_rate)?;
-        dev.set_gain(Rx, channel, self.gain)?;
+
+        if let Some(freq) = self.freq {
+            dev.set_frequency(Rx, channel, freq, ())?;
+        }
+        if let Some(rate) = self.sample_rate {
+            dev.set_sample_rate(Rx, channel, rate)?;
+        }
+        if let Some(gain) = self.gain {
+            dev.set_gain(Rx, channel, gain)?;
+        }
         if let Some(ref a) = self.antenna {
             dev.set_antenna(Rx, 0, a.as_bytes())?;
         }
@@ -213,9 +243,9 @@ unsafe impl Sync for SoapySource {}
 /// ```
 #[derive(Default)]
 pub struct SoapySourceBuilder {
-    freq: f64,
-    sample_rate: f64,
-    gain: f64,
+    freq: Option<f64>,
+    sample_rate: Option<f64>,
+    gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
     chan: usize,
@@ -229,19 +259,19 @@ impl SoapySourceBuilder {
 
     /// See [`soapysdr::Device::set_frequency()`]
     pub fn freq(mut self, freq: f64) -> SoapySourceBuilder {
-        self.freq = freq;
+        self.freq = Some(freq);
         self
     }
 
     /// See [`soapysdr::Device::set_sample_rate()`]
     pub fn sample_rate(mut self, sample_rate: f64) -> SoapySourceBuilder {
-        self.sample_rate = sample_rate;
+        self.sample_rate = Some(sample_rate);
         self
     }
 
     /// See [`soapysdr::Device::set_gain()`]
     pub fn gain(mut self, gain: f64) -> SoapySourceBuilder {
-        self.gain = gain;
+        self.gain = Some(gain);
         self
     }
 
@@ -276,7 +306,7 @@ impl SoapySourceBuilder {
 
     /// Build [`SoapySource`]
     pub fn build(self) -> Block {
-        SoapySource::new(
+        SoapySource::new_options(
             self.freq,
             self.sample_rate,
             self.gain,
