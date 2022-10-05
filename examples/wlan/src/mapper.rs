@@ -22,6 +22,7 @@ pub struct Mapper {
     signal_encoded: [u8; 48],
     signal_interleaved: [u8; 48],
     current_mod: Modulation,
+    current_len: usize,
     index: usize,
 }
 
@@ -39,6 +40,7 @@ impl Mapper {
                 signal_encoded: [0; 48],
                 signal_interleaved: [0; 48],
                 current_mod: Modulation::Bpsk,
+                current_len: 0,
                 index: 0,
             },
         )
@@ -175,10 +177,13 @@ impl Kernel for Mapper {
                     0,
                     Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1),
                 );
+                assert_eq!(self.index, self.current_len);
                 self.current_mod = frame.mcs().modulation();
-                self.index = 1;
+                self.current_len = frame.n_symbols();
+                self.index = 0;
                 input = &input[0..std::cmp::min(input.len(), frame.n_symbols() * 48)];
             } else {
+                assert!(*index <= (self.current_len - self.index) * 48);
                 input = &input[0..*index];
             }
         }
@@ -186,6 +191,7 @@ impl Kernel for Mapper {
         let n = std::cmp::min(input.len() / 48, (output.len() / 64) - o);
 
         for i in 0..n {
+            self.index += 1;
             Self::map(
                 (&input[i * 48..(i + 1) * 48]).try_into().unwrap(),
                 (&mut output[(i + o) * 64..(i + o + 1) * 64])
@@ -194,7 +200,6 @@ impl Kernel for Mapper {
                 self.current_mod,
                 self.index,
             );
-            self.index += 1;
         }
 
         sio.input(0).consume(n * 48);
