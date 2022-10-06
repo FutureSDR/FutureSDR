@@ -50,6 +50,10 @@ name = "soapy"
 required-features = ["soapy"]
 
 [[example]]
+name = "soapy_multichan"
+required-features = ["soapy"]
+
+[[example]]
 name = "vulkan"
 required-features = ["vulkan"]
 
