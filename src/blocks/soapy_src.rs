@@ -22,18 +22,21 @@ use crate::runtime::WorkIo;
 /// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
 /// * **Message**: `sample_rate`: set the SDR's sample rate; accepts a [`Pmt::U32`] value
 ///
+/// Note: the message inputs will only apply to the first channel. (A current PMT limitation)
+///
 /// # Outputs
-/// * **Stream**: `out`: stream of [`Complex<f32>`] values
+/// * **Stream**: `out`/`outN`: stream/s of [`Complex<f32>`] values
 ///
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
+    chans: Vec<usize>,
     stream: Option<soapysdr::RxStream<Complex<f32>>>,
+    activate_time: Option<i64>,
     freq: Option<f64>,
     sample_rate: Option<f64>,
     gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
-    chan: usize,
 }
 
 impl SoapySource {
@@ -43,8 +46,9 @@ impl SoapySource {
         gain: f64,
         filter: String,
         antenna: Option<S>,
-        chan: usize,
+        chans: Vec<usize>,
         dev: Option<soapysdr::Device>,
+        activate_time: Option<i64>,
     ) -> Block
     where
         S: Into<String>,
@@ -55,8 +59,9 @@ impl SoapySource {
             Some(gain),
             filter,
             antenna,
-            chan,
+            chans,
             dev,
+            activate_time,
         )
     }
 
@@ -66,17 +71,31 @@ impl SoapySource {
         gain: Option<f64>,
         filter: String,
         antenna: Option<S>,
-        chan: usize,
+        mut chans: Vec<usize>,
         dev: Option<soapysdr::Device>,
+        activate_time: Option<i64>,
     ) -> Block
     where
         S: Into<String>,
     {
+        if chans.len() == 0 {
+            chans.push(0);
+        }
+
+        let mut siob = StreamIoBuilder::new();
+
+        let nchans = chans.len();
+        if nchans > 1 {
+            for i in 0..nchans {
+                siob = siob.add_output(&format!("out{}", i + 1), mem::size_of::<Complex<f32>>());
+            }
+        } else {
+            siob = siob.add_output("out", mem::size_of::<Complex<f32>>());
+        }
+
         Block::new(
             BlockMetaBuilder::new("SoapySource").blocking().build(),
-            StreamIoBuilder::new()
-                .add_output("out", mem::size_of::<Complex<f32>>())
-                .build(),
+            siob.build(),
             MessageIoBuilder::new()
                 .add_input(
                     "freq",
@@ -134,8 +153,9 @@ impl SoapySource {
                 gain,
                 filter,
                 antenna: antenna.map(Into::into),
-                chan,
+                chans,
                 dev,
+                activate_time,
             },
         )
     }
@@ -151,15 +171,22 @@ impl Kernel for SoapySource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<Complex<f32>>();
+        let outs = sio.outputs_mut();
+        let bufs: Vec<&mut [Complex<f32>]> =
+            outs.iter_mut().map(|b| b.slice::<Complex<f32>>()).collect();
+
+        let min_out_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
+
         let stream = self.stream.as_mut().unwrap();
-        let n = cmp::min(out.len(), stream.mtu().unwrap());
+        let n = cmp::min(min_out_len, stream.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
-        if let Ok(len) = stream.read(&[&mut out[..n]], 1_000_000) {
-            sio.output(0).produce(len);
+        if let Ok(len) = stream.read(&bufs, 1_000_000) {
+            for i in 0..outs.len() {
+                sio.output(i).produce(len);
+            }
         }
         io.call_again = true;
         Ok(())
@@ -172,12 +199,14 @@ impl Kernel for SoapySource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let _ = super::soapy_snk::SOAPY_INIT.lock().await;
-        let channel = self.chan;
         soapysdr::configure_logging();
         if self.dev.is_none() {
             self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         }
         let dev = self.dev.as_ref().context("no dev")?;
+
+        // Just use the first defined channel until there is a better way
+        let channel = *self.chans.get(0).context("no chan")?;
 
         if let Some(freq) = self.freq {
             dev.set_frequency(Rx, channel, freq, ())?;
@@ -189,11 +218,15 @@ impl Kernel for SoapySource {
             dev.set_gain(Rx, channel, gain)?;
         }
         if let Some(ref a) = self.antenna {
-            dev.set_antenna(Rx, 0, a.as_bytes())?;
+            dev.set_antenna(Rx, channel, a.as_bytes())?;
         }
 
-        self.stream = Some(dev.rx_stream::<Complex<f32>>(&[channel])?);
-        self.stream.as_mut().context("no stream")?.activate(None)?;
+        self.stream = Some(dev.rx_stream::<Complex<f32>>(&self.chans)?);
+        debug!("post rx_stream");
+        self.stream
+            .as_mut()
+            .context("no stream")?
+            .activate(self.activate_time)?;
 
         Ok(())
     }
@@ -248,8 +281,9 @@ pub struct SoapySourceBuilder {
     gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
-    chan: usize,
+    chans: Vec<usize>,
     dev: Option<soapysdr::Device>,
+    activate_time: Option<i64>,
 }
 
 impl SoapySourceBuilder {
@@ -290,9 +324,11 @@ impl SoapySourceBuilder {
         self
     }
 
-    /// Set channel number.
+    /// Add a channel.
+    ///
+    /// This can be applied multiple times.
     pub fn channel(mut self, chan: usize) -> SoapySourceBuilder {
-        self.chan = chan;
+        self.chans.push(chan);
         self
     }
 
@@ -304,6 +340,15 @@ impl SoapySourceBuilder {
         self
     }
 
+    /// Set the stream activation time.
+    ///
+    /// The value should be relative to the value returned from
+    /// [`soapysdr::Device::get_hardware_time()`]
+    pub fn activate_time(mut self, time_ns: i64) -> SoapySourceBuilder {
+        self.activate_time = Some(time_ns);
+        self
+    }
+
     /// Build [`SoapySource`]
     pub fn build(self) -> Block {
         SoapySource::new_options(
@@ -312,8 +357,9 @@ impl SoapySourceBuilder {
             self.gain,
             self.filter,
             self.antenna,
-            self.chan,
+            self.chans,
             self.dev,
+            self.activate_time,
         )
     }
 }

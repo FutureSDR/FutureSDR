@@ -23,17 +23,19 @@ pub(super) static SOAPY_INIT: async_lock::Mutex<()> = async_lock::Mutex::new(())
 /// # Inputs
 /// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
 /// * **Message**: `sample_rate`: set the SDR's sample rate; accepts a [`Pmt::U32`] value
-/// * **Stream**: `in`: stream of [`Complex<f32>`] values
+/// * **Stream**: `in`/`inN`: stream/s of [`Complex<f32>`] values
 ///
+/// Note: the message inputs will only apply to the first channel. (A current PMT limitation)
 pub struct SoapySink {
     dev: Option<soapysdr::Device>,
+    chans: Vec<usize>,
     stream: Option<soapysdr::TxStream<Complex<f32>>>,
+    activate_time: Option<i64>,
     freq: Option<f64>,
     sample_rate: Option<f64>,
     gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
-    chan: usize,
 }
 
 impl SoapySink {
@@ -43,8 +45,9 @@ impl SoapySink {
         gain: f64,
         filter: String,
         antenna: Option<S>,
-        chan: usize,
+        chans: Vec<usize>,
         dev: Option<soapysdr::Device>,
+        activate_time: Option<i64>,
     ) -> Block
     where
         S: Into<String>,
@@ -55,8 +58,9 @@ impl SoapySink {
             Some(gain),
             filter,
             antenna,
-            chan,
+            chans,
             dev,
+            activate_time,
         )
     }
 
@@ -66,17 +70,31 @@ impl SoapySink {
         gain: Option<f64>,
         filter: String,
         antenna: Option<S>,
-        chan: usize,
+        mut chans: Vec<usize>,
         dev: Option<soapysdr::Device>,
+        activate_time: Option<i64>,
     ) -> Block
     where
         S: Into<String>,
     {
+        if chans.len() == 0 {
+            chans.push(0);
+        }
+
+        let mut siob = StreamIoBuilder::new();
+
+        let nchans = chans.len();
+        if nchans > 1 {
+            for i in 0..nchans {
+                siob = siob.add_input(&format!("in{}", i + 1), mem::size_of::<Complex<f32>>());
+            }
+        } else {
+            siob = siob.add_input("in", mem::size_of::<Complex<f32>>());
+        }
+
         Block::new(
             BlockMetaBuilder::new("SoapySink").blocking().build(),
-            StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<Complex<f32>>())
-                .build(),
+            siob.build(),
             MessageIoBuilder::new()
                 .add_input(
                     "freq",
@@ -125,8 +143,9 @@ impl SoapySink {
                 gain,
                 filter,
                 antenna: antenna.map(Into::into),
-                chan,
+                chans,
                 dev,
+                activate_time,
             },
         )
     }
@@ -142,22 +161,32 @@ impl Kernel for SoapySink {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<Complex<f32>>();
+        let ins = sio.inputs_mut();
+        let bufs: Vec<&[Complex<f32>]> =
+            ins.iter_mut().map(|b| b.slice::<Complex<f32>>()).collect();
+
+        let min_in_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
+
         let stream = self.stream.as_mut().unwrap();
-        let n = cmp::min(i.len(), stream.mtu().unwrap());
+        let n = cmp::min(min_in_len, stream.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
-        let len = stream.write(&[&i[..n]], None, false, 1_000_000)?;
-        sio.input(0).consume(len);
-        if len != i.len() {
-            io.call_again = true;
+        let len = stream.write(&bufs, None, false, 1_000_000)?;
+
+        let mut finished = false;
+        for i in 0..ins.len() {
+            sio.input(i).consume(len);
+            if sio.input(i).finished() {
+                finished = true;
+            }
         }
-        if sio.input(0).finished() && len == i.len() {
+        if len != min_in_len {
+            io.call_again = true;
+        } else if finished {
             io.finished = true;
         }
-
         Ok(())
     }
 
@@ -168,12 +197,14 @@ impl Kernel for SoapySink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let _ = SOAPY_INIT.lock().await;
-        let channel = self.chan;
         soapysdr::configure_logging();
         if self.dev.is_none() {
             self.dev = Some(soapysdr::Device::new(self.filter.as_str())?);
         }
         let dev = self.dev.as_ref().context("no dev")?;
+
+        // Just use the first defined channel until there is a better way
+        let channel = *self.chans.get(0).context("no chan")?;
 
         if let Some(freq) = self.freq {
             dev.set_frequency(Tx, channel, freq, ())?;
@@ -188,8 +219,11 @@ impl Kernel for SoapySink {
             dev.set_antenna(Tx, channel, a.as_bytes())?;
         }
 
-        self.stream = Some(dev.tx_stream::<Complex<f32>>(&[channel])?);
-        self.stream.as_mut().context("no stream")?.activate(None)?;
+        self.stream = Some(dev.tx_stream::<Complex<f32>>(&self.chans)?);
+        self.stream
+            .as_mut()
+            .context("no stream")?
+            .activate(self.activate_time)?;
 
         Ok(())
     }
@@ -241,8 +275,9 @@ pub struct SoapySinkBuilder {
     gain: Option<f64>,
     filter: String,
     antenna: Option<String>,
-    chan: usize,
+    chans: Vec<usize>,
     dev: Option<soapysdr::Device>,
+    activate_time: Option<i64>,
 }
 
 impl SoapySinkBuilder {
@@ -283,9 +318,11 @@ impl SoapySinkBuilder {
         self
     }
 
-    /// Set channel.
+    /// Add a channel.
+    ///
+    /// This can be applied multiple times.
     pub fn channel(mut self, chan: usize) -> SoapySinkBuilder {
-        self.chan = chan;
+        self.chans.push(chan);
         self
     }
 
@@ -297,6 +334,15 @@ impl SoapySinkBuilder {
         self
     }
 
+    /// Set the stream activation time.
+    ///
+    /// The value should be relative to the value returned from
+    /// [`soapysdr::Device::get_hardware_time()`]
+    pub fn activate_time(mut self, time_ns: i64) -> SoapySinkBuilder {
+        self.activate_time = Some(time_ns);
+        self
+    }
+
     /// Build [`SoapySink`]
     pub fn build(self) -> Block {
         SoapySink::new_options(
@@ -305,8 +351,9 @@ impl SoapySinkBuilder {
             self.gain,
             self.filter,
             self.antenna,
-            self.chan,
+            self.chans,
             self.dev,
+            self.activate_time,
         )
     }
 }
