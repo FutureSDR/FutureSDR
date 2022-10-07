@@ -1,6 +1,4 @@
 use clap::Parser;
-//use clap::{Arg, Command};
-//use futuresdr::anyhow::{Context, Result};
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::NullSink;
