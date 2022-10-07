@@ -12,8 +12,8 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-use zigbee::channel_to_freq;
 use zigbee::modulator;
+use zigbee::parse_channel;
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::IqDelay;
@@ -22,10 +22,10 @@ use zigbee::Mac;
 #[derive(Parser, Debug)]
 #[clap(version)]
 struct Args {
-    #[clap(long, default_value_t = 26)]
-    rx_channel: u32,
-    #[clap(long, default_value_t = 26)]
-    tx_channel: u32,
+    #[clap(id = "rx-channel", long, value_parser = parse_channel, default_value = "26")]
+    rx_freq: f64,
+    #[clap(id = "tx-channel", long, value_parser = parse_channel, default_value = "26")]
+    tx_freq: f64,
     #[clap(long, default_value_t = 50.0)]
     rx_gain: f64,
     #[clap(long, default_value_t = 18.0)]
@@ -34,8 +34,6 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let tx_freq = channel_to_freq(args.tx_channel)?;
-    let rx_freq = channel_to_freq(args.rx_channel)?;
     println!("Configuration: {:?}", args);
 
     let mut fg = Flowgraph::new();
@@ -48,7 +46,7 @@ fn main() -> Result<()> {
     let iq_delay = fg.add_block(IqDelay::new());
     let soapy_snk = fg.add_block(
         SoapySinkBuilder::new()
-            .freq(tx_freq)
+            .freq(args.tx_freq)
             .sample_rate(4e6)
             .gain(args.tx_gain)
             .build(),
@@ -63,7 +61,7 @@ fn main() -> Result<()> {
     // ========================================
     let src = fg.add_block(
         SoapySourceBuilder::new()
-            .freq(rx_freq)
+            .freq(args.rx_freq)
             .sample_rate(4e6)
             .gain(args.rx_gain)
             .build(),

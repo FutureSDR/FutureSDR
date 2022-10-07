@@ -7,7 +7,7 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-use zigbee::channel_to_freq;
+use zigbee::parse_channel;
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::Mac;
@@ -28,9 +28,9 @@ struct Args {
     #[clap(short, long, default_value_t = 4e6)]
     sample_rate: f64,
     /// Zigbee Channel Number (11..26)
-    #[clap(short, long, default_value_t = 26)]
-    channel: u32,
-    /// UDP sink [address:port]
+    #[clap(id = "channel", short, long, value_parser = parse_channel, default_value = "26")]
+    freq: f64,
+    /// UDP Sink [address:port]
     #[clap(short, long)]
     udp_addr: Option<String>,
 }
@@ -38,13 +38,11 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {:?}", args);
-    
-    let freq = channel_to_freq(args.channel)?;
 
     let mut fg = Flowgraph::new();
 
     let mut soapy_src = SoapySourceBuilder::new()
-        .freq(freq)
+        .freq(args.freq)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
     if let Some(a) = args.antenna {
@@ -88,13 +86,11 @@ fn main() -> Result<()> {
     fg.connect_stream(mm, "out", decoder, "in")?;
     fg.connect_stream(mac, "out", snk, "in")?;
     fg.connect_message(decoder, "out", mac, "rx")?;
-    println!("test");
 
     if let Some(u) = args.udp_addr {
         let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new(u));
         fg.connect_message(decoder, "out", blob_to_udp, "in")?;
     }
-    
 
     Runtime::new().run(fg)?;
 

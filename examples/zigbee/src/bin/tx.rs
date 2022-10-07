@@ -9,8 +9,8 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-use zigbee::channel_to_freq;
 use zigbee::modulator;
+use zigbee::parse_channel;
 use zigbee::IqDelay;
 use zigbee::Mac;
 
@@ -30,15 +30,13 @@ struct Args {
     #[clap(short, long, default_value_t = 4e6)]
     sample_rate: f64,
     /// Zigbee Channel Number (11..26)
-    #[clap(short, long, default_value_t = 26)]
-    channel: u32,
+    #[clap(id = "channel", short, long, value_parser = parse_channel, default_value = "26")]
+    freq: f64,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {:?}", args);
-    
-    let freq = channel_to_freq(args.channel)?;
 
     let mut fg = Flowgraph::new();
 
@@ -47,7 +45,7 @@ fn main() -> Result<()> {
     let iq_delay = fg.add_block(IqDelay::new());
 
     let mut soapy = SoapySinkBuilder::new()
-        .freq(freq)
+        .freq(args.freq)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
     if let Some(a) = args.antenna {
