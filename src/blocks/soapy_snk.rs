@@ -162,16 +162,20 @@ impl Kernel for SoapySink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let ins = sio.inputs_mut();
-        let bufs: Vec<&[Complex<f32>]> =
+        let full_bufs: Vec<&[Complex<f32>]> =
             ins.iter_mut().map(|b| b.slice::<Complex<f32>>()).collect();
 
-        let min_in_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
+        let min_in_len = full_bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
         let stream = self.stream.as_mut().unwrap();
         let n = cmp::min(min_in_len, stream.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
+
+        // Make a collection of same (minimum) size slices
+        let bufs: Vec<&[Complex<f32>]> =
+            full_bufs.iter().map(|b| &b[0..n]).collect();
 
         let len = stream.write(&bufs, None, false, 1_000_000)?;
 
