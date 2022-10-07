@@ -1,8 +1,6 @@
-//use clap::{Arg, Command};
 use clap::Parser;
 use std::time::Duration;
 
-//use futuresdr::anyhow::{Context, Result};
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
