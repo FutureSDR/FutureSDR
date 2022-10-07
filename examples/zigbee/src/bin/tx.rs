@@ -1,7 +1,7 @@
-use clap::{Arg, Command};
+use clap::Parser;
 use std::time::Duration;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::SoapySinkBuilder;
@@ -9,39 +9,53 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-use zigbee::channel_to_freq;
 use zigbee::modulator;
+use zigbee::parse_channel;
 use zigbee::IqDelay;
 use zigbee::Mac;
 
-fn main() -> Result<()> {
-    let matches = Command::new("ZigBee Transmitter")
-        .arg(
-            Arg::new("channel")
-                .short('c')
-                .long("channel")
-                .takes_value(true)
-                .value_name("CHANNEL")
-                .default_value("26")
-                .help("Channel (11..=26)."),
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+#[clap(version)]
+struct Args {
+    /// Antenna
+    #[clap(short, long)]
+    antenna: Option<String>,
+    /// Soapy Filter
+    #[clap(short, long)]
+    filter: Option<String>,
+    /// Gain
+    #[clap(short, long, default_value_t = 60.0)]
+    gain: f64,
+    /// Sample Rate
+    #[clap(short, long, default_value_t = 4e6)]
+    sample_rate: f64,
+    /// Zigbee Channel Number (11..26)
+    #[clap(id = "channel", short, long, value_parser = parse_channel, default_value = "26")]
+    freq: f64,
+}
 
-    let channel: u32 = matches.value_of_t("channel").context("invalid channel")?;
-    let freq = channel_to_freq(channel)?;
+fn main() -> Result<()> {
+    let args = Args::parse();
+    println!("Configuration: {:?}", args);
 
     let mut fg = Flowgraph::new();
 
     let mac = fg.add_block(Mac::new());
     let modulator = fg.add_block(modulator());
     let iq_delay = fg.add_block(IqDelay::new());
-    let soapy_snk = fg.add_block(
-        SoapySinkBuilder::new()
-            .freq(freq)
-            .sample_rate(4e6)
-            .gain(28.0)
-            .build(),
-    );
+
+    let mut soapy = SoapySinkBuilder::new()
+        .freq(args.freq)
+        .sample_rate(args.sample_rate)
+        .gain(args.gain);
+    if let Some(a) = args.antenna {
+        soapy = soapy.antenna(a);
+    }
+    if let Some(f) = args.filter {
+        soapy = soapy.filter(f);
+    }
+
+    let soapy_snk = fg.add_block(soapy.build());
 
     fg.connect_stream(mac, "out", modulator, "in")?;
     fg.connect_stream(modulator, "out", iq_delay, "in")?;
