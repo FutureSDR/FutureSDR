@@ -27,7 +27,7 @@ impl FileSource {
 
         Block::new(
             BlockMetaBuilder::new("FileSource").build(),
-            StreamIoBuilder::new().add_output("out", 4).build(),
+            StreamIoBuilder::new().add_output::<f32>("out").build(),
             MessageIoBuilder::new().build(),
             FileSource {
                 src: Box::new(source.convert_samples()),

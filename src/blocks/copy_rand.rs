@@ -24,8 +24,8 @@ impl<T: Send + 'static> CopyRand<T> {
         Block::new(
             BlockMetaBuilder::new("CopyRand").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .add_output("out", std::mem::size_of::<T>())
+                .add_input::<T>("in")
+                .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             CopyRand::<T> {

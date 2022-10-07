@@ -41,9 +41,7 @@ impl<T: Send + 'static> TagDebug<T> {
     pub fn new(name: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("TagDebug").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             TagDebug::<T> {
                 _type: std::marker::PhantomData,

@@ -48,8 +48,8 @@ where
         Ok(Block::new(
             BlockMetaBuilder::new("Zynq").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<I>())
-                .add_output("out", std::mem::size_of::<O>())
+                .add_input::<I>("in")
+                .add_output::<O>("out")
                 .build(),
             MessageIoBuilder::<Zynq<I, O>>::new().build(),
             Zynq {

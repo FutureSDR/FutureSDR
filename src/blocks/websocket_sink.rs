@@ -47,9 +47,7 @@ impl<T: Send + Sync + 'static> WebsocketSink<T> {
     pub fn new(port: u32, mode: WebsocketSinkMode) -> Block {
         Block::new(
             BlockMetaBuilder::new("WebsocketSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::<Self>::new().build(),
             WebsocketSink {
                 port,

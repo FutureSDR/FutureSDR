@@ -48,9 +48,7 @@ impl<T: Send + 'static> FileSource<T> {
     pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> Block {
         Block::new(
             BlockMetaBuilder::new("FileSource").build(),
-            StreamIoBuilder::new()
-                .add_output("out", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             FileSource::<T> {
                 file_name: file_name.into(),

@@ -49,8 +49,8 @@ impl<T: MovingAverageType + Send + 'static> MovingAverage<T> {
         Block::new(
             BlockMetaBuilder::new("MovingAverage").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .add_output("out", std::mem::size_of::<T>())
+                .add_input::<T>("in")
+                .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {

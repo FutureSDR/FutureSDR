@@ -1,5 +1,4 @@
 use std::cmp;
-use std::mem;
 use std::ptr;
 
 use crate::anyhow::Result;
@@ -23,9 +22,7 @@ impl<T: Send + 'static> VectorSource<T> {
     pub fn new(items: Vec<T>) -> Block {
         Block::new(
             BlockMetaBuilder::new("VectorSource").build(),
-            StreamIoBuilder::new()
-                .add_output("out", mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             VectorSource { items, n_copied: 0 },
         )

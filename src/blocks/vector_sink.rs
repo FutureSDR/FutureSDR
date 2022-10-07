@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::mem;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -21,9 +20,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
     pub fn new(capacity: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("VectorSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::<Self>::new().build(),
             VectorSink {
                 items: Vec::<T>::with_capacity(capacity),

@@ -26,9 +26,7 @@ impl<T: Send + 'static> NullSink<T> {
     pub fn new(probe_granularity: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("LTTngNullSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             NullSink::<T> {
                 n_received: 0,

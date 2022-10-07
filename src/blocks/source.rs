@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -48,9 +46,7 @@ where
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Source").build(),
-            StreamIoBuilder::new()
-                .add_output("out", mem::size_of::<A>())
-                .build(),
+            StreamIoBuilder::new().add_output::<A>("out").build(),
             MessageIoBuilder::<Self>::new().build(),
             Source {
                 f,

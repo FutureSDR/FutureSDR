@@ -195,8 +195,8 @@ impl Topology {
             .stream_input_name_to_id(dst_port)
             .context("invalid dst port name")?;
 
-        if sp.item_size() != dp.item_size() {
-            bail!("item sizes do not match");
+        if sp.type_id() != dp.type_id() {
+            bail!("item types do not match");
         }
 
         let buffer_entry = BufferBuilderEntry {

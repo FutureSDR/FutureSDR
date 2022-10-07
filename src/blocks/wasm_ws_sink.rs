@@ -64,9 +64,7 @@ impl<T: Send + Sync + 'static> WasmWsSink<T> {
 
         Block::new(
             BlockMetaBuilder::new("WasmWsSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::<Self>::new().build(),
             WasmWsSink {
                 data_sender: sender,

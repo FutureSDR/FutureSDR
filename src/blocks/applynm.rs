@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -64,8 +62,8 @@ where
         Block::new(
             BlockMetaBuilder::new(format!("ApplyNM {} {}", N, M)).build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<A>())
-                .add_output("out", mem::size_of::<B>())
+                .add_input::<A>("in")
+                .add_output::<B>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             ApplyNM {

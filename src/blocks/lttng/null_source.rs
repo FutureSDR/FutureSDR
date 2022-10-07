@@ -27,9 +27,7 @@ impl<T: Send + 'static> NullSource<T> {
     pub fn new(probe_granularity: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("LTTngNullSource").build(),
-            StreamIoBuilder::new()
-                .add_output("out", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             NullSource::<T> {
                 probe_granularity,

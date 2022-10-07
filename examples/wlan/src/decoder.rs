@@ -36,9 +36,7 @@ impl Decoder {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("Decoder").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<u8>())
-                .build(),
+            StreamIoBuilder::new().add_input::<u8>("in").build(),
             MessageIoBuilder::new()
                 .add_output("rx_frames")
                 .add_output("rftap")

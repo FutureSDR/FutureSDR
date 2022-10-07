@@ -104,8 +104,8 @@ impl FrameEqualizer {
         Block::new(
             BlockMetaBuilder::new("FrameEqualizer").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<Complex32>())
-                .add_output("out", std::mem::size_of::<u8>())
+                .add_input::<Complex32>("in")
+                .add_output::<u8>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {

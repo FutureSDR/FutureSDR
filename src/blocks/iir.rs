@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -47,8 +45,8 @@ where
         Block::new(
             BlockMetaBuilder::new("Iir").build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<InputType>())
-                .add_output("out", mem::size_of::<OutputType>())
+                .add_input::<InputType>("in")
+                .add_output::<OutputType>("out")
                 .build(),
             MessageIoBuilder::<Iir<InputType, OutputType, TapType, Core>>::new().build(),
             Iir {

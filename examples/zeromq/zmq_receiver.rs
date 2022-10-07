@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let zmq_src = fg.add_block(
-        SubSourceBuilder::new(1)
+        SubSourceBuilder::<u8>::new()
             .address("tcp://127.0.0.1:50001")
             .build(),
     );

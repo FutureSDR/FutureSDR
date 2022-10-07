@@ -1,5 +1,3 @@
-use std::mem::size_of;
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
@@ -25,8 +23,8 @@ impl Keep1InN {
         Block::new(
             BlockMetaBuilder::new("Keep1InN").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<f32>())
-                .add_output("out", size_of::<f32>())
+                .add_input::<f32>("in")
+                .add_output::<f32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {

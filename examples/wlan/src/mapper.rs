@@ -30,8 +30,8 @@ impl Mapper {
         Block::new(
             BlockMetaBuilder::new("Mapper").build(),
             StreamIoBuilder::new()
-                .add_input("in", 1)
-                .add_output("out", std::mem::size_of::<Complex32>())
+                .add_input::<u8>("in")
+                .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Mapper {

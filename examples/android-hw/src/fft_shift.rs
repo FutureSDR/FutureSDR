@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::mem::size_of;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
@@ -23,8 +22,8 @@ impl<T: Copy + Send + 'static> FftShift<T> {
         Block::new(
             BlockMetaBuilder::new("FftShift").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<T>())
-                .add_output("out", size_of::<T>())
+                .add_input::<T>("in")
+                .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self { _p: PhantomData },

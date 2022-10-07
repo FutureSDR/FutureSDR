@@ -37,9 +37,7 @@ impl<T: Send + 'static> NullSource<T> {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("NullSource").build(),
-            StreamIoBuilder::new()
-                .add_output("out", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             NullSource::<T> {
                 _type: std::marker::PhantomData,
@@ -58,7 +56,7 @@ impl<T: Send + 'static> Kernel for NullSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<u8>();
+        let o = sio.output(0).slice_unchecked::<u8>();
         debug_assert_eq!(0, o.len() % std::mem::size_of::<T>());
 
         unsafe {

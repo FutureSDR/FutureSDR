@@ -59,9 +59,7 @@ impl Decoder {
     pub fn new(threshold: u32) -> Block {
         Block::new(
             BlockMetaBuilder::new("Decoder").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<f32>())
-                .build(),
+            StreamIoBuilder::new().add_input::<f32>("in").build(),
             MessageIoBuilder::<Self>::new().add_output("out").build(),
             Self {
                 threshold,

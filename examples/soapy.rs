@@ -1,12 +1,10 @@
-use std::mem::size_of;
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::SoapySourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::num_complex::Complex;
+use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -54,8 +52,8 @@ impl ComplexToMag {
         Block::new(
             BlockMetaBuilder::new("ComplexToMag").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<Complex<f32>>())
-                .add_output("out", size_of::<f32>())
+                .add_input::<Complex32>("in")
+                .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {},
@@ -72,7 +70,7 @@ impl Kernel for ComplexToMag {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<Complex<f32>>();
+        let i = sio.input(0).slice::<Complex32>();
         let o = sio.output(0).slice::<f32>();
 
         let n = std::cmp::min(i.len(), o.len());

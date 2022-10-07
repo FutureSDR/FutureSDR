@@ -19,9 +19,7 @@ impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
     pub fn new(sep: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ConsoleSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             ConsoleSink::<T> {
                 sep: sep.into(),

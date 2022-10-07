@@ -22,8 +22,8 @@ impl<T: Send + 'static> Copy<T> {
         Block::new(
             BlockMetaBuilder::new("Copy").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .add_output("out", std::mem::size_of::<T>())
+                .add_input::<T>("in")
+                .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             Copy::<T> {
@@ -43,8 +43,8 @@ impl<T: Send + 'static> Kernel for Copy<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
-        let o = sio.output(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
+        let o = sio.output(0).slice_unchecked::<u8>();
         let item_size = std::mem::size_of::<T>();
 
         let m = cmp::min(i.len(), o.len());

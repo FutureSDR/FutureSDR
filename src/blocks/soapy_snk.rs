@@ -1,10 +1,9 @@
 use futures::FutureExt;
 use soapysdr::Direction::Tx;
 use std::cmp;
-use std::mem;
 
 use crate::anyhow::{Context, Result};
-use crate::num_complex::Complex;
+use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -86,10 +85,10 @@ impl SoapySink {
         let nchans = chans.len();
         if nchans > 1 {
             for i in 0..nchans {
-                siob = siob.add_input(&format!("in{}", i + 1), mem::size_of::<Complex<f32>>());
+                siob = siob.add_input::<Complex32>(&format!("in{}", i + 1));
             }
         } else {
-            siob = siob.add_input("in", mem::size_of::<Complex<f32>>());
+            siob = siob.add_input::<Complex32>("in");
         }
 
         Block::new(
@@ -252,13 +251,12 @@ unsafe impl Sync for SoapySink {}
 /// # Inputs
 ///
 /// **Message** `freq`: a Pmt::u32 to change the frequency to.
-/// **Stream** `in`: Stream of [`Complex<f32>`] to transmit.
+/// **Stream** `in`: Stream of [`Complex32`] to transmit.
 ///
 /// # Usage
 /// ```no_run
 /// use futuresdr::blocks::SoapySinkBuilder;
 /// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();
 ///

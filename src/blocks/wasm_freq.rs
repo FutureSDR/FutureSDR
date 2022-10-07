@@ -1,4 +1,3 @@
-use std::mem::size_of;
 use wasm_bindgen::prelude::*;
 
 use crate::anyhow::Result;
@@ -24,9 +23,7 @@ impl WasmFreq {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("WasmFreq").build(),
-            StreamIoBuilder::new()
-                .add_input("in", size_of::<f32>())
-                .build(),
+            StreamIoBuilder::new().add_input::<f32>("in").build(),
             MessageIoBuilder::new().build(),
             Self,
         )

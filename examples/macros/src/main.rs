@@ -106,7 +106,7 @@ impl Strange {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("Strange").build(),
-            StreamIoBuilder::new().add_output("foo bar", 1).build(),
+            StreamIoBuilder::new().add_output::<u8>("foo bar").build(),
             MessageIoBuilder::new().build(),
             Self,
         )

@@ -1,7 +1,6 @@
 use rustfft::num_complex::Complex32;
 use rustfft::{self, FftPlanner};
 use std::cmp;
-use std::mem::size_of;
 use std::sync::Arc;
 
 use crate::anyhow::Result;
@@ -75,8 +74,8 @@ impl Fft {
         Block::new(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
-                .add_input("in", size_of::<Complex32>())
-                .add_output("out", size_of::<Complex32>())
+                .add_input::<Complex32>("in")
+                .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::<Fft>::new().build(),
             Fft {

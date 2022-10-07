@@ -32,10 +32,10 @@ impl SyncShort {
         Block::new(
             BlockMetaBuilder::new("SyncShort").build(),
             StreamIoBuilder::new()
-                .add_input("in_sig", std::mem::size_of::<Complex32>())
-                .add_input("in_abs", std::mem::size_of::<Complex32>())
-                .add_input("in_cor", std::mem::size_of::<f32>())
-                .add_output("out", std::mem::size_of::<Complex32>())
+                .add_input::<Complex32>("in_sig")
+                .add_input::<Complex32>("in_abs")
+                .add_input::<f32>("in_cor")
+                .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {

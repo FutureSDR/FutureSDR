@@ -1,10 +1,9 @@
 use futures::FutureExt;
 use soapysdr::Direction::Rx;
 use std::cmp;
-use std::mem;
 
 use crate::anyhow::{Context, Result};
-use crate::num_complex::Complex;
+use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -87,10 +86,10 @@ impl SoapySource {
         let nchans = chans.len();
         if nchans > 1 {
             for i in 0..nchans {
-                siob = siob.add_output(&format!("out{}", i + 1), mem::size_of::<Complex<f32>>());
+                siob = siob.add_output::<Complex32>(&format!("out{}", i + 1));
             }
         } else {
-            siob = siob.add_output("out", mem::size_of::<Complex<f32>>());
+            siob = siob.add_output::<Complex32>("out");
         }
 
         Block::new(
@@ -261,7 +260,6 @@ unsafe impl Sync for SoapySource {}
 /// ```no_run
 /// use futuresdr::blocks::SoapySourceBuilder;
 /// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();
 ///

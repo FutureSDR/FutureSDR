@@ -38,9 +38,7 @@ impl<T: Send + 'static> NullSink<T> {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("NullSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             NullSink::<T> {
                 n_received: 0,
@@ -64,7 +62,7 @@ impl<T: Send + 'static> Kernel for NullSink<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
 
         let n = i.len() / std::mem::size_of::<T>();
         if n > 0 {

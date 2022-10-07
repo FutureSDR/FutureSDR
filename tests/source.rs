@@ -34,7 +34,7 @@ fn source_const_fn() -> Result<()> {
 fn source_mut_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let mut i = 0;
+    let mut i = 0u32;
     let src = fg.add_block(Source::new(move || {
         i += 1;
         i - 1

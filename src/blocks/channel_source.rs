@@ -40,9 +40,7 @@ impl<T: Send + 'static> ChannelSource<T> {
     pub fn new(receiver: Receiver<Box<[T]>>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ChannelSource").build(),
-            StreamIoBuilder::new()
-                .add_output("out", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             ChannelSource::<T> {
                 receiver,

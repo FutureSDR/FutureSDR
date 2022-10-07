@@ -1,5 +1,7 @@
 //! Stream-based Ports
 use futures::channel::mpsc::Sender;
+use std::any::Any;
+use std::any::TypeId;
 use std::fmt;
 use std::mem;
 use std::slice;
@@ -23,6 +25,7 @@ struct CurrentInput {
 pub struct StreamInput {
     name: String,
     item_size: usize,
+    type_id: TypeId,
     reader: Option<BufferReader>,
     current: Option<CurrentInput>,
     tags: Vec<ItemTag>,
@@ -31,10 +34,11 @@ pub struct StreamInput {
 unsafe impl Send for StreamInput {}
 
 impl StreamInput {
-    pub fn new(name: &str, item_size: usize) -> StreamInput {
+    pub fn new<T: Any>(name: &str) -> StreamInput {
         StreamInput {
             name: name.to_string(),
-            item_size,
+            item_size: std::mem::size_of::<T>(),
+            type_id: TypeId::of::<T>(),
             reader: None,
             current: None,
             tags: Vec::new(),
@@ -43,6 +47,10 @@ impl StreamInput {
 
     pub fn item_size(&self) -> usize {
         self.item_size
+    }
+
+    pub fn type_id(&self) -> TypeId {
+        self.type_id
     }
 
     pub fn name(&self) -> &str {
@@ -67,6 +75,11 @@ impl StreamInput {
     }
 
     pub fn slice<T>(&mut self) -> &'static [T] {
+        assert_eq!(self.type_id, TypeId::of::<T>());
+        self.slice_unchecked()
+    }
+
+    pub fn slice_unchecked<T>(&mut self) -> &'static [T] {
         if self.current.is_none() {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
             self.tags = tags;
@@ -88,6 +101,15 @@ impl StreamInput {
     /// # Safety
     /// The block has to be the sole reader for the input buffer.
     pub unsafe fn slice_mut<T>(&mut self) -> &'static mut [T] {
+        assert_eq!(self.type_id, TypeId::of::<T>());
+        self.slice_mut()
+    }
+
+    /// Returns a mutable slice to the input buffer.
+    ///
+    /// # Safety
+    /// The block has to be the sole reader for the input buffer.
+    pub unsafe fn slice_mut_unchecked<T>(&mut self) -> &'static mut [T] {
         let s = self.slice::<T>();
         slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
     }
@@ -136,16 +158,18 @@ impl StreamInput {
 pub struct StreamOutput {
     name: String,
     item_size: usize,
+    type_id: TypeId,
     writer: Option<BufferWriter>,
     tags: Vec<ItemTag>,
     offset: usize,
 }
 
 impl StreamOutput {
-    pub fn new(name: &str, item_size: usize) -> StreamOutput {
+    pub fn new<T: Any>(name: &str) -> StreamOutput {
         StreamOutput {
             name: name.to_string(),
-            item_size,
+            item_size: std::mem::size_of::<T>(),
+            type_id: TypeId::of::<T>(),
             writer: None,
             tags: Vec::new(),
             offset: 0,
@@ -154,6 +178,10 @@ impl StreamOutput {
 
     pub fn item_size(&self) -> usize {
         self.item_size
+    }
+
+    pub fn type_id(&self) -> TypeId {
+        self.type_id
     }
 
     pub fn name(&self) -> &str {
@@ -197,6 +225,11 @@ impl StreamOutput {
     }
 
     pub fn slice<T>(&mut self) -> &'static mut [T] {
+        assert_eq!(self.type_id, TypeId::of::<T>());
+        self.slice_unchecked()
+    }
+
+    pub fn slice_unchecked<T>(&mut self) -> &'static mut [T] {
         let (ptr, len) = self.writer.as_mut().unwrap().bytes();
 
         unsafe {
@@ -372,14 +405,14 @@ impl StreamIoBuilder {
     }
 
     #[must_use]
-    pub fn add_input(mut self, name: &str, item_size: usize) -> StreamIoBuilder {
-        self.inputs.push(StreamInput::new(name, item_size));
+    pub fn add_input<T: Any>(mut self, name: &str) -> StreamIoBuilder {
+        self.inputs.push(StreamInput::new::<T>(name));
         self
     }
 
     #[must_use]
-    pub fn add_output(mut self, name: &str, item_size: usize) -> StreamIoBuilder {
-        self.outputs.push(StreamOutput::new(name, item_size));
+    pub fn add_output<T: Any>(mut self, name: &str) -> StreamIoBuilder {
+        self.outputs.push(StreamOutput::new::<T>(name));
         self
     }
 
@@ -409,11 +442,11 @@ mod tests {
 
     #[test]
     fn stream_connect() {
-        let i = StreamInput::new("foo", 4);
+        let i = StreamInput::new::<f32>("foo");
         assert_eq!(i.name(), "foo");
         assert_eq!(i.item_size(), 4);
 
-        let o = StreamOutput::new("foo", 4);
+        let o = StreamOutput::new::<f32>("foo");
         assert_eq!(o.name(), "foo");
         assert_eq!(o.item_size(), 4);
     }

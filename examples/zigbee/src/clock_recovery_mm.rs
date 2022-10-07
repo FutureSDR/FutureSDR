@@ -32,8 +32,8 @@ impl ClockRecoveryMm {
         Block::new(
             BlockMetaBuilder::new("ClockRecoveryMm").build(),
             StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<f32>())
-                .add_output("out", std::mem::size_of::<f32>())
+                .add_input::<f32>("in")
+                .add_output::<f32>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             Self {

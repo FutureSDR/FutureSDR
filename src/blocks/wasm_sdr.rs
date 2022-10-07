@@ -2,7 +2,6 @@ use futures::channel::mpsc;
 use futures::SinkExt;
 use futures::StreamExt;
 use once_cell::sync::OnceCell;
-use std::mem::size_of;
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
@@ -54,7 +53,7 @@ impl WasmSdr {
         Block::new(
             BlockMetaBuilder::new("WasmSDR").build(),
             StreamIoBuilder::new()
-                .add_output("out", size_of::<Complex32>())
+                .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {

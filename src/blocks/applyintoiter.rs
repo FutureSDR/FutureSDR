@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -36,8 +34,8 @@ where
         Block::new(
             BlockMetaBuilder::new("ApplyIntoIter").build(),
             StreamIoBuilder::new()
-                .add_input("in", mem::size_of::<A>())
-                .add_output("out", mem::size_of::<B::Item>())
+                .add_input::<A>("in")
+                .add_output::<B::Item>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             ApplyIntoIter {

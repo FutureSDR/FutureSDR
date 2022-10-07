@@ -10,22 +10,22 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
-pub struct SubSource {
-    item_size: usize,
+pub struct SubSource<T: Send + 'static> {
     address: String,
     receiver: Option<zmq::Socket>,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl SubSource {
-    pub fn new(item_size: usize, address: impl Into<String>) -> Block {
+impl<T: Send + 'static> SubSource<T> {
+    pub fn new(address: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("SubSource").blocking().build(),
-            StreamIoBuilder::new().add_output("out", item_size).build(),
+            StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             SubSource {
-                item_size,
                 address: address.into(),
                 receiver: None,
+                _type: std::marker::PhantomData::<T>,
             },
         )
     }
@@ -33,7 +33,7 @@ impl SubSource {
 
 #[doc(hidden)]
 #[async_trait]
-impl Kernel for SubSource {
+impl<T: Send + 'static> Kernel for SubSource<T> {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
@@ -41,11 +41,10 @@ impl Kernel for SubSource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<u8>();
-        let mut n_bytes = self.receiver.as_mut().unwrap().recv_into(o, 0)?;
-        n_bytes = std::cmp::min(n_bytes, o.len());
-        debug_assert_eq!(o.len() % self.item_size, 0);
-        let n = n_bytes / self.item_size;
+        let o = sio.output(0).slice_unchecked::<u8>();
+        let n_bytes = self.receiver.as_mut().unwrap().recv_into(o, 0)?;
+        debug_assert_eq!(o.len() % std::mem::size_of::<T>(), 0);
+        let n = n_bytes / std::mem::size_of::<T>();
         debug!("SubSource received {}", n);
         sio.output(0).produce(n);
 
@@ -71,26 +70,32 @@ impl Kernel for SubSource {
 }
 
 /// Build a ZeroMQ [SubSource].
-pub struct SubSourceBuilder {
-    item_size: usize,
+pub struct SubSourceBuilder<T: Send + 'static> {
     address: String,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl SubSourceBuilder {
-    pub fn new(item_size: usize) -> SubSourceBuilder {
+impl<T: Send + 'static> SubSourceBuilder<T> {
+    pub fn new() -> SubSourceBuilder<T> {
         SubSourceBuilder {
-            item_size,
             address: "tcp://*:5555".into(),
+            _type: std::marker::PhantomData,
         }
     }
 
     #[must_use]
-    pub fn address(mut self, address: &str) -> SubSourceBuilder {
+    pub fn address(mut self, address: &str) -> SubSourceBuilder<T> {
         self.address = address.to_string();
         self
     }
 
     pub fn build(self) -> Block {
-        SubSource::new(self.item_size, self.address)
+        SubSource::<T>::new(self.address)
+    }
+}
+
+impl<T: Send + 'static> Default for SubSourceBuilder<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }

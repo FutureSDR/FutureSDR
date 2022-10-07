@@ -48,9 +48,7 @@ impl<T: Send + 'static> FileSink<T> {
     pub fn new<S: Into<String>>(file_name: S) -> Block {
         Block::new(
             BlockMetaBuilder::new("FileSink").build(),
-            StreamIoBuilder::new()
-                .add_input("in", std::mem::size_of::<T>())
-                .build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             FileSink::<T> {
                 file_name: file_name.into(),

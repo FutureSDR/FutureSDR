@@ -44,7 +44,7 @@ impl Encoder {
     pub fn new(default_mcs: Mcs) -> Block {
         Block::new(
             BlockMetaBuilder::new("Encoder").build(),
-            StreamIoBuilder::new().add_output("out", 1).build(),
+            StreamIoBuilder::new().add_output::<u8>("out").build(),
             MessageIoBuilder::new()
                 .add_input("tx", Self::transmit)
                 .build(),

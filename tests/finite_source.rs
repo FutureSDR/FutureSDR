@@ -34,7 +34,7 @@ fn finite_source_const_fn() -> Result<()> {
 fn finite_source_mut_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let mut v = vec![0, 1, 2, 3].into_iter();
+    let mut v = vec![0u32, 1, 2, 3].into_iter();
     let src = fg.add_block(FiniteSource::new(move || v.next()));
     let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build());
 

@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -59,9 +57,9 @@ where
         Block::new(
             BlockMetaBuilder::new("Combine").build(),
             StreamIoBuilder::new()
-                .add_input("in0", mem::size_of::<A>())
-                .add_input("in1", mem::size_of::<B>())
-                .add_output("out", mem::size_of::<C>())
+                .add_input::<A>("in0")
+                .add_input::<B>("in1")
+                .add_output::<C>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
             Combine {
