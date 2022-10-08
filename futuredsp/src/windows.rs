@@ -28,8 +28,8 @@ pub fn bartlett(len: usize) -> Vec<f64> {
     let alpha = (len - 1) as f64 / 2.0;
     (0..len)
         .map(|n| match n as f64 {
-            n if n < alpha => (n as f64) / alpha,
-            n => 2.0 - (n as f64) / alpha,
+            n if n < alpha => n / alpha,
+            n => 2.0 - n / alpha,
         })
         .collect()
 }
