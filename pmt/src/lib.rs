@@ -1,6 +1,7 @@
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt;
 
 mod description;
@@ -49,6 +50,8 @@ pub enum Pmt {
     VecF32(Vec<f32>),
     VecU64(Vec<u64>),
     Blob(Vec<u8>),
+    VecPmt(Vec<Pmt>),
+    MapStrPmt(HashMap<String, Pmt>),
     #[serde(skip)]
     Any(Box<dyn PmtAny>),
 }
@@ -178,5 +181,45 @@ mod test {
         let f3 = Pmt::F32(0.2);
         assert_eq!(f1, f2);
         assert_ne!(f1, f3);
+    }
+
+    #[test]
+    fn vec_pmt() {
+        let vpmt = Pmt::VecPmt(vec![Pmt::U32(1), Pmt::U32(2)]);
+
+        if let Pmt::VecPmt(v) = vpmt {
+            assert_eq!(v[0], Pmt::U32(1));
+            assert_eq!(v[1], Pmt::U32(2));
+        } else {
+            panic!("Not a Pmt::VecPmt");
+        }
+    }
+
+    #[test]
+    fn map_str_pmt() {
+        let u32val = 42;
+        let f64val = 6.02214076e23;
+
+        let msp = Pmt::MapStrPmt(HashMap::from([
+            ("str".to_owned(), Pmt::String("a string".to_owned())),
+            (
+                "submap".to_owned(),
+                Pmt::MapStrPmt(HashMap::from([
+                    ("U32".to_owned(), Pmt::U32(u32val)),
+                    ("F64".to_owned(), Pmt::F64(f64val)),
+                ])),
+            ),
+        ]));
+
+        if let Pmt::MapStrPmt(m) = msp {
+            if let Some(Pmt::MapStrPmt(sm)) = m.get("submap") {
+                assert_eq!(sm.get("U32"), Some(&Pmt::U32(u32val)));
+                assert_eq!(sm.get("F64"), Some(&Pmt::F64(f64val)));
+            } else {
+                panic!("Could not get submap");
+            }
+        } else {
+            panic!("Not a Pmt::MapStrPmt");
+        }
     }
 }
