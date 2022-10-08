@@ -131,8 +131,10 @@ pub enum PmtKind {
     F32,
     F64,
     VecF32,
-    VecF64,
+    VecU64,
     Blob,
+    VecPmt,
+    MapStrPmt,
     Any,
 }
 
