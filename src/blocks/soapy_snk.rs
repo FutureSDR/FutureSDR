@@ -174,8 +174,7 @@ impl Kernel for SoapySink {
         }
 
         // Make a collection of same (minimum) size slices
-        let bufs: Vec<&[Complex<f32>]> =
-            full_bufs.iter().map(|b| &b[0..n]).collect();
+        let bufs: Vec<&[Complex<f32>]> = full_bufs.iter().map(|b| &b[0..n]).collect();
 
         let len = stream.write(&bufs, None, false, 1_000_000)?;
 
