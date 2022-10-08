@@ -1,0 +1,29 @@
+{
+  "name": "futuresdr-frontend",
+  "collaborators": [
+    "FutureSDR Contributors <team@futuresdr.org>"
+  ],
+  "description": "Web Frontend for an Experimental Async SDR Runtime for Heterogeneous Architectures.",
+  "version": "0.0.4",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/futuresdr/futuresdr/"
+  },
+  "files": [
+    "futuresdr_bg.wasm",
+    "futuresdr.js",
+    "futuresdr.d.ts"
+  ],
+  "module": "futuresdr.js",
+  "homepage": "https://www.futuresdr.org",
+  "types": "futuresdr.d.ts",
+  "sideEffects": false,
+  "keywords": [
+    "sdr",
+    "radio",
+    "runtime",
+    "async",
+    "acceleration"
+  ]
+}

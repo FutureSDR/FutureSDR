@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>..:: FutureSDR ::..</title>
+        <link rel="stylesheet" href="/css/futuresdr.css">
+        <link rel="shortcut icon" href="/favicon.png">
+        <script src="/js/mermaid.min.js"></script>
+        <script type="module">
+            import init, {add_slider_u32, add_freq} from "./futuresdr.js"
+
+            const runWasm = async () => {
+                const rustWasm = await init();
+                add_freq("#freq", "ws://127.0.0.1:9001", -100, 0);
+                add_slider_u32("#freq_slider", "http://127.0.0.1:1337", 0, 0, 800000000, 900000000, 1000000);
+            };
+
+            runWasm();
+        </script>
+        <style type="text/css">
+         body {
+             background: url('interface.png');
+             background-position: center;
+             background-repeat: no-repeat;
+             background-size: 100% 100%;
+             color: #666;
+             height: 100vh !important;
+             width: 100vw !important;
+             margin: 0;
+         }
+         #container {
+             width: 100%;
+             heigth: 100%;
+         }
+         canvas {
+             position: absolute;
+             margin-left: 30vw;
+             margin-top: 30vh;
+             display: block;
+             width: 40vw;
+             height: 40vh;
+             z-index: 10;
+         }
+         #freq_slider {
+             margin: 0;
+             font-size: 15px;
+             font-weight: bold;
+             margin-top: 4.3vh;
+             margin-left: auto;
+             margin-right: auto;
+             display: flex;
+         }
+         #freq_slider > div {
+             margin: 0 auto;
+         }
+         #freq_slider input {
+             -webkit-appearance: none;
+             height: 8px;
+             border-radius: 5px;  
+             background: #444;
+             outline: none;
+         }
+         #freq_slider input::-webkit-slider-thumb {
+             -webkit-appearance: none;
+             appearance: none;
+             width: 15px;
+             height: 15px;
+             border-radius: 50%; 
+             background: #17568b;
+             cursor: pointer;
+         }
+         #freq_slider input::-moz-range-thumb {
+             width: 15px;
+             height: 15px;
+             border-radius: 50%;
+             background: #17568b;
+             cursor: pointer;
+         }
+         h1 {
+             display: inline-block;
+             margin: 1.5vh auto;
+             width: 100%;
+             text-align: center;
+             font-size: 6vh;
+         }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="freq"></div>
+            <h1>..:: FutureSDR ::..</h1>
+            <div id="freq_slider"></div>
+        </div>
+    </body>
+</html>
