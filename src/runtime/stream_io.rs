@@ -102,7 +102,7 @@ impl StreamInput {
     /// The block has to be the sole reader for the input buffer.
     pub unsafe fn slice_mut<T>(&mut self) -> &'static mut [T] {
         assert_eq!(self.type_id, TypeId::of::<T>());
-        self.slice_mut()
+        self.slice_mut_unchecked()
     }
 
     /// Returns a mutable slice to the input buffer.
