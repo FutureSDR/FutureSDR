@@ -40,7 +40,7 @@ fn main() -> Result<()> {
         .build();
 
     let soapy_snk = SoapySinkBuilder::new()
-        .device(soapy_dev.clone())
+        .device(soapy_dev)
         .channel(0)
         .channel(1)
         .freq(100e6)

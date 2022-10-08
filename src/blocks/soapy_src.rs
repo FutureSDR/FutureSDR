@@ -24,12 +24,12 @@ use crate::runtime::WorkIo;
 /// Note: the message inputs will only apply to the first channel. (A current PMT limitation)
 ///
 /// # Outputs
-/// * **Stream**: `out`/`outN`: stream/s of [`Complex<f32>`] values
+/// * **Stream**: `out`/`outN`: stream/s of [`Complex32`] values
 ///
 pub struct SoapySource {
     dev: Option<soapysdr::Device>,
     chans: Vec<usize>,
-    stream: Option<soapysdr::RxStream<Complex<f32>>>,
+    stream: Option<soapysdr::RxStream<Complex32>>,
     activate_time: Option<i64>,
     freq: Option<f64>,
     sample_rate: Option<f64>,
@@ -39,32 +39,8 @@ pub struct SoapySource {
 }
 
 impl SoapySource {
-    pub fn new<S>(
-        freq: f64,
-        sample_rate: f64,
-        gain: f64,
-        filter: String,
-        antenna: Option<S>,
-        chans: Vec<usize>,
-        dev: Option<soapysdr::Device>,
-        activate_time: Option<i64>,
-    ) -> Block
-    where
-        S: Into<String>,
-    {
-        Self::new_options(
-            Some(freq),
-            Some(sample_rate),
-            Some(gain),
-            filter,
-            antenna,
-            chans,
-            dev,
-            activate_time,
-        )
-    }
-
-    pub fn new_options<S>(
+    #[allow(clippy::too_many_arguments)]
+    fn new<S>(
         freq: Option<f64>,
         sample_rate: Option<f64>,
         gain: Option<f64>,
@@ -77,7 +53,7 @@ impl SoapySource {
     where
         S: Into<String>,
     {
-        if chans.len() == 0 {
+        if chans.is_empty() {
             chans.push(0);
         }
 
@@ -171,8 +147,7 @@ impl Kernel for SoapySource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let outs = sio.outputs_mut();
-        let bufs: Vec<&mut [Complex<f32>]> =
-            outs.iter_mut().map(|b| b.slice::<Complex<f32>>()).collect();
+        let bufs: Vec<&mut [Complex32]> = outs.iter_mut().map(|b| b.slice::<Complex32>()).collect();
 
         let min_out_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
@@ -205,7 +180,7 @@ impl Kernel for SoapySource {
         let dev = self.dev.as_ref().context("no dev")?;
 
         // Just use the first defined channel until there is a better way
-        let channel = *self.chans.get(0).context("no chan")?;
+        let channel = *self.chans.first().context("no chan")?;
 
         if let Some(freq) = self.freq {
             dev.set_frequency(Rx, channel, freq, ())?;
@@ -220,7 +195,7 @@ impl Kernel for SoapySource {
             dev.set_antenna(Rx, channel, a.as_bytes())?;
         }
 
-        self.stream = Some(dev.rx_stream::<Complex<f32>>(&self.chans)?);
+        self.stream = Some(dev.rx_stream::<Complex32>(&self.chans)?);
         debug!("post rx_stream");
         self.stream
             .as_mut()
@@ -349,7 +324,7 @@ impl SoapySourceBuilder {
 
     /// Build [`SoapySource`]
     pub fn build(self) -> Block {
-        SoapySource::new_options(
+        SoapySource::new(
             self.freq,
             self.sample_rate,
             self.gain,

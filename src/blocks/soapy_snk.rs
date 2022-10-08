@@ -22,13 +22,13 @@ pub(super) static SOAPY_INIT: async_lock::Mutex<()> = async_lock::Mutex::new(())
 /// # Inputs
 /// * **Message**: `freq`: set the SDR's frequency; accepts a [`Pmt::U32`] value
 /// * **Message**: `sample_rate`: set the SDR's sample rate; accepts a [`Pmt::U32`] value
-/// * **Stream**: `in`/`inN`: stream/s of [`Complex<f32>`] values
+/// * **Stream**: `in`/`inN`: stream/s of [`Complex32`] values
 ///
 /// Note: the message inputs will only apply to the first channel. (A current PMT limitation)
 pub struct SoapySink {
     dev: Option<soapysdr::Device>,
     chans: Vec<usize>,
-    stream: Option<soapysdr::TxStream<Complex<f32>>>,
+    stream: Option<soapysdr::TxStream<Complex32>>,
     activate_time: Option<i64>,
     freq: Option<f64>,
     sample_rate: Option<f64>,
@@ -38,32 +38,8 @@ pub struct SoapySink {
 }
 
 impl SoapySink {
-    pub fn new<S>(
-        freq: f64,
-        sample_rate: f64,
-        gain: f64,
-        filter: String,
-        antenna: Option<S>,
-        chans: Vec<usize>,
-        dev: Option<soapysdr::Device>,
-        activate_time: Option<i64>,
-    ) -> Block
-    where
-        S: Into<String>,
-    {
-        Self::new_options(
-            Some(freq),
-            Some(sample_rate),
-            Some(gain),
-            filter,
-            antenna,
-            chans,
-            dev,
-            activate_time,
-        )
-    }
-
-    pub fn new_options<S>(
+    #[allow(clippy::too_many_arguments)]
+    fn new<S>(
         freq: Option<f64>,
         sample_rate: Option<f64>,
         gain: Option<f64>,
@@ -76,7 +52,7 @@ impl SoapySink {
     where
         S: Into<String>,
     {
-        if chans.len() == 0 {
+        if chans.is_empty() {
             chans.push(0);
         }
 
@@ -161,8 +137,7 @@ impl Kernel for SoapySink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let ins = sio.inputs_mut();
-        let full_bufs: Vec<&[Complex<f32>]> =
-            ins.iter_mut().map(|b| b.slice::<Complex<f32>>()).collect();
+        let full_bufs: Vec<&[Complex32]> = ins.iter_mut().map(|b| b.slice::<Complex32>()).collect();
 
         let min_in_len = full_bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
@@ -173,7 +148,7 @@ impl Kernel for SoapySink {
         }
 
         // Make a collection of same (minimum) size slices
-        let bufs: Vec<&[Complex<f32>]> = full_bufs.iter().map(|b| &b[0..n]).collect();
+        let bufs: Vec<&[Complex32]> = full_bufs.iter().map(|b| &b[0..n]).collect();
 
         let len = stream.write(&bufs, None, false, 1_000_000)?;
 
@@ -206,7 +181,7 @@ impl Kernel for SoapySink {
         let dev = self.dev.as_ref().context("no dev")?;
 
         // Just use the first defined channel until there is a better way
-        let channel = *self.chans.get(0).context("no chan")?;
+        let channel = *self.chans.first().context("no chan")?;
 
         if let Some(freq) = self.freq {
             dev.set_frequency(Tx, channel, freq, ())?;
@@ -221,7 +196,7 @@ impl Kernel for SoapySink {
             dev.set_antenna(Tx, channel, a.as_bytes())?;
         }
 
-        self.stream = Some(dev.tx_stream::<Complex<f32>>(&self.chans)?);
+        self.stream = Some(dev.tx_stream::<Complex32>(&self.chans)?);
         self.stream
             .as_mut()
             .context("no stream")?
@@ -346,7 +321,7 @@ impl SoapySinkBuilder {
 
     /// Build [`SoapySink`]
     pub fn build(self) -> Block {
-        SoapySink::new_options(
+        SoapySink::new(
             self.freq,
             self.sample_rate,
             self.gain,
