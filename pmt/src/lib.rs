@@ -2,32 +2,31 @@ use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
-use std::fmt;
 
 mod description;
 pub use description::BlockDescription;
 pub use description::FlowgraphDescription;
 
-pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
+#[typetag::serde(tag = "type")]
+pub trait PmtAny: Any + DynClone + Send + Sync + std::fmt::Debug + 'static {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 dyn_clone::clone_trait_object!(PmtAny);
 
-impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-impl fmt::Debug for Box<dyn PmtAny> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Box<dyn Any>")
-    }
-}
+// Unfortunately, typetag (v0.2) does not support automatic deserialization via
+// #[typetag::serde] on generic impls, so we need to impl the any functions
+// for every instance.
+//
+// #[typetag::serde]
+// impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+//     fn as_any_mut(&mut self) -> &mut dyn Any {
+//         self
+//     }
+// }
 
 impl dyn PmtAny {
     pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
@@ -52,7 +51,6 @@ pub enum Pmt {
     Blob(Vec<u8>),
     VecPmt(Vec<Pmt>),
     MapStrPmt(HashMap<String, Pmt>),
-    #[serde(skip)]
     Any(Box<dyn PmtAny>),
 }
 
@@ -162,6 +160,50 @@ mod test {
         let p2 = Pmt::deserialize(r).unwrap();
 
         assert_eq!(p, p2);
+    }
+
+    #[test]
+    fn pmt_serde_any() {
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        struct TestStruct {
+            a: u32,
+            b: f64,
+            c: (String, u32),
+        }
+
+        // Unfortunately, typetag does not support #[typetag::serde] on generic impls,
+        // so we need to impl the any functions for every instance.
+        #[typetag::serde]
+        impl PmtAny for TestStruct {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn Any {
+                self
+            }
+        }
+
+        let st_pre = TestStruct {
+            a: 1,
+            b: 2.0,
+            c: ("Three".to_owned(), 3),
+        };
+        let pmt_any = Pmt::Any(Box::new(st_pre.clone()));
+
+        let s = serde_json::to_string(&pmt_any).unwrap();
+        // println!("{}", s);
+        let de = serde_json::from_str(&s).unwrap();
+
+        match de {
+            Pmt::Any(de_any) => {
+                if let Some(st_de) = de_any.downcast_ref::<TestStruct>() {
+                    assert_eq!(st_pre, *st_de);
+                } else {
+                    panic!("downcast failed");
+                }
+            }
+            _ => panic!("not Pmt::Any"),
+        }
     }
 
     #[allow(clippy::many_single_char_names)]
