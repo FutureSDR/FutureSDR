@@ -83,7 +83,7 @@ impl<T: Send + 'static> Kernel for Throttle<T> {
         let target_items = (now - self.t_init).as_secs_f64() * self.rate;
         let target_items = target_items.floor() as usize;
 
-        m = cmp::min(m, (target_items - self.n_items) * item_size) as usize;
+        m = cmp::min(m, (target_items - self.n_items) * item_size);
         if m != 0 {
             unsafe {
                 ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);

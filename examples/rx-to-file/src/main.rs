@@ -79,8 +79,8 @@ fn main() -> Result<()> {
                 "cs8" => {
                     let src = fg.add_block(FileSource::<Complex<i8>>::new(input, false));
                     let typecvt = fg.add_block(Apply::new(|i: &Complex32| Complex {
-                        re: i.re as f32 / 127.,
-                        im: i.im as f32 / 127.,
+                        re: i.re / 127.,
+                        im: i.im / 127.,
                     }));
                     fg.connect_stream(src, "out", typecvt, "in")?;
                     typecvt

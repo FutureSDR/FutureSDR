@@ -36,7 +36,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration {:?}", args);
 
-    let file_rate = args.file_rate as u32;
+    let file_rate = args.file_rate;
 
     let audio_rate = if let Some(r) = args.audio_rate {
         r

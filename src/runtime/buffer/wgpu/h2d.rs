@@ -129,7 +129,7 @@ impl BufferWriterHost for WriterH2D {
 
         unsafe {
             let buffer = self.buffer.as_mut().unwrap();
-            let capacity = (buffer.buffer.buffer.len()) as usize / self.item_size;
+            let capacity = buffer.buffer.buffer.len() / self.item_size;
             let ret = buffer.buffer.buffer.as_mut_ptr();
             (
                 ret.add(buffer.offset * self.item_size),
@@ -141,7 +141,7 @@ impl BufferWriterHost for WriterH2D {
     fn produce(&mut self, amount: usize, _tags: Vec<ItemTag>) {
         debug!("H2D writer called produce {}", amount);
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity = (buffer.buffer.buffer.len()) as usize / self.item_size;
+        let capacity = buffer.buffer.buffer.len() / self.item_size;
 
         debug_assert!(amount + buffer.offset <= capacity);
         buffer.offset += amount;
