@@ -2,37 +2,76 @@ use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt;
 
 mod description;
 pub use description::BlockDescription;
 pub use description::FlowgraphDescription;
 
-#[typetag::serde(tag = "type")]
-pub trait PmtAny: Any + DynClone + Send + Sync + std::fmt::Debug + 'static {
+pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 dyn_clone::clone_trait_object!(PmtAny);
 
-// Unfortunately, typetag (v0.2) does not support automatic deserialization via
-// #[typetag::serde] on generic impls, so we need to impl the any functions
-// for every instance.
-//
-// #[typetag::serde]
-// impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-//     fn as_any_mut(&mut self) -> &mut dyn Any {
-//         self
-//     }
-// }
+impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 impl dyn PmtAny {
     pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
     }
     pub fn downcast_mut<T: PmtAny>(&mut self) -> Option<&mut T> {
+        (*self).as_any_mut().downcast_mut::<T>()
+    }
+}
+
+impl fmt::Debug for Box<dyn PmtAny> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Box<dyn Any>")
+    }
+}
+
+/// A serializable version of [PmtAny]
+///
+/// This functionality is provided by the typetag crate.
+///
+/// Unfortunately, typetag (v0.2) does not support automatic deserialization
+/// traits via `#[typetag::serde]` on generic impls, so we need to impl the
+/// `Any` functions for every type that will be used with [Pmt::AnySerde].
+///
+/// E.g.:
+/// ```no_run
+/// struct MyStruct(u32);
+///
+/// #[typetag::serde]
+/// impl PmtAnySerde for MyStruct {
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///     fn as_any_mut(&mut self) -> &mut dyn Any {
+///         self
+///     }
+/// }
+/// ```
+#[typetag::serde(tag = "type")]
+pub trait PmtAnySerde: Any + DynClone + Send + Sync + std::fmt::Debug + 'static {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+dyn_clone::clone_trait_object!(PmtAnySerde);
+
+impl dyn PmtAnySerde {
+    pub fn downcast_ref<T: PmtAnySerde>(&self) -> Option<&T> {
+        (*self).as_any().downcast_ref::<T>()
+    }
+    pub fn downcast_mut<T: PmtAnySerde>(&mut self) -> Option<&mut T> {
         (*self).as_any_mut().downcast_mut::<T>()
     }
 }
@@ -51,7 +90,9 @@ pub enum Pmt {
     Blob(Vec<u8>),
     VecPmt(Vec<Pmt>),
     MapStrPmt(HashMap<String, Pmt>),
+    #[serde(skip)]
     Any(Box<dyn PmtAny>),
+    AnySerde(Box<dyn PmtAnySerde>),
 }
 
 impl PartialEq for Pmt {
@@ -163,7 +204,7 @@ mod test {
     }
 
     #[test]
-    fn pmt_serde_any() {
+    fn pmt_any_serde() {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         struct TestStruct {
             a: u32,
@@ -174,7 +215,7 @@ mod test {
         // Unfortunately, typetag does not support #[typetag::serde] on generic impls,
         // so we need to impl the any functions for every instance.
         #[typetag::serde]
-        impl PmtAny for TestStruct {
+        impl PmtAnySerde for TestStruct {
             fn as_any(&self) -> &dyn Any {
                 self
             }
@@ -188,21 +229,21 @@ mod test {
             b: 2.0,
             c: ("Three".to_owned(), 3),
         };
-        let pmt_any = Pmt::Any(Box::new(st_pre.clone()));
+        let pmt_any = Pmt::AnySerde(Box::new(st_pre.clone()));
 
         let s = serde_json::to_string(&pmt_any).unwrap();
         // println!("{}", s);
         let de = serde_json::from_str(&s).unwrap();
 
         match de {
-            Pmt::Any(de_any) => {
+            Pmt::AnySerde(de_any) => {
                 if let Some(st_de) = de_any.downcast_ref::<TestStruct>() {
                     assert_eq!(st_pre, *st_de);
                 } else {
                     panic!("downcast failed");
                 }
             }
-            _ => panic!("not Pmt::Any"),
+            _ => panic!("not Pmt::AnySerde"),
         }
     }
 
