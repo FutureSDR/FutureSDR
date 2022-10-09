@@ -107,6 +107,9 @@ impl PartialEq for Pmt {
             (Pmt::VecF32(x), Pmt::VecF32(y)) => x == y,
             (Pmt::VecU64(x), Pmt::VecU64(y)) => x == y,
             (Pmt::Blob(x), Pmt::Blob(y)) => x == y,
+            (Pmt::VecPmt(x), Pmt::VecPmt(y)) => x == y,
+            (Pmt::MapStrPmt(x), Pmt::MapStrPmt(y)) => x == y,
+            //How to handle Any?
             _ => false,
         }
     }
@@ -266,6 +269,10 @@ mod test {
         let f3 = Pmt::F32(0.2);
         assert_eq!(f1, f2);
         assert_ne!(f1, f3);
+
+        // How to handle this?
+        // let pa = Pmt::Any(Box::new((1, 2, 3)));
+        // assert_eq!(pa, pa);
     }
 
     #[test]
