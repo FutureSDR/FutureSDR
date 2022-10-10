@@ -70,7 +70,7 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
         debug_assert_eq!(i.len() % size_of::<T>(), 0);
 
         if sio.input(0).finished() {

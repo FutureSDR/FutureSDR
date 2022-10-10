@@ -60,7 +60,7 @@ impl<T: Send + 'static> Kernel for Delay<T> {
         match self.state {
             State::Pad(n) => {
                 let m = std::cmp::min(o.len(), n);
-                let o = sio.output(0).slice::<u8>();
+                let o = sio.output(0).slice_unchecked::<u8>();
                 o[0..m * std::mem::size_of::<T>()].fill(0);
                 sio.output(0).produce(m);
 
