@@ -11,7 +11,7 @@ use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
-use crate::anyhow::{bail, Context, Result};
+use crate::anyhow::{Context, Result};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;
@@ -281,6 +281,7 @@ async fn run_flowgraph<S: Scheduler>(
     // main loop
     loop {
         if active_blocks == 0 {
+            debug!("No active blocks, exiting.");
             break;
         }
 
@@ -353,6 +354,7 @@ async fn run_flowgraph<S: Scheduler>(
                 .unwrap();
             }
             FlowgraphMessage::Terminate => {
+                debug!("FlowgraphMessage::Terminate");
                 for (_, opt) in inboxes.iter_mut() {
                     if let Some(ref mut chan) = opt {
                         if chan.send(BlockMessage::Terminate).await.is_err() {
@@ -360,7 +362,6 @@ async fn run_flowgraph<S: Scheduler>(
                         }
                     }
                 }
-                bail!("Flowgraph was terminated");
             }
             _ => warn!("main loop received unhandled message"),
         }

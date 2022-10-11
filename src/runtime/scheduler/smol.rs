@@ -70,7 +70,9 @@ impl SmolScheduler {
                         debug!("starting executor thread on core id {}", &c.id);
                         core_affinity::set_for_current(c);
                     }
-                    async_io::block_on(e.run(receiver)).unwrap();
+                    if let Err(e) = async_io::block_on(e.run(receiver)) {
+                        debug!("receiver error, exiting: {:?}", e);
+                    }
                 })
                 .expect("failed to spawn executor thread");
 

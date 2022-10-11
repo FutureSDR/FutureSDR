@@ -59,12 +59,15 @@ fn fg_terminate() -> Result<()> {
     fg.connect_stream(null_source, "out", throttle, "in")?;
     fg.connect_stream(throttle, "out", null_sink, "in")?;
 
+    // This one-line code form deadlocks:
+    // let (task, mut fg_handle) = block_on(Runtime::new().start(fg));
     let rt = Runtime::new();
-    let (fg, mut handle) = block_on(rt.start(fg));
+    let (task, mut fg_handle) = block_on(rt.start(fg));
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
-        handle.terminate().await.unwrap();
-        let _ = fg.await;
+        fg_handle.terminate().await.unwrap();
+        // let _ = task.await;
+        let _ = task.await.unwrap();
     });
 
     Ok(())
