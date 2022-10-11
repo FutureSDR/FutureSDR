@@ -39,6 +39,7 @@ pub mod blocks;
 pub mod runtime;
 
 // re-exports
+pub use anyhow;
 #[cfg(not(target_arch = "wasm32"))]
 pub use async_io;
 #[cfg(not(target_arch = "wasm32"))]
@@ -54,7 +55,7 @@ pub mod macros {
     pub use futuresdr_macros::connect;
     pub use futuresdr_macros::message_handler;
 }
-
-pub use anyhow;
 pub use num_complex;
 pub use num_integer;
+#[cfg(feature = "soapy")]
+pub use soapysdr;
