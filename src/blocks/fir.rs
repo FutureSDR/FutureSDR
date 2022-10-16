@@ -122,11 +122,11 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, _>([1.0, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, f32, _>(&[1.0, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, _>(vec![1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, [f32; 3]>([1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, f32, _>(&[1.0f32, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, f32, Vec<f32>>(vec![1.0, 2.0, 3.0]));
 ///
-/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, f32, _>(3, 2, vec![1.0, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]));
 /// ```
 pub struct FirBuilder {
     //
