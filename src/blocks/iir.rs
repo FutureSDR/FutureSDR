@@ -128,7 +128,7 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let iir = fg.add_block(IirBuilder::new::<f32, f32, f32, _>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
+/// let iir = fg.add_block(IirBuilder::new::<f32, f32, f32, [f32; 3]>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
 /// ```
 pub struct IirBuilder {
     //
