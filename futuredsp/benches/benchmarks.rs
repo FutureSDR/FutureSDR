@@ -29,6 +29,23 @@ impl Generatable for Complex<f32> {
     }
 }
 
+impl Generatable for f64 {
+    fn generate() -> Self {
+        let mut rng = rand::thread_rng();
+        rng.gen::<f64>() * 2.0 - 1.0
+    }
+}
+
+impl Generatable for Complex<f64> {
+    fn generate() -> Self {
+        let mut rng = rand::thread_rng();
+        Complex {
+            re: rng.gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            im: rng.gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+        }
+    }
+}
+
 fn bench_fir_dynamic_taps<InputType, OutputType, TapType: Generatable>(
     b: &mut criterion::Bencher,
     ntaps: usize,
@@ -122,14 +139,23 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     group.finish();
 
-    let mut group = c.benchmark_group("iir");
-    group.throughput(criterion::Throughput::Elements(nsamps as u64));
+    let mut group32 = c.benchmark_group("iir32");
+    group32.throughput(criterion::Throughput::Elements(nsamps as u64));
 
-    group.bench_function("iir", |b| {
-        bench_iir(b, 7, 1, nsamps);
+    group32.bench_function("iir32", |b| {
+        bench_iir::<_, _, f32>(b, 7, 1, nsamps);
     });
 
-    group.finish();
+    group32.finish();
+
+    let mut group64 = c.benchmark_group("iir64");
+    group64.throughput(criterion::Throughput::Elements(nsamps as u64));
+
+    group64.bench_function("iir64", |b| {
+        bench_iir::<_, _, f64>(b, 7, 1, nsamps);
+    });
+
+    group64.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);
