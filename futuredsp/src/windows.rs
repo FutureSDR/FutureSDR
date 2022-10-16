@@ -1,8 +1,11 @@
 //! A collection of window functions.
 
 extern crate alloc;
+use core::{ops::{Div, Mul, Sub}, iter::Sum};
+
 use crate::math::special_funs;
 use alloc::vec::Vec;
+use num_traits::{AsPrimitive, Float, One};
 
 /// A rectangular window of a given length.
 ///
@@ -12,8 +15,8 @@ use alloc::vec::Vec;
 ///
 /// let taps = windows::rect(64);
 /// ```
-pub fn rect(len: usize) -> Vec<f64> {
-    vec![1.0; len]
+pub fn rect<T: Float + One>(len: usize) -> Vec<T> {
+    vec![T::one(); len]
 }
 
 /// A Bartlett window of a given length.
@@ -24,12 +27,16 @@ pub fn rect(len: usize) -> Vec<f64> {
 ///
 /// let taps = windows::bartlett(38);
 /// ```
-pub fn bartlett(len: usize) -> Vec<f64> {
-    let alpha = (len - 1) as f64 / 2.0;
+pub fn bartlett<T>(len: usize) -> Vec<T>
+where
+    T: Float + Sub<T> + Div<Output = T> + AsPrimitive<T> + From<f32>,
+    usize: AsPrimitive<T>,
+{
+    let alpha = (len - 1).as_() / <T as From<f32>>::from(2.0f32);
     (0..len)
-        .map(|n| match n as f64 {
+        .map(|n| match n.as_() {
             n if n < alpha => n / alpha,
-            n => 2.0 - n / alpha,
+            n => <T as From<f32>>::from(2.0) - n / alpha,
         })
         .collect()
 }
@@ -50,19 +57,23 @@ pub fn bartlett(len: usize) -> Vec<f64> {
 ///
 /// let taps = windows::gen_cos(38, &[0.1, 0.2], false);
 /// ```
-pub fn gen_cos(len: usize, coeffs: &[f64], periodic: bool) -> Vec<f64> {
+pub fn gen_cos<T>(len: usize, coeffs: &[T], periodic: bool) -> Vec<T>
+where
+    T: Float + Mul<Output=T> + From<f32> + Sum + 'static,
+    usize: AsPrimitive<T>,
+{
     let (len, truncate) = match periodic {
         true => (len + 1, true),
         false => (len, false),
     };
-    let alpha = (len - 1) as f64 / 2.0;
-    let mut taps: Vec<f64> = (0..len)
+    let alpha = <T as From<f32>>::from((len - 1) as f32 / 2.0f32);
+    let mut taps: Vec<T> = (0..len)
         .map(|n| {
             (0..coeffs.len())
                 .map(|k| {
-                    (-1.0f64).powi(k as i32)
+                    <T as From<f32>>::from(-1.0).powi(k as i32)
                         * coeffs[k]
-                        * (core::f64::consts::PI * ((k * n) as f64) / alpha).cos()
+                        * (<T as From<f32>>::from(core::f32::consts::PI) * ((k * n).as_()) / alpha).cos()
                 })
                 .sum()
         })
@@ -198,7 +209,7 @@ mod tests {
             0.054054054054054,
             0.000000000000000,
         ]; // Computed using MATLAB bartlett()
-        let window = bartlett(n_taps);
+        let window = bartlett::<f32>(n_taps);
         for (i, tap) in test_taps.iter().enumerate() {
             let tol = 1e-5;
             assert!(

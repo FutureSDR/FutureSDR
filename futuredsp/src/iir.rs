@@ -1,7 +1,10 @@
+use core::ops::{Mul, AddAssign};
+
 use crate::{ComputationStatus, StatefulUnaryKernel, TapsAccessor};
 
 extern crate alloc;
 use alloc::vec::Vec;
+use num_traits::Zero;
 
 /// An IIR filter.
 ///
@@ -49,96 +52,119 @@ impl<InputType, OutputType, TapType, TapsType: TapsAccessor<TapType = TapType>>
 impl<TapsType: TapsAccessor<TapType = f32>> StatefulUnaryKernel<f32, f32>
     for IirKernel<f32, f32, TapsType>
 {
-    fn work(&mut self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
-        if i.is_empty() {
-            return (
-                0,
-                0,
-                if o.is_empty() {
-                    ComputationStatus::BothSufficient
-                } else {
-                    ComputationStatus::InsufficientInput
-                },
-            );
-        }
+    fn work(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
+        taps_accessor_work(&mut self.memory, &self.a_taps,&self.b_taps, input, output)
+    }
+}
 
-        // Load the memory with samples
-        let mut num_filled = 0;
-        while self.memory.len() < self.a_taps.num_taps() {
-            if i.len() <= self.memory.len() {
-                return (
-                    0,
-                    0,
-                    if o.is_empty() {
-                        ComputationStatus::BothSufficient
-                    } else {
-                        ComputationStatus::InsufficientInput
-                    },
-                );
-            }
-            self.memory.push(i[self.memory.len()]);
-            num_filled += 1;
-        }
-        if num_filled == i.len() {
-            return (
-                0,
-                0,
-                if o.is_empty() {
-                    ComputationStatus::BothSufficient
-                } else {
-                    ComputationStatus::InsufficientInput
-                },
-            );
-        }
+impl<TapsType: TapsAccessor<TapType = f64>> StatefulUnaryKernel<f64, f64>
+    for IirKernel<f64, f64, TapsType>
+{
+    fn work(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
+        taps_accessor_work(&mut self.memory, &self.a_taps,&self.b_taps, input, output)
+    }
+}
 
-        assert_eq!(self.a_taps.num_taps(), self.memory.len());
-        assert!(self.b_taps.num_taps() > 0);
-
-        let mut n_consumed = 0;
-        let mut n_produced = 0;
-        while n_consumed + self.b_taps.num_taps() - 1 < i.len() && n_produced < o.len() {
-            let o: &mut f32 = &mut o[n_produced];
-
-            *o = 0.0;
-
-            // Calculate the intermediate value
-            for b_tap in 0..self.b_taps.num_taps() {
-                // Safety: We're iterating only up to the # of taps in B
-                *o += unsafe { self.b_taps.get(b_tap) }
-                    * i[n_consumed + self.b_taps.num_taps() - b_tap - 1];
-            }
-
-            // Apply the feedback a taps
-            for a_tap in 0..self.a_taps.num_taps() {
-                // Safety: The iterand is limited to a_taps' length
-                *o += unsafe { self.a_taps.get(a_tap) } * self.memory[a_tap];
-            }
-
-            // Update the memory
-            for idx in 1..self.memory.len() {
-                self.memory[idx] = self.memory[idx - 1];
-            }
-            if !self.memory.is_empty() {
-                self.memory[0] = *o;
-            }
-
-            n_produced += 1;
-            n_consumed += 1;
-        }
-
-        (
-            n_consumed,
-            n_produced,
-            if n_consumed == i.len() && n_produced == o.len() {
+#[inline(always)]
+fn taps_accessor_work<TT, T>(
+    memory: &mut Vec<T>,
+    a_taps: &TT,
+    b_taps: &TT,
+    i: &[T],
+    o: &mut [T],
+) -> (usize, usize, ComputationStatus)
+where
+    TT: TapsAccessor<TapType = T>,
+    T: Copy + AddAssign + Zero + Mul<Output=T>,
+{
+    if i.is_empty() {
+        return (
+            0,
+            0,
+            if o.is_empty() {
                 ComputationStatus::BothSufficient
-            } else if n_consumed < i.len() {
-                ComputationStatus::InsufficientOutput
             } else {
-                assert!(n_produced < o.len());
                 ComputationStatus::InsufficientInput
             },
-        )
+        );
     }
+
+    // Load the memory with samples
+    let mut num_filled = 0;
+    while memory.len() < a_taps.num_taps() {
+        if i.len() <= memory.len() {
+            return (
+                0,
+                0,
+                if o.is_empty() {
+                    ComputationStatus::BothSufficient
+                } else {
+                    ComputationStatus::InsufficientInput
+                },
+            );
+        }
+        memory.push(i[memory.len()]);
+        num_filled += 1;
+    }
+    if num_filled == i.len() {
+        return (
+            0,
+            0,
+            if o.is_empty() {
+                ComputationStatus::BothSufficient
+            } else {
+                ComputationStatus::InsufficientInput
+            },
+        );
+    }
+
+    assert_eq!(a_taps.num_taps(), memory.len());
+    assert!(b_taps.num_taps() > 0);
+
+    let mut n_consumed = 0;
+    let mut n_produced = 0;
+    while n_consumed + b_taps.num_taps() - 1 < i.len() && n_produced < o.len() {
+        let o: &mut T = &mut o[n_produced];
+
+        *o = T::zero();
+
+        // Calculate the intermediate value
+        for b_tap in 0..b_taps.num_taps() {
+            // Safety: We're iterating only up to the # of taps in B
+            *o += unsafe { b_taps.get(b_tap) } * i[n_consumed + b_taps.num_taps() - b_tap - 1];
+        }
+
+        // Apply the feedback a taps
+        #[allow(clippy::needless_range_loop)]
+        for a_tap in 0..a_taps.num_taps() {
+            // Safety: The iterand is limited to a_taps' length
+            *o += unsafe { a_taps.get(a_tap) } * memory[a_tap];
+        }
+
+        // Update the memory
+        for idx in 1..memory.len() {
+            memory[idx] = memory[idx - 1];
+        }
+        if !memory.is_empty() {
+            memory[0] = *o;
+        }
+
+        n_produced += 1;
+        n_consumed += 1;
+    }
+
+    (
+        n_consumed,
+        n_produced,
+        if n_consumed == i.len() && n_produced == o.len() {
+            ComputationStatus::BothSufficient
+        } else if n_consumed < i.len() {
+            ComputationStatus::InsufficientOutput
+        } else {
+            assert!(n_produced < o.len());
+            ComputationStatus::InsufficientInput
+        },
+    )
 }
 
 #[cfg(test)]
