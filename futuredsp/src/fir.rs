@@ -155,18 +155,18 @@ impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<f64, f64>
 #[cfg(not(RUSTC_IS_STABLE))]
 impl<TA: TapsAccessor<TapType = T>> UnaryKernel<Complex<T>, Complex<T>>
     for NonResamplingFirKernel<Complex<T>, Complex<T>, TA, T>
-    where T: Float + Send + Sync + Copy + Zero
+where
+    T: Float + Send + Sync + Copy + Zero,
 {
-    fn work(
-        &self,
-        i: &[Complex<T>],
-        o: &mut [Complex<T>],
-    ) -> (usize, usize, ComputationStatus) {
+    fn work(&self, i: &[Complex<T>], o: &mut [Complex<T>]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
             o,
-            || Complex{im: T::zero(), re: T::zero()},
+            || Complex {
+                im: T::zero(),
+                re: T::zero(),
+            },
             |accum, sample, tap| Complex {
                 re: unsafe { fadd_fast(accum.re, fmul_fast(sample.re, tap)) },
                 im: unsafe { fadd_fast(accum.im, fmul_fast(sample.im, tap)) },
@@ -178,18 +178,18 @@ impl<TA: TapsAccessor<TapType = T>> UnaryKernel<Complex<T>, Complex<T>>
 #[cfg(RUSTC_IS_STABLE)]
 impl<TA: TapsAccessor<TapType = T>, T> UnaryKernel<Complex<T>, Complex<T>>
     for NonResamplingFirKernel<Complex<T>, Complex<T>, TA, T>
-    where T: Float + Send + Sync + Copy + Zero
+where
+    T: Float + Send + Sync + Copy + Zero,
 {
-    fn work(
-        &self,
-        i: &[Complex<T>],
-        o: &mut [Complex<T>],
-    ) -> (usize, usize, ComputationStatus) {
+    fn work(&self, i: &[Complex<T>], o: &mut [Complex<T>]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
             o,
-            || Complex{im: T::zero(), re: T::zero()},
+            || Complex {
+                im: T::zero(),
+                re: T::zero(),
+            },
             |accum, sample, tap| Complex {
                 re: accum.re + sample.re * tap,
                 im: accum.im + sample.im * tap,
@@ -200,18 +200,18 @@ impl<TA: TapsAccessor<TapType = T>, T> UnaryKernel<Complex<T>, Complex<T>>
 
 impl<TA: TapsAccessor<TapType = Complex<T>>, T> UnaryKernel<Complex<T>, Complex<T>>
     for NonResamplingFirKernel<Complex<T>, Complex<T>, TA, Complex<T>>
-    where T: Float + Send + Sync + Copy + Zero
+where
+    T: Float + Send + Sync + Copy + Zero,
 {
-    fn work(
-        &self,
-        i: &[Complex<T>],
-        o: &mut [Complex<T>],
-    ) -> (usize, usize, ComputationStatus) {
+    fn work(&self, i: &[Complex<T>], o: &mut [Complex<T>]) -> (usize, usize, ComputationStatus) {
         fir_kernel_core(
             &self.taps,
             i,
             o,
-            || Complex{im: T::zero(), re: T::zero()},
+            || Complex {
+                im: T::zero(),
+                re: T::zero(),
+            },
             |accum, sample, tap| accum + sample * tap,
         )
     }
@@ -374,7 +374,6 @@ impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
     }
 }
 
-
 impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<f64, f64>
     for PolyphaseResamplingFirKernel<f64, f64, TA, f64>
 {
@@ -413,7 +412,6 @@ impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<Complex<f64>, Complex<f64>>
         )
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -480,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn terminating_condition_f64(){
+    fn terminating_condition_f64() {
         let taps: [f64; 2] = [1.0, 2.0];
         let kernel = NonResamplingFirKernel::new(taps);
 

@@ -16,7 +16,9 @@ pub trait TapsAccessor: Send {
 }
 
 impl<const N: usize, T> TapsAccessor for [Complex<T>; N]
-where T: Float + Send + Sync + Copy {
+where
+    T: Float + Send + Sync + Copy,
+{
     type TapType = Complex<T>;
 
     fn num_taps(&self) -> usize {
@@ -29,8 +31,10 @@ where T: Float + Send + Sync + Copy {
     }
 }
 
-impl<const N: usize, T> TapsAccessor for &[Complex<T>; N] 
-where T: Float + Send + Sync + Copy {
+impl<const N: usize, T> TapsAccessor for &[Complex<T>; N]
+where
+    T: Float + Send + Sync + Copy,
+{
     type TapType = Complex<T>;
 
     fn num_taps(&self) -> usize {
@@ -96,7 +100,9 @@ impl<const N: usize> TapsAccessor for &[f64; N] {
 }
 
 impl<T> TapsAccessor for Vec<T>
-where T: Float + Send + Sync + Copy {
+where
+    T: Float + Send + Sync + Copy,
+{
     type TapType = T;
 
     fn num_taps(&self) -> usize {
