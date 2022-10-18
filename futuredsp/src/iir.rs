@@ -1,4 +1,4 @@
-use core::ops::{Mul, AddAssign};
+use core::ops::{AddAssign, Mul};
 
 use crate::{ComputationStatus, StatefulUnaryKernel, TapsAccessor};
 
@@ -53,7 +53,7 @@ impl<TapsType: TapsAccessor<TapType = f32>> StatefulUnaryKernel<f32, f32>
     for IirKernel<f32, f32, TapsType>
 {
     fn work(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
-        taps_accessor_work(&mut self.memory, &self.a_taps,&self.b_taps, input, output)
+        taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
 }
 
@@ -61,7 +61,7 @@ impl<TapsType: TapsAccessor<TapType = f64>> StatefulUnaryKernel<f64, f64>
     for IirKernel<f64, f64, TapsType>
 {
     fn work(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
-        taps_accessor_work(&mut self.memory, &self.a_taps,&self.b_taps, input, output)
+        taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
 }
 
@@ -75,7 +75,7 @@ fn taps_accessor_work<TT, T>(
 ) -> (usize, usize, ComputationStatus)
 where
     TT: TapsAccessor<TapType = T>,
-    T: Copy + AddAssign + Zero + Mul<Output=T>,
+    T: Copy + AddAssign + Zero + Mul<Output = T>,
 {
     if i.is_empty() {
         return (

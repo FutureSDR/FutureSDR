@@ -1,7 +1,10 @@
 //! A collection of window functions.
 
 extern crate alloc;
-use core::{ops::{Div, Mul, Sub}, iter::Sum};
+use core::{
+    iter::Sum,
+    ops::{Div, Mul, Sub},
+};
 
 use crate::math::special_funs;
 use alloc::vec::Vec;
@@ -59,7 +62,7 @@ where
 /// ```
 pub fn gen_cos<T>(len: usize, coeffs: &[T], periodic: bool) -> Vec<T>
 where
-    T: Float + Mul<Output=T> + From<f32> + Sum + 'static,
+    T: Float + Mul<Output = T> + From<f32> + Sum + 'static,
     usize: AsPrimitive<T>,
 {
     let (len, truncate) = match periodic {
@@ -73,7 +76,8 @@ where
                 .map(|k| {
                     <T as From<f32>>::from(-1.0).powi(k as i32)
                         * coeffs[k]
-                        * (<T as From<f32>>::from(core::f32::consts::PI) * ((k * n).as_()) / alpha).cos()
+                        * (<T as From<f32>>::from(core::f32::consts::PI) * ((k * n).as_()) / alpha)
+                            .cos()
                 })
                 .sum()
         })
