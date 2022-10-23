@@ -14,10 +14,11 @@ pub struct PubSink<T: Send + 'static> {
     address: String,
     publisher: Option<zmq::Socket>,
     _type: std::marker::PhantomData<T>,
+    min_item: usize,
 }
 
 impl<T: Send + 'static> PubSink<T> {
-    pub fn new(address: impl Into<String>) -> Block {
+    pub fn new(address: impl Into<String>, min_item: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
@@ -26,6 +27,7 @@ impl<T: Send + 'static> PubSink<T> {
                 address: address.into(),
                 publisher: None,
                 _type: std::marker::PhantomData::<T>,
+                min_item,
             },
         )
     }
@@ -44,7 +46,7 @@ impl<T: Send + 'static> Kernel for PubSink<T> {
         let i = sio.input(0).slice::<T>();
 
         let n = i.len();
-        if n > 0 {
+        if n > 0 && n > self.min_item {
             let i = sio.input(0).slice_unchecked::<u8>();
             self.publisher.as_mut().unwrap().send(i, 0).unwrap();
             sio.input(0).consume(n);
@@ -77,6 +79,8 @@ impl<T: Send + 'static> Kernel for PubSink<T> {
 pub struct PubSinkBuilder<T: Send + 'static> {
     address: String,
     _type: std::marker::PhantomData<T>,
+    /// Minimum number of items per send
+    min_item: usize,
 }
 
 impl<T: Send + 'static> PubSinkBuilder<T> {
@@ -84,6 +88,7 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
         PubSinkBuilder {
             address: "tcp://*:5555".into(),
             _type: std::marker::PhantomData,
+            min_item: 1,
         }
     }
 
@@ -93,8 +98,13 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
         self
     }
 
+    pub fn min_item_per_send(mut self, min_item: usize) -> PubSinkBuilder<T> {
+        self.min_item = min_item;
+        self
+    }
+
     pub fn build(self) -> Block {
-        PubSink::<T>::new(self.address)
+        PubSink::<T>::new(self.address, self.min_item)
     }
 }
 
