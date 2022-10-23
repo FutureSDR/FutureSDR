@@ -53,6 +53,10 @@ fn main() -> Result<()> {
             .expect("error: unable to read user input");
         input.retain(|c| !c.is_whitespace());
 
+        if input.eq("quit") {
+            break;
+        }
+
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_index) = input.parse::<u32>() {
             println!("Setting source index to {input}");

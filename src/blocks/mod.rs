@@ -190,6 +190,10 @@ mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;
 pub use selector::Selector;
 
+pub mod signal_source;
+pub use signal_source::FixedPointPhase;
+pub use signal_source::SignalSourceBuilder;
+
 mod source;
 pub use source::Source;
 mod split;
