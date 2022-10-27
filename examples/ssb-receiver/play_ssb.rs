@@ -34,7 +34,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration {:?}", args);
+    println!("Configuration {args:?}");
 
     let file_rate = args.file_rate;
 
@@ -44,10 +44,10 @@ fn main() -> Result<()> {
         let mut audio_rates = AudioSink::supported_sample_rates();
         assert!(!audio_rates.is_empty());
         audio_rates.sort_by_key(|a| std::cmp::Reverse(gcd(*a, file_rate)));
-        println!("Supported Audio Rates {:?}", audio_rates);
+        println!("Supported Audio Rates {audio_rates:?}");
         audio_rates[0]
     };
-    println!("Selected Audio Rate {:?}", audio_rate);
+    println!("Selected Audio Rate {audio_rate:?}");
     let mut fg = Flowgraph::new();
 
     let center_freq = args.center_freq;
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     // To be downloaded from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip
     let file_name = args.filename;
     let mut src = FileSource::<Complex32>::new(&file_name, true);
-    src.set_instance_name(format!("File {}", file_name));
+    src.set_instance_name(format!("File {file_name}"));
 
     const FILE_LEVEL_ADJUSTMENT: f32 = 0.0001;
     let mut osc = Complex32::new(1.0, 0.0);
@@ -67,11 +67,11 @@ fn main() -> Result<()> {
         osc *= shift;
         v * osc * FILE_LEVEL_ADJUSTMENT
     });
-    freq_xlating.set_instance_name(format!("freq_xlating {}", center_freq));
+    freq_xlating.set_instance_name(format!("freq_xlating {center_freq}"));
 
     let mut low_pass_filter =
         FirBuilder::new_resampling::<Complex32, Complex32>(audio_rate as usize, file_rate as usize);
-    low_pass_filter.set_instance_name(format!("resampler {} {}", audio_rate, file_rate));
+    low_pass_filter.set_instance_name(format!("resampler {audio_rate} {file_rate}"));
 
     const VOLUME_ADJUSTEMENT: f32 = 0.5;
     const MID_AUDIO_SPECTRUM_FREQ: u32 = 1500;
