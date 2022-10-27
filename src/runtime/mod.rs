@@ -43,6 +43,7 @@ pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
+pub use flowgraph::PortId;
 pub use futuresdr_pmt::Pmt;
 pub use message_io::MessageInput;
 pub use message_io::MessageIo;

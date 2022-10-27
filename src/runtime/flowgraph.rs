@@ -55,15 +55,15 @@ impl Flowgraph {
     pub fn connect_stream(
         &mut self,
         src_block: usize,
-        src_port: &str,
+        src_port: impl Into<PortId>,
         dst_block: usize,
-        dst_port: &str,
+        dst_port: impl Into<PortId>,
     ) -> Result<()> {
         self.topology.as_mut().unwrap().connect_stream(
             src_block,
-            src_port,
+            src_port.into(),
             dst_block,
-            dst_port,
+            dst_port.into(),
             DefaultBuffer::new(),
         )
     }
@@ -71,28 +71,33 @@ impl Flowgraph {
     pub fn connect_stream_with_type<B: BufferBuilder + Debug + Eq + Hash>(
         &mut self,
         src_block: usize,
-        src_port: &str,
+        src_port: impl Into<PortId>,
         dst_block: usize,
-        dst_port: &str,
+        dst_port: impl Into<PortId>,
         buffer: B,
     ) -> Result<()> {
-        self.topology
-            .as_mut()
-            .unwrap()
-            .connect_stream(src_block, src_port, dst_block, dst_port, buffer)
+        self.topology.as_mut().unwrap().connect_stream(
+            src_block,
+            src_port.into(),
+            dst_block,
+            dst_port.into(),
+            buffer,
+        )
     }
 
     pub fn connect_message(
         &mut self,
         src_block: usize,
-        src_port: &str,
+        src_port: impl Into<PortId>,
         dst_block: usize,
-        dst_port: &str,
+        dst_port: impl Into<PortId>,
     ) -> Result<()> {
-        self.topology
-            .as_mut()
-            .unwrap()
-            .connect_message(src_block, src_port, dst_block, dst_port)
+        self.topology.as_mut().unwrap().connect_message(
+            src_block,
+            src_port.into(),
+            dst_block,
+            dst_port.into(),
+        )
     }
 
     pub fn kernel<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
@@ -113,6 +118,29 @@ impl Flowgraph {
 impl Default for Flowgraph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub enum PortId {
+    Index(usize),
+    Name(String),
+}
+
+impl From<usize> for PortId {
+    fn from(item: usize) -> Self {
+        PortId::Index(item)
+    }
+}
+
+impl From<&str> for PortId {
+    fn from(item: &str) -> Self {
+        PortId::Name(item.to_string())
+    }
+}
+
+impl From<String> for PortId {
+    fn from(item: String) -> Self {
+        PortId::Name(item)
     }
 }
 

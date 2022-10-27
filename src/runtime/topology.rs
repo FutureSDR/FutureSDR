@@ -6,6 +6,7 @@ use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
 use crate::runtime::BlockMessage;
+use crate::runtime::PortId;
 use slab::Slab;
 use std::any::{Any, TypeId};
 use std::cmp::{Eq, PartialEq};
@@ -160,9 +161,9 @@ impl Topology {
     pub fn connect_stream<B: BufferBuilder + Debug + Eq + Hash>(
         &mut self,
         src_block: usize,
-        src_port: &str,
+        src_port: PortId,
         dst_block: usize,
-        dst_port: &str,
+        dst_port: PortId,
         buffer_builder: B,
     ) -> Result<()> {
         let src = self
@@ -178,22 +179,33 @@ impl Topology {
             .as_ref()
             .context("dst block not present")?;
 
-        let sp = src
-            .stream_output_name_to_id(src_port)
-            .context("invalid src port name")?;
-        let sp = src.stream_output(sp);
+        let src_port_id = match src_port {
+            PortId::Name(s) => src
+                .stream_output_name_to_id(&s)
+                .context("invalid src port name")?,
+            PortId::Index(i) => {
+                if i < src.message_outputs().len() {
+                    i
+                } else {
+                    bail!("invalid src port id {}", i)
+                }
+            }
+        };
+        let sp = src.stream_output(src_port_id);
 
-        let dp = dst
-            .stream_input_name_to_id(dst_port)
-            .context("invalid dst port name")?;
-        let dp = dst.stream_input(dp);
-
-        let src_port_id = src
-            .stream_output_name_to_id(src_port)
-            .context("invalid src port name")?;
-        let dst_port_id = dst
-            .stream_input_name_to_id(dst_port)
-            .context("invalid dst port name")?;
+        let dst_port_id = match dst_port {
+            PortId::Name(s) => dst
+                .stream_input_name_to_id(&s)
+                .context("invalid dst port name")?,
+            PortId::Index(i) => {
+                if i < dst.stream_inputs().len() {
+                    i
+                } else {
+                    bail!("invalid dst port id {}", i)
+                }
+            }
+        };
+        let dp = dst.stream_input(dst_port_id);
 
         if sp.type_id() != dp.type_id() {
             bail!("item types do not match");
@@ -215,9 +227,9 @@ impl Topology {
     pub fn connect_message(
         &mut self,
         src_block: usize,
-        src_port: &str,
+        src_port: PortId,
         dst_block: usize,
-        dst_port: &str,
+        dst_port: PortId,
     ) -> Result<()> {
         let src = self
             .blocks
@@ -232,12 +244,30 @@ impl Topology {
             .as_ref()
             .context("dst block not present")?;
 
-        let src_port_id = src
-            .message_output_name_to_id(src_port)
-            .context("invalid src port name")?;
-        let dst_port_id = dst
-            .message_input_name_to_id(dst_port)
-            .context("invalid dst port name")?;
+        let src_port_id = match src_port {
+            PortId::Name(s) => src
+                .message_output_name_to_id(&s)
+                .context("invalid src port name")?,
+            PortId::Index(i) => {
+                if i < src.message_outputs().len() {
+                    i
+                } else {
+                    bail!("wrong src port id {}", i)
+                }
+            }
+        };
+        let dst_port_id = match dst_port {
+            PortId::Name(s) => dst
+                .message_input_name_to_id(&s)
+                .context("invalid dst port name")?,
+            PortId::Index(i) => {
+                if i < dst.message_outputs().len() {
+                    i
+                } else {
+                    bail!("wrong dst port id {}", i)
+                }
+            }
+        };
 
         self.message_edges
             .push((src_block, src_port_id, dst_block, dst_port_id));
