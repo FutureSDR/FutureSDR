@@ -99,7 +99,7 @@ pub async fn start_control_port(flowgraph: FlowgraphHandle, custom_routes: Optio
             get_service(service).handle_error(|error: std::io::Error| async move {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Unhandled internal error: {}", error),
+                    format!("Unhandled internal error: {error}"),
                 )
             }),
         );

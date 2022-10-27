@@ -41,7 +41,7 @@ fn base_test(multiplier: usize, buf1_size: usize, buf2_size: usize) -> Result<()
     assert_eq!(v.len(), multiplier * orig.len());
     for (i, v_after) in v.iter().enumerate() {
         let v_before: f32 = orig[i / multiplier];
-        println!("Is {} == {}?", v_before, v_after);
+        println!("Is {v_before} == {v_after}?");
         assert!((v_after - v_before).abs() < f32::EPSILON);
     }
 

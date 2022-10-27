@@ -55,13 +55,13 @@ pub fn flowgraph(c: &mut Criterion) {
 
     group.throughput(criterion::Throughput::Elements(n_samp));
 
-    group.bench_function(format!("overall-{}", n_samp), |b| {
+    group.bench_function(format!("overall-{n_samp}"), |b| {
         b.iter(|| {
             run_fg(black_box(n_samp)).unwrap();
         });
     });
 
-    group.bench_function(format!("run-{}", n_samp), |b| {
+    group.bench_function(format!("run-{n_samp}"), |b| {
         b.iter_custom(|iters: u64| run_fg_timed(black_box(n_samp), black_box(iters)).unwrap());
     });
 

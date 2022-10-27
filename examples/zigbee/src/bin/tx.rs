@@ -36,7 +36,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration: {:?}", args);
+    println!("Configuration: {args:?}");
 
     let mut fg = Flowgraph::new();
 
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
                 .call(
                     0,
                     1,
-                    Pmt::Blob(format!("FutureSDR {}", seq).as_bytes().to_vec()),
+                    Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
                 )
                 .await
                 .unwrap();

@@ -49,7 +49,7 @@ impl BlobToUdp {
                                         assert_eq!(s, v.len());
                                     }
                                     Err(e) => {
-                                        println!("udp error: {:?}", e);
+                                        println!("udp error: {e:?}");
                                         return Err(e.into());
                                     }
                                 }

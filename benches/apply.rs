@@ -15,7 +15,7 @@ pub fn apply(c: &mut Criterion) {
 
     group.throughput(criterion::Throughput::Elements(n_samp as u64));
 
-    group.bench_function(format!("mock-u32-plus-1-{}", n_samp), |b| {
+    group.bench_function(format!("mock-u32-plus-1-{n_samp}"), |b| {
         b.iter(|| {
             let block = Apply::new(|x: &u32| x + 1);
 

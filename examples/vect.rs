@@ -52,7 +52,7 @@ fn main() -> Result<()> {
         assert!((orig[i] - v[i]).abs() < f32::EPSILON);
     }
 
-    println!("flowgraph took {:?}", elapsed);
+    println!("flowgraph took {elapsed:?}");
 
     Ok(())
 }

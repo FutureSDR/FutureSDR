@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let now = time::Instant::now();
     Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
-    println!("flowgraph took {:?}", elapsed);
+    println!("flowgraph took {elapsed:?}");
 
     Ok(())
 }

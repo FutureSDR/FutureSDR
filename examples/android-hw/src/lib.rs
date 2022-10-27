@@ -22,11 +22,11 @@ pub fn run_fg() -> Result<()> {
 
     let mut args = Vec::new();
     if let Ok(s) = env::var("FUTURESDR_usbfs_dir") {
-        args.push(format!("usbfs={}", s));
+        args.push(format!("usbfs={s}"));
     }
 
     if let Ok(s) = env::var("FUTURESDR_usb_fd") {
-        args.push(format!("fd={}", s));
+        args.push(format!("fd={s}"));
     }
 
     let args = args.join(",");

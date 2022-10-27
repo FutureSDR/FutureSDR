@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     info!("starting flowgraph");
     Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
-    info!("flowgraph took {:?}", elapsed);
+    info!("flowgraph took {elapsed:?}");
 
     Ok(())
 }

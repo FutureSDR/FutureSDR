@@ -60,7 +60,7 @@ where
 {
     pub fn new(f: F) -> Block {
         Block::new(
-            BlockMetaBuilder::new(format!("ApplyNM {} {}", N, M)).build(),
+            BlockMetaBuilder::new(format!("ApplyNM {N} {M}")).build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in")
                 .add_output::<B>("out")

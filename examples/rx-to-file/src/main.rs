@@ -86,7 +86,7 @@ fn main() -> Result<()> {
                     typecvt
                 }
                 _ => {
-                    panic!("Unrecognized input format {}", format);
+                    panic!("Unrecognized input format {format}");
                 }
             }
         }
@@ -118,7 +118,7 @@ fn main() -> Result<()> {
             maxmag = norm;
         }
         if last_power_print.elapsed().as_secs_f32() > 2.0 {
-            println!("Average/max signal magnitudes: {:.4}/{:.4}", avgmag, maxmag);
+            println!("Average/max signal magnitudes: {avgmag:.4}/{maxmag:.4}");
             maxmag = 0.0;
             last_power_print = Instant::now();
         }
@@ -149,7 +149,7 @@ fn main() -> Result<()> {
             fg.connect_stream(powermeter, "out", sink, "in")?;
         }
         format => {
-            panic!("Unknown format {}! (known formats: cs8, cf32", format);
+            panic!("Unknown format {format}! (known formats: cs8, cf32)");
         }
     }
 

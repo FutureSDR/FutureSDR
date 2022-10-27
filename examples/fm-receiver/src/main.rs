@@ -55,11 +55,11 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration {:?}", args);
+    println!("Configuration {args:?}");
 
     let sample_rate = args.rate as u32;
     let freq_offset = args.rate / 4.0;
-    println!("Frequency Offset {:?}", freq_offset);
+    println!("Frequency Offset {freq_offset:?}");
 
     let audio_rate = if let Some(r) = args.audio_rate {
         r
@@ -67,10 +67,10 @@ fn main() -> Result<()> {
         let mut audio_rates = AudioSink::supported_sample_rates();
         assert!(!audio_rates.is_empty());
         audio_rates.sort_by_key(|a| std::cmp::Reverse(gcd(*a, sample_rate)));
-        println!("Supported Audio Rates {:?}", audio_rates);
+        println!("Supported Audio Rates {audio_rates:?}");
         audio_rates[0]
     };
-    println!("Selected Audio Rate {:?}", audio_rate);
+    println!("Selected Audio Rate {audio_rate:?}");
 
     let audio_mult = if let Some(m) = args.audio_mult {
         m
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
         }
         m
     };
-    println!("Audio Mult {:?}", audio_mult);
+    println!("Audio Mult {audio_mult:?}");
 
     // Create the `Flowgraph` where the `Block`s will be added later on
     let mut fg = Flowgraph::new();
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
     // Downsample before demodulation
     let interp = (audio_rate * audio_mult) as usize;
     let decim = sample_rate as usize;
-    println!("interp {}   decim {}", interp, decim);
+    println!("interp {interp}   decim {decim}");
     let resamp1 = FirBuilder::new_resampling::<Complex32, Complex32>(interp, decim);
 
     // Demodulation block using the conjugate delay method
@@ -128,7 +128,7 @@ fn main() -> Result<()> {
     // Ideally, this should be a FM de-emphasis filter, but the following works.
     let cutoff = 2_000.0 / (audio_rate * audio_mult) as f64;
     let transition = 10_000.0 / (audio_rate * audio_mult) as f64;
-    println!("cutoff {}   transition {}", cutoff, transition);
+    println!("cutoff {cutoff}   transition {transition}");
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
     let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _, _>(
         1,
@@ -176,14 +176,14 @@ fn main() -> Result<()> {
 
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_freq) = input.parse::<f64>() {
-            println!("Setting frequency to {}", input);
+            println!("Setting frequency to {input}");
             async_io::block_on(handle.call(
                 src,
                 freq_port_id,
                 Pmt::F64(new_freq * 1e6 + freq_offset),
             ))?;
         } else {
-            println!("Input not parsable: {}", input);
+            println!("Input not parsable: {input}");
         }
     }
 }

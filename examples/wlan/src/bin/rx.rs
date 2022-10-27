@@ -45,7 +45,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration: {:?}", args);
+    println!("Configuration: {args:?}");
 
     let mut fg = Flowgraph::new();
 

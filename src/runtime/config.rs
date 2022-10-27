@@ -147,6 +147,6 @@ fn config_parse<T: FromStr>(v: &Value) -> T {
         }
     }
 
-    println!("invalid config value {:?}", v);
+    println!("invalid config value {v:?}");
     panic!();
 }

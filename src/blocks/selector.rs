@@ -87,13 +87,13 @@ where
     pub fn new(drop_policy: DropPolicy) -> Block {
         let mut stream_builder = StreamIoBuilder::new();
         for i in 0..N {
-            stream_builder = stream_builder.add_input::<A>(format!("in{}", i).as_str());
+            stream_builder = stream_builder.add_input::<A>(format!("in{i}").as_str());
         }
         for i in 0..M {
-            stream_builder = stream_builder.add_output::<A>(format!("out{}", i).as_str());
+            stream_builder = stream_builder.add_output::<A>(format!("out{i}").as_str());
         }
         Block::new(
-            BlockMetaBuilder::new(format!("Selector<{}, {}>", N, M)).build(),
+            BlockMetaBuilder::new(format!("Selector<{N}, {M}>")).build(),
             stream_builder.build(),
             MessageIoBuilder::<Self>::new()
                 .add_input(

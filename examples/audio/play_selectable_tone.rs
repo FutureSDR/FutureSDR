@@ -18,7 +18,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration {:?}", args);
+    println!("Configuration {args:?}");
 
     let mut fg = Flowgraph::new();
 
@@ -55,10 +55,10 @@ fn main() -> Result<()> {
 
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_index) = input.parse::<u32>() {
-            println!("Setting source index to {}", input);
+            println!("Setting source index to {input}");
             async_io::block_on(handle.call(selector, input_index_port_id, Pmt::U32(new_index)))?;
         } else {
-            println!("Input not parsable: {}", input);
+            println!("Input not parsable: {input}");
         }
     }
 }

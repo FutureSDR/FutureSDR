@@ -121,7 +121,7 @@ impl Topology {
             (
                 0,
                 block.type_name().to_string(),
-                format!("{}_{}", block.type_name(), 0),
+                format!("{}_0", block.type_name()),
             )
         };
 
@@ -131,7 +131,7 @@ impl Topology {
                 break;
             }
             i += 1;
-            block_name = format!("{}_{}", base_name, i);
+            block_name = format!("{base_name}_{i}");
         }
 
         block.set_instance_name(block_name);

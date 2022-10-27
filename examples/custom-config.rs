@@ -16,7 +16,7 @@ fn c() -> usize {
 
 fn main() {
     let c = config::config();
-    println!("FutureSDR Config: {:?}", c);
+    println!("FutureSDR Config: {c:?}");
 
     if let Some(v) = config::get_value("my") {
         if let Ok(v) = v.try_deserialize::<MyConfig>() {

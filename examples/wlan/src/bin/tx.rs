@@ -45,7 +45,7 @@ const PAD_TAIL: usize = 5000;
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    println!("Configuration: {:?}", args);
+    println!("Configuration: {args:?}");
 
     let mut size = 4096;
     let prefix_in_size = loop {
@@ -117,7 +117,7 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        format!("FutureSDR {seq}").as_bytes().to_vec(),
                         Mcs::Qpsk_1_2,
                     ))),
                 )

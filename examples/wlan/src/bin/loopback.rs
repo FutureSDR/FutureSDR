@@ -166,7 +166,7 @@ fn main() -> Result<()> {
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        format!("FutureSDR {}", seq).as_bytes().to_vec(),
+                        format!("FutureSDR {seq}").as_bytes().to_vec(),
                         Mcs::Qam16_1_2,
                     ))),
                 )

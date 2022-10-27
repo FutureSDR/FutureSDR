@@ -91,7 +91,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
                 Ok(written) => {
                     i += written;
                 }
-                Err(e) => panic!("FileSource: Error reading from file: {:?}", e),
+                Err(e) => panic!("FileSource: Error reading from file: {e:?}"),
             }
         }
 

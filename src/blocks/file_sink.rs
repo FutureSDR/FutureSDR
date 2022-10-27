@@ -78,7 +78,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
             let i = &i[..items * item_size];
             match self.file.as_mut().unwrap().write_all(i).await {
                 Ok(()) => {}
-                Err(e) => panic!("FileSink: writing to {:?} failed: {:?}", self.file_name, e),
+                Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_name),
             }
         }
 

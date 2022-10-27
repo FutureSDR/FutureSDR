@@ -316,7 +316,7 @@ impl Mcs {
             "qam1634" => Ok(Mcs::Qam16_3_4),
             "qam6423" => Ok(Mcs::Qam64_2_3),
             "qam6434" => Ok(Mcs::Qam64_3_4),
-            _ => Err(format!("Invalid MCS {}", s)),
+            _ => Err(format!("Invalid MCS {s}")),
         }
     }
 }

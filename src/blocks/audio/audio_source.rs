@@ -77,7 +77,7 @@ impl Kernel for AudioSource {
                 tx.unbounded_send(data).unwrap();
             },
             move |err| {
-                panic!("cpal stream error {:?}", err);
+                panic!("cpal stream error {err:?}");
             },
         )?;
 

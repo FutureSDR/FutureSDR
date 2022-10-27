@@ -80,7 +80,7 @@ pub fn channel_to_freq(chan: u32) -> Option<f64> {
 pub fn parse_channel(s: &str) -> Result<f64, String> {
     let channel: u32 = s
         .parse()
-        .map_err(|_| format!("`{}` isn't a WLAN channel number", s))?;
+        .map_err(|_| format!("`{s}` isn't a WLAN channel number"))?;
 
-    channel_to_freq(channel).ok_or_else(|| format!("`{}` isn't a WLAN channel number", s))
+    channel_to_freq(channel).ok_or_else(|| format!("`{s}` isn't a WLAN channel number"))
 }

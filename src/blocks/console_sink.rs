@@ -44,7 +44,7 @@ impl<T: Send + 'static + std::fmt::Debug> Kernel for ConsoleSink<T> {
         if !i.is_empty() {
             let s = i
                 .iter()
-                .map(|x| format!("{:?}{}", x, &self.sep))
+                .map(|x| format!("{x:?}{}", &self.sep))
                 .collect::<Vec<String>>()
                 .concat();
             info!("{}", s);

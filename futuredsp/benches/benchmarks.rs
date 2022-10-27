@@ -101,14 +101,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.throughput(criterion::Throughput::Elements(nsamps as u64));
 
     for ntaps in [3, 64] {
+        group.bench_function(format!("fir-{ntaps}tap-dynamic real/real {nsamps}"), |b| {
+            bench_fir_dynamic_taps::<f32, f32, f32>(b, ntaps, nsamps);
+        });
         group.bench_function(
-            format!("fir-{}tap-dynamic real/real {}", ntaps, nsamps),
-            |b| {
-                bench_fir_dynamic_taps::<f32, f32, f32>(b, ntaps, nsamps);
-            },
-        );
-        group.bench_function(
-            format!("fir-{}tap-dynamic complex/real {}", ntaps, nsamps),
+            format!("fir-{ntaps}tap-dynamic complex/real {nsamps}"),
             |b| {
                 bench_fir_dynamic_taps::<Complex<f32>, Complex<f32>, f32>(b, ntaps, nsamps);
             },
@@ -116,10 +113,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     }
 
     // Check some static taps as well
-    group.bench_function(format!("fir-3tap-static complex/real {}", nsamps), |b| {
+    group.bench_function(format!("fir-3tap-static complex/real {nsamps}"), |b| {
         bench_fir_static_taps::<Complex<f32>, Complex<f32>, f32, 3>(b, nsamps);
     });
-    group.bench_function(format!("fir-64tap-static complex/real {}", nsamps), |b| {
+    group.bench_function(format!("fir-64tap-static complex/real {nsamps}"), |b| {
         bench_fir_static_taps::<Complex<f32>, Complex<f32>, f32, 64>(b, nsamps);
     });
 
