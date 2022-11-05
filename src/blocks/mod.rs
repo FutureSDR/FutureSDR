@@ -7,6 +7,7 @@
 //! | [ApplyNM] | Apply a function to each N input samples, producing M output samples. | ✅ |
 //! | [Combine] | Apply a function to combine two streams into one. | ✅ |
 //! | [Filter] | Apply a function, returning an [Option] to allow filtering samples. | ✅ |
+//! | [Sink] | Apply a function to received samples. | ✅ |
 //! | [Source] | Repeatedly apply a function to generate samples. | ✅ |
 //! | [Split] | Apply a function to split a stream. | ✅ |
 //! | [FiniteSource] | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
@@ -194,6 +195,8 @@ pub mod signal_source;
 pub use signal_source::FixedPointPhase;
 pub use signal_source::SignalSourceBuilder;
 
+pub mod sink;
+pub use sink::Sink;
 mod source;
 pub use source::Source;
 mod split;
