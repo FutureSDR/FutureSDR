@@ -70,7 +70,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<u8>();
+        let out = sio.output(0).slice_unchecked::<u8>();
         let item_size = std::mem::size_of::<T>();
 
         debug_assert_eq!(out.len() % item_size, 0);
