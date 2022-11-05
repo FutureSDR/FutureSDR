@@ -13,5 +13,5 @@ name = "zmq-receiver"
 path = "zmq_receiver.rs"
 
 [[bin]]
-name = "zmq-emitter"
-path = "zmq_emitter.rs"
+name = "zmq-sender"
+path = "zmq_sender.rs"
