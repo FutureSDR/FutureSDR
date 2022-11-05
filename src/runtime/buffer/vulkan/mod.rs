@@ -38,7 +38,6 @@ pub struct Broker {
 
 impl Broker {
     pub fn new() -> Broker {
-
         let library = VulkanLibrary::new().unwrap();
         let instance = Instance::new(
             library,
@@ -47,7 +46,7 @@ impl Broker {
                 ..Default::default()
             },
         )
-            .unwrap();
+        .unwrap();
         let device_extensions = DeviceExtensions {
             khr_storage_buffer_storage_class: true,
             ..DeviceExtensions::empty()
