@@ -151,12 +151,28 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
     // Stream connections
     for (src, src_port, dst, dst_port) in stream_connections.into_iter() {
+        let src_port = match src_port.parse::<usize>() {
+            Ok(s) => quote!(#s),
+            Err(_) => quote!(#src_port),
+        };
+        let dst_port = match dst_port.parse::<usize>() {
+            Ok(s) => quote!(#s),
+            Err(_) => quote!(#dst_port),
+        };
         out.extend(quote! {
             #fg.connect_stream(#src, #src_port, #dst, #dst_port)?;
         });
     }
     // Message connections
     for (src, src_port, dst, dst_port) in message_connections.into_iter() {
+        let src_port = match src_port.parse::<usize>() {
+            Ok(s) => quote!(#s),
+            Err(_) => quote!(#src_port),
+        };
+        let dst_port = match dst_port.parse::<usize>() {
+            Ok(s) => quote!(#s),
+            Err(_) => quote!(#dst_port),
+        };
         out.extend(quote! {
             #fg.connect_message(#src, #src_port, #dst, #dst_port)?;
         });
