@@ -46,8 +46,8 @@ impl<T: Send + 'static> Kernel for CopyRand<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
-        let o = sio.output(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
+        let o = sio.output(0).slice_unchecked::<u8>();
         let item_size = std::mem::size_of::<T>();
 
         let mut m = cmp::min(i.len(), o.len());
