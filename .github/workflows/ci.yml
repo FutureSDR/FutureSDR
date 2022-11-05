@@ -129,6 +129,12 @@ jobs:
           command: fmt
           args: --all --manifest-path=examples/cw/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/debug)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=examples/debug/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/firdes)
         uses: actions-rs/cargo@v1
         with:
@@ -336,6 +342,12 @@ jobs:
         with:
           command: clippy
           args: --lib --manifest-path=examples/cw/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy (examples/debug)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --manifest-path=examples/debug/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/firdes)
         uses: actions-rs/cargo@v1

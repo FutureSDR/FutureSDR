@@ -1,0 +1,14 @@
+[package]
+name = "debug"
+version = "0.0.1"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "oscillators"
+path = "oscillators.rs"
+
+[dependencies]
+futuresdr = { path = "../.." }
+

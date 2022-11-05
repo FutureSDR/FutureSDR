@@ -31,6 +31,7 @@ cd ${SCRIPTPATH}/examples/android-hw && cargo fmt --check
 cd ${SCRIPTPATH}/examples/audio && cargo fmt --check
 cd ${SCRIPTPATH}/examples/custom-routes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/cw && cargo fmt --check
+cd ${SCRIPTPATH}/examples/debug && cargo fmt --check
 cd ${SCRIPTPATH}/examples/firdes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo fmt --check
 cd ${SCRIPTPATH}/examples/logging && cargo fmt --check
@@ -76,6 +77,7 @@ cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/debug && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
@@ -116,6 +118,7 @@ cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/debug && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
