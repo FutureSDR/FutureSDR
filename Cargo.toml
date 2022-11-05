@@ -101,7 +101,7 @@ console_log = "0.2.0"
 cpal = { version = "0.14.1", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.2.3", features = ["js"] }
 gloo-net = {version = "0.2.2", default-features = false, features = ["websocket", "json"]}
-rodio = { version = "0.15.0", default-features = false, optional = true }
+rodio = { version = "0.16.0", default-features = false, optional = true }
 wasm-bindgen = "0.2.79"
 wasm-bindgen-futures = "0.4.28"
 
@@ -112,7 +112,7 @@ async-io = "1.6.0"
 async-lock = "2.5.0"
 async-net = "1.5.0"
 async-task = "4.0.3"
-async-tungstenite = "0.17.0"
+async-tungstenite = "0.18.0"
 axum = "0.5.5"
 blocking = "1.1"
 concurrent-queue = "1.2.2"
@@ -121,13 +121,13 @@ cpal = { version = "0.14.1", optional = true }
 hound = {version = "3.4.0", optional = true }
 libc = "0.2.126"
 soapysdr = { version = "0.3.2", optional = true }
-rodio = { version = "0.15.0", optional = true }
+rodio = { version = "0.16.0", optional = true }
 tokio = { version = "1.18.2", features = ["rt"] }
 tower-http = { version = "0.3.3", features = ["add-extension", "cors", "fs"] }
 vmcircbuffer = "0.0.9"
-vulkano = { version = "0.30", optional = true }
+vulkano = { version = "0.32", optional = true }
 zmq = { version = "0.10.0", optional = true }
-vulkano-shaders = { version = "0.30", optional = true }
+vulkano-shaders = { version = "0.32", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 lttng-ust = { git = "https://github.com/sprt/lttng-ust-rs.git", version = "0.1.0", optional = true}

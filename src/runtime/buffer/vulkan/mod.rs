@@ -1,13 +1,12 @@
 use std::sync::Arc;
 use vulkano::buffer::CpuAccessibleBuffer;
-use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
+use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::{Device, DeviceCreateInfo};
-use vulkano::instance::InstanceExtensions;
 use vulkano::instance::{Instance, InstanceCreateInfo};
-use vulkano::Version;
+use vulkano::VulkanLibrary;
 
 mod d2h;
 pub use d2h::ReaderD2H;
@@ -39,28 +38,29 @@ pub struct Broker {
 
 impl Broker {
     pub fn new() -> Broker {
-        let enabled_extensions = InstanceExtensions {
-            khr_get_physical_device_properties2: true,
-            ..InstanceExtensions::none()
-        };
 
-        let instance = Instance::new(InstanceCreateInfo {
-            enabled_extensions,
-            max_api_version: Some(Version::V1_1),
-            ..Default::default()
-        })
-        .unwrap();
-
+        let library = VulkanLibrary::new().unwrap();
+        let instance = Instance::new(
+            library,
+            InstanceCreateInfo {
+                enumerate_portability: true,
+                ..Default::default()
+            },
+        )
+            .unwrap();
         let device_extensions = DeviceExtensions {
             khr_storage_buffer_storage_class: true,
-            ..DeviceExtensions::none()
+            ..DeviceExtensions::empty()
         };
-        let (physical_device, queue_family) = PhysicalDevice::enumerate(&instance)
-            .filter(|&p| p.supported_extensions().is_superset_of(&device_extensions))
+        let (physical_device, queue_family_index) = instance
+            .enumerate_physical_devices()
+            .unwrap()
+            .filter(|p| p.supported_extensions().contains(&device_extensions))
             .filter_map(|p| {
-                p.queue_families()
-                    .find(|&q| q.supports_compute())
-                    .map(|q| (p, q))
+                p.queue_family_properties()
+                    .iter()
+                    .position(|q| q.queue_flags.compute)
+                    .map(|i| (p, i as u32))
             })
             .min_by_key(|(p, _)| match p.properties().device_type {
                 PhysicalDeviceType::DiscreteGpu => 0,
@@ -68,6 +68,7 @@ impl Broker {
                 PhysicalDeviceType::VirtualGpu => 2,
                 PhysicalDeviceType::Cpu => 3,
                 PhysicalDeviceType::Other => 4,
+                _ => 5,
             })
             .unwrap();
 
@@ -81,7 +82,10 @@ impl Broker {
             physical_device,
             DeviceCreateInfo {
                 enabled_extensions: device_extensions,
-                queue_create_infos: vec![QueueCreateInfo::family(queue_family)],
+                queue_create_infos: vec![QueueCreateInfo {
+                    queue_family_index,
+                    ..Default::default()
+                }],
                 ..Default::default()
             },
         )

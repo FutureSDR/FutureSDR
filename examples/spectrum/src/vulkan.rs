@@ -3,9 +3,12 @@ use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor_set::WriteDescriptorSet;
+use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
+use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
@@ -50,16 +53,23 @@ void main() {
     }
 }
 
+/// Interface GPU with Vulkan.
 pub struct Vulkan {
     broker: Arc<Broker>,
     capacity: u64,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
+    memory_allocator: StandardMemoryAllocator,
+    descriptor_set_allocator: StandardDescriptorSetAllocator,
+    command_buffer_allocator: StandardCommandBufferAllocator,
 }
 
 impl Vulkan {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
+        let memory_allocator = StandardMemoryAllocator::new_default(broker.device().clone());
+        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device().clone());
+        let command_buffer_allocator = StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
+
         Block::new(
             BlockMetaBuilder::new("Vulkan").build(),
             StreamIoBuilder::new()
@@ -72,6 +82,9 @@ impl Vulkan {
                 pipeline: None,
                 layout: None,
                 capacity,
+                memory_allocator,
+                descriptor_set_allocator,
+                command_buffer_allocator,
             },
         )
     }
@@ -87,6 +100,7 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
     sio.input(id).try_as::<ReaderH2D>().unwrap()
 }
 
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for Vulkan {
     async fn init(
@@ -101,11 +115,11 @@ impl Kernel for Vulkan {
             let buffer;
             unsafe {
                 buffer = CpuAccessibleBuffer::uninitialized_array(
-                    self.broker.device().clone(),
+                    &self.memory_allocator,
                     self.capacity,
                     BufferUsage {
                         storage_buffer: true,
-                        ..BufferUsage::none()
+                        ..BufferUsage::empty()
                     },
                     false,
                 )?;
@@ -155,6 +169,7 @@ impl Kernel for Vulkan {
             debug!("vulkan block: launching full buffer");
 
             let set = PersistentDescriptorSet::new(
+                &self.descriptor_set_allocator,
                 layout.clone(),
                 [WriteDescriptorSet::buffer(0, m.buffer.clone())],
             )
@@ -166,8 +181,8 @@ impl Kernel for Vulkan {
             }
 
             let mut builder = AutoCommandBufferBuilder::primary(
-                self.broker.device().clone(),
-                self.broker.queue().family(),
+                &self.command_buffer_allocator,
+                self.broker.queue().queue_family_index(),
                 CommandBufferUsage::OneTimeSubmit,
             )?;
 
@@ -200,3 +215,4 @@ impl Kernel for Vulkan {
         Ok(())
     }
 }
+
