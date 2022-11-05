@@ -1,7 +1,7 @@
-use clap::{Arg, Command};
+use clap::Parser;
 use std::time;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageBurst;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
@@ -9,62 +9,28 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-fn main() -> Result<()> {
-    let matches = Command::new("Vect Flowgraph")
-        .arg(
-            Arg::new("run")
-                .short('r')
-                .long("run")
-                .takes_value(true)
-                .value_name("RUN")
-                .default_value("0")
-                .help("Sets run number."),
-        )
-        .arg(
-            Arg::new("stages")
-                .short('s')
-                .long("stages")
-                .takes_value(true)
-                .value_name("STAGES")
-                .default_value("6")
-                .help("Sets the number of stages."),
-        )
-        .arg(
-            Arg::new("pipes")
-                .short('p')
-                .long("pipes")
-                .takes_value(true)
-                .value_name("PIPES")
-                .default_value("5")
-                .help("Sets the number of pipes."),
-        )
-        .arg(
-            Arg::new("repetitions")
-                .short('R')
-                .long("repetitions")
-                .takes_value(true)
-                .value_name("REPETITIONS")
-                .default_value("100")
-                .help("Sets the number of repetitions."),
-        )
-        .arg(
-            Arg::new("burst_size")
-                .short('b')
-                .long("burst_size")
-                .takes_value(true)
-                .value_name("BURST_SIZE")
-                .default_value("1000")
-                .help("Sets burst size."),
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value_t = 0)]
+    run: usize,
+    #[clap(short, long, default_value_t = 6)]
+    stages: usize,
+    #[clap(short, long, default_value_t = 5)]
+    pipes: usize,
+    #[clap(short = 'R', long, default_value_t = 100)]
+    repetitions: usize,
+    #[clap(short, long, default_value_t = 1000)]
+    burst_size: u64,
+}
 
-    let run: u32 = matches.value_of_t("run").context("no run")?;
-    let pipes: u32 = matches.value_of_t("pipes").context("no pipes")?;
-    let stages: u32 = matches.value_of_t("stages").context("no stages")?;
-    let repetitions: u32 = matches
-        .value_of_t("repetitions")
-        .context("no repetitions")?;
-    let burst_size: u64 = matches.value_of_t("burst_size").context("no burst_size")?;
+fn main() -> Result<()> {
+    let Args {
+        run,
+        stages,
+        pipes,
+        repetitions,
+        burst_size,
+    } = Args::parse();
 
     for r in 0..repetitions {
         let mut fg = Flowgraph::new();

@@ -60,7 +60,7 @@ impl<T: Send + 'static> Kernel for NullSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<u8>();
+        let o = sio.output(0).slice_unchecked::<u8>();
 
         unsafe {
             ptr::write_bytes(o.as_mut_ptr(), 0, o.len());

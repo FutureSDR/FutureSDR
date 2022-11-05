@@ -1,9 +1,9 @@
-use clap::{Arg, Command};
+use clap::Parser;
 use std::iter::repeat_with;
 use std::sync::Arc;
 use std::time;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
@@ -13,41 +13,22 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-fn main() -> Result<()> {
-    let matches = Command::new("Vulkan Performance")
-        .arg(
-            Arg::new("run")
-                .short('r')
-                .long("run")
-                .takes_value(true)
-                .value_name("RUN")
-                .default_value("0")
-                .help("Sets run number."),
-        )
-        .arg(
-            Arg::new("samples")
-                .short('n')
-                .long("samples")
-                .takes_value(true)
-                .value_name("SAMPLES")
-                .default_value("15000000")
-                .help("Sets the number of samples."),
-        )
-        .arg(
-            Arg::new("buffer_size")
-                .long("buffer_size")
-                .takes_value(true)
-                .value_name("BYTES")
-                .default_value("65536")
-                .help("Minimum buffer size."),
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value_t = 0)]
+    run: usize,
+    #[clap(short = 'n', long, default_value_t = 15000000)]
+    samples: usize,
+    #[clap(short, long, default_value_t = 65536)]
+    buffer_size: u64,
+}
 
-    let run: u32 = matches.value_of_t("run").context("no run")?;
-    let samples: usize = matches.value_of_t("samples").context("no samples")?;
-    let buffer_size: u64 = matches
-        .value_of_t("buffer_size")
-        .context("no buffer_size")?;
+fn main() -> Result<()> {
+    let Args {
+        run,
+        samples,
+        buffer_size,
+    } = Args::parse();
 
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(samples).collect();
     let broker = Arc::new(Broker::new());

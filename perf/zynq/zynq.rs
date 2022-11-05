@@ -1,8 +1,8 @@
-use clap::{Arg, Command};
+use clap::Parser;
 use rand::Rng;
 use std::time::Instant;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
@@ -13,59 +13,31 @@ use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-fn main() -> Result<()> {
-    let matches = Command::new("Zynq Perf")
-        .arg(
-            Arg::new("run")
-                .short('r')
-                .long("run")
-                .takes_value(true)
-                .value_name("RUN")
-                .default_value("0")
-                .help("Run number."),
-        )
-        .arg(
-            Arg::new("max_copy")
-                .short('m')
-                .long("max_copy")
-                .takes_value(true)
-                .value_name("MAX_COPY")
-                .default_value("8192")
-                .help("Maximum samples per DMA buffer."),
-        )
-        .arg(
-            Arg::new("items")
-                .short('n')
-                .long("items")
-                .takes_value(true)
-                .value_name("ITEMS")
-                .default_value("100000")
-                .help("Number of items to process."),
-        )
-        .arg(
-            Arg::new("sync")
-                .short('s')
-                .long("sync")
-                .takes_value(false)
-                .help("Use sync implementation."),
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value_t = 0)]
+    run: usize,
+    #[clap(short, long, default_value_t = 8192)]
+    max_copy: usize,
+    #[clap(short, long, default_value_t = 100000)]
+    items: usize,
+    #[clap(long)]
+    sync: bool,
+}
 
-    let run: u32 = matches.value_of_t("run").context("missing run parameter")?;
-    let n_items: usize = matches
-        .value_of_t("items")
-        .context("missing items parameter")?;
-    let max_copy: usize = matches
-        .value_of_t("max_copy")
-        .context("missing max_copy parameter")?;
+fn main() -> Result<()> {
+    let Args {
+        run,
+        max_copy,
+        items,
+        sync,
+    } = Args::parse();
     let max_bytes = max_copy * std::mem::size_of::<u32>();
-    let sync = matches.is_present("sync");
 
     let mut fg = Flowgraph::new();
-
     let orig: Vec<u32> = rand::thread_rng()
         .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
-        .take(n_items)
+        .take(items)
         .collect();
 
     let src = VectorSource::<u32>::new(orig.clone());
@@ -82,9 +54,7 @@ fn main() -> Result<()> {
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )?
     };
-    let snk = VectorSinkBuilder::<u32>::new()
-        .init_capacity(n_items)
-        .build();
+    let snk = VectorSinkBuilder::<u32>::new().init_capacity(items).build();
 
     let src = fg.add_block(src);
     let zynq = fg.add_block(zynq);
@@ -99,7 +69,7 @@ fn main() -> Result<()> {
     println!(
         "{},{},{},{},{}",
         run,
-        n_items,
+        items,
         max_copy,
         sync,
         elapsed.as_secs_f64()
@@ -108,7 +78,7 @@ fn main() -> Result<()> {
     let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
     let v = snk.items();
 
-    assert_eq!(v.len(), n_items);
+    assert_eq!(v.len(), items);
     for i in 0..v.len() {
         if orig[i] + 123 != v[i] {
             eprintln!(

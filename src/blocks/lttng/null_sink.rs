@@ -63,7 +63,7 @@ impl<T: Send + 'static> Kernel for NullSink<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
         let item_size = std::mem::size_of::<T>();
 
         let before = self.n_received / self.probe_granularity;

@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::Parser;
 use std::iter::repeat_with;
 use std::time;
 
@@ -16,70 +16,31 @@ use futuresdr::runtime::Runtime;
 
 const GRANULARITY: u64 = 32768;
 
-fn main() -> Result<()> {
-    let matches = Command::new("FIR Rand Flowgraph")
-        .arg(
-            Arg::new("run")
-                .short('r')
-                .long("run")
-                .takes_value(true)
-                .value_name("RUN")
-                .default_value("0")
-                .help("Sets run number."),
-        )
-        .arg(
-            Arg::new("stages")
-                .short('s')
-                .long("stages")
-                .takes_value(true)
-                .value_name("STAGES")
-                .default_value("6")
-                .help("Sets the number of stages."),
-        )
-        .arg(
-            Arg::new("pipes")
-                .short('p')
-                .long("pipes")
-                .takes_value(true)
-                .value_name("PIPES")
-                .default_value("5")
-                .help("Sets the number of pipes."),
-        )
-        .arg(
-            Arg::new("samples")
-                .short('n')
-                .long("samples")
-                .takes_value(true)
-                .value_name("SAMPLES")
-                .default_value("15000000")
-                .help("Sets the number of samples."),
-        )
-        .arg(
-            Arg::new("max_copy")
-                .short('m')
-                .long("max_copy")
-                .takes_value(true)
-                .value_name("SAMPLES")
-                .default_value("4000000000")
-                .help("Sets the maximum number of samples to copy in one call to work()."),
-        )
-        .arg(
-            Arg::new("scheduler")
-                .short('S')
-                .long("scheduler")
-                .takes_value(true)
-                .value_name("SCHEDULER")
-                .default_value("smol1")
-                .help("Sets the scheduler."),
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value_t = 0)]
+    run: usize,
+    #[clap(short, long, default_value_t = 6)]
+    stages: u64,
+    #[clap(short, long, default_value_t = 5)]
+    pipes: usize,
+    #[clap(short = 'n', long, default_value_t = 15000000)]
+    samples: u64,
+    #[clap(short, long, default_value_t = 4000000000)]
+    max_copy: usize,
+    #[clap(short = 'S', long, default_value = "smol1")]
+    scheduler: String,
+}
 
-    let run: u32 = matches.value_of_t("run").context("no run")?;
-    let pipes: u32 = matches.value_of_t("pipes").context("no pipe")?;
-    let stages: u64 = matches.value_of_t("stages").context("no stages")?;
-    let samples: u64 = matches.value_of_t("samples").context("no samples")?;
-    let max_copy: usize = matches.value_of_t("max_copy").context("no max_copy")?;
-    let scheduler: String = matches.value_of_t("scheduler").context("no scheduler")?;
+fn main() -> Result<()> {
+    let Args {
+        run,
+        stages,
+        pipes,
+        samples,
+        max_copy,
+        scheduler,
+    } = Args::parse();
 
     let mut fg = Flowgraph::new();
     let taps: [f32; 64] = repeat_with(rand::random::<f32>)
