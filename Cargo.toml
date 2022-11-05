@@ -94,20 +94,16 @@ rustfft = "6.0.1"
 slab = "0.4.4"
 spin = "0.9.0"
 serde = { version = "1.0", features = ["derive"] }
-wgpu = { version = "0.13.1", optional = true }
+wgpu = { version = "0.14.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "0.2.0"
-cpal = { version = "0.13.4", optional = true, features = ['wasm-bindgen'] }
+cpal = { version = "0.14.1", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.2.3", features = ["js"] }
 gloo-net = {version = "0.2.2", default-features = false, features = ["websocket", "json"]}
 rodio = { version = "0.15.0", default-features = false, optional = true }
 wasm-bindgen = "0.2.79"
 wasm-bindgen-futures = "0.4.28"
-# web-sys 3.59 breaks wgpu
-# pin to 0.3.58 to avoid that crates pull in newer versions
-# delete, once fixed
-web-sys = "=0.3.58"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"
@@ -121,7 +117,7 @@ axum = "0.5.5"
 blocking = "1.1"
 concurrent-queue = "1.2.2"
 core_affinity = "0.5.10"
-cpal = { version = "0.13.4", optional = true }
+cpal = { version = "0.14.1", optional = true }
 hound = {version = "3.4.0", optional = true }
 libc = "0.2.126"
 soapysdr = { version = "0.3.2", optional = true }
@@ -149,7 +145,7 @@ lttng-ust-generate = { git = "https://github.com/sprt/lttng-ust-rs.git", version
 [dev-dependencies]
 async-channel = "1.6.1"
 async-executor = "1.3.0"
-criterion = { version = "0.3.5", features = [ "html_reports" ] }
+criterion = { version = "0.4.0", features = [ "html_reports" ] }
 easy-parallel = "3.1.0"
 
 [profile.release]
