@@ -16,7 +16,7 @@ path = "src/bin/listen_cw.rs"
 futuresdr = { path = "../..", features = ["audio"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clap = "3.1.0"
+clap = { version = "4.0.19", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

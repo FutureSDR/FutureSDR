@@ -6,6 +6,6 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-clap = { version = "3.0.13", features = ["derive"] }
+clap = { version = "4.0.19", features = ["derive"] }
 futuresdr = { path = "../..", features=["soapy", "audio"] }
 futuredsp = { path = "../../futuredsp" }

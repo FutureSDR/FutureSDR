@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 futuresdr = { path = "../..", features = ["soapy"] }
-clap = { version = "3.0.13", features = ["derive"] }
+clap = { version = "4.0.19", features = ["derive"] }

@@ -23,5 +23,5 @@ path = "play_selectable_tone.rs"
 
 [dependencies]
 futuresdr = { path = "../..", features = ["audio", "zeromq"] }
-clap = { version = "3.0.13", features = ["derive"] }
+clap = { version = "4.0.19", features = ["derive"] }
 

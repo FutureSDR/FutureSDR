@@ -1,13 +1,13 @@
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
+use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor_set::WriteDescriptorSet;
-use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
@@ -68,7 +68,8 @@ impl Vulkan {
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
         let memory_allocator = StandardMemoryAllocator::new_default(broker.device().clone());
         let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device().clone());
-        let command_buffer_allocator = StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
+        let command_buffer_allocator =
+            StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
 
         Block::new(
             BlockMetaBuilder::new("Vulkan").build(),
@@ -215,4 +216,3 @@ impl Kernel for Vulkan {
         Ok(())
     }
 }
-
