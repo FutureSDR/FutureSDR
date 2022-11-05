@@ -184,7 +184,7 @@ impl Topology {
                 .stream_output_name_to_id(&s)
                 .context("invalid src port name")?,
             PortId::Index(i) => {
-                if i < src.message_outputs().len() {
+                if i < src.stream_outputs().len() {
                     i
                 } else {
                     bail!("invalid src port id {}", i)
