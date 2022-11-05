@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     for s in snks {
         let snk = fg.kernel::<NullSink<f32>>(s).context("no block")?;
         let v = snk.n_received();
-        assert_eq!(v, samples - (stages as usize * 63));
+        assert_eq!(v, samples - (stages * 63));
     }
 
     println!(
