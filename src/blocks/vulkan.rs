@@ -64,10 +64,10 @@ pub struct Vulkan {
 
 impl Vulkan {
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
-        let memory_allocator = StandardMemoryAllocator::new_default(broker.device().clone());
-        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device().clone());
+        let memory_allocator = StandardMemoryAllocator::new_default(broker.device());
+        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device());
         let command_buffer_allocator =
-            StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
+            StandardCommandBufferAllocator::new(broker.device(), Default::default());
 
         Block::new(
             BlockMetaBuilder::new("Vulkan").build(),
