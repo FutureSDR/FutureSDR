@@ -153,7 +153,7 @@ impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<f64, f64>
 }
 
 #[cfg(not(RUSTC_IS_STABLE))]
-impl<TA: TapsAccessor<TapType = T>> UnaryKernel<Complex<T>, Complex<T>>
+impl<TA: TapsAccessor<TapType = T>, T> UnaryKernel<Complex<T>, Complex<T>>
     for NonResamplingFirKernel<Complex<T>, Complex<T>, TA, T>
 where
     T: Float + Send + Sync + Copy + Zero,
