@@ -4,7 +4,7 @@ use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
 #[cfg(not(target_arch = "wasm32"))]
 use futuresdr::blocks::ConsoleSink;
-use futuresdr::blocks::Oscillator;
+use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -132,7 +132,11 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
     let morse = fg.add_block(ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(&morse));
     let switch_command = fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c));
-    let sidetone_src = fg.add_block(Oscillator::new(SIDETONE_FREQ, 0.2, SAMPLE_RATE as f32));
+    let sidetone_src = fg.add_block(
+        SignalSourceBuilder::<f32>::sin(SIDETONE_FREQ, SAMPLE_RATE as f32)
+            .amplitude(0.2)
+            .build(),
+    );
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
 
     fg.connect_stream(src, "out", morse, "in")?;

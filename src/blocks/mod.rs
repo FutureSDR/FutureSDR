@@ -86,7 +86,7 @@
 //! ## Signal Sources
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Oscillator](Oscillator) | Create sine tone. | ✅ |
+//! | [SignalSource](SignalSourceBuilder) | Create signals (sin, cos, square). | ✅ |
 //!
 //! ## Audio (requires `audio` feature)
 //! | Block | Usage | WebAssembly? |
@@ -174,9 +174,6 @@ mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
-
-mod oscillator;
-pub use oscillator::Oscillator;
 
 #[cfg(feature = "soapy")]
 pub(self) mod soapy_snk;

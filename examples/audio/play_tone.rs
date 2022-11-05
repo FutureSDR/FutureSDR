@@ -1,13 +1,15 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::Oscillator;
+use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = Oscillator::new(440.0, 0.3, 48000.0);
+    let src = SignalSourceBuilder::<f32>::sin(440.0, 48000.0)
+        .amplitude(0.3)
+        .build();
     let snk = AudioSink::new(48_000, 1);
 
     let src = fg.add_block(src);

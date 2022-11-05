@@ -3,8 +3,6 @@ use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Mul;
 
-use crate::num_complex::Complex32;
-
 /// Fixed point implementation of phase value based on i32
 ///  fixed pt    radians
 /// ---------    --------
@@ -14,12 +12,6 @@ use crate::num_complex::Complex32;
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct FixedPointPhase {
     pub value: i32,
-}
-
-impl From<FixedPointPhase> for f32 {
-    fn from(x: FixedPointPhase) -> Self {
-        (x.value as f32) * (FixedPointPhase::PI / FixedPointPhase::TWO_TO_THE_31)
-    }
 }
 
 impl From<&FixedPointPhase> for f32 {
@@ -69,12 +61,6 @@ impl Mul<i32> for FixedPointPhase {
     }
 }
 
-impl From<FixedPointPhase> for Complex32 {
-    fn from(x: FixedPointPhase) -> Self {
-        Complex32::new(x.cos(), x.sin())
-    }
-}
-
 impl FixedPointPhase {
     pub const WORDBITS: u32 = 32;
     pub const NBITS: u32 = 10;
@@ -105,7 +91,7 @@ impl FixedPointPhase {
     }
 
     pub fn cos(&self) -> f32 {
-        let ux: u32 = (self.value as u32) + 0x40000000;
+        let ux: u32 = (self.value as u32).wrapping_add(0x40000000);
         let index = (ux >> (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) as usize;
         FixedPointPhase::S_SINE_TABLE[index][0] * ((ux & FixedPointPhase::ACCUM_MASK) as f32)
             + FixedPointPhase::S_SINE_TABLE[index][1]

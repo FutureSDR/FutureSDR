@@ -2,9 +2,9 @@ use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::Oscillator;
 use futuresdr::blocks::Selector;
 use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
+use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -22,8 +22,12 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src0 = Oscillator::new(440.0, 0.3, 48000.0);
-    let src1 = Oscillator::new(261.63, 0.3, 48000.0);
+    let src0 = SignalSourceBuilder::<f32>::sin(440.0, 48000.0)
+        .amplitude(0.3)
+        .build();
+    let src1 = SignalSourceBuilder::<f32>::sin(261.63, 48000.0)
+        .amplitude(0.3)
+        .build();
     let selector = Selector::<f32, 2, 1>::new(args.drop_policy);
     // Store the `input_index` port ID for later use
     let input_index_port_id = selector
@@ -65,4 +69,6 @@ fn main() -> Result<()> {
             println!("Input not parsable: {input}");
         }
     }
+
+    Ok(())
 }

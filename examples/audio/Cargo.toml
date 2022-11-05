@@ -21,10 +21,6 @@ path = "play_stereo.rs"
 name = "play-selectable-tone"
 path = "play_selectable_tone.rs"
 
-[[bin]]
-name = "compare-oscillators"
-path = "compare_oscillators.rs"
-
 [dependencies]
 futuresdr = { path = "../..", features = ["audio", "zeromq"] }
 clap = { version = "3.0.13", features = ["derive"] }
