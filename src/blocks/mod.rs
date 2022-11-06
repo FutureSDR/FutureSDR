@@ -220,6 +220,8 @@ pub use throttle::Throttle;
 mod channel_source;
 pub use channel_source::ChannelSource;
 
+pub mod cw;
+
 mod vector_sink;
 pub use vector_sink::{VectorSink, VectorSinkBuilder};
 mod vector_source;

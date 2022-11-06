@@ -1,0 +1,122 @@
+use bimap::{BiMap};
+use crate::blocks::cw::{self, CWAlphabet};
+
+use crate::anyhow::Result;
+use crate::blocks::cw::CWAlphabet::{LetterSpace, WordSpace};
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::StreamIo;
+use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
+
+
+pub struct CWToChar {
+    alphabet: BiMap<char, Vec<CWAlphabet>>,
+    symbol_vec: Vec<CWAlphabet>, // Required to keep the state of already received pulses
+}
+
+impl CWToChar {
+    pub fn new(
+        alphabet: BiMap<char, Vec<CWAlphabet>>,
+    ) -> Block {
+        Block::new(
+            BlockMetaBuilder::new("CWToChar").build(),
+            StreamIoBuilder::new()
+                .add_input::<CWAlphabet>("in")
+                .add_output::<char>("out")
+                .build(),
+            MessageIoBuilder::new().build(),
+            CWToChar {
+                alphabet: alphabet,
+                symbol_vec: vec![],
+            },
+        )
+    }
+}
+
+#[doc(hidden)]
+#[async_trait]
+impl Kernel for CWToChar {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        let i = sio.input(0).slice::<CWAlphabet>();
+        let o = sio.output(0).slice::<char>();
+
+        let mut consumed = 0;
+        let mut produced = 0;
+
+        // Not doing any checks on the output buffer length here.
+        // Assuming, that i and o are of the same length.
+        // Assuming, that one input sample generates at max one output sample.
+        for v in i.iter() {
+            if (*v != LetterSpace) && (*v != WordSpace) {
+                self.symbol_vec.push(*v);
+            } else {
+                if let Some(character) = self.alphabet.get_by_right(&self.symbol_vec) {
+                    o[produced] = *character;
+                    produced += 1;
+                }
+                self.symbol_vec.clear();
+
+                if *v == WordSpace { // Special case if sequency of pulse codes is not followed by a LetterSpace but a WordSpace
+                    self.symbol_vec.push(*v);
+                    if let Some(character) = self.alphabet.get_by_right(&self.symbol_vec) {
+                        o[produced] = *character;
+                        produced += 1;
+                    }
+                    self.symbol_vec.clear();
+                }
+            }
+            consumed += 1;
+        }
+
+        sio.input(0).consume(consumed);
+        sio.output(0).produce(produced);
+
+
+        if sio.input(0).finished() && consumed == i.len() {
+            io.finished = true;
+        }
+
+        Ok(())
+    }
+}
+
+
+pub struct CWToCharBuilder {
+    alphabet: BiMap<char, Vec<CWAlphabet>>,
+}
+
+impl Default for CWToCharBuilder {
+    fn default() -> Self {
+        CWToCharBuilder {
+            alphabet: cw::get_alphabet(),
+        }
+    }
+}
+
+impl CWToCharBuilder {
+    pub fn new() -> CWToCharBuilder {
+        CWToCharBuilder::default()
+    }
+
+    pub fn alphabet(mut self, alphabet: BiMap<char, Vec<CWAlphabet>>) -> CWToCharBuilder {
+        self.alphabet = alphabet;
+        self
+    }
+
+    pub fn build(self) -> Block {
+        CWToChar::new(
+            self.alphabet,
+        )
+    }
+}
