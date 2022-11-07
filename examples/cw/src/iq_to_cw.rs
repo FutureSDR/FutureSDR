@@ -1,18 +1,19 @@
 use std::ops::RangeInclusive;
-use num_complex::Complex32;
-use num_complex::ComplexFloat;
-use crate::blocks::cw::CWAlphabet::{self, *};
+use crate::CWAlphabet::{self, *};
 
-use crate::anyhow::Result;
-use crate::runtime::Block;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::WorkIo;
+use futuresdr::anyhow::Result;
+use futuresdr::async_trait::async_trait;
+use futuresdr::num_complex::ComplexFloat;
+use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 
 
 pub struct IQToCW {

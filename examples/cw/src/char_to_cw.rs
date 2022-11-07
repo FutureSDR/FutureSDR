@@ -1,17 +1,17 @@
-use bimap::{BiMap};
-use crate::blocks::cw::{self, CWAlphabet};
+use crate::{self, CWAlphabet};
+use crate::CWAlphabet::LetterSpace;
 
-use crate::anyhow::Result;
-use crate::blocks::cw::CWAlphabet::LetterSpace;
-use crate::runtime::Block;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::WorkIo;
+use futuresdr::anyhow::Result;
+use futuresdr::async_trait::async_trait;
+use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 
 
 pub struct CharToCW {

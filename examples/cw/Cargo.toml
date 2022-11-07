@@ -9,8 +9,12 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "listen-cw"
-path = "src/bin/listen_cw.rs"
+name = "tx"
+path = "src/bin/tx.rs"
+
+[[bin]]
+name = "tx-audio"
+path = "src/bin/tx_audio.rs"
 
 [dependencies]
 bimap = "0.6.2"

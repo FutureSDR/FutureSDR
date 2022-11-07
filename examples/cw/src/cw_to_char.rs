@@ -1,28 +1,25 @@
-use bimap::{BiMap};
-use crate::blocks::cw::{self, CWAlphabet};
+use crate::CWAlphabet;
+use crate::CWAlphabet::{LetterSpace, WordSpace};
 
-use crate::anyhow::Result;
-use crate::blocks::cw::CWAlphabet::{LetterSpace, WordSpace};
-use crate::runtime::Block;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::WorkIo;
+use futuresdr::anyhow::Result;
+use futuresdr::async_trait::async_trait;
+use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 
 
 pub struct CWToChar {
-    alphabet: BiMap<char, Vec<CWAlphabet>>,
     symbol_vec: Vec<CWAlphabet>, // Required to keep the state of already received pulses
 }
 
 impl CWToChar {
-    pub fn new(
-        alphabet: BiMap<char, Vec<CWAlphabet>>,
-    ) -> Block {
+    pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("CWToChar").build(),
             StreamIoBuilder::new()
@@ -31,7 +28,6 @@ impl CWToChar {
                 .build(),
             MessageIoBuilder::new().build(),
             CWToChar {
-                alphabet: alphabet,
                 symbol_vec: vec![],
             },
         )
