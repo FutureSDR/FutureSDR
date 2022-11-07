@@ -13,6 +13,7 @@ name = "listen-cw"
 path = "src/bin/listen_cw.rs"
 
 [dependencies]
+bimap = "0.6.2"
 futuresdr = { path = "../..", features = ["audio"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -76,7 +76,6 @@ required-features = ["tpb_scheduler"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.52"
-bimap = "0.6.2"
 config = "0.13.1"
 dirs = "4.0"
 dyn-clone = "1.0.9"
