@@ -1,7 +1,7 @@
 .PHONY: wasm serve
 
 wasm:
-	wasm-pack build --target web --out-name cw --out-dir ./dist --dev
+	wasm-pack build --target web --out-name cw --out-dir ./dist --profiling
 
 serve: wasm
 	./gulp
