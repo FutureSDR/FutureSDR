@@ -176,13 +176,9 @@ mod null_source;
 pub use null_source::NullSource;
 
 #[cfg(feature = "soapy")]
-pub(self) mod soapy_snk;
+pub mod soapy;
 #[cfg(feature = "soapy")]
-pub use soapy_snk::{SoapySink, SoapySinkBuilder};
-#[cfg(feature = "soapy")]
-mod soapy_src;
-#[cfg(feature = "soapy")]
-pub use soapy_src::{SoapySource, SoapySourceBuilder};
+pub use soapy::{SoapySink, SoapySinkBuilder, SoapySource, SoapySourceBuilder};
 
 mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;
