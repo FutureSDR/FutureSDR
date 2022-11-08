@@ -9,12 +9,17 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "tx"
-path = "src/bin/tx.rs"
+name = "tx-sdr"
+path = "src/bin/tx_sdr.rs"
+required-features = ["soapy"]
 
 [[bin]]
 name = "tx-audio"
 path = "src/bin/tx_audio.rs"
+
+[features]
+default = []
+soapy = ["futuresdr/soapy"]
 
 [dependencies]
 bimap = "0.6.2"

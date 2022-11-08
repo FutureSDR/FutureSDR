@@ -92,16 +92,16 @@ pub fn char_to_bb(dot_len: usize) -> impl FnMut(&char) -> Vec<f32> {
             .flat_map(|x| match x {
                 Dot => [vec![1.0; dot_len], vec![0.0; dot_len]].concat(),
                 Dash => [vec![1.0; 3 * dot_len], vec![0.0; dot_len]].concat(),
-                LetterSpace => panic!("LetterSpace shouldn't occur in char"),
+                LetterSpace => panic!("LetterSpace shouldn't occur in char."),
                 Unknown => vec![0.0; 3 * dot_len],
-                WordSpace => vec![0.0; 4 * dot_len], // other 3 spaces are chained
+                WordSpace => vec![0.0; 5 * dot_len], // other 3 spaces are chained
             })
-            .chain(vec![0.0; 3 * dot_len])
+            .chain(vec![0.0; 2 * dot_len])
             .collect()
     }
 }
 
-pub fn msg_to_cw(msg: &Vec<char>) -> Vec<CWAlphabet> {
+pub fn msg_to_cw(msg: &[char]) -> Vec<CWAlphabet> {
     let alphabet = get_alphabet();
 
     msg.iter()
