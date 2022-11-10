@@ -3,11 +3,12 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::anyhow::Result;
+use crate::anyhow::{Context, Result};
 use crate::runtime::BlockMeta;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageOutput;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamOutput;
@@ -106,8 +107,7 @@ pub trait BlockT: Send + Any {
     fn message_output_mut(&mut self, id: usize) -> &mut MessageOutput;
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 
-    async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt>;
-    async fn post(&mut self, id: usize, p: Pmt);
+    async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt>;
 }
 
 pub struct TypedBlock<T> {
@@ -221,13 +221,17 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.output_name_to_id(name)
     }
-    async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
+    async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt> {
+        let id = match id {
+            PortId::Index(i) => i,
+            PortId::Name(n) => self
+                .mio
+                .output_name_to_id(&n)
+                .context("invalid port name for message handler")?,
+        };
         let h = self.mio.input(id).get_handler();
         let f = (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p);
         f.await
-    }
-    async fn post(&mut self, id: usize, p: Pmt) {
-        self.mio.post(id, p).await;
     }
 }
 
@@ -352,11 +356,8 @@ impl Block {
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
     }
-    pub async fn call_handler(&mut self, id: usize, p: Pmt) -> Result<Pmt> {
+    pub async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt> {
         self.0.call_handler(id, p).await
-    }
-    pub async fn post(&mut self, id: usize, p: Pmt) {
-        self.0.post(id, p).await
     }
 }
 

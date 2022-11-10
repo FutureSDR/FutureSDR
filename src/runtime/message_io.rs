@@ -9,6 +9,7 @@ use crate::anyhow::Result;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 
 pub struct MessageInput<T: ?Sized> {
     name: String,
@@ -100,7 +101,7 @@ impl MessageOutput {
         for (port_id, sender) in self.handlers.iter_mut() {
             sender
                 .send(BlockMessage::Call {
-                    port_id: *port_id,
+                    port_id: PortId::Index(*port_id),
                     data: p.clone(),
                 })
                 .await

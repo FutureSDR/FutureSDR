@@ -78,12 +78,12 @@ pub enum FlowgraphMessage {
     },
     BlockCall {
         block_id: usize,
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
     },
     BlockCallback {
         block_id: usize,
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
         tx: oneshot::Sender<Pmt>,
     },
@@ -124,11 +124,11 @@ pub enum BlockMessage {
         dst_inbox: mpsc::Sender<BlockMessage>,
     },
     Call {
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
     },
     Callback {
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
         tx: oneshot::Sender<Pmt>,
     },

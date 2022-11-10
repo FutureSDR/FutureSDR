@@ -121,6 +121,7 @@ impl Default for Flowgraph {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum PortId {
     Index(usize),
     Name(String),
@@ -154,23 +155,33 @@ impl FlowgraphHandle {
         FlowgraphHandle { inbox }
     }
 
-    pub async fn call(&mut self, block_id: usize, port_id: usize, data: Pmt) -> Result<()> {
+    pub async fn call(
+        &mut self,
+        block_id: usize,
+        port_id: impl Into<PortId>,
+        data: Pmt,
+    ) -> Result<()> {
         self.inbox
             .send(FlowgraphMessage::BlockCall {
                 block_id,
-                port_id,
+                port_id: port_id.into(),
                 data,
             })
             .await?;
         Ok(())
     }
 
-    pub async fn callback(&mut self, block_id: usize, port_id: usize, data: Pmt) -> Result<Pmt> {
+    pub async fn callback(
+        &mut self,
+        block_id: usize,
+        port_id: impl Into<PortId>,
+        data: Pmt,
+    ) -> Result<Pmt> {
         let (tx, rx) = oneshot::channel::<Pmt>();
         self.inbox
             .send(FlowgraphMessage::BlockCallback {
                 block_id,
-                port_id,
+                port_id: port_id.into(),
                 data,
                 tx,
             })
