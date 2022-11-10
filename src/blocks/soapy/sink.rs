@@ -1,19 +1,23 @@
-use super::*;
-use crate::{
-    anyhow::{Context, Result},
-    num_complex::Complex32,
-    runtime::{
-        Block, BlockMeta, BlockMetaBuilder, Kernel, MessageIo, MessageIoBuilder, Pmt, StreamIo,
-        StreamIoBuilder, WorkIo,
-    },
-};
-use futures::{Future, FutureExt};
-use std::{
-    cmp,
-    marker::PhantomData,
-    pin::Pin,
-    sync::{Arc, Mutex},
-};
+use std::cmp;
+use std::marker::PhantomData;
+use std::sync::{Arc, Mutex};
+
+use crate::anyhow::{Context, Result};
+use crate::blocks::soapy::config;
+use crate::blocks::soapy::SoapyDevBuilder;
+use crate::blocks::soapy::SoapyDevice;
+use crate::blocks::soapy::SoapyDirection;
+use crate::num_complex::Complex32;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::Pmt;
+use crate::runtime::StreamIo;
+use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 pub type SoapySink = SoapyDevice<soapysdr::TxStream<Complex32>>;
 
@@ -52,31 +56,44 @@ impl SoapySink {
         )
     }
 
-    fn on_cmd_port<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn on_cmd_port(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move { self.base_cmd_handler(p, &SoapyDirection::Tx) }.boxed()
+    ) -> Result<Pmt> {
+        self.base_cmd_handler(p, &SoapyDirection::Tx)
     }
 
-    fn on_freq_port<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    fn on_freq_port(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move { self.set_freq(p, &SoapyDirection::Tx) }.boxed()
+    ) -> Result<Pmt> {
+        self.set_freq(p, &SoapyDirection::Tx)
     }
 
-    fn on_gain_port<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    fn on_gain_port(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move { self.set_gain(p, &SoapyDirection::Tx) }.boxed()
+    ) -> Result<Pmt> {
+        self.set_gain(p, &SoapyDirection::Tx)
+    }
+
+    #[message_handler]
+    fn on_sample_rate_port(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        self.set_sample_rate(p, &SoapyDirection::Tx)
     }
 }
 

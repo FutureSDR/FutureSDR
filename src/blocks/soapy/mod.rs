@@ -74,6 +74,21 @@ impl<T> SoapyDevice<T> {
         Ok(Pmt::Null)
     }
 
+    // For backwards compatibility, can only set the first stream channel
+    fn set_sample_rate(&mut self, p: Pmt, default_dir: &SoapyDirection) -> Result<Pmt> {
+        let dev = self.dev.as_mut().context("no dev")?;
+
+        let rate = config::pmt_to_f64(&p)?;
+
+        if default_dir.is_rx(&SoapyDirection::None) {
+            dev.set_sample_rate(Rx, self.chans[0], rate)?;
+        }
+        if default_dir.is_tx(&SoapyDirection::None) {
+            dev.set_sample_rate(Tx, self.chans[0], rate)?;
+        }
+        Ok(Pmt::Null)
+    }
+
     fn apply_config(&mut self, cfg: &SoapyConfig, default_dir: &SoapyDirection) -> Result<()> {
         use SoapyConfigItem as SCI;
 
