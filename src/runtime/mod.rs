@@ -76,6 +76,10 @@ pub enum FlowgraphMessage {
         block_id: usize,
         block: Block,
     },
+    BlockError {
+        block_id: usize,
+        block: Block,
+    },
     BlockCall {
         block_id: usize,
         port_id: PortId,

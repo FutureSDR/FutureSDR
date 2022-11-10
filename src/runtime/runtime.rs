@@ -234,6 +234,7 @@ async fn run_flowgraph<S: Scheduler>(
     // wait until all blocks are initialized
     let mut i = active_blocks;
     let mut queue = Vec::new();
+    let mut block_error = false;
     loop {
         if i == 0 {
             break;
@@ -242,6 +243,13 @@ async fn run_flowgraph<S: Scheduler>(
         let m = main_rx.next().await.context("no msg")?;
         match m {
             FlowgraphMessage::Initialized => i -= 1,
+            FlowgraphMessage::BlockError { block_id, block } => {
+                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
+                inboxes[block_id] = None;
+                i -= 1;
+                active_blocks -= 1;
+                block_error = true;
+            }
             x => {
                 debug!(
                     "queueing unhandled message received during initialization {:?}",
@@ -278,6 +286,14 @@ async fn run_flowgraph<S: Scheduler>(
         .send(())
         .expect("failed to signal flowgraph startup complete.");
 
+    if block_error {
+        main_channel
+            .try_send(FlowgraphMessage::Terminate)
+            .expect("main inbox exceeded capacity during startup");
+    }
+
+    let mut terminated = false;
+
     // main loop
     loop {
         if active_blocks == 0 {
@@ -313,8 +329,15 @@ async fn run_flowgraph<S: Scheduler>(
             }
             FlowgraphMessage::BlockDone { block_id, block } => {
                 *topology.blocks.get_mut(block_id).unwrap() = Some(block);
-
+                inboxes[block_id] = None;
                 active_blocks -= 1;
+            }
+            FlowgraphMessage::BlockError { block_id, block } => {
+                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
+                inboxes[block_id] = None;
+                block_error = true;
+                active_blocks -= 1;
+                let _ = main_channel.send(FlowgraphMessage::Terminate).await;
             }
             FlowgraphMessage::BlockDescription { block_id, tx } => {
                 inboxes[block_id]
@@ -353,24 +376,47 @@ async fn run_flowgraph<S: Scheduler>(
                 .unwrap();
             }
             FlowgraphMessage::Terminate => {
-                for (_, opt) in inboxes.iter_mut() {
-                    if let Some(ref mut chan) = opt {
-                        if chan.send(BlockMessage::Terminate).await.is_err() {
-                            debug!("runtime tried to terminate block that was already terminated");
+                if !terminated {
+                    for (_, opt) in inboxes.iter_mut() {
+                        if let Some(ref mut chan) = opt {
+                            if chan.send(BlockMessage::Terminate).await.is_err() {
+                                debug!(
+                                    "runtime tried to terminate block that was already terminated"
+                                );
+                            }
                         }
                     }
+                    terminated = true;
                 }
-                bail!("Flowgraph was terminated");
             }
             _ => warn!("main loop received unhandled message"),
         }
     }
 
     fg.topology = Some(topology);
+    if block_error {
+        bail!("flowgraph error");
+    }
+
     Ok(fg)
 }
 
 pub(crate) async fn run_block(
+    block: Block,
+    block_id: usize,
+    main_inbox: Sender<FlowgraphMessage>,
+    inbox: Receiver<BlockMessage>,
+) {
+    let instance_name = block
+        .instance_name()
+        .unwrap_or("<broken instance name>")
+        .to_string();
+    if let Err(e) = run_block_internal(block, block_id, main_inbox, inbox).await {
+        error!("{}: Error in run_block() {:?}", instance_name, e);
+    }
+}
+
+async fn run_block_internal(
     mut block: Block,
     block_id: usize,
     mut main_inbox: Sender<FlowgraphMessage>,
@@ -392,7 +438,9 @@ pub(crate) async fn run_block(
                         "{}: Error during initialization. Terminating.",
                         block.instance_name().unwrap()
                     );
-                    main_inbox.send(FlowgraphMessage::Terminate).await?;
+                    main_inbox
+                        .send(FlowgraphMessage::BlockError { block_id, block })
+                        .await?;
                     return Err(e);
                 } else {
                     main_inbox.send(FlowgraphMessage::Initialized).await?;
@@ -474,7 +522,9 @@ pub(crate) async fn run_block(
                             block.instance_name().unwrap(),
                             e
                         );
-                        main_inbox.send(FlowgraphMessage::Terminate).await?;
+                        main_inbox
+                            .send(FlowgraphMessage::BlockError { block_id, block })
+                            .await?;
                         return Err(e);
                     }
                 }
@@ -489,7 +539,9 @@ pub(crate) async fn run_block(
                                 block.instance_name().unwrap(),
                                 e
                             );
-                            main_inbox.send(FlowgraphMessage::Terminate).await?;
+                            main_inbox
+                                .send(FlowgraphMessage::BlockError { block_id, block })
+                                .await?;
                             return Err(e);
                         }
                     }
@@ -527,13 +579,25 @@ pub(crate) async fn run_block(
             )
             .await;
 
-            block.deinit().await?;
-
-            // ============= notify main thread
-            let _ = main_inbox
-                .send(FlowgraphMessage::BlockDone { block_id, block })
-                .await;
-            break;
+            match block.deinit().await {
+                Ok(_) => {
+                    let _ = main_inbox
+                        .send(FlowgraphMessage::BlockDone { block_id, block })
+                        .await;
+                    break;
+                }
+                Err(e) => {
+                    error!(
+                        "{}: Error in deinit (). Terminating. ({:?})",
+                        block.instance_name().unwrap(),
+                        e
+                    );
+                    main_inbox
+                        .send(FlowgraphMessage::BlockError { block_id, block })
+                        .await?;
+                    return Err(e);
+                }
+            };
         }
 
         // ================== blocking
@@ -564,7 +628,9 @@ pub(crate) async fn run_block(
                 block.instance_name().unwrap(),
                 e
             );
-            main_inbox.send(FlowgraphMessage::Terminate).await?;
+            main_inbox
+                .send(FlowgraphMessage::BlockError { block_id, block })
+                .await?;
             return Err(e);
         }
         block.commit();
