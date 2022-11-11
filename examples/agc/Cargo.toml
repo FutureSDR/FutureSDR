@@ -1,0 +1,15 @@
+[package]
+name = "agc"
+version = "0.0.1"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "audio-agc"
+path = "audio_agc.rs"
+
+[dependencies]
+#futuresdr = { version = "*", features = ["audio", "zeromq"] }
+futuredsp = { version = "*" }
+futuresdr = { path = "../..", features = ["audio", "zeromq"] }
