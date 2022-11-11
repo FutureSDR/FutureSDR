@@ -2,7 +2,7 @@
 use axum::extract::{Extension, Path};
 use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
-use axum::routing::{get, get_service, post};
+use axum::routing::{any, get, get_service};
 use axum::Json;
 use axum::Router;
 use slab::Slab;
@@ -144,30 +144,12 @@ impl ControlPort {
             .route("/api/fg/", get(flowgraphs))
             .route("/api/fg/:fg/", get(flowgraph_description))
             .route("/api/fg/:fg/block/:blk/", get(block_description))
-            .route("/api/fg/:fg/block/:blk/call/:handler/", get(handler_id))
+            .route("/api/fg/:fg/block/:blk/call/:handler/", get(handler_id).post(handler_id_post))
             .route(
-                "/api/fg/:fg/block/:blk/call/:handler/",
-                post(handler_id_post),
-            )
-            .route(
-                "/api/block/:blk/",
-                get(|uri: Uri| async move {
-                    let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u))
-                }),
-            )
-            .route(
-                "/api/block/:blk/call/:handler",
-                get(|uri: Uri| async move {
-                    let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u))
-                }),
-            )
-            .route(
-                "/api/block/:blk/call/:handler",
-                post(|uri: Uri| async move {
-                    let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u))
+                "/api/block/*foo",
+                any(|uri: Uri| async move {
+                    let u = uri.to_string().split_off(11);
+                    Redirect::permanent(&format!("/api/fg/0/block/{}", u))
                 }),
             )
             .layer(AddExtensionLayer::new(self.flowgraphs.clone()))
@@ -196,7 +178,7 @@ impl ControlPort {
             ));
         }
 
-        std::thread::spawn(move || {
+        let handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -212,6 +194,8 @@ impl ControlPort {
                 }
             });
         });
+
+        self.thread = Some(handle);
     }
 }
 
