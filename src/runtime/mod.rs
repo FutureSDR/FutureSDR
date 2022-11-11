@@ -70,6 +70,7 @@ pub fn init() {
 
 #[derive(Debug)]
 pub enum FlowgraphMessage {
+    /// Request the flowgraph to shutdown and exit without an error.
     Terminate,
     Initialized,
     BlockDone {
@@ -93,6 +94,13 @@ pub enum FlowgraphMessage {
     BlockDescription {
         block_id: usize,
         tx: oneshot::Sender<BlockDescription>,
+    },
+    /// A block has encountered an unrecoverable error
+    /// This will cause the flowgraph to [`Terminate`] and exit with an error.
+    BlockError {
+        block_id: usize,
+        block: Block,
+        error: crate::anyhow::Error,
     },
 }
 

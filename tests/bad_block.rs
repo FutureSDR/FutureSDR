@@ -33,7 +33,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
-                fg_handle.terminate().await.unwrap();
+                fg_handle.terminate().await?;
                 fg_task.await
             })
         }
@@ -49,7 +49,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
-                fg_handle.terminate().await.unwrap();
+                fg_handle.terminate().await?;
                 fg_task.await
             })
         }
@@ -74,14 +74,16 @@ fn run_no_err() -> Result<()> {
 }
 
 #[test]
+// #[ignore]
 fn run_work_err() -> Result<()> {
+    //FIXME: (#89) this currently hangs the runtime
     let mut bb = BadBlock::<f32>::default();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Run)? {
         None => bail!("Expected Error, got: None"),
         Some(e) => {
             debug!("Error: {}", e);
-            if e.to_string() != "Flowgraph was terminated" {
+            if e.to_string() != "BlockError" {
                 bail!("Unexpected Error: {}", e)
             }
             Ok(())
@@ -111,9 +113,7 @@ fn run_drop_panic() {
 // RunMode::Terminate
 
 #[test]
-#[ignore]
 fn terminate_no_err() -> Result<()> {
-    //FIXME: (#80) this should return OK but currently returns Error("Flowgraph was terminated")
     let bb = BadBlock::<f32>::default();
     match run_badblock(bb, RunMode::Terminate)? {
         None => Ok(()),
@@ -121,19 +121,17 @@ fn terminate_no_err() -> Result<()> {
     }
 }
 
-/// BadBlock returns work error, terminate msg is sent later.
+/// BadBlock returns work error, terminate msg is sent later (after already shut down).
 #[test]
-#[ignore]
 fn terminate_work_err() -> Result<()> {
-    // panics `Err` value: send failed because receiver is gone
-    // FIXME: should probably return some sort of flowgraph not running error
+    //FIXME: (#89) this sometimes hangs the runtime
     let mut bb = BadBlock::<f32>::default();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Terminate)? {
         None => bail!("Expected Error, got: None"),
         Some(e) => {
             debug!("Error: {}", e);
-            if e.to_string() != "Flowgraph was terminated" {
+            if e.to_string() != "send failed because receiver is gone" {
                 bail!("Unexpected Error: {}", e)
             }
             Ok(())
@@ -145,10 +143,7 @@ fn terminate_work_err() -> Result<()> {
 #[ignore]
 // #[should_panic(expected = "BadBlock!")]
 fn terminate_work_panic() -> Result<()> {
-    // This sometimes returns a flowgraph terminated error instead of panicking.
-    // Other times it panics in various channel/scheduler locations (send or drop)
-    // Assume race condition.
-    // TODO: can we do *something* reliably here?
+    //FIXME: (#89) this consistently hangs the runtime
     let mut bb = BadBlock::<f32>::default();
     bb.work_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate)? {
@@ -164,12 +159,8 @@ fn terminate_work_panic() -> Result<()> {
 }
 
 #[test]
-#[ignore]
 #[should_panic(expected = "BadBlock!")]
 fn terminate_drop_panic() {
-    //TODO: try to make consistent
-    //      Intermittently panics with "task has failed", sometimes Error("Flowgraph was terminated")
-    //      Assume race condition.
     let mut bb = BadBlock::<f32>::default();
     bb.drop_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate) {

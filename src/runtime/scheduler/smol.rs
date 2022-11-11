@@ -39,8 +39,11 @@ impl fmt::Debug for SmolSchedulerInner {
 impl Drop for SmolSchedulerInner {
     fn drop(&mut self) {
         for i in self.workers.drain(..) {
-            i.1.send(()).unwrap();
-            i.0.join().unwrap();
+            if let Ok(()) = i.1.send(()) {
+                if let Err(e) = i.0.join() {
+                    debug!("join error: {:?}", e);
+                }
+            }
         }
     }
 }

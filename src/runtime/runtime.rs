@@ -11,7 +11,7 @@ use futures::FutureExt;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::{bail, Context, Error, Result};
 use crate::runtime::config;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::ctrl_port;
@@ -166,6 +166,9 @@ async fn run_flowgraph<S: Scheduler>(
     initialized: oneshot::Sender<()>,
 ) -> Result<Flowgraph> {
     debug!("in run_flowgraph");
+
+    let mut ret_result: Option<Error> = None;
+
     let mut topology = fg.topology.take().context("flowgraph not initialized")?;
     topology.validate()?;
 
@@ -358,16 +361,40 @@ async fn run_flowgraph<S: Scheduler>(
                 for (_, opt) in inboxes.iter_mut() {
                     if let Some(ref mut chan) = opt {
                         if chan.send(BlockMessage::Terminate).await.is_err() {
-                            debug!("runtime tried to terminate block that was already terminated");
+                            debug!("runtime terminate block send error");
+                            // Assume this block is terminated
+                            active_blocks = active_blocks.saturating_sub(1);
                         }
                     }
                 }
+            }
+            FlowgraphMessage::BlockError {
+                block_id,
+                block,
+                error,
+            } => {
+                debug!(
+                    "FlowgraphMessage::BlockError({},{:?},{})",
+                    block_id,
+                    block.instance_name(),
+                    error
+                );
+                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
+
+                ret_result = Some(Error::msg("BlockError"));
+                // TODO: send terminate to all *other* blocks. (How?)
+                break;
             }
             _ => warn!("main loop received unhandled message"),
         }
     }
 
     fg.topology = Some(topology);
+    debug!("exit run_flowgraph");
+
+    if let Some(e) = ret_result {
+        return Err(e);
+    }
     Ok(fg)
 }
 
@@ -393,8 +420,14 @@ pub(crate) async fn run_block(
                         "{}: Error during initialization. Terminating.",
                         block.instance_name().unwrap()
                     );
-                    main_inbox.send(FlowgraphMessage::Terminate).await?;
-                    return Err(e);
+                    main_inbox
+                        .send(FlowgraphMessage::BlockError {
+                            block_id,
+                            block,
+                            error: e,
+                        })
+                        .await?;
+                    bail!("BlockInitError");
                 } else {
                     main_inbox.send(FlowgraphMessage::Initialized).await?;
                 }
@@ -471,12 +504,18 @@ pub(crate) async fn run_block(
                 Some(Some(BlockMessage::Call { port_id, data })) => {
                     if let Err(e) = block.call_handler(port_id, data).await {
                         error!(
-                            "{}: Error in callback. Terminating. ({:?})",
+                            "{}: Error in callback. Terminating. ({})",
                             block.instance_name().unwrap(),
                             e
                         );
-                        main_inbox.send(FlowgraphMessage::Terminate).await?;
-                        return Err(e);
+                        main_inbox
+                            .send(FlowgraphMessage::BlockError {
+                                block_id,
+                                block,
+                                error: e,
+                            })
+                            .await?;
+                        bail!("BlockCallError");
                     }
                 }
                 Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
@@ -486,12 +525,18 @@ pub(crate) async fn run_block(
                         }
                         Err(e) => {
                             error!(
-                                "{}: Error in callback. Terminating. ({:?})",
+                                "{}: Error in callback. Terminating. ({})",
                                 block.instance_name().unwrap(),
                                 e
                             );
-                            main_inbox.send(FlowgraphMessage::Terminate).await?;
-                            return Err(e);
+                            main_inbox
+                                .send(FlowgraphMessage::BlockError {
+                                    block_id,
+                                    block,
+                                    error: e,
+                                })
+                                .await?;
+                            bail!("BlockCallbackError");
                         }
                     }
                 }
@@ -561,12 +606,18 @@ pub(crate) async fn run_block(
         work_io.call_again = false;
         if let Err(e) = block.work(&mut work_io).await {
             error!(
-                "{}: Error in work(). Terminating. ({:?})",
+                "{}: Error in work(). Terminating. ({})",
                 block.instance_name().unwrap(),
                 e
             );
-            main_inbox.send(FlowgraphMessage::Terminate).await?;
-            return Err(e);
+            main_inbox
+                .send(FlowgraphMessage::BlockError {
+                    block_id,
+                    block,
+                    error: e,
+                })
+                .await?;
+            bail!("BlockWorkError");
         }
         block.commit();
 
