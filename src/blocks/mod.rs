@@ -263,4 +263,3 @@ mod wasm_ws_sink;
 #[cfg(target_arch = "wasm32")]
 pub use wasm_ws_sink::WasmWsSink;
 
-pub mod bad_block;
