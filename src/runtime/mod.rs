@@ -10,15 +10,11 @@ pub mod buffer;
 pub mod config;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub mod ctrl_port;
+mod ctrl_port;
 #[cfg(target_arch = "wasm32")]
-pub mod ctrl_port {
-    pub use futuresdr_pmt::BlockDescription;
-    pub use futuresdr_pmt::FlowgraphDescription;
-}
-use crate::runtime::ctrl_port::BlockDescription;
+#[path = "ctrl_port_wasm.rs"]
+mod ctrl_port;
 use crate::runtime::ctrl_port::ControlPort;
-use crate::runtime::ctrl_port::FlowgraphDescription;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 mod logging;
@@ -63,8 +59,11 @@ pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
 
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
+pub use futuresdr_pmt::BlockDescription;
+pub use futuresdr_pmt::FlowgraphDescription;
+
+use buffer::BufferReader;
+use buffer::BufferWriter;
 
 pub fn init() {
     logging::init();

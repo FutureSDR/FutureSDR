@@ -14,10 +14,9 @@ use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-pub use futuresdr_pmt::BlockDescription;
-pub use futuresdr_pmt::FlowgraphDescription;
-
 use crate::runtime::config;
+use crate::runtime::BlockDescription;
+use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -127,11 +126,7 @@ impl ControlPort {
         cp
     }
 
-    pub fn running(&self) -> bool {
-        self.thread.is_some()
-    }
-
-    pub fn add_flowgraph(&mut self, handle: FlowgraphHandle) -> usize {
+    pub fn add_flowgraph(&self, handle: FlowgraphHandle) -> usize {
         let mut v = self.flowgraphs.lock().unwrap();
         v.insert(handle)
     }
