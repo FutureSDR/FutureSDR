@@ -8,6 +8,7 @@ use futures::future::join_all;
 use futures::future::Either;
 use futures::prelude::*;
 use futures::FutureExt;
+use std::result;
 #[cfg(target_arch = "wasm32")]
 type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
@@ -23,10 +24,13 @@ use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
+use crate::runtime::CallbackError;
 use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::HandlerError;
+use crate::runtime::Pmt;
 use crate::runtime::WorkIo;
 
 /// This is the [Runtime] that runs a [Flowgraph] to completion.
@@ -306,13 +310,41 @@ async fn run_flowgraph<S: Scheduler>(
                 block_id,
                 port_id,
                 data,
+                tx,
             } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::Call { port_id, data })
-                    .await
-                    .unwrap();
+                let (block_tx, block_rx) = oneshot::channel::<result::Result<(), HandlerError>>();
+                if let Some(inbox) = inboxes[block_id].as_mut() {
+                    match inbox
+                        .send(BlockMessage::Call {
+                            port_id,
+                            data,
+                            tx: Some(block_tx),
+                        })
+                        .await
+                    {
+                        Ok(_) => {
+                            match block_rx.await {
+                                Ok(Ok(_)) => {
+                                    // handler executed successfully
+                                    let _ = tx.send(Ok(()));
+                                }
+                                Ok(Err(e)) => {
+                                    // handler error -> convert to callback error
+                                    let _ = tx.send(Err(e.into()));
+                                }
+                                Err(_) => {
+                                    // error in run_block
+                                    let _ = tx.send(Err(CallbackError::RuntimeError));
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            let _ = tx.send(Err(CallbackError::InvalidBlock));
+                        }
+                    }
+                } else {
+                    let _ = tx.send(Err(CallbackError::InvalidBlock));
+                }
             }
             FlowgraphMessage::BlockCallback {
                 block_id,
@@ -320,12 +352,37 @@ async fn run_flowgraph<S: Scheduler>(
                 data,
                 tx,
             } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::Callback { port_id, data, tx })
-                    .await
-                    .unwrap();
+                let (block_tx, block_rx) = oneshot::channel::<result::Result<Pmt, HandlerError>>();
+                if let Some(inbox) = inboxes[block_id].as_mut() {
+                    match inbox
+                        .send(BlockMessage::Callback {
+                            port_id,
+                            data,
+                            tx: block_tx,
+                        })
+                        .await
+                    {
+                        Ok(_) => {
+                            match block_rx.await {
+                                Ok(Ok(p)) => {
+                                    // handler executed successfully
+                                    let _ = tx.send(Ok(p));
+                                }
+                                Ok(Err(e)) => {
+                                    // handler error -> convert to callback error
+                                    let _ = tx.send(Err(e.into()));
+                                }
+                                Err(_) => {
+                                    // error in run_block
+                                    let _ = tx.send(Err(CallbackError::RuntimeError));
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            let _ = tx.send(Err(CallbackError::InvalidBlock));
+                        }
+                    }
+                }
             }
             FlowgraphMessage::BlockDone { block_id, block } => {
                 *topology.blocks.get_mut(block_id).unwrap() = Some(block);
@@ -515,41 +572,57 @@ async fn run_block_internal(
                 Some(Some(BlockMessage::StreamOutputDone { .. })) => {
                     work_io.finished = true;
                 }
-                Some(Some(BlockMessage::Call { port_id, data })) => {
-                    if let Err(e) = block.call_handler(port_id, data).await {
-                        error!(
-                            "{}: Error in callback. Terminating. ({:?})",
-                            block.instance_name().unwrap(),
-                            e
-                        );
-                        main_inbox
-                            .send(FlowgraphMessage::BlockError { block_id, block })
-                            .await?;
-                        return Err(e);
+                Some(Some(BlockMessage::Call { port_id, data, tx })) => {
+                    match block.call_handler(port_id, data).await {
+                        Ok(_) => {
+                            if let Some(tx) = tx {
+                                let _ = tx.send(Ok(()));
+                            }
+                        }
+                        Err(HandlerError::InvalidHandler) => {
+                            if let Some(tx) = tx {
+                                let _ = tx.send(Err(HandlerError::InvalidHandler));
+                            }
+                        }
+                        Err(HandlerError::HandlerError) => {
+                            error!(
+                                "{}: Error in callback. Terminating. ({:?})",
+                                block.instance_name().unwrap(),
+                                HandlerError::HandlerError
+                            );
+                            if let Some(tx) = tx {
+                                let _ = tx.send(Err(HandlerError::HandlerError));
+                            }
+                            main_inbox
+                                .send(FlowgraphMessage::BlockError { block_id, block })
+                                .await?;
+                            return Err(HandlerError::HandlerError.into());
+                        }
                     }
                 }
                 Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
                     match block.call_handler(port_id, data).await {
-                        Ok(res) => {
-                            tx.send(res).unwrap();
-                        }
-                        Err(e) => {
+                        Err(HandlerError::HandlerError) => {
                             error!(
                                 "{}: Error in callback. Terminating. ({:?})",
                                 block.instance_name().unwrap(),
-                                e
+                                HandlerError::HandlerError
                             );
+                            let _ = tx.send(Err(HandlerError::InvalidHandler));
                             main_inbox
                                 .send(FlowgraphMessage::BlockError { block_id, block })
                                 .await?;
-                            return Err(e);
+                            return Err(HandlerError::HandlerError.into());
+                        }
+                        res => {
+                            let _ = tx.send(res);
                         }
                     }
                 }
                 Some(Some(BlockMessage::Terminate)) => work_io.finished = true,
                 Some(Some(t)) => warn!("block unhandled message in main loop {:?}", t),
                 _ => break,
-            }
+            };
             // received at least one message
             work_io.call_again = true;
         }

@@ -8,6 +8,7 @@ use futuresdr_pmt::FlowgraphDescription;
 use std::cmp::{Eq, PartialEq};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::result;
 
 use crate::anyhow::Result;
 #[cfg(not(target_arch = "wasm32"))]
@@ -18,6 +19,7 @@ use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
 use crate::runtime::BlockMessage;
+use crate::runtime::CallbackError;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Kernel;
 use crate::runtime::Pmt;
@@ -160,15 +162,18 @@ impl FlowgraphHandle {
         block_id: usize,
         port_id: impl Into<PortId>,
         data: Pmt,
-    ) -> Result<()> {
+    ) -> result::Result<(), CallbackError> {
+        let (tx, rx) = oneshot::channel::<result::Result<(), CallbackError>>();
         self.inbox
             .send(FlowgraphMessage::BlockCall {
                 block_id,
                 port_id: port_id.into(),
                 data,
+                tx,
             })
-            .await?;
-        Ok(())
+            .await
+            .map_err(|_| CallbackError::InvalidBlock)?;
+        rx.await.map_err(|_| CallbackError::HandlerError)?
     }
 
     pub async fn callback(
@@ -176,8 +181,8 @@ impl FlowgraphHandle {
         block_id: usize,
         port_id: impl Into<PortId>,
         data: Pmt,
-    ) -> Result<Pmt> {
-        let (tx, rx) = oneshot::channel::<Pmt>();
+    ) -> result::Result<Pmt, CallbackError> {
+        let (tx, rx) = oneshot::channel::<result::Result<Pmt, CallbackError>>();
         self.inbox
             .send(FlowgraphMessage::BlockCallback {
                 block_id,
@@ -185,9 +190,9 @@ impl FlowgraphHandle {
                 data,
                 tx,
             })
-            .await?;
-        let p = rx.await?;
-        Ok(p)
+            .await
+            .map_err(|_| CallbackError::InvalidBlock)?;
+        rx.await.map_err(|_| CallbackError::HandlerError)?
     }
 
     pub async fn description(&mut self) -> Result<FlowgraphDescription> {

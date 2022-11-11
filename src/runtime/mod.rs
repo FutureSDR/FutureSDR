@@ -1,6 +1,8 @@
 //! ## SDR Runtime
 use futures::channel::mpsc;
 use futures::channel::oneshot;
+use std::result;
+use thiserror::Error;
 
 mod block;
 mod block_meta;
@@ -84,12 +86,13 @@ pub enum FlowgraphMessage {
         block_id: usize,
         port_id: PortId,
         data: Pmt,
+        tx: oneshot::Sender<result::Result<(), CallbackError>>,
     },
     BlockCallback {
         block_id: usize,
         port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<Pmt>,
+        tx: oneshot::Sender<result::Result<Pmt, CallbackError>>,
     },
     FlowgraphDescription {
         tx: oneshot::Sender<FlowgraphDescription>,
@@ -130,10 +133,40 @@ pub enum BlockMessage {
     Call {
         port_id: PortId,
         data: Pmt,
+        tx: Option<oneshot::Sender<result::Result<(), HandlerError>>>,
     },
     Callback {
         port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<Pmt>,
+        tx: oneshot::Sender<result::Result<Pmt, HandlerError>>,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum HandlerError {
+    #[error("Handler does not exist")]
+    InvalidHandler,
+    #[error("Error in handler")]
+    HandlerError,
+}
+
+#[derive(Error, Debug)]
+pub enum CallbackError {
+    #[error("Block does not exist")]
+    InvalidBlock,
+    #[error("Handler does not exist")]
+    InvalidHandler,
+    #[error("Error in handler")]
+    HandlerError,
+    #[error("Error in runtime")]
+    RuntimeError,
+}
+
+impl From<HandlerError> for CallbackError {
+    fn from(h: HandlerError) -> Self {
+        match h {
+            HandlerError::HandlerError => CallbackError::HandlerError,
+            HandlerError::InvalidHandler => CallbackError::InvalidHandler,
+        }
+    }
 }

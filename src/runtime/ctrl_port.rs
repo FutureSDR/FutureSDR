@@ -15,6 +15,7 @@ pub use futuresdr_pmt::FlowgraphDescription;
 use crate::runtime::config;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 
 macro_rules! relative {
     ($path:expr) => {
@@ -48,9 +49,13 @@ async fn block_description(
 }
 
 async fn handler_id(
-    Path((blk, handler)): Path<(usize, usize)>,
+    Path((blk, handler)): Path<(usize, String)>,
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
+    let handler = match handler.parse::<usize>() {
+        Ok(i) => PortId::Index(i),
+        Err(_) => PortId::Name(handler),
+    };
     if let Ok(ret) = flowgraph.callback(blk, handler, Pmt::Null).await {
         Ok(Json::from(ret))
     } else {
@@ -59,10 +64,14 @@ async fn handler_id(
 }
 
 async fn handler_id_post(
-    Path((blk, handler)): Path<(usize, usize)>,
+    Path((blk, handler)): Path<(usize, String)>,
     Json(pmt): Json<Pmt>,
     Extension(mut flowgraph): Extension<FlowgraphHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
+    let handler = match handler.parse::<usize>() {
+        Ok(i) => PortId::Index(i),
+        Err(_) => PortId::Name(handler),
+    };
     if let Ok(ret) = flowgraph.callback(blk, handler, pmt).await {
         Ok(Json::from(ret))
     } else {

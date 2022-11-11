@@ -99,13 +99,13 @@ impl MessageOutput {
 
     pub async fn post(&mut self, p: Pmt) {
         for (port_id, sender) in self.handlers.iter_mut() {
-            sender
+            let _ = sender
                 .send(BlockMessage::Call {
                     port_id: PortId::Index(*port_id),
                     data: p.clone(),
+                    tx: None,
                 })
-                .await
-                .unwrap();
+                .await;
         }
     }
 }

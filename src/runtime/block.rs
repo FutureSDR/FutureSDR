@@ -2,9 +2,11 @@ use std::any::Any;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::result;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::Result;
 use crate::runtime::BlockMeta;
+use crate::runtime::HandlerError;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageOutput;
 use crate::runtime::Pmt;
@@ -107,7 +109,7 @@ pub trait BlockT: Send + Any {
     fn message_output_mut(&mut self, id: usize) -> &mut MessageOutput;
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 
-    async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt>;
+    async fn call_handler(&mut self, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError>;
 }
 
 pub struct TypedBlock<T> {
@@ -221,17 +223,33 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.output_name_to_id(name)
     }
-    async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt> {
+    async fn call_handler(&mut self, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError> {
         let id = match id {
-            PortId::Index(i) => i,
-            PortId::Name(n) => self
-                .mio
-                .output_name_to_id(&n)
-                .context("invalid port name for message handler")?,
+            PortId::Index(i) => {
+                if i < self.mio.outputs().len() {
+                    i
+                } else {
+                    error!(
+                        "invalid port id for message handler {}, dropping message",
+                        i
+                    );
+                    return Err(HandlerError::InvalidHandler);
+                }
+            }
+            PortId::Name(n) => match self.mio.input_name_to_id(&n) {
+                Some(s) => s,
+                None => {
+                    error!(
+                        "invalid port name for message handler {}, dropping message",
+                        n
+                    );
+                    return Err(HandlerError::InvalidHandler);
+                }
+            },
         };
         let h = self.mio.input(id).get_handler();
         let f = (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p);
-        f.await
+        f.await.or(Err(HandlerError::HandlerError))
     }
 }
 
@@ -356,7 +374,7 @@ impl Block {
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
     }
-    pub async fn call_handler(&mut self, id: PortId, p: Pmt) -> Result<Pmt> {
+    pub async fn call_handler(&mut self, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError> {
         self.0.call_handler(id, p).await
     }
 }
