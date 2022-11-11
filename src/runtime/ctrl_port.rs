@@ -144,7 +144,10 @@ impl ControlPort {
             .route("/api/fg/", get(flowgraphs))
             .route("/api/fg/:fg/", get(flowgraph_description))
             .route("/api/fg/:fg/block/:blk/", get(block_description))
-            .route("/api/fg/:fg/block/:blk/call/:handler/", get(handler_id).post(handler_id_post))
+            .route(
+                "/api/fg/:fg/block/:blk/call/:handler/",
+                get(handler_id).post(handler_id_post),
+            )
             .route(
                 "/api/block/*foo",
                 any(|uri: Uri| async move {

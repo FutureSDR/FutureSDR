@@ -23,6 +23,7 @@ use crate::runtime::scheduler::SmolScheduler;
 use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockDescriptionError;
 use crate::runtime::BlockMessage;
 use crate::runtime::CallbackError;
 use crate::runtime::ControlPort;
@@ -399,12 +400,26 @@ async fn run_flowgraph<S: Scheduler>(
                 let _ = main_channel.send(FlowgraphMessage::Terminate).await;
             }
             FlowgraphMessage::BlockDescription { block_id, tx } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::BlockDescription { tx })
-                    .await
-                    .unwrap();
+                match inboxes.get_mut(block_id) {
+                    Some(Some(ref mut b)) => {
+                        let (b_tx, rx) = oneshot::channel::<BlockDescription>();
+                        if b.send(BlockMessage::BlockDescription { tx: b_tx })
+                            .await
+                            .is_ok()
+                        {
+                            if let Ok(b) = rx.await {
+                                let _ = tx.send(Ok(b));
+                            } else {
+                                let _ = tx.send(Err(BlockDescriptionError::RuntimeError));
+                            }
+                        } else {
+                            let _ = tx.send(Err(BlockDescriptionError::RuntimeError));
+                        }
+                    }
+                    _ => {
+                        let _ = tx.send(Err(BlockDescriptionError::InvalidBlock));
+                    }
+                }
             }
             FlowgraphMessage::FlowgraphDescription { tx } => {
                 let mut blocks = Vec::new();

@@ -16,6 +16,7 @@ use crate::runtime::buffer::slab::Slab;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
+use crate::runtime::BlockDescriptionError;
 use crate::runtime::BlockMessage;
 use crate::runtime::CallbackError;
 use crate::runtime::FlowgraphMessage;
@@ -194,11 +195,12 @@ impl FlowgraphHandle {
     }
 
     pub async fn block_description(&mut self, block_id: usize) -> Result<BlockDescription> {
-        let (tx, rx) = oneshot::channel::<BlockDescription>();
+        let (tx, rx) =
+            oneshot::channel::<result::Result<BlockDescription, BlockDescriptionError>>();
         self.inbox
             .send(FlowgraphMessage::BlockDescription { block_id, tx })
             .await?;
-        let d = rx.await?;
+        let d = rx.await??;
         Ok(d)
     }
 

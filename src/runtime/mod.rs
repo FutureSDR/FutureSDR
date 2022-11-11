@@ -98,7 +98,7 @@ pub enum FlowgraphMessage {
     },
     BlockDescription {
         block_id: usize,
-        tx: oneshot::Sender<BlockDescription>,
+        tx: oneshot::Sender<result::Result<BlockDescription, BlockDescriptionError>>,
     },
 }
 
@@ -168,4 +168,12 @@ impl From<HandlerError> for CallbackError {
             HandlerError::InvalidHandler => CallbackError::InvalidHandler,
         }
     }
+}
+
+#[derive(Error, Debug)]
+pub enum BlockDescriptionError {
+    #[error("Block does not exist")]
+    InvalidBlock,
+    #[error("Runtime Error.")]
+    RuntimeError,
 }
