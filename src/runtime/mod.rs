@@ -17,6 +17,7 @@ pub mod ctrl_port {
     pub use futuresdr_pmt::FlowgraphDescription;
 }
 use crate::runtime::ctrl_port::BlockDescription;
+use crate::runtime::ctrl_port::ControlPort;
 use crate::runtime::ctrl_port::FlowgraphDescription;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
@@ -54,7 +55,6 @@ pub use message_io::MessageOutput;
 pub use mocker::Mocker;
 pub(crate) use runtime::run_block;
 pub use runtime::Runtime;
-pub use runtime::RuntimeBuilder;
 pub use stream_io::StreamInput;
 pub use stream_io::StreamIo;
 pub use stream_io::StreamIoBuilder;

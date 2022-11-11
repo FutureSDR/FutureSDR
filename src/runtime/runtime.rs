@@ -2,6 +2,8 @@
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
 use async_task::Task;
+#[cfg(not(target_arch = "wasm32"))]
+use axum::Router;
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::channel::oneshot;
 use futures::future::join_all;
@@ -14,8 +16,6 @@ type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
 
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::ctrl_port;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::scheduler::SmolScheduler;
@@ -25,6 +25,7 @@ use crate::runtime::Block;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::CallbackError;
+use crate::runtime::ControlPort;
 use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
@@ -38,16 +39,24 @@ use crate::runtime::WorkIo;
 /// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
 pub struct Runtime<S> {
     scheduler: S,
+    control_port: ControlPort,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Runtime<SmolScheduler> {
     /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
-    pub fn new() -> Runtime<SmolScheduler> {
-        RuntimeBuilder {
+    pub fn new() -> Self {
+        Runtime {
             scheduler: SmolScheduler::default(),
+            control_port: ControlPort::new(),
         }
-        .build()
+    }
+
+    pub fn with_custom_routes(routes: Router) -> Self {
+        Runtime {
+            scheduler: SmolScheduler::default(),
+            control_port: ControlPort::with_routes(routes),
+        }
     }
 }
 
@@ -61,10 +70,10 @@ impl Default for Runtime<SmolScheduler> {
 #[cfg(target_arch = "wasm32")]
 impl Runtime<WasmScheduler> {
     pub fn new() -> Runtime<WasmScheduler> {
-        RuntimeBuilder {
+        Runtime {
             scheduler: WasmScheduler::default(),
+            control_port: ControlPort::new(),
         }
-        .build()
     }
 }
 
@@ -78,7 +87,18 @@ impl Default for Runtime<WasmScheduler> {
 impl<S: Scheduler> Runtime<S> {
     /// Create a [Runtime] with a given [Scheduler]
     pub fn with_scheduler(scheduler: S) -> Runtime<S> {
-        RuntimeBuilder { scheduler }.build()
+        Runtime {
+            scheduler,
+            control_port: ControlPort::new(),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_config(scheduler: S, routes: Router) -> Runtime<S> {
+        Runtime {
+            scheduler,
+            control_port: ControlPort::with_routes(routes),
+        }
     }
 
     pub fn spawn<T: Send + 'static>(
@@ -119,7 +139,7 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    pub async fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
+    pub async fn start(&mut self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -133,32 +153,21 @@ impl<S: Scheduler> Runtime<S> {
         ));
         rx.await
             .expect("run_flowgraph did not signal startup completed");
-        (task, FlowgraphHandle::new(fg_inbox))
+        let handle = FlowgraphHandle::new(fg_inbox);
+        self.control_port.add_flowgraph(handle.clone());
+        (task, handle)
     }
 
     /// Main method that kicks-off the running of a [Flowgraph].
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
+    pub fn run(&mut self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = block_on(self.start(fg));
         block_on(handle)
     }
 
-    pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
+    pub async fn run_async(&mut self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg).await;
         handle.await
-    }
-}
-
-pub struct RuntimeBuilder<S> {
-    scheduler: S,
-}
-
-impl<S: Scheduler> RuntimeBuilder<S> {
-    pub fn build(self) -> Runtime<S> {
-        crate::runtime::init();
-        Runtime {
-            scheduler: self.scheduler,
-        }
     }
 }
 
@@ -277,13 +286,6 @@ async fn run_flowgraph<S: Scheduler>(
         main_channel
             .try_send(m)
             .expect("main inbox exceeded capacity during startup");
-    }
-
-    // Start Control Port
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let routes = fg.custom_routes.clone();
-        ctrl_port::start_control_port(FlowgraphHandle::new(main_channel.clone()), routes).await;
     }
 
     initialized

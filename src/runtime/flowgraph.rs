@@ -1,5 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use axum::Router;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::SinkExt;
@@ -31,8 +29,6 @@ use crate::runtime::Topology;
 /// There is at least one source and one sink in every Flowgraph.
 pub struct Flowgraph {
     pub(crate) topology: Option<Topology>,
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) custom_routes: Option<Router>,
 }
 
 impl Flowgraph {
@@ -40,18 +36,11 @@ impl Flowgraph {
     pub fn new() -> Flowgraph {
         Flowgraph {
             topology: Some(Topology::new()),
-            #[cfg(not(target_arch = "wasm32"))]
-            custom_routes: None,
         }
     }
 
     pub fn add_block(&mut self, block: Block) -> usize {
         self.topology.as_mut().unwrap().add_block(block)
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn set_custom_routes(&mut self, routes: Router) {
-        self.custom_routes = Some(routes);
     }
 
     pub fn connect_stream(
