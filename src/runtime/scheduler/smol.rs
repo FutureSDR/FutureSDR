@@ -39,8 +39,11 @@ impl fmt::Debug for SmolSchedulerInner {
 impl Drop for SmolSchedulerInner {
     fn drop(&mut self) {
         for i in self.workers.drain(..) {
-            i.1.send(()).unwrap();
-            i.0.join().unwrap();
+            if let Ok(()) = i.1.send(()) {
+                if let Err(e) = i.0.join() {
+                    debug!("join error: {:?}", e);
+                }
+            }
         }
     }
 }
@@ -70,7 +73,9 @@ impl SmolScheduler {
                         debug!("starting executor thread on core id {}", &c.id);
                         core_affinity::set_for_current(c);
                     }
-                    async_io::block_on(e.run(receiver)).unwrap();
+                    if let Err(e) = async_io::block_on(e.run(receiver)) {
+                        debug!("receiver error, exiting: {:?}", e);
+                    }
                 })
                 .expect("failed to spawn executor thread");
 
