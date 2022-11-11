@@ -21,10 +21,9 @@ fn main() -> Result<()> {
     );
 
     let router = Router::new().route("/my_route/", get(my_route));
-    fg.set_custom_routes(router);
 
     println!("Visit http://127.0.0.1:1337/my_route/");
-    Runtime::new().run(fg)?;
+    Runtime::with_custom_routes(router).run(fg)?;
 
     Ok(())
 }
