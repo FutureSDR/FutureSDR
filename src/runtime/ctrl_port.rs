@@ -156,21 +156,24 @@ impl ControlPort {
             )
             .route(
                 "/api/block/:blk/",
-                get(|uri: Uri| async move { 
+                get(|uri: Uri| async move {
                     let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u)) }),
+                    Redirect::permanent(&format!("/api/fg/0/{}", u))
+                }),
             )
             .route(
                 "/api/block/:blk/call/:handler",
-                get(|uri: Uri| async move { 
+                get(|uri: Uri| async move {
                     let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u)) }),
+                    Redirect::permanent(&format!("/api/fg/0/{}", u))
+                }),
             )
             .route(
                 "/api/block/:blk/call/:handler",
-                post(|uri: Uri| async move { 
+                post(|uri: Uri| async move {
                     let u = uri.to_string().split_off(5);
-                    Redirect::permanent(&format!("/api/fg/0/{}", u)) }),
+                    Redirect::permanent(&format!("/api/fg/0/{}", u))
+                }),
             )
             .layer(AddExtensionLayer::new(self.flowgraphs.clone()))
             .layer(CorsLayer::permissive());
