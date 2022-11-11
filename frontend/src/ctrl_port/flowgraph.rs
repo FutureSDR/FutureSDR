@@ -29,7 +29,7 @@ pub struct Flowgraph {
 
 impl Flowgraph {
     fn endpoint(props: &Props) -> String {
-        format!("{}/api/fg/", props.url)
+        format!("{}/api/fg/0/", props.url)
     }
 
     fn callback(ctx: &Context<Self>) {
