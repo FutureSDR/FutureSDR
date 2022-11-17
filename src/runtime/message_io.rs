@@ -132,6 +132,10 @@ impl<T: Send + ?Sized> MessageIo<T> {
         &self.inputs[id]
     }
 
+    pub fn inputs(&self) -> &Vec<MessageInput<T>> {
+        &self.inputs
+    }
+
     pub fn input_names(&self) -> Vec<String> {
         self.inputs.iter().map(|x| x.name().to_string()).collect()
     }

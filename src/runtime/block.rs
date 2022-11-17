@@ -226,7 +226,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     async fn call_handler(&mut self, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError> {
         let id = match id {
             PortId::Index(i) => {
-                if i < self.mio.outputs().len() {
+                if i < self.mio.inputs().len() {
                     i
                 } else {
                     error!(
