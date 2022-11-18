@@ -22,5 +22,5 @@ perf-data/fs%.csv: vulkan.rs
 	@echo SAMPLES=$(SAMPLES)
 	@echo BUFFER_SIZE=$(BUFFER_SIZE)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --samples=$(SAMPLES) --buffer_size=$(BUFFER_SIZE) | grep -v cset > $@
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --samples=$(SAMPLES) --buffer-size=$(BUFFER_SIZE) | grep -v cset > $@
 
