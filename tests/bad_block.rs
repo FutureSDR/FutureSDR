@@ -74,7 +74,6 @@ fn run_no_err() -> Result<()> {
 }
 
 #[test]
-// #[ignore]
 fn run_work_err() -> Result<()> {
     //FIXME: (#89) this currently hangs the runtime
     let mut bb = BadBlock::<f32>::default();
@@ -124,7 +123,6 @@ fn terminate_no_err() -> Result<()> {
 /// BadBlock returns work error, terminate msg is sent later (after already shut down).
 #[test]
 fn terminate_work_err() -> Result<()> {
-    //FIXME: (#89) this sometimes hangs the runtime
     let mut bb = BadBlock::<f32>::default();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Terminate)? {

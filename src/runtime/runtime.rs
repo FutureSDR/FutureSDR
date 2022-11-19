@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 #[cfg(not(target_arch = "wasm32"))]
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
@@ -34,6 +37,7 @@ use crate::runtime::WorkIo;
 /// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
 pub struct Runtime<S> {
     scheduler: S,
+    fg: Arc<Mutex<Option<Flowgraph>>>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -116,12 +120,15 @@ impl<S: Scheduler> Runtime<S> {
     }
 
     pub async fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
+        //Save the fg in the runtime
+        *self.fg.lock().await = Some(fg);
+
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
         let (tx, rx) = oneshot::channel::<()>();
         let task = self.scheduler.spawn(run_flowgraph(
-            fg,
+            self.fg.clone(),
             self.scheduler.clone(),
             fg_inbox.clone(),
             fg_inbox_rx,
@@ -154,248 +161,273 @@ impl<S: Scheduler> RuntimeBuilder<S> {
         crate::runtime::init();
         Runtime {
             scheduler: self.scheduler,
+            fg: Arc::default(),
         }
     }
 }
 
 async fn run_flowgraph<S: Scheduler>(
-    mut fg: Flowgraph,
+    fg: Arc<Mutex<Option<Flowgraph>>>,
+    scheduler: S,
+    main_channel: Sender<FlowgraphMessage>,
+    main_rx: Receiver<FlowgraphMessage>,
+    initialized: oneshot::Sender<()>,
+) -> Result<Flowgraph> {
+    debug!("enter run_flowgraph (outer)");
+
+    if let Some(fg) = &mut *fg.lock().await {
+        run_flowgraph_inner(fg, scheduler, main_channel, main_rx, initialized).await?;
+    }
+    //take back fg now (no errors if we got here)
+    match fg.lock().await.take() {
+        Some(fg) => Ok(fg),
+        None => bail!("No fg to return."),
+    }
+}
+
+async fn run_flowgraph_inner<S: Scheduler>(
+    fg: &mut Flowgraph,
     scheduler: S,
     mut main_channel: Sender<FlowgraphMessage>,
     mut main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<()>,
-) -> Result<Flowgraph> {
+) -> Result<()> {
     debug!("in run_flowgraph");
 
     let mut ret_result: Option<Error> = None;
 
-    let mut topology = fg.topology.take().context("flowgraph not initialized")?;
-    topology.validate()?;
+    // Don't take topology, just reference it. No need to put it back then.
+    match &mut fg.topology {
+        None => bail!("flowgraph not initialized"),
+        Some(topology) => {
+            topology.validate()?;
 
-    let mut inboxes = scheduler.run_topology(&mut topology, &main_channel);
+            let mut inboxes = scheduler.run_topology(topology, &main_channel);
 
-    debug!("connect stream io");
-    // connect stream IO
-    for ((src, src_port, buffer_builder), v) in topology.stream_edges.iter() {
-        debug_assert!(!v.is_empty());
+            debug!("connect stream io");
+            // connect stream IO
+            for ((src, src_port, buffer_builder), v) in topology.stream_edges.iter() {
+                debug_assert!(!v.is_empty());
 
-        let src_inbox = inboxes[*src].as_ref().unwrap().clone();
-        let mut writer = buffer_builder.build(src_inbox, *src_port);
+                let src_inbox = inboxes[*src].as_ref().unwrap().clone();
+                let mut writer = buffer_builder.build(src_inbox, *src_port);
 
-        for (dst, dst_port) in v.iter() {
-            let dst_inbox = inboxes[*dst].as_ref().unwrap().clone();
+                for (dst, dst_port) in v.iter() {
+                    let dst_inbox = inboxes[*dst].as_ref().unwrap().clone();
 
-            inboxes[*dst]
-                .as_mut()
-                .unwrap()
-                .send(BlockMessage::StreamInputInit {
-                    dst_port: *dst_port,
-                    reader: writer.add_reader(dst_inbox, *dst_port),
-                })
-                .await
-                .unwrap();
-        }
-
-        inboxes[*src]
-            .as_mut()
-            .unwrap()
-            .send(BlockMessage::StreamOutputInit {
-                src_port: *src_port,
-                writer,
-            })
-            .await
-            .unwrap();
-    }
-
-    debug!("connect message io");
-    // connect message IO
-    for (src, src_port, dst, dst_port) in topology.message_edges.iter() {
-        let dst_box = inboxes[*dst].as_ref().unwrap().clone();
-        inboxes[*src]
-            .as_mut()
-            .unwrap()
-            .send(BlockMessage::MessageOutputConnect {
-                src_port: *src_port,
-                dst_port: *dst_port,
-                dst_inbox: dst_box,
-            })
-            .await
-            .unwrap();
-    }
-
-    debug!("init blocks");
-    // init blocks
-    let mut active_blocks = 0u32;
-    for (_, opt) in inboxes.iter_mut() {
-        if let Some(ref mut chan) = opt {
-            chan.send(BlockMessage::Initialize).await.unwrap();
-            active_blocks += 1;
-        }
-    }
-
-    debug!("wait for blocks init");
-    // wait until all blocks are initialized
-    let mut i = active_blocks;
-    let mut queue = Vec::new();
-    loop {
-        if i == 0 {
-            break;
-        }
-
-        let m = main_rx.next().await.context("no msg")?;
-        match m {
-            FlowgraphMessage::Initialized => i -= 1,
-            x => {
-                debug!(
-                    "queueing unhandled message received during initialization {:?}",
-                    &x
-                );
-                queue.push(x);
-            }
-        }
-    }
-
-    debug!("running blocks");
-    for (_, opt) in inboxes.iter_mut() {
-        if let Some(ref mut chan) = opt {
-            if chan.send(BlockMessage::Notify).await.is_err() {
-                debug!("runtime wanted to start block that already terminated");
-            }
-        }
-    }
-
-    for m in queue.into_iter() {
-        main_channel
-            .try_send(m)
-            .expect("main inbox exceeded capacity during startup");
-    }
-
-    // Start Control Port
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let routes = fg.custom_routes.clone();
-        ctrl_port::start_control_port(FlowgraphHandle::new(main_channel.clone()), routes).await;
-    }
-
-    initialized
-        .send(())
-        .expect("failed to signal flowgraph startup complete.");
-
-    // main loop
-    loop {
-        if active_blocks == 0 {
-            debug!("No active blocks, exiting.");
-            break;
-        }
-
-        let m = main_rx.next().await.context("no msg")?;
-        match m {
-            FlowgraphMessage::BlockCall {
-                block_id,
-                port_id,
-                data,
-            } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::Call { port_id, data })
-                    .await
-                    .unwrap();
-            }
-            FlowgraphMessage::BlockCallback {
-                block_id,
-                port_id,
-                data,
-                tx,
-            } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::Callback { port_id, data, tx })
-                    .await
-                    .unwrap();
-            }
-            FlowgraphMessage::BlockDone { block_id, block } => {
-                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
-
-                active_blocks -= 1;
-            }
-            FlowgraphMessage::BlockDescription { block_id, tx } => {
-                inboxes[block_id]
-                    .as_mut()
-                    .unwrap()
-                    .send(BlockMessage::BlockDescription { tx })
-                    .await
-                    .unwrap();
-            }
-            FlowgraphMessage::FlowgraphDescription { tx } => {
-                let mut blocks = Vec::new();
-                let ids: Vec<usize> = topology.blocks.iter().map(|x| x.0).collect();
-                for id in ids {
-                    let (b_tx, rx) = oneshot::channel::<BlockDescription>();
-                    inboxes[id]
+                    inboxes[*dst]
                         .as_mut()
                         .unwrap()
-                        .send(BlockMessage::BlockDescription { tx: b_tx })
+                        .send(BlockMessage::StreamInputInit {
+                            dst_port: *dst_port,
+                            reader: writer.add_reader(dst_inbox, *dst_port),
+                        })
                         .await
                         .unwrap();
-                    blocks.push(rx.await.unwrap());
                 }
 
-                let stream_edges = topology
-                    .stream_edges
-                    .iter()
-                    .flat_map(|x| x.1.iter().map(|y| (x.0 .0, x.0 .1, y.0, y.1)))
-                    .collect();
-                let message_edges = topology.message_edges.clone();
-
-                tx.send(FlowgraphDescription {
-                    blocks,
-                    stream_edges,
-                    message_edges,
-                })
-                .unwrap();
+                inboxes[*src]
+                    .as_mut()
+                    .unwrap()
+                    .send(BlockMessage::StreamOutputInit {
+                        src_port: *src_port,
+                        writer,
+                    })
+                    .await
+                    .unwrap();
             }
-            FlowgraphMessage::Terminate => {
-                debug!("FlowgraphMessage::Terminate");
-                for (_, opt) in inboxes.iter_mut() {
-                    if let Some(ref mut chan) = opt {
-                        if chan.send(BlockMessage::Terminate).await.is_err() {
-                            debug!("runtime terminate block send error");
-                            // Assume this block is terminated
-                            active_blocks = active_blocks.saturating_sub(1);
-                        }
+
+            debug!("connect message io");
+            // connect message IO
+            for (src, src_port, dst, dst_port) in topology.message_edges.iter() {
+                let dst_box = inboxes[*dst].as_ref().unwrap().clone();
+                inboxes[*src]
+                    .as_mut()
+                    .unwrap()
+                    .send(BlockMessage::MessageOutputConnect {
+                        src_port: *src_port,
+                        dst_port: *dst_port,
+                        dst_inbox: dst_box,
+                    })
+                    .await
+                    .unwrap();
+            }
+
+            debug!("init blocks");
+            // init blocks
+            let mut active_blocks = 0u32;
+            for (_, opt) in inboxes.iter_mut() {
+                if let Some(ref mut chan) = opt {
+                    chan.send(BlockMessage::Initialize).await.unwrap();
+                    active_blocks += 1;
+                }
+            }
+
+            debug!("wait for blocks init");
+            // wait until all blocks are initialized
+            let mut i = active_blocks;
+            let mut queue = Vec::new();
+            loop {
+                if i == 0 {
+                    break;
+                }
+
+                let m = main_rx.next().await.context("no msg")?;
+                match m {
+                    FlowgraphMessage::Initialized => i -= 1,
+                    x => {
+                        debug!(
+                            "queueing unhandled message received during initialization {:?}",
+                            &x
+                        );
+                        queue.push(x);
                     }
                 }
             }
-            FlowgraphMessage::BlockError {
-                block_id,
-                block,
-                error,
-            } => {
-                debug!(
-                    "FlowgraphMessage::BlockError({},{:?},{})",
-                    block_id,
-                    block.instance_name(),
-                    error
-                );
-                *topology.blocks.get_mut(block_id).unwrap() = Some(block);
 
-                ret_result = Some(Error::msg("BlockError"));
-                // TODO: send terminate to all *other* blocks. (How?)
-                break;
+            debug!("running blocks");
+            for (_, opt) in inboxes.iter_mut() {
+                if let Some(ref mut chan) = opt {
+                    if chan.send(BlockMessage::Notify).await.is_err() {
+                        debug!("runtime wanted to start block that already terminated");
+                    }
+                }
             }
-            _ => warn!("main loop received unhandled message"),
+
+            for m in queue.into_iter() {
+                main_channel
+                    .try_send(m)
+                    .expect("main inbox exceeded capacity during startup");
+            }
+
+            // Start Control Port
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let routes = fg.custom_routes.clone();
+                ctrl_port::start_control_port(FlowgraphHandle::new(main_channel.clone()), routes)
+                    .await;
+            }
+
+            initialized
+                .send(())
+                .expect("failed to signal flowgraph startup complete.");
+
+            // main loop
+            loop {
+                if active_blocks == 0 {
+                    debug!("No active blocks, exiting.");
+                    break;
+                }
+
+                let m = main_rx.next().await.context("no msg")?;
+                match m {
+                    FlowgraphMessage::BlockCall {
+                        block_id,
+                        port_id,
+                        data,
+                    } => {
+                        inboxes[block_id]
+                            .as_mut()
+                            .unwrap()
+                            .send(BlockMessage::Call { port_id, data })
+                            .await
+                            .unwrap();
+                    }
+                    FlowgraphMessage::BlockCallback {
+                        block_id,
+                        port_id,
+                        data,
+                        tx,
+                    } => {
+                        inboxes[block_id]
+                            .as_mut()
+                            .unwrap()
+                            .send(BlockMessage::Callback { port_id, data, tx })
+                            .await
+                            .unwrap();
+                    }
+                    FlowgraphMessage::BlockDone { block_id, block } => {
+                        *topology.blocks.get_mut(block_id).unwrap() = Some(block);
+
+                        active_blocks -= 1;
+                    }
+                    FlowgraphMessage::BlockDescription { block_id, tx } => {
+                        inboxes[block_id]
+                            .as_mut()
+                            .unwrap()
+                            .send(BlockMessage::BlockDescription { tx })
+                            .await
+                            .unwrap();
+                    }
+                    FlowgraphMessage::FlowgraphDescription { tx } => {
+                        let mut blocks = Vec::new();
+                        let ids: Vec<usize> = topology.blocks.iter().map(|x| x.0).collect();
+                        for id in ids {
+                            let (b_tx, rx) = oneshot::channel::<BlockDescription>();
+                            inboxes[id]
+                                .as_mut()
+                                .unwrap()
+                                .send(BlockMessage::BlockDescription { tx: b_tx })
+                                .await
+                                .unwrap();
+                            blocks.push(rx.await.unwrap());
+                        }
+
+                        let stream_edges = topology
+                            .stream_edges
+                            .iter()
+                            .flat_map(|x| x.1.iter().map(|y| (x.0 .0, x.0 .1, y.0, y.1)))
+                            .collect();
+                        let message_edges = topology.message_edges.clone();
+
+                        tx.send(FlowgraphDescription {
+                            blocks,
+                            stream_edges,
+                            message_edges,
+                        })
+                        .unwrap();
+                    }
+                    FlowgraphMessage::Terminate => {
+                        debug!("FlowgraphMessage::Terminate");
+                        for (_, opt) in inboxes.iter_mut() {
+                            if let Some(ref mut chan) = opt {
+                                if chan.send(BlockMessage::Terminate).await.is_err() {
+                                    debug!("runtime terminate block send error");
+                                    // Assume this block is terminated
+                                    active_blocks = active_blocks.saturating_sub(1);
+                                }
+                            }
+                        }
+                    }
+                    FlowgraphMessage::BlockError {
+                        block_id,
+                        block,
+                        error,
+                    } => {
+                        debug!(
+                            "FlowgraphMessage::BlockError({},{:?},{})",
+                            block_id,
+                            block.instance_name(),
+                            error
+                        );
+                        *topology.blocks.get_mut(block_id).unwrap() = Some(block);
+
+                        ret_result = Some(Error::msg("BlockError"));
+                        // TODO: send terminate to all *other* blocks. (How?)
+                        break;
+                    }
+                    _ => warn!("main loop received unhandled message"),
+                }
+            }
         }
     }
 
-    fg.topology = Some(topology);
     debug!("exit run_flowgraph");
 
     if let Some(e) = ret_result {
         return Err(e);
     }
-    Ok(fg)
+    Ok(())
 }
 
 pub(crate) async fn run_block(
