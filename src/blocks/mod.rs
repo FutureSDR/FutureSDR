@@ -97,7 +97,9 @@
 //! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
 
+#[cfg(feature = "soapy")]
 mod agc;
+#[cfg(feature = "soapy")]
 pub use agc::AGC;
 
 mod apply;

@@ -9,23 +9,26 @@ use futuresdr::runtime::Runtime;
 use futuresdr::macros::connect;
 
 use futuredsp::firdes;
+use futuresdr::soapysdr;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
+    let dev = soapysdr::Device::new("driver=bladerf").unwrap();
+
     // Design bandpass filter for the middle tone
-    let cutoff = (440.0) as f64 / 44_100. as f64;
-    let transition_bw = 100.0 / 44_100. as f64;
+    let cutoff = (440.0) as f64 / 48_000. as f64;
+    let transition_bw = 100.0 / 48_000. as f64;
     let max_ripple = 0.01;
 
     let filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition_bw, max_ripple);
     info!("Filter has {} taps", filter_taps.len());
 
-    let src = SignalSourceBuilder::<f32>::sin(220.0, 44100.0)
+    let src = SignalSourceBuilder::<f32>::sin(220.0, 48_000.0)
         .amplitude(0.4)
         .build();
     //let src = Oscillator::new(440.0, 1.0, 44100.0);
-    let gain_change = SignalSourceBuilder::<f32>::sin(0.5, 44100.0)
+    let gain_change = SignalSourceBuilder::<f32>::sin(0.5, 48_000.0)
         .amplitude(0.5)
         .build();
     //let gain_change = Oscillator::new(0.5, 1.5, 44100.0);
@@ -33,7 +36,7 @@ fn main() -> Result<()> {
         a * b
     });
 
-    let agc = AGC::<f32>::new(0.0, 1.0);
+    let agc = AGC::<f32>::new(0.0, 1.0, Some(dev));
 
     let lowpass = FirBuilder::new::<f32, f32, _, _>(filter_taps);
 
@@ -42,7 +45,7 @@ fn main() -> Result<()> {
         d[0] = v[0];
         d[1] = v[0];
     });
-    let audio_snk = AudioSink::new(44_100, 2);
+    let audio_snk = AudioSink::new(48_000, 2);
     let zmq_snk = PubSinkBuilder::<f32>::new()
         .address("tcp://127.0.0.1:50001")
         .build();
