@@ -32,11 +32,11 @@ fn main() -> Result<()> {
     let src = SignalSourceBuilder::<f32>::sin(220.0, 48_000.0)
         .amplitude(0.4)
         .build();
-    //let src = Oscillator::new(440.0, 1.0, 44100.0);
+    //let src = Oscillator::new(220.0, 0.4, 48_000.0);
     let gain_change = SignalSourceBuilder::<f32>::sin(0.5, 48_000.0)
         .amplitude(0.5)
         .build();
-    //let gain_change = Oscillator::new(0.5, 1.5, 44100.0);
+    //let gain_change = Oscillator::new(0.5, 0.5, 48_000.0);
     let combine = Combine::new(|a: &f32, b: &f32| {
         a * b
     });
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     // Start the flowgraph and save the handle
     let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
 
-    // Keep asking user for a new frequency and a new sample rate
+    // Keep changing gain and gain lock.
     loop {
         println!("Setting gain lock");
         async_io::block_on(handle.call(
