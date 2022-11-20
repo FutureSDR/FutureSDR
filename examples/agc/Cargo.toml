@@ -13,4 +13,5 @@ path = "audio_agc.rs"
 #futuresdr = { version = "*", features = ["audio", "zeromq"] }
 futuredsp = { version = "*" }
 futuresdr = { path = "../..", features = ["soapy", "audio", "zeromq"] }
+#tokio = { version = "*", features = ["full"] }
 #soapysdr = { version = "*" }

@@ -1,3 +1,6 @@
+use std::thread::sleep;
+use std::time::Duration;
+use futuresdr::async_io;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::{AGC, Combine, FirBuilder, SignalSourceBuilder};
@@ -6,15 +9,17 @@ use futuresdr::blocks::ApplyNM;
 use futuresdr::log::info;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::Pmt;
 use futuresdr::macros::connect;
 
 use futuredsp::firdes;
 use futuresdr::soapysdr;
 
+//#[tokio::main]
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = soapysdr::Device::new("driver=bladerf").unwrap();
+    let dev = soapysdr::Device::new("driver=bladerf").ok();
 
     // Design bandpass filter for the middle tone
     let cutoff = (440.0) as f64 / 48_000. as f64;
@@ -36,7 +41,9 @@ fn main() -> Result<()> {
         a * b
     });
 
-    let agc = AGC::<f32>::new(0.0, 1.0, Some(dev));
+    let agc = AGC::<f32>::new(0.0, 1.0, dev);
+    let lock_sw_gain_handler_id = agc.message_input_name_to_id("lock_sw_gain").unwrap();
+    let set_sw_scale_handler_id = agc.message_input_name_to_id("set_sw_scale").unwrap();
 
     let lowpass = FirBuilder::new::<f32, f32, _, _>(filter_taps);
 
@@ -60,7 +67,30 @@ fn main() -> Result<()> {
              mono_to_stereo > audio_snk;
     );
 
-    Runtime::new().run(fg)?;
+    // Start the flowgraph and save the handle
+    let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
 
-    Ok(())
+    // Keep asking user for a new frequency and a new sample rate
+    loop {
+        println!("Setting gain lock");
+        async_io::block_on(handle.call(
+            agc,
+            lock_sw_gain_handler_id,
+            Pmt::U32(1),
+        ))?;
+        async_io::block_on(handle.call(
+            agc,
+            set_sw_scale_handler_id,
+            Pmt::F32(0.2),
+        ))?;
+        sleep(Duration::from_secs(3));
+        async_io::block_on(handle.call(
+            agc,
+            lock_sw_gain_handler_id,
+            Pmt::U32(0),
+        ))?;
+        sleep(Duration::from_secs(3));
+    }
+
+    //Ok(())
 }

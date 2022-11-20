@@ -2,6 +2,8 @@ use num_complex::Complex32;
 use num_complex::ComplexFloat;
 use soapysdr::Device;
 use soapysdr::Range;
+use futuresdr_pmt::Pmt;
+use futures::FutureExt;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -21,20 +23,21 @@ pub struct AGC<T>
     squelch: f32,
     target: f32,
     chunk_size: usize,
+    sw_gain_lock: u32,
+    sw_scale: f32,
     dev: Option<Device>,
     gain: f64,
     gain_range: Range,
 }
 
-impl AGC<f32>
-{
+impl AGC<f32> {
     pub fn new(
         squelch: f32,
         target: f32,
         dev: Option<Device>,
     ) -> Block {
         let mut gain = 0.0;
-        let mut gain_range = soapysdr::Range{ minimum: 0.0, maximum: 1.0, step: 1.0 };
+        let mut gain_range = soapysdr::Range { minimum: 0.0, maximum: 1.0, step: 1.0 };
         if let Some(ref device) = dev {
             gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
             gain_range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
@@ -45,12 +48,42 @@ impl AGC<f32>
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageIoBuilder::<Self>::new()
+                .add_input("lock_sw_gain",
+                           |block: &mut AGC<f32>,
+                            _mio: &mut MessageIo<AGC<f32>>,
+                            _meta: &mut BlockMeta,
+                            p: Pmt| {
+                               async move {
+                                   if let Pmt::U32(ref r) = &p {
+                                       block.sw_gain_lock = *r;
+                                       info!("sw_gain_lock: {}", block.sw_gain_lock);
+                                   }
+                                   Ok(p)
+                               }.boxed()
+                           },
+                )
+                .add_input("set_sw_scale",
+                           |block: &mut AGC<f32>,
+                            _mio: &mut MessageIo<AGC<f32>>,
+                            _meta: &mut BlockMeta,
+                            p: Pmt| {
+                               async move {
+                                   if let Pmt::F32(ref r) = &p {
+                                       block.sw_scale = *r;
+                                       info!("sw_scale: {}", block.sw_scale);
+                                   }
+                                   Ok(p)
+                               }.boxed()
+                           },
+                ).build(),
             AGC {
                 _type: std::marker::PhantomData,
                 squelch,
                 target,
                 chunk_size: 16,
+                sw_gain_lock: 0,
+                sw_scale: 1.0,
                 dev,
                 gain,
                 gain_range,
@@ -59,14 +92,14 @@ impl AGC<f32>
     }
 }
 
-impl AGC<Complex32> {
+/*impl AGC<Complex32> {
     pub fn new(
         squelch: f32,
         target: f32,
         dev: Option<Device>,
     ) -> Block {
         let mut gain = 0.0;
-        let mut gain_range = soapysdr::Range{ minimum: 0.0, maximum: 1.0, step: 1.0 };
+        let mut gain_range = soapysdr::Range { minimum: 0.0, maximum: 1.0, step: 1.0 };
         if let Some(ref device) = dev {
             gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
             gain_range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
@@ -83,13 +116,15 @@ impl AGC<Complex32> {
                 squelch,
                 target,
                 chunk_size: 16,
+                sw_gain_lock: 0,
+                sw_scale: 1.0,
                 dev,
                 gain,
                 gain_range,
             },
         )
     }
-}
+}*/
 
 
 #[doc(hidden)]
@@ -105,36 +140,25 @@ impl Kernel for AGC<f32> {
         let i = sio.input(0).slice::<f32>();
         let o = sio.output(0).slice::<f32>();
 
-        /*info!("YEA: ");
-        if let Some(ref device) = self.dev {
-            let has_gain_mode = device.has_gain_mode(soapysdr::Direction::Rx, 0).unwrap();
-            info!("Has Gain Mode: {}", has_gain_mode);
-
-            let agc_enabled = device.gain_mode(soapysdr::Direction::Rx, 0).unwrap();
-            info!("AGC Enabled: {}", agc_enabled);
-
-            let gain_range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
-            info!("Gain Range: {:?}", gain_range);
-
-            let gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
-            info!("Gain: {}", gain);
-        }*/
-
         // Max I/Q absolute value over the whole buffer
-        let mut max: f32 = 0.;
+        let mut _max: f32 = 0.;
 
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (i_chunk, o_chunk) in i.chunks(self.chunk_size).zip(o.chunks_mut(self.chunk_size)) {
-                let factor: f32 = i_chunk.iter().map(|v| v.abs()).reduce(f32::max).unwrap(); // Maximum
-                //let factor = i_chunk.iter().map(|v| v.abs()).sum::<f32>() / (i_chunk.len() as f32); // Average
-                let scale = self.target / factor;
+                if self.sw_gain_lock != 0 {
+                    let factor: f32 = i_chunk.iter().map(|v| v.abs()).reduce(f32::max).unwrap(); // Maximum
+                    //let factor = i_chunk.iter().map(|v| v.abs()).sum::<f32>() / (i_chunk.len() as f32); // Average
+                    self.sw_scale = self.target / factor;
+                }
 
-                max = max.max(factor);
+                /*if !self.hw_gain_lock {
+                    max = max.max(factor);
+                }*/
 
                 for (src, dst) in i_chunk.iter().zip(o_chunk.iter_mut()) {
                     if src.abs().gt(&self.squelch) {
-                        *dst = (*src) * scale;
+                        *dst = (*src) * self.sw_scale;
                     } else {
                         *dst = 0.;
                     }
@@ -150,26 +174,16 @@ impl Kernel for AGC<f32> {
         }
 
         // Adjust gain on Hardware
-        if let Some(ref device) = self.dev {
+        /*if let Some(ref device) = self.dev {
             info!("Max: {}, Gain: {}, Gain Range: {:?}", max, self.gain, self.gain_range);
-
-            /*if max < 1.0 {
-                let mut gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
-                info!("Gain: {}", gain);
-                let gain_range: soapysdr::Range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
-                info!("Gain Range: {:?}", gain_range);
-                if gain < 60. {
-                    gain += 1.0;
-                    device.set_gain(soapysdr::Direction::Rx, 0, gain).unwrap();
-                }
-            }*/
-        }
+            //device.set_gain(soapysdr::Direction::Rx, 0, gain).unwrap();
+        }*/
 
         Ok(())
     }
 }
 
-#[doc(hidden)]
+/*#[doc(hidden)]
 #[async_trait]
 impl Kernel for AGC<Complex32> {
     async fn work(
@@ -210,7 +224,7 @@ impl Kernel for AGC<Complex32> {
 
         Ok(())
     }
-}
+}*/
 
 /*pub struct AGCBuilder<T> {
     _type: std::marker::PhantomData<T>,
