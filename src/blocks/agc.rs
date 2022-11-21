@@ -1,7 +1,5 @@
 use num_complex::Complex32;
 use num_complex::ComplexFloat;
-use soapysdr::Device;
-use soapysdr::Range;
 use futuresdr_pmt::Pmt;
 use futures::FutureExt;
 
@@ -25,23 +23,13 @@ pub struct AGC<T>
     chunk_size: usize,
     sw_gain_lock: u32,
     sw_scale: f32,
-    dev: Option<Device>,
-    gain: f64,
-    gain_range: Range,
 }
 
 impl AGC<f32> {
     pub fn new(
         squelch: f32,
         target: f32,
-        dev: Option<Device>,
     ) -> Block {
-        let mut gain = 0.0;
-        let mut gain_range = soapysdr::Range { minimum: 0.0, maximum: 1.0, step: 1.0 };
-        if let Some(ref device) = dev {
-            gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
-            gain_range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
-        }
         Block::new(
             BlockMetaBuilder::new("AGC").build(),
             StreamIoBuilder::new()
@@ -84,26 +72,16 @@ impl AGC<f32> {
                 chunk_size: 16,
                 sw_gain_lock: 0,
                 sw_scale: 1.0,
-                dev,
-                gain,
-                gain_range,
             },
         )
     }
 }
 
-/*impl AGC<Complex32> {
+impl AGC<Complex32> {
     pub fn new(
         squelch: f32,
         target: f32,
-        dev: Option<Device>,
     ) -> Block {
-        let mut gain = 0.0;
-        let mut gain_range = soapysdr::Range { minimum: 0.0, maximum: 1.0, step: 1.0 };
-        if let Some(ref device) = dev {
-            gain = device.gain(soapysdr::Direction::Rx, 0).unwrap();
-            gain_range = device.gain_range(soapysdr::Direction::Rx, 0).unwrap();
-        }
         Block::new(
             BlockMetaBuilder::new("AGC").build(),
             StreamIoBuilder::new()
@@ -118,13 +96,10 @@ impl AGC<f32> {
                 chunk_size: 16,
                 sw_gain_lock: 0,
                 sw_scale: 1.0,
-                dev,
-                gain,
-                gain_range,
             },
         )
     }
-}*/
+}
 
 
 #[doc(hidden)]
@@ -140,9 +115,6 @@ impl Kernel for AGC<f32> {
         let i = sio.input(0).slice::<f32>();
         let o = sio.output(0).slice::<f32>();
 
-        // Max I/Q absolute value over the whole buffer
-        let mut _max: f32 = 0.;
-
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (i_chunk, o_chunk) in i.chunks(self.chunk_size).zip(o.chunks_mut(self.chunk_size)) {
@@ -151,10 +123,6 @@ impl Kernel for AGC<f32> {
                     //let factor = i_chunk.iter().map(|v| v.abs()).sum::<f32>() / (i_chunk.len() as f32); // Average
                     self.sw_scale = self.target / factor;
                 }
-
-                /*if !self.hw_gain_lock {
-                    max = max.max(factor);
-                }*/
 
                 for (src, dst) in i_chunk.iter().zip(o_chunk.iter_mut()) {
                     if src.abs().gt(&self.squelch) {
@@ -173,17 +141,11 @@ impl Kernel for AGC<f32> {
             io.finished = true;
         }
 
-        // Adjust gain on Hardware
-        /*if let Some(ref device) = self.dev {
-            info!("Max: {}, Gain: {}, Gain Range: {:?}", max, self.gain, self.gain_range);
-            //device.set_gain(soapysdr::Direction::Rx, 0, gain).unwrap();
-        }*/
-
         Ok(())
     }
 }
 
-/*#[doc(hidden)]
+#[doc(hidden)]
 #[async_trait]
 impl Kernel for AGC<Complex32> {
     async fn work(
@@ -224,40 +186,4 @@ impl Kernel for AGC<Complex32> {
 
         Ok(())
     }
-}*/
-
-/*pub struct AGCBuilder<T> {
-    _type: std::marker::PhantomData<T>,
-    squelch: f32,
-    target: f32,
 }
-
-impl<T> AGCBuilder<T> {
-    pub fn new() -> AGCBuilder<T> {
-        AGCBuilder {
-            _type: std::marker::PhantomData,
-            squelch: 0.0,
-            target: 1.0,
-        }
-    }
-
-    pub fn squelch(mut self, squelch: f32) -> AGCBuilder<T> {
-        self.squelch = squelch;
-        self
-    }
-
-    pub fn target(mut self, target: f32) -> AGCBuilder<T> {
-        self.target = target;
-        self
-    }
-
-    pub fn build(self) -> Block {
-        AGC::<T>::new(self.squelch, self.target)
-    }
-}
-
-impl<T> Default for AGCBuilder<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}*/

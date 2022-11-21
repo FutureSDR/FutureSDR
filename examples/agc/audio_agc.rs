@@ -41,13 +41,13 @@ fn main() -> Result<()> {
         a * b
     });
 
-    let agc = AGC::<f32>::new(0.0, 1.0, dev);
+    let agc = AGC::<f32>::new(0.0, 1.0);
     let lock_sw_gain_handler_id = agc.message_input_name_to_id("lock_sw_gain").unwrap();
     let set_sw_scale_handler_id = agc.message_input_name_to_id("set_sw_scale").unwrap();
 
     let lowpass = FirBuilder::new::<f32, f32, _, _>(filter_taps);
 
-    //let throttle = Throttle::<f32>::new(44_100.);
+    //let throttle = Throttle::<f32>::new(48_000.);
     let mono_to_stereo = ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
         d[0] = v[0];
         d[1] = v[0];
