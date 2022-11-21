@@ -10,7 +10,7 @@ jobs:
       RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
@@ -456,7 +456,7 @@ jobs:
       RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -490,7 +490,7 @@ jobs:
       RUST_BACKTRACE: full
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -522,7 +522,7 @@ jobs:
             args: install python3 --params "/InstallAllUsers"
 
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
