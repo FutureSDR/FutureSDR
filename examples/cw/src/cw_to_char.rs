@@ -13,13 +13,16 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
 
+use crate::get_alphabet;
+use crate::BiMap;
 
 pub struct CWToChar {
     symbol_vec: Vec<CWAlphabet>, // Required to keep the state of already received pulses
+    alphabet: BiMap<char, Vec<CWAlphabet>>,
 }
 
 impl CWToChar {
-    pub fn new() -> Block {
+    pub fn new(alphabet: BiMap<char, Vec<CWAlphabet>>) -> Block {
         Block::new(
             BlockMetaBuilder::new("CWToChar").build(),
             StreamIoBuilder::new()
@@ -29,6 +32,7 @@ impl CWToChar {
             MessageIoBuilder::new().build(),
             CWToChar {
                 symbol_vec: vec![],
+                alphabet,
             },
         )
     }
@@ -95,7 +99,7 @@ pub struct CWToCharBuilder {
 impl Default for CWToCharBuilder {
     fn default() -> Self {
         CWToCharBuilder {
-            alphabet: cw::get_alphabet(),
+            alphabet: get_alphabet(),
         }
     }
 }

@@ -14,6 +14,11 @@ path = "src/bin/tx_sdr.rs"
 required-features = ["soapy"]
 
 [[bin]]
+name = "rx-sdr"
+path = "src/bin/rx_sdr.rs"
+required-features = ["soapy"]
+
+[[bin]]
 name = "tx-audio"
 path = "src/bin/tx_audio.rs"
 

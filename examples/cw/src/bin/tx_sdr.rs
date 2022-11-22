@@ -19,7 +19,7 @@ struct Args {
     #[clap(short, long, default_value = "CQ CQ CQ FUTURESDR")]
     message: String,
     /// Send message on given frequency.
-    #[clap(short, long, default_value_t = 144.5e6)]
+    #[clap(short, long, default_value_t = 1210.0e6)]
     freq: f32,
     /// SDR gain.
     #[clap(short, long, default_value_t = 40.0)]

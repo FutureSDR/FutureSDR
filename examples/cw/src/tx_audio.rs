@@ -2,6 +2,7 @@ use futuredsp::firdes;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ApplyIntoIter;
+use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::SignalSourceBuilder;
@@ -57,13 +58,18 @@ pub async fn run_fg_impl(msg: String, tone: f32, wpm: f32) -> Result<()> {
         .build();
     let low_pass = FirBuilder::new::<f32, f32, _, _>(taps);
     let mult = Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b });
-    let snk = AudioSink::new(SAMPLE_RATE as u32, 1);
+    let mono_to_stereo = ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
+        d[0] = v[0];
+        d[1] = v[0];
+    });
+    let snk = AudioSink::new(SAMPLE_RATE as u32, 2);
 
     let mut fg = Flowgraph::new();
     connect!(fg,
         src > encode > low_pass > mult.0;
         tone > mult.1;
-        mult > snk;
+        mult > mono_to_stereo;
+        mono_to_stereo > snk;
     );
 
     Runtime::new().run_async(fg).await?;

@@ -4,6 +4,12 @@ use std::fmt;
 mod tx_audio;
 pub use crate::tx_audio::run_fg;
 
+mod bb_to_cw;
+pub use crate::bb_to_cw::*;
+
+mod cw_to_char;
+pub use crate::cw_to_char::*;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum CWAlphabet {
     Dot,
@@ -117,3 +123,33 @@ pub fn msg_to_cw(msg: &[char]) -> Vec<CWAlphabet> {
         })
         .collect()
 }
+
+/*pub fn bb_to_char(dot_len: usize) -> impl FnMut(&char) -> Vec<f32> {
+    use CWAlphabet::*;
+    let alphabet = get_alphabet();
+
+    move |c: &char| {
+        let v = alphabet
+            .get_by_left(c)
+            .cloned()
+            .unwrap_or_else(|| vec![Unknown; 1]);
+        v.into_iter()
+            .flat_map(|x| match x {
+                Dot => [vec![1.0; dot_len], vec![0.0; dot_len]].concat(),
+                Dash => [vec![1.0; 3 * dot_len], vec![0.0; dot_len]].concat(),
+                LetterSpace => panic!("LetterSpace shouldn't occur in char."),
+                Unknown => vec![0.0; 3 * dot_len],
+                WordSpace => vec![0.0; 5 * dot_len], // other 3 spaces are chained
+            })
+            .chain(vec![0.0; 2 * dot_len])
+            .collect()
+    }
+}*/
+
+/*pub fn cw_to_msg(cw: &[CWAlphabet]) -> Vec<char> {
+    let alphabet = get_alphabet();
+
+    for (key, group) in &cw.iter().group_by(|elem| { *elem != CWAlphabet::LetterSpace }) {
+        let g = group.collect();
+    }
+}*/
