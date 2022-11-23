@@ -21,6 +21,9 @@ struct CurrentInput {
     tags: Vec<ItemTag>,
 }
 
+// Needed for raw pointer `ptr`
+unsafe impl Send for CurrentInput {}
+
 #[derive(Debug)]
 pub struct StreamInput {
     name: String,
@@ -30,8 +33,6 @@ pub struct StreamInput {
     current: Option<CurrentInput>,
     tags: Vec<ItemTag>,
 }
-
-unsafe impl Send for StreamInput {}
 
 impl StreamInput {
     pub fn new<T: Any>(name: &str) -> StreamInput {

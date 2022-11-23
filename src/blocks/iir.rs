@@ -16,8 +16,8 @@ pub struct Iir<InputType, OutputType, TapType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
+    TapType: 'static + Send,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
 {
     core: Core,
     _input_type: std::marker::PhantomData<InputType>,
@@ -25,21 +25,12 @@ where
     _tap_type: std::marker::PhantomData<TapType>,
 }
 
-unsafe impl<InputType, OutputType, TapType, Core> Send for Iir<InputType, OutputType, TapType, Core>
-where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
-    TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
-{
-}
-
 impl<InputType, OutputType, TapType, Core> Iir<InputType, OutputType, TapType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
+    TapType: 'static + Send,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
 {
     pub fn new(core: Core) -> Block {
         Block::new(
@@ -65,8 +56,8 @@ impl<InputType, OutputType, TapType, Core> Kernel for Iir<InputType, OutputType,
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType>,
+    TapType: 'static + Send,
+    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
 {
     async fn work(
         &mut self,
@@ -139,9 +130,9 @@ impl IirBuilder {
     where
         InputType: 'static + Send + Clone,
         OutputType: 'static + Send + Clone,
-        TapType: 'static,
-        Taps: 'static + TapsAccessor,
-        IirKernel<InputType, OutputType, Taps>: StatefulUnaryKernel<InputType, OutputType>,
+        TapType: 'static + Send,
+        Taps: 'static + TapsAccessor + Send,
+        IirKernel<InputType, OutputType, Taps>: StatefulUnaryKernel<InputType, OutputType> + Send,
     {
         Iir::<InputType, OutputType, TapType, IirKernel<InputType, OutputType, Taps>>::new(
             IirKernel::new(a_taps, b_taps),

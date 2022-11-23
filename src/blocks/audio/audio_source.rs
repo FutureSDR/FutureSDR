@@ -27,6 +27,7 @@ pub struct AudioSource {
     buff: Option<(Vec<f32>, usize)>,
 }
 
+// cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for AudioSource {}
 

@@ -202,8 +202,6 @@ impl BufferWriterHost for WriterH2D {
     }
 }
 
-unsafe impl Send for WriterH2D {}
-
 // ====================== READER ============================
 #[derive(Debug)]
 pub struct ReaderH2D {
@@ -255,5 +253,3 @@ impl BufferReaderCustom for ReaderH2D {
         self.finished
     }
 }
-
-unsafe impl Send for ReaderH2D {}

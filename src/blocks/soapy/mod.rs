@@ -200,8 +200,6 @@ impl<T> SoapyDevice<T> {
     }
 }
 
-// unsafe impl<T> Sync for SoapyDevice<T> {}
-
 pub struct SoapyDevBuilder<T> {
     init_cfg: config::SoapyInitConfig,
     _phantom: PhantomData<T>,
