@@ -134,7 +134,7 @@ impl Kernel for SoapySource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let _ = super::SOAPY_INIT.lock();
+        super::SOAPY_INIT.lock().await;
         soapysdr::configure_logging();
         if let Err(e) = self.apply_init_config(&SoapyDirection::Rx) {
             warn!("SoapySource::new() apply_init_config error: {}", e);
