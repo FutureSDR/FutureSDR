@@ -199,9 +199,6 @@ pub struct FlowExecutor {
     state: once_cell::sync::OnceCell<Arc<State>>,
 }
 
-unsafe impl Send for FlowExecutor {}
-unsafe impl Sync for FlowExecutor {}
-
 impl UnwindSafe for FlowExecutor {}
 impl RefUnwindSafe for FlowExecutor {}
 
