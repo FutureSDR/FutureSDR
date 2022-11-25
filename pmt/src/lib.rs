@@ -23,17 +23,55 @@ impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
     }
 }
 
+impl dyn PmtAny {
+    pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
+        (*self).as_any().downcast_ref::<T>()
+    }
+    pub fn downcast_mut<T: PmtAny>(&mut self) -> Option<&mut T> {
+        (*self).as_any_mut().downcast_mut::<T>()
+    }
+}
+
 impl fmt::Debug for Box<dyn PmtAny> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Box<dyn Any>")
     }
 }
 
-impl dyn PmtAny {
-    pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
+/// A serializable version of [PmtAny]
+///
+/// This functionality is provided by the typetag crate.
+///
+/// Unfortunately, typetag (v0.2) does not support automatic deserialization
+/// traits via `#[typetag::serde]` on generic impls, so we need to impl the
+/// `Any` functions for every type that will be used with [Pmt::AnySerde].
+///
+/// E.g.:
+/// ```no_run
+/// struct MyStruct(u32);
+///
+/// #[typetag::serde]
+/// impl PmtAnySerde for MyStruct {
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///     fn as_any_mut(&mut self) -> &mut dyn Any {
+///         self
+///     }
+/// }
+/// ```
+#[typetag::serde(tag = "type")]
+pub trait PmtAnySerde: Any + DynClone + Send + Sync + std::fmt::Debug + 'static {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+dyn_clone::clone_trait_object!(PmtAnySerde);
+
+impl dyn PmtAnySerde {
+    pub fn downcast_ref<T: PmtAnySerde>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
     }
-    pub fn downcast_mut<T: PmtAny>(&mut self) -> Option<&mut T> {
+    pub fn downcast_mut<T: PmtAnySerde>(&mut self) -> Option<&mut T> {
         (*self).as_any_mut().downcast_mut::<T>()
     }
 }
@@ -54,6 +92,7 @@ pub enum Pmt {
     MapStrPmt(HashMap<String, Pmt>),
     #[serde(skip)]
     Any(Box<dyn PmtAny>),
+    AnySerde(Box<dyn PmtAnySerde>),
 }
 
 impl PartialEq for Pmt {
@@ -68,6 +107,9 @@ impl PartialEq for Pmt {
             (Pmt::VecF32(x), Pmt::VecF32(y)) => x == y,
             (Pmt::VecU64(x), Pmt::VecU64(y)) => x == y,
             (Pmt::Blob(x), Pmt::Blob(y)) => x == y,
+            (Pmt::VecPmt(x), Pmt::VecPmt(y)) => x == y,
+            (Pmt::MapStrPmt(x), Pmt::MapStrPmt(y)) => x == y,
+            //How to handle Any?
             _ => false,
         }
     }
@@ -164,6 +206,50 @@ mod test {
         assert_eq!(p, p2);
     }
 
+    #[test]
+    fn pmt_any_serde() {
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        struct TestStruct {
+            a: u32,
+            b: f64,
+            c: (String, u32),
+        }
+
+        // Unfortunately, typetag does not support #[typetag::serde] on generic impls,
+        // so we need to impl the any functions for every instance.
+        #[typetag::serde]
+        impl PmtAnySerde for TestStruct {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn Any {
+                self
+            }
+        }
+
+        let st_pre = TestStruct {
+            a: 1,
+            b: 2.0,
+            c: ("Three".to_owned(), 3),
+        };
+        let pmt_any = Pmt::AnySerde(Box::new(st_pre.clone()));
+
+        let s = serde_json::to_string(&pmt_any).unwrap();
+        // println!("{}", s);
+        let de = serde_json::from_str(&s).unwrap();
+
+        match de {
+            Pmt::AnySerde(de_any) => {
+                if let Some(st_de) = de_any.downcast_ref::<TestStruct>() {
+                    assert_eq!(st_pre, *st_de);
+                } else {
+                    panic!("downcast failed");
+                }
+            }
+            _ => panic!("not Pmt::AnySerde"),
+        }
+    }
+
     #[allow(clippy::many_single_char_names)]
     #[test]
     fn pmt_eq() {
@@ -183,6 +269,10 @@ mod test {
         let f3 = Pmt::F32(0.2);
         assert_eq!(f1, f2);
         assert_ne!(f1, f3);
+
+        // How to handle this?
+        // let pa = Pmt::Any(Box::new((1, 2, 3)));
+        // assert_eq!(pa, pa);
     }
 
     #[test]
