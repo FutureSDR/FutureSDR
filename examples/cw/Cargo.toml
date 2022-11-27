@@ -16,7 +16,7 @@ required-features = ["soapy"]
 [[bin]]
 name = "rx-sdr"
 path = "src/bin/rx_sdr.rs"
-required-features = ["soapy"]
+required-features = ["soapy", "zmq"]
 
 [[bin]]
 name = "tx-audio"
@@ -25,6 +25,7 @@ path = "src/bin/tx_audio.rs"
 [features]
 default = []
 soapy = ["futuresdr/soapy"]
+zmq = ["futuresdr/zeromq"]
 
 [dependencies]
 bimap = "0.6.2"

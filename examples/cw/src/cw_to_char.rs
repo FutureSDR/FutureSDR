@@ -17,7 +17,8 @@ use crate::get_alphabet;
 use crate::BiMap;
 
 pub struct CWToChar {
-    symbol_vec: Vec<CWAlphabet>, // Required to keep the state of already received pulses
+    symbol_vec: Vec<CWAlphabet>,
+    // Required to keep the state of already received pulses
     alphabet: BiMap<char, Vec<CWAlphabet>>,
 }
 

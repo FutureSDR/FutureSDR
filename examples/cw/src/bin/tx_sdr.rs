@@ -22,7 +22,7 @@ struct Args {
     #[clap(short, long, default_value_t = 1210.0e6)]
     freq: f32,
     /// SDR gain.
-    #[clap(short, long, default_value_t = 40.0)]
+    #[clap(short, long, default_value_t = 36.4)]
     gain: f32,
     /// SDR sample rate.
     #[clap(short, long, default_value_t = 250000.0)]
@@ -57,6 +57,7 @@ fn main() -> Result<()> {
         .freq(args.freq as f64)
         .sample_rate(args.sample_rate as f64)
         .gain(args.gain as f64)
+        .filter("driver=bladerf")
         .build();
 
     connect!(fg, src > encode > conv > snk);
