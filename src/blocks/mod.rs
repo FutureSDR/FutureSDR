@@ -97,6 +97,9 @@
 //! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
 
+mod agc;
+pub use agc::{AGC, AGCBuilder};
+
 mod apply;
 pub use apply::Apply;
 
