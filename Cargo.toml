@@ -15,7 +15,6 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 [workspace]
 members = [
     ".",
-    "frontend",
     "futuredsp",
     "macros",
     "pmt",

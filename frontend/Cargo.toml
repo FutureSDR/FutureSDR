@@ -10,6 +10,8 @@ description = "Web Frontend for an Experimental Async SDR Runtime for Heterogene
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
+[workspace]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
