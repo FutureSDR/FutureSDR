@@ -36,15 +36,16 @@ fn main() -> Result<()> {
         a * b
     });
     // Set the Automatic Gain Control settings
-    let agc = AGCBuilder::<f32>::new()
+    let agc = AGCBuilder::new()
         .squelch(0.0)
         .max_gain(65536.0)
-        .update_rate(0.1)
+        .adjustment_rate(0.1)
         .reference_power(1.0)
         .build();
     let gain_lock_handler_id = agc.message_input_name_to_id("gain_lock").unwrap();
     let max_gain_handler_id = agc.message_input_name_to_id("max_gain").unwrap();
-    //let update_rate_handler_id = agc.message_input_name_to_id("update_rate").unwrap();
+    let _adjustment_rate_handler_id = agc.message_input_name_to_id("adjustment_rate").unwrap();
+    let reference_power_handler_id = agc.message_input_name_to_id("reference_power").unwrap();
 
     // Lowpass filter to smoothen the waveform.
     let lowpass = FirBuilder::new::<f32, f32, _, _>(filter_taps);
@@ -69,19 +70,41 @@ fn main() -> Result<()> {
 
     // Keep changing gain and gain lock.
     loop {
-        println!("Setting gain lock");
+        // Reference power of 1.0 is the power level we want to achieve
+        println!("Setting reference power to 1.0");
+        async_io::block_on(handle.call(
+            agc,
+            reference_power_handler_id,
+            Pmt::F32(1.0),
+        ))?;
+
+        // A high max gain allows to amplify a signal stronger
+        println!("Setting Max Gain to 65536.0");
+        async_io::block_on(handle.call(
+            agc,
+            max_gain_handler_id,
+            Pmt::F32(65536.0),
+        ))?;
+        sleep(Duration::from_secs(5));
+
+        // Setting a gain lock prevents gain changes from happening
+        println!("Setting gain lock for 5s");
         async_io::block_on(handle.call(
             agc,
             gain_lock_handler_id,
             Pmt::U32(1),
         ))?;
-        println!("Setting Max Gain to 0.1");
+
+        // Audio should get quiet faster, but gain is still locked here. it will be released after 5 seconds
+        println!("Setting reference power to 0.2");
         async_io::block_on(handle.call(
             agc,
-            max_gain_handler_id,
-            Pmt::Any(Box::new(0.01)),
+            reference_power_handler_id,
+            Pmt::F32(0.2),
         ))?;
         sleep(Duration::from_secs(5));
+
+        // Gain lock released! Audio should get more quiet here for 10 seconds
         println!("Releasing gain lock");
         async_io::block_on(handle.call(
             agc,
@@ -89,5 +112,6 @@ fn main() -> Result<()> {
             Pmt::U32(0),
         ))?;
         sleep(Duration::from_secs(10));
+
     }
 }

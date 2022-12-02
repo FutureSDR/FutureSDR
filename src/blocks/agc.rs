@@ -1,4 +1,3 @@
-use num_complex::ComplexFloat;
 use futuresdr_pmt::Pmt;
 use futures::FutureExt;
 
@@ -14,43 +13,41 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 
-pub struct AGC<T> {
+pub struct AGC {
     // Minimum value that has to be reached in order for AGC to start adjusting gain.
-    squelch: T,
+    squelch: f32,
     // maximum gain value (0 for unlimited).
-    max_gain: T,
+    max_gain: f32,
     // initial gain value.
-    gain: T,
+    gain: f32,
     // reference value to adjust signal power to.
-    reference_power: T,
+    reference_power: f32,
     // the update rate of the loop.
-    update_rate: T,
+    adjustment_rate: f32,
     // (Boolean) Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_lock: u32,
 }
 
-impl<T> AGC<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static,
+impl AGC
 {
     pub fn new(
-        squelch: T,
-        max_gain: T,
-        gain: T,
-        update_rate: T,
-        reference_power: T,
+        squelch: f32,
+        max_gain: f32,
+        gain: f32,
+        adjustment_rate: f32,
+        reference_power: f32,
         gain_lock: u32,
     ) -> Block {
         Block::new(
             BlockMetaBuilder::new("AGC").build(),
             StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
+                .add_input::<f32>("in")
+                .add_output::<f32>("out")
                 .build(),
             MessageIoBuilder::<Self>::new()
                 .add_input("gain_lock",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
+                           |block: &mut AGC,
+                            _mio: &mut MessageIo<AGC>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
@@ -62,63 +59,39 @@ impl<T> AGC<T>
                            },
                 )
                 .add_input("max_gain",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
+                           |block: &mut AGC,
+                            _mio: &mut MessageIo<AGC>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
-                                   if let Pmt::Any(ref r) = &p {
-                                       match r.downcast_ref::<T>() {
-                                           Some(v) => {
-                                               block.max_gain = *v;
-                                               println!("max_gain type: {:?}", r.type_id());
-                                           }
-                                           None => {
-                                               println!("unknown type: {:?}", r.type_id());
-                                           }
-                                       }
+                                   if let Pmt::F32(ref r) = &p {
+                                       block.max_gain = *r;
                                    }
                                    Ok(p)
                                }.boxed()
                            },
                 )
-                .add_input("update_rate",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
+                .add_input("adjustment_rate",
+                           |block: &mut AGC,
+                            _mio: &mut MessageIo<AGC>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
-                                   if let Pmt::Any(ref r) = &p {
-                                       match r.downcast_ref::<T>() {
-                                           Some(v) => {
-                                               block.update_rate = *v;
-                                               println!("update_rate type: {:?}", r.type_id());
-                                           }
-                                           None => {
-                                               println!("unknown type: {:?}", r.type_id());
-                                           }
-                                       }
+                                   if let Pmt::F32(ref r) = &p {
+                                       block.adjustment_rate = *r;
                                    }
                                    Ok(p)
                                }.boxed()
                            },
                 )
                 .add_input("reference_power",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
+                           |block: &mut AGC,
+                            _mio: &mut MessageIo<AGC>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
-                                   if let Pmt::Any(ref r) = &p {
-                                       match r.downcast_ref::<T>() {
-                                           Some(v) => {
-                                               block.reference_power = *v;
-                                               println!("reference_power type: {:?}", r.type_id());
-                                           }
-                                           None => {
-                                               println!("unknown type: {:?}", r.type_id());
-                                           }
-                                       }
+                                   if let Pmt::F32(ref r) = &p {
+                                       block.reference_power = *r;
                                    }
                                    Ok(p)
                                }.boxed()
@@ -129,19 +102,18 @@ impl<T> AGC<T>
                 max_gain,
                 gain,
                 reference_power,
-                update_rate,
+                adjustment_rate,
                 gain_lock,
             },
         )
     }
 
     #[inline(always)]
-    fn scale(&mut self, input: T) -> T {
+    fn scale(&mut self, input: f32) -> f32 {
         let output = input * self.gain;
         if self.gain_lock == 0 {
-            // output.abs() might perform better than output.powi(2).sqrt()
-            self.gain = self.gain + (self.reference_power - output.powi(2).sqrt()) * self.update_rate;
-            if self.max_gain.abs() > T::from(0.0).unwrap().abs() && self.gain.abs() > self.max_gain.abs() {
+            self.gain += (self.reference_power - output.abs()) * self.adjustment_rate;
+            if self.max_gain.abs() > 0.0 && self.gain.abs() > self.max_gain.abs() {
                 self.gain = self.max_gain;
             }
         }
@@ -151,9 +123,7 @@ impl<T> AGC<T>
 
 #[doc(hidden)]
 #[async_trait]
-impl<T> Kernel for AGC<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static,
+impl Kernel for AGC
 {
     async fn work(
         &mut self,
@@ -162,8 +132,8 @@ impl<T> Kernel for AGC<T>
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
-        let o = sio.output(0).slice::<T>();
+        let i = sio.input(0).slice::<f32>();
+        let o = sio.output(0).slice::<f32>();
 
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
@@ -171,7 +141,7 @@ impl<T> Kernel for AGC<T>
                 if src.abs() > self.squelch.abs() {
                     *dst = self.scale(*src);
                 } else {
-                    *dst = T::from(0.0).unwrap();
+                    *dst = 0.0;
                 }
             }
 
@@ -187,69 +157,65 @@ impl<T> Kernel for AGC<T>
     }
 }
 
-pub struct AGCBuilder<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static
+pub struct AGCBuilder
 {
-    squelch: T,
+    squelch: f32,
     // maximum gain value (0 for unlimited).
-    max_gain: T,
+    max_gain: f32,
     // initial gain value.
-    gain: T,
+    gain: f32,
     // reference value to adjust signal power to.
-    reference_power: T,
+    reference_power: f32,
     // the update rate of the loop.
-    update_rate: T,
+    adjustment_rate: f32,
     // (Boolean) Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_lock: u32,
 }
 
-impl<T> AGCBuilder<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static
+impl AGCBuilder
 {
-    pub fn new() -> AGCBuilder<T> {
+    pub fn new() -> AGCBuilder {
         AGCBuilder {
-            squelch: T::from(0.0).unwrap(),
-            max_gain: T::from(65536.0).unwrap(),
-            gain: T::from(1.0).unwrap(),
-            reference_power: T::from(1.0).unwrap(),
-            update_rate: T::from(0.0001).unwrap(),
+            squelch: 0.0,
+            max_gain: 65536.0,
+            gain: 1.0,
+            reference_power: 1.0,
+            adjustment_rate: 0.0001,
             gain_lock: 0,
         }
     }
 
-    pub fn squelch(mut self, squelch: T) -> AGCBuilder<T> {
+    pub fn squelch(mut self, squelch: f32) -> AGCBuilder {
         self.squelch = squelch;
         self
     }
 
-    pub fn max_gain(mut self, max_gain: T) -> AGCBuilder<T> {
+    pub fn max_gain(mut self, max_gain: f32) -> AGCBuilder {
         self.max_gain = max_gain;
         self
     }
 
-    pub fn update_rate(mut self, update_rate: T) -> AGCBuilder<T> {
-        self.squelch = update_rate;
+    pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AGCBuilder {
+        self.squelch = adjustment_rate;
         self
     }
 
-    pub fn reference_power(mut self, reference_power: T) -> AGCBuilder<T> {
+    pub fn reference_power(mut self, reference_power: f32) -> AGCBuilder {
         self.reference_power = reference_power;
         self
     }
 
-    pub fn gain_lock(mut self, gain_lock: bool) -> AGCBuilder<T> {
+    pub fn gain_lock(mut self, gain_lock: bool) -> AGCBuilder {
         self.gain_lock = gain_lock as u32;
         self
     }
 
     pub fn build(self) -> Block {
-        AGC::<T>::new(
+        AGC::new(
             self.squelch,
             self.max_gain,
             self.gain,
-            self.update_rate,
+            self.adjustment_rate,
             self.reference_power,
             self.gain_lock,
         )
