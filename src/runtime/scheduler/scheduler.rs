@@ -2,11 +2,7 @@ use futures::channel::mpsc::Sender;
 use futures::future::Future;
 use slab::Slab;
 
-#[cfg(not(target_arch = "wasm32"))]
-use async_task::Task;
-#[cfg(target_arch = "wasm32")]
-type Task<T> = super::wasm::TaskHandle<T>;
-
+use crate::runtime::scheduler::Task;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;

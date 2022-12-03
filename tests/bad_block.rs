@@ -98,7 +98,6 @@ impl<T> Drop for BadBlock<T> {
 enum RunMode {
     Run,
     Terminate,
-    TermRtDrop,
 }
 
 fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
@@ -122,22 +121,6 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
                 let _ = fg_handle.terminate().await;
-                fg_task.await
-            })
-        }
-        RunMode::TermRtDrop => {
-            // This drops runtime before flowgraph and causes a deadlock regardless of any badblock errors.
-            // E.g. `let (task, mut fg_handle) = block_on(Runtime::new().start(fg));`
-            let fg_task;
-            let mut fg_handle;
-            {
-                let rt = Runtime::new();
-                (fg_task, fg_handle) = block_on(rt.start(fg));
-            }
-            block_on(async move {
-                // Sleep to allow work to be called at least once
-                futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
-                fg_handle.terminate().await.unwrap();
                 fg_task.await
             })
         }
@@ -259,19 +242,5 @@ fn terminate_drop_panic() {
             }
         }
         Err(e) => panic!("Unexpected Error: {}", e),
-    }
-}
-
-// //////////////////////////////////
-// RunMode::TermRtDrop
-
-#[test]
-#[ignore]
-fn rtdrop_no_err() -> Result<()> {
-    //FIXME: (#89) this currently hangs (or panics with deadlock detected)
-    let bb = BadBlock::<f32>::default();
-    match run_badblock(bb, RunMode::TermRtDrop)? {
-        None => Ok(()),
-        Some(e) => bail!("Expected None, got: {}", e),
     }
 }

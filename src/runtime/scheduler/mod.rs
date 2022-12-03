@@ -22,3 +22,8 @@ pub use scheduler::Scheduler;
 pub mod wasm;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::WasmScheduler;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use async_task::Task;
+#[cfg(target_arch = "wasm32")]
+pub use wasm::Task;

@@ -1,8 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
-use async_task::Task;
-#[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::channel::oneshot;
@@ -10,15 +8,18 @@ use futures::future::join_all;
 use futures::future::Either;
 use futures::prelude::*;
 use futures::FutureExt;
+use std::future::Future;
+use std::pin::Pin;
 use std::result;
-#[cfg(target_arch = "wasm32")]
-type Task<T> = crate::runtime::scheduler::wasm::TaskHandle<T>;
+use std::task;
+use std::task::Poll;
 
 use crate::anyhow::{bail, Context, Result};
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::scheduler::SmolScheduler;
+use crate::runtime::scheduler::Task;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::Block;
@@ -35,21 +36,44 @@ use crate::runtime::HandlerError;
 use crate::runtime::Pmt;
 use crate::runtime::WorkIo;
 
+pub struct TaskHandle<'a, T> {
+    task: Task<T>,
+    _p: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a, T> TaskHandle<'a, T> {
+    fn new(task: Task<T>) -> Self {
+        TaskHandle {
+            task,
+            _p: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> std::future::Future for TaskHandle<'a, T> {
+    type Output = T;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.task.poll_unpin(cx)
+    }
+}
+
 /// This is the [Runtime] that runs a [Flowgraph] to completion.
 ///
 /// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
-pub struct Runtime<S> {
+pub struct Runtime<'a, S> {
     scheduler: S,
     control_port: ControlPort,
+    _p: std::marker::PhantomData<&'a ()>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Runtime<SmolScheduler> {
+impl<'a> Runtime<'a, SmolScheduler> {
     /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Self {
         Runtime {
             scheduler: SmolScheduler::default(),
             control_port: ControlPort::new(),
+            _p: std::marker::PhantomData,
         }
     }
 
@@ -57,48 +81,52 @@ impl Runtime<SmolScheduler> {
         Runtime {
             scheduler: SmolScheduler::default(),
             control_port: ControlPort::with_routes(routes),
+            _p: std::marker::PhantomData,
         }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Default for Runtime<SmolScheduler> {
+impl<'a> Default for Runtime<'a, SmolScheduler> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Runtime<WasmScheduler> {
-    pub fn new() -> Runtime<WasmScheduler> {
+impl<'a> Runtime<'a, WasmScheduler> {
+    pub fn new() -> Self {
         Runtime {
             scheduler: WasmScheduler::default(),
             control_port: ControlPort::new(),
+            _p: std::marker::PhantomData,
         }
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Default for Runtime<WasmScheduler> {
+impl<'a> Default for Runtime<'a, WasmScheduler> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S: Scheduler> Runtime<S> {
+impl<'a, S: Scheduler> Runtime<'a, S> {
     /// Create a [Runtime] with a given [Scheduler]
-    pub fn with_scheduler(scheduler: S) -> Runtime<S> {
+    pub fn with_scheduler(scheduler: S) -> Self {
         Runtime {
             scheduler,
             control_port: ControlPort::new(),
+            _p: std::marker::PhantomData,
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn with_config(scheduler: S, routes: Router) -> Runtime<S> {
+    pub fn with_config(scheduler: S, routes: Router) -> Self {
         Runtime {
             scheduler,
             control_port: ControlPort::with_routes(routes),
+            _p: std::marker::PhantomData,
         }
     }
 
@@ -140,7 +168,13 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    pub async fn start(&self, fg: Flowgraph) -> (Task<Result<Flowgraph>>, FlowgraphHandle) {
+    pub async fn start<'b>(
+        &'a self,
+        fg: Flowgraph,
+    ) -> (TaskHandle<'b, Result<Flowgraph>>, FlowgraphHandle)
+    where
+        'a: 'b,
+    {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -156,7 +190,7 @@ impl<S: Scheduler> Runtime<S> {
             .expect("run_flowgraph did not signal startup completed");
         let handle = FlowgraphHandle::new(fg_inbox);
         self.control_port.add_flowgraph(handle.clone());
-        (task, handle)
+        (TaskHandle::new(task), handle)
     }
 
     /// Main method that kicks-off the running of a [Flowgraph].

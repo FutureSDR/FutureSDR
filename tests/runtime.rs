@@ -44,6 +44,14 @@ fn flowgraph() -> Result<()> {
     Ok(())
 }
 
+// #[test]
+// fn fg_compile_fail() -> Result<()> {
+//     let fg = Flowgraph::new();
+//     let (fg, _) = block_on(Runtime::new().start(fg));
+//     block_on(fg).unwrap();
+//     Ok(())
+// }
+
 #[test]
 fn fg_terminate() -> Result<()> {
     let mut fg = Flowgraph::new();
