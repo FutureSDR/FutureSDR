@@ -1,5 +1,7 @@
+use num_complex::ComplexFloat;
 use futuresdr_pmt::Pmt;
 use futures::FutureExt;
+use rustfft::num_traits::ToPrimitive;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -13,7 +15,7 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 
-pub struct AGC {
+pub struct AGC<T> {
     // Minimum value that has to be reached in order for AGC to start adjusting gain.
     squelch: f32,
     // maximum gain value (0 for unlimited).
@@ -26,9 +28,12 @@ pub struct AGC {
     adjustment_rate: f32,
     // (Boolean) Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_lock: u32,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl AGC
+impl<T> AGC<T>
+    where
+        T: Send + Sync + ComplexFloat + 'static,
 {
     pub fn new(
         squelch: f32,
@@ -41,13 +46,13 @@ impl AGC
         Block::new(
             BlockMetaBuilder::new("AGC").build(),
             StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<f32>("out")
+                .add_input::<T>("in")
+                .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::<Self>::new()
                 .add_input("gain_lock",
-                           |block: &mut AGC,
-                            _mio: &mut MessageIo<AGC>,
+                           |block: &mut AGC<T>,
+                            _mio: &mut MessageIo<AGC<T>>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
@@ -59,8 +64,8 @@ impl AGC
                            },
                 )
                 .add_input("max_gain",
-                           |block: &mut AGC,
-                            _mio: &mut MessageIo<AGC>,
+                           |block: &mut AGC<T>,
+                            _mio: &mut MessageIo<AGC<T>>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
@@ -72,8 +77,8 @@ impl AGC
                            },
                 )
                 .add_input("adjustment_rate",
-                           |block: &mut AGC,
-                            _mio: &mut MessageIo<AGC>,
+                           |block: &mut AGC<T>,
+                            _mio: &mut MessageIo<AGC<T>>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
@@ -85,8 +90,8 @@ impl AGC
                            },
                 )
                 .add_input("reference_power",
-                           |block: &mut AGC,
-                            _mio: &mut MessageIo<AGC>,
+                           |block: &mut AGC<T>,
+                            _mio: &mut MessageIo<AGC<T>>,
                             _meta: &mut BlockMeta,
                             p: Pmt| {
                                async move {
@@ -104,16 +109,17 @@ impl AGC
                 reference_power,
                 adjustment_rate,
                 gain_lock,
+                _type: std::marker::PhantomData,
             },
         )
     }
 
     #[inline(always)]
-    fn scale(&mut self, input: f32) -> f32 {
-        let output = input * self.gain;
+    fn scale(&mut self, input: T) -> T {
+        let output = input * T::from(self.gain).unwrap();
         if self.gain_lock == 0 {
-            self.gain += (self.reference_power - output.abs()) * self.adjustment_rate;
-            if self.max_gain.abs() > 0.0 && self.gain.abs() > self.max_gain.abs() {
+            self.gain = self.gain + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
+            if self.max_gain > 0.0 && self.gain > self.max_gain {
                 self.gain = self.max_gain;
             }
         }
@@ -123,7 +129,9 @@ impl AGC
 
 #[doc(hidden)]
 #[async_trait]
-impl Kernel for AGC
+impl<T> Kernel for AGC<T>
+    where
+        T: Send + Sync + ComplexFloat + 'static,
 {
     async fn work(
         &mut self,
@@ -132,16 +140,16 @@ impl Kernel for AGC
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<f32>();
-        let o = sio.output(0).slice::<f32>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (src, dst) in i.iter().zip(o.iter_mut()) {
-                if src.abs() > self.squelch.abs() {
+                if src.abs().to_f32().unwrap() > self.squelch.abs() {
                     *dst = self.scale(*src);
                 } else {
-                    *dst = 0.0;
+                    *dst = T::from(0.0).unwrap();
                 }
             }
 
@@ -157,7 +165,9 @@ impl Kernel for AGC
     }
 }
 
-pub struct AGCBuilder
+pub struct AGCBuilder<T>
+    where
+        T: Send + Sync + ComplexFloat + 'static
 {
     squelch: f32,
     // maximum gain value (0 for unlimited).
@@ -170,11 +180,14 @@ pub struct AGCBuilder
     adjustment_rate: f32,
     // (Boolean) Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_lock: u32,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl AGCBuilder
+impl<T> AGCBuilder<T>
+    where
+        T: Send + Sync + ComplexFloat + 'static
 {
-    pub fn new() -> AGCBuilder {
+    pub fn new() -> AGCBuilder<T> {
         AGCBuilder {
             squelch: 0.0,
             max_gain: 65536.0,
@@ -182,36 +195,37 @@ impl AGCBuilder
             reference_power: 1.0,
             adjustment_rate: 0.0001,
             gain_lock: 0,
+            _type: std::marker::PhantomData,
         }
     }
 
-    pub fn squelch(mut self, squelch: f32) -> AGCBuilder {
+    pub fn squelch(mut self, squelch: f32) -> AGCBuilder<T> {
         self.squelch = squelch;
         self
     }
 
-    pub fn max_gain(mut self, max_gain: f32) -> AGCBuilder {
+    pub fn max_gain(mut self, max_gain: f32) -> AGCBuilder<T> {
         self.max_gain = max_gain;
         self
     }
 
-    pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AGCBuilder {
+    pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AGCBuilder<T> {
         self.squelch = adjustment_rate;
         self
     }
 
-    pub fn reference_power(mut self, reference_power: f32) -> AGCBuilder {
+    pub fn reference_power(mut self, reference_power: f32) -> AGCBuilder<T> {
         self.reference_power = reference_power;
         self
     }
 
-    pub fn gain_lock(mut self, gain_lock: bool) -> AGCBuilder {
+    pub fn gain_lock(mut self, gain_lock: bool) -> AGCBuilder<T> {
         self.gain_lock = gain_lock as u32;
         self
     }
 
     pub fn build(self) -> Block {
-        AGC::new(
+        AGC::<T>::new(
             self.squelch,
             self.max_gain,
             self.gain,

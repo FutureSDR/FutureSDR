@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         a * b
     });
     // Set the Automatic Gain Control settings
-    let agc = AGCBuilder::new()
+    let agc = AGCBuilder::<f32>::new()
         .squelch(0.0)
         .max_gain(65536.0)
         .adjustment_rate(0.1)
