@@ -76,7 +76,7 @@ impl FlowScheduler {
                         .unwrap();
                     }));
                     if result.is_err() {
-                        eprintln!("flow worker panicked {:?}", result);
+                        eprintln!("flow worker panicked {result:?}");
                         std::process::exit(1);
                     }
                 })

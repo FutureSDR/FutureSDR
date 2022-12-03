@@ -152,7 +152,7 @@ impl ControlPort {
                 "/api/block/*foo",
                 any(|uri: Uri| async move {
                     let u = uri.to_string().split_off(11);
-                    Redirect::permanent(&format!("/api/fg/0/block/{}", u))
+                    Redirect::permanent(&format!("/api/fg/0/block/{u}"))
                 }),
             )
             .layer(AddExtensionLayer::new(self.flowgraphs.clone()))

@@ -74,7 +74,7 @@ impl SmolScheduler {
                         async_io::block_on(e.run(receiver)).unwrap();
                     }));
                     if result.is_err() {
-                        eprintln!("smol worker panicked {:?}", result);
+                        eprintln!("smol worker panicked {result:?}");
                         std::process::exit(1);
                     }
                 })

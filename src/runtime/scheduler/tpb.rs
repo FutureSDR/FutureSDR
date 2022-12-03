@@ -59,7 +59,7 @@ impl TpbScheduler {
                     async_io::block_on(e.run(receiver)).unwrap();
                 }));
                 if result.is_err() {
-                    eprintln!("tpb worker panicked {:?}", result);
+                    eprintln!("tpb worker panicked {result:?}");
                     std::process::exit(1);
                 }
             })

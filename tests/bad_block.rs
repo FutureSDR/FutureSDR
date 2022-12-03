@@ -238,9 +238,9 @@ fn terminate_drop_panic() {
         Ok(Some(e)) => {
             debug!("Error: {}", e);
             if e.to_string() != "Flowgraph was terminated" {
-                panic!("Unexpected Error: {}", e)
+                panic!("Unexpected Error: {e}")
             }
         }
-        Err(e) => panic!("Unexpected Error: {}", e),
+        Err(e) => panic!("Unexpected Error: {e}"),
     }
 }

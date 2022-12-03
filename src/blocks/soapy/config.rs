@@ -43,7 +43,7 @@ impl Default for SoapyDevSpec {
 impl fmt::Debug for SoapyDevSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SoapyDevSpec::Filter(s) => write!(f, "Filter({}", s),
+            SoapyDevSpec::Filter(s) => write!(f, "Filter({s}"),
             SoapyDevSpec::Dev(d) => {
                 write!(
                     f,
