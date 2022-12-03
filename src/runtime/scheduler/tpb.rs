@@ -55,7 +55,13 @@ impl TpbScheduler {
         let handle = thread::Builder::new()
             .name("tpb-smol".to_string())
             .spawn(move || {
-                async_io::block_on(e.run(receiver)).unwrap();
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    async_io::block_on(e.run(receiver)).unwrap();
+                }));
+                if result.is_err() {
+                    eprintln!("tpb worker panicked {:?}", result);
+                    std::process::exit(1);
+                }
             })
             .expect("failed to spawn executor thread");
 

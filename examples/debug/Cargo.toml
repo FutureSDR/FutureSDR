@@ -9,6 +9,11 @@ edition = "2021"
 name = "oscillators"
 path = "oscillators.rs"
 
+[[bin]]
+name = "panic"
+path = "panic.rs"
+
 [dependencies]
-futuresdr = { path = "../.." }
+futuresdr = { path = "../..", features = ['flow_scheduler', 'tpb_scheduler']}
+clap = { version = "4.0.19", features = ["derive"] }
 

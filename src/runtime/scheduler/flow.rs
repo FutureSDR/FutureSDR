@@ -67,12 +67,18 @@ impl FlowScheduler {
                 .name(format!("flow-{}", id.id))
                 .spawn(move || {
                     debug!("starting executor thread on core id {}", id.id);
-                    // core_affinity::set_for_current(id);
-                    async_io::block_on(e.run(async {
-                        b.wait().await;
-                        receiver.await
-                    }))
-                    .unwrap();
+                    core_affinity::set_for_current(id);
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        async_io::block_on(e.run(async {
+                            b.wait().await;
+                            receiver.await
+                        }))
+                        .unwrap();
+                    }));
+                    if result.is_err() {
+                        eprintln!("flow worker panicked {:?}", result);
+                        std::process::exit(1);
+                    }
                 })
                 .expect("cannot spawn executor thread");
 

@@ -70,7 +70,13 @@ impl SmolScheduler {
                         debug!("starting executor thread on core id {}", &c.id);
                         core_affinity::set_for_current(c);
                     }
-                    async_io::block_on(e.run(receiver)).unwrap();
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        async_io::block_on(e.run(receiver)).unwrap();
+                    }));
+                    if result.is_err() {
+                        eprintln!("smol worker panicked {:?}", result);
+                        std::process::exit(1);
+                    }
                 })
                 .expect("failed to spawn executor thread");
 
