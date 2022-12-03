@@ -1,6 +1,6 @@
-use num_complex::ComplexFloat;
-use futuresdr_pmt::Pmt;
 use futures::FutureExt;
+use futuresdr_pmt::Pmt;
+use num_complex::ComplexFloat;
 use rustfft::num_traits::ToPrimitive;
 
 use crate::anyhow::Result;
@@ -13,7 +13,6 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-
 
 pub struct AGC<T> {
     // Minimum value that has to be reached in order for AGC to start adjusting gain.
@@ -32,8 +31,8 @@ pub struct AGC<T> {
 }
 
 impl<T> AGC<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static,
+where
+    T: Send + Sync + ComplexFloat + 'static,
 {
     pub fn new(
         squelch: f32,
@@ -50,58 +49,67 @@ impl<T> AGC<T>
                 .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::<Self>::new()
-                .add_input("gain_lock",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
-                            _meta: &mut BlockMeta,
-                            p: Pmt| {
-                               async move {
-                                   if let Pmt::U32(ref r) = &p {
-                                       block.gain_lock = *r;
-                                   }
-                                   Ok(p)
-                               }.boxed()
-                           },
+                .add_input(
+                    "gain_lock",
+                    |block: &mut AGC<T>,
+                     _mio: &mut MessageIo<AGC<T>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
+                        async move {
+                            if let Pmt::U32(ref r) = &p {
+                                block.gain_lock = *r;
+                            }
+                            Ok(p)
+                        }
+                        .boxed()
+                    },
                 )
-                .add_input("max_gain",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
-                            _meta: &mut BlockMeta,
-                            p: Pmt| {
-                               async move {
-                                   if let Pmt::F32(ref r) = &p {
-                                       block.max_gain = *r;
-                                   }
-                                   Ok(p)
-                               }.boxed()
-                           },
+                .add_input(
+                    "max_gain",
+                    |block: &mut AGC<T>,
+                     _mio: &mut MessageIo<AGC<T>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
+                        async move {
+                            if let Pmt::F32(ref r) = &p {
+                                block.max_gain = *r;
+                            }
+                            Ok(p)
+                        }
+                        .boxed()
+                    },
                 )
-                .add_input("adjustment_rate",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
-                            _meta: &mut BlockMeta,
-                            p: Pmt| {
-                               async move {
-                                   if let Pmt::F32(ref r) = &p {
-                                       block.adjustment_rate = *r;
-                                   }
-                                   Ok(p)
-                               }.boxed()
-                           },
+                .add_input(
+                    "adjustment_rate",
+                    |block: &mut AGC<T>,
+                     _mio: &mut MessageIo<AGC<T>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
+                        async move {
+                            if let Pmt::F32(ref r) = &p {
+                                block.adjustment_rate = *r;
+                            }
+                            Ok(p)
+                        }
+                        .boxed()
+                    },
                 )
-                .add_input("reference_power",
-                           |block: &mut AGC<T>,
-                            _mio: &mut MessageIo<AGC<T>>,
-                            _meta: &mut BlockMeta,
-                            p: Pmt| {
-                               async move {
-                                   if let Pmt::F32(ref r) = &p {
-                                       block.reference_power = *r;
-                                   }
-                                   Ok(p)
-                               }.boxed()
-                           },
-                ).build(),
+                .add_input(
+                    "reference_power",
+                    |block: &mut AGC<T>,
+                     _mio: &mut MessageIo<AGC<T>>,
+                     _meta: &mut BlockMeta,
+                     p: Pmt| {
+                        async move {
+                            if let Pmt::F32(ref r) = &p {
+                                block.reference_power = *r;
+                            }
+                            Ok(p)
+                        }
+                        .boxed()
+                    },
+                )
+                .build(),
             AGC {
                 squelch,
                 max_gain,
@@ -118,7 +126,8 @@ impl<T> AGC<T>
     fn scale(&mut self, input: T) -> T {
         let output = input * T::from(self.gain).unwrap();
         if self.gain_lock == 0 {
-            self.gain = self.gain + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
+            self.gain = self.gain
+                + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
             if self.max_gain > 0.0 && self.gain > self.max_gain {
                 self.gain = self.max_gain;
             }
@@ -130,8 +139,8 @@ impl<T> AGC<T>
 #[doc(hidden)]
 #[async_trait]
 impl<T> Kernel for AGC<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static,
+where
+    T: Send + Sync + ComplexFloat + 'static,
 {
     async fn work(
         &mut self,
@@ -166,8 +175,8 @@ impl<T> Kernel for AGC<T>
 }
 
 pub struct AGCBuilder<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static
+where
+    T: Send + Sync + ComplexFloat + 'static,
 {
     squelch: f32,
     // maximum gain value (0 for unlimited).
@@ -184,8 +193,8 @@ pub struct AGCBuilder<T>
 }
 
 impl<T> AGCBuilder<T>
-    where
-        T: Send + Sync + ComplexFloat + 'static
+where
+    T: Send + Sync + ComplexFloat + 'static,
 {
     pub fn new() -> AGCBuilder<T> {
         AGCBuilder {
