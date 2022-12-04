@@ -1,6 +1,8 @@
+// cargo build --bin rx-sdr --features="soapy zmq" --release
+
 use clap::Parser;
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::AGC;
+use futuresdr::blocks::AGCBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ConsoleSink;
 use futuresdr::blocks::FirBuilder;
@@ -20,7 +22,7 @@ use futuredsp::firdes;
 #[derive(Parser, Debug)]
 struct Args {
     /// Send message on given frequency.
-    #[clap(short, long, default_value_t = 1210.0e6)]
+    #[clap(short, long, default_value_t = 1_210_000_800.0)]
     freq: f64,
     /// SDR gain.
     #[clap(short, long, default_value_t = 36.4)]
@@ -57,10 +59,10 @@ fn main() -> Result<()> {
         .build();
     let conv = Apply::new(|x: &Complex32| x.re);
     let zmq_snk = PubSinkBuilder::<f32>::new().address("tcp://127.0.0.1:50001").build();
-    let agc = AGC::<f32>::new(0.05, 1.0);
+    let agc = AGCBuilder::<f32>::new().reference_power(1.0).build();
     let lowpass = FirBuilder::new::<f32, f32, _, _>(filter_taps);
 
-    let iq_to_cw = BBToCWBuilder::new().accuracy(100).sample_rate(args.sample_rate).dot_length(dot_length).build();
+    let iq_to_cw = BBToCWBuilder::new().accuracy(70).sample_rate(args.sample_rate).dot_length(dot_length).build();
     let cw_snk = ConsoleSink::<CWAlphabet>::new(" ");
     let cw_to_char = CWToCharBuilder::new().build();
     let char_snk = ConsoleSink::<char>::new("");

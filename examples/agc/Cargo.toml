@@ -11,4 +11,4 @@ path = "audio_agc.rs"
 
 [dependencies]
 futuredsp = { version = "*" }
-futuresdr = { path = "../..", features = ["soapy", "audio", "zeromq"] }
+futuresdr = { path = "../..", features = ["audio"] }

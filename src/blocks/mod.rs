@@ -98,7 +98,7 @@
 //!
 
 mod agc;
-pub use agc::AGC;
+pub use agc::{AGCBuilder, AGC};
 
 mod apply;
 pub use apply::Apply;

@@ -1,3 +1,5 @@
+//cargo build --bin tx-sdr --features="soapy" --release
+
 use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
