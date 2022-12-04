@@ -411,6 +411,43 @@ pub fn message_handler(
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + Send + 'a>> {
+            use crate::futures::FutureExt;
+            async move {
+                #(#body)*
+            }.boxed()
+        }
+    });
+
+    // println!("out: {}", out);
+    out.into()
+}
+
+#[proc_macro_attribute]
+pub fn message_handler_external(
+    _attr: proc_macro::TokenStream,
+    fun: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let handler: syn::ItemFn = syn::parse(fun).unwrap();
+    let mut out = TokenStream::new();
+
+    let name = handler.sig.ident;
+    let mio = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
+    let meta = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
+    let pmt = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let body = handler.block.stmts;
+
+    // println!("name {}", name);
+    // println!("mio {}", mio);
+    // println!("meta {}", meta);
+    // println!("pmt {}", pmt);
+
+    out.extend(quote! {
+        fn #name<'a>(
+            &'a mut self,
+            #mio: &'a mut MessageIo<Self>,
+            #meta: &'a mut BlockMeta,
+            #pmt: Pmt,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + Send + 'a>> {
             use futuresdr::futures::FutureExt;
             async move {
                 #(#body)*

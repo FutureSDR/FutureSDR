@@ -32,5 +32,5 @@ perf-data/fs%.csv: buffer_rand.rs
 	@echo BUFFER=$(BUFFER)
 	@echo BUFFER_FLAG=$(BUFFER_FLAG)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) --scheduler=$(SCHEDULER) $(BUFFER_FLAG) | grep -v cset > $@
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER) $(BUFFER_FLAG) | grep -v cset > $@
 

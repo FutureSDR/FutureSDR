@@ -1,6 +1,8 @@
 //! ## SDR Runtime
 use futures::channel::mpsc;
 use futures::channel::oneshot;
+use std::result;
+use thiserror::Error;
 
 mod block;
 mod block_meta;
@@ -8,14 +10,11 @@ pub mod buffer;
 pub mod config;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub mod ctrl_port;
+mod ctrl_port;
 #[cfg(target_arch = "wasm32")]
-pub mod ctrl_port {
-    pub use futuresdr_pmt::BlockDescription;
-    pub use futuresdr_pmt::FlowgraphDescription;
-}
-use crate::runtime::ctrl_port::BlockDescription;
-use crate::runtime::ctrl_port::FlowgraphDescription;
+#[path = "ctrl_port_wasm.rs"]
+mod ctrl_port;
+use crate::runtime::ctrl_port::ControlPort;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 mod logging;
@@ -52,7 +51,6 @@ pub use message_io::MessageOutput;
 pub use mocker::Mocker;
 pub(crate) use runtime::run_block;
 pub use runtime::Runtime;
-pub use runtime::RuntimeBuilder;
 pub use stream_io::StreamInput;
 pub use stream_io::StreamIo;
 pub use stream_io::StreamIoBuilder;
@@ -61,8 +59,11 @@ pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
 
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
+pub use futuresdr_pmt::BlockDescription;
+pub use futuresdr_pmt::FlowgraphDescription;
+
+use buffer::BufferReader;
+use buffer::BufferWriter;
 
 pub fn init() {
     logging::init();
@@ -76,23 +77,28 @@ pub enum FlowgraphMessage {
         block_id: usize,
         block: Block,
     },
+    BlockError {
+        block_id: usize,
+        block: Block,
+    },
     BlockCall {
         block_id: usize,
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
+        tx: oneshot::Sender<result::Result<(), CallbackError>>,
     },
     BlockCallback {
         block_id: usize,
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<Pmt>,
+        tx: oneshot::Sender<result::Result<Pmt, CallbackError>>,
     },
     FlowgraphDescription {
         tx: oneshot::Sender<FlowgraphDescription>,
     },
     BlockDescription {
         block_id: usize,
-        tx: oneshot::Sender<BlockDescription>,
+        tx: oneshot::Sender<result::Result<BlockDescription, BlockDescriptionError>>,
     },
 }
 
@@ -124,12 +130,50 @@ pub enum BlockMessage {
         dst_inbox: mpsc::Sender<BlockMessage>,
     },
     Call {
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
+        tx: Option<oneshot::Sender<result::Result<(), HandlerError>>>,
     },
     Callback {
-        port_id: usize,
+        port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<Pmt>,
+        tx: oneshot::Sender<result::Result<Pmt, HandlerError>>,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum HandlerError {
+    #[error("Handler does not exist")]
+    InvalidHandler,
+    #[error("Error in handler")]
+    HandlerError,
+}
+
+#[derive(Error, Debug)]
+pub enum CallbackError {
+    #[error("Block does not exist")]
+    InvalidBlock,
+    #[error("Handler does not exist")]
+    InvalidHandler,
+    #[error("Error in handler")]
+    HandlerError,
+    #[error("Error in runtime")]
+    RuntimeError,
+}
+
+impl From<HandlerError> for CallbackError {
+    fn from(h: HandlerError) -> Self {
+        match h {
+            HandlerError::HandlerError => CallbackError::HandlerError,
+            HandlerError::InvalidHandler => CallbackError::InvalidHandler,
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum BlockDescriptionError {
+    #[error("Block does not exist")]
+    InvalidBlock,
+    #[error("Runtime Error.")]
+    RuntimeError,
 }

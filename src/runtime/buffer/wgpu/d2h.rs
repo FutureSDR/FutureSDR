@@ -143,8 +143,6 @@ impl BufferWriterCustom for WriterD2H {
     }
 }
 
-unsafe impl Send for WriterD2H {}
-
 #[derive(Debug)]
 pub struct ReaderD2H {
     buffer: Option<CurrentBuffer>,
@@ -163,6 +161,9 @@ struct CurrentBuffer {
     offset: usize,
     slice: BufferView<'static>,
 }
+
+// Needed for raw pointer `buffer`
+unsafe impl Send for CurrentBuffer {}
 
 #[async_trait]
 impl BufferReaderHost for ReaderD2H {
@@ -253,5 +254,3 @@ impl BufferReaderHost for ReaderD2H {
         self.finished && self.inbound.lock().unwrap().is_empty()
     }
 }
-
-unsafe impl Send for ReaderD2H {}

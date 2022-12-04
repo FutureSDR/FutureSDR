@@ -289,8 +289,6 @@ impl BufferWriterHost for Writer {
     }
 }
 
-unsafe impl Send for Writer {}
-
 #[derive(Debug)]
 pub struct Reader {
     current: Option<CurrentBuffer>,
@@ -420,5 +418,3 @@ impl BufferReaderHost for Reader {
         self.finished && self.state.lock().unwrap().reader_input.is_empty()
     }
 }
-
-unsafe impl Send for Reader {}

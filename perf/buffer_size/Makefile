@@ -32,5 +32,5 @@ perf-data/fs%.csv: buffer_size.rs
 	@echo BUFFER=$(BUFFER)
 	@echo BUFFER_FLAG=$(BUFFER_FLAG)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --scheduler=$(SCHEDULER) --buffer_size=$(BUFFER_SIZE) $(BUFFER_FLAG) | grep -v cset > $@
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --scheduler=$(SCHEDULER) --buffer-size=$(BUFFER_SIZE) $(BUFFER_FLAG) | grep -v cset > $@
 

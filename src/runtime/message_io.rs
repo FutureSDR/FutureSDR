@@ -9,6 +9,7 @@ use crate::anyhow::Result;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 
 pub struct MessageInput<T: ?Sized> {
     name: String,
@@ -98,13 +99,13 @@ impl MessageOutput {
 
     pub async fn post(&mut self, p: Pmt) {
         for (port_id, sender) in self.handlers.iter_mut() {
-            sender
+            let _ = sender
                 .send(BlockMessage::Call {
-                    port_id: *port_id,
+                    port_id: PortId::Index(*port_id),
                     data: p.clone(),
+                    tx: None,
                 })
-                .await
-                .unwrap();
+                .await;
         }
     }
 }
@@ -129,6 +130,10 @@ impl<T: Send + ?Sized> MessageIo<T> {
 
     pub fn input(&self, id: usize) -> &MessageInput<T> {
         &self.inputs[id]
+    }
+
+    pub fn inputs(&self) -> &Vec<MessageInput<T>> {
+        &self.inputs
     }
 
     pub fn input_names(&self) -> Vec<String> {

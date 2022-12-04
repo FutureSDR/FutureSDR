@@ -50,7 +50,7 @@ perf-data/fs%.csv: fir.rs
 	@echo MAX=$(MAX)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) --scheduler=$(SCHEDULER) | grep -v cset > $@
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER) | grep -v cset > $@
 
 clean:
 	rm -rf build

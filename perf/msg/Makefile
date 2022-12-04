@@ -26,10 +26,10 @@ build/msg_flowgraph: msg_flowgraph.cpp msg_flowgraph.hpp
 perf-data/gr%.csv: build/msg_flowgraph
 	mkdir -p perf-data
 	@echo $@
-	$(eval RUN=$(shell python -c "print \"$@\".split(\"_\")[1]"))
-	$(eval PIPES=$(shell python -c "print \"$@\".split(\"_\")[2]"))
-	$(eval STAGES=$(shell python -c "print \"$@\".split(\"_\")[3]"))
-	$(eval BURST_SIZE=$(shell python -c "print \"$@\".split(\"_\")[4]"))
+	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
+	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
+	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
+	$(eval BURST_SIZE=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
@@ -40,16 +40,16 @@ perf-data/gr%.csv: build/msg_flowgraph
 perf-data/fs%.csv: msg.rs
 	mkdir -p perf-data
 	@echo $@
-	$(eval RUN=$(shell python -c "print \"$@\".split(\"_\")[1]"))
-	$(eval PIPES=$(shell python -c "print \"$@\".split(\"_\")[2]"))
-	$(eval STAGES=$(shell python -c "print \"$@\".split(\"_\")[3]"))
-	$(eval BURST_SIZE=$(shell python -c "print \"$@\".split(\"_\")[4]"))
+	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
+	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
+	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
+	$(eval BURST_SIZE=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo BURST_SIZE=$(BURST_SIZE)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) | grep -v cset > $@
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst-size=$(BURST_SIZE) | grep -v cset > $@
 
 clean:
 	rm -rf build

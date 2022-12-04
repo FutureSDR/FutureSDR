@@ -1,7 +1,3 @@
-use futures::FutureExt;
-// use std::future::Future;
-// use std::pin::Pin;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -24,22 +20,21 @@ impl MessageSink {
             BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .add_input(
-                    "in",
-                    |block: &mut MessageSink,
-                     _mio: &mut MessageIo<MessageSink>,
-                     _meta: &mut BlockMeta,
-                     _p: Pmt| {
-                        async move {
-                            block.n_received += 1;
-                            Ok(Pmt::U64(block.n_received))
-                        }
-                        .boxed()
-                    },
-                )
+                .add_input("in", Self::in_port)
                 .build(),
             MessageSink { n_received: 0 },
         )
+    }
+
+    #[message_handler]
+    async fn in_port(
+        &mut self,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        self.n_received += 1;
+        Ok(Pmt::U64(self.n_received))
     }
 
     pub fn received(&self) -> u64 {

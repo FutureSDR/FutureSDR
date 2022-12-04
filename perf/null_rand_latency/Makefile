@@ -72,7 +72,7 @@ perf-data/fs%.csv: null_rand_latency.rs
 	lttng enable-event --userspace futuresdr:rx
 	lttng start
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX) --scheduler=$(SCHEDULER)
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER)
 
 	lttng destroy
 	python3 parse.py perf-data/foo > $@
