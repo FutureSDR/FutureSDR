@@ -62,9 +62,9 @@ impl<T: Send + 'static> Kernel for TagDebug<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<u8>();
+        let i = sio.input(0).slice::<T>();
 
-        let n = i.len() / std::mem::size_of::<T>();
+        let n = i.len();
         sio.input(0)
             .tags()
             .iter()
@@ -79,10 +79,8 @@ impl<T: Send + 'static> Kernel for TagDebug<T> {
                 )
             });
 
-        if n > 0 {
-            sio.input(0).consume(n);
-            self.n_received += n;
-        }
+        sio.input(0).consume(n);
+        self.n_received += n;
 
         if sio.input(0).finished() {
             io.finished = true;
