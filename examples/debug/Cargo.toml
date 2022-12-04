@@ -13,6 +13,10 @@ path = "oscillators.rs"
 name = "panic"
 path = "panic.rs"
 
+[[bin]]
+name = "tag_debug"
+path = "tag_debug.rs"
+
 [dependencies]
 futuresdr = { path = "../..", features = ['flow_scheduler', 'tpb_scheduler']}
 clap = { version = "4.0.19", features = ["derive"] }
