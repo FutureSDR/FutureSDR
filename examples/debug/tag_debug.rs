@@ -43,6 +43,7 @@ pub struct PeriodicTagger {
 }
 
 impl PeriodicTagger {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(period: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("PeriodicTagger").build(),
