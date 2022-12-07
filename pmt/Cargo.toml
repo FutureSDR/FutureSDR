@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-pmt"
-version = "0.0.6"
+version = "0.0.7"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2021"
 license = "Apache-2.0"
