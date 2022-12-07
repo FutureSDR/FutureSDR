@@ -61,6 +61,9 @@ jobs:
       - name: Run cargo fmt (perf/zynq)
         run: cargo fmt --all --manifest-path=perf/zynq/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/agc)
+        run: cargo fmt --all --manifest-path=examples/agc/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/android)
         run: cargo fmt --all --manifest-path=examples/android/Cargo.toml -- --check
 
@@ -166,6 +169,8 @@ jobs:
 
       - name: Run cargo clippy (perf/zynq)
         run: cargo clippy --all-targets --manifest-path=perf/zynq/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (examples/agc)
+        run: cargo clippy --all-targets --manifest-path=examples/agc/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/android)
         run: cargo clippy --all-targets --manifest-path=examples/android/Cargo.toml -- -D warnings
