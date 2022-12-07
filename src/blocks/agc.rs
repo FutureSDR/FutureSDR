@@ -132,8 +132,8 @@ where
     fn scale(&mut self, input: T) -> T {
         let output = input * T::from(self.gain).unwrap();
         if !self.gain_locked {
-            self.gain = self.gain
-                + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
+            self.gain +=
+                (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
             self.gain = self.gain.min(self.max_gain);
         }
         output
@@ -246,5 +246,11 @@ where
             self.reference_power,
             self.gain_locked,
         )
+    }
+}
+
+impl<T: ComplexFloat + Send + Sync> Default for AgcBuilder<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
