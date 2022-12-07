@@ -15,6 +15,7 @@
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
+//! | [Agc](Agc) | Automatic Gain Control | ✅ |
 //! | [Fft](Fft) | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
 //! | [Iir](IirBuilder) | IIR filter. | ✅ |
@@ -98,7 +99,7 @@
 //!
 
 mod agc;
-pub use agc::{AGCBuilder, AGC};
+pub use agc::{Agc, AgcBuilder};
 
 mod apply;
 pub use apply::Apply;
