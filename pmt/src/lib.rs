@@ -41,8 +41,12 @@ impl dyn PmtAny {
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Pmt {
+    Ok,
+    InvalidValue,
     Null,
     String(String),
+    Bool(bool),
+    Usize(usize),
     U32(u32),
     U64(u64),
     F32(f32),
@@ -121,11 +125,51 @@ impl Pmt {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PmtConversionError;
+
+impl fmt::Display for PmtConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PmtConversionError")
+    }
+}
+
+impl std::error::Error for PmtConversionError {}
+
+impl TryInto<f64> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<f64, Self::Error> {
+        match self {
+            Pmt::F32(f) => Ok(f as f64),
+            Pmt::F64(f) => Ok(f),
+            Pmt::U32(f) => Ok(f as f64),
+            Pmt::U64(f) => Ok(f as f64),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryInto<usize> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self {
+            Pmt::Usize(f) => Ok(f),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq)]
 pub enum PmtKind {
+    Ok,
+    InvalidValue,
     Null,
     String,
+    Bool,
+    Usize,
     U32,
     U64,
     F32,
