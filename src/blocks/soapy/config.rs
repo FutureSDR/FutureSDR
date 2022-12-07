@@ -1,30 +1,7 @@
-use crate::anyhow::{bail, Result};
+use crate::anyhow::{bail, format_err, Result};
 use futuresdr_pmt::Pmt;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-
-// TODO: Conversions should be supported by the Pmt library directly
-pub fn pmt_to_f64(pmt: &Pmt) -> Result<f64> {
-    let v = match pmt {
-        Pmt::F64(v) => *v,
-        Pmt::F32(v) => *v as f64,
-        Pmt::U32(v) => *v as f64,
-        Pmt::U64(v) => *v as f64,
-        _ => bail!("can't convert PMT to f64"),
-    };
-    Ok(v)
-}
-
-pub fn pmt_to_usize(pmt: &Pmt) -> Result<usize> {
-    let v = match pmt {
-        Pmt::F64(v) => *v as usize,
-        Pmt::F32(v) => *v as usize,
-        Pmt::U32(v) => *v as usize,
-        Pmt::U64(v) => *v as usize,
-        _ => bail!("can't convert PMT to usize"),
-    };
-    Ok(v)
-}
 
 /// Soapy device specifier options
 #[derive(Clone, Serialize, Deserialize)]
@@ -112,7 +89,7 @@ pub enum SoapyConfigItem {
     SampleRate(f64),
 }
 
-/// Configuration for a [`SoapyDevice`]
+/// Configuration for a [`SoapyDevice`](super::SoapyDevice)
 ///
 /// This simply wraps a `Vec` of [`SoapyConfigItem`].
 ///
@@ -159,27 +136,38 @@ impl TryFrom<Pmt> for SoapyConfig {
                     bail!("downcast failed")
                 }
             }
-            Pmt::MapStrPmt(m) => {
+            Pmt::MapStrPmt(mut m) => {
                 let mut cfg = Self::default();
-                for (n, v) in m.iter() {
+                for (n, v) in m.drain() {
                     match (n.as_str(), v) {
                         ("antenna", Pmt::String(v)) => {
                             cfg.push(SCI::Antenna(v.to_owned()));
                         }
                         ("bandwidth", p) => {
-                            cfg.push(SCI::Bandwidth(pmt_to_f64(p)?));
+                            cfg.push(SCI::Bandwidth(
+                                p.try_into()
+                                    .map_err(|_| format_err!("bandwidth: invalid Pmt"))?,
+                            ));
                         }
                         ("chan", p) => {
-                            cfg.push(SCI::Channels(Some(vec![pmt_to_usize(p)?])));
+                            cfg.push(SCI::Channels(Some(vec![p
+                                .try_into()
+                                .map_err(|_| format_err!("chan: invalid Pmt"))?])));
                         }
                         ("freq", p) => {
-                            cfg.push(SCI::Freq(pmt_to_f64(p)?));
+                            cfg.push(SCI::Freq(
+                                p.try_into().map_err(|_| format_err!("freq: invalid Pmt"))?,
+                            ));
                         }
                         ("gain", p) => {
-                            cfg.push(SCI::Gain(pmt_to_f64(p)?));
+                            cfg.push(SCI::Gain(
+                                p.try_into().map_err(|_| format_err!("gain: invalid Pmt"))?,
+                            ));
                         }
                         ("rate", p) => {
-                            cfg.push(SCI::SampleRate(pmt_to_f64(p)?));
+                            cfg.push(SCI::SampleRate(
+                                p.try_into().map_err(|_| format_err!("rate: invalid Pmt"))?,
+                            ));
                         }
                         // If unknown, log a warning but otherwise ignore
                         _ => warn!("unrecognized key name: {}", n),

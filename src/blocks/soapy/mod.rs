@@ -48,45 +48,51 @@ impl<T> SoapyDevice<T> {
     fn set_freq(&mut self, p: Pmt, default_dir: &SoapyDirection) -> Result<Pmt> {
         let dev = self.dev.as_mut().context("no dev")?;
 
-        let freq = config::pmt_to_f64(&p)?;
-
-        if default_dir.is_rx(&SoapyDirection::None) {
-            dev.set_frequency(Rx, self.chans[0], freq, ())?;
+        if let Ok(freq) = p.try_into() {
+            if default_dir.is_rx(&SoapyDirection::None) {
+                dev.set_frequency(Rx, self.chans[0], freq, ())?;
+            }
+            if default_dir.is_tx(&SoapyDirection::None) {
+                dev.set_frequency(Tx, self.chans[0], freq, ())?;
+            }
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
         }
-        if default_dir.is_tx(&SoapyDirection::None) {
-            dev.set_frequency(Tx, self.chans[0], freq, ())?;
-        }
-        Ok(Pmt::Null)
     }
 
     // For backwards compatibility, can only set the first stream channel
     fn set_gain(&mut self, p: Pmt, default_dir: &SoapyDirection) -> Result<Pmt> {
         let dev = self.dev.as_mut().context("no dev")?;
 
-        let gain = config::pmt_to_f64(&p)?;
-
-        if default_dir.is_rx(&SoapyDirection::None) {
-            dev.set_gain(Rx, self.chans[0], gain)?;
+        if let Ok(gain) = p.try_into() {
+            if default_dir.is_rx(&SoapyDirection::None) {
+                dev.set_gain(Rx, self.chans[0], gain)?;
+            }
+            if default_dir.is_tx(&SoapyDirection::None) {
+                dev.set_gain(Tx, self.chans[0], gain)?;
+            }
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
         }
-        if default_dir.is_tx(&SoapyDirection::None) {
-            dev.set_gain(Tx, self.chans[0], gain)?;
-        }
-        Ok(Pmt::Null)
     }
 
     // For backwards compatibility, can only set the first stream channel
     fn set_sample_rate(&mut self, p: Pmt, default_dir: &SoapyDirection) -> Result<Pmt> {
         let dev = self.dev.as_mut().context("no dev")?;
 
-        let rate = config::pmt_to_f64(&p)?;
-
-        if default_dir.is_rx(&SoapyDirection::None) {
-            dev.set_sample_rate(Rx, self.chans[0], rate)?;
+        if let Ok(rate) = p.try_into() {
+            if default_dir.is_rx(&SoapyDirection::None) {
+                dev.set_sample_rate(Rx, self.chans[0], rate)?;
+            }
+            if default_dir.is_tx(&SoapyDirection::None) {
+                dev.set_sample_rate(Tx, self.chans[0], rate)?;
+            }
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
         }
-        if default_dir.is_tx(&SoapyDirection::None) {
-            dev.set_sample_rate(Tx, self.chans[0], rate)?;
-        }
-        Ok(Pmt::Null)
     }
 
     fn apply_config(&mut self, cfg: &SoapyConfig, default_dir: &SoapyDirection) -> Result<()> {

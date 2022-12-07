@@ -173,7 +173,7 @@ impl Kernel for SoapySource {
 ///
 /// # Inputs
 ///
-/// - **Message** `cmd`: a [`Pmt`] representing a configuration update or other command. See: [`SoapyConfig`] and [`SoapyDevice::base_cmd_handler()`].
+/// - **Message** `cmd`: a [`Pmt`] representing a configuration update or other command. See: [`SoapyConfig`](super::SoapyConfig) and `SoapyDevice::base_cmd_handler()`.
 ///
 /// # Outputs
 ///
