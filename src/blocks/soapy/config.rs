@@ -1,4 +1,4 @@
-use crate::anyhow::{bail, format_err, Result};
+use crate::anyhow::{bail, Result};
 use futuresdr_pmt::Pmt;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -144,30 +144,19 @@ impl TryFrom<Pmt> for SoapyConfig {
                             cfg.push(SCI::Antenna(v.to_owned()));
                         }
                         ("bandwidth", p) => {
-                            cfg.push(SCI::Bandwidth(
-                                p.try_into()
-                                    .map_err(|_| format_err!("bandwidth: invalid Pmt"))?,
-                            ));
+                            cfg.push(SCI::Bandwidth(p.try_into()?));
                         }
                         ("chan", p) => {
-                            cfg.push(SCI::Channels(Some(vec![p
-                                .try_into()
-                                .map_err(|_| format_err!("chan: invalid Pmt"))?])));
+                            cfg.push(SCI::Channels(Some(vec![p.try_into()?])));
                         }
                         ("freq", p) => {
-                            cfg.push(SCI::Freq(
-                                p.try_into().map_err(|_| format_err!("freq: invalid Pmt"))?,
-                            ));
+                            cfg.push(SCI::Freq(p.try_into()?));
                         }
                         ("gain", p) => {
-                            cfg.push(SCI::Gain(
-                                p.try_into().map_err(|_| format_err!("gain: invalid Pmt"))?,
-                            ));
+                            cfg.push(SCI::Gain(p.try_into()?));
                         }
                         ("rate", p) => {
-                            cfg.push(SCI::SampleRate(
-                                p.try_into().map_err(|_| format_err!("rate: invalid Pmt"))?,
-                            ));
+                            cfg.push(SCI::SampleRate(p.try_into()?));
                         }
                         // If unknown, log a warning but otherwise ignore
                         _ => warn!("unrecognized key name: {}", n),
