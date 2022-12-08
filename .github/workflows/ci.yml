@@ -169,6 +169,7 @@ jobs:
 
       - name: Run cargo clippy (perf/zynq)
         run: cargo clippy --all-targets --manifest-path=perf/zynq/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (examples/agc)
         run: cargo clippy --all-targets --manifest-path=examples/agc/Cargo.toml -- -D warnings
 
