@@ -60,10 +60,20 @@ impl<S: Scheduler + Send + Sync> HttpSource<S> {
                 .and_then(|x| x.to_string().parse::<usize>().ok())
                 .context("failed to read number of samples")?;
             self.items_left = i;
-            Ok(())
-        } else {
-            Ok(())
         }
+        Ok(())
+    }
+
+    async fn get_data(&mut self) -> Result<()> {
+        let b = self
+            .stream
+            .as_mut()
+            .unwrap()
+            .next()
+            .await
+            .context("stream finished")??;
+        self.buf = [std::mem::take(&mut self.buf), b].concat().into();
+        Ok(())
     }
 }
 
@@ -103,14 +113,7 @@ impl<S: Scheduler + Send + Sync> Kernel for HttpSource<S> {
         if self.items_left == 0 {
             self.parse_header()?;
             while self.items_left == 0 {
-                let b = self
-                    .stream
-                    .as_mut()
-                    .unwrap()
-                    .next()
-                    .await
-                    .context("stream finished")??;
-                self.buf = [std::mem::take(&mut self.buf), b].concat().into();
+                self.get_data().await?;
                 self.parse_header()?
             }
         }
@@ -123,14 +126,7 @@ impl<S: Scheduler + Send + Sync> Kernel for HttpSource<S> {
 
         if n == self.buf.len() / is {
             self.buf.advance(n * is);
-            let b = self
-                .stream
-                .as_mut()
-                .unwrap()
-                .next()
-                .await
-                .context("stream finished")??;
-            self.buf = [std::mem::take(&mut self.buf), b].concat().into();
+            self.get_data().await?;
         } else {
             self.buf.advance(n * is);
         }

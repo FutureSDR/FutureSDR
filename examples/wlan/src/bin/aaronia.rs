@@ -4,11 +4,11 @@ use futuresdr::futures::StreamExt;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
+use futuresdr::blocks::aaronia;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
-use futuresdr::blocks::aaronia;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;

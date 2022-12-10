@@ -250,7 +250,7 @@ pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode}
 #[cfg(feature = "wgpu")]
 mod wgpu;
 #[cfg(feature = "wgpu")]
-pub use wgpu::Wgpu;
+pub use self::wgpu::Wgpu;
 
 #[cfg(feature = "zeromq")]
 pub mod zeromq;

@@ -21,7 +21,7 @@ members = [
 ]
 
 [features]
-default = ["aaronia"]
+default = []
 aaronia = ["dep:async-native-tls", "dep:http", "dep:hyper", "dep:serde_json"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
