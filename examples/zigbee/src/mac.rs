@@ -69,6 +69,7 @@ impl Mac {
                 .add_input("tx", Self::transmit)
                 .add_input("stats", Self::stats)
                 .add_output("rxed")
+                .add_output("rftap")
                 .build(),
             Mac {
                 tx_frames: VecDeque::new(),
@@ -120,6 +121,14 @@ impl Mac {
                         debug!("received frame, crc correct, payload length {}", data.len());
                         #[cfg(target_arch = "wasm32")]
                         rxed_frame(data.clone());
+
+                        let mut rftap = vec![0; data.len() + 12];
+                        rftap[0..4].copy_from_slice("RFta".as_bytes());
+                        rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
+                        rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
+                        rftap[8..12].copy_from_slice(&195u32.to_le_bytes());
+                        rftap[12..].copy_from_slice(&data);
+                        mio.output_mut(1).post(Pmt::Blob(rftap)).await;
 
                         self.n_received += 1;
                         let s = String::from_iter(

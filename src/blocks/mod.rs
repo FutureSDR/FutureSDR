@@ -98,6 +98,9 @@
 //! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
 
+#[cfg(feature = "aaronia")]
+pub mod aaronia;
+
 mod agc;
 pub use agc::{Agc, AgcBuilder};
 
@@ -247,7 +250,7 @@ pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode}
 #[cfg(feature = "wgpu")]
 mod wgpu;
 #[cfg(feature = "wgpu")]
-pub use self::wgpu::Wgpu;
+pub use wgpu::Wgpu;
 
 #[cfg(feature = "zeromq")]
 pub mod zeromq;

@@ -210,6 +210,10 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         let (handle, _) = self.start(fg).await;
         handle.await
     }
+
+    pub fn scheduler(&self) -> S {
+        self.scheduler.clone()
+    }
 }
 
 async fn run_flowgraph<S: Scheduler>(

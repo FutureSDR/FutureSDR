@@ -18,6 +18,15 @@ path = "src/bin/loopback.rs"
 name = "tx"
 path = "src/bin/tx.rs"
 
+[[bin]]
+name = "aaronia"
+path = "src/bin/aaronia.rs"
+required-features = ["aaronia"]
+
+[features]
+default = []
+aaronia = ["futuresdr/aaronia"]
+
 [dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
 crc32fast = "1.3.2"

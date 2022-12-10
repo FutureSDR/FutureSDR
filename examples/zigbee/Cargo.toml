@@ -21,6 +21,15 @@ path = "src/bin/trx.rs"
 name = "tx"
 path = "src/bin/tx.rs"
 
+[[bin]]
+name = "aaronia"
+path = "src/bin/aaronia.rs"
+required-features = ["aaronia"]
+
+[features]
+default = []
+aaronia = ["futuresdr/aaronia"]
+
 [dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
