@@ -18,8 +18,6 @@ use futuresdr::runtime::WorkIo;
 
 pub struct BBToCW {
     samples_per_dot: usize,
-    //avg_power_max: f32,
-    //avg_power_min: f32,
     sample_count: usize,
     power_before: f32,
     tolerance_per_dot: usize,
@@ -42,11 +40,11 @@ impl BBToCW {
         let letterspace_range = 3 * samples_per_dot - tolerance_per_dot..=3 * samples_per_dot + tolerance_per_dot;
         let wordspace_range = 7 * samples_per_dot - tolerance_per_dot..=7 * samples_per_dot + tolerance_per_dot;
 
-        /*println!("samples per dot: {}", samples_per_dot);
+        println!("samples per dot: {}", samples_per_dot);
         println!("dot_range: {:?}", dot_range);
         println!("dash_range: {:?}", dash_range);
         println!("letterspace_range: {:?}", letterspace_range);
-        println!("wordspace_range: {:?}", wordspace_range);*/
+        println!("wordspace_range: {:?}", wordspace_range);
 
         Block::new(
             BlockMetaBuilder::new("BBToCW").build(),
@@ -57,8 +55,6 @@ impl BBToCW {
             MessageIoBuilder::new().build(),
             BBToCW {
                 samples_per_dot,
-                //avg_power_max: 0.,
-                //avg_power_min: 1.,
                 sample_count: 0,
                 power_before: 0.,
                 tolerance_per_dot, // // Tolerance towards the sending end in sticking to the time slots
@@ -89,24 +85,6 @@ impl Kernel for BBToCW {
 
         let mut consumed = 0;
         let mut produced = 0;
-
-        /*let weight = 10.;
-        let mut max_avg_max: f32 = 0.;
-        for sample in i.iter() {
-            let power = (*sample).abs(); //.powi(2);
-            let distance = self.avg_power_max - self.avg_power_min;
-            max_avg_max = max_avg_max.max(power);
-
-            if power - self.avg_power_min > distance / 2. {
-                self.avg_power_max = (weight * power + self.avg_power_max) / (weight + 1.); // Interpret everything as signal, if it cant be classified as noise
-            } else {
-                self.avg_power_min = (weight * power + self.avg_power_min) / (weight + 1.);
-                self.avg_power_max *= 0.99999; // Reduce avg_power_max a little bit again, to detect again weaker signals over time.
-            }
-        }*/
-
-        //println!("Total Max: {}, Avg Power Max: {}, Avg Power Min: {}, Threshold: {}", max_avg_max, self.avg_power_max, self.avg_power_min, self.avg_power_max - self.avg_power_min);
-
         let mut end_of_transmission = true;
         let threshold = 0.5; //(self.avg_power_min + self.avg_power_max) / 2.;
 
@@ -124,7 +102,7 @@ impl Kernel for BBToCW {
                     }
                 }
 
-                //println!("Signal was paused for: {} -> {:?}", sample_count, symbol.or(None));
+                //println!("Signal was paused for: {} -> {:?}", self.sample_count, symbol.or(None));
 
                 self.sample_count = 0;
                 end_of_transmission = false;
@@ -137,7 +115,7 @@ impl Kernel for BBToCW {
                         //println!("Signal length not a symbol: {} samples", sample_count);
                     }
                 }
-                //println!("Signal was present for: {} -> {:?}", sample_count, symbol.or(None));
+                //println!("Signal was present for: {} -> {:?}", self.sample_count, symbol.or(None));
 
                 self.sample_count = 0;
             }
@@ -179,16 +157,14 @@ impl Kernel for BBToCW {
 
 
 pub struct BBToCWBuilder {
-    dot_length_ms: f64,
-    sample_rate: f64,
+    samles_per_dot: usize,
     accuracy: usize,
 }
 
 impl Default for BBToCWBuilder {
     fn default() -> Self {
         BBToCWBuilder {
-            dot_length_ms: 100.,
-            sample_rate: 20.,
+            samles_per_dot: 60,
             accuracy: 90,
         }
     }
@@ -199,13 +175,8 @@ impl BBToCWBuilder {
         BBToCWBuilder::default()
     }
 
-    pub fn dot_length(mut self, dot_length_ms: f64) -> BBToCWBuilder {
-        self.dot_length_ms = dot_length_ms;
-        self
-    }
-
-    pub fn sample_rate(mut self, sample_rate: f64) -> BBToCWBuilder {
-        self.sample_rate = sample_rate;
+    pub fn samples_per_dot(mut self, samles_per_dot: usize) -> BBToCWBuilder {
+        self.samles_per_dot = samles_per_dot;
         self
     }
 
@@ -217,7 +188,7 @@ impl BBToCWBuilder {
     pub fn build(self) -> Block {
         BBToCW::new(
             self.accuracy,
-            ((self.dot_length_ms / 1000.) * self.sample_rate) as usize,
+            self.samles_per_dot,
         )
     }
 }
