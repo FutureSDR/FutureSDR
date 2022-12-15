@@ -22,8 +22,13 @@ name = "tx"
 path = "src/bin/tx.rs"
 
 [[bin]]
-name = "aaronia"
-path = "src/bin/aaronia.rs"
+name = "aaronia_rx"
+path = "src/bin/aaronia_rx.rs"
+required-features = ["aaronia"]
+
+[[bin]]
+name = "aaronia_tx"
+path = "src/bin/aaronia_tx.rs"
 required-features = ["aaronia"]
 
 [features]

@@ -22,7 +22,7 @@ enum State {
     Tail(usize),
 }
 
-const PADDING: usize = 10000;
+const PADDING: usize = 40000;
 
 pub struct IqDelay {
     state: State,
@@ -106,6 +106,13 @@ impl Kernel for IqDelay {
                             .cloned()
                         {
                             self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
+                            sio.output(0).add_tag(
+                                produced,
+                                Tag::NamedUsize(
+                                    "burst_start".to_string(),
+                                    2 * PADDING + id as usize * 2 * 16 * 4 + 2,
+                                ),
+                            );
                         } else {
                             panic!("no frame start tag");
                         }
