@@ -49,7 +49,7 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 ###########################################################
 # CLIPPY
 ###########################################################
-cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 cd ${SCRIPTPATH} && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
@@ -100,7 +100,7 @@ cd ${SCRIPTPATH}/examples/zigbee && RUSTFLAGS='--cfg=web_sys_unstable_apis' carg
 ###########################################################
 # Test
 ###########################################################
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -j 4
+cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -j 4
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo test --all-targets
