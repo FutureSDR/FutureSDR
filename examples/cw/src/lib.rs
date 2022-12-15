@@ -3,7 +3,11 @@ use std::fmt;
 
 mod tx_audio;
 
-pub use crate::tx_audio::run_fg;
+pub use crate::tx_audio::run_fg_tx;
+
+mod rx_audio;
+
+pub use crate::rx_audio::run_fg_rx;
 
 mod bb_to_cw;
 

@@ -20,13 +20,13 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub async fn run_fg(msg: String) {
+pub async fn run_fg_tx(msg: String) {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     run_fg_impl(msg, 440.0, 20.0).await.unwrap();
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn run_fg(msg: String, tone: f32, wpm: f32) -> Result<()> {
+pub async fn run_fg_tx(msg: String, tone: f32, wpm: f32) -> Result<()> {
     run_fg_impl(msg, tone, wpm).await
 }
 

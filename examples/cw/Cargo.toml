@@ -22,6 +22,11 @@ required-features = ["soapy", "zmq"]
 name = "tx-audio"
 path = "src/bin/tx_audio.rs"
 
+[[bin]]
+name = "rx-audio"
+path = "src/bin/rx_audio.rs"
+required-features = ["soapy"]
+
 [features]
 default = []
 soapy = ["futuresdr/soapy"]

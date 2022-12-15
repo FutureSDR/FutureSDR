@@ -2,7 +2,7 @@ use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 
-use cw::run_fg;
+use cw::run_fg_tx;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -21,6 +21,6 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let msg: String = args.message;
 
-    block_on(run_fg(msg, args.tone, args.wpm))?;
+    block_on(run_fg_tx(msg, args.tone, args.wpm))?;
     Ok(())
 }

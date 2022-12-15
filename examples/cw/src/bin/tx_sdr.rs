@@ -3,6 +3,7 @@
 use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
+//use futuresdr::blocks::FileSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::SoapySinkBuilder;
 use futuresdr::blocks::VectorSource;
@@ -61,8 +62,13 @@ fn main() -> Result<()> {
         .gain(args.gain as f64)
         .filter("driver=bladerf")
         .build();
+    //let file_snk = FileSink::<Complex32>::new("out.iq");
 
-    connect!(fg, src > encode > conv > snk);
+    connect!(
+        fg, src > encode > conv;
+        conv > snk;
+        //conv > file_snk;
+    );
 
     Runtime::new().run(fg)?;
     Ok(())
