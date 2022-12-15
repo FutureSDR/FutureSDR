@@ -1,3 +1,6 @@
+mod http_sink;
+pub use http_sink::HttpSink;
+
 mod http_source;
 pub use http_source::HttpSource;
 
@@ -56,6 +59,7 @@ impl hyper::service::Service<Uri> for FutureSdrConnector {
                             .context("cannot resolve address")?
                     };
                     let stream = Async::<TcpStream>::connect(socket_addr).await?;
+                    stream.get_ref().set_nodelay(true)?;
                     Ok(SmolStream::Plain(stream))
                 }
                 Some("https") => {

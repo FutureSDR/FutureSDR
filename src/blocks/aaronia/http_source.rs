@@ -49,7 +49,7 @@ impl<S: Scheduler + Send + Sync> HttpSource<S> {
     fn parse_header(&mut self) -> Result<()> {
         if let Some(i) = self.buf.iter().position(|&b| b == 10) {
             let header: Value = serde_json::from_str(&String::from_utf8_lossy(&self.buf[0..i]))?;
-            debug!("chunck header {:?}", header);
+            debug!("chunck header {header:?}");
             if self.buf.len() > i + 2 {
                 self.buf.advance(i + 2);
             } else {
