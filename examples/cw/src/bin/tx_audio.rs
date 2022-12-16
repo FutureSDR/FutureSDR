@@ -1,13 +1,13 @@
 use clap::Parser;
-use futuresdr::anyhow::Result;
-use futuresdr::async_io::block_on;
 
 use cw::run_fg_tx;
+use futuresdr::anyhow::Result;
+use futuresdr::async_io::block_on;
 
 #[derive(Parser, Debug)]
 struct Args {
     /// Sets the message to convert.
-    #[arg(short, long, default_value = "CQ CQ CQ FUTURESDR")]
+    #[arg(short, long, default_value = "CQ CQ FUTURESDR")]
     message: String,
     /// Words per minute.
     #[clap(short, long, default_value_t = 440.0)]

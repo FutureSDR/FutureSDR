@@ -1,21 +1,19 @@
-use bimap::BiMap;
 use std::fmt;
+
+use bimap::BiMap;
+
+pub use crate::bb_to_cw::*;
+pub use crate::cw_to_char::*;
+pub use crate::rx_audio::run_fg_rx;
+pub use crate::tx_audio::run_fg_tx;
 
 mod tx_audio;
 
-pub use crate::tx_audio::run_fg_tx;
-
 mod rx_audio;
-
-pub use crate::rx_audio::run_fg_rx;
 
 mod bb_to_cw;
 
-pub use crate::bb_to_cw::*;
-
 mod cw_to_char;
-
-pub use crate::cw_to_char::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum CWAlphabet {

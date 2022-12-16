@@ -1,8 +1,8 @@
 use futuredsp::firdes;
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::ApplyNM;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::SignalSourceBuilder;
@@ -11,12 +11,11 @@ use futuresdr::log::{debug, info};
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 use crate::char_to_bb;
 use crate::msg_to_cw;
-
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]

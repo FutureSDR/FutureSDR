@@ -1,6 +1,3 @@
-use crate::CWAlphabet;
-use crate::CWAlphabet::{LetterSpace, WordSpace};
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
 use futuresdr::runtime::Block;
@@ -13,8 +10,10 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
 
-use crate::get_alphabet;
 use crate::BiMap;
+use crate::CWAlphabet;
+use crate::CWAlphabet::{LetterSpace, WordSpace};
+use crate::get_alphabet;
 
 pub struct CWToChar {
     symbol_vec: Vec<CWAlphabet>,

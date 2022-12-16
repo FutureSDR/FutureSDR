@@ -1,9 +1,11 @@
 //cargo build --bin tx-sdr --features="soapy" --release
 
 use clap::Parser;
+
+use cw::char_to_bb;
+use cw::msg_to_cw;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
-//use futuresdr::blocks::FileSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::SoapySinkBuilder;
 use futuresdr::blocks::VectorSource;
@@ -12,9 +14,6 @@ use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-
-use cw::char_to_bb;
-use cw::msg_to_cw;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -62,12 +61,10 @@ fn main() -> Result<()> {
         .gain(args.gain as f64)
         .filter("driver=bladerf")
         .build();
-    //let file_snk = FileSink::<Complex32>::new("out.iq");
 
     connect!(
         fg, src > encode > conv;
         conv > snk;
-        //conv > file_snk;
     );
 
     Runtime::new().run(fg)?;

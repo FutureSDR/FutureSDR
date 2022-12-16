@@ -23,6 +23,6 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    block_on(run_fg_rx(args.freq, args.gain, args.sample_rate, args.tone))?;
+    block_on(run_fg_rx(args.freq, args.gain, args.sample_rate, 0.035, args.tone))?;
     Ok(())
 }
