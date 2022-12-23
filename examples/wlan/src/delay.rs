@@ -17,12 +17,12 @@ enum State {
     Skip(usize),
 }
 
-pub struct Delay<T: Send + 'static> {
+pub struct Delay<T: Copy + Send + 'static> {
     state: State,
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> Delay<T> {
+impl<T: Copy + Send + 'static> Delay<T> {
     pub fn new(n: isize) -> Block {
         let state = if n > 0 {
             State::Pad(n.try_into().unwrap())
@@ -46,7 +46,7 @@ impl<T: Send + 'static> Delay<T> {
 }
 
 #[async_trait]
-impl<T: Send + 'static> Kernel for Delay<T> {
+impl<T: Copy + Send + 'static> Kernel for Delay<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -92,9 +92,7 @@ impl<T: Send + 'static> Kernel for Delay<T> {
             State::Copy => {
                 let m = std::cmp::min(i.len(), o.len());
                 if m > 0 {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
-                    }
+                    o[..m].copy_from_slice(&i[..m]);
                 }
                 sio.input(0).consume(m);
                 sio.output(0).produce(m);

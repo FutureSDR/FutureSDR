@@ -1,6 +1,3 @@
-use std::cmp;
-use std::ptr;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -13,11 +10,11 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 /// Copy input samples to the output.
-pub struct Copy<T: Send + 'static> {
+pub struct Copy<T: core::marker::Copy + Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> Copy<T> {
+impl<T: core::marker::Copy + Send + 'static> Copy<T> {
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("Copy").build(),
@@ -35,7 +32,7 @@ impl<T: Send + 'static> Copy<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for Copy<T> {
+impl<T: core::marker::Copy + Send + 'static> Kernel for Copy<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -43,18 +40,14 @@ impl<T: Send + 'static> Kernel for Copy<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
-        let o = sio.output(0).slice_unchecked::<u8>();
-        let item_size = std::mem::size_of::<T>();
+        let i = sio.input(0).slice_unchecked::<T>();
+        let o = sio.output(0).slice_unchecked::<T>();
 
-        let m = cmp::min(i.len(), o.len());
+        let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
-            }
-
-            sio.input(0).consume(m / item_size);
-            sio.output(0).produce(m / item_size);
+            o[..m].copy_from_slice(&i[..m]);
+            sio.input(0).consume(m);
+            sio.output(0).produce(m);
         }
 
         if sio.input(0).finished() && m == i.len() {

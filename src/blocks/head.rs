@@ -1,6 +1,3 @@
-use std::cmp;
-use std::ptr;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -36,7 +33,7 @@ pub struct Head<T: Send + 'static> {
     n_items: u64,
     _type: std::marker::PhantomData<T>,
 }
-impl<T: Send + 'static> Head<T> {
+impl<T: Copy + Send + 'static> Head<T> {
     pub fn new(n_items: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("Head").build(),
@@ -55,7 +52,7 @@ impl<T: Send + 'static> Head<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for Head<T> {
+impl<T: Copy + Send + 'static> Kernel for Head<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -63,17 +60,16 @@ impl<T: Send + 'static> Kernel for Head<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
-        let o = sio.output(0).slice_unchecked::<u8>();
-        let item_size = std::mem::size_of::<T>();
+        let i = sio.input(0).slice_unchecked::<T>();
+        let o = sio.output(0).slice_unchecked::<T>();
 
-        let mut m = cmp::min(self.n_items as usize, i.len() / item_size);
-        m = cmp::min(m, o.len() / item_size);
+        let m = *[self.n_items as usize, i.len(), o.len()]
+            .iter()
+            .min()
+            .unwrap_or(&0);
 
         if m > 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m * item_size);
-            }
+            o[..m].copy_from_slice(&i[..m]);
 
             self.n_items -= m as u64;
             if self.n_items == 0 {
