@@ -1,0 +1,14 @@
+{
+  "name": "futuresdr-adsb-decoder",
+  "version": "0.0.1",
+  "description": "FutureSDR ADS-B decoder",
+  "browserslist": [
+    "defaults"
+  ],
+  "dependencies": {
+    "browser-sync": "^2.27.11",
+    "gulp": "^4.0.2",
+    "gulp-sass": "^5.1.0",
+    "sass": "^1.57.1"
+  }
+}
