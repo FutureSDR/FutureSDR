@@ -8,10 +8,8 @@ use futuresdr::runtime::{
     Block, BlockMeta, BlockMetaBuilder, Flowgraph, Kernel, MessageIo, MessageIoBuilder, Runtime,
     StreamIo, StreamIoBuilder, WorkIo,
 };
-
 use std::cmp;
 use std::marker::PhantomData;
-use std::ptr;
 
 pub enum FailType {
     Panic,
@@ -26,7 +24,7 @@ pub struct BadBlock<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
+impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
     pub fn to_block(self) -> Block {
         Block::new(
             BlockMetaBuilder::new("BadBlock").build(),
@@ -42,7 +40,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
+impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -62,19 +60,14 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> 
             _ => {}
         }
 
-        // The rest is from the copy block
-        let i = sio.input(0).slice_unchecked::<u8>();
-        let o = sio.output(0).slice_unchecked::<u8>();
-        let item_size = std::mem::size_of::<T>();
+        let i = sio.input(0).slice_unchecked::<T>();
+        let o = sio.output(0).slice_unchecked::<T>();
 
         let m = cmp::min(i.len(), o.len());
         if m > 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
-            }
-
-            sio.input(0).consume(m / item_size);
-            sio.output(0).produce(m / item_size);
+            o[..m].copy_from_slice(&i[..m]);
+            sio.input(0).consume(m);
+            sio.output(0).produce(m);
         }
 
         if sio.input(0).finished() && m == i.len() {

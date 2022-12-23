@@ -1,9 +1,3 @@
-use async_io::Timer;
-use std::cmp;
-use std::ptr;
-use std::time::Duration;
-use std::time::Instant;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -14,6 +8,9 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
+use async_io::Timer;
+use std::time::Duration;
+use std::time::Instant;
 
 /// Limit sample rate.
 ///
@@ -36,14 +33,14 @@ use crate::runtime::WorkIo;
 /// let throttle = fg.add_block(Throttle::<Complex<f32>>::new(1_000_000.0));
 /// ```
 #[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
-pub struct Throttle<T: Send + 'static> {
+pub struct Throttle<T: Copy + Send + 'static> {
     rate: f64,
     t_init: Instant,
     n_items: usize,
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> Throttle<T> {
+impl<T: Copy + Send + 'static> Throttle<T> {
     /// Creates a new Throttle block which will throttle to the specified rate.
     pub fn new(rate: f64) -> Block {
         Block::new(
@@ -65,7 +62,7 @@ impl<T: Send + 'static> Throttle<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for Throttle<T> {
+impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -75,27 +72,25 @@ impl<T: Send + 'static> Kernel for Throttle<T> {
     ) -> Result<()> {
         let i = sio.input(0).slice_unchecked::<u8>();
         let o = sio.output(0).slice_unchecked::<u8>();
-        let item_size = std::mem::size_of::<T>();
-
-        let mut m = cmp::min(i.len(), o.len());
 
         let now = Instant::now();
         let target_items = (now - self.t_init).as_secs_f64() * self.rate;
         let target_items = target_items.floor() as usize;
+        let remaining_items = target_items - self.n_items;
 
-        m = cmp::min(m, (target_items - self.n_items) * item_size);
+        let m = *[remaining_items, i.len(), o.len()]
+            .iter()
+            .min()
+            .unwrap_or(&0);
+
         if m != 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
-            }
-
-            let m = m / item_size;
+            o[..m].copy_from_slice(&i[..m]);
             self.n_items += m;
             sio.input(0).consume(m);
             sio.output(0).produce(m);
         }
 
-        if sio.input(0).finished() && i.len() == m * item_size {
+        if sio.input(0).finished() && i.len() == m {
             io.finished = true;
         }
 
