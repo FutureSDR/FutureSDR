@@ -15,6 +15,7 @@ use std::task;
 use std::task::Poll;
 
 use crate::anyhow::{bail, Context, Result};
+use crate::runtime;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
@@ -70,6 +71,7 @@ pub struct Runtime<'a, S> {
 impl<'a> Runtime<'a, SmolScheduler> {
     /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Self {
+        runtime::init();
         Runtime {
             scheduler: SmolScheduler::default(),
             control_port: ControlPort::new(),
@@ -78,6 +80,7 @@ impl<'a> Runtime<'a, SmolScheduler> {
     }
 
     pub fn with_custom_routes(routes: Router) -> Self {
+        runtime::init();
         Runtime {
             scheduler: SmolScheduler::default(),
             control_port: ControlPort::with_routes(routes),
@@ -96,6 +99,7 @@ impl<'a> Default for Runtime<'a, SmolScheduler> {
 #[cfg(target_arch = "wasm32")]
 impl<'a> Runtime<'a, WasmScheduler> {
     pub fn new() -> Self {
+        runtime::init();
         Runtime {
             scheduler: WasmScheduler::default(),
             control_port: ControlPort::new(),
@@ -114,6 +118,7 @@ impl<'a> Default for Runtime<'a, WasmScheduler> {
 impl<'a, S: Scheduler> Runtime<'a, S> {
     /// Create a [Runtime] with a given [Scheduler]
     pub fn with_scheduler(scheduler: S) -> Self {
+        runtime::init();
         Runtime {
             scheduler,
             control_port: ControlPort::new(),
@@ -123,6 +128,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_config(scheduler: S, routes: Router) -> Self {
+        runtime::init();
         Runtime {
             scheduler,
             control_port: ControlPort::with_routes(routes),
