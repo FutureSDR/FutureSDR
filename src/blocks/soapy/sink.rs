@@ -44,6 +44,7 @@ impl SoapySink {
             siob.build(),
             MessageIoBuilder::new()
                 .add_input("freq", Self::on_freq_port)
+                .add_input("sample_rate", Self::on_sample_rate_port)
                 .add_input("gain", Self::on_gain_port)
                 .add_input("cmd", Self::on_cmd_port)
                 .build(),
