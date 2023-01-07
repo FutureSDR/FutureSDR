@@ -279,9 +279,6 @@ jobs:
       - uses: crazy-max/ghaction-chocolatey@v2
         with:
           args: install ninja
-      - uses: crazy-max/ghaction-chocolatey@v2
-        with:
-            args: install python3 --params "/InstallAllUsers"
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo test --all-targets --workspace --features=flow_scheduler,tpb_scheduler,wgpu
