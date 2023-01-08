@@ -40,8 +40,8 @@ impl<T: core::marker::Copy + Send + 'static> Kernel for Copy<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<T>();
-        let o = sio.output(0).slice_unchecked::<T>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {

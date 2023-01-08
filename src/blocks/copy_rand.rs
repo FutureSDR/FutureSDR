@@ -43,8 +43,8 @@ impl<T: Copy + Send + 'static> Kernel for CopyRand<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<T>();
-        let o = sio.output(0).slice_unchecked::<T>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let mut m = *[self.max_copy, i.len(), o.len()].iter().min().unwrap_or(&0);
         if m > 0 {

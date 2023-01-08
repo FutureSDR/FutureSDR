@@ -70,8 +70,8 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
-        let o = sio.output(0).slice_unchecked::<u8>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let now = Instant::now();
         let target_items = (now - self.t_init).as_secs_f64() * self.rate;

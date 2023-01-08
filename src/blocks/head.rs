@@ -60,8 +60,8 @@ impl<T: Copy + Send + 'static> Kernel for Head<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<T>();
-        let o = sio.output(0).slice_unchecked::<T>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let m = *[self.n_items as usize, i.len(), o.len()]
             .iter()

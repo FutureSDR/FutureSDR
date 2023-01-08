@@ -60,8 +60,8 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
             _ => {}
         }
 
-        let i = sio.input(0).slice_unchecked::<T>();
-        let o = sio.output(0).slice_unchecked::<T>();
+        let i = sio.input(0).slice::<T>();
+        let o = sio.output(0).slice::<T>();
 
         let m = cmp::min(i.len(), o.len());
         if m > 0 {
