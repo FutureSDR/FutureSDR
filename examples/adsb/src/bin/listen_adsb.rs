@@ -3,7 +3,7 @@ use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
 use adsb_demod::Tracker;
 use adsb_demod::DEMOD_SAMPLE_RATE;
-use clap::Parser;
+use clap::{command, Parser};
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
@@ -18,28 +18,28 @@ use futuresdr::runtime::Runtime;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
-#[clap(version)]
+#[command(version)]
 struct Args {
     /// Antenna
-    #[clap(short, long)]
+    #[arg(short, long)]
     antenna: Option<String>,
     /// Soapy Filter
-    #[clap(short, long)]
+    #[arg(long)]
     filter: Option<String>,
     /// Gain
-    #[clap(short, long, default_value_t = 30.0)]
+    #[arg(short, long, default_value_t = 30.0)]
     gain: f64,
     /// Sample rate
-    #[clap(short, long, default_value_t = 2.2e6, value_parser = sample_rate_parser)]
+    #[arg(short, long, default_value_t = 2.2e6, value_parser = sample_rate_parser)]
     sample_rate: f64,
     /// Preamble detection threshold
-    #[clap(short, long, default_value_t = 10.0)]
+    #[arg(short, long, default_value_t = 10.0)]
     preamble_threshold: f32,
     /// Use a file instead of a device
-    #[clap(short, long)]
+    #[arg(short, long)]
     file: Option<String>,
     /// Remove aircrafts when no packets have been received for the specified number of seconds
-    #[clap(short, long)]
+    #[arg(short, long)]
     lifetime: Option<u64>,
 }
 
