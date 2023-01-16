@@ -126,8 +126,13 @@ impl<T> AGC<T>
     fn scale(&mut self, input: T) -> T {
         let output = input * T::from(self.gain).unwrap();
         if self.gain_lock == 0 {
-            self.gain = self.gain
-                + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
+            self.gain = self.gain + (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
+            // If we are over the maximum power level, we immediately decrease gain
+            let input_f32 = input.to_f32().unwrap();
+            if (self.gain * input_f32) > self.reference_power {
+                self.gain /= self.gain * input_f32;
+            }
+            // If we would go beyond the max gain, we set the gain level back to maximum gain
             if self.max_gain > 0.0 && self.gain > self.max_gain {
                 self.gain = self.max_gain;
             }

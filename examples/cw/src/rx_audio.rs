@@ -37,7 +37,7 @@ pub async fn run_fg_impl(freq: f64, gain: f64, sample_rate: f64, squelch: f32, t
         .filter("driver=rtlsdr")
         .build();
     let resamp = FirBuilder::new_resampling::<Complex32, Complex32>(AUDIO_SAMPLE_RATE, sample_rate as usize);
-    let conv = Apply::new(|x: &Complex32| (x.re.powi(2) + x.im.powi(2)).sqrt());
+    let conv = Apply::new(|x: &Complex32| (x.re.powi(2) + x.im.powi(2)).sqrt()); // x.re.abs()
     let agc = AGCBuilder::<f32>::new().reference_power(1.0).squelch(squelch).build();
 
     let tone = SignalSourceBuilder::<f32>::sin(tone, AUDIO_SAMPLE_RATE as f32)

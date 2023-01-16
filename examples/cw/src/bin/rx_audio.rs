@@ -18,11 +18,14 @@ struct Args {
     /// Tone Frequency
     #[clap(short, long, default_value_t = 440.0)]
     tone: f32,
+    /// Minimum power level to activate AGC
+    #[clap(short, long, default_value_t = 0.0)] //0.035
+    squelch: f32,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    block_on(run_fg_rx(args.freq, args.gain, args.sample_rate, 0.035, args.tone))?;
+    block_on(run_fg_rx(args.freq, args.gain, args.sample_rate, args.squelch, args.tone))?;
     Ok(())
 }

@@ -25,6 +25,8 @@ pub struct BBToCW {
     dash_range: RangeInclusive<usize>,
     letterspace_range: RangeInclusive<usize>,
     wordspace_range: RangeInclusive<usize>,
+    // End of Message
+    eom: bool,
 }
 
 impl BBToCW {
@@ -60,6 +62,7 @@ impl BBToCW {
                 dash_range,
                 letterspace_range,
                 wordspace_range,
+                eom: false,
             },
         )
     }
@@ -83,7 +86,6 @@ impl Kernel for BBToCW {
 
         let mut consumed = 0;
         let mut produced = 0;
-        let mut end_of_transmission = true;
         let threshold = 0.5; //(self.avg_power_min + self.avg_power_max) / 2.;
 
         let mut symbol = None;
@@ -99,11 +101,10 @@ impl Kernel for BBToCW {
                         //println!("Signal pause not a symbol: {} samples", sample_count);
                     }
                 }
-
-                //println!("Signal was paused for: {} -> {:?}", self.sample_count, symbol.or(None));
+                //println!("Signal was paused for: {} -> {:?}, Power: {}", self.sample_count, symbol.or(None), power);
 
                 self.sample_count = 0;
-                end_of_transmission = false;
+                self.eom = false;
             }
             if (power <= threshold) && (self.power_before > threshold) { // Signal is stopping
                 match self.sample_count {
@@ -113,9 +114,10 @@ impl Kernel for BBToCW {
                         //println!("Signal length not a symbol: {} samples", sample_count);
                     }
                 }
-                //println!("Signal was present for: {} -> {:?}", self.sample_count, symbol.or(None));
+                //println!("Signal was present for: {} -> {:?}, Power: {}", self.sample_count, symbol.or(None), power);
 
                 self.sample_count = 0;
+                self.eom = true;
             }
 
             if let Some(val) = symbol {
@@ -125,9 +127,12 @@ impl Kernel for BBToCW {
             }
 
             // Special Case: No signal has been received for a longer time than a wordspace needs.
-            if self.sample_count > (self.tolerance_per_dot + (7 * self.samples_per_dot)) && !end_of_transmission { // End of transmission
-                println!("Transmission ended!");
-                end_of_transmission = true;
+            // A transmission is paused or has ended, if:
+            // - something has been transmitted before -> eom = true;
+            // - and the amount of time without receiving anything is bigger than the amount of samples for the largest symbol + tolerance
+            if self.sample_count > (self.tolerance_per_dot + (7 * self.samples_per_dot)) && self.eom {
+                //println!("transmission paused for {} samples: Potential end of transmission!", self.sample_count);
+                self.eom = false;
                 o[produced] = LetterSpace;
                 o[produced + 1] = WordSpace;
                 produced += 2;
