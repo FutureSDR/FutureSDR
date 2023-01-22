@@ -1,14 +1,13 @@
-mod sink;
+// mod sink;
+// pub use sink::{SeifySink, SeifySinkBuilder};
+//
 mod source;
-
-pub use sink::{SeifySink, SeifySinkBuilder};
 pub use source::{SeifySource, SeifySourceBuilder};
 
 use crate::runtime::Pmt;
 
 #[derive(Debug, Default, Clone)]
 pub struct SeifyConfig {
-    pub channel: Option<Vec<usize>>,
     pub antenna: Option<String>,
     pub bandwidth: Option<f64>,
     pub freq: Option<f64>,

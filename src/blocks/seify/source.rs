@@ -1,10 +1,11 @@
 use seify::Args;
 use seify::Device;
 use seify::DeviceTrait;
+use seify::Direction::Rx;
 use seify::GenericDevice;
 use seify::RxStreamer;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::{anyhow, Context, Result};
 use crate::blocks::seify::SeifyConfig;
 use crate::num_complex::Complex32;
 use crate::runtime::Block;
@@ -19,25 +20,24 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 pub struct SeifySource<D: DeviceTrait> {
+    args: Args,
+    channel: Vec<usize>,
     config: SeifyConfig,
-    chans: Vec<usize>,
     dev: Option<Device<D>>,
     streamer: Option<D::RxStreamer>,
+    start_time: Option<i64>,
 }
 
-impl<D: DeviceTrait> SeifySource<D> {
-    fn new(args: Args, config: SeifyConfig, start_time: Option<i64>) -> Block {
-        let mut chans = config.chans.clone();
-        if chans.is_empty() {
-            chans.push(0);
-        }
+impl SeifySource<GenericDevice> {
+    fn new(args: Args, config: SeifyConfig, channel: Vec<usize>, start_time: Option<i64>) -> Block {
+        assert!(!channel.is_empty());
 
         let mut siob = StreamIoBuilder::new();
 
-        if chans.len() == 1 {
+        if channel.len() == 1 {
             siob = siob.add_output::<Complex32>("out");
         } else {
-            for i in 0..chans.len() {
+            for i in 0..channel.len() {
                 siob = siob.add_output::<Complex32>(&format!("out{}", i + 1));
             }
         }
@@ -48,26 +48,30 @@ impl<D: DeviceTrait> SeifySource<D> {
             MessageIoBuilder::new()
                 .add_input("freq", Self::freq_handler)
                 .add_input("gain", Self::gain_handler)
-                .add_input("sample_rate", Self::sample_rate_handle)
+                .add_input("sample_rate", Self::sample_rate_handler)
                 .add_input("cmd", Self::cmd_handler)
                 .build(),
             SeifySource {
+                args,
+                channel,
                 config,
                 dev: None,
-                chans,
+                start_time,
                 streamer: None,
             },
         )
     }
+}
 
+impl<D: DeviceTrait> SeifySource<D> {
     #[message_handler]
     fn cmd_handler(
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.base_cmd_handler(p)
+        todo!()
     }
 
     #[message_handler]
@@ -75,9 +79,9 @@ impl<D: DeviceTrait> SeifySource<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_freq(p)
+        todo!()
     }
 
     #[message_handler]
@@ -85,9 +89,9 @@ impl<D: DeviceTrait> SeifySource<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_gain(p)
+        todo!()
     }
 
     #[message_handler]
@@ -95,15 +99,15 @@ impl<D: DeviceTrait> SeifySource<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_sample_rate(p)
+        todo!()
     }
 }
 
 #[doc(hidden)]
 #[async_trait]
-impl Kernel for SeifySource {
+impl Kernel for SeifySource<GenericDevice> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -112,17 +116,18 @@ impl Kernel for SeifySource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let outs = sio.outputs_mut();
-        let bufs: Vec<&mut [Complex32]> = outs.iter_mut().map(|b| b.slice::<Complex32>()).collect();
+        let mut bufs: Vec<&mut [Complex32]> =
+            outs.iter_mut().map(|b| b.slice::<Complex32>()).collect();
 
         let min_out_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
-        let stream = self.stream.as_mut().unwrap();
-        let n = std::cmp::min(min_out_len, stream.mtu().unwrap());
+        let streamer = self.streamer.as_mut().unwrap();
+        let n = std::cmp::min(min_out_len, streamer.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
-        if let Ok(len) = stream.read(&bufs, 1_000_000) {
+        if let Ok(len) = streamer.read(&mut bufs, 1_000_000) {
             for i in 0..outs.len() {
                 sio.output(i).produce(len);
             }
@@ -137,20 +142,38 @@ impl Kernel for SeifySource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        if let Err(e) = self.apply_init_config(&SoapyDirection::Rx) {
-            warn!("SoapySource::new() apply_init_config error: {}", e);
+        let dev = {
+            match self.dev.take() {
+                Some(d) => d,
+                None => Device::from_args(&self.args)?,
+            }
+        };
+
+        for c in self.channel.iter().copied() {
+            if let Some(s) = &self.config.antenna {
+                dev.set_antenna(Rx, c, s)?;
+            }
+            if let Some(_b) = &self.config.bandwidth {
+                todo!()
+            }
+            if let Some(f) = self.config.freq {
+                dev.set_frequency(Rx, c, f, "")?;
+            }
+            if let Some(g) = self.config.gain {
+                dev.set_gain(Rx, c, g)?;
+            }
+            if let Some(s) = self.config.sample_rate {
+                dev.set_sample_rate(Rx, c, s)?;
+            }
         }
 
-        let dev = self.dev.as_ref().context("no dev")?;
-        let cfg_mtx = &self.init_cfg.clone();
-        let cfg = cfg_mtx.lock().unwrap();
-
-        self.stream = Some(dev.rx_stream::<Complex32>(&self.chans)?);
-        self.stream
+        self.streamer = Some(dev.rx_stream(&self.channel)?);
+        self.streamer
             .as_mut()
             .context("no stream")?
-            .activate(cfg.activate_time)?;
+            .activate(self.start_time)?;
 
+        self.dev = Some(dev);
         Ok(())
     }
 
@@ -160,7 +183,7 @@ impl Kernel for SeifySource {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.stream
+        self.streamer
             .as_mut()
             .context("no stream")?
             .deactivate(None)?;
@@ -169,8 +192,9 @@ impl Kernel for SeifySource {
 }
 
 pub struct SeifySourceBuilder {
-    config: SeifyConfig,
     args: Args,
+    channel: Vec<usize>,
+    config: SeifyConfig,
     start_time: Option<i64>,
 }
 
@@ -180,38 +204,39 @@ impl SeifySourceBuilder {
             config: SeifyConfig::new(),
             args: Args::new(),
             start_time: None,
+            channel: vec![0],
         }
     }
-    pub fn args<A: TryInto<Args>>(&mut self, a: A) -> Result<&mut Self, seify::Error> {
-        self.args = a.try_into()?;
-        &mut self
+    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
+        self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
+        Ok(self)
     }
-    pub fn channel(&mut self, c: Vec<usize>) -> &mut Self {
-        self.config.channel = Some(c);
-        &mut self
+    pub fn channel(mut self, c: Vec<usize>) -> Self {
+        self.channel = c;
+        self
     }
-    pub fn antenna<S: Into<String>>(&mut self, s: S) -> &mut Self {
+    pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
         self.config.antenna = Some(s.into());
-        &mut self
+        self
     }
-    pub fn bandwidth(&mut self, b: f64) -> &mut Self {
+    pub fn bandwidth(mut self, b: f64) -> Self {
         self.config.bandwidth = Some(b);
-        &mut self
+        self
     }
-    pub fn freq(&mut self, f: f64) -> &mut Self {
+    pub fn freq(mut self, f: f64) -> Self {
         self.config.freq = Some(f);
-        &mut self
+        self
     }
-    pub fn gain(&mut self, g: f64) -> &mut Self {
+    pub fn gain(mut self, g: f64) -> Self {
         self.config.gain = Some(g);
-        &mut self
+        self
     }
-    pub fn sample_rate(&mut self, s: f64) -> &mut Self {
+    pub fn sample_rate(mut self, s: f64) -> Self {
         self.config.sample_rate = Some(s);
-        &mut self
+        self
     }
-    pub fn build(mut self) -> Block {
-        SeifySource::<GenericDevice>::new(self.args, self.config, self.start_time)
+    pub fn build(self) -> Block {
+        SeifySource::<GenericDevice>::new(self.args, self.config, self.channel, self.start_time)
     }
 }
 

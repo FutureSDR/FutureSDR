@@ -68,8 +68,8 @@
 //! |---|---|---|---|
 //! | [SoapySink](SoapySinkBuilder) | Transmit samples with a Soapy SDR device. | soapy |❌ |
 //! | [SoapySource](SoapySourceBuilder) | Receive samples from a Soapy SDR device. | soapy | ❌ |
-//! | [SeifySink](SeifySinkBuilder) | Transmit samples with a Seify device. | soapy | ❌ |
-//! | [SeifySource](SeifySourceBuilder) | Receive samples from a Soapy device. | soapy | ❌ |
+//! | [SeifySink](seify::SeifySinkBuilder) | Transmit samples with a Seify device. | soapy | ❌ |
+//! | [SeifySource](seify::SeifySourceBuilder) | Receive samples from a Soapy device. | soapy | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
@@ -186,8 +186,6 @@ pub use null_source::NullSource;
 
 #[cfg(feature = "seify")]
 pub mod seify;
-#[cfg(feature = "seify")]
-pub use seify::{SeifySink, SeifySinkBuilder, SeifySource, SeiySourceBuilder};
 
 #[cfg(feature = "soapy")]
 pub mod soapy;
