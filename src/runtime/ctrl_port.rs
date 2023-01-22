@@ -1,16 +1,15 @@
 //! Remote Control through REST API
-use axum::extract::{Extension, Path};
+use axum::extract::{State, Path};
 use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
 use axum::routing::{any, get, get_service};
-use axum::Json;
+use axum::{Json};
 use axum::Router;
 use slab::Slab;
 use std::path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread::JoinHandle;
-use tower_http::add_extension::AddExtensionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
@@ -32,7 +31,7 @@ macro_rules! relative {
 }
 
 async fn flowgraphs(
-    Extension(flowgraphs): Extension<Arc<Mutex<Slab<FlowgraphHandle>>>>,
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
 ) -> Json<usize> {
     let l = flowgraphs.lock().unwrap().len();
     Json::from(l)
@@ -40,7 +39,7 @@ async fn flowgraphs(
 
 async fn flowgraph_description(
     Path(fg): Path<usize>,
-    Extension(flowgraphs): Extension<Arc<Mutex<Slab<FlowgraphHandle>>>>,
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
     let fg = flowgraphs.lock().unwrap().get(fg).cloned();
     if let Some(mut fg) = fg {
@@ -53,7 +52,7 @@ async fn flowgraph_description(
 
 async fn block_description(
     Path((fg, blk)): Path<(usize, usize)>,
-    Extension(flowgraphs): Extension<Arc<Mutex<Slab<FlowgraphHandle>>>>,
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
     let fg = flowgraphs.lock().unwrap().get(fg).cloned();
     if let Some(mut fg) = fg {
@@ -67,7 +66,7 @@ async fn block_description(
 
 async fn handler_id(
     Path((fg, blk, handler)): Path<(usize, usize, String)>,
-    Extension(flowgraphs): Extension<Arc<Mutex<Slab<FlowgraphHandle>>>>,
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = flowgraphs.lock().unwrap().get(fg).cloned();
     let handler = match handler.parse::<usize>() {
@@ -85,8 +84,8 @@ async fn handler_id(
 
 async fn handler_id_post(
     Path((fg, blk, handler)): Path<(usize, usize, String)>,
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
     Json(pmt): Json<Pmt>,
-    Extension(flowgraphs): Extension<Arc<Mutex<Slab<FlowgraphHandle>>>>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = flowgraphs.lock().unwrap().get(fg).cloned();
     let handler = match handler.parse::<usize>() {
@@ -155,8 +154,8 @@ impl ControlPort {
                     Redirect::permanent(&format!("/api/fg/0/block/{u}"))
                 }),
             )
-            .layer(AddExtensionLayer::new(self.flowgraphs.clone()))
-            .layer(CorsLayer::permissive());
+            .layer(CorsLayer::permissive())
+            .with_state(self.flowgraphs.clone());
 
         if let Some(c) = custom_routes {
             app = app.nest("/", c);
@@ -171,7 +170,7 @@ impl ControlPort {
         };
 
         if let Some(service) = frontend {
-            app = app.fallback(get_service(service).handle_error(
+            app = app.fallback_service(get_service(service).handle_error(
                 |error: std::io::Error| async move {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -179,6 +178,7 @@ impl ControlPort {
                     )
                 },
             ));
+
         }
 
         let handle = std::thread::spawn(move || {
@@ -192,6 +192,7 @@ impl ControlPort {
                 if let Ok(s) = axum::Server::try_bind(&addr) {
                     debug!("Listening on {}", addr);
                     s.serve(app.into_make_service()).await.unwrap();
+
                 } else {
                     warn!("CtrlPort address {} already in use", addr);
                 }
