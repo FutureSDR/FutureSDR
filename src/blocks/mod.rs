@@ -63,11 +63,13 @@
 //! | [zeromq::PubSink] | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //! | [zeromq::SubSource] | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //!
-//! ## SDR Hardware (requires `soapy` feature)
-//! | Block | Usage | WebAssembly? |
-//! |---|---|---|
-//! | [SoapySink](SoapySinkBuilder) | Transmit samples with a Soapy SDR device. | ❌ |
-//! | [SoapySource](SoapySourceBuilder) | Receive samples from a Soapy SDR device. | ❌ |
+//! ## SDR Hardware
+//! | Block | Usage | Feature | WebAssembly? |
+//! |---|---|---|---|
+//! | [SoapySink](SoapySinkBuilder) | Transmit samples with a Soapy SDR device. | soapy |❌ |
+//! | [SoapySource](SoapySourceBuilder) | Receive samples from a Soapy SDR device. | soapy | ❌ |
+//! | [SeifySink](SeifySinkBuilder) | Transmit samples with a Seify device. | soapy | ❌ |
+//! | [SeifySource](SeifySourceBuilder) | Receive samples from a Soapy device. | soapy | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
@@ -181,6 +183,11 @@ mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
+
+#[cfg(feature = "seify")]
+pub mod seify;
+#[cfg(feature = "seify")]
+pub use seify::{SeifySink, SeifySinkBuilder, SeifySource, SeiySourceBuilder};
 
 #[cfg(feature = "soapy")]
 pub mod soapy;
