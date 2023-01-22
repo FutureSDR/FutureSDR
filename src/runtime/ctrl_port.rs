@@ -1,5 +1,5 @@
 //! Remote Control through REST API
-use axum::extract::{State, Path};
+use axum::extract::{Path, State};
 use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
 use axum::routing::{any, get, get_service};
@@ -30,9 +30,7 @@ macro_rules! relative {
     };
 }
 
-async fn flowgraphs(
-    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
-) -> Json<usize> {
+async fn flowgraphs(State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>) -> Json<usize> {
     let l = flowgraphs.lock().unwrap().len();
     Json::from(l)
 }
