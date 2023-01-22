@@ -3,7 +3,7 @@ use axum::extract::{State, Path};
 use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
 use axum::routing::{any, get, get_service};
-use axum::{Json};
+use axum::Json;
 use axum::Router;
 use slab::Slab;
 use std::path;
@@ -178,7 +178,6 @@ impl ControlPort {
                     )
                 },
             ));
-
         }
 
         let handle = std::thread::spawn(move || {
@@ -192,7 +191,6 @@ impl ControlPort {
                 if let Ok(s) = axum::Server::try_bind(&addr) {
                     debug!("Listening on {}", addr);
                     s.serve(app.into_make_service()).await.unwrap();
-
                 } else {
                     warn!("CtrlPort address {} already in use", addr);
                 }
