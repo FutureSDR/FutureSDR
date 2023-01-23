@@ -59,9 +59,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
             },
         )
     }
-}
 
-impl<D: DeviceTrait + Clone> Source<D> {
     #[message_handler]
     fn cmd_handler(
         &mut self,

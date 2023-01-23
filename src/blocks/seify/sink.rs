@@ -1,12 +1,12 @@
-use std::cmp;
-use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
+use seify::Args;
+use seify::Device;
+use seify::DeviceTrait;
+use seify::Direction::Tx;
+use seify::GenericDevice;
+use seify::TxStreamer;
 
-use crate::anyhow::{Context, Result};
-use crate::blocks::soapy::config;
-use crate::blocks::soapy::SoapyDevBuilder;
-use crate::blocks::soapy::SoapyDevice;
-use crate::blocks::soapy::SoapyDirection;
+use crate::anyhow::{anyhow, Context, Result};
+use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -19,88 +19,90 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-pub type SoapySink = SoapyDevice<soapysdr::TxStream<Complex32>>;
+pub struct Sink<D: DeviceTrait + Clone> {
+    channel: Vec<usize>,
+    config: Config,
+    dev: Device<D>,
+    streamer: Option<D::TxStreamer>,
+    start_time: Option<i64>,
+}
 
-impl SoapySink {
-    fn new(init_cfg: config::SoapyInitConfig) -> Block {
-        let mut chans = init_cfg.chans.clone();
-        if chans.is_empty() {
-            chans.push(0);
-        }
+impl<D: DeviceTrait + Clone> Sink<D> {
+    fn new(dev: Device<D>, config: Config, channel: Vec<usize>, start_time: Option<i64>) -> Block {
+        assert!(!channel.is_empty());
 
         let mut siob = StreamIoBuilder::new();
 
-        for i in 0..chans.len() {
-            if i == 0 {
-                // Never number the first output port for compatibility with single port instances
-                siob = siob.add_input::<Complex32>("in");
-            } else {
+        if channel.len() == 1 {
+            siob = siob.add_input::<Complex32>("in");
+        } else {
+            for i in 0..channel.len() {
                 siob = siob.add_input::<Complex32>(&format!("in{}", i + 1));
             }
         }
-
         Block::new(
-            BlockMetaBuilder::new("SoapySink").blocking().build(),
+            BlockMetaBuilder::new("Sink").blocking().build(),
             siob.build(),
             MessageIoBuilder::new()
-                .add_input("freq", Self::on_freq_port)
-                .add_input("sample_rate", Self::on_sample_rate_port)
-                .add_input("gain", Self::on_gain_port)
-                .add_input("cmd", Self::on_cmd_port)
+                .add_input("freq", Self::freq_handler)
+                .add_input("gain", Self::gain_handler)
+                .add_input("sample_rate", Self::sample_rate_handler)
+                .add_input("cmd", Self::cmd_handler)
                 .build(),
             Self {
-                dev: None,
-                init_cfg: Arc::new(Mutex::new(init_cfg)),
-                chans,
-                stream: None,
+                channel,
+                config,
+                dev,
+                start_time,
+                streamer: None,
             },
         )
     }
 
     #[message_handler]
-    async fn on_cmd_port(
+    fn cmd_handler(
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.base_cmd_handler(p, &SoapyDirection::Tx)
+        todo!()
     }
 
     #[message_handler]
-    fn on_freq_port(
+    fn freq_handler(
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_freq(p, &SoapyDirection::Tx)
+        todo!()
     }
 
     #[message_handler]
-    fn on_gain_port(
+    fn gain_handler(
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_gain(p, &SoapyDirection::Tx)
+        todo!()
     }
 
     #[message_handler]
-    fn on_sample_rate_port(
+    fn sample_rate_handler(
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        p: Pmt,
+        _p: Pmt,
     ) -> Result<Pmt> {
-        self.set_sample_rate(p, &SoapyDirection::Tx)
+        todo!()
     }
 }
 
 #[doc(hidden)]
 #[async_trait]
-impl Kernel for SoapySink {
+impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -113,15 +115,15 @@ impl Kernel for SoapySink {
 
         let min_in_len = full_bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
-        let stream = self.stream.as_mut().unwrap();
-        let n = cmp::min(min_in_len, stream.mtu().unwrap());
+        let streamer = self.streamer.as_mut().unwrap();
+        let n = std::cmp::min(min_in_len, streamer.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
         // Make a collection of same (minimum) size slices
         let bufs: Vec<&[Complex32]> = full_bufs.iter().map(|b| &b[0..n]).collect();
-        let len = stream.write(&bufs, None, false, 1_000_000)?;
+        let len = streamer.write(&bufs, None, false, 1_000_000)?;
 
         let mut finished = false;
         for i in 0..ins.len() {
@@ -144,21 +146,26 @@ impl Kernel for SoapySink {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        super::SOAPY_INIT.lock().await;
-        soapysdr::configure_logging();
-        if let Err(e) = self.apply_init_config(&SoapyDirection::Tx) {
-            warn!("SoapySink::new() apply_init_config error: {}", e);
+        for c in self.channel.iter().copied() {
+            if let Some(s) = &self.config.antenna {
+                self.dev.set_antenna(Tx, c, s)?;
+            }
+            if let Some(f) = self.config.freq {
+                self.dev.set_frequency(Tx, c, f)?;
+            }
+            if let Some(g) = self.config.gain {
+                self.dev.set_gain(Tx, c, g)?;
+            }
+            if let Some(s) = self.config.sample_rate {
+                self.dev.set_sample_rate(Tx, c, s)?;
+            }
         }
 
-        let dev = self.dev.as_ref().context("no dev")?;
-        let cfg_mtx = &self.init_cfg.clone();
-        let cfg = cfg_mtx.lock().unwrap();
-
-        self.stream = Some(dev.tx_stream::<Complex32>(&self.chans)?);
-        self.stream
+        self.streamer = Some(self.dev.tx_stream(&self.channel)?);
+        self.streamer
             .as_mut()
             .context("no stream")?
-            .activate(cfg.activate_time)?;
+            .activate(self.start_time)?;
 
         Ok(())
     }
@@ -169,7 +176,7 @@ impl Kernel for SoapySink {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.stream
+        self.streamer
             .as_mut()
             .context("no stream")?
             .deactivate(None)?;
@@ -177,49 +184,76 @@ impl Kernel for SoapySink {
     }
 }
 
-/// Build a [SoapySink].
-///
-/// Most logic is implemented in the shared [`SoapyDevBuilder`].
-///
-/// # Inputs
-///
-/// - **Message** `cmd`: a [`Pmt`] representing a configuration update or other command. See: [`SoapyConfig`](super::SoapyConfig) and `SoapyDevice::base_cmd_handler()`.
-///
-/// - **Stream** `in`: Stream of [`Complex32`] to transmit.
-///
-/// # Usage
-/// ```no_run
-/// use futuresdr::blocks::SoapySinkBuilder;
-/// use futuresdr::runtime::Flowgraph;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let source = fg.add_block(
-///     SoapySinkBuilder::new()
-///         .filter("device=hackrf")
-///         .sample_rate(1e6)
-///         .freq(100e9)
-///         .gain(10.0)
-///         .build()
-/// );
-/// ```
-pub type SoapySinkBuilder = SoapyDevBuilder<SoapySink>;
+pub struct SinkBuilder<D: DeviceTrait + Clone> {
+    args: Args,
+    channel: Vec<usize>,
+    config: Config,
+    dev: Option<Device<D>>,
+    start_time: Option<i64>,
+}
 
-impl SoapyDevBuilder<SoapySink> {
+impl SinkBuilder<GenericDevice> {
     pub fn new() -> Self {
         Self {
-            init_cfg: config::SoapyInitConfig::default(),
-            _phantom: PhantomData,
+            args: Args::new(),
+            channel: vec![0],
+            config: Config::new(),
+            dev: None,
+            start_time: None,
         }
-    }
-
-    pub fn build(mut self) -> Block {
-        self.fixup();
-        SoapySink::new(self.init_cfg)
     }
 }
 
-impl Default for SoapyDevBuilder<SoapySink> {
+impl<D: DeviceTrait + Clone> SinkBuilder<D> {
+    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
+        self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
+        Ok(self)
+    }
+    pub fn dev<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SinkBuilder<D2> {
+        SinkBuilder {
+            args: self.args,
+            channel: self.channel,
+            config: self.config,
+            dev: Some(dev),
+            start_time: self.start_time,
+        }
+    }
+    pub fn channel(mut self, c: Vec<usize>) -> Self {
+        self.channel = c;
+        self
+    }
+    pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
+        self.config.antenna = Some(s.into());
+        self
+    }
+    pub fn bandwidth(mut self, b: f64) -> Self {
+        self.config.bandwidth = Some(b);
+        self
+    }
+    pub fn freq(mut self, f: f64) -> Self {
+        self.config.freq = Some(f);
+        self
+    }
+    pub fn gain(mut self, g: f64) -> Self {
+        self.config.gain = Some(g);
+        self
+    }
+    pub fn sample_rate(mut self, s: f64) -> Self {
+        self.config.sample_rate = Some(s);
+        self
+    }
+    pub fn build(mut self) -> Result<Block> {
+        match self.dev.take() {
+            Some(dev) => Ok(Sink::new(dev, self.config, self.channel, self.start_time)),
+            None => {
+                let dev = Device::from_args(&self.args)?;
+                Ok(Sink::new(dev, self.config, self.channel, self.start_time))
+            }
+        }
+    }
+}
+
+impl Default for SinkBuilder<GenericDevice> {
     fn default() -> Self {
         Self::new()
     }

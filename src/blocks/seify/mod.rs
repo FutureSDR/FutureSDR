@@ -1,6 +1,6 @@
-// mod sink;
-// pub use sink::{SeifySink, SeifySinkBuilder};
-//
+mod sink;
+pub use sink::{Sink, SinkBuilder};
+
 mod source;
 pub use source::{Source, SourceBuilder};
 
