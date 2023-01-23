@@ -26,48 +26,46 @@ impl Config {
     }
 }
 
-// impl TryFrom<Pmt> for Config {
-//     type Error = anyhow::Error;
-//
-//     fn try_from(pmt: Pmt) -> Result<Self, Self::Error> {
-//
-//         match pmt {
-//             Pmt::Any(a) => {
-//                 if let Some(cfg) = a.downcast_ref::<Self>() {
-//                     Ok(cfg.clone())
-//                 } else {
-//                     bail!("downcast failed")
-//                 }
-//             }
-//             Pmt::MapStrPmt(mut m) => {
-//                 let mut cfg = Self::default();
-//                 for (n, v) in m.drain() {
-//                     match (n.as_str(), v) {
-//                         ("antenna", Pmt::String(v)) => {
-//                             cfg.push(SCI::Antenna(v.to_owned()));
-//                         }
-//                         ("bandwidth", p) => {
-//                             cfg.push(SCI::Bandwidth(p.try_into()?));
-//                         }
-//                         ("chan", p) => {
-//                             cfg.push(SCI::Channels(Some(vec![p.try_into()?])));
-//                         }
-//                         ("freq", p) => {
-//                             cfg.push(SCI::Freq(p.try_into()?));
-//                         }
-//                         ("gain", p) => {
-//                             cfg.push(SCI::Gain(p.try_into()?));
-//                         }
-//                         ("rate", p) => {
-//                             cfg.push(SCI::SampleRate(p.try_into()?));
-//                         }
-//                         // If unknown, log a warning but otherwise ignore
-//                         _ => warn!("unrecognized key name: {}", n),
-//                     }
-//                 }
-//                 Ok(cfg)
-//             }
-//             _ => bail!("cannot convert this PMT"),
-//         }
-//     }
-// }
+use crate::anyhow::bail;
+impl TryFrom<Pmt> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(pmt: Pmt) -> Result<Self, Self::Error> {
+
+        match pmt {
+            Pmt::Any(a) => {
+                if let Some(cfg) = a.downcast_ref::<Self>() {
+                    Ok(cfg.clone())
+                } else {
+                    bail!("downcast failed")
+                }
+            }
+            Pmt::MapStrPmt(mut m) => {
+                let mut cfg = Config::default();
+                for (n, v) in m.drain() {
+                    match (n.as_str(), v) {
+                        ("antenna", Pmt::String(p)) => {
+                            cfg.antenna = Some(p.to_owned());
+                        }
+                        ("bandwidth", p) => {
+                            cfg.bandwidth = Some(p.try_into()?);
+                        }
+                        ("freq", p) => {
+                            cfg.freq = Some(p.try_into()?);
+                        }
+                        ("gain", p) => {
+                            cfg.gain = Some(p.try_into()?);
+                        }
+                        ("sample_rate", p) => {
+                            cfg.sample_rate = Some(p.try_into()?);
+                        }
+                        // If unknown, log a warning but otherwise ignore
+                        _ => warn!("unrecognized key name: {}", n),
+                    }
+                }
+                Ok(cfg)
+            }
+            _ => bail!("cannot convert this PMT"),
+        }
+    }
+}
