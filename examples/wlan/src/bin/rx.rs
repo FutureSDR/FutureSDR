@@ -6,9 +6,10 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
+use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
@@ -33,7 +34,7 @@ struct Args {
     #[clap(short, long)]
     filter: Option<String>,
     /// Gain
-    #[clap(short, long, default_value_t = 60.0)]
+    #[clap(short, long, default_value_t = 30.0)]
     gain: f64,
     /// Sample Rate
     #[clap(short, long, default_value_t = 20e6)]
@@ -49,28 +50,25 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let mut soapy = SoapySourceBuilder::new()
+    let seify = SourceBuilder::new()
         .freq(args.channel)
-        .sample_rate(args.sample_rate)
+        .sample_rate(92e6 / 4.0)
         .gain(args.gain);
-    if let Some(a) = args.antenna {
-        soapy = soapy.antenna(a);
-    }
-    if let Some(f) = args.filter {
-        soapy = soapy.filter(f);
-    }
-    let src = fg.add_block(soapy.build());
+
+    let src = fg.add_block(seify.build()?);
+    let resample = fg.add_block(FirBuilder::new_resampling::<Complex32, Complex32>(2000, 2304));
     let delay = fg.add_block(Delay::<Complex32>::new(16));
-    fg.connect_stream(src, "out", delay, "in")?;
+    fg.connect_stream(src, "out", resample, "in")?;
+    fg.connect_stream(resample, "out", delay, "in")?;
 
     let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
     let float_avg = fg.add_block(MovingAverage::<f32>::new(64));
-    fg.connect_stream(src, "out", complex_to_mag_2, "in")?;
+    fg.connect_stream(resample, "out", complex_to_mag_2, "in")?;
     fg.connect_stream(complex_to_mag_2, "out", float_avg, "in")?;
 
     let mult_conj = fg.add_block(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()));
     let complex_avg = fg.add_block(MovingAverage::<Complex32>::new(48));
-    fg.connect_stream(src, "out", mult_conj, "in0")?;
+    fg.connect_stream(resample, "out", mult_conj, "in0")?;
     fg.connect_stream(delay, "out", mult_conj, "in1")?;
     fg.connect_stream(mult_conj, "out", complex_avg, "in")?;
 
