@@ -2,12 +2,12 @@
 // pub use sink::{SeifySink, SeifySinkBuilder};
 //
 mod source;
-pub use source::{SeifySource, SeifySourceBuilder};
+pub use source::{Source, SourceBuilder};
 
 use crate::runtime::Pmt;
 
 #[derive(Debug, Default, Clone)]
-pub struct SeifyConfig {
+pub struct Config {
     pub antenna: Option<String>,
     pub bandwidth: Option<f64>,
     pub freq: Option<f64>,
@@ -15,7 +15,7 @@ pub struct SeifyConfig {
     pub sample_rate: Option<f64>,
 }
 
-impl SeifyConfig {
+impl Config {
     pub fn new() -> Self {
         Self::default()
     }
@@ -26,7 +26,7 @@ impl SeifyConfig {
     }
 }
 
-// impl TryFrom<Pmt> for SeifyConfig {
+// impl TryFrom<Pmt> for Config {
 //     type Error = anyhow::Error;
 //
 //     fn try_from(pmt: Pmt) -> Result<Self, Self::Error> {
@@ -71,4 +71,3 @@ impl SeifyConfig {
 //         }
 //     }
 // }
-
