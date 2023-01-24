@@ -50,25 +50,26 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let seify = SourceBuilder::new()
-        .freq(args.channel)
-        .sample_rate(92e6 / 4.0)
-        .gain(args.gain);
+    // let seify = SourceBuilder::new()
+    //     .freq(args.channel)
+    //     .sample_rate(92e6 / 4.0)
+    //     .gain(args.gain);
+    let seify = SourceBuilder::new().args("driver=aaronia_http")?;
 
     let src = fg.add_block(seify.build()?);
-    let resample = fg.add_block(FirBuilder::new_resampling::<Complex32, Complex32>(2000, 2304));
+    // let resample = fg.add_block(FirBuilder::new_resampling::<Complex32, Complex32>(2000, 2304));
     let delay = fg.add_block(Delay::<Complex32>::new(16));
-    fg.connect_stream(src, "out", resample, "in")?;
-    fg.connect_stream(resample, "out", delay, "in")?;
+    // fg.connect_stream(src, "out", resample, "in")?;
+    fg.connect_stream(src, "out", delay, "in")?;
 
     let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
     let float_avg = fg.add_block(MovingAverage::<f32>::new(64));
-    fg.connect_stream(resample, "out", complex_to_mag_2, "in")?;
+    fg.connect_stream(src, "out", complex_to_mag_2, "in")?;
     fg.connect_stream(complex_to_mag_2, "out", float_avg, "in")?;
 
     let mult_conj = fg.add_block(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()));
     let complex_avg = fg.add_block(MovingAverage::<Complex32>::new(48));
-    fg.connect_stream(resample, "out", mult_conj, "in0")?;
+    fg.connect_stream(src, "out", mult_conj, "in0")?;
     fg.connect_stream(delay, "out", mult_conj, "in1")?;
     fg.connect_stream(mult_conj, "out", complex_avg, "in")?;
 
