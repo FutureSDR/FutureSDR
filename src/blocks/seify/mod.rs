@@ -31,7 +31,6 @@ impl TryFrom<Pmt> for Config {
     type Error = anyhow::Error;
 
     fn try_from(pmt: Pmt) -> Result<Self, Self::Error> {
-
         match pmt {
             Pmt::Any(a) => {
                 if let Some(cfg) = a.downcast_ref::<Self>() {

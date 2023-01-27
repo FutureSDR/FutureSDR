@@ -75,9 +75,18 @@ impl<D: DeviceTrait + Clone> Source<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
-        todo!()
+        for c in &self.channel {
+            match &p {
+                Pmt::F32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
+                Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v)?,
+                Pmt::U32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
+                Pmt::U64(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
+                _ => return Ok(Pmt::InvalidValue),
+            };
+        }
+        Ok(Pmt::Ok)
     }
 
     #[message_handler]
@@ -85,9 +94,18 @@ impl<D: DeviceTrait + Clone> Source<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
-        todo!()
+        for c in &self.channel {
+            match &p {
+                Pmt::F32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
+                Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
+                Pmt::U32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
+                Pmt::U64(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
+                _ => return Ok(Pmt::InvalidValue),
+            };
+        }
+        Ok(Pmt::Ok)
     }
 
     #[message_handler]
@@ -95,9 +113,18 @@ impl<D: DeviceTrait + Clone> Source<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
-        todo!()
+        for c in &self.channel {
+            match &p {
+                Pmt::F32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
+                Pmt::F64(v) => self.dev.set_sample_rate(Rx, *c, *v)?,
+                Pmt::U32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
+                Pmt::U64(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
+                _ => return Ok(Pmt::InvalidValue),
+            };
+        }
+        Ok(Pmt::Ok)
     }
 }
 
@@ -153,7 +180,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
             }
         }
 
-        self.streamer = Some(self.dev.rx_stream(&self.channel)?);
+        self.streamer = Some(self.dev.rx_streamer(&self.channel)?);
         self.streamer
             .as_mut()
             .context("no stream")?
@@ -222,7 +249,7 @@ impl<D: DeviceTrait + Clone> SourceBuilder<D> {
         self.config.bandwidth = Some(b);
         self
     }
-    pub fn freq(mut self, f: f64) -> Self {
+    pub fn frequency(mut self, f: f64) -> Self {
         self.config.freq = Some(f);
         self
     }

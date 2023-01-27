@@ -6,7 +6,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
-use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::seify::SourceBuilder;
@@ -28,13 +27,13 @@ use wlan::SyncShort;
 #[clap(version)]
 struct Args {
     /// Antenna
-    #[clap(short, long)]
+    #[clap(long)]
     antenna: Option<String>,
-    /// Soapy Filter
+    /// Seify Args
     #[clap(short, long)]
-    filter: Option<String>,
+    args: Option<String>,
     /// Gain
-    #[clap(short, long, default_value_t = 30.0)]
+    #[clap(short, long, default_value_t = 28.0)]
     gain: f64,
     /// Sample Rate
     #[clap(short, long, default_value_t = 20e6)]
@@ -50,16 +49,19 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    // let seify = SourceBuilder::new()
-    //     .freq(args.channel)
-    //     .sample_rate(92e6 / 4.0)
-    //     .gain(args.gain);
-    let seify = SourceBuilder::new().args("driver=aaronia_http")?;
+    let mut seify = SourceBuilder::new()
+        .frequency(args.channel)
+        .sample_rate(args.sample_rate)
+        .gain(args.gain);
+    if let Some(ref s) = args.args {
+        seify = seify.args(s)?;
+    }
+    if let Some(ref s) = args.antenna {
+        seify = seify.antenna(s);
+    }
 
     let src = fg.add_block(seify.build()?);
-    // let resample = fg.add_block(FirBuilder::new_resampling::<Complex32, Complex32>(2000, 2304));
     let delay = fg.add_block(Delay::<Complex32>::new(16));
-    // fg.connect_stream(src, "out", resample, "in")?;
     fg.connect_stream(src, "out", delay, "in")?;
 
     let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
