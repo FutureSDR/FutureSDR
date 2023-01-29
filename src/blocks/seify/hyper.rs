@@ -16,22 +16,23 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 #[derive(Clone)]
-pub(super) struct HyperExecutor<S: Scheduler>(S);
+pub struct HyperExecutor<S: Scheduler>(pub S);
 
-impl<F, S> hyper::rt::Executor<F> for HyperExecutor<S>
-where
-    F: Future + Send + 'static,
-    S: Scheduler,
-{
-    fn execute(&self, fut: F) {
-        self.0.spawn(async { drop(fut.await) }).detach();
+impl<S: Scheduler + Sync> seify::Executor for HyperExecutor<S> {
+    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static) {
+        self.0.spawn(future).detach()
+    }
+    fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
+        async_io::block_on(future)
     }
 }
 
 #[derive(Clone)]
-pub(super) struct FutureSdrConnector;
+pub struct HyperConnector;
 
-impl hyper::service::Service<Uri> for FutureSdrConnector {
+impl seify::Connect for HyperConnector {}
+
+impl hyper::service::Service<Uri> for HyperConnector {
     type Response = SmolStream;
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
@@ -79,10 +80,9 @@ impl hyper::service::Service<Uri> for FutureSdrConnector {
 }
 
 /// A TCP or TCP+TLS connection.
-pub(super) enum SmolStream {
+pub enum SmolStream {
     /// A plain TCP connection.
     Plain(Async<TcpStream>),
-
     /// A TCP connection secured by TLS.
     Tls(TlsStream<Async<TcpStream>>),
 }

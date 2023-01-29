@@ -4,11 +4,11 @@ use futuresdr::futures::StreamExt;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
@@ -47,9 +47,10 @@ fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {args:?}");
 
+    let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let mut seify = SourceBuilder::new()
+    let mut seify = SourceBuilder::with_scheduler(rt.scheduler())
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
@@ -106,7 +107,6 @@ fn main() -> Result<()> {
     let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("127.0.0.1:55556"));
     fg.connect_message(decoder, "rftap", blob_to_udp, "in")?;
 
-    let rt = Runtime::new();
     let (_fg, _handle) = block_on(rt.start(fg));
     rt.block_on(async move {
         while let Some(x) = rx_frame.next().await {
