@@ -1,3 +1,6 @@
+#[cfg(feature = "aaronia_http")]
+mod hyper;
+
 mod sink;
 pub use sink::{Sink, SinkBuilder};
 

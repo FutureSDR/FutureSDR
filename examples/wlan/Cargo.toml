@@ -18,14 +18,9 @@ path = "src/bin/loopback.rs"
 name = "tx"
 path = "src/bin/tx.rs"
 
-[[bin]]
-name = "aaronia"
-path = "src/bin/aaronia.rs"
-required-features = ["aaronia"]
-
 [features]
-default = []
-aaronia = ["futuresdr/aaronia"]
+default = ["aaronia_http"]
+aaronia_http = ["futuresdr/aaronia_http"]
 
 [dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
