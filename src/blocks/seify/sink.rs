@@ -11,12 +11,14 @@ use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::Tag;
 use crate::runtime::WorkIo;
 
 use super::builder::BuilderType;
@@ -139,33 +141,58 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let ins = sio.inputs_mut();
-        let full_bufs: Vec<&[Complex32]> = ins.iter_mut().map(|b| b.slice::<Complex32>()).collect();
+        let bufs: Vec<&[Complex32]> = sio
+            .inputs_mut()
+            .iter_mut()
+            .map(|b| b.slice::<Complex32>())
+            .collect();
 
-        let min_in_len = full_bufs.iter().map(|b| b.len()).min().unwrap_or(0);
-
+        let min_in_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
         let streamer = self.streamer.as_mut().unwrap();
         let n = std::cmp::min(min_in_len, streamer.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
-        // Make a collection of same (minimum) size slices
-        let bufs: Vec<&[Complex32]> = full_bufs.iter().map(|b| &b[0..n]).collect();
-        let len = streamer.write(&bufs, None, false, 1_000_000)?;
-
-        let mut finished = false;
-        for i in 0..ins.len() {
-            sio.input(i).consume(len);
-            if sio.input(i).finished() {
-                finished = true;
+        let t = sio.input(0).tags().iter().find_map(|x| match x {
+            ItemTag {
+                index,
+                tag: Tag::NamedUsize(n, len),
+            } => {
+                if *index == 0 && n == "burst_start" {
+                    debug_assert!(*len <= streamer.mtu().unwrap());
+                    Some(*len)
+                } else {
+                    None
+                }
             }
-        }
-        if len != min_in_len {
-            io.call_again = true;
-        } else if finished {
-            io.finished = true;
-        }
+            _ => None,
+        });
+
+        io.finished = sio.inputs().iter().find(|x| x.finished()).is_some();
+
+        let consumed = if let Some(len) = t {
+            if n >= len {
+                // send burst
+                let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..len]).collect();
+                let ret = streamer.write(&bufs, None, true, 2_000_000)?;
+                debug_assert_eq!(ret, len);
+                ret
+            } else {
+                // wait for more samples
+                0
+            }
+        } else {
+            // send in non-burst mode
+            let ret = streamer.write(&bufs, None, false, 2_000_000)?;
+            if ret != min_in_len {
+                io.call_again = true;
+            }
+            ret
+        };
+
+        sio.inputs_mut().iter_mut().for_each(|i| i.consume(consumed));
+
         Ok(())
     }
 
