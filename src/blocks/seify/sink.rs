@@ -20,20 +20,19 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 pub struct Sink<D: DeviceTrait + Clone> {
-    channel: Vec<usize>,
-    config: Config,
+    channels: Vec<usize>,
     dev: Device<D>,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
 }
 
 impl<D: DeviceTrait + Clone> Sink<D> {
-    fn new(dev: Device<D>, config: Config, channel: Vec<usize>, start_time: Option<i64>) -> Block {
-        assert!(!channel.is_empty());
+    fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+        assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
 
-        if channel.len() == 1 {
+        if channels.len() == 1 {
             siob = siob.add_input::<Complex32>("in");
         } else {
             for i in 0..channel.len() {
@@ -50,8 +49,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
                 .add_input("cmd", Self::cmd_handler)
                 .build(),
             Self {
-                channel,
-                config,
+                channels,
                 dev,
                 start_time,
                 streamer: None,
@@ -64,9 +62,11 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         &mut self,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
-        todo!()
+        let c: Config = p.try_into()?;
+        c.apply(&self.dev, &self.channels, Tx)?;
+        Ok(Pmt::Ok)
     }
 
     #[message_handler]
@@ -76,7 +76,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_frequency(Tx, *c, *v)?,
@@ -95,7 +95,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_gain(Tx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_gain(Tx, *c, *v)?,
@@ -114,7 +114,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_sample_rate(Tx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_sample_rate(Tx, *c, *v)?,
@@ -173,22 +173,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for c in self.channel.iter().copied() {
-            if let Some(s) = &self.config.antenna {
-                self.dev.set_antenna(Tx, c, s)?;
-            }
-            if let Some(f) = self.config.freq {
-                self.dev.set_frequency(Tx, c, f)?;
-            }
-            if let Some(g) = self.config.gain {
-                self.dev.set_gain(Tx, c, g)?;
-            }
-            if let Some(s) = self.config.sample_rate {
-                self.dev.set_sample_rate(Tx, c, s)?;
-            }
-        }
-
-        self.streamer = Some(self.dev.tx_streamer(&self.channel)?);
+        self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()
             .context("no stream")?
@@ -213,7 +198,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
 
 pub struct SinkBuilder<D: DeviceTrait + Clone> {
     args: Args,
-    channel: Vec<usize>,
+    channels: Vec<usize>,
     config: Config,
     dev: Option<Device<D>>,
     start_time: Option<i64>,
@@ -223,7 +208,7 @@ impl SinkBuilder<GenericDevice> {
     pub fn new() -> Self {
         Self {
             args: Args::new(),
-            channel: vec![0],
+            channels: vec![0],
             config: Config::new(),
             dev: None,
             start_time: None,
@@ -239,14 +224,14 @@ impl<D: DeviceTrait + Clone> SinkBuilder<D> {
     pub fn dev<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SinkBuilder<D2> {
         SinkBuilder {
             args: self.args,
-            channel: self.channel,
+            channels: self.channels,
             config: self.config,
             dev: Some(dev),
             start_time: self.start_time,
         }
     }
     pub fn channel(mut self, c: Vec<usize>) -> Self {
-        self.channel = c;
+        self.channels = c;
         self
     }
     pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
@@ -271,10 +256,14 @@ impl<D: DeviceTrait + Clone> SinkBuilder<D> {
     }
     pub fn build(mut self) -> Result<Block> {
         match self.dev.take() {
-            Some(dev) => Ok(Sink::new(dev, self.config, self.channel, self.start_time)),
+            Some(dev) => {
+                self.config.apply(&dev, &self.channels, Tx);
+                Ok(Sink::new(dev, self.channels, self.start_time))
+            }
             None => {
                 let dev = Device::from_args(&self.args)?;
-                Ok(Sink::new(dev, self.config, self.channel, self.start_time))
+                self.config.apply(&dev, &self.channels, Tx);
+                Ok(Sink::new(dev, self.channels, self.start_time))
             }
         }
     }

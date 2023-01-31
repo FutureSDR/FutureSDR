@@ -18,23 +18,22 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 pub struct Source<D: DeviceTrait + Clone> {
-    channel: Vec<usize>,
-    config: Config,
+    channels: Vec<usize>,
     dev: Device<D>,
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
 }
 
 impl<D: DeviceTrait + Clone> Source<D> {
-    fn new(dev: Device<D>, config: Config, channel: Vec<usize>, start_time: Option<i64>) -> Block {
-        assert!(!channel.is_empty());
+    fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+        assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
 
-        if channel.len() == 1 {
+        if channels.len() == 1 {
             siob = siob.add_output::<Complex32>("out");
         } else {
-            for i in 0..channel.len() {
+            for i in 0..channels.len() {
                 siob = siob.add_output::<Complex32>(&format!("out{}", i + 1));
             }
         }
@@ -49,8 +48,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 .add_input("cmd", Self::cmd_handler)
                 .build(),
             Source {
-                channel,
-                config,
+                channels,
                 dev,
                 start_time,
                 streamer: None,
@@ -65,8 +63,9 @@ impl<D: DeviceTrait + Clone> Source<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        let c : Config = p.try_into()?;
-        c.apply(self.dev, self.channel, Rx);
+        let c: Config = p.try_into()?;
+        c.apply(&self.dev, &self.channels, Rx)?;
+        Ok(Pmt::Ok)
     }
 
     #[message_handler]
@@ -76,7 +75,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v)?,
@@ -95,7 +94,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
@@ -114,7 +113,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        for c in &self.channel {
+        for c in &self.channels {
             match &p {
                 Pmt::F32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
                 Pmt::F64(v) => self.dev.set_sample_rate(Rx, *c, *v)?,
@@ -164,22 +163,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for c in self.channel.iter().copied() {
-            if let Some(s) = &self.config.antenna {
-                self.dev.set_antenna(Rx, c, s)?;
-            }
-            if let Some(f) = self.config.freq {
-                self.dev.set_frequency(Rx, c, f)?;
-            }
-            if let Some(g) = self.config.gain {
-                self.dev.set_gain(Rx, c, g)?;
-            }
-            if let Some(s) = self.config.sample_rate {
-                self.dev.set_sample_rate(Rx, c, s)?;
-            }
-        }
-
-        self.streamer = Some(self.dev.rx_streamer(&self.channel)?);
+        self.streamer = Some(self.dev.rx_streamer(&self.channels)?);
         self.streamer
             .as_mut()
             .context("no stream")?
@@ -210,6 +194,7 @@ mod inner {
     use seify::DefaultExecutor;
     use seify::Device;
     use seify::DeviceTrait;
+    use seify::Direction::Rx;
     use seify::Executor;
     use seify::GenericDevice;
 
@@ -305,18 +290,20 @@ mod inner {
         }
         pub fn build(mut self) -> Result<Block> {
             match self.dev.take() {
-                Some(dev) => Ok(Source::new(
-                    dev,
-                    self.config,
-                    self.channels,
-                    self.start_time,
-                )),
+                Some(dev) => {
+                    self.config.apply(&dev, &self.channels, Rx)?;
+                    Ok(Source::new(
+                        dev,
+                        self.channels,
+                        self.start_time,
+                    ))
+                }
                 None => {
                     let dev =
                         Device::from_args_with_runtime(&self.args, self.runtime.0, self.runtime.1)?;
+                    self.config.apply(&dev, &self.channels, Rx)?;
                     Ok(Source::new(
                         dev,
-                        self.config,
                         self.channels,
                         self.start_time,
                     ))
@@ -337,6 +324,7 @@ mod inner {
     use seify::Args;
     use seify::Device;
     use seify::DeviceTrait;
+    use seify::Direction::Rx;
     use seify::GenericDevice;
 
     use crate::anyhow::{anyhow, Result};
@@ -408,20 +396,14 @@ mod inner {
         }
         pub fn build(mut self) -> Result<Block> {
             match self.dev.take() {
-                Some(dev) => Ok(Source::new(
-                    dev,
-                    self.config,
-                    self.channels,
-                    self.start_time,
-                )),
+                Some(dev) => {
+                    self.config.apply(&dev, &self.channels, Rx)?;
+                    Ok(Source::new(dev, self.channels, self.start_time))
+                }
                 None => {
                     let dev = Device::from_args(&self.args)?;
-                    Ok(Source::new(
-                        dev,
-                        self.config,
-                        self.channels,
-                        self.start_time,
-                    ))
+                    self.config.apply(&dev, &self.channels, Rx)?;
+                    Ok(Source::new(dev, self.channels, self.start_time))
                 }
             }
         }
