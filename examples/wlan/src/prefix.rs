@@ -65,6 +65,7 @@ impl Kernel for Prefix {
             if output.len() >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
                 && input.len() >= len * 64
             {
+
                 output[0..self.pad_front].fill(Complex32::new(0.0, 0.0));
                 output[self.pad_front..self.pad_front + 320].copy_from_slice(&SYNC_WORDS);
 
@@ -90,8 +91,16 @@ impl Kernel for Prefix {
                     .fill(Complex32::new(0.0, 0.0));
 
                 sio.input(0).consume(len * 64);
-                sio.output(0)
-                    .produce(self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320);
+                let produce = self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320;
+
+                sio.output(0).add_tag(
+                    0,
+                    Tag::NamedUsize(
+                        "burst_start".to_string(),
+                        produce,
+                    ),
+                );
+                sio.output(0).produce(produce);
 
                 if sio.input(0).finished() && input.len() < len * 64 {
                     io.finished = true;

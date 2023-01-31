@@ -155,12 +155,12 @@ impl FlowgraphHandle {
     ) -> result::Result<(), CallbackError> {
         let (tx, rx) = oneshot::channel::<result::Result<(), CallbackError>>();
         self.inbox
-            .send(dbg!(FlowgraphMessage::BlockCall {
+            .send(FlowgraphMessage::BlockCall {
                 block_id,
                 port_id: port_id.into(),
                 data,
                 tx,
-            }))
+            })
             .await
             .map_err(|_| CallbackError::InvalidBlock)?;
         rx.await.map_err(|_| CallbackError::HandlerError)?

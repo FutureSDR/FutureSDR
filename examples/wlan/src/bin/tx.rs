@@ -23,7 +23,7 @@ use wlan::Prefix;
 #[clap(version)]
 struct Args {
     /// Antenna
-    #[clap(short, long)]
+    #[clap(long)]
     antenna: Option<String>,
     /// Seify Args
     #[clap(short, long)]
