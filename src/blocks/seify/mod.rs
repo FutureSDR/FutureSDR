@@ -1,4 +1,4 @@
-#[cfg(feature = "seify_http")]
+#[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
 mod hyper;
 
 mod sink;

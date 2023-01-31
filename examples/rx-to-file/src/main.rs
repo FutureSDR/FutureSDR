@@ -1,8 +1,8 @@
 use clap::Parser;
 use futuresdr::anyhow::Result;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::{FileSink, FileSource};
 use futuresdr::num_complex::{Complex, Complex32};
 use futuresdr::runtime::Flowgraph;

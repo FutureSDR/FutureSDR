@@ -6,9 +6,9 @@ use keep_1_in_n::Keep1InN;
 use std::env;
 
 use futuresdr::anyhow::Result;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::log::info;

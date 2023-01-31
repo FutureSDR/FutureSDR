@@ -9,8 +9,8 @@ use futuresdr::{
     macros::connect,
     num_complex::Complex,
     runtime::{Flowgraph, Runtime},
-    seify::Direction::*,
     seify,
+    seify::Direction::*,
 };
 use futuresdr_pmt::Pmt;
 use std::collections::HashMap;
@@ -162,4 +162,3 @@ fn config_cmd_map() -> Result<()> {
 
     Ok(())
 }
-
