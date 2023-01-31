@@ -1,8 +1,9 @@
 use clap::Parser;
 use futuresdr::anyhow::Result;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::NullSink;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::BlobToUdp;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -16,11 +17,11 @@ use zigbee::Mac;
 #[clap(version)]
 struct Args {
     /// Antenna
-    #[clap(short, long)]
+    #[clap(long)]
     antenna: Option<String>,
-    /// Soapy Filter
+    /// Seify Args
     #[clap(short, long)]
-    filter: Option<String>,
+    args: Option<String>,
     /// Gain
     #[clap(short, long, default_value_t = 30.0)]
     gain: f64,
@@ -41,18 +42,18 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let mut soapy_src = SoapySourceBuilder::new()
-        .freq(args.freq)
+    let mut src = SourceBuilder::new()
+        .frequency(args.freq)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
     if let Some(a) = args.antenna {
-        soapy_src = soapy_src.antenna(a);
+        src = src.antenna(a);
     }
-    if let Some(f) = args.filter {
-        soapy_src = soapy_src.filter(f);
+    if let Some(a) = args.args {
+        src = src.args(a)?;
     }
 
-    let src = fg.add_block(soapy_src.build());
+    let src = fg.add_block(src.build()?);
 
     let mut last: Complex32 = Complex32::new(0.0, 0.0);
     let mut iir: f32 = 0.0;
@@ -88,9 +89,12 @@ fn main() -> Result<()> {
     fg.connect_message(decoder, "out", mac, "rx")?;
 
     if let Some(u) = args.udp_addr {
-        let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new(u));
+        let blob_to_udp = fg.add_block(BlobToUdp::new(u));
         fg.connect_message(decoder, "out", blob_to_udp, "in")?;
     }
+
+    let blob_to_udp = fg.add_block(BlobToUdp::new("127.0.0.1:55555"));
+    fg.connect_message(mac, "rftap", blob_to_udp, "in")?;
 
     Runtime::new().run(fg)?;
 

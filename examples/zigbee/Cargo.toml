@@ -9,37 +9,11 @@ default-run = "rx"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "rx"
-path = "src/bin/rx.rs"
-
-[[bin]]
-name = "trx"
-path = "src/bin/trx.rs"
-
-[[bin]]
-name = "tx"
-path = "src/bin/tx.rs"
-
-[[bin]]
-name = "aaronia_rx"
-path = "src/bin/aaronia_rx.rs"
-required-features = ["aaronia"]
-
-[[bin]]
-name = "aaronia_tx"
-path = "src/bin/aaronia_tx.rs"
-required-features = ["aaronia"]
-
-[features]
-default = []
-aaronia = ["futuresdr/aaronia"]
-
 [dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
-futuresdr = { path = "../..", features = ["soapy"] }
+futuresdr = { path = "../..", features = ["soapy", "aaronia_http"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

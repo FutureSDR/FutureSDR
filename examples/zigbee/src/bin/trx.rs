@@ -5,8 +5,8 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::Apply;
-use futuresdr::blocks::SoapySinkBuilder;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SinkBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
@@ -44,27 +44,27 @@ fn main() -> Result<()> {
     let mac = fg.add_block(Mac::new());
     let modulator = fg.add_block(modulator());
     let iq_delay = fg.add_block(IqDelay::new());
-    let soapy_snk = fg.add_block(
-        SoapySinkBuilder::new()
-            .freq(args.tx_freq)
+    let snk = fg.add_block(
+        SinkBuilder::new()
+            .frequency(args.tx_freq)
             .sample_rate(4e6)
             .gain(args.tx_gain)
-            .build(),
+            .build()?,
     );
 
     fg.connect_stream(mac, "out", modulator, "in")?;
     fg.connect_stream(modulator, "out", iq_delay, "in")?;
-    fg.connect_stream(iq_delay, "out", soapy_snk, "in")?;
+    fg.connect_stream(iq_delay, "out", snk, "in")?;
 
     // ========================================
     // Receiver
     // ========================================
     let src = fg.add_block(
-        SoapySourceBuilder::new()
-            .freq(args.rx_freq)
+        SourceBuilder::new()
+            .frequency(args.rx_freq)
             .sample_rate(4e6)
             .gain(args.rx_gain)
-            .build(),
+            .build()?,
     );
 
     let mut last: Complex32 = Complex32::new(0.0, 0.0);

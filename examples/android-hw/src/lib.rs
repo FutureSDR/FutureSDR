@@ -8,7 +8,7 @@ use std::env;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::log::info;
@@ -30,14 +30,14 @@ pub fn run_fg() -> Result<()> {
     }
 
     let args = args.join(",");
-    info!("soapy device filter {}", &args);
+    info!("device args {}", &args);
 
-    let src = SoapySourceBuilder::new()
-        .filter(args)
-        .freq(100e6)
+    let src = SourceBuilder::new()
+        .args(args)?
+        .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
-        .build();
+        .build()?;
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedDropping(2048))
         .build();
