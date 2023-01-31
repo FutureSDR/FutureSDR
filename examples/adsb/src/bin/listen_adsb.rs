@@ -8,7 +8,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Throttle;
 use futuresdr::log::{warn, LevelFilter};
 use futuresdr::num_complex::Complex32;
@@ -21,11 +21,11 @@ use std::time::Duration;
 #[command(version)]
 struct Args {
     /// Antenna
-    #[arg(short, long)]
-    antenna: Option<String>,
-    /// Soapy Filter
     #[arg(long)]
-    filter: Option<String>,
+    antenna: Option<String>,
+    /// Seify Args
+    #[arg(short, long)]
+    args: Option<String>,
     /// Gain
     #[arg(short, long, default_value_t = 30.0)]
     gain: f64,
@@ -70,18 +70,18 @@ fn main() -> Result<()> {
             throttle_block
         }
         None => {
-            // Load soapy source
-            let mut soapy_src = SoapySourceBuilder::new()
-                .freq(1090e6)
+            // Load seify source
+            let mut src = SourceBuilder::new()
+                .frequency(1090e6)
                 .sample_rate(args.sample_rate)
                 .gain(args.gain);
             if let Some(a) = args.antenna {
-                soapy_src = soapy_src.antenna(a);
+                src = src.antenna(a);
             }
-            if let Some(f) = args.filter {
-                soapy_src = soapy_src.filter(f);
+            if let Some(a) = args.args {
+                src = src.args(a)?;
             }
-            fg.add_block(soapy_src.build())
+            fg.add_block(src.build()?)
         }
     };
 

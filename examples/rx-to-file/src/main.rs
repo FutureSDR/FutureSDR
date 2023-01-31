@@ -2,7 +2,7 @@ use clap::Parser;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::{FileSink, FileSource};
 use futuresdr::num_complex::{Complex, Complex32};
 use futuresdr::runtime::Flowgraph;
@@ -12,7 +12,7 @@ use std::time::Instant;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Gain to apply to the soapy source
+    /// Gain to apply to the source
     #[clap(short, long, default_value_t = 0.0)]
     gain: f64,
 
@@ -24,9 +24,9 @@ struct Args {
     #[clap(short, long, default_value_t = 1000000.0)]
     rate: f64,
 
-    /// Soapy source to use as a source
-    #[clap(long)]
-    soapy: Option<String>,
+    /// Seify source args
+    #[clap(short, long)]
+    args: Option<String>,
 
     /// File source to load
     #[clap(long)]
@@ -55,17 +55,17 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = match (args.soapy, args.input) {
+    let src = match (args.args, args.input) {
         (Some(_), Some(_)) => {
-            panic!("Cannot specify both soapy source and input file");
+            panic!("Cannot specify both seify source and input file");
         }
-        (Some(soapy), None) => fg.add_block(
-            SoapySourceBuilder::new()
-                .freq(args.frequency)
+        (Some(a), None) => fg.add_block(
+            SourceBuilder::new()
+                .frequency(args.frequency)
                 .sample_rate(args.rate)
                 .gain(args.gain)
-                .filter(soapy)
-                .build(),
+                .args(a)?
+                .build()?,
         ),
         (None, Some(input)) => {
             let format = args
@@ -91,7 +91,7 @@ fn main() -> Result<()> {
             }
         }
         (None, None) => {
-            panic!("Must specify one of soapy source or input file");
+            panic!("Must specify one of seify source or input file");
         }
     };
 

@@ -49,7 +49,7 @@ struct Args {
     audio_mult: Option<u32>,
 
     /// Audio Rate
-    #[clap(short, long)]
+    #[clap(long)]
     audio_rate: Option<u32>,
 }
 

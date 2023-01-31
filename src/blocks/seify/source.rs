@@ -9,8 +9,6 @@ use seify::RxStreamer;
 
 use crate::anyhow::{anyhow, Context, Result};
 use crate::blocks::seify::Config;
-use crate::blocks::seify::hyper::HyperExecutor;
-use crate::blocks::seify::hyper::HyperConnector;
 use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -19,7 +17,6 @@ use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
@@ -225,12 +222,18 @@ impl SourceBuilder<GenericDevice, seify::DefaultExecutor, seify::DefaultConnecto
             config: Config::new(),
             dev: None,
             start_time: None,
-            runtime: (seify::DefaultExecutor::default(), seify::DefaultConnector::default()),
+            runtime: (
+                seify::DefaultExecutor::default(),
+                seify::DefaultConnector::default(),
+            ),
         }
     }
 }
 
-impl<S: Scheduler + Sync> SourceBuilder<GenericDevice, HyperExecutor<S>, HyperConnector> {
+#[cfg(feature = "seify_http")]
+impl<S: crate::runtime::scheduler::Scheduler + Sync>
+    SourceBuilder<GenericDevice, super::hyper::HyperExecutor<S>, super::hyper::HyperConnector>
+{
     pub fn with_scheduler(scheduler: S) -> Self {
         Self {
             args: Args::new(),
@@ -238,7 +241,10 @@ impl<S: Scheduler + Sync> SourceBuilder<GenericDevice, HyperExecutor<S>, HyperCo
             config: Config::new(),
             dev: None,
             start_time: None,
-            runtime: (HyperExecutor(scheduler), HyperConnector),
+            runtime: (
+                super::hyper::HyperExecutor(scheduler),
+                super::hyper::HyperConnector,
+            ),
         }
     }
 }
@@ -288,10 +294,21 @@ impl<D: DeviceTrait + Clone, E: Executor, C: Connect> SourceBuilder<D, E, C> {
     }
     pub fn build(mut self) -> Result<Block> {
         match self.dev.take() {
-            Some(dev) => Ok(Source::new(dev, self.config, self.channels, self.start_time)),
+            Some(dev) => Ok(Source::new(
+                dev,
+                self.config,
+                self.channels,
+                self.start_time,
+            )),
             None => {
-                let dev = Device::from_args_with_runtime(&self.args, self.runtime.0, self.runtime.1)?;
-                Ok(Source::new(dev, self.config, self.channels, self.start_time))
+                let dev =
+                    Device::from_args_with_runtime(&self.args, self.runtime.0, self.runtime.1)?;
+                Ok(Source::new(
+                    dev,
+                    self.config,
+                    self.channels,
+                    self.start_time,
+                ))
             }
         }
     }

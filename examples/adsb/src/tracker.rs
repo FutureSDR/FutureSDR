@@ -13,7 +13,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use futuresdr_pmt::Pmt;
+use futuresdr::runtime::Pmt;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;

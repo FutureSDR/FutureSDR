@@ -11,7 +11,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
-use futuresdr_pmt::Pmt;
+use futuresdr::runtime::Pmt;
 
 #[derive(Clone, Debug)]
 pub struct DemodPacket {

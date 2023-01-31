@@ -1,4 +1,4 @@
-#[cfg(feature = "aaronia_http")]
+#[cfg(feature = "seify_http")]
 mod hyper;
 
 mod sink;

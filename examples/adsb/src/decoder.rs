@@ -11,7 +11,7 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIoBuilder;
-use futuresdr_pmt::Pmt;
+use futuresdr::runtime::Pmt;
 use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
