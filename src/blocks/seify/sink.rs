@@ -1,13 +1,14 @@
-use seify::Args;
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction::Tx;
 use seify::GenericDevice;
 use seify::TxStreamer;
 
-use crate::anyhow::{anyhow, Context, Result};
+use crate::anyhow::{Context, Result};
+use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
+use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -19,6 +20,8 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+use super::builder::BuilderType;
+
 pub struct Sink<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -27,7 +30,7 @@ pub struct Sink<D: DeviceTrait + Clone> {
 }
 
 impl<D: DeviceTrait + Clone> Sink<D> {
-    fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
         assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
@@ -35,7 +38,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         if channels.len() == 1 {
             siob = siob.add_input::<Complex32>("in");
         } else {
-            for i in 0..channel.len() {
+            for i in 0..channels.len() {
                 siob = siob.add_input::<Complex32>(&format!("in{}", i + 1));
             }
         }
@@ -196,81 +199,19 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
     }
 }
 
-pub struct SinkBuilder<D: DeviceTrait + Clone> {
-    args: Args,
-    channels: Vec<usize>,
-    config: Config,
-    dev: Option<Device<D>>,
-    start_time: Option<i64>,
-}
+#[cfg(not(target_arch = "wasm32"))]
+type Sched = crate::runtime::scheduler::SmolScheduler;
+#[cfg(target_arch = "wasm32")]
+type Sched = crate::runtime::scheduler::WasmScheduler;
 
-impl SinkBuilder<GenericDevice> {
-    pub fn new() -> Self {
-        Self {
-            args: Args::new(),
-            channels: vec![0],
-            config: Config::new(),
-            dev: None,
-            start_time: None,
-        }
-    }
-}
+pub struct SinkBuilder;
 
-impl<D: DeviceTrait + Clone> SinkBuilder<D> {
-    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
-        self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
-        Ok(self)
+impl SinkBuilder {
+    pub fn new() -> Builder<GenericDevice, Sched> {
+        Builder::new(BuilderType::Sink)
     }
-    pub fn dev<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SinkBuilder<D2> {
-        SinkBuilder {
-            args: self.args,
-            channels: self.channels,
-            config: self.config,
-            dev: Some(dev),
-            start_time: self.start_time,
-        }
-    }
-    pub fn channel(mut self, c: Vec<usize>) -> Self {
-        self.channels = c;
-        self
-    }
-    pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
-        self.config.antenna = Some(s.into());
-        self
-    }
-    pub fn bandwidth(mut self, b: f64) -> Self {
-        self.config.bandwidth = Some(b);
-        self
-    }
-    pub fn frequency(mut self, f: f64) -> Self {
-        self.config.freq = Some(f);
-        self
-    }
-    pub fn gain(mut self, g: f64) -> Self {
-        self.config.gain = Some(g);
-        self
-    }
-    pub fn sample_rate(mut self, s: f64) -> Self {
-        self.config.sample_rate = Some(s);
-        self
-    }
-    pub fn build(mut self) -> Result<Block> {
-        match self.dev.take() {
-            Some(dev) => {
-                self.config.apply(&dev, &self.channels, Tx);
-                Ok(Sink::new(dev, self.channels, self.start_time))
-            }
-            None => {
-                let dev = Device::from_args(&self.args)?;
-                self.config.apply(&dev, &self.channels, Tx);
-                Ok(Sink::new(dev, self.channels, self.start_time))
-            }
-        }
-    }
-}
-
-impl Default for SinkBuilder<GenericDevice> {
-    fn default() -> Self {
-        Self::new()
+    #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
+    pub fn with_scheduler<S: Scheduler + Sync>(scheduler: S) -> Builder<GenericDevice, S> {
+        Builder::with_scheduler(BuilderType::Sink, scheduler)
     }
 }

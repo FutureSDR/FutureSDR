@@ -23,7 +23,12 @@ impl Config {
         Pmt::Any(Box::new(self.clone()))
     }
 
-    pub fn apply<D: DeviceTrait + Clone>(&self, dev: &Device<D>, channels: &Vec<usize>, dir: Direction) -> anyhow::Result<()> {
+    pub fn apply<D: DeviceTrait + Clone>(
+        &self,
+        dev: &Device<D>,
+        channels: &Vec<usize>,
+        dir: Direction,
+    ) -> anyhow::Result<()> {
         for c in channels {
             if let Some(ref a) = self.antenna {
                 dev.set_antenna(dir, *c, a)?;

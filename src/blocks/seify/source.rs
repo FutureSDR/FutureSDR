@@ -1,11 +1,15 @@
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction::Rx;
+use seify::GenericDevice;
 use seify::RxStreamer;
 
 use crate::anyhow::{Context, Result};
+use crate::blocks::seify::builder::BuilderType;
+use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
+use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -25,7 +29,7 @@ pub struct Source<D: DeviceTrait + Clone> {
 }
 
 impl<D: DeviceTrait + Clone> Source<D> {
-    fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
         assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
@@ -186,234 +190,19 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
     }
 }
 
-#[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-mod inner {
-    use seify::Args;
-    use seify::Connect;
-    use seify::DefaultConnector;
-    use seify::DefaultExecutor;
-    use seify::Device;
-    use seify::DeviceTrait;
-    use seify::Direction::Rx;
-    use seify::Executor;
-    use seify::GenericDevice;
+#[cfg(not(target_arch = "wasm32"))]
+type Sched = crate::runtime::scheduler::SmolScheduler;
+#[cfg(target_arch = "wasm32")]
+type Sched = crate::runtime::scheduler::WasmScheduler;
 
-    use crate::anyhow::{anyhow, Result};
-    use crate::blocks::seify::hyper::HyperConnector;
-    use crate::blocks::seify::hyper::HyperExecutor;
-    use crate::blocks::seify::Config;
-    use crate::blocks::seify::Source;
-    use crate::runtime::Block;
+pub struct SourceBuilder;
 
-    pub struct SourceBuilder<D: DeviceTrait + Clone, E: Executor, C: Connect> {
-        args: Args,
-        channels: Vec<usize>,
-        config: Config,
-        dev: Option<Device<D>>,
-        start_time: Option<i64>,
-        runtime: (E, C),
+impl SourceBuilder {
+    pub fn new() -> Builder<GenericDevice, Sched> {
+        Builder::new(BuilderType::Source)
     }
-
-    impl SourceBuilder<GenericDevice, DefaultExecutor, DefaultConnector> {
-        pub fn new() -> Self {
-            Self {
-                args: Args::new(),
-                channels: vec![0],
-                config: Config::new(),
-                dev: None,
-                start_time: None,
-                runtime: (
-                    seify::DefaultExecutor::default(),
-                    seify::DefaultConnector::default(),
-                ),
-            }
-        }
-    }
-
-    impl<S: crate::runtime::scheduler::Scheduler + Sync>
-        SourceBuilder<GenericDevice, HyperExecutor<S>, HyperConnector>
-    {
-        pub fn with_scheduler(scheduler: S) -> Self {
-            Self {
-                args: Args::new(),
-                channels: vec![0],
-                config: Config::new(),
-                dev: None,
-                start_time: None,
-                runtime: (HyperExecutor(scheduler), HyperConnector),
-            }
-        }
-    }
-
-    impl<D: DeviceTrait + Clone, E: Executor, C: Connect> SourceBuilder<D, E, C> {
-        pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
-            self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
-            Ok(self)
-        }
-        pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SourceBuilder<D2, E, C> {
-            SourceBuilder {
-                args: self.args,
-                channels: self.channels,
-                config: self.config,
-                dev: Some(dev),
-                start_time: self.start_time,
-                runtime: self.runtime,
-            }
-        }
-        pub fn channel(mut self, c: usize) -> Self {
-            self.channels = vec![c];
-            self
-        }
-        pub fn channels(mut self, c: Vec<usize>) -> Self {
-            self.channels = c;
-            self
-        }
-        pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
-            self.config.antenna = Some(s.into());
-            self
-        }
-        pub fn bandwidth(mut self, b: f64) -> Self {
-            self.config.bandwidth = Some(b);
-            self
-        }
-        pub fn frequency(mut self, f: f64) -> Self {
-            self.config.freq = Some(f);
-            self
-        }
-        pub fn gain(mut self, g: f64) -> Self {
-            self.config.gain = Some(g);
-            self
-        }
-        pub fn sample_rate(mut self, s: f64) -> Self {
-            self.config.sample_rate = Some(s);
-            self
-        }
-        pub fn build(mut self) -> Result<Block> {
-            match self.dev.take() {
-                Some(dev) => {
-                    self.config.apply(&dev, &self.channels, Rx)?;
-                    Ok(Source::new(
-                        dev,
-                        self.channels,
-                        self.start_time,
-                    ))
-                }
-                None => {
-                    let dev =
-                        Device::from_args_with_runtime(&self.args, self.runtime.0, self.runtime.1)?;
-                    self.config.apply(&dev, &self.channels, Rx)?;
-                    Ok(Source::new(
-                        dev,
-                        self.channels,
-                        self.start_time,
-                    ))
-                }
-            }
-        }
-    }
-
-    impl Default for SourceBuilder<GenericDevice, seify::DefaultExecutor, seify::DefaultConnector> {
-        fn default() -> Self {
-            Self::new()
-        }
+    #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
+    pub fn with_scheduler<S: Scheduler + Sync>(scheduler: S) -> Builder<GenericDevice, S> {
+        Builder::with_scheduler(BuilderType::Source, scheduler)
     }
 }
-
-#[cfg(not(all(feature = "seify_http", not(target_arch = "wasm32"))))]
-mod inner {
-    use seify::Args;
-    use seify::Device;
-    use seify::DeviceTrait;
-    use seify::Direction::Rx;
-    use seify::GenericDevice;
-
-    use crate::anyhow::{anyhow, Result};
-    use crate::blocks::seify::Config;
-    use crate::blocks::seify::Source;
-    use crate::runtime::Block;
-
-    pub struct SourceBuilder<D: DeviceTrait + Clone> {
-        args: Args,
-        channels: Vec<usize>,
-        config: Config,
-        dev: Option<Device<D>>,
-        start_time: Option<i64>,
-    }
-
-    impl SourceBuilder<GenericDevice> {
-        pub fn new() -> Self {
-            Self {
-                args: Args::new(),
-                channels: vec![0],
-                config: Config::new(),
-                dev: None,
-                start_time: None,
-            }
-        }
-    }
-
-    impl<D: DeviceTrait + Clone> SourceBuilder<D> {
-        pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
-            self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
-            Ok(self)
-        }
-        pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SourceBuilder<D2> {
-            SourceBuilder {
-                args: self.args,
-                channels: self.channels,
-                config: self.config,
-                dev: Some(dev),
-                start_time: self.start_time,
-            }
-        }
-        pub fn channel(mut self, c: usize) -> Self {
-            self.channels = vec![c];
-            self
-        }
-        pub fn channels(mut self, c: Vec<usize>) -> Self {
-            self.channels = c;
-            self
-        }
-        pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
-            self.config.antenna = Some(s.into());
-            self
-        }
-        pub fn bandwidth(mut self, b: f64) -> Self {
-            self.config.bandwidth = Some(b);
-            self
-        }
-        pub fn frequency(mut self, f: f64) -> Self {
-            self.config.freq = Some(f);
-            self
-        }
-        pub fn gain(mut self, g: f64) -> Self {
-            self.config.gain = Some(g);
-            self
-        }
-        pub fn sample_rate(mut self, s: f64) -> Self {
-            self.config.sample_rate = Some(s);
-            self
-        }
-        pub fn build(mut self) -> Result<Block> {
-            match self.dev.take() {
-                Some(dev) => {
-                    self.config.apply(&dev, &self.channels, Rx)?;
-                    Ok(Source::new(dev, self.channels, self.start_time))
-                }
-                None => {
-                    let dev = Device::from_args(&self.args)?;
-                    self.config.apply(&dev, &self.channels, Rx)?;
-                    Ok(Source::new(dev, self.channels, self.start_time))
-                }
-            }
-        }
-    }
-
-    impl Default for SourceBuilder<GenericDevice> {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-}
-
-pub use inner::SourceBuilder;
