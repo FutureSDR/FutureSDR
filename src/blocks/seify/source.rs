@@ -9,7 +9,6 @@ use crate::blocks::seify::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -202,7 +201,9 @@ impl SourceBuilder {
         Builder::new(BuilderType::Source)
     }
     #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-    pub fn with_scheduler<S: Scheduler + Sync>(scheduler: S) -> Builder<GenericDevice, S> {
+    pub fn with_scheduler<S: crate::runtime::scheduler::Scheduler + Sync>(
+        scheduler: S,
+    ) -> Builder<GenericDevice, S> {
         Builder::with_scheduler(BuilderType::Source, scheduler)
     }
 }

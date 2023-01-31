@@ -8,7 +8,6 @@ use crate::anyhow::{Context, Result};
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -211,7 +210,9 @@ impl SinkBuilder {
         Builder::new(BuilderType::Sink)
     }
     #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-    pub fn with_scheduler<S: Scheduler + Sync>(scheduler: S) -> Builder<GenericDevice, S> {
+    pub fn with_scheduler<S: crate::runtime::scheduler::Scheduler + Sync>(
+        scheduler: S,
+    ) -> Builder<GenericDevice, S> {
         Builder::with_scheduler(BuilderType::Sink, scheduler)
     }
 }
