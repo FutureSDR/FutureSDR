@@ -27,6 +27,12 @@ impl Config {
     pub fn to_pmt(&self) -> Pmt {
         Pmt::Any(Box::new(self.clone()))
     }
+
+    pub fn apply<D: DeviceTrait + Clone>(&self, &seify::Device<D>, channels: Vec<usize>, seify::Direction) -> anyhow::Result<()> {
+
+
+        Ok(())
+    }
 }
 
 use crate::anyhow::bail;
