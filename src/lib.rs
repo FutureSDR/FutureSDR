@@ -46,6 +46,7 @@ pub use async_io;
 pub use async_net;
 #[macro_use]
 pub extern crate async_trait;
+pub use futuredsp;
 pub use futures;
 pub use futures_lite;
 #[macro_use]
@@ -59,5 +60,5 @@ pub mod macros {
 }
 pub use num_complex;
 pub use num_integer;
-#[cfg(feature = "soapy")]
-pub use soapysdr;
+#[cfg(feature = "seify")]
+pub use seify;

@@ -1,7 +1,7 @@
 //! A simple FM receiver that you can tune to nearby radio stations
 //!
 //! When you run the example, it will build a flowgraph consisting of the following blocks:
-//! * SoapySource: Gets data from your SDR using the SoapySDR driver
+//! * SeifySource: Gets data from your SDR
 //! * Demodulator: Demodulates the FM signal
 //! * AudioSink: Plays the demodulated signal on your device
 //!
@@ -12,13 +12,13 @@
 
 use clap::Parser;
 
-use futuredsp::firdes;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FirBuilder;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::futuredsp::firdes;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::gcd;
@@ -28,7 +28,7 @@ use futuresdr::runtime::Runtime;
 
 #[derive(Parser, Debug)]
 struct Args {
-    /// Gain to apply to the soapy source
+    /// Gain to apply to the seify source
     #[clap(short, long, default_value_t = 30.0)]
     gain: f64,
 
@@ -40,9 +40,9 @@ struct Args {
     #[clap(short, long, default_value_t = 1000000.0)]
     rate: f64,
 
-    /// Soapy source to use as a source
+    /// Seify args
     #[clap(short, long, default_value = "")]
-    soapy: String,
+    args: String,
 
     /// Multiplier for intermedia sample rate
     #[clap(long)]
@@ -86,13 +86,13 @@ fn main() -> Result<()> {
     // Create the `Flowgraph` where the `Block`s will be added later on
     let mut fg = Flowgraph::new();
 
-    // Create a new SoapySDR block with the given parameters
-    let src = SoapySourceBuilder::new()
-        .filter(args.soapy)
-        .freq(args.frequency + freq_offset)
+    // Create a new Seify SDR block with the given parameters
+    let src = SourceBuilder::new()
+        .args(args.args)?
+        .frequency(args.frequency + freq_offset)
         .sample_rate(args.rate)
         .gain(args.gain)
-        .build();
+        .build()?;
 
     // Store the `freq` port ID for later use
     let freq_port_id = src
@@ -140,19 +140,6 @@ fn main() -> Result<()> {
     let snk = AudioSink::new(audio_rate, 1);
 
     // Add all the blocks to the `Flowgraph`...
-    // let src = fg.add_block(src);
-    // let shift = fg.add_block(shift);
-    // let resamp1 = fg.add_block(resamp1);
-    // let demod = fg.add_block(demod);
-    // let resamp2 = fg.add_block(resamp2);
-    // let snk = fg.add_block(snk);
-
-    // ... and connect the ports appropriately
-    // fg.connect_stream(src, "out", shift, "in")?;
-    // fg.connect_stream(shift, "out", resamp1, "in")?;
-    // fg.connect_stream(resamp1, "out", demod, "in")?;
-    // fg.connect_stream(demod, "out", resamp2, "in")?;
-    // fg.connect_stream(resamp2, "out", snk, "in")?;
     connect!(fg,
              src.out > shift;
              shift > resamp1;

@@ -210,7 +210,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
 
 pub struct SourceBuilder<D: DeviceTrait + Clone, E: Executor, C: Connect> {
     args: Args,
-    channel: Vec<usize>,
+    channels: Vec<usize>,
     config: Config,
     dev: Option<Device<D>>,
     start_time: Option<i64>,
@@ -221,7 +221,7 @@ impl SourceBuilder<GenericDevice, seify::DefaultExecutor, seify::DefaultConnecto
     pub fn new() -> Self {
         Self {
             args: Args::new(),
-            channel: vec![0],
+            channels: vec![0],
             config: Config::new(),
             dev: None,
             start_time: None,
@@ -234,7 +234,7 @@ impl<S: Scheduler + Sync> SourceBuilder<GenericDevice, HyperExecutor<S>, HyperCo
     pub fn with_scheduler(scheduler: S) -> Self {
         Self {
             args: Args::new(),
-            channel: vec![0],
+            channels: vec![0],
             config: Config::new(),
             dev: None,
             start_time: None,
@@ -248,18 +248,22 @@ impl<D: DeviceTrait + Clone, E: Executor, C: Connect> SourceBuilder<D, E, C> {
         self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
         Ok(self)
     }
-    pub fn dev<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SourceBuilder<D2, E, C> {
+    pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> SourceBuilder<D2, E, C> {
         SourceBuilder {
             args: self.args,
-            channel: self.channel,
+            channels: self.channels,
             config: self.config,
             dev: Some(dev),
             start_time: self.start_time,
             runtime: self.runtime,
         }
     }
-    pub fn channel(mut self, c: Vec<usize>) -> Self {
-        self.channel = c;
+    pub fn channel(mut self, c: usize) -> Self {
+        self.channels = vec![c];
+        self
+    }
+    pub fn channels(mut self, c: Vec<usize>) -> Self {
+        self.channels = c;
         self
     }
     pub fn antenna<S: Into<String>>(mut self, s: S) -> Self {
@@ -284,10 +288,10 @@ impl<D: DeviceTrait + Clone, E: Executor, C: Connect> SourceBuilder<D, E, C> {
     }
     pub fn build(mut self) -> Result<Block> {
         match self.dev.take() {
-            Some(dev) => Ok(Source::new(dev, self.config, self.channel, self.start_time)),
+            Some(dev) => Ok(Source::new(dev, self.config, self.channels, self.start_time)),
             None => {
                 let dev = Device::from_args_with_runtime(&self.args, self.runtime.0, self.runtime.1)?;
-                Ok(Source::new(dev, self.config, self.channel, self.start_time))
+                Ok(Source::new(dev, self.config, self.channels, self.start_time))
             }
         }
     }

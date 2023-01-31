@@ -66,10 +66,8 @@
 //! ## SDR Hardware
 //! | Block | Usage | Feature | WebAssembly? |
 //! |---|---|---|---|
-//! | [SoapySink](SoapySinkBuilder) | Transmit samples with a Soapy SDR device. | soapy |❌ |
-//! | [SoapySource](SoapySourceBuilder) | Receive samples from a Soapy SDR device. | soapy | ❌ |
-//! | [SeifySink](seify::SeifySinkBuilder) | Transmit samples with a Seify device. | soapy | ❌ |
-//! | [SeifySource](seify::SeifySourceBuilder) | Receive samples from a Soapy device. | soapy | ❌ |
+//! | [SeifySink](seify::SeifySinkBuilder) | Transmit samples with a Seify device. | seify | ❌ |
+//! | [SeifySource](seify::SeifySourceBuilder) | Receive samples from a Seify device. | seify | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
@@ -186,11 +184,6 @@ pub use null_source::NullSource;
 
 #[cfg(feature = "seify")]
 pub mod seify;
-
-#[cfg(feature = "soapy")]
-pub mod soapy;
-#[cfg(feature = "soapy")]
-pub use soapy::{SoapySink, SoapySinkBuilder, SoapySource, SoapySourceBuilder};
 
 mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;
