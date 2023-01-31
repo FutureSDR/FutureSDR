@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::SoapySourceBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::runtime::buffer::vulkan;
@@ -19,11 +19,11 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
     let broker = Arc::new(Broker::new());
 
-    let src = SoapySourceBuilder::new()
-        .freq(100e6)
+    let src = SourceBuilder::new()
+        .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
-        .build();
+        .build()?;
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedBlocking(2048))
         .build();

@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::{block_on, Timer};
+use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::SoapySinkBuilder;
 use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
@@ -25,9 +25,9 @@ struct Args {
     /// Antenna
     #[clap(short, long)]
     antenna: Option<String>,
-    /// Soapy Filter
+    /// Seify Args
     #[clap(short, long)]
-    filter: Option<String>,
+    args: Option<String>,
     /// Gain
     #[clap(short, long, default_value_t = 60.0)]
     gain: f64,
@@ -85,22 +85,22 @@ fn main() -> Result<()> {
         "in",
         Circular::with_size(prefix_in_size),
     )?;
-    let mut soapy = SoapySinkBuilder::new()
-        .freq(args.channel)
+    let mut snk = SinkBuilder::new()
+        .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
     if let Some(a) = args.antenna {
-        soapy = soapy.antenna(a);
+        snk = snk.antenna(a);
     }
-    if let Some(f) = args.filter {
-        soapy = soapy.filter(f);
+    if let Some(a) = args.args {
+        snk = snk.args(a)?;
     }
 
-    let soapy_snk = fg.add_block(soapy.build());
+    let snk = fg.add_block(snk.build()?);
     fg.connect_stream_with_type(
         prefix,
         "out",
-        soapy_snk,
+        snk,
         "in",
         Circular::with_size(prefix_out_size),
     )?;
