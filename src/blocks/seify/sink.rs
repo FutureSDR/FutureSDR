@@ -191,7 +191,9 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             ret
         };
 
-        sio.inputs_mut().iter_mut().for_each(|i| i.consume(consumed));
+        sio.inputs_mut()
+            .iter_mut()
+            .for_each(|i| i.consume(consumed));
 
         Ok(())
     }
