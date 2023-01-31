@@ -122,7 +122,7 @@ jobs:
         run: cargo fmt --all --manifest-path=examples/zigbee/Cargo.toml -- --check
 
       - name: Run cargo clippy (main)
-        run: cargo clippy --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
+        run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (main)
         env:
@@ -264,7 +264,7 @@ jobs:
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
-      - run: cargo test --all-targets --workspace --features=aaronia,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
+      - run: cargo test --all-targets --workspace --features=aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
 
   test-macos:
     name: Unit Tests macOS
@@ -274,7 +274,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo test --all-targets --workspace --features=aaronia,flow_scheduler,tpb_scheduler,wgpu
+      - run: cargo test --all-targets --workspace --features=aaronia_http,flow_scheduler,tpb_scheduler,wgpu
 
   test-windows:
     name: Unit Test Windows
@@ -287,4 +287,4 @@ jobs:
           args: install ninja
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo test --all-targets --workspace --features=aaronia,flow_scheduler,tpb_scheduler,wgpu
+      - run: cargo test --all-targets --workspace --features=aaronia_http,flow_scheduler,tpb_scheduler,wgpu
