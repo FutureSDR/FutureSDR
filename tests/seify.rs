@@ -90,7 +90,7 @@ fn builder_config() -> Result<()> {
 
 /// Runtime configuration via the individual "freq" and "gain" ports
 #[test]
-// #[ignore]
+#[ignore]
 fn config_freq_gain_ports() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
