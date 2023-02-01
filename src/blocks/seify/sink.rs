@@ -169,7 +169,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             _ => None,
         });
 
-        io.finished = sio.inputs().iter().find(|x| x.finished()).is_some();
+        io.finished = sio.inputs().iter().any(|x| x.finished());
 
         let consumed = if let Some(len) = t {
             if n >= len {
