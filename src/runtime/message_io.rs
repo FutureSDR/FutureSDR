@@ -13,6 +13,7 @@ use crate::runtime::PortId;
 
 pub struct MessageInput<T: ?Sized> {
     name: String,
+    finished: bool,
     #[allow(clippy::type_complexity)]
     handler: Arc<
         dyn for<'a> Fn(
@@ -44,6 +45,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
     ) -> MessageInput<T> {
         MessageInput {
             name: name.to_string(),
+            finished: false,
             handler,
         }
     }
@@ -66,6 +68,14 @@ impl<T: Send + ?Sized> MessageInput<T> {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn finish(&mut self) {
+        self.finished = true;
+    }
+
+    pub fn finished(&self) -> bool {
+        self.finished
     }
 }
 
@@ -92,8 +102,14 @@ impl MessageOutput {
     }
 
     pub async fn notify_finished(&mut self) {
-        for (_, sender) in self.handlers.iter_mut() {
-            let _ = sender.send(BlockMessage::Terminate).await;
+        for (port_id, sender) in self.handlers.iter_mut() {
+            let _ = sender
+                .send(BlockMessage::Call {
+                    port_id: PortId::Index(*port_id),
+                    data: Pmt::Finished,
+                    tx: None,
+                })
+                .await;
         }
     }
 
@@ -130,6 +146,10 @@ impl<T: Send + ?Sized> MessageIo<T> {
 
     pub fn input(&self, id: usize) -> &MessageInput<T> {
         &self.inputs[id]
+    }
+
+    pub fn input_mut(&mut self, id: usize) -> &mut MessageInput<T> {
+        &mut self.inputs[id]
     }
 
     pub fn inputs(&self) -> &Vec<MessageInput<T>> {

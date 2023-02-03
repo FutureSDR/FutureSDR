@@ -55,6 +55,7 @@ pub enum Pmt {
     VecU64(Vec<u64>),
     Blob(Vec<u8>),
     VecPmt(Vec<Pmt>),
+    Finished,
     MapStrPmt(HashMap<String, Pmt>),
     #[serde(skip)]
     Any(Box<dyn PmtAny>),
@@ -178,6 +179,7 @@ pub enum PmtKind {
     VecU64,
     Blob,
     VecPmt,
+    Finished,
     MapStrPmt,
     Any,
 }

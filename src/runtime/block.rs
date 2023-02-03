@@ -247,9 +247,14 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
                 }
             },
         };
-        let h = self.mio.input(id).get_handler();
-        let f = (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p);
-        f.await.or(Err(HandlerError::HandlerError))
+        if matches!(p, Pmt::Finished) {
+            self.mio.input_mut(id).finish();
+            Ok(Pmt::Null)
+        } else {
+            let h = self.mio.input(id).get_handler();
+            let f = (h)(&mut self.kernel, &mut self.mio, &mut self.meta, p);
+            f.await.or(Err(HandlerError::HandlerError))
+        }
     }
 }
 
