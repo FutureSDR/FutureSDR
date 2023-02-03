@@ -13,7 +13,9 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -124,4 +126,17 @@ impl Mac {
 }
 
 #[async_trait]
-impl Kernel for Mac {}
+impl Kernel for Mac {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _s: &mut StreamIo,
+        mio: &mut MessageIo<Self>,
+        _b: &mut BlockMeta,
+    ) -> Result<()> {
+        if mio.input(0).finished() {
+            io.finished = true;
+        }
+        Ok(())
+    }
+}
