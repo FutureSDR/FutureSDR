@@ -53,6 +53,7 @@ impl Mac {
 
     fn transmit<'a>(
         &'a mut self,
+        io: &'a mut WorkIo,
         mio: &'a mut MessageIo<Mac>,
         _meta: &'a mut BlockMeta,
         p: Pmt,
@@ -95,6 +96,9 @@ impl Mac {
                         }
                     }
                 }
+                Pmt::Finished => {
+                    io.finished = true;
+                }
                 x => {
                     warn!("WLAN Mac: received wrong PMT type in TX callback. {:?}", x);
                 }
@@ -122,21 +126,5 @@ impl Mac {
         self.current_frame[len..len + 4].copy_from_slice(&crc.to_le_bytes());
 
         len + 4
-    }
-}
-
-#[async_trait]
-impl Kernel for Mac {
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _s: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        if mio.input(0).finished() {
-            io.finished = true;
-        }
-        Ok(())
     }
 }

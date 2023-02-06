@@ -71,6 +71,7 @@ where
     #[message_handler]
     async fn gain_locked(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -86,6 +87,7 @@ where
     #[message_handler]
     async fn max_gain(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -101,6 +103,7 @@ where
     #[message_handler]
     async fn adjustment_rate(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -116,6 +119,7 @@ where
     #[message_handler]
     async fn reference_power(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,

@@ -8,6 +8,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 /// Black hole for messages.
 pub struct MessageSink {
@@ -29,6 +30,7 @@ impl MessageSink {
     #[message_handler]
     async fn in_port(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         _p: Pmt,

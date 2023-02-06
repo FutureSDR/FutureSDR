@@ -1,7 +1,3 @@
-use futures::FutureExt;
-use std::future::Future;
-use std::pin::Pin;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -11,6 +7,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 /// Forward messages.
 pub struct MessageCopy {}
@@ -28,17 +25,16 @@ impl MessageCopy {
         )
     }
 
-    fn handler<'a>(
-        &'a mut self,
-        mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn handler(
+        &mut self,
+        _io: &mut WorkIo,
+        mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
+    ) -> Result<Pmt> {
             mio.post(0, p).await;
             Ok(Pmt::Null)
-        }
-        .boxed()
     }
 }
 

@@ -10,6 +10,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::WorkIo;
 
 pub struct MessageInput<T: ?Sized> {
     name: String,
@@ -18,6 +19,7 @@ pub struct MessageInput<T: ?Sized> {
     handler: Arc<
         dyn for<'a> Fn(
                 &'a mut T,
+                &'a mut WorkIo,
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,
@@ -34,6 +36,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
         handler: Arc<
             dyn for<'a> Fn(
                     &'a mut T,
+                    &'a mut WorkIo,
                     &'a mut MessageIo<T>,
                     &'a mut BlockMeta,
                     Pmt,
@@ -56,6 +59,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
     ) -> Arc<
         dyn for<'a> Fn(
                 &'a mut T,
+                &'a mut WorkIo,
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,
@@ -208,6 +212,7 @@ impl<T: Send> MessageIoBuilder<T> {
         name: &str,
         c: impl for<'a> Fn(
                 &'a mut T,
+                &'a mut WorkIo,
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,

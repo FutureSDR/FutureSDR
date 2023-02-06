@@ -394,9 +394,10 @@ pub fn message_handler(
     let mut out = TokenStream::new();
 
     let name = handler.sig.ident;
-    let mio = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
-    let meta = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
-    let pmt = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let io = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
+    let mio = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
+    let meta = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let pmt = get_parameter_ident(&handler.sig.inputs[4]).unwrap();
     let body = handler.block.stmts;
 
     // println!("name {}", name);
@@ -407,6 +408,7 @@ pub fn message_handler(
     out.extend(quote! {
         fn #name<'a>(
             &'a mut self,
+            #io: &'a mut WorkIo,
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
@@ -431,9 +433,10 @@ pub fn message_handler_external(
     let mut out = TokenStream::new();
 
     let name = handler.sig.ident;
-    let mio = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
-    let meta = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
-    let pmt = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let io = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
+    let mio = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
+    let meta = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
+    let pmt = get_parameter_ident(&handler.sig.inputs[4]).unwrap();
     let body = handler.block.stmts;
 
     // println!("name {}", name);
@@ -444,6 +447,7 @@ pub fn message_handler_external(
     out.extend(quote! {
         fn #name<'a>(
             &'a mut self,
+            #io: &'a mut WorkIo,
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,

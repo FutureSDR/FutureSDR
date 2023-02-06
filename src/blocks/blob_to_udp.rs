@@ -14,6 +14,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
 pub struct BlobToUdp {
@@ -30,37 +31,7 @@ impl BlobToUdp {
             BlockMetaBuilder::new("BlobToUdp").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
-                .add_input(
-                    "in",
-                    |block: &mut BlobToUdp,
-                     _mio: &mut MessageIo<BlobToUdp>,
-                     _meta: &mut BlockMeta,
-                     p: Pmt| {
-                        async move {
-                            if let Pmt::Blob(v) = p {
-                                match block
-                                    .socket
-                                    .as_ref()
-                                    .unwrap()
-                                    .send_to(&v, block.remote)
-                                    .await
-                                {
-                                    Ok(s) => {
-                                        assert_eq!(s, v.len());
-                                    }
-                                    Err(e) => {
-                                        println!("udp error: {e:?}");
-                                        return Err(e.into());
-                                    }
-                                }
-                            } else {
-                                warn!("BlockToUdp: received wrong PMT type. {:?}", p);
-                            }
-                            Ok(Pmt::Null)
-                        }
-                        .boxed()
-                    },
-                )
+                .add_input("in", Self::handler)
                 .build(),
             BlobToUdp {
                 socket: None,
@@ -72,6 +43,36 @@ impl BlobToUdp {
                     .unwrap(),
             },
         )
+    }
+
+    #[message_handler]
+    async fn handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Blob(v) = p {
+            match self
+                .socket
+                .as_ref()
+                .unwrap()
+                .send_to(&v, self.remote)
+                .await
+            {
+                Ok(s) => {
+                    assert_eq!(s, v.len());
+                }
+                Err(e) => {
+                    println!("udp error: {e:?}");
+                    return Err(e.into());
+                }
+            }
+        } else {
+            warn!("BlockToUdp: received wrong PMT type. {:?}", p);
+        }
+        Ok(Pmt::Null)
     }
 }
 

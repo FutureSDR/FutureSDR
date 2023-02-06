@@ -1,8 +1,5 @@
 use futures::channel::mpsc;
-use futures::FutureExt;
 use futures::SinkExt;
-use std::future::Future;
-use std::pin::Pin;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -13,6 +10,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 /// Push received messages into a channel.
 pub struct MessagePipe {
@@ -31,17 +29,16 @@ impl MessagePipe {
         )
     }
 
-    fn handler<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            self.sender.send(p).await.unwrap();
-            Ok(Pmt::Null)
-        }
-        .boxed()
+    ) -> Result<Pmt> {
+        self.sender.send(p).await.unwrap();
+        Ok(Pmt::Null)
     }
 }
 

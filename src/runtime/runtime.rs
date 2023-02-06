@@ -634,7 +634,7 @@ async fn run_block_internal(
                     work_io.finished = true;
                 }
                 Some(Some(BlockMessage::Call { port_id, data, tx })) => {
-                    match block.call_handler(port_id, data).await {
+                    match block.call_handler(&mut work_io, port_id, data).await {
                         Ok(_) => {
                             if let Some(tx) = tx {
                                 let _ = tx.send(Ok(()));
@@ -662,7 +662,7 @@ async fn run_block_internal(
                     }
                 }
                 Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
-                    match block.call_handler(port_id, data).await {
+                    match block.call_handler(&mut work_io, port_id, data).await {
                         Err(HandlerError::HandlerError) => {
                             error!(
                                 "{}: Error in callback. Terminating. ({:?})",
