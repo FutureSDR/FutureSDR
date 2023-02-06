@@ -2,8 +2,8 @@ use crate::decoder::{AdsbPacket, DecoderMetaData};
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
 use futuresdr::log::{info, warn};
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -17,8 +17,6 @@ use futuresdr::runtime::WorkIo;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 
 use crate::*;
@@ -63,69 +61,67 @@ impl Tracker {
     }
 
     /// This function handles control port messages.
-    fn handle_ctrl_port<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn handle_ctrl_port(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Null => {
-                    // Reply with register
-                    let json = serde_json::to_string(&self.aircraft_register).unwrap();
-                    Ok(Pmt::String(json))
-                }
-                x => {
-                    warn!("Received unexpected PMT type: {:?}", x);
-                    Ok(Pmt::Null)
-                }
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Null => {
+                // Reply with register
+                let json = serde_json::to_string(&self.aircraft_register).unwrap();
+                Ok(Pmt::String(json))
+            }
+            x => {
+                warn!("Received unexpected PMT type: {:?}", x);
+                Ok(Pmt::Null)
             }
         }
-        .boxed()
     }
 
     /// This function handles received packets passed to the block.
-    fn packet_received<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn packet_received(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Any(a) => {
-                    if let Some(adsb_packet) = a.downcast_ref::<AdsbPacket>() {
-                        // We received a packet. Update the register.
-                        info!("Received {:?}", adsb_packet);
-                        if let adsb_deku::DF::ADSB(adsb) = &adsb_packet.message.df {
-                            let metadata = &adsb_packet.decoder_metadata;
-                            match &adsb.me {
-                                adsb_deku::adsb::ME::AircraftIdentification(identification) => self
-                                    .aircraft_identification_received(
-                                        &adsb.icao,
-                                        identification,
-                                        metadata,
-                                    ),
-                                adsb_deku::adsb::ME::AirbornePositionBaroAltitude(altitude)
-                                | adsb_deku::adsb::ME::AirbornePositionGNSSAltitude(altitude) => {
-                                    self.airborne_position_received(&adsb.icao, altitude, metadata)
-                                }
-                                adsb_deku::adsb::ME::AirborneVelocity(velocity) => {
-                                    self.airborne_velocity_received(&adsb.icao, velocity, metadata)
-                                }
-                                _ => (),
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Any(a) => {
+                if let Some(adsb_packet) = a.downcast_ref::<AdsbPacket>() {
+                    // We received a packet. Update the register.
+                    info!("Received {:?}", adsb_packet);
+                    if let adsb_deku::DF::ADSB(adsb) = &adsb_packet.message.df {
+                        let metadata = &adsb_packet.decoder_metadata;
+                        match &adsb.me {
+                            adsb_deku::adsb::ME::AircraftIdentification(identification) => self
+                                .aircraft_identification_received(
+                                    &adsb.icao,
+                                    identification,
+                                    metadata,
+                                ),
+                            adsb_deku::adsb::ME::AirbornePositionBaroAltitude(altitude)
+                            | adsb_deku::adsb::ME::AirbornePositionGNSSAltitude(altitude) => {
+                                self.airborne_position_received(&adsb.icao, altitude, metadata)
                             }
+                            adsb_deku::adsb::ME::AirborneVelocity(velocity) => {
+                                self.airborne_velocity_received(&adsb.icao, velocity, metadata)
+                            }
+                            _ => (),
                         }
                     }
                 }
-                x => {
-                    warn!("Received unexpected PMT type: {:?}", x);
-                }
             }
-            Ok(Pmt::Null)
+            x => {
+                warn!("Received unexpected PMT type: {:?}", x);
+            }
         }
-        .boxed()
+        Ok(Pmt::Ok)
     }
 
     fn update_last_seen(&mut self, icao: &AdsbIcao) {

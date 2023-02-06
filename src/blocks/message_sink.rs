@@ -30,12 +30,18 @@ impl MessageSink {
     #[message_handler]
     async fn in_port(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
-        self.n_received += 1;
+        match p {
+            Pmt::Finished => { io.finished = true; },
+            _ => {
+                self.n_received += 1;
+            }
+        }
+
         Ok(Pmt::U64(self.n_received))
     }
 

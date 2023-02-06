@@ -109,7 +109,12 @@ pub trait BlockT: Send + Any {
     fn message_output_mut(&mut self, id: usize) -> &mut MessageOutput;
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 
-    async fn call_handler(&mut self, io: &mut WorkIo, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError>;
+    async fn call_handler(
+        &mut self,
+        io: &mut WorkIo,
+        id: PortId,
+        p: Pmt,
+    ) -> result::Result<Pmt, HandlerError>;
 }
 
 pub struct TypedBlock<T> {
@@ -223,7 +228,12 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.output_name_to_id(name)
     }
-    async fn call_handler(&mut self, io: &mut WorkIo, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError> {
+    async fn call_handler(
+        &mut self,
+        io: &mut WorkIo,
+        id: PortId,
+        p: Pmt,
+    ) -> result::Result<Pmt, HandlerError> {
         let id = match id {
             PortId::Index(i) => {
                 if i < self.mio.inputs().len() {
@@ -249,12 +259,10 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
         };
         if matches!(p, Pmt::Finished) {
             self.mio.input_mut(id).finish();
-            Ok(Pmt::Null)
-        } else {
-            let h = self.mio.input(id).get_handler();
-            let f = (h)(&mut self.kernel, io, &mut self.mio, &mut self.meta, p);
-            f.await.or(Err(HandlerError::HandlerError))
         }
+        let h = self.mio.input(id).get_handler();
+        let f = (h)(&mut self.kernel, io, &mut self.mio, &mut self.meta, p);
+        f.await.or(Err(HandlerError::HandlerError))
     }
 }
 
@@ -379,7 +387,12 @@ impl Block {
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
     }
-    pub async fn call_handler(&mut self, io: &mut WorkIo, id: PortId, p: Pmt) -> result::Result<Pmt, HandlerError> {
+    pub async fn call_handler(
+        &mut self,
+        io: &mut WorkIo,
+        id: PortId,
+        p: Pmt,
+    ) -> result::Result<Pmt, HandlerError> {
         self.0.call_handler(io, id, p).await
     }
 }

@@ -64,6 +64,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
     #[message_handler]
     fn cmd_handler(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -76,6 +77,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
     #[message_handler]
     fn freq_handler(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -95,6 +97,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
     #[message_handler]
     fn gain_handler(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -114,6 +117,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
     #[message_handler]
     fn sample_rate_handler(
         &mut self,
+        _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,

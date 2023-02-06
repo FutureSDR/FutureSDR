@@ -1,13 +1,11 @@
 use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
 use futuresdr::log::{debug, warn};
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -108,103 +106,99 @@ impl Mac {
         Self::calc_crc(data) == 0
     }
 
-    fn received<'a>(
-        &'a mut self,
-        mio: &'a mut MessageIo<Mac>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn received(
+        &mut self,
+        _io: &mut WorkIo,
+        mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Blob(data) => {
-                    if Self::check_crc(&data) && data.len() > 2 {
-                        debug!("received frame, crc correct, payload length {}", data.len());
-                        #[cfg(target_arch = "wasm32")]
-                        rxed_frame(data.clone());
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Blob(data) => {
+                if Self::check_crc(&data) && data.len() > 2 {
+                    debug!("received frame, crc correct, payload length {}", data.len());
+                    #[cfg(target_arch = "wasm32")]
+                    rxed_frame(data.clone());
 
-                        let mut rftap = vec![0; data.len() + 12];
-                        rftap[0..4].copy_from_slice("RFta".as_bytes());
-                        rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
-                        rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
-                        rftap[8..12].copy_from_slice(&195u32.to_le_bytes());
-                        rftap[12..].copy_from_slice(&data);
-                        mio.output_mut(1).post(Pmt::Blob(rftap)).await;
+                    let mut rftap = vec![0; data.len() + 12];
+                    rftap[0..4].copy_from_slice("RFta".as_bytes());
+                    rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
+                    rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
+                    rftap[8..12].copy_from_slice(&195u32.to_le_bytes());
+                    rftap[12..].copy_from_slice(&data);
+                    mio.output_mut(1).post(Pmt::Blob(rftap)).await;
 
-                        self.n_received += 1;
-                        let s = String::from_iter(
-                            data.iter()
-                                .map(|x| char::from(*x))
-                                .map(|x| if x.is_ascii() { x } else { '.' })
-                                .map(|x| {
-                                    if ['\x0b', '\x0c', '\n', '\t', '\r'].contains(&x) {
-                                        '.'
-                                    } else {
-                                        x
-                                    }
-                                }),
-                        );
-                        debug!("{}", s);
-                        mio.output_mut(0).post(Pmt::Blob(data)).await;
-                    } else {
-                        debug!("received frame, crc wrong");
-                    }
-                }
-                _ => {
-                    warn!(
-                        "ZigBee Mac: received wrong PMT type in RX callback (expected Pmt::Blob)"
+                    self.n_received += 1;
+                    let s = String::from_iter(
+                        data.iter()
+                            .map(|x| char::from(*x))
+                            .map(|x| if x.is_ascii() { x } else { '.' })
+                            .map(|x| {
+                                if ['\x0b', '\x0c', '\n', '\t', '\r'].contains(&x) {
+                                    '.'
+                                } else {
+                                    x
+                                }
+                            }),
                     );
+                    debug!("{}", s);
+                    mio.output_mut(0).post(Pmt::Blob(data)).await;
+                } else {
+                    debug!("received frame, crc wrong");
                 }
             }
-            Ok(Pmt::Null)
+            _ => {
+                warn!("ZigBee Mac: received wrong PMT type in RX callback (expected Pmt::Blob)");
+            }
         }
-        .boxed()
+        Ok(Pmt::Ok)
     }
 
-    fn transmit<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Mac>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn transmit(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Blob(data) => {
-                    if self.tx_frames.len() >= MAX_FRAMES {
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Blob(data) => {
+                if self.tx_frames.len() >= MAX_FRAMES {
+                    warn!(
+                        "ZigBee Mac: max number of frames already in TX queue ({}). Dropping.",
+                        MAX_FRAMES
+                    );
+                } else {
+                    // 9 header + 2 crc
+                    if data.len() > MAX_FRAME_SIZE - 11 {
                         warn!(
-                            "ZigBee Mac: max number of frames already in TX queue ({}). Dropping.",
-                            MAX_FRAMES
+                            "ZigBee Mac: TX frame too large ({}, max {}). Dropping.",
+                            data.len(),
+                            MAX_FRAME_SIZE - 11
                         );
                     } else {
-                        // 9 header + 2 crc
-                        if data.len() > MAX_FRAME_SIZE - 11 {
-                            warn!(
-                                "ZigBee Mac: TX frame too large ({}, max {}). Dropping.",
-                                data.len(),
-                                MAX_FRAME_SIZE - 11
-                            );
-                        } else {
-                            self.tx_frames.push_back(data);
-                        }
+                        self.tx_frames.push_back(data);
                     }
                 }
-                _ => {
-                    warn!(
-                        "ZigBee Mac: received wrong PMT type in TX callback (expected Pmt::Blob)"
-                    );
-                }
             }
-            Ok(Pmt::Null)
+            _ => {
+                warn!("ZigBee Mac: received wrong PMT type in TX callback (expected Pmt::Blob)");
+            }
         }
-        .boxed()
+        Ok(Pmt::Ok)
     }
 
-    fn stats<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Mac>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn stats(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         _p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move { Ok(Pmt::VecU64(vec![self.n_sent, self.n_received])) }.boxed()
+    ) -> Result<Pmt> {
+        Ok(Pmt::VecU64(vec![self.n_sent, self.n_received]))
     }
 }
 

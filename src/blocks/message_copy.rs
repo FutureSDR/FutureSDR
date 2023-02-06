@@ -28,13 +28,20 @@ impl MessageCopy {
     #[message_handler]
     async fn handler(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-            mio.post(0, p).await;
-            Ok(Pmt::Null)
+        match p {
+            Pmt::Finished => {
+                io.finished = true;
+            }
+            p => {
+                mio.post(0, p).await;
+            }
+        }
+        Ok(Pmt::Ok)
     }
 }
 

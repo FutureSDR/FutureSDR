@@ -1,9 +1,6 @@
-use futures::FutureExt;
-use std::future::Future;
-use std::pin::Pin;
-
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -14,6 +11,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -42,17 +40,16 @@ impl CtrlPortDemo {
         )
     }
 
-    fn handler<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         _p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            self.counter += 1;
-            Ok(Pmt::U64(self.counter - 1))
-        }
-        .boxed()
+    ) -> Result<Pmt> {
+        self.counter += 1;
+        Ok(Pmt::U64(self.counter - 1))
     }
 }
 

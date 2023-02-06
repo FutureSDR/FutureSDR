@@ -1,8 +1,6 @@
-use std::net::ToSocketAddrs;
-
 use async_net::SocketAddr;
 use async_net::UdpSocket;
-use futures::FutureExt;
+use std::net::ToSocketAddrs;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -54,13 +52,7 @@ impl BlobToUdp {
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::Blob(v) = p {
-            match self
-                .socket
-                .as_ref()
-                .unwrap()
-                .send_to(&v, self.remote)
-                .await
-            {
+            match self.socket.as_ref().unwrap().send_to(&v, self.remote).await {
                 Ok(s) => {
                     assert_eq!(s, v.len());
                 }

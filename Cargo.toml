@@ -21,7 +21,7 @@ members = [
 ]
 
 [features]
-default = ["seify_http"]
+default = []
 aaronia = ["seify/aaronia"]
 aaronia_http = ["seify/aaronia_http", "seify_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]

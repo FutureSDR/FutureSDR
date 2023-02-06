@@ -4,8 +4,8 @@ use crate::MAX_PSDU_SIZE;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
 use futuresdr::log::{debug, warn};
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -13,11 +13,8 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use std::future::Future;
-use std::pin::Pin;
 
 pub struct Mac {
     current_frame: [u8; MAX_PSDU_SIZE],
@@ -51,16 +48,34 @@ impl Mac {
         )
     }
 
-    fn transmit<'a>(
-        &'a mut self,
-        io: &'a mut WorkIo,
-        mio: &'a mut MessageIo<Mac>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn transmit(
+        &mut self,
+        io: &mut WorkIo,
+        mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Blob(data) => {
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Blob(data) => {
+                if data.len() > MAX_PAYLOAD_SIZE {
+                    warn!(
+                        "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
+                        data.len(),
+                        MAX_PAYLOAD_SIZE
+                    );
+                } else {
+                    let len = self.generate_mac_data_frame(&data);
+                    debug!("mac frame {:?}", &self.current_frame[0..len]);
+                    let mut vec = vec![0; len];
+                    vec.copy_from_slice(&self.current_frame[0..len]);
+                    mio.output_mut(0)
+                        .post(Pmt::Any(Box::new((vec, None as Option<Mcs>))))
+                        .await;
+                }
+            }
+            Pmt::Any(a) => {
+                if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Mcs)>() {
                     if data.len() > MAX_PAYLOAD_SIZE {
                         warn!(
                             "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
@@ -68,44 +83,24 @@ impl Mac {
                             MAX_PAYLOAD_SIZE
                         );
                     } else {
-                        let len = self.generate_mac_data_frame(&data);
+                        let len = self.generate_mac_data_frame(data);
                         debug!("mac frame {:?}", &self.current_frame[0..len]);
                         let mut vec = vec![0; len];
                         vec.copy_from_slice(&self.current_frame[0..len]);
                         mio.output_mut(0)
-                            .post(Pmt::Any(Box::new((vec, None as Option<Mcs>))))
+                            .post(Pmt::Any(Box::new((vec, Some(*mcs)))))
                             .await;
                     }
                 }
-                Pmt::Any(a) => {
-                    if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Mcs)>() {
-                        if data.len() > MAX_PAYLOAD_SIZE {
-                            warn!(
-                                "WLAN Mac: TX frame too large ({}, max {}). Dropping.",
-                                data.len(),
-                                MAX_PAYLOAD_SIZE
-                            );
-                        } else {
-                            let len = self.generate_mac_data_frame(data);
-                            debug!("mac frame {:?}", &self.current_frame[0..len]);
-                            let mut vec = vec![0; len];
-                            vec.copy_from_slice(&self.current_frame[0..len]);
-                            mio.output_mut(0)
-                                .post(Pmt::Any(Box::new((vec, Some(*mcs)))))
-                                .await;
-                        }
-                    }
-                }
-                Pmt::Finished => {
-                    io.finished = true;
-                }
-                x => {
-                    warn!("WLAN Mac: received wrong PMT type in TX callback. {:?}", x);
-                }
             }
-            Ok(Pmt::Null)
+            Pmt::Finished => {
+                io.finished = true;
+            }
+            x => {
+                warn!("WLAN Mac: received wrong PMT type in TX callback. {:?}", x);
+            }
         }
-        .boxed()
+        Ok(Pmt::Null)
     }
 
     fn generate_mac_data_frame(&mut self, data: &Vec<u8>) -> usize {
@@ -128,3 +123,6 @@ impl Mac {
         len + 4
     }
 }
+
+#[async_trait]
+impl Kernel for Mac {}

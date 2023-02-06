@@ -5,8 +5,8 @@ use crate::MAX_PSDU_SIZE;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
 use futuresdr::log::warn;
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -19,8 +19,6 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
 
 /// Maximum number of frames to queue for transmission
 const MAX_FRAMES: usize = 1000;
@@ -65,58 +63,63 @@ impl Encoder {
         )
     }
 
-    fn transmit<'a>(
-        &'a mut self,
-        _mio: &'a mut MessageIo<Encoder>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn transmit(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Blob(data) => {
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Blob(data) => {
+                if self.tx_frames.len() >= MAX_FRAMES {
+                    warn!(
+                        "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
+                        MAX_FRAMES
+                    );
+                } else if data.len() > MAX_PSDU_SIZE {
+                    warn!(
+                        "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
+                        data.len(),
+                        MAX_PSDU_SIZE
+                    );
+                } else {
+                    self.tx_frames.push_back((data, self.default_mcs));
+                }
+            }
+            Pmt::Any(a) => {
+                if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Option<Mcs>)>() {
+                    let data = data.clone();
                     if self.tx_frames.len() >= MAX_FRAMES {
                         warn!(
-                            "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
-                            MAX_FRAMES
-                        );
+                                "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
+                                MAX_FRAMES
+                            );
                     } else if data.len() > MAX_PSDU_SIZE {
                         warn!(
                             "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
                             data.len(),
                             MAX_PSDU_SIZE
                         );
+                    } else if let Some(m) = mcs {
+                        self.tx_frames.push_back((data, *m));
                     } else {
                         self.tx_frames.push_back((data, self.default_mcs));
                     }
                 }
-                Pmt::Any(a) => {
-                    if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Option<Mcs>)>() {
-                        let data = data.clone();
-                        if self.tx_frames.len() >= MAX_FRAMES {
-                            warn!(
-                                "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
-                                MAX_FRAMES
-                            );
-                        } else if data.len() > MAX_PSDU_SIZE {
-                            warn!(
-                                "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
-                                data.len(),
-                                MAX_PSDU_SIZE
-                            );
-                        } else if let Some(m) = mcs {
-                            self.tx_frames.push_back((data, *m));
-                        } else {
-                            self.tx_frames.push_back((data, self.default_mcs));
-                        }
-                    }
-                }
-                x => {
-                    warn!("WLAN Encoder: received wrong PMT type in TX callback. {:?}", x);
-                }
             }
-            Ok(Pmt::Null)
+            Pmt::Finished => {
+                io.finished = true;
+            }
+            x => {
+                warn!(
+                    "WLAN Encoder: received wrong PMT type in TX callback. {:?}",
+                    x
+                );
+            }
         }
-        .boxed()
+        Ok(Pmt::Null)
     }
 
     fn generate_bits(&mut self, data: &Vec<u8>) {

@@ -2,8 +2,8 @@ use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
 use futuresdr::anyhow::{bail, Result};
 use futuresdr::async_trait::async_trait;
-use futuresdr::futures::FutureExt;
 use futuresdr::log::{debug, info, warn};
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -12,9 +12,8 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 use serde::Serialize;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::SystemTime;
 
 fn bin_to_u64(s: &[u8]) -> u64 {
@@ -108,54 +107,50 @@ impl Decoder {
         }
     }
 
-    fn packet_received<'a>(
-        &'a mut self,
-        mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    #[message_handler]
+    async fn packet_received(
+        &mut self,
+        _io: &mut WorkIo,
+        mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>> {
-        async move {
-            match p {
-                Pmt::Any(a) => {
-                    if let Some(pkt) = a.downcast_ref::<DemodPacket>()
-                    {
-                        // Validate the CRC before we start decoding
-                        let crc_passed = self.check_crc(&pkt.bits);
-                        if crc_passed {
-                            self.n_crc_ok += 1;
-                            debug!(
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Any(a) => {
+                if let Some(pkt) = a.downcast_ref::<DemodPacket>() {
+                    // Validate the CRC before we start decoding
+                    let crc_passed = self.check_crc(&pkt.bits);
+                    if crc_passed {
+                        self.n_crc_ok += 1;
+                        debug!(
                                 "Decoded packet with CRC OK (index: {}, preamble correlation: {}, data: {:?})",
                                 pkt.preamble_index, pkt.preamble_correlation, pkt.bits
                             );
-                        } else {
-                            self.n_crc_fail += 1;
-                            debug!(
+                    } else {
+                        self.n_crc_fail += 1;
+                        debug!(
                                 "Decoded packet with CRC error (index: {}, preamble correlation: {}, data: {:?})",
                                 pkt.preamble_index, pkt.preamble_correlation, pkt.bits
                             );
-                        }
+                    }
 
-                        if crc_passed || self.forward_failed_crc {
-                            match self.decode_packet(
-                                pkt,
-                                crc_passed,
-                                SystemTime::now(),
-                            ) {
-                                Ok(decoded_packet) => {
-                                    mio.output_mut(0).post(Pmt::Any(Box::new(decoded_packet))).await
-                                }
-                                _ => info!("Could not decode packet despite valid CRC"),
+                    if crc_passed || self.forward_failed_crc {
+                        match self.decode_packet(pkt, crc_passed, SystemTime::now()) {
+                            Ok(decoded_packet) => {
+                                mio.output_mut(0)
+                                    .post(Pmt::Any(Box::new(decoded_packet)))
+                                    .await
                             }
+                            _ => info!("Could not decode packet despite valid CRC"),
                         }
                     }
                 }
-                x => {
-                    warn!("Received unexpected PMT type: {:?}", x);
-                }
             }
-            Ok(Pmt::Null)
+            x => {
+                warn!("Received unexpected PMT type: {:?}", x);
+            }
         }
-        .boxed()
+        Ok(Pmt::Ok)
     }
 }
 
