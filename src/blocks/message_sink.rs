@@ -36,7 +36,9 @@ impl MessageSink {
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
-            Pmt::Finished => { io.finished = true; },
+            Pmt::Finished => {
+                io.finished = true;
+            }
             _ => {
                 self.n_received += 1;
             }
