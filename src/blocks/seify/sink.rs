@@ -212,7 +212,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         self.streamer
             .as_mut()
             .context("no stream")?
-            .activate(self.start_time)?;
+            .activate_at(self.start_time)?;
 
         Ok(())
     }
@@ -223,10 +223,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.streamer
-            .as_mut()
-            .context("no stream")?
-            .deactivate(None)?;
+        self.streamer.as_mut().context("no stream")?.deactivate()?;
         Ok(())
     }
 }
