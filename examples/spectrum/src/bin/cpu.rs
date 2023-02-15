@@ -1,15 +1,16 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Fft;
+use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-use spectrum::lin2db_block;
-use spectrum::power_block;
-use spectrum::FftShift;
 use spectrum::Keep1InN;
+
+const FFT_SIZE: usize = 4096;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -19,24 +20,14 @@ fn main() -> Result<()> {
         .sample_rate(3.2e6)
         .gain(34.0)
         .build()?;
+    let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+    let power = spectrum::lin2power_db();
+    let keep = Keep1InN::<FFT_SIZE>::new(0.1, 3);
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
-        .mode(WebsocketSinkMode::FixedBlocking(2048))
+        .mode(WebsocketSinkMode::FixedBlocking(FFT_SIZE))
         .build();
 
-    let src = fg.add_block(src);
-    let fft = fg.add_block(Fft::new(2048));
-    let power = fg.add_block(power_block());
-    let log = fg.add_block(lin2db_block());
-    let shift = fg.add_block(FftShift::<f32>::new());
-    let keep = fg.add_block(Keep1InN::new(0.1, 10));
-    let snk = fg.add_block(snk);
-
-    fg.connect_stream(src, "out", fft, "in")?;
-    fg.connect_stream(fft, "out", power, "in")?;
-    fg.connect_stream(power, "out", log, "in")?;
-    fg.connect_stream(log, "out", shift, "in")?;
-    fg.connect_stream(shift, "out", keep, "in")?;
-    fg.connect_stream(keep, "out", snk, "in")?;
+    connect!(fg, src > fft > power > keep > snk);
 
     Runtime::new().run(fg)?;
     Ok(())

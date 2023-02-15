@@ -6,8 +6,6 @@ pub use vulkan::Vulkan;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-mod fft_shift;
-pub use fft_shift::FftShift;
 mod keep_1_in_n;
 pub use keep_1_in_n::Keep1InN;
 
@@ -21,4 +19,8 @@ pub fn lin2db_block() -> Block {
 
 pub fn power_block() -> Block {
     Apply::new(|x: &Complex32| x.norm())
+}
+
+pub fn lin2power_db() -> Block {
+    Apply::new(|x: &Complex32| 10.0 * x.norm().log10())
 }

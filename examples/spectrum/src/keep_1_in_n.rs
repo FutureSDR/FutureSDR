@@ -10,14 +10,14 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
 
-pub struct Keep1InN {
+pub struct Keep1InN<const N: usize> {
     alpha: f32,
     n: usize,
     i: usize,
-    avg: [f32; 2048],
+    avg: [f32; N],
 }
 
-impl Keep1InN {
+impl<const N: usize> Keep1InN<N> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(alpha: f32, n: usize) -> Block {
         Block::new(
@@ -31,14 +31,14 @@ impl Keep1InN {
                 alpha,
                 n,
                 i: 0,
-                avg: [0.0; 2048],
+                avg: [0.0; N],
             },
         )
     }
 }
 
 #[async_trait]
-impl Kernel for Keep1InN {
+impl<const N: usize> Kernel for Keep1InN<N> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -52,10 +52,10 @@ impl Kernel for Keep1InN {
         let mut consumed = 0;
         let mut produced = 0;
 
-        while (consumed + 1) * 2048 <= input.len() {
+        while (consumed + 1) * N <= input.len() {
             if self.i == self.n {
-                if (produced + 1) * 2048 <= output.len() {
-                    output[produced * 2048..(produced + 1) * 2048].clone_from_slice(&self.avg);
+                if (produced + 1) * N <= output.len() {
+                    output[produced * N..(produced + 1) * N].clone_from_slice(&self.avg);
                     self.i = 0;
                     produced += 1;
                 } else {
@@ -63,8 +63,8 @@ impl Kernel for Keep1InN {
                 }
             }
 
-            for i in 0..2048 {
-                let t = input[consumed * 2048 + i];
+            for i in 0..N {
+                let t = input[consumed * N + i];
                 if t.is_finite() {
                     self.avg[i] = (1.0 - self.alpha) * self.avg[i] + self.alpha * t;
                 } else {
@@ -76,12 +76,12 @@ impl Kernel for Keep1InN {
             self.i += 1;
         }
 
-        if sio.input(0).finished() && consumed == input.len() / 2048 {
+        if sio.input(0).finished() && consumed == input.len() / N {
             io.finished = true;
         }
 
-        sio.input(0).consume(consumed * 2048);
-        sio.output(0).produce(produced * 2048);
+        sio.input(0).consume(consumed * N);
+        sio.output(0).produce(produced * N);
 
         Ok(())
     }
