@@ -8,7 +8,7 @@ use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-const FFT_SIZE: usize = 4096;
+const FFT_SIZE: usize = 2048;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

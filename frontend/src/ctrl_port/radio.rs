@@ -59,7 +59,7 @@ pub enum Msg {
 impl Radio {
     fn endpoint(props: &Props) -> String {
         format!(
-            "{}/api/block/{}/call/{}",
+            "{}/api/block/{}/call/{}/",
             props.url, props.block, props.callback
         )
     }

@@ -62,7 +62,7 @@ pub struct Slider {
 impl Slider {
     fn endpoint(props: &Props) -> String {
         format!(
-            "{}/api/block/{}/call/{}",
+            "{}/api/block/{}/call/{}/",
             props.url, props.block, props.callback
         )
     }
