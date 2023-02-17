@@ -140,13 +140,7 @@ fn main() -> Result<()> {
     let snk = AudioSink::new(audio_rate, 1);
 
     // Add all the blocks to the `Flowgraph`...
-    connect!(fg,
-             src.out > shift;
-             shift > resamp1;
-             resamp1 > demod;
-             demod > resamp2;
-             resamp2 > snk.in;
-    );
+    connect!(fg, src > shift > resamp1 > demod > resamp2 > snk.in;);
 
     // Start the flowgraph and save the handle
     let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
