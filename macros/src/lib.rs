@@ -94,18 +94,20 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut stream_connections = Vec::<(Ident, String, Ident, String, Option<TokenStream>)>::new();
 
     // search flowgraph variable
-    let n = attrs.next();
-    let fg = if let Some(TokenTree::Ident(fg)) = n {
-        fg
-    } else if n.is_none() {
-        return quote! {
-            compile_error!("Connect macro expects flowgraph and connections as arguments.")
+    let fg = match attrs.next() {
+        Some(TokenTree::Ident(fg)) => fg,
+        Some(t) => {
+            return quote_spanned! {
+                t.span() => compile_error!("Connect macro expects flowgraph as first argument.")
+            }
+            .into()
         }
-        .into();
-    } else {
-        return quote_spanned!{
-            n.unwrap().span() => compile_error!("Connect macro expects flowgraph as first argument.")
-        }.into();
+        None => {
+            return quote! {
+                compile_error!("Connect macro expects flowgraph and connections as arguments.")
+            }
+            .into()
+        }
     };
 
     // search separator
@@ -246,6 +248,237 @@ enum ParseResult {
     Error(Option<Span>, String),
 }
 
+fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> ParseResult {
+    let mut blocks = HashSet::<Ident>::new();
+    let mut stream = Vec::<(Ident, String, Ident, String, Option<TokenStream>)>::new();
+    let mut message = Vec::<(Ident, String, Ident, String)>::new();
+
+    let mut prev = match next_endpoint(attrs) {
+        EndpointResult::Point(e) => e,
+        EndpointResult::Error(span, string) => return ParseResult::Error(span, string),
+        EndpointResult::Done => {
+            return ParseResult::Done;
+        }
+    };
+    blocks.insert(prev.block.clone());
+
+    loop {
+        enum Connection {
+            Stream(Option<TokenStream>),
+            Message,
+        }
+
+        let con = match next_connection(attrs) {
+            ConnectionResult::Stream(r) => Connection::Stream(r),
+            ConnectionResult::Message => Connection::Message,
+            ConnectionResult::Done => {
+                return ParseResult::Connections {
+                    stream,
+                    message,
+                    blocks,
+                };
+            }
+            ConnectionResult::Error(span, string) => return ParseResult::Error(span, string),
+        };
+
+        let e = match next_endpoint(attrs) {
+            EndpointResult::Point(e) => e,
+            EndpointResult::Error(span, string) => return ParseResult::Error(span, string),
+            EndpointResult::Done => {
+                return ParseResult::Connections {
+                    stream,
+                    message,
+                    blocks,
+                }
+            }
+        };
+
+        match con {
+            Connection::Stream(s) => {
+                stream.push((prev.block, prev.output, e.block.clone(), e.input.clone(), s));
+            }
+            Connection::Message => {
+                message.push((prev.block, prev.output, e.block.clone(), e.input.clone()));
+            }
+        }
+
+        prev = e;
+    }
+}
+
+struct Endpoint {
+    block: Ident,
+    input: String,
+    output: String,
+}
+
+impl Endpoint {
+    #[allow(clippy::new_ret_no_self)]
+    fn new(block: Ident) -> EndpointResult {
+        EndpointResult::Point(Self {
+            block,
+            input: "in".to_string(),
+            output: "out".to_string(),
+        })
+    }
+
+    fn with_port(block: Ident, port: TokenTree) -> EndpointResult {
+        let i = match port {
+            TokenTree::Ident(i) => i.to_string(),
+            TokenTree::Literal(l) => l.to_string().replace('"', ""),
+            _ => return EndpointResult::Error(None, format!("invalid endpoint port {}", port)),
+        };
+        EndpointResult::Point(Self {
+            block,
+            input: i.clone(),
+            output: i,
+        })
+    }
+
+    fn with_ports(block: Ident, in_port: TokenTree, out_port: TokenTree) -> EndpointResult {
+        let input = match in_port {
+            TokenTree::Ident(i) => i.to_string(),
+            TokenTree::Literal(l) => l.to_string().replace('"', ""),
+            _ => {
+                return EndpointResult::Error(
+                    None,
+                    format!("invalid endpoint input port {}", in_port),
+                )
+            }
+        };
+        let output = match out_port {
+            TokenTree::Ident(i) => i.to_string(),
+            TokenTree::Literal(l) => l.to_string().replace('"', ""),
+            _ => {
+                return EndpointResult::Error(
+                    None,
+                    format!("invalid endpoint output port {}", out_port),
+                )
+            }
+        };
+        EndpointResult::Point(Self {
+            block,
+            input,
+            output,
+        })
+    }
+}
+
+enum EndpointResult {
+    Point(Endpoint),
+    Error(Option<Span>, String),
+    Done,
+}
+
+fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> EndpointResult {
+    use TokenTree::*;
+
+    let i1 = match attrs.next() {
+        Some(Ident(s)) => Ident(s),
+        Some(Literal(s)) => Literal(s),
+        Some(t) => {
+            return EndpointResult::Error(
+                Some(t.span()),
+                "Expected block identifier or port".into(),
+            );
+        }
+        None => {
+            return EndpointResult::Done;
+        }
+    };
+
+    match (i1.clone(), attrs.peek()) {
+        (Ident(i), Some(Punct(p))) => {
+            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
+                return Endpoint::new(i);
+            } else if p.to_string() != "." {
+                return EndpointResult::Error(
+                    Some(p.span()),
+                    "Expected dot or connection separator or terminator after block".into(),
+                );
+            } else {
+                let _ = attrs.next();
+            }
+        }
+        (Ident(i), Some(Group(_))) => return Endpoint::new(i),
+        (_, Some(t)) => {
+            return EndpointResult::Error(
+                Some(t.span()),
+                "Expected dot, connection separator, or terminator after block".into(),
+            );
+        }
+        (Ident(i), None) => {
+            return Endpoint::new(i);
+        }
+        (_, None) => {
+            return EndpointResult::Error(None, "Endpoint consists only of string literal".into());
+        }
+    }
+
+    let i2 = match attrs.next() {
+        Some(TokenTree::Ident(p)) => TokenTree::Ident(p),
+        Some(TokenTree::Literal(l)) => TokenTree::Literal(l),
+        Some(t) => {
+            return EndpointResult::Error(
+                Some(t.span()),
+                "Expected block or port identifier".into(),
+            );
+        }
+        None => {
+            return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
+        }
+    };
+
+    match (i1.clone(), attrs.peek()) {
+        (Ident(i), Some(TokenTree::Punct(p))) => {
+            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
+                return Endpoint::with_port(i, i2);
+            } else if p.to_string() != "." {
+                return EndpointResult::Error(
+                    Some(p.span()),
+                    "Expected dot or connection separator or terminator after block".into(),
+                );
+            } else {
+                let _ = attrs.next();
+            }
+        }
+        (Ident(i), Some(TokenTree::Group(_))) => {
+            return Endpoint::with_port(i, i2);
+        }
+        (_, Some(t)) => {
+            return EndpointResult::Error(
+                Some(t.span()),
+                "Expected dot, connection separator, or terminator after block".into(),
+            );
+        }
+        (TokenTree::Ident(i), None) => {
+            return Endpoint::with_port(i, i2);
+        }
+        (_, None) => {
+            return EndpointResult::Error(None, "Endpoint consists only of string literal".into());
+        }
+    }
+
+    let i3 = match attrs.next() {
+        Some(TokenTree::Ident(p)) => TokenTree::Ident(p),
+        Some(TokenTree::Literal(l)) => TokenTree::Literal(l),
+        Some(t) => {
+            return EndpointResult::Error(Some(t.span()), "Expected port identifier".into());
+        }
+        None => {
+            return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
+        }
+    };
+
+    match i2 {
+        Ident(i) => Endpoint::with_ports(i, i1, i3),
+        _ => EndpointResult::Error(
+            None,
+            "Middle token of endpoint triple should be the block Ident".into(),
+        ),
+    }
+}
+
 enum ConnectionResult {
     Stream(Option<TokenStream>),
     Message,
@@ -276,211 +509,6 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
             "Exptected terminator (;), stream connector (>), message connector (|), or custom buffer [..]".into(),
         ),
         None => ConnectionResult::Done,
-    }
-}
-
-fn create_endpoint(
-    b: Ident,
-    i1: Option<TokenTree>,
-    i2: Option<TokenTree>,
-) -> (Ident, String, String) {
-    use TokenTree::*;
-
-    if i1.is_none() {
-        (b, "in".to_string(), "out".to_string())
-    } else if i2.is_none() {
-        let i = match i1 {
-            Some(Ident(i)) => i.to_string(),
-            Some(Literal(l)) => l.to_string().replace('"', ""),
-            _ => unreachable!(),
-        };
-        (b, i.clone(), i)
-    } else {
-        let i = match i1 {
-            Some(Ident(i)) => i.to_string(),
-            Some(Literal(l)) => l.to_string().replace('"', ""),
-            _ => unreachable!(),
-        };
-        let o = match i2 {
-            Some(Ident(i)) => i.to_string(),
-            Some(Literal(l)) => l.to_string().replace('"', ""),
-            _ => unreachable!(),
-        };
-        (b, i, o)
-    }
-}
-
-enum Connection {
-    Stream(Option<TokenStream>),
-    Message,
-}
-
-fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> ParseResult {
-    let mut blocks = HashSet::<Ident>::new();
-    let mut stream = Vec::<(Ident, String, Ident, String, Option<TokenStream>)>::new();
-    let mut message = Vec::<(Ident, String, Ident, String)>::new();
-
-    let prev = match next_endpoint(attrs) {
-        EndpointResult::Point(e, i, o) => (e, i, o),
-        EndpointResult::Error(span, string) => return ParseResult::Error(span, string),
-        EndpointResult::Done => {
-            return ParseResult::Done;
-        }
-    };
-    blocks.insert(prev.0.clone());
-    let mut prev = create_endpoint(prev.0, prev.1, prev.2);
-
-    loop {
-        let con = match next_connection(attrs) {
-            ConnectionResult::Stream(r) => Connection::Stream(r),
-            ConnectionResult::Message => Connection::Message,
-            ConnectionResult::Done => {
-                return ParseResult::Connections {
-                    stream,
-                    message,
-                    blocks,
-                };
-            }
-            ConnectionResult::Error(span, string) => return ParseResult::Error(span, string),
-        };
-
-        let e = match next_endpoint(attrs) {
-            EndpointResult::Point(b, i, o) => (b, i, o),
-            EndpointResult::Error(span, string) => return ParseResult::Error(span, string),
-            EndpointResult::Done => {
-                return ParseResult::Connections {
-                    stream,
-                    message,
-                    blocks,
-                }
-            }
-        };
-        let e = create_endpoint(e.0, e.1, e.2);
-
-        match con {
-            Connection::Stream(s) => {
-                stream.push((prev.0, prev.2, e.0.clone(), e.1.clone(), s));
-            }
-            Connection::Message => {
-                message.push((prev.0, prev.2, e.0.clone(), e.1.clone()));
-            }
-        }
-
-        prev = e;
-    }
-}
-
-enum EndpointResult {
-    Point(Ident, Option<TokenTree>, Option<TokenTree>),
-    Error(Option<Span>, String),
-    Done,
-}
-
-fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> EndpointResult {
-    use TokenTree::*;
-
-    let i1 = match attrs.next() {
-        Some(Ident(s)) => Ident(s),
-        Some(Literal(s)) => Literal(s),
-        Some(t) => {
-            return EndpointResult::Error(
-                Some(t.span()),
-                "Expected block identifier or port".into(),
-            );
-        }
-        None => {
-            return EndpointResult::Done;
-        }
-    };
-
-    match (i1.clone(), attrs.peek()) {
-        (Ident(i), Some(Punct(p))) => {
-            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
-                return EndpointResult::Point(i, None, None);
-            } else if p.to_string() != "." {
-                return EndpointResult::Error(
-                    Some(p.span()),
-                    "Expected dot or connection separator or terminator after block".into(),
-                );
-            } else {
-                let _ = attrs.next();
-            }
-        }
-        (TokenTree::Ident(i), Some(TokenTree::Group(_))) => {
-            return EndpointResult::Point(i, None, None);
-        }
-        (_, Some(t)) => {
-            return EndpointResult::Error(
-                Some(t.span()),
-                "Expected dot, connection separator, or terminator after block".into(),
-            );
-        }
-        (TokenTree::Ident(i), None) => {
-            return EndpointResult::Point(i, None, None);
-        }
-        (_, None) => {
-            return EndpointResult::Error(None, "Endpoint consists only of string literal".into());
-        }
-    }
-
-    let i2 = match attrs.next() {
-        Some(TokenTree::Ident(p)) => TokenTree::Ident(p),
-        Some(TokenTree::Literal(l)) => TokenTree::Literal(l),
-        Some(t) => {
-            return EndpointResult::Error(Some(t.span()), "Expected port identifier".into());
-        }
-        None => {
-            return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
-        }
-    };
-
-    match (i1.clone(), attrs.peek()) {
-        (Ident(i), Some(TokenTree::Punct(p))) => {
-            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
-                return EndpointResult::Point(i, Some(i2), None);
-            } else if p.to_string() != "." {
-                return EndpointResult::Error(
-                    Some(p.span()),
-                    "Expected dot or connection separator or terminator after block".into(),
-                );
-            } else {
-                let _ = attrs.next();
-            }
-        }
-        (Ident(i), Some(TokenTree::Group(_))) => {
-            return EndpointResult::Point(i, Some(i2), None);
-        }
-        (_, Some(t)) => {
-            return EndpointResult::Error(
-                Some(t.span()),
-                "Expected dot, connection separator, or terminator after block".into(),
-            );
-        }
-        (TokenTree::Ident(i), None) => {
-            return EndpointResult::Point(i, Some(i2), None);
-        }
-        (_, None) => {
-            return EndpointResult::Error(None, "Endpoint consists only of string literal".into());
-        }
-    }
-
-    let i3 = match attrs.next() {
-        Some(TokenTree::Ident(p)) => TokenTree::Ident(p),
-        Some(TokenTree::Literal(l)) => TokenTree::Literal(l),
-        Some(t) => {
-            return EndpointResult::Error(Some(t.span()), "Expected port identifier".into());
-        }
-        None => {
-            return EndpointResult::Error(None, "Connections stopped unexpectedly".into());
-        }
-    };
-
-    match i2 {
-        Ident(i) => EndpointResult::Point(i, Some(i1), Some(i3)),
-        _ => EndpointResult::Error(
-            None,
-            "Middle token of endpoint triple should be the block Ident".into(),
-        ),
     }
 }
 
