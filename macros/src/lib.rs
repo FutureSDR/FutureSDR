@@ -142,11 +142,32 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     }
+
+    out.extend(quote! {
+        use futuresdr::runtime::Block;
+        use futuresdr::runtime::Flowgraph;
+
+        struct Foo;
+        trait Add<T> {
+            fn add(fg: &mut Flowgraph, b: T) -> usize;
+        }
+        impl Add<usize> for Foo {
+            fn add(_fg: &mut Flowgraph, b: usize) -> usize {
+                b
+            }
+        }
+        impl Add<Block> for Foo {
+            fn add(fg: &mut Flowgraph, b: Block) -> usize {
+                fg.add_block(b)
+            }
+        }
+    });
+
     // Add the blocks to the flowgraph
-    for blk_id in blocks {
+    for blk_id in blocks.clone() {
         out.extend(quote! {
             #[allow(unused_variables)]
-            let #blk_id = #fg.add_block(#blk_id);
+            let #blk_id = Foo::add(&mut #fg, #blk_id);
         });
     }
     // Stream connections
@@ -177,6 +198,19 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
             #fg.connect_message(#src, #src_port, #dst, #dst_port)?;
         });
     }
+
+    let b = blocks.clone().into_iter();
+    out.extend(quote! {
+            (#(#b),*)
+    });
+
+    let b = blocks.into_iter();
+    let out = quote![
+        #[allow(unused_variables)]
+        let (#(#b),*) = {
+            #out
+        };
+    ];
 
     // println!("code {}", out);
     out.into()
