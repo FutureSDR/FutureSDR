@@ -8,8 +8,6 @@ use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-use spectrum::Keep1InN;
-
 const FFT_SIZE: usize = 4096;
 
 fn main() -> Result<()> {
@@ -22,7 +20,7 @@ fn main() -> Result<()> {
         .build()?;
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let power = spectrum::lin2power_db();
-    let keep = Keep1InN::<FFT_SIZE>::new(0.1, 3);
+    let keep = spectrum::Keep1InN::<FFT_SIZE>::new(0.1, 3);
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedBlocking(FFT_SIZE))
         .build();
