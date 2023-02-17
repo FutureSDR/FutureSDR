@@ -72,9 +72,8 @@ fn main() -> Result<()> {
 
     let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    connect!(fg, src > mult_conj.in0;
-                 delay > mult_conj.in1;
-                 mult_conj > complex_avg);
+    connect!(fg, src > in0.mult_conj.out > complex_avg;
+                 delay > mult_conj.in1);
 
     let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
     connect!(fg, complex_avg > divide_mag.in0; float_avg > divide_mag.in1);

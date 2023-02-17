@@ -66,8 +66,8 @@
 //! ## SDR Hardware
 //! | Block | Usage | Feature | WebAssembly? |
 //! |---|---|---|---|
-//! | [SeifySink](seify::SeifySinkBuilder) | Transmit samples with a Seify device. | seify | ❌ |
-//! | [SeifySource](seify::SeifySourceBuilder) | Receive samples from a Seify device. | seify | ❌ |
+//! | [SeifySink](seify::SinkBuilder) | Transmit samples with a Seify device. | seify | ❌ |
+//! | [SeifySource](seify::SourceBuilder) | Receive samples from a Seify device. | seify | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
