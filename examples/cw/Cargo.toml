@@ -20,5 +20,5 @@ clap = { version = "4.0.19", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
-wasm-bindgen = "0.2.79"
-wasm-bindgen-futures = "0.4.29"
+wasm-bindgen = "0.2.84"
+wasm-bindgen-futures = "0.4.34"

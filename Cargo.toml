@@ -104,8 +104,8 @@ cpal = { version = "0.14.1", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.2.3", features = ["js"] }
 gloo-net = {version = "0.2.2", default-features = false, features = ["websocket", "json"]}
 rodio = { version = "0.16.0", default-features = false, optional = true }
-wasm-bindgen = "0.2.79"
-wasm-bindgen-futures = "0.4.28"
+wasm-bindgen = "0.2.84"
+wasm-bindgen-futures = "0.4.34"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-executor = "1.4.1"
