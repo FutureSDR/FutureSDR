@@ -111,7 +111,6 @@ impl MessageOutput {
                 .send(BlockMessage::Call {
                     port_id: PortId::Index(*port_id),
                     data: Pmt::Finished,
-                    tx: None,
                 })
                 .await;
         }
@@ -123,7 +122,6 @@ impl MessageOutput {
                 .send(BlockMessage::Call {
                     port_id: PortId::Index(*port_id),
                     data: p.clone(),
-                    tx: None,
                 })
                 .await;
         }

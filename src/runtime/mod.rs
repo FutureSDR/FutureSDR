@@ -85,20 +85,20 @@ pub enum FlowgraphMessage {
         block_id: usize,
         port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<result::Result<(), CallbackError>>,
+        tx: oneshot::Sender<result::Result<(), Error>>,
     },
     BlockCallback {
         block_id: usize,
         port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<result::Result<Pmt, CallbackError>>,
+        tx: oneshot::Sender<result::Result<Pmt, Error>>,
     },
     FlowgraphDescription {
         tx: oneshot::Sender<FlowgraphDescription>,
     },
     BlockDescription {
         block_id: usize,
-        tx: oneshot::Sender<result::Result<BlockDescription, BlockDescriptionError>>,
+        tx: oneshot::Sender<result::Result<BlockDescription, Error>>,
     },
 }
 
@@ -132,48 +132,25 @@ pub enum BlockMessage {
     Call {
         port_id: PortId,
         data: Pmt,
-        tx: Option<oneshot::Sender<result::Result<(), HandlerError>>>,
     },
     Callback {
         port_id: PortId,
         data: Pmt,
-        tx: oneshot::Sender<result::Result<Pmt, HandlerError>>,
+        tx: oneshot::Sender<result::Result<Pmt, Error>>,
     },
 }
 
 #[derive(Error, Debug)]
-pub enum HandlerError {
-    #[error("Handler does not exist")]
-    InvalidHandler,
-    #[error("Error in handler")]
-    HandlerError,
-}
-
-#[derive(Error, Debug)]
-pub enum CallbackError {
+#[non_exhaustive]
+pub enum Error {
     #[error("Block does not exist")]
     InvalidBlock,
     #[error("Handler does not exist")]
     InvalidHandler,
     #[error("Error in handler")]
     HandlerError,
+    #[error("Block already terminated")]
+    BlockTerminated,
     #[error("Error in runtime")]
-    RuntimeError,
-}
-
-impl From<HandlerError> for CallbackError {
-    fn from(h: HandlerError) -> Self {
-        match h {
-            HandlerError::HandlerError => CallbackError::HandlerError,
-            HandlerError::InvalidHandler => CallbackError::InvalidHandler,
-        }
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum BlockDescriptionError {
-    #[error("Block does not exist")]
-    InvalidBlock,
-    #[error("Runtime Error.")]
     RuntimeError,
 }

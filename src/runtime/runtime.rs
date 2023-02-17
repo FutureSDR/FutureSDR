@@ -25,15 +25,13 @@ use crate::runtime::scheduler::Task;
 use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::Block;
 use crate::runtime::BlockDescription;
-use crate::runtime::BlockDescriptionError;
 use crate::runtime::BlockMessage;
-use crate::runtime::CallbackError;
 use crate::runtime::ControlPort;
+use crate::runtime::Error;
 use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::HandlerError;
 use crate::runtime::Pmt;
 use crate::runtime::WorkIo;
 
@@ -359,38 +357,18 @@ async fn run_flowgraph<S: Scheduler>(
                 data,
                 tx,
             } => {
-                let (block_tx, block_rx) = oneshot::channel::<result::Result<(), HandlerError>>();
                 if let Some(inbox) = inboxes[block_id].as_mut() {
-                    match inbox
-                        .send(BlockMessage::Call {
-                            port_id,
-                            data,
-                            tx: Some(block_tx),
-                        })
+                    if inbox
+                        .send(BlockMessage::Call { port_id, data })
                         .await
+                        .is_ok()
                     {
-                        Ok(_) => {
-                            match block_rx.await {
-                                Ok(Ok(_)) => {
-                                    // handler executed successfully
-                                    let _ = tx.send(Ok(()));
-                                }
-                                Ok(Err(e)) => {
-                                    // handler error -> convert to callback error
-                                    let _ = tx.send(Err(e.into()));
-                                }
-                                Err(_) => {
-                                    // error in run_block
-                                    let _ = tx.send(Err(CallbackError::RuntimeError));
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            let _ = tx.send(Err(CallbackError::InvalidBlock));
-                        }
+                        let _ = tx.send(Ok(()));
+                    } else {
+                        let _ = tx.send(Err(Error::BlockTerminated));
                     }
                 } else {
-                    let _ = tx.send(Err(CallbackError::InvalidBlock));
+                    let _ = tx.send(Err(Error::InvalidBlock));
                 }
             }
             FlowgraphMessage::BlockCallback {
@@ -399,36 +377,26 @@ async fn run_flowgraph<S: Scheduler>(
                 data,
                 tx,
             } => {
-                let (block_tx, block_rx) = oneshot::channel::<result::Result<Pmt, HandlerError>>();
+                let (block_tx, block_rx) = oneshot::channel::<result::Result<Pmt, Error>>();
                 if let Some(inbox) = inboxes[block_id].as_mut() {
-                    match inbox
+                    if inbox
                         .send(BlockMessage::Callback {
                             port_id,
                             data,
                             tx: block_tx,
                         })
                         .await
+                        .is_ok()
                     {
-                        Ok(_) => {
-                            match block_rx.await {
-                                Ok(Ok(p)) => {
-                                    // handler executed successfully
-                                    let _ = tx.send(Ok(p));
-                                }
-                                Ok(Err(e)) => {
-                                    // handler error -> convert to callback error
-                                    let _ = tx.send(Err(e.into()));
-                                }
-                                Err(_) => {
-                                    // error in run_block
-                                    let _ = tx.send(Err(CallbackError::RuntimeError));
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            let _ = tx.send(Err(CallbackError::InvalidBlock));
-                        }
+                        match block_rx.await {
+                            Ok(Ok(p)) => tx.send(Ok(p)).ok(),
+                            _ => tx.send(Err(Error::HandlerError)).ok(),
+                        };
+                    } else {
+                        let _ = tx.send(Err(Error::BlockTerminated));
                     }
+                } else {
+                    let _ = tx.send(Err(Error::InvalidBlock));
                 }
             }
             FlowgraphMessage::BlockDone { block_id, block } => {
@@ -444,25 +412,22 @@ async fn run_flowgraph<S: Scheduler>(
                 let _ = main_channel.send(FlowgraphMessage::Terminate).await;
             }
             FlowgraphMessage::BlockDescription { block_id, tx } => {
-                match inboxes.get_mut(block_id) {
-                    Some(Some(ref mut b)) => {
-                        let (b_tx, rx) = oneshot::channel::<BlockDescription>();
-                        if b.send(BlockMessage::BlockDescription { tx: b_tx })
-                            .await
-                            .is_ok()
-                        {
-                            if let Ok(b) = rx.await {
-                                let _ = tx.send(Ok(b));
-                            } else {
-                                let _ = tx.send(Err(BlockDescriptionError::RuntimeError));
-                            }
+                if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
+                    let (b_tx, rx) = oneshot::channel::<BlockDescription>();
+                    if b.send(BlockMessage::BlockDescription { tx: b_tx })
+                        .await
+                        .is_ok()
+                    {
+                        if let Ok(b) = rx.await {
+                            let _ = tx.send(Ok(b));
                         } else {
-                            let _ = tx.send(Err(BlockDescriptionError::RuntimeError));
+                            let _ = tx.send(Err(Error::RuntimeError));
                         }
+                    } else {
+                        let _ = tx.send(Err(Error::BlockTerminated));
                     }
-                    _ => {
-                        let _ = tx.send(Err(BlockDescriptionError::InvalidBlock));
-                    }
+                } else {
+                    let _ = tx.send(Err(Error::InvalidBlock));
                 }
             }
             FlowgraphMessage::FlowgraphDescription { tx } => {
@@ -633,47 +598,39 @@ async fn run_block_internal(
                 Some(Some(BlockMessage::StreamOutputDone { .. })) => {
                     work_io.finished = true;
                 }
-                Some(Some(BlockMessage::Call { port_id, data, tx })) => {
+                Some(Some(BlockMessage::Call { port_id, data })) => {
                     match block.call_handler(&mut work_io, port_id, data).await {
-                        Ok(_) => {
-                            if let Some(tx) = tx {
-                                let _ = tx.send(Ok(()));
-                            }
-                        }
-                        Err(HandlerError::InvalidHandler) => {
-                            if let Some(tx) = tx {
-                                let _ = tx.send(Err(HandlerError::InvalidHandler));
-                            }
-                        }
-                        Err(HandlerError::HandlerError) => {
+                        Err(Error::InvalidHandler) => {
                             error!(
-                                "{}: Error in callback. Terminating. ({:?})",
+                                "{}: BlockMessage::Call -> Invalid Handler.",
                                 block.instance_name().unwrap(),
-                                HandlerError::HandlerError
                             );
-                            if let Some(tx) = tx {
-                                let _ = tx.send(Err(HandlerError::HandlerError));
-                            }
+                        }
+                        Err(Error::HandlerError) => {
+                            error!(
+                                "{}: BlockMessage::Call -> HandlerError. Terminating.",
+                                block.instance_name().unwrap(),
+                            );
                             main_inbox
                                 .send(FlowgraphMessage::BlockError { block_id, block })
                                 .await?;
-                            return Err(HandlerError::HandlerError.into());
+                            return Err(Error::HandlerError.into());
                         }
+                        _ => {}
                     }
                 }
                 Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
                     match block.call_handler(&mut work_io, port_id, data).await {
-                        Err(HandlerError::HandlerError) => {
+                        Err(Error::HandlerError) => {
                             error!(
-                                "{}: Error in callback. Terminating. ({:?})",
+                                "{}: Error in callback. Terminating.",
                                 block.instance_name().unwrap(),
-                                HandlerError::HandlerError
                             );
-                            let _ = tx.send(Err(HandlerError::InvalidHandler));
+                            let _ = tx.send(Err(Error::InvalidHandler));
                             main_inbox
                                 .send(FlowgraphMessage::BlockError { block_id, block })
                                 .await?;
-                            return Err(HandlerError::HandlerError.into());
+                            return Err(Error::HandlerError.into());
                         }
                         res => {
                             let _ = tx.send(res);

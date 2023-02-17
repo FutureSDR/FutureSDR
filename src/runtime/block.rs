@@ -6,7 +6,7 @@ use std::result;
 
 use crate::anyhow::Result;
 use crate::runtime::BlockMeta;
-use crate::runtime::HandlerError;
+use crate::runtime::Error;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageOutput;
 use crate::runtime::Pmt;
@@ -114,7 +114,7 @@ pub trait BlockT: Send + Any {
         io: &mut WorkIo,
         id: PortId,
         p: Pmt,
-    ) -> result::Result<Pmt, HandlerError>;
+    ) -> result::Result<Pmt, Error>;
 }
 
 pub struct TypedBlock<T> {
@@ -233,7 +233,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
         io: &mut WorkIo,
         id: PortId,
         p: Pmt,
-    ) -> result::Result<Pmt, HandlerError> {
+    ) -> result::Result<Pmt, Error> {
         let id = match id {
             PortId::Index(i) => {
                 if i < self.mio.inputs().len() {
@@ -243,7 +243,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
                         "invalid port id for message handler {}, dropping message",
                         i
                     );
-                    return Err(HandlerError::InvalidHandler);
+                    return Err(Error::InvalidHandler);
                 }
             }
             PortId::Name(n) => match self.mio.input_name_to_id(&n) {
@@ -253,7 +253,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
                         "invalid port name for message handler {}, dropping message",
                         n
                     );
-                    return Err(HandlerError::InvalidHandler);
+                    return Err(Error::InvalidHandler);
                 }
             },
         };
@@ -262,7 +262,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
         }
         let h = self.mio.input(id).get_handler();
         let f = (h)(&mut self.kernel, io, &mut self.mio, &mut self.meta, p);
-        f.await.or(Err(HandlerError::HandlerError))
+        f.await.or(Err(Error::HandlerError))
     }
 }
 
@@ -392,7 +392,7 @@ impl Block {
         io: &mut WorkIo,
         id: PortId,
         p: Pmt,
-    ) -> result::Result<Pmt, HandlerError> {
+    ) -> result::Result<Pmt, Error> {
         self.0.call_handler(io, id, p).await
     }
 }

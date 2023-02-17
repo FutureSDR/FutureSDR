@@ -16,9 +16,8 @@ use crate::runtime::buffer::slab::Slab;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
-use crate::runtime::BlockDescriptionError;
 use crate::runtime::BlockMessage;
-use crate::runtime::CallbackError;
+use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Kernel;
 use crate::runtime::Pmt;
@@ -152,8 +151,8 @@ impl FlowgraphHandle {
         block_id: usize,
         port_id: impl Into<PortId>,
         data: Pmt,
-    ) -> result::Result<(), CallbackError> {
-        let (tx, rx) = oneshot::channel::<result::Result<(), CallbackError>>();
+    ) -> result::Result<(), Error> {
+        let (tx, rx) = oneshot::channel::<result::Result<(), Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockCall {
                 block_id,
@@ -162,8 +161,8 @@ impl FlowgraphHandle {
                 tx,
             })
             .await
-            .map_err(|_| CallbackError::InvalidBlock)?;
-        rx.await.map_err(|_| CallbackError::HandlerError)?
+            .map_err(|_| Error::InvalidBlock)?;
+        rx.await.map_err(|_| Error::HandlerError)?
     }
 
     pub async fn callback(
@@ -171,8 +170,8 @@ impl FlowgraphHandle {
         block_id: usize,
         port_id: impl Into<PortId>,
         data: Pmt,
-    ) -> result::Result<Pmt, CallbackError> {
-        let (tx, rx) = oneshot::channel::<result::Result<Pmt, CallbackError>>();
+    ) -> result::Result<Pmt, Error> {
+        let (tx, rx) = oneshot::channel::<result::Result<Pmt, Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockCallback {
                 block_id,
@@ -181,8 +180,8 @@ impl FlowgraphHandle {
                 tx,
             })
             .await
-            .map_err(|_| CallbackError::InvalidBlock)?;
-        rx.await.map_err(|_| CallbackError::HandlerError)?
+            .map_err(|_| Error::InvalidBlock)?;
+        rx.await.map_err(|_| Error::HandlerError)?
     }
 
     pub async fn description(&mut self) -> Result<FlowgraphDescription> {
@@ -195,8 +194,7 @@ impl FlowgraphHandle {
     }
 
     pub async fn block_description(&mut self, block_id: usize) -> Result<BlockDescription> {
-        let (tx, rx) =
-            oneshot::channel::<result::Result<BlockDescription, BlockDescriptionError>>();
+        let (tx, rx) = oneshot::channel::<result::Result<BlockDescription, Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockDescription { block_id, tx })
             .await?;
