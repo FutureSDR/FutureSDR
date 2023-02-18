@@ -1,4 +1,5 @@
 use futuresdr_remote::Error;
+use futuresdr_remote::Handler;
 use futuresdr_remote::Remote;
 
 #[tokio::main]
@@ -13,7 +14,7 @@ async fn main() -> Result<(), Error> {
     let mut blocks = fg.blocks();
     let b = &mut blocks[0];
     b.update().await?;
-    println!("block {}", &b);
+    println!("block {:?}", &b);
 
     println!("Connections:");
     let msg_connections = fg.message_connections();
@@ -24,6 +25,9 @@ async fn main() -> Result<(), Error> {
     for c in stream_connections {
         println!("{}", c);
     }
+
+    let p = b.call(Handler::Id(0)).await?;
+    println!("result: {:?}", p);
 
     Ok(())
 }

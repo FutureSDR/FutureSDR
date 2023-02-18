@@ -1,10 +1,13 @@
 use futures::Future;
 use futuresdr_types::BlockDescription;
 use futuresdr_types::FlowgraphDescription;
+use futuresdr_types::Pmt;
 use hyper::client::connect::Connect;
 use hyper::client::HttpConnector;
 use hyper::rt::Executor;
+use hyper::Body;
 use hyper::Client;
+use hyper::Request;
 use serde::Deserialize;
 use std::pin::Pin;
 
@@ -166,6 +169,11 @@ impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Flowgraph
     }
 }
 
+pub enum Handler {
+    Id(usize),
+    Name(String),
+}
+
 #[derive(Clone, Debug)]
 pub struct Block<H: Connect + Clone + Send + Sync + 'static> {
     description: BlockDescription,
@@ -185,6 +193,39 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
         )
         .await?;
         Ok(())
+    }
+
+    pub async fn call(&self, handler: Handler) -> Result<Pmt, Error> {
+        self.callback(handler, Pmt::Null).await
+    }
+
+    pub async fn callback(&self, handler: Handler, pmt: Pmt) -> Result<Pmt, Error> {
+        let json = serde_json::to_string(&pmt)?;
+        let url: hyper::Uri = match handler {
+            Handler::Name(n) => format!(
+                "{}/api/fg/{}/block/{}/call/{}/",
+                &self.url, self.flowgraph_id, self.description.id, n
+            ),
+            Handler::Id(i) => format!(
+                "{}/api/fg/{}/block/{}/call/{}/",
+                &self.url, self.flowgraph_id, self.description.id, i
+            ),
+        }
+        .parse()?;
+        let req = Request::post(url.clone())
+            .header(hyper::header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json))?;
+        let body = match self.client.request(req).await {
+            Ok(b) => {
+                if !b.status().is_success() {
+                    return Err(Error::Endpoint(url));
+                }
+                b.into_body()
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let bytes = hyper::body::to_bytes(body).await?;
+        Ok(serde_json::from_slice(&bytes)?)
     }
 }
 
