@@ -31,12 +31,14 @@ async fn get<H: Connect + Clone + Send + Sync + 'static, T: for<'a> Deserialize<
     Ok(serde_json::from_slice(&bytes)?)
 }
 
+/// Connection to a remote runtime.
 pub struct Remote<H: Connect + Clone + Send + Sync + 'static> {
     client: Client<H>,
     url: String,
 }
 
 impl Remote<HttpConnector> {
+    /// Create a [`Remote`].
     pub fn new<I: Into<String>>(url: I) -> Self {
         Self {
             client: Client::new(),
@@ -46,6 +48,7 @@ impl Remote<HttpConnector> {
 }
 
 impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
+    /// Create a [`Remote`] with an async runtime.
     pub fn with_runtime<E>(url: String, connector: H, executor: E) -> Self
     where
         E: Executor<Pin<Box<dyn Future<Output = ()> + Send>>> + Send + Sync + 'static,
@@ -54,6 +57,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
         Self { client, url }
     }
 
+    /// Get a specific [`Flowgraph`].
     pub async fn flowgraph(&self, id: usize) -> Result<Flowgraph<H>, Error> {
         let fgs = self.flowgraphs().await?;
         fgs.iter()
@@ -62,6 +66,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
             .ok_or(Error::FlowgraphId(id))
     }
 
+    /// Get a list of all running [`Flowgraphs`](Flowgraph).
     pub async fn flowgraphs(&self) -> Result<Vec<Flowgraph<H>>, Error> {
         let ids: Vec<usize> = get(&self.client, format!("{}/api/fg/", self.url)).await?;
         let mut v = Vec::new();
@@ -87,6 +92,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
     }
 }
 
+/// A remote Flowgraph.
 #[derive(Clone, Debug)]
 pub struct Flowgraph<H: Connect + Clone + Send + Sync + 'static> {
     id: usize,
@@ -96,11 +102,13 @@ pub struct Flowgraph<H: Connect + Clone + Send + Sync + 'static> {
 }
 
 impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
+    /// Update the [`Flowgraph`], getting current blocks and connections.
     pub async fn update(&mut self) -> Result<(), Error> {
         self.description = get(&self.client, format!("{}/api/fg/{}/", self.url, self.id)).await?;
         Ok(())
     }
 
+    /// Get a list of the [`Blocks`](Block) of the [`Flowgraph`].
     pub fn blocks(&self) -> Vec<Block<H>> {
         self.description
             .blocks
@@ -114,6 +122,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
             .collect()
     }
 
+    /// Get a specific [`Block`](Block) of the [`Flowgraph`].
     pub fn block(&self, id: usize) -> Option<Block<H>> {
         self.description
             .blocks
@@ -127,6 +136,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
             })
     }
 
+    /// Get a list of all message [`Connections`](Connection) of the [`Flowgraph`].
     pub fn message_connections(&self) -> Vec<Connection<H>> {
         self.description
             .message_edges
@@ -141,6 +151,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
             .collect()
     }
 
+    /// Get a list of all stream [`Connections`](Connection) of the [`Flowgraph`].
     pub fn stream_connections(&self) -> Vec<Connection<H>> {
         self.description
             .stream_edges
@@ -169,11 +180,16 @@ impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Flowgraph
     }
 }
 
+/// Handler specifier
+#[derive(Clone, Debug)]
 pub enum Handler {
+    /// Nueric ID of the handler
     Id(usize),
+    /// Name of the handler
     Name(String),
 }
 
+/// A [`Block`] of a [`Flowgraph`].
 #[derive(Clone, Debug)]
 pub struct Block<H: Connect + Clone + Send + Sync + 'static> {
     description: BlockDescription,
@@ -183,6 +199,7 @@ pub struct Block<H: Connect + Clone + Send + Sync + 'static> {
 }
 
 impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
+    /// Update the [`Block`], getting current values for IO and names.
     pub async fn update(&mut self) -> Result<(), Error> {
         self.description = get(
             &self.client,
@@ -195,10 +212,12 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
         Ok(())
     }
 
+    /// Call a message handler of the [`Block`], providing a [`Pmt::Null`](futuresdr_types::Pmt).
     pub async fn call(&self, handler: Handler) -> Result<Pmt, Error> {
         self.callback(handler, Pmt::Null).await
     }
 
+    /// Call a message handler of the [`Block`], with the given [`Pmt`](futuresdr_types::Pmt).
     pub async fn callback(&self, handler: Handler, pmt: Pmt) -> Result<Pmt, Error> {
         let json = serde_json::to_string(&pmt)?;
         let url: hyper::Uri = match handler {
@@ -239,12 +258,16 @@ impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Block<H> 
     }
 }
 
+/// Connection type for a [`Connection`] between [`Blocks`](Block)
 #[derive(Debug, Clone)]
 pub enum ConnectionType {
+    /// Stream Connection
     Stream,
+    /// Message Connection
     Message,
 }
 
+/// A Connection between [`Blocks`](Block)
 #[derive(Clone, Debug)]
 pub struct Connection<H: Connect + Clone + Send + Sync + 'static> {
     connection_type: ConnectionType,
