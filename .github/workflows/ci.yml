@@ -31,6 +31,12 @@ jobs:
       - name: Run cargo fmt (FutureSDR)
         run: cargo fmt --all -- --check
 
+      - name: Run cargo fmt (Frontend)
+        run: cargo fmt --all --manifest-path=crates/frontend/Cargo.toml -- --check
+
+      - name: Run cargo fmt (Remote)
+        run: cargo fmt --all --manifest-path=crates/remote/Cargo.toml -- --check
+
       - name: Run cargo fmt (perf/buffer_rand)
         run: cargo fmt --all --manifest-path=perf/buffer_rand/Cargo.toml -- --check
 
@@ -132,11 +138,8 @@ jobs:
       - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
         run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
-      - name: Run cargo clippy for wasm32-unknown-unknown (macros)
-        run: cargo clippy --lib --manifest-path=crates/macros/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (pmt)
-        run: cargo clippy --lib --manifest-path=crates/types/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (remote)
+        run: cargo clippy --lib --manifest-path=crates/remote/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/buffer_rand)
         run: cargo clippy --all-targets --manifest-path=perf/buffer_rand/Cargo.toml -- -D warnings
@@ -265,6 +268,7 @@ jobs:
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
       - run: cargo test --all-targets --workspace --features=aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
+      - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
 
   test-macos:
     name: Unit Tests macOS
