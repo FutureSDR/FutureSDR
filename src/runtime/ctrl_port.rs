@@ -30,9 +30,11 @@ macro_rules! relative {
     };
 }
 
-async fn flowgraphs(State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>) -> Json<usize> {
-    let l = flowgraphs.lock().unwrap().len();
-    Json::from(l)
+async fn flowgraphs(
+    State(flowgraphs): State<Arc<Mutex<Slab<FlowgraphHandle>>>>,
+) -> Json<Vec<usize>> {
+    let f: Vec<usize> = flowgraphs.lock().unwrap().iter().map(|x| x.0).collect();
+    Json::from(f)
 }
 
 async fn flowgraph_description(

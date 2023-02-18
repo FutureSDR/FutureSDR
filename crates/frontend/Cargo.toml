@@ -6,7 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
-description = "Web Frontend for an Experimental Async SDR Runtime for Heterogeneous Architectures."
+description = "Web Frontend for FutureSDR."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 

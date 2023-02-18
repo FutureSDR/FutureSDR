@@ -1,0 +1,29 @@
+[package]
+name = "futuresdr-remote"
+version = "0.0.1"
+authors = ["FutureSDR Contributors <team@futuresdr.org>"]
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://www.futuresdr.org"
+repository = "https://github.com/futuresdr/futuresdr/"
+description = "Remote interaction library for FutureSDR."
+keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
+categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+futures = "0.3.26"
+http = "0.2.9"
+hyper = { version = "0.14", features = ["client", "http1", "tcp"] }
+serde = "1.0.152"
+serde_json = "1.0.91"
+thiserror = "1.0.38"
+futuresdr-types = { version = "0.0.9", path = "../types/" }
+
+[dev-dependencies]
+tokio = { version = "1", features = [ "macros", "rt", "rt-multi-thread"] }
+
