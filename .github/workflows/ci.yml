@@ -130,13 +130,13 @@ jobs:
         run: cargo clippy --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
-        run: cargo clippy --lib --manifest-path=frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (macros)
-        run: cargo clippy --lib --manifest-path=macros/Cargo.toml -- -D warnings
+        run: cargo clippy --lib --manifest-path=crates/macros/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (pmt)
-        run: cargo clippy --lib --manifest-path=pmt/Cargo.toml -- -D warnings
+        run: cargo clippy --lib --manifest-path=crates/types/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/buffer_rand)
         run: cargo clippy --all-targets --manifest-path=perf/buffer_rand/Cargo.toml -- -D warnings

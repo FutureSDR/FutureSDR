@@ -1,5 +1,5 @@
-use futuresdr_pmt::Pmt;
-use futuresdr_pmt::PmtKind;
+use futuresdr_types::Pmt;
+use futuresdr_types::PmtKind;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 

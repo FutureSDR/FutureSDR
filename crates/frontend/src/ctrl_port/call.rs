@@ -1,26 +1,29 @@
 use reqwasm::http::Request;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
-use futuresdr_pmt::Pmt;
+use futuresdr_types::Pmt;
+use futuresdr_types::PmtKind;
 
 pub enum Msg {
-    Poll,
     Error,
     Reply(String),
+    Submit(String),
 }
 
-#[derive(Clone, Properties, Default, PartialEq, Eq)]
+#[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
     pub block: u64,
     pub callback: u64,
+    pub pmt_type: PmtKind,
 }
 
-pub struct Poll {
+pub struct Call {
     status: String,
 }
 
-impl Poll {
+impl Call {
     fn endpoint(props: &Props) -> String {
         format!(
             "{}/api/block/{}/call/{}/",
@@ -28,14 +31,15 @@ impl Poll {
         )
     }
 
-    fn callback(ctx: &Context<Self>) {
+    fn callback(ctx: &Context<Self>, p: &Pmt) {
+        let p = p.clone();
         let endpoint = Self::endpoint(ctx.props());
-        gloo_console::log!("poll: sending request");
+        gloo_console::log!(format!("call: sending request {:?}", &p));
 
         ctx.link().send_future(async move {
             let response = Request::post(&endpoint)
                 .header("Content-Type", "application/json")
-                .body(serde_json::to_string(&Pmt::Null).unwrap())
+                .body(serde_json::to_string(&p).unwrap())
                 .send()
                 .await;
 
@@ -44,13 +48,12 @@ impl Poll {
                     return Msg::Reply(response.text().await.unwrap());
                 }
             }
-
             Msg::Error
         });
     }
 }
 
-impl Component for Poll {
+impl Component for Call {
     type Message = Msg;
     type Properties = Props;
 
@@ -62,25 +65,39 @@ impl Component for Poll {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Poll => {
-                Self::callback(ctx);
+            Msg::Submit(s) => {
+                if let Some(p) = Pmt::from_string(&s, &ctx.props().pmt_type) {
+                    Self::callback(ctx, &p);
+                } else {
+                    self.status = "Parse Error".to_string();
+                }
             }
             Msg::Error => {
                 self.status = "Error".to_string();
             }
-            Msg::Reply(s) => {
-                self.status = s;
+            Msg::Reply(v) => {
+                self.status = v;
             }
         };
         true
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let onclick = ctx.link().callback(|_| Msg::Poll);
+        let onkeypress = ctx.link().batch_callback(|e: KeyboardEvent| {
+            if e.key() == "Enter" {
+                let input: HtmlInputElement = e.target_unchecked_into();
+                Some(Msg::Submit(input.value()))
+            } else {
+                None
+            }
+        });
 
         html! {
             <div>
-                <button { onclick }>{ "Update" }</button>
+                <input class="edit"
+                    type="text"
+                    { onkeypress }
+                />
                 <span>{ &self.status }</span>
             </div>
         }

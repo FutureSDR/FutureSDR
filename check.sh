@@ -9,9 +9,9 @@ SCRIPTPATH=`dirname $SCRIPT`
 # FMT
 ###########################################################
 cd ${SCRIPTPATH} && cargo fmt --check
-cd ${SCRIPTPATH}/frontend && cargo fmt --check
-cd ${SCRIPTPATH}/macros && cargo fmt --check
-cd ${SCRIPTPATH}/pmt && cargo fmt --check
+cd ${SCRIPTPATH}/crates/frontend && cargo fmt --check
+cd ${SCRIPTPATH}/crates/macros && cargo fmt --check
+cd ${SCRIPTPATH}/crates/types && cargo fmt --check
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo fmt --check
@@ -52,12 +52,12 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 ###########################################################
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 cd ${SCRIPTPATH} && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/macros && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/frontend && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/frontend && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/pmt && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/pmt && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo clippy --all-targets -- -D warnings

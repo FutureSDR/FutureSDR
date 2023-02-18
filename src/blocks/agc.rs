@@ -1,4 +1,3 @@
-use futuresdr_pmt::Pmt;
 use num_complex::ComplexFloat;
 use rustfft::num_traits::ToPrimitive;
 
@@ -9,6 +8,7 @@ use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
+use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;

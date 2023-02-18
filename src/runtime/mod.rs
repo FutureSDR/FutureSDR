@@ -43,7 +43,6 @@ pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
 pub use flowgraph::PortId;
-pub use futuresdr_pmt::Pmt;
 pub use message_io::MessageInput;
 pub use message_io::MessageIo;
 pub use message_io::MessageIoBuilder;
@@ -59,8 +58,9 @@ pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
 
-pub use futuresdr_pmt::BlockDescription;
-pub use futuresdr_pmt::FlowgraphDescription;
+pub use futuresdr_types::BlockDescription;
+pub use futuresdr_types::FlowgraphDescription;
+pub use futuresdr_types::Pmt;
 
 use buffer::BufferReader;
 use buffer::BufferWriter;

@@ -8,11 +8,10 @@ use futuresdr::{
     blocks::{seify::*, Head, NullSink},
     macros::connect,
     num_complex::Complex,
-    runtime::{Flowgraph, Runtime},
+    runtime::{Flowgraph, Pmt, Runtime},
     seify,
     seify::Direction::*,
 };
-use futuresdr_pmt::Pmt;
 use std::collections::HashMap;
 
 /// Test backwards compatible builder style

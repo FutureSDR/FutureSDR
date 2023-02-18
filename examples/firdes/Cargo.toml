@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 futuresdr = { path = "../..", features = ["audio"] }
-futuredsp = { path = "../../futuredsp" }
+futuredsp = { path = "../../crates/futuredsp" }

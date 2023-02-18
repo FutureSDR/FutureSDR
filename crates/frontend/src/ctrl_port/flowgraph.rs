@@ -2,7 +2,7 @@ use reqwasm::http::Request;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 
-use futuresdr_pmt::FlowgraphDescription;
+use futuresdr_types::FlowgraphDescription;
 
 use crate::ctrl_port::mermaid::Mermaid;
 

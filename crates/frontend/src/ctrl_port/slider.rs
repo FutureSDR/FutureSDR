@@ -3,8 +3,8 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
-use futuresdr_pmt::Pmt;
-use futuresdr_pmt::PmtKind;
+use futuresdr_types::Pmt;
+use futuresdr_types::PmtKind;
 
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]

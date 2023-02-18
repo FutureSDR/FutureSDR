@@ -1,4 +1,4 @@
-use futuresdr_pmt::Pmt;
+use futuresdr_types::Pmt;
 use reqwasm::http::Request;
 use std::rc::Rc;
 use yew::prelude::*;

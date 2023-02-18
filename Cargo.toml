@@ -15,9 +15,9 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 [workspace]
 members = [
     ".",
-    "futuredsp",
-    "macros",
-    "pmt",
+    "crates/futuredsp",
+    "crates/macros",
+    "crates/types",
 ]
 
 [features]
@@ -81,9 +81,9 @@ dirs = "4.0"
 dyn-clone = "1.0.9"
 futures = "0.3.18"
 futures-lite = "1.10.0"
-futuredsp = { path = "futuredsp", version = "0.0.6" }
-futuresdr-macros = { path = "macros", version = "0.0.4" }
-futuresdr-pmt = { path = "pmt", version = "0.0.8" }
+futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
+futuresdr-macros = { path = "crates/macros", version = "0.0.4" }
+futuresdr-types = { path = "crates/types", version = "0.0.9" }
 log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4.0"
 num-integer = "0.1"

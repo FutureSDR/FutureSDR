@@ -1,29 +1,26 @@
-use gloo_timers::future::sleep;
 use reqwasm::http::Request;
-use std::time::Duration;
 use yew::prelude::*;
 
-use futuresdr_pmt::Pmt;
+use futuresdr_types::Pmt;
 
 pub enum Msg {
-    Timeout,
+    Poll,
     Error,
     Reply(String),
 }
 
-#[derive(Clone, Properties, Default, PartialEq)]
+#[derive(Clone, Properties, Default, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
     pub block: u64,
     pub callback: u64,
-    pub interval_secs: f32,
 }
 
-pub struct PollPeriodic {
+pub struct Poll {
     status: String,
 }
 
-impl PollPeriodic {
+impl Poll {
     fn endpoint(props: &Props) -> String {
         format!(
             "{}/api/block/{}/call/{}/",
@@ -33,7 +30,7 @@ impl PollPeriodic {
 
     fn callback(ctx: &Context<Self>) {
         let endpoint = Self::endpoint(ctx.props());
-        gloo_console::log!("poll periodic: sending request");
+        gloo_console::log!("poll: sending request");
 
         ctx.link().send_future(async move {
             let response = Request::post(&endpoint)
@@ -53,17 +50,11 @@ impl PollPeriodic {
     }
 }
 
-impl Component for PollPeriodic {
+impl Component for Poll {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let secs = ctx.props().interval_secs;
-        ctx.link().send_future(async move {
-            sleep(Duration::from_secs_f32(secs)).await;
-            Msg::Timeout
-        });
-
+    fn create(_ctx: &Context<Self>) -> Self {
         Self {
             status: "init".to_string(),
         }
@@ -71,29 +62,27 @@ impl Component for PollPeriodic {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Timeout => {
+            Msg::Poll => {
                 Self::callback(ctx);
-                self.status = "fetching".to_string();
             }
             Msg::Error => {
                 self.status = "Error".to_string();
             }
             Msg::Reply(s) => {
                 self.status = s;
-
-                let secs = ctx.props().interval_secs;
-                ctx.link().send_future(async move {
-                    sleep(Duration::from_secs_f32(secs)).await;
-                    Msg::Timeout
-                });
             }
         };
         true
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let onclick = ctx.link().callback(|_| Msg::Poll);
+
         html! {
-            <span>{ &self.status }</span>
+            <div>
+                <button { onclick }>{ "Update" }</button>
+                <span>{ &self.status }</span>
+            </div>
         }
     }
 }
