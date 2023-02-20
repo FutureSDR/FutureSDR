@@ -1,15 +1,27 @@
+#![warn(missing_docs)]
+//! # FutureSDR Types
+//!
+//! FutureSDR types that are used inside the runtime but also exposed to
+//! be used in the used in the REST API or any other outside/remote interaction
+//! with the framework.
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
+use thiserror::Error;
 
 mod description;
 pub use description::BlockDescription;
 pub use description::FlowgraphDescription;
 
+/// PMT Any trait
+///
+/// This trait has to be implemented by types that should be used with [`Pmt::Any`].
 pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
+    /// Cast to [`Any`](std::any::Any)
     fn as_any(&self) -> &dyn Any;
+    /// Cast to mutable [`Any`](std::any::Any)
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 dyn_clone::clone_trait_object!(PmtAny);
@@ -30,33 +42,67 @@ impl fmt::Debug for Box<dyn PmtAny> {
 }
 
 impl dyn PmtAny {
+    /// Try to cast the [`Pmt::Any`] to the given type.
     pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
     }
+    /// Try to cast the [`Pmt::Any`] to the given type mutably.
     pub fn downcast_mut<T: PmtAny>(&mut self) -> Option<&mut T> {
         (*self).as_any_mut().downcast_mut::<T>()
     }
 }
 
+/// PMT -- Polymorphic Type
+///
+/// PMTs are used as input and output for the FutureSDR message passing interface. At the moment,
+/// the `Any` type is ignored for de-/serialization.
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Pmt {
+    /// Ok.
     Ok,
+    /// Invalid value
+    ///
+    /// Mainly used as the return type in message handlers, when the parameter is outside the
+    /// allowed range.
     InvalidValue,
+    /// Null
+    ///
+    /// Used, for example, as the input type, when the message handler is mainly about the return
+    /// type.
     Null,
+    /// String
     String(String),
+    /// Boolean
     Bool(bool),
+    /// Usize
     Usize(usize),
+    /// U32, 32-bit unsiged integer
     U32(u32),
+    /// U64, 64-bit unsigned integer
     U64(u64),
+    /// F32, 32-bit float
     F32(f32),
+    /// F64, 64-bit float
     F64(f64),
+    /// Vector of 32-bit floats.
     VecF32(Vec<f32>),
+    /// Vector of 64-bit floats.
     VecU64(Vec<u64>),
+    /// Binary data blob
     Blob(Vec<u8>),
+    /// Vector of [`Pmts`](Pmt)
     VecPmt(Vec<Pmt>),
+    /// Finished
+    ///
+    /// Runtime message, used to signal the handler that a connected block finished.
     Finished,
+    /// Map (String -> Pmt)
     MapStrPmt(HashMap<String, Pmt>),
+    /// Any type
+    ///
+    /// Wrap anything that implements [`Any`](std::any::Any) in a Pmt. Use
+    /// `downcast_ref/mut()` to extract.
     #[serde(skip)]
     Any(Box<dyn PmtAny>),
 }
@@ -79,10 +125,14 @@ impl PartialEq for Pmt {
 }
 
 impl Pmt {
+    /// Checks if PMT is a [`Pmt::String`]
     pub fn is_string(&self) -> bool {
         matches!(self, Pmt::String(_))
     }
 
+    /// Converts a [`Pmt::String`] to string
+    ///
+    /// Returns `None` if the [`Pmt`] is not of type string.
     pub fn to_string(&self) -> Option<String> {
         match &self {
             Pmt::String(s) => Some(s.clone()),
@@ -90,6 +140,7 @@ impl Pmt {
         }
     }
 
+    /// Create a [`Pmt`] by parsing a string into a specific [`PmtKind`].
     pub fn from_string(s: &str, t: &PmtKind) -> Option<Pmt> {
         match t {
             PmtKind::U32 => {
@@ -126,16 +177,12 @@ impl Pmt {
     }
 }
 
-#[derive(Debug, Clone)]
+/// PMT conversion error.
+///
+/// This error is returned, if conversion to/from PMTs fail.
+#[derive(Debug, Clone, Error)]
+#[error("PMt conversion error")]
 pub struct PmtConversionError;
-
-impl fmt::Display for PmtConversionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PmtConversionError")
-    }
-}
-
-impl std::error::Error for PmtConversionError {}
 
 impl TryInto<f64> for Pmt {
     type Error = PmtConversionError;
@@ -162,25 +209,45 @@ impl TryInto<usize> for Pmt {
     }
 }
 
+/// PMT types that do not wrap values.
+///
+/// Usefull for bindings to other languages that do not support Rust's broad enum features.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq)]
 pub enum PmtKind {
+    /// Ok
     Ok,
+    /// Invalid value
     InvalidValue,
+    /// Null
     Null,
+    /// String
     String,
+    /// Bool
     Bool,
+    /// Usize
     Usize,
+    /// U32
     U32,
+    /// U64
     U64,
+    /// F32
     F32,
+    /// F64
     F64,
+    /// VecF32
     VecF32,
+    /// VecU64
     VecU64,
+    /// Blob
     Blob,
+    /// Vec Pmt
     VecPmt,
+    /// Finished
     Finished,
+    /// Map String -> Pmt
     MapStrPmt,
+    /// Any
     Any,
 }
 

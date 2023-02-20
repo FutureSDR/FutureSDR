@@ -180,7 +180,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Flowgraph
     }
 }
 
-/// Handler specifier
+/// Specify a message handler of a [`Block`]
 #[derive(Clone, Debug)]
 pub enum Handler {
     /// Nueric ID of the handler
