@@ -1,4 +1,4 @@
-//! Methods for designing FIR filters.
+//! Methods for designing FIR filters
 
 extern crate alloc;
 use alloc::vec::Vec;

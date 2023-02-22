@@ -3,9 +3,12 @@ use alloc::vec::Vec;
 use num_complex::Complex;
 use num_traits::Float;
 
+/// Abstraction over taps
 pub trait TapsAccessor: Send {
+    /// Tap type
     type TapType;
 
+    /// Number of taps
     fn num_taps(&self) -> usize;
 
     /// Gets the `index`th tap.

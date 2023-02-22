@@ -1,3 +1,4 @@
+//! Time domain plot
 use futures::StreamExt;
 use gloo_render::request_animation_frame;
 use gloo_render::AnimationFrame;
@@ -11,12 +12,20 @@ use web_sys::HtmlCanvasElement;
 use web_sys::WebGlRenderingContext as GL;
 use yew::prelude::*;
 
+#[doc(hidden)]
 pub enum Msg {
     Data(Vec<u8>),
     Status(String),
     Render(f64),
 }
 
+/// Mount a time domain plot to the website
+///
+/// ## Parameter
+/// - `id`: HTML ID of component
+/// - `url`: URL of websocket that streams data
+/// - `min`: min value for scaling the y-axis
+/// - `max`: max value for scaling the y-axis
 #[wasm_bindgen]
 pub fn add_time(id: String, url: String, min: f32, max: f32) {
     let document = gloo_utils::document();
@@ -24,6 +33,7 @@ pub fn add_time(id: String, url: String, min: f32, max: f32) {
     yew::start_app_with_props_in_element::<Time>(div, Props { url, min, max });
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, Default, PartialEq)]
 pub struct Props {
     pub url: String,
@@ -31,6 +41,7 @@ pub struct Props {
     pub max: f32,
 }
 
+/// Time domain plot
 pub struct Time {
     canvas_ref: NodeRef,
     _canvas: Option<HtmlCanvasElement>,

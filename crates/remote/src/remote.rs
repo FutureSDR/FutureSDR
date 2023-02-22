@@ -280,6 +280,29 @@ pub struct Connection<H: Connect + Clone + Send + Sync + 'static> {
     dst_port: usize,
 }
 
+impl<H: Connect + Clone + Send + Sync + 'static> Connection<H> {
+    /// Connection type
+    pub fn connection_type(&self) -> ConnectionType {
+        self.connection_type.clone()
+    }
+    /// Source block
+    pub fn src_block(&self) -> &Block<H> {
+        &self.src_block
+    }
+    /// Source port
+    pub fn src_port(&self) -> usize {
+        self.src_port
+    }
+    /// Source block
+    pub fn dst_block(&self) -> &Block<H> {
+        &self.dst_block
+    }
+    /// Source port
+    pub fn dst_port(&self) -> usize {
+        self.dst_port
+    }
+}
+
 impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Connection<H> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.connection_type {

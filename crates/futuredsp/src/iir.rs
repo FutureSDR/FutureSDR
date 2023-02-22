@@ -1,3 +1,4 @@
+//! IIR filters
 use core::ops::{AddAssign, Mul};
 
 use crate::{ComputationStatus, StatefulUnaryKernel, TapsAccessor};
@@ -38,6 +39,7 @@ pub struct IirKernel<InputType, OutputType, TapsType: TapsAccessor> {
 impl<InputType, OutputType, TapType, TapsType: TapsAccessor<TapType = TapType>>
     IirKernel<InputType, OutputType, TapsType>
 {
+    /// Create Iir kernel
     pub fn new(a_taps: TapsType, b_taps: TapsType) -> Self {
         Self {
             a_taps,

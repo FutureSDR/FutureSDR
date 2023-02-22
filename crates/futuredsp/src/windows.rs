@@ -1,4 +1,4 @@
-//! A collection of window functions.
+//! A collection of window functions
 
 extern crate alloc;
 use core::{

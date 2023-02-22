@@ -1,3 +1,4 @@
+//! FIR filters
 use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
 use core::intrinsics::{fadd_fast, fmul_fast};

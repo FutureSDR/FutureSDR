@@ -1,8 +1,10 @@
+//! A signal processing library for SDR and real-time DSP.
+#![warn(missing_docs)]
 #![no_std]
 #![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
 
 #[macro_use]
-pub extern crate log;
+extern crate log;
 
 #[macro_use]
 extern crate alloc;

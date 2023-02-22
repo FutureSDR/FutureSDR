@@ -1,3 +1,4 @@
+//! Frequency plot (Waterfall)
 use futures::StreamExt;
 use gloo_render::request_animation_frame;
 use gloo_render::AnimationFrame;
@@ -19,6 +20,13 @@ extern "C" {
     fn get_samples() -> Vec<f32>;
 }
 
+/// Mount a frequency plot to the website
+///
+/// ## Parameter
+/// - `id`: HTML ID of component
+/// - `url`: URL of websocket that streams data
+/// - `min`: min value for scaling the color palette
+/// - `max`: max value for scaling the color palette
 #[wasm_bindgen]
 pub fn add_freq(id: String, url: String, min: f32, max: f32) {
     let document = gloo_utils::document();
@@ -26,6 +34,7 @@ pub fn add_freq(id: String, url: String, min: f32, max: f32) {
     yew::start_app_with_props_in_element::<Frequency>(div, Props { url, min, max });
 }
 
+#[doc(hidden)]
 pub enum Msg {
     Data(Vec<u8>),
     Status(String),
@@ -33,12 +42,14 @@ pub enum Msg {
 }
 
 #[derive(Clone, Properties, Default, PartialEq)]
+#[doc(hidden)]
 pub struct Props {
     pub url: String,
     pub min: f32,
     pub max: f32,
 }
 
+/// Frequency plot (Waterfall)
 pub struct Frequency {
     canvas_ref: NodeRef,
     gl: Option<GL>,
