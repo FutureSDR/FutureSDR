@@ -84,6 +84,7 @@ With the `message_handler` macro, it can be simplified to:
 #[message_handler]
 async fn my_handler(
     &mut self,
+    _io: &mut WorkIo,
     _mio: &mut MessageIo<Self>,
     _meta: &mut BlockMeta,
     _p: Pmt,

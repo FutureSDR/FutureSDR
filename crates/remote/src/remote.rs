@@ -199,7 +199,7 @@ pub struct Block<H: Connect + Clone + Send + Sync + 'static> {
 }
 
 impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
-    /// Update the [`Block`], getting current values for IO and names.
+    /// Update the [`Block`], retrieving a new [`BlockDescription`] from the [`Flowgraph`].
     pub async fn update(&mut self) -> Result<(), Error> {
         self.description = get(
             &self.client,
@@ -212,12 +212,15 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
         Ok(())
     }
 
-    /// Call a message handler of the [`Block`], providing a [`Pmt::Null`](futuresdr_types::Pmt).
+    /// Call a message handler of a [`Block`], providing it a [`Pmt::Null`](futuresdr_types::Pmt).
+    ///
+    /// This is usually used, when the caller is only interested in the return value. The handler
+    /// might, for example, just return a parameter (think `get_frequency`, `get_gain`, etc).
     pub async fn call(&self, handler: Handler) -> Result<Pmt, Error> {
         self.callback(handler, Pmt::Null).await
     }
 
-    /// Call a message handler of the [`Block`], with the given [`Pmt`](futuresdr_types::Pmt).
+    /// Call a message handler of a [`Block`] with the given [`Pmt`](futuresdr_types::Pmt).
     pub async fn callback(&self, handler: Handler, pmt: Pmt) -> Result<Pmt, Error> {
         let json = serde_json::to_string(&pmt)?;
         let url: hyper::Uri = match handler {

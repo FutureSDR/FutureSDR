@@ -1,9 +1,8 @@
 #![warn(missing_docs)]
 //! # FutureSDR Types
 //!
-//! FutureSDR types that are used inside the runtime but also exposed to
-//! be used in the used in the REST API or any other outside/remote interaction
-//! with the framework.
+//! FutureSDR types that are used by the runtime and also exposed for
+//! interaction with the outside world through the flowgraph's REST API.
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use std::any::Any;

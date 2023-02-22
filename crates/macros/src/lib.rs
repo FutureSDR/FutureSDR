@@ -1,3 +1,5 @@
+//! Macros to make working with FutureSDR a bit nicer.
+
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
@@ -541,6 +543,7 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 /// #[message_handler]
 /// async fn my_handler(
 ///     &mut self,
+///     _io: &mut WorkIo,
 ///     _mio: &mut MessageIo<Self>,
 ///     _meta: &mut BlockMeta,
 ///     _p: Pmt,
@@ -587,6 +590,13 @@ pub fn message_handler(
     out.into()
 }
 
+/// Avoid boilerplate when creating message handlers.
+///
+/// For technical reasons the `message_handler` macro for use inside and outside the
+/// main crate need to be different. For the user this does not matter, since this
+/// version gets re-exported as `futuresdr::macros::message_handler`.
+///
+/// See [`macro@message_handler`] for a more information on how to use the macro.
 #[proc_macro_attribute]
 pub fn message_handler_external(
     _attr: proc_macro::TokenStream,
