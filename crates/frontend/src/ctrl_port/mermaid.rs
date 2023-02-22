@@ -1,17 +1,21 @@
+//! Mermaid graph
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
+    /// Init the Mermaid Javascript library
     #[wasm_bindgen(js_name = "mermaid.init")]
     pub fn init();
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, Default, PartialEq, Eq)]
 pub struct Props {
     pub code: String,
 }
 
+/// Mermaid graph
 pub struct Mermaid {}
 
 impl Component for Mermaid {

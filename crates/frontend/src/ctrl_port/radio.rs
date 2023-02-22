@@ -1,8 +1,10 @@
+//! Call a message handler, selecting a PMT through radio buttons
 use futuresdr_types::Pmt;
 use reqwasm::http::Request;
 use std::rc::Rc;
 use yew::prelude::*;
 
+#[doc(hidden)]
 #[derive(Clone, Properties, PartialEq)]
 pub struct RadioItemProps {
     pub value: Pmt,
@@ -10,6 +12,7 @@ pub struct RadioItemProps {
     pub checked: bool,
 }
 
+/// A Radio button for a PMT
 #[derive(Clone)]
 pub struct RadioItem;
 
@@ -36,6 +39,7 @@ impl Component for RadioItem {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub children: ChildrenWithProps<RadioItem>,
@@ -44,11 +48,13 @@ pub struct Props {
     pub callback: u64,
 }
 
+/// Call a message handler, selecting a PMT through radio buttons
 pub struct Radio {
     value: Pmt,
     status: String,
 }
 
+#[doc(hidden)]
 pub enum Msg {
     Submit,
     Value(Pmt),

@@ -1,3 +1,4 @@
+//! Call message handler periodically
 use gloo_timers::future::sleep;
 use reqwasm::http::Request;
 use std::time::Duration;
@@ -5,12 +6,14 @@ use yew::prelude::*;
 
 use futuresdr_types::Pmt;
 
+#[doc(hidden)]
 pub enum Msg {
     Timeout,
     Error,
     Reply(String),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, Default, PartialEq)]
 pub struct Props {
     pub url: String,
@@ -19,6 +22,7 @@ pub struct Props {
     pub interval_secs: f32,
 }
 
+/// Call message handler periodically
 pub struct PollPeriodic {
     status: String,
 }

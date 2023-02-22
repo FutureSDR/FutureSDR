@@ -1,14 +1,17 @@
+//! Call a message handler by clicking a button
 use reqwasm::http::Request;
 use yew::prelude::*;
 
 use futuresdr_types::Pmt;
 
+#[doc(hidden)]
 pub enum Msg {
     Poll,
     Error,
     Reply(String),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, Default, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
@@ -16,6 +19,7 @@ pub struct Props {
     pub callback: u64,
 }
 
+/// Call a message handler by clicking a button
 pub struct Poll {
     status: String,
 }

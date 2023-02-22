@@ -1,3 +1,4 @@
+//! Call a message handler
 use reqwasm::http::Request;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -5,12 +6,14 @@ use yew::prelude::*;
 use futuresdr_types::Pmt;
 use futuresdr_types::PmtKind;
 
+#[doc(hidden)]
 pub enum Msg {
     Error,
     Reply(String),
     Submit(String),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
@@ -19,6 +22,7 @@ pub struct Props {
     pub pmt_type: PmtKind,
 }
 
+/// Call a message handler
 pub struct Call {
     status: String,
 }

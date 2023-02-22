@@ -1,3 +1,4 @@
+//! Call a message handler with a PMT selecting through a slider
 use reqwasm::http::Request;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlInputElement;
@@ -6,6 +7,17 @@ use yew::prelude::*;
 use futuresdr_types::Pmt;
 use futuresdr_types::PmtKind;
 
+/// Mount a slider component
+///
+/// ## Parameter
+/// - `id`: HTML ID of component
+/// - `url`: URL of FutureSDR runtime REST API
+/// - `block`: ID of block
+/// - `callback`: ID of message handler
+/// - `min`: slider min value
+/// - `max`: slider max value
+/// - `step`: slider step
+/// - `value`: slider initial value
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn add_slider_u32(
@@ -35,12 +47,14 @@ pub fn add_slider_u32(
     );
 }
 
+#[doc(hidden)]
 pub enum Msg {
     Error,
     ValueChanged(i64),
     Reply(String, u64),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
@@ -53,6 +67,7 @@ pub struct Props {
     pub value: i64,
 }
 
+/// Call a message handler with a PMT selecting through a slider
 pub struct Slider {
     status: String,
     request_id: u64,

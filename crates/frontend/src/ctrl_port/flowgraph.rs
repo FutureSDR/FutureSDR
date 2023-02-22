@@ -1,3 +1,4 @@
+//! Mermaid graph of flowgraph
 use reqwasm::http::Request;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
@@ -6,6 +7,11 @@ use futuresdr_types::FlowgraphDescription;
 
 use crate::ctrl_port::mermaid::Mermaid;
 
+/// Mount a flowgraph component
+///
+/// ## Parameter
+/// - `id`: HTML ID of component
+/// - `url`: URL of FutureSDR runtime REST API
 #[wasm_bindgen]
 pub fn add_flowgraph(id: String, url: String) {
     let document = gloo_utils::document();
@@ -13,16 +19,19 @@ pub fn add_flowgraph(id: String, url: String) {
     yew::start_app_with_props_in_element::<Flowgraph>(div, Props { url });
 }
 
+#[doc(hidden)]
 pub enum Msg {
     Error,
     Reply(FlowgraphDescription),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Properties, Default, PartialEq, Eq)]
 pub struct Props {
     pub url: String,
 }
 
+/// Mermaid graph of flowgraph
 pub struct Flowgraph {
     code: String,
 }
