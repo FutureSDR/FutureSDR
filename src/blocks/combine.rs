@@ -53,6 +53,10 @@ where
     B: Send + 'static,
     C: Send + 'static,
 {
+    /// Create [`Combine`] block
+    ///
+    /// ## Parameter
+    /// - `f`: Function `(&A, &B) -> C` used to combine samples
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Combine").build(),

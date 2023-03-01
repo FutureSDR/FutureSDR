@@ -58,6 +58,7 @@ where
     A: Send + 'static,
     B: Send + 'static,
 {
+    /// Create [`ApplyNM`] block
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new(format!("ApplyNM {N} {M}")).build(),

@@ -16,6 +16,10 @@ pub struct ConsoleSink<T: Send + 'static + std::fmt::Debug> {
 }
 
 impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
+    /// Create [`ConsoleSink`] block
+    ///
+    /// ## Parameter
+    /// - `sep`: Separator between items
     pub fn new(sep: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ConsoleSink").build(),

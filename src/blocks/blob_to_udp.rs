@@ -21,6 +21,10 @@ pub struct BlobToUdp {
 }
 
 impl BlobToUdp {
+    /// Create [`BlobToUdp`] block
+    ///
+    /// ## Parameter
+    /// - `remote`: UDP socket address, e.g., `localhost:2342`
     pub fn new<S>(remote: S) -> Block
     where
         S: AsRef<str>,

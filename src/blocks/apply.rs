@@ -11,13 +11,13 @@ use crate::runtime::WorkIo;
 
 /// Apply a function to each sample.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
 /// `in`: Input
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output after function applied
+/// `out`: Output, corresponding to input with function applied
 ///
 /// # Usage
 /// ```
@@ -63,6 +63,10 @@ where
     A: Send + 'static,
     B: Send + 'static,
 {
+    /// Create [`Apply`] block
+    ///
+    /// ## Parameter
+    /// - `f`: Function to apply on each sample
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Apply").build(),

@@ -30,6 +30,10 @@ where
     B::Item: 'static,
     <B as IntoIterator>::IntoIter: Send,
 {
+    /// Create [`ApplyIntoIter`] block
+    ///
+    /// ## Parameter
+    /// - `f`: Function to create an interator from an input sample
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("ApplyIntoIter").build(),

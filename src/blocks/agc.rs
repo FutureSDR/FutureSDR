@@ -13,6 +13,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Automatic Gain Control Block
 pub struct Agc<T> {
     /// Minimum value that has to be reached in order for AGC to start adjusting gain.
     squelch: f32,
@@ -33,6 +34,27 @@ impl<T> Agc<T>
 where
     T: Send + Sync + ComplexFloat + 'static,
 {
+    /// Create AGC Block
+    ///
+    /// ## Parameter
+    /// - `squelch`: surpress anything below this level
+    /// - `max_gain`: maximum gain setting
+    /// - `gain`: initial gain setting
+    /// - `reference_power`: target power level
+    /// - `gain_locked`: lock gain to fixed value
+    ///
+    /// ## Message Handler
+    ///
+    /// - `gain_locked`: set `gain_locked` parameter with a [`Pmt::Bool`].
+    /// - `max_gain`: set `max_gain` parameter with a [`Pmt::F32`].
+    /// - `adjustment_rate`: set `adjustment_rate` with a [`Pmt::F32`].
+    /// - `reference_power`: set `reference_power` with a [`Pmt::F32`].
+    ///
+    /// ## Stream Input
+    /// - `in`: Input stream of items, implementing [`ComplexFloat`]
+    ///
+    /// ## Stream Output
+    /// - `out`: Leveled output items of same type as `in` stream.
     pub fn new(
         squelch: f32,
         max_gain: f32,
@@ -182,6 +204,7 @@ where
     }
 }
 
+/// Builder for [`Agc`] block
 pub struct AgcBuilder<T>
 where
     T: Send + Sync + ComplexFloat + 'static,
@@ -204,6 +227,15 @@ impl<T> AgcBuilder<T>
 where
     T: Send + Sync + ComplexFloat + 'static,
 {
+    /// Create builder w/ default parameters
+    ///
+    /// ## Defaults
+    /// - `squelch`: 0.0
+    /// - `max_gain`: 65536.0
+    /// - `gain`: 1.0
+    /// - `reference_power`: 1.0
+    /// - `adjustment_rate`: 0.0001
+    /// - `gain_locked`: false
     pub fn new() -> AgcBuilder<T> {
         AgcBuilder {
             squelch: 0.0,
@@ -216,31 +248,37 @@ where
         }
     }
 
+    /// Surpress signals below this level
     pub fn squelch(mut self, squelch: f32) -> AgcBuilder<T> {
         self.squelch = squelch;
         self
     }
 
+    /// Max gain to use to bring input closer to reference level
     pub fn max_gain(mut self, max_gain: f32) -> AgcBuilder<T> {
         self.max_gain = max_gain;
         self
     }
 
+    /// Adjustment rate, i.e., impact of current sample on gain setting
     pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AgcBuilder<T> {
         self.squelch = adjustment_rate;
         self
     }
 
+    /// Targeted power level
     pub fn reference_power(mut self, reference_power: f32) -> AgcBuilder<T> {
         self.reference_power = reference_power;
         self
     }
 
+    /// Fix gain setting, disabling AGC
     pub fn gain_locked(mut self, gain_locked: bool) -> AgcBuilder<T> {
         self.gain_locked = gain_locked;
         self
     }
 
+    /// Create [`Agc`] block
     pub fn build(self) -> Block {
         Agc::<T>::new(
             self.squelch,
