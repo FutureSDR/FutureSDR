@@ -4,16 +4,23 @@ use seify::Direction;
 
 use crate::runtime::Pmt;
 
+/// Seify Config
 #[derive(Debug, Default, Clone)]
 pub struct Config {
+    /// Antenna
     pub antenna: Option<String>,
+    /// Bandwidth
     pub bandwidth: Option<f64>,
+    /// Frequency
     pub freq: Option<f64>,
+    /// Gain (in dB)
     pub gain: Option<f64>,
+    /// Sample Rate
     pub sample_rate: Option<f64>,
 }
 
 impl Config {
+    /// Create Seify Config
     pub fn new() -> Self {
         Self::default()
     }
@@ -23,6 +30,7 @@ impl Config {
         Pmt::Any(Box::new(self.clone()))
     }
 
+    /// Apply config to a device
     pub fn apply<D: DeviceTrait + Clone>(
         &self,
         dev: &Device<D>,

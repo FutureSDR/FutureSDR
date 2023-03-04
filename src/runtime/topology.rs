@@ -95,6 +95,7 @@ impl Topology {
         }
     }
 
+    /// Get Id of a block, given its name
     pub fn block_id(&self, name: &str) -> Option<usize> {
         for (i, b) in self.blocks.iter() {
             if b.as_ref()?.instance_name()? == name {
@@ -105,6 +106,7 @@ impl Topology {
         None
     }
 
+    /// Get name of a block, given its Id
     pub fn block_name(&self, id: usize) -> Option<&str> {
         if let Some(Some(b)) = &self.blocks.get(id) {
             b.instance_name()
@@ -158,6 +160,7 @@ impl Topology {
         self.message_edges.retain(|x| x.0 != id && x.2 != id);
     }
 
+    /// Connect stream ports
     pub fn connect_stream<B: BufferBuilder + Debug + Eq + Hash>(
         &mut self,
         src_block: usize,
@@ -224,6 +227,7 @@ impl Topology {
         Ok(())
     }
 
+    /// Connect message ports
     pub fn connect_message(
         &mut self,
         src_block: usize,
@@ -275,6 +279,10 @@ impl Topology {
         Ok(())
     }
 
+    /// Validate flowgraph topology
+    ///
+    /// Make sure that all stream ports are connected. Check if connections are valid, e.g., every
+    /// stream input has exactly one connection.
     pub fn validate(&self) -> Result<()> {
         // check if all stream ports are connected (neither message inputs nor outputs have to be connected)
         for (block_id, e) in self.blocks.iter() {
@@ -342,10 +350,12 @@ impl Topology {
         Ok(())
     }
 
+    /// Get reference to a block
     pub fn block_ref(&self, id: usize) -> Option<&Block> {
         self.blocks.get(id).and_then(|v| v.as_ref())
     }
 
+    /// Get mutable reference to a block
     pub fn block_mut(&mut self, id: usize) -> Option<&mut Block> {
         self.blocks.get_mut(id).and_then(|v| v.as_mut())
     }

@@ -24,6 +24,7 @@ struct CurrentInput {
 // Needed for raw pointer `ptr`
 unsafe impl Send for CurrentInput {}
 
+/// Stream input port
 #[derive(Debug)]
 pub struct StreamInput {
     name: String,
@@ -35,6 +36,7 @@ pub struct StreamInput {
 }
 
 impl StreamInput {
+    /// Create stream input with given name
     pub fn new<T: Any>(name: &str) -> StreamInput {
         StreamInput {
             name: name.to_string(),
@@ -46,22 +48,27 @@ impl StreamInput {
         }
     }
 
+    /// Get size of items, handled by the port
     pub fn item_size(&self) -> usize {
         self.item_size
     }
 
+    /// Get [`TypeId`] of items, handled by the port
     pub fn type_id(&self) -> TypeId {
         self.type_id
     }
 
+    /// Get name of port
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Try to cast buffer reader to specific type
     pub fn try_as<T: 'static>(&mut self) -> Option<&mut T> {
         self.reader.as_mut().unwrap().try_as::<T>()
     }
 
+    /// Consume `amount` samples from buffer
     pub fn consume(&mut self, amount: usize) {
         debug_assert!(self.current.is_some());
         debug_assert!(
@@ -75,11 +82,13 @@ impl StreamInput {
         self.tags.iter_mut().for_each(|x| x.index -= amount);
     }
 
+    /// Get buffer content as slice
     pub fn slice<T>(&mut self) -> &'static [T] {
         assert_eq!(self.type_id, TypeId::of::<T>());
         self.slice_unchecked()
     }
 
+    /// Get buffer content as slice without checking the type
     pub fn slice_unchecked<T>(&mut self) -> &'static [T] {
         if self.current.is_none() {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
@@ -115,6 +124,7 @@ impl StreamInput {
         slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
     }
 
+    /// Get [`ItemTags`](ItemTag) in buffer
     pub fn tags(&mut self) -> &mut Vec<ItemTag> {
         &mut self.tags
     }
@@ -129,6 +139,7 @@ impl StreamInput {
         }
     }
 
+    /// Items already consumed in this call to work
     pub fn consumed(&self) -> (usize, &Vec<ItemTag>) {
         if let Some(ref c) = self.current {
             (c.index / self.item_size, &c.tags)
@@ -137,24 +148,31 @@ impl StreamInput {
         }
     }
 
+    /// Set the buffer reader
     pub fn set_reader(&mut self, reader: BufferReader) {
         debug_assert!(self.reader.is_none());
         self.reader = Some(reader);
     }
 
+    /// Notify connected, upstream writer that we are finished
     pub async fn notify_finished(&mut self) {
         self.reader.as_mut().unwrap().notify_finished().await;
     }
 
+    /// Mark port as finished
+    ///
+    /// No further data will become available in this port.
     pub fn finish(&mut self) {
         self.reader.as_mut().unwrap().finish();
     }
 
+    /// Check, if port is marked as finished
     pub fn finished(&self) -> bool {
         self.reader.as_ref().unwrap().finished()
     }
 }
 
+/// Stream output port
 #[derive(Debug)]
 pub struct StreamOutput {
     name: String,
@@ -166,6 +184,7 @@ pub struct StreamOutput {
 }
 
 impl StreamOutput {
+    /// Create stream output port
     pub fn new<T: Any>(name: &str) -> StreamOutput {
         StreamOutput {
             name: name.to_string(),
@@ -177,23 +196,28 @@ impl StreamOutput {
         }
     }
 
+    /// Get size of items, handled by the port
     pub fn item_size(&self) -> usize {
         self.item_size
     }
 
+    /// Get [`TypeId`] of items, handled by the port
     pub fn type_id(&self) -> TypeId {
         self.type_id
     }
 
+    /// Get name of port
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Initialize port, setting the writer
     pub fn init(&mut self, writer: BufferWriter) {
         debug_assert!(self.writer.is_none());
         self.writer = Some(writer);
     }
 
+    /// Add [`ItemTag`] to sample in port
     pub fn add_tag(&mut self, index: usize, tag: Tag) {
         self.tags.push(ItemTag {
             index: index + self.offset,
@@ -201,10 +225,15 @@ impl StreamOutput {
         });
     }
 
+    /// Add [`ItemTag`] using the absolute index
+    ///
+    /// The difference between `add_tag` and `add_tag_abs` is only relevant if the work function
+    /// calls produce multiple times.
     pub fn add_tag_abs(&mut self, index: usize, tag: Tag) {
         self.tags.push(ItemTag { index, tag });
     }
 
+    /// Connect a downstream reader to the port
     pub fn add_reader(
         &mut self,
         reader_inbox: Sender<BlockMessage>,
@@ -217,19 +246,23 @@ impl StreamOutput {
             .add_reader(reader_inbox, reader_port)
     }
 
+    /// Try to cast buffer writer to specific type
     pub fn try_as<T: 'static>(&mut self) -> Option<&mut T> {
         self.writer.as_mut().unwrap().try_as::<T>()
     }
 
+    /// Produce `amount` samples
     pub fn produce(&mut self, amount: usize) {
         self.offset += amount;
     }
 
+    /// Get buffer content as slice
     pub fn slice<T>(&mut self) -> &'static mut [T] {
         assert_eq!(self.type_id, TypeId::of::<T>());
         self.slice_unchecked()
     }
 
+    /// Get buffer content as slice without checking the type
     pub fn slice_unchecked<T>(&mut self) -> &'static mut [T] {
         let (ptr, len) = self.writer.as_mut().unwrap().bytes();
 
@@ -254,28 +287,34 @@ impl StreamOutput {
         self.offset = 0;
     }
 
+    /// Items already produced in this call to work
     pub fn produced(&self) -> usize {
         self.offset
     }
 
+    /// Notify downstream readers that we are finished
     pub async fn notify_finished(&mut self) {
         self.writer.as_mut().unwrap().notify_finished().await;
     }
 
+    /// Mark port as finshed
     pub fn finish(&mut self) {
         self.writer.as_mut().unwrap().finish();
     }
 
+    /// Check, if  port is marked as finished
     pub fn finished(&self) -> bool {
         self.writer.as_ref().unwrap().finished()
     }
 
+    /// Get a mutable reference to the buffer writer
     pub(super) fn writer_mut(&mut self) -> &mut BufferWriter {
         let w = self.writer.as_mut().unwrap();
         w
     }
 }
 
+/// Stream IO
 pub struct StreamIo {
     inputs: Vec<StreamInput>,
     outputs: Vec<StreamOutput>,
@@ -306,30 +345,37 @@ impl StreamIo {
         }
     }
 
+    /// All inputs
     pub fn inputs(&self) -> &Vec<StreamInput> {
         &self.inputs
     }
 
+    /// All inputs mutable
     pub fn inputs_mut(&mut self) -> &mut Vec<StreamInput> {
         &mut self.inputs
     }
 
+    /// Get input, given its name
     pub fn input_by_name(&self, name: &str) -> Option<&StreamInput> {
         self.inputs.iter().find(|x| x.name() == name)
     }
 
+    /// Get input mutably, given its name
     pub fn input_by_name_mut(&mut self, name: &str) -> Option<&mut StreamInput> {
         self.inputs.iter_mut().find(|x| x.name() == name)
     }
 
+    /// Get reference to input
     pub fn input_ref(&self, id: usize) -> &StreamInput {
         &self.inputs[id]
     }
 
+    /// Get mutably reference to input
     pub fn input(&mut self, id: usize) -> &mut StreamInput {
         &mut self.inputs[id]
     }
 
+    /// Get input name, given its Id
     pub fn input_name_to_id(&self, name: &str) -> Option<usize> {
         self.inputs
             .iter()
@@ -338,30 +384,37 @@ impl StreamIo {
             .map(|(i, _)| i)
     }
 
+    /// All outputs
     pub fn outputs(&self) -> &Vec<StreamOutput> {
         &self.outputs
     }
 
+    /// All outputs mutable
     pub fn outputs_mut(&mut self) -> &mut Vec<StreamOutput> {
         &mut self.outputs
     }
 
+    /// Get output, given its name
     pub fn output_by_name(&self, name: &str) -> Option<&StreamOutput> {
         self.outputs.iter().find(|x| x.name() == name)
     }
 
+    /// Get output mutable, given its name
     pub fn output_by_name_mut(&mut self, name: &str) -> Option<&mut StreamOutput> {
         self.outputs.iter_mut().find(|x| x.name() == name)
     }
 
+    /// Get reference to output
     pub fn output_ref(&self, id: usize) -> &StreamOutput {
         &self.outputs[id]
     }
 
+    /// Get mutable reference to output
     pub fn output(&mut self, id: usize) -> &mut StreamOutput {
         &mut self.outputs[id]
     }
 
+    /// Get output Id, given its name
     pub fn output_name_to_id(&self, name: &str) -> Option<usize> {
         self.outputs
             .iter()
@@ -370,6 +423,7 @@ impl StreamIo {
             .map(|(i, _)| i)
     }
 
+    /// Commit all consume/produce calls after `work()` call
     pub fn commit(&mut self) {
         (self.tag_propagation)(&mut self.inputs, &mut self.outputs);
         for i in self.inputs_mut() {
@@ -380,6 +434,7 @@ impl StreamIo {
         }
     }
 
+    /// Set tag propagation
     #[allow(clippy::type_complexity)]
     pub fn set_tag_propagation(
         &mut self,
@@ -389,6 +444,7 @@ impl StreamIo {
     }
 }
 
+/// Stream IO builder
 #[allow(clippy::type_complexity)]
 pub struct StreamIoBuilder {
     inputs: Vec<StreamInput>,
@@ -397,6 +453,7 @@ pub struct StreamIoBuilder {
 }
 
 impl StreamIoBuilder {
+    /// Create builder
     pub fn new() -> StreamIoBuilder {
         StreamIoBuilder {
             inputs: Vec::new(),
@@ -405,18 +462,21 @@ impl StreamIoBuilder {
         }
     }
 
+    /// Add input port
     #[must_use]
     pub fn add_input<T: Any>(mut self, name: &str) -> StreamIoBuilder {
         self.inputs.push(StreamInput::new::<T>(name));
         self
     }
 
+    /// Add output port
     #[must_use]
     pub fn add_output<T: Any>(mut self, name: &str) -> StreamIoBuilder {
         self.outputs.push(StreamOutput::new::<T>(name));
         self
     }
 
+    /// Configure tag propagation
     #[must_use]
     pub fn tag_propagation<F: FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>(
         mut self,
@@ -426,6 +486,7 @@ impl StreamIoBuilder {
         self
     }
 
+    /// Build Stream IO
     pub fn build(self) -> StreamIo {
         StreamIo::new(self.inputs, self.outputs, self.tag_propagation)
     }

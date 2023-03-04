@@ -46,6 +46,7 @@ where
 }
 
 impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
+    /// Create WAV Sink block
     pub fn new<P: AsRef<path::Path> + std::marker::Send + Copy>(
         file_name: P,
         spec: hound::WavSpec,

@@ -22,7 +22,7 @@ pub struct NullSink<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> NullSink<T> {
-    #[allow(clippy::new_ret_no_self)]
+    /// Create NullSink block
     pub fn new(probe_granularity: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("LTTngNullSink").build(),
@@ -36,7 +36,7 @@ impl<T: Send + 'static> NullSink<T> {
             },
         )
     }
-
+    /// Get number of received samples
     pub fn n_received(&self) -> u64 {
         self.n_received
     }

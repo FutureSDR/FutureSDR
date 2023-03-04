@@ -12,15 +12,20 @@ use crate::runtime::Kernel;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
+/// Mocker for a block
+///
+/// A harness to run a block without a runtime. Used for unit tests and benchmarking.
 pub struct Mocker<K> {
     block: TypedBlock<K>,
 }
 
 impl<K: Kernel + 'static> Mocker<K> {
+    /// Create mocker
     pub fn new(block: TypedBlock<K>) -> Self {
         Mocker { block }
     }
 
+    /// Add input buffer with given data
     pub fn input<T>(&mut self, id: usize, data: Vec<T>)
     where
         T: Debug + Send + 'static,
@@ -34,6 +39,7 @@ impl<K: Kernel + 'static> Mocker<K> {
             ))));
     }
 
+    /// Add input buffer with given data and tags
     pub fn input_with_tags<T>(&mut self, id: usize, data: Vec<T>, tags: Vec<ItemTag>)
     where
         T: Debug + Send + 'static,
@@ -44,6 +50,7 @@ impl<K: Kernel + 'static> Mocker<K> {
             .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
     }
 
+    /// Initialize output buffer with given size
     pub fn init_output<T>(&mut self, id: usize, size: usize)
     where
         T: Debug + Send + 'static,
@@ -54,6 +61,7 @@ impl<K: Kernel + 'static> Mocker<K> {
             .init(BufferWriter::Host(Box::new(MockWriter::<T>::new(size))));
     }
 
+    /// Get data from output buffer
     pub fn output<T>(&mut self, id: usize) -> Vec<T>
     where
         T: Debug + Send + 'static,
@@ -66,11 +74,13 @@ impl<K: Kernel + 'static> Mocker<K> {
         }
     }
 
+    /// Run the mocker
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
         crate::async_io::block_on(self.run_async());
     }
 
+    /// Run the mocker async
     pub async fn run_async(&mut self) {
         let mut io = WorkIo {
             call_again: false,

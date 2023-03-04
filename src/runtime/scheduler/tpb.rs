@@ -16,6 +16,9 @@ use crate::runtime::Topology;
 
 static TPB: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
+/// Thread-per-Block scheduler
+///
+/// This is mainly for comparision to GNU Radio. Do not use.
 #[derive(Clone, Debug)]
 pub struct TpbScheduler {
     inner: Arc<TpbSchedulerInner>,
@@ -44,6 +47,7 @@ impl Drop for TpbSchedulerInner {
 }
 
 impl TpbScheduler {
+    /// Create Thread-per-Block scheduler
     pub fn new() -> TpbScheduler {
         let mut slab = TPB.lock().unwrap();
         let executor = Arc::new(Executor::new());

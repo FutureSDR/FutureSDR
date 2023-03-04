@@ -14,12 +14,14 @@ use crate::runtime::buffer::BufferWriterCustom;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
+/// Device-to-Host stream connection
 #[derive(Debug, PartialEq, Hash)]
 pub struct D2H;
 
 impl Eq for D2H {}
 
 impl D2H {
+    /// Create custom buffer
     pub fn new() -> D2H {
         D2H
     }
@@ -44,6 +46,7 @@ impl BufferBuilder for D2H {
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
+/// Custom buffer writer
 #[derive(Debug)]
 pub struct WriterD2H {
     item_size: usize,
@@ -57,6 +60,7 @@ pub struct WriterD2H {
 }
 
 impl WriterD2H {
+    /// Create buffer writer
     pub fn new(
         item_size: usize,
         writer_inbox: Sender<BlockMessage>,
@@ -74,11 +78,13 @@ impl WriterD2H {
         }))
     }
 
+    /// All available empty buffers
     pub fn buffers(&mut self) -> Vec<BufferEmpty> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
+    /// Submit full buffer to downstream CPU reader
     pub fn submit(&mut self, buffer: BufferFull) {
         self.outbound.lock().unwrap().push_back(buffer);
         let _ = self
@@ -142,6 +148,7 @@ impl BufferWriterCustom for WriterD2H {
     }
 }
 
+/// Custom buffer reader
 #[derive(Debug)]
 pub struct ReaderD2H {
     buffer: Option<CurrentBuffer>,

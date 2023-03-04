@@ -43,6 +43,7 @@ where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,
 {
+    /// Create Source block
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Source").build(),

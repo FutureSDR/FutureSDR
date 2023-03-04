@@ -15,6 +15,7 @@ use crate::runtime::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
+/// Host-to-Device stream connection
 #[derive(Debug, PartialEq, Hash)]
 pub struct H2D {
     max_bytes: usize,
@@ -23,11 +24,15 @@ pub struct H2D {
 impl Eq for H2D {}
 
 impl H2D {
+    /// Create custom buffer
     pub fn new() -> H2D {
         H2D {
             max_bytes: config::config().buffer_size,
         }
     }
+    /// Create custom buffer.
+    ///
+    /// Use only up to `max_bytes` bytes, even if buffer is bigger.
     pub fn with_size(max_bytes: usize) -> H2D {
         H2D { max_bytes }
     }
@@ -53,6 +58,7 @@ impl BufferBuilder for H2D {
 // everything is measured in items, e.g., offsets, capacity, space available
 
 // ====================== WRITER ============================
+/// Custom buffer writer
 #[derive(Debug)]
 pub struct WriterH2D {
     buffer: Option<CurrentBuffer>,
@@ -74,6 +80,7 @@ struct CurrentBuffer {
 }
 
 impl WriterH2D {
+    /// Create buffer writer
     pub fn new(
         item_size: usize,
         max_bytes: usize,
@@ -215,6 +222,7 @@ impl BufferWriterHost for WriterH2D {
 }
 
 // ====================== READER ============================
+/// Custom buffer reader
 #[derive(Debug)]
 pub struct ReaderH2D {
     inbound: Arc<Mutex<VecDeque<BufferFull>>>,
@@ -225,17 +233,20 @@ pub struct ReaderH2D {
 }
 
 impl ReaderH2D {
+    /// Send empty buffer back to writer
     pub fn submit(&mut self, buffer: BufferEmpty) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
         let _ = self.writer_inbox.try_send(BlockMessage::Notify);
     }
 
+    /// Get full buffer
     pub fn get_buffer(&mut self) -> Option<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
         vec.pop_front()
     }
 
+    /// Check, if a buffer is available
     pub fn buffer_available(&self) -> bool {
         let vec = self.inbound.lock().unwrap();
         !vec.is_empty()

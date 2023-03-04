@@ -20,6 +20,7 @@ pub struct TcpSource {
 }
 
 impl TcpSource {
+    /// Create TCP Source block
     pub fn new(port: u32) -> Block {
         Block::new(
             BlockMetaBuilder::new("TcpSource").build(),

@@ -19,6 +19,14 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 /// Interface Zynq FPGA w/ AXI DMA (async mode).
+///
+/// # Stream Inputs
+///
+/// `in`: Zynq custom buffer
+///
+/// # Stream Outputs
+///
+/// `out`: Zynq custom buffer
 pub struct Zynq<I, O>
 where
     I: Send + 'static,
@@ -37,6 +45,7 @@ where
     I: Send + 'static,
     O: Send + 'static,
 {
+    /// Create Zynq block
     pub fn new<S: Into<String>>(
         dma_h2d: impl AsRef<str>,
         dma_d2h: impl AsRef<str>,

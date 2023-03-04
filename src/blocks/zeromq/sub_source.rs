@@ -17,6 +17,7 @@ pub struct SubSource<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> SubSource<T> {
+    /// Create SubSource block
     pub fn new(address: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("SubSource").blocking().build(),
@@ -76,6 +77,7 @@ pub struct SubSourceBuilder<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> SubSourceBuilder<T> {
+    /// Create SubSource builder
     pub fn new() -> SubSourceBuilder<T> {
         SubSourceBuilder {
             address: "tcp://*:5555".into(),
@@ -83,12 +85,14 @@ impl<T: Send + 'static> SubSourceBuilder<T> {
         }
     }
 
+    /// Set address
     #[must_use]
     pub fn address(mut self, address: &str) -> SubSourceBuilder<T> {
         self.address = address.to_string();
         self
     }
 
+    /// Build ZMQ source
     pub fn build(self) -> Block {
         SubSource::<T>::new(self.address)
     }

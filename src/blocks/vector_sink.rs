@@ -17,6 +17,7 @@ pub struct VectorSink<T> {
 }
 
 impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
+    /// Create VectorSink block
     pub fn new(capacity: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("VectorSink").build(),
@@ -27,7 +28,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
             },
         )
     }
-
+    /// Get received items
     pub fn items(&self) -> &Vec<T> {
         &self.items
     }
@@ -64,19 +65,20 @@ pub struct VectorSinkBuilder<T> {
 }
 
 impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSinkBuilder<T> {
+    /// Create VectorSink builder
     pub fn new() -> VectorSinkBuilder<T> {
         VectorSinkBuilder {
             capacity: 8192,
             _foo: PhantomData,
         }
     }
-
+    /// Set initial capacity
     #[must_use]
     pub fn init_capacity(mut self, n: usize) -> VectorSinkBuilder<T> {
         self.capacity = n;
         self
     }
-
+    /// Build VectorSink block
     pub fn build(self) -> Block {
         VectorSink::<T>::new(self.capacity)
     }

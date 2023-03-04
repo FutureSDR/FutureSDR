@@ -13,6 +13,7 @@ use crate::runtime::WorkIo;
 pub struct MessageCopy {}
 
 impl MessageCopy {
+    /// Create MessageCopy block
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("MessageCopy").build(),

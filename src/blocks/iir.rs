@@ -32,6 +32,7 @@ where
     TapType: 'static + Send,
     Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
 {
+    /// Create IIR filter block
     pub fn new(core: Core) -> Block {
         Block::new(
             BlockMetaBuilder::new("Iir").build(),
@@ -126,6 +127,7 @@ pub struct IirBuilder {
 }
 
 impl IirBuilder {
+    /// Create IIR filter builder
     pub fn new<InputType, OutputType, TapType, Taps>(a_taps: Taps, b_taps: Taps) -> Block
     where
         InputType: 'static + Send + Clone,

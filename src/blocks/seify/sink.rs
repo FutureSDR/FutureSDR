@@ -23,6 +23,7 @@ use crate::runtime::WorkIo;
 
 use super::builder::BuilderType;
 
+/// Seify Sink block
 pub struct Sink<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -233,12 +234,15 @@ type Sched = crate::runtime::scheduler::SmolScheduler;
 #[cfg(target_arch = "wasm32")]
 type Sched = crate::runtime::scheduler::WasmScheduler;
 
+/// Seify Sink builder
 pub struct SinkBuilder;
 
 impl SinkBuilder {
+    /// Create Seify Sink builder
     pub fn new() -> Builder<GenericDevice, Sched> {
         Builder::new(BuilderType::Sink)
     }
+    /// Create Seify Sink builder with async runtime
     #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
     pub fn with_scheduler<S: crate::runtime::scheduler::Scheduler + Sync>(
         scheduler: S,

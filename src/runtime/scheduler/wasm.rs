@@ -1,3 +1,4 @@
+//! WASM Scheduler
 use futures::channel::mpsc::{channel, Sender};
 use futures::channel::oneshot;
 use futures::future::Future;
@@ -13,10 +14,12 @@ use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
 
+/// WASM Scheduler
 #[derive(Clone, Debug)]
 pub struct WasmScheduler;
 
 impl WasmScheduler {
+    /// Create WASM Scheduler
     pub fn new() -> WasmScheduler {
         WasmScheduler
     }
@@ -76,6 +79,7 @@ impl Scheduler for WasmScheduler {
     }
 }
 
+/// WASM Async Task
 pub struct Task<T>(oneshot::Receiver<T>);
 
 impl<T> std::future::Future for Task<T> {

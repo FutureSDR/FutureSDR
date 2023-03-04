@@ -35,6 +35,7 @@ pub struct NullSink<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> NullSink<T> {
+    /// Create NullSink block
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("NullSink").build(),
@@ -46,7 +47,7 @@ impl<T: Send + 'static> NullSink<T> {
             },
         )
     }
-
+    /// Get number of received samples
     pub fn n_received(&self) -> usize {
         self.n_received
     }

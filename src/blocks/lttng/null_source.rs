@@ -23,7 +23,7 @@ pub struct NullSource<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> NullSource<T> {
-    #[allow(clippy::new_ret_no_self)]
+    /// Create NullSource block
     pub fn new(probe_granularity: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("LTTngNullSource").build(),

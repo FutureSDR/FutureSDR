@@ -30,6 +30,7 @@ where
     B: Send + 'static,
     C: Send + 'static,
 {
+    /// Create Split block
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Split").build(),

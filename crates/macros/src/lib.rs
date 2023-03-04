@@ -514,43 +514,13 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
     }
 }
 
-//=========================================================================
-// MESSAGE_HANDLER
-//=========================================================================
-
 /// Avoid boilerplate when creating message handlers.
 ///
-/// Assume a block with a message handler that refers to a block function
-/// `Self::my_handler`.
+/// For technical reasons the `message_handler` macro for use inside and outside the
+/// main crate need to be different. For the user this does not matter, since this
+/// version gets re-exported as `futuresdr::macros::message_handler`.
 ///
-/// ```ignore
-/// pub fn new() -> Block {
-///     Block::new(
-///         BlockMetaBuilder::new("MyBlock").build(),
-///         StreamIoBuilder::new().build(),
-///         MessageIoBuilder::new()
-///             .add_input("handler", Self::my_handler)
-///             .build(),
-///         Self,
-///     )
-/// }
-/// ```
-///
-/// The underlying machinery of the handler implementation is rather involved.
-/// With the `message_handler` macro, it can be simplified to:
-///
-/// ```ignore
-/// #[message_handler]
-/// async fn my_handler(
-///     &mut self,
-///     _io: &mut WorkIo,
-///     _mio: &mut MessageIo<Self>,
-///     _meta: &mut BlockMeta,
-///     _p: Pmt,
-/// ) -> Result<Pmt> {
-///     Ok(Pmt::Null)
-/// }
-/// ```
+/// See [`macro@message_handler_external`] for a more information on how to use the macro.
 #[proc_macro_attribute]
 pub fn message_handler(
     _attr: proc_macro::TokenStream,
@@ -590,13 +560,43 @@ pub fn message_handler(
     out.into()
 }
 
+//=========================================================================
+// MESSAGE_HANDLER
+//=========================================================================
+
 /// Avoid boilerplate when creating message handlers.
 ///
-/// For technical reasons the `message_handler` macro for use inside and outside the
-/// main crate need to be different. For the user this does not matter, since this
-/// version gets re-exported as `futuresdr::macros::message_handler`.
+/// Assume a block with a message handler that refers to a block function
+/// `Self::my_handler`.
 ///
-/// See [`macro@message_handler`] for a more information on how to use the macro.
+/// ```ignore
+/// pub fn new() -> Block {
+///     Block::new(
+///         BlockMetaBuilder::new("MyBlock").build(),
+///         StreamIoBuilder::new().build(),
+///         MessageIoBuilder::new()
+///             .add_input("handler", Self::my_handler)
+///             .build(),
+///         Self,
+///     )
+/// }
+/// ```
+///
+/// The underlying machinery of the handler implementation is rather involved.
+/// With the `message_handler` macro, it can be simplified to:
+///
+/// ```ignore
+/// #[message_handler]
+/// async fn my_handler(
+///     &mut self,
+///     _io: &mut WorkIo,
+///     _mio: &mut MessageIo<Self>,
+///     _meta: &mut BlockMeta,
+///     _p: Pmt,
+/// ) -> Result<Pmt> {
+///     Ok(Pmt::Null)
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn message_handler_external(
     _attr: proc_macro::TokenStream,

@@ -45,6 +45,7 @@ pub struct FileSink<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> FileSink<T> {
+    /// Create FileSink block
     pub fn new<S: Into<String>>(file_name: S) -> Block {
         Block::new(
             BlockMetaBuilder::new("FileSink").build(),

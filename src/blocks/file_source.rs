@@ -45,6 +45,7 @@ pub struct FileSource<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> FileSource<T> {
+    /// Create FileSource block
     pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> Block {
         Block::new(
             BlockMetaBuilder::new("FileSource").build(),

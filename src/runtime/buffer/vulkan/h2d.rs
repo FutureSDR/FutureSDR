@@ -14,12 +14,14 @@ use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
+/// Host-to-Device stream connection
 #[derive(Debug, PartialEq, Hash)]
 pub struct H2D;
 
 impl Eq for H2D {}
 
 impl H2D {
+    /// Create custom buffer
     pub fn new() -> H2D {
         H2D
     }
@@ -45,6 +47,7 @@ impl BufferBuilder for H2D {
 // everything is measured in items, e.g., offsets, capacity, space available
 
 // ====================== WRITER ============================
+/// Custom buffer writer
 #[derive(Debug)]
 pub struct WriterH2D {
     buffer: Option<CurrentBuffer>,
@@ -65,6 +68,7 @@ struct CurrentBuffer {
 }
 
 impl WriterH2D {
+    /// Create buffer writer
     pub fn new(
         item_size: usize,
         writer_inbox: Sender<BlockMessage>,
@@ -203,6 +207,7 @@ impl BufferWriterHost for WriterH2D {
 }
 
 // ====================== READER ============================
+/// Custom buffer reader
 #[derive(Debug)]
 pub struct ReaderH2D {
     inbound: Arc<Mutex<Vec<BufferFull>>>,
@@ -213,12 +218,14 @@ pub struct ReaderH2D {
 }
 
 impl ReaderH2D {
+    /// Send empty buffer back to writer
     pub fn submit(&mut self, buffer: BufferEmpty) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
         let _ = self.writer_inbox.try_send(BlockMessage::Notify);
     }
 
+    /// Get full buffer
     pub fn buffers(&mut self) -> Vec<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)

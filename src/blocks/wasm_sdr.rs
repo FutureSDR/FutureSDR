@@ -38,6 +38,7 @@ pub async fn push_samples(s: Vec<i8>) -> bool {
     }
 }
 
+/// WASM SDR block
 pub struct WasmSdr {
     receiver: mpsc::Receiver<Vec<i8>>,
     samples: Vec<i8>,
@@ -45,7 +46,7 @@ pub struct WasmSdr {
 }
 
 impl WasmSdr {
-    #[allow(clippy::new_ret_no_self)]
+    /// Create WASM SDR block
     pub fn new() -> Block {
         let (sender, receiver) = mpsc::channel(1);
         SENDER.set(Mutex::new(sender)).unwrap();

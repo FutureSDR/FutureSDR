@@ -36,20 +36,30 @@ impl fmt::Debug for Box<dyn TagAny> {
     }
 }
 
+/// Stream tag
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub enum Tag {
+    /// Id
     Id(u64),
+    /// String
     String(String),
+    /// Pmt
     Data(Pmt),
+    /// A `usize` with a name
     NamedUsize(String, usize),
+    /// An `f32` with a name
     NamedF32(String, f32),
+    /// Arbitrary data with a name
     NamedAny(String, Box<dyn TagAny>),
 }
 
+/// Item tag
 #[derive(Clone, Debug)]
 pub struct ItemTag {
+    /// Index of sample in buffer
     pub index: usize,
+    /// [`Tag`] value
     pub tag: Tag,
 }
 

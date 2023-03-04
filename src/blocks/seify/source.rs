@@ -20,6 +20,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Seify Source block
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -195,12 +196,15 @@ type Sched = crate::runtime::scheduler::SmolScheduler;
 #[cfg(target_arch = "wasm32")]
 type Sched = crate::runtime::scheduler::WasmScheduler;
 
+/// Seify Source builder
 pub struct SourceBuilder;
 
 impl SourceBuilder {
+    /// Create Seify Source builder
     pub fn new() -> Builder<GenericDevice, Sched> {
         Builder::new(BuilderType::Source)
     }
+    /// Create Seify Source with async runtime
     #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
     pub fn with_scheduler<S: crate::runtime::scheduler::Scheduler + Sync>(
         scheduler: S,

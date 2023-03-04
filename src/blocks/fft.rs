@@ -46,19 +46,22 @@ pub struct Fft {
 
 /// Fft direction.
 pub enum FftDirection {
+    /// Forward
     Forward,
+    /// Inverse
     Inverse,
 }
 
 impl Fft {
+    /// Create FFT block
     pub fn new(len: usize) -> Block {
         Self::with_direction(len, FftDirection::Forward)
     }
-
+    /// Create FFT block with [`FftDirection`]
     pub fn with_direction(len: usize, direction: FftDirection) -> Block {
         Self::with_options(len, direction, false, None)
     }
-
+    /// Create FFT block with options (direction, shift, normalization)
     pub fn with_options(
         len: usize,
         direction: FftDirection,

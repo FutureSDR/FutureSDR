@@ -63,6 +63,7 @@ pub struct Vulkan {
 }
 
 impl Vulkan {
+    /// Create Vulkan block
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
         let memory_allocator = StandardMemoryAllocator::new_default(broker.device());
         let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device());
@@ -222,19 +223,20 @@ pub struct VulkanBuilder {
 }
 
 impl VulkanBuilder {
+    /// Create Vulkan builder
     pub fn new(broker: Arc<Broker>) -> VulkanBuilder {
         VulkanBuilder {
             broker,
             capacity: 8192,
         }
     }
-
+    /// Set capacity of buffers
     #[must_use]
     pub fn capacity(mut self, c: u64) -> VulkanBuilder {
         self.capacity = c;
         self
     }
-
+    /// Build Vulkan block
     pub fn build(self) -> Block {
         Vulkan::new(self.broker, self.capacity)
     }

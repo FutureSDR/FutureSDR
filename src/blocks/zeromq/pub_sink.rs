@@ -18,6 +18,7 @@ pub struct PubSink<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> PubSink<T> {
+    /// Create PubSink
     pub fn new(address: impl Into<String>, min_item: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("PubSink").blocking().build(),
@@ -84,6 +85,7 @@ pub struct PubSinkBuilder<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> PubSinkBuilder<T> {
+    /// Create PubSink builder
     pub fn new() -> PubSinkBuilder<T> {
         PubSinkBuilder {
             address: "tcp://*:5555".into(),
@@ -92,17 +94,20 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
         }
     }
 
+    /// Remote socket address
     #[must_use]
     pub fn address(mut self, address: &str) -> PubSinkBuilder<T> {
         self.address = address.to_string();
         self
     }
 
+    /// Set minimum number of items in send buffer
     pub fn min_item_per_send(mut self, min_item: usize) -> PubSinkBuilder<T> {
         self.min_item = min_item;
         self
     }
 
+    /// Build PubSink
     pub fn build(self) -> Block {
         PubSink::<T>::new(self.address, self.min_item)
     }

@@ -19,6 +19,7 @@ pub struct VectorSource<T> {
 }
 
 impl<T: Send + 'static> VectorSource<T> {
+    /// Create VectorSource block
     pub fn new(items: Vec<T>) -> Block {
         Block::new(
             BlockMetaBuilder::new("VectorSource").build(),

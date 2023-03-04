@@ -161,7 +161,7 @@ pub use iir::{Iir, IirBuilder};
 pub mod lttng;
 
 mod message_burst;
-pub use message_burst::{MessageBurst, MessageBurstBuilder};
+pub use message_burst::MessageBurst;
 mod message_copy;
 pub use message_copy::MessageCopy;
 mod message_pipe;
@@ -179,6 +179,7 @@ pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
 
+/// Seify hardware driver blocks
 #[cfg(feature = "seify")]
 pub mod seify;
 
@@ -190,7 +191,7 @@ pub mod signal_source;
 pub use signal_source::FixedPointPhase;
 pub use signal_source::SignalSourceBuilder;
 
-pub mod sink;
+mod sink;
 pub use sink::Sink;
 mod source;
 pub use source::Source;

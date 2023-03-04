@@ -23,6 +23,7 @@ pub struct MessageSource {
 }
 
 impl MessageSource {
+    /// Create MessageSource block
     pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> Block {
         Block::new(
             BlockMetaBuilder::new("MessageSource").build(),
@@ -119,6 +120,7 @@ pub struct MessageSourceBuilder {
 }
 
 impl MessageSourceBuilder {
+    /// Create MessageSource builder
     pub fn new(message: Pmt, duration: Duration) -> MessageSourceBuilder {
         MessageSourceBuilder {
             message,
@@ -126,13 +128,13 @@ impl MessageSourceBuilder {
             n_messages: None,
         }
     }
-
+    /// Number of message to send
     #[must_use]
     pub fn n_messages(mut self, n: usize) -> MessageSourceBuilder {
         self.n_messages = Some(n);
         self
     }
-
+    /// Build Message Source block
     pub fn build(self) -> Block {
         MessageSource::new(self.message, self.duration, self.n_messages)
     }

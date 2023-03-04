@@ -22,13 +22,22 @@ use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamOutput;
 
+/// Work IO
+///
+/// Communicate between `work()` and the runtime.
 pub struct WorkIo {
+    /// Call block immediately again
     pub call_again: bool,
+    /// Mark block as finished
     pub finished: bool,
+    /// Block on future
+    ///
+    /// The block will be called (1) if somehting happens or (2) if the future resolves
     pub block_on: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
 }
 
 impl WorkIo {
+    /// Helper to set the future of the Work IO
     pub fn block_on<F: Future<Output = ()> + Send + 'static>(&mut self, f: F) {
         self.block_on = Some(Box::pin(f));
     }
@@ -43,8 +52,12 @@ impl fmt::Debug for WorkIo {
     }
 }
 
+/// Kernal
+///
+/// Central trait to implement a block
 #[async_trait]
 pub trait Kernel: Send {
+    /// Processes stream data
     async fn work(
         &mut self,
         _io: &mut WorkIo,
@@ -54,6 +67,7 @@ pub trait Kernel: Send {
     ) -> Result<()> {
         Ok(())
     }
+    /// Initialize kernel
     async fn init(
         &mut self,
         _s: &mut StreamIo,
@@ -62,6 +76,7 @@ pub trait Kernel: Send {
     ) -> Result<()> {
         Ok(())
     }
+    /// De-initialize kernel
     async fn deinit(
         &mut self,
         _s: &mut StreamIo,
@@ -109,14 +124,20 @@ pub trait BlockT: Send + Any {
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 }
 
+/// Typed Block
 pub struct TypedBlock<T> {
+    /// Block metadata
     pub meta: BlockMeta,
+    /// Stream IO
     pub sio: StreamIo,
+    /// Message IO
     pub mio: MessageIo<T>,
+    /// Kernel
     pub kernel: T,
 }
 
 impl<T: Kernel + Send + 'static> TypedBlock<T> {
+    /// Create Typed Block
     pub fn new(meta: BlockMeta, sio: StreamIo, mio: MessageIo<T>, kernel: T) -> Self {
         Self {
             meta,
@@ -551,10 +572,14 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlockWrapper<T> {
     }
 }
 
+/// Block
+///
+/// Generic wrapper around a [`TypedBlock`].
 #[derive(Debug)]
 pub struct Block(pub(crate) Box<dyn BlockT>);
 
 impl Block {
+    /// Create Block
     pub fn new<T: Kernel + Send + 'static>(
         meta: BlockMeta,
         sio: StreamIo,
@@ -570,11 +595,11 @@ impl Block {
             }),
         }))
     }
-
+    /// Create block by wrapping a [`TypedBlock`].
     pub fn from_typed<T: Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
         Self(Box::new(TypedBlockWrapper { inner: Some(b) }))
     }
-
+    /// Try to cast to a given kernel type
     pub fn kernel<T: Kernel + Send + 'static>(&self) -> Option<&T> {
         self.0
             .as_any()
@@ -582,7 +607,7 @@ impl Block {
             .and_then(|b| b.inner.as_ref())
             .map(|b| &b.kernel)
     }
-
+    /// Try to mutably cast to a given kernel type
     pub fn kernel_mut<T: Kernel + Send + 'static>(&mut self) -> Option<&T> {
         self.0
             .as_any_mut()
@@ -592,20 +617,24 @@ impl Block {
     }
 
     // ##### META
+    /// Get instance name (see [`BlockMeta::instance_name`])
     pub fn instance_name(&self) -> Option<&str> {
         self.0.instance_name()
     }
+    /// Set instance name (see [`BlockMeta::set_instance_name`])
     pub fn set_instance_name(&mut self, name: impl AsRef<str>) {
         self.0.set_instance_name(name.as_ref())
     }
+    /// Get type name (see [`BlockMeta::type_name`])
     pub fn type_name(&self) -> &str {
         self.0.type_name()
     }
+    /// Is block blocking (see [`BlockMeta::is_blocking`])
     pub fn is_blocking(&self) -> bool {
         self.0.is_blocking()
     }
 
-    pub async fn run(
+    pub(crate) async fn run(
         mut self,
         block_id: usize,
         main_inbox: Sender<FlowgraphMessage>,
@@ -615,6 +644,7 @@ impl Block {
     }
 
     // ##### STREAM IO
+    /// Set tag propagation function
     #[allow(clippy::type_complexity)]
     pub fn set_tag_propagation(
         &mut self,
@@ -622,32 +652,41 @@ impl Block {
     ) {
         self.0.set_tag_propagation(f);
     }
+    /// Get stream input ports
     pub fn stream_inputs(&self) -> &Vec<StreamInput> {
         self.0.stream_inputs()
     }
+    /// Get stream input port
     pub fn stream_input(&self, id: usize) -> &StreamInput {
         self.0.stream_input(id)
     }
+    /// Map stream input port name ot id
     pub fn stream_input_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.stream_input_name_to_id(name)
     }
+    /// Get stream output ports
     pub fn stream_outputs(&self) -> &Vec<StreamOutput> {
         self.0.stream_outputs()
     }
+    /// Get stream output port
     pub fn stream_output(&self, id: usize) -> &StreamOutput {
         self.0.stream_output(id)
     }
+    /// Map stream output port name to id
     pub fn stream_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.stream_output_name_to_id(name)
     }
 
     // ##### MESSAGE IO
+    /// Map message input port name to id
     pub fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_input_name_to_id(name)
     }
+    /// Get message output ports
     pub fn message_outputs(&self) -> &Vec<MessageOutput> {
         self.0.message_outputs()
     }
+    /// Map message output port name to id
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
     }

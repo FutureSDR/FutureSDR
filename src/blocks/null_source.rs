@@ -34,6 +34,7 @@ pub struct NullSource<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> NullSource<T> {
+    /// Create Null Source block
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("NullSource").build(),

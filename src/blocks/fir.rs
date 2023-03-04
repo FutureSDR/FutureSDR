@@ -34,6 +34,7 @@ where
     TapType: 'static + Send,
     Core: 'static + UnaryKernel<InputType, OutputType> + Send,
 {
+    /// Create FIR block
     pub fn new(core: Core) -> Block {
         Block::new(
             BlockMetaBuilder::new("Fir").build(),

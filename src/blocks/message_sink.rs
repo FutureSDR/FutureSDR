@@ -16,6 +16,7 @@ pub struct MessageSink {
 }
 
 impl MessageSink {
+    /// Create MessageSink block
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("MessageSink").build(),
@@ -46,7 +47,7 @@ impl MessageSink {
 
         Ok(Pmt::U64(self.n_received))
     }
-
+    /// Get number of received message.
     pub fn received(&self) -> u64 {
         self.n_received
     }

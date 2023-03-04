@@ -9,14 +9,17 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+/// Get global configuration
 pub fn config() -> &'static Config {
     &CONFIG
 }
 
+/// Get value from config
 pub fn get_value(name: &str) -> Option<Value> {
     CONFIG.misc.get(name).cloned()
 }
 
+/// Try to parse value from config string
 pub fn get<T: FromStr>(name: &str) -> Option<T> {
     CONFIG
         .misc
@@ -25,6 +28,7 @@ pub fn get<T: FromStr>(name: &str) -> Option<T> {
         .and_then(|v| v.parse::<T>().ok())
 }
 
+/// Get config value or return default
 pub fn get_or_default<T: FromStr>(name: &str, default: T) -> T {
     get(name).unwrap_or(default)
 }
@@ -86,14 +90,22 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
 #[cfg(target_arch = "wasm32")]
 static CONFIG: Lazy<Config> = Lazy::new(Config::default);
 
+/// Configuration
 #[derive(Debug)]
 pub struct Config {
+    /// Queue size of inboxes
     pub queue_size: usize,
+    /// Stream buffer size in bytes
     pub buffer_size: usize,
+    /// Slab reserved items
     pub slab_reserved: usize,
+    /// Log level
     pub log_level: LevelFilter,
+    /// Enable control port
     pub ctrlport_enable: bool,
+    /// Control port socket address
     pub ctrlport_bind: Option<SocketAddr>,
+    /// Frontend path for Webserver
     pub frontend_path: Option<PathBuf>,
     misc: HashMap<String, Value>,
 }

@@ -34,6 +34,7 @@ pub struct Head<T: Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }
 impl<T: Copy + Send + 'static> Head<T> {
+    /// Create Head block
     pub fn new(n_items: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("Head").build(),

@@ -22,6 +22,9 @@ use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
 
+/// Flow scheduler
+///
+/// Groups blocks and puts them fixed in local queues of worker threads.
 #[derive(Clone, Debug)]
 pub struct FlowScheduler {
     inner: Arc<FlowSchedulerInner>,
@@ -48,6 +51,7 @@ impl Drop for FlowSchedulerInner {
 }
 
 impl FlowScheduler {
+    /// Create Flow scheduler
     pub fn new() -> FlowScheduler {
         let executor = Arc::new(FlowExecutor::new());
         let mut workers = Vec::new();

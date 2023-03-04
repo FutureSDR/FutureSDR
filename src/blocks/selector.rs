@@ -15,6 +15,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/// Drop Policy for [`Selector`] block
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropPolicy {
     /// Drop all unselected inputs
@@ -82,6 +83,7 @@ impl<A, const N: usize, const M: usize> Selector<A, N, M>
 where
     A: Send + 'static + Copy,
 {
+    /// Create Selector block
     pub fn new(drop_policy: DropPolicy) -> Block {
         let mut stream_builder = StreamIoBuilder::new();
         for i in 0..N {

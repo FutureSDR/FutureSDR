@@ -54,6 +54,7 @@ impl generic::Metadata for MyMetadata {
     }
 }
 
+/// Circular builder
 #[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Circular {
     min_bytes: usize,
@@ -62,11 +63,13 @@ pub struct Circular {
 impl Eq for Circular {}
 
 impl Circular {
+    /// Create Circular builder
     pub fn new() -> Circular {
         Circular {
             min_bytes: config::config().buffer_size,
         }
     }
+    /// Create Circular builder with minimum size
     pub fn with_size(min_bytes: usize) -> Circular {
         Circular { min_bytes }
     }
@@ -94,6 +97,7 @@ impl BufferBuilder for Circular {
     }
 }
 
+/// Circular writer
 pub struct Writer {
     writer: generic::Writer<u8, MyNotifier, MyMetadata>,
     readers: Vec<(Sender<BlockMessage>, usize)>,
@@ -104,6 +108,7 @@ pub struct Writer {
 }
 
 impl Writer {
+    /// Create Circular writer
     pub fn new(
         item_size: usize,
         min_bytes: usize,
@@ -199,6 +204,7 @@ impl BufferWriterHost for Writer {
     }
 }
 
+/// Circular reader
 pub struct Reader {
     reader: generic::Reader<u8, MyNotifier, MyMetadata>,
     item_size: usize,

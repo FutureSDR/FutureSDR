@@ -24,6 +24,7 @@ where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,
 {
+    /// Create FiniteSource block
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("FiniteSource").build(),

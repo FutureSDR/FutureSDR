@@ -17,6 +17,7 @@ pub struct MessageBurst {
 }
 
 impl MessageBurst {
+    /// Create MessageBurst block
     pub fn new(message: Pmt, n_messages: u64) -> Block {
         Block::new(
             BlockMetaBuilder::new("MessageBurst").build(),
@@ -46,24 +47,5 @@ impl Kernel for MessageBurst {
 
         io.finished = true;
         Ok(())
-    }
-}
-
-/// Build a [MessageBurst].
-pub struct MessageBurstBuilder {
-    message: Pmt,
-    n_messages: u64,
-}
-
-impl MessageBurstBuilder {
-    pub fn new(message: Pmt, n_messages: u64) -> MessageBurstBuilder {
-        MessageBurstBuilder {
-            message,
-            n_messages,
-        }
-    }
-
-    pub fn build(self) -> Block {
-        MessageBurst::new(self.message, self.n_messages)
     }
 }

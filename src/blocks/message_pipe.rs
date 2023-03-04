@@ -18,6 +18,7 @@ pub struct MessagePipe {
 }
 
 impl MessagePipe {
+    /// Create MessagePipe block
     pub fn new(sender: mpsc::Sender<Pmt>) -> Block {
         Block::new(
             BlockMetaBuilder::new("MessagePipe").build(),

@@ -1,3 +1,4 @@
+//! Vulkan custom buffers
 use std::sync::Arc;
 use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::device::physical::PhysicalDeviceType;
@@ -18,18 +19,24 @@ pub use h2d::WriterH2D;
 pub use h2d::H2D;
 
 // ================== VULKAN MESSAGE ============================
+/// Full buffer
 #[derive(Debug)]
 pub struct BufferFull {
+    /// Buffer
     pub buffer: Arc<CpuAccessibleBuffer<[u8]>>,
+    /// Used bytes
     pub used_bytes: usize,
 }
 
+/// Empty buffer
 #[derive(Debug)]
 pub struct BufferEmpty {
+    /// Buffer
     pub buffer: Arc<CpuAccessibleBuffer<[u8]>>,
 }
 
 // ================== VULKAN BROKER ============================
+/// Vulkan broker
 #[derive(Debug)]
 pub struct Broker {
     device: Arc<Device>,
@@ -37,6 +44,7 @@ pub struct Broker {
 }
 
 impl Broker {
+    /// Create broker
     pub fn new() -> Broker {
         let library = VulkanLibrary::new().unwrap();
         let instance = Instance::new(
@@ -95,10 +103,12 @@ impl Broker {
         Broker { device, queue }
     }
 
+    /// Vulkan device
     pub fn device(&self) -> Arc<Device> {
         self.device.clone()
     }
 
+    /// Vulkan queue
     pub fn queue(&self) -> Arc<Queue> {
         self.queue.clone()
     }

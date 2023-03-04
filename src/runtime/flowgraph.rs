@@ -39,10 +39,12 @@ impl Flowgraph {
         }
     }
 
+    /// Add [`Block`] to flowgraph
     pub fn add_block(&mut self, block: Block) -> usize {
         self.topology.as_mut().unwrap().add_block(block)
     }
 
+    /// Make stream connection
     pub fn connect_stream(
         &mut self,
         src_block: usize,
@@ -59,6 +61,7 @@ impl Flowgraph {
         )
     }
 
+    /// Make stream connection, using the given buffer
     pub fn connect_stream_with_type<B: BufferBuilder + Debug + Eq + Hash>(
         &mut self,
         src_block: usize,
@@ -76,6 +79,7 @@ impl Flowgraph {
         )
     }
 
+    /// Make message connection
     pub fn connect_message(
         &mut self,
         src_block: usize,
@@ -91,6 +95,7 @@ impl Flowgraph {
         )
     }
 
+    /// Try to get kernel from given block
     pub fn kernel<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
         self.topology
             .as_ref()
@@ -98,6 +103,7 @@ impl Flowgraph {
             .and_then(|b| b.kernel())
     }
 
+    /// Try to get kernel mutably from given block
     pub fn kernel_mut<T: Kernel + 'static>(&mut self, id: usize) -> Option<&T> {
         self.topology
             .as_mut()
@@ -112,9 +118,12 @@ impl Default for Flowgraph {
     }
 }
 
+/// Port Identifier
 #[derive(Debug, Clone)]
 pub enum PortId {
+    /// Index
     Index(usize),
+    /// Name
     Name(String),
 }
 
@@ -136,6 +145,7 @@ impl From<String> for PortId {
     }
 }
 
+/// Handle to interact with running [`Flowgraph`]
 #[derive(Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
@@ -146,6 +156,7 @@ impl FlowgraphHandle {
         FlowgraphHandle { inbox }
     }
 
+    /// Call message handler, ignoring the result
     pub async fn call(
         &mut self,
         block_id: usize,
@@ -165,6 +176,7 @@ impl FlowgraphHandle {
         rx.await.map_err(|_| Error::HandlerError)?
     }
 
+    /// Call message handler
     pub async fn callback(
         &mut self,
         block_id: usize,
@@ -184,6 +196,7 @@ impl FlowgraphHandle {
         rx.await.map_err(|_| Error::HandlerError)?
     }
 
+    /// Get [`FlowgraphDescription`]
     pub async fn description(&mut self) -> Result<FlowgraphDescription> {
         let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
         self.inbox
@@ -193,6 +206,7 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
+    /// Get [`BlockDescription`]
     pub async fn block_description(&mut self, block_id: usize) -> Result<BlockDescription> {
         let (tx, rx) = oneshot::channel::<result::Result<BlockDescription, Error>>();
         self.inbox
@@ -202,6 +216,7 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
+    /// Terminate
     pub async fn terminate(&mut self) -> Result<()> {
         self.inbox.send(FlowgraphMessage::Terminate).await?;
         Ok(())

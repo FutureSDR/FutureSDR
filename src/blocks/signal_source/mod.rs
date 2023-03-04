@@ -1,3 +1,4 @@
+//! SignalSource using Lookup Tables
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
 use crate::runtime::Block;
@@ -16,6 +17,7 @@ pub use fxpt_phase::FixedPointPhase;
 mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
+/// Signal Source block
 pub struct SignalSource<F, A>
 where
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
@@ -32,6 +34,7 @@ where
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
     A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
 {
+    /// Create SignalSource block
     pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> Block {
         Block::new(
             BlockMetaBuilder::new("SignalSource").build(),
@@ -83,6 +86,7 @@ enum WaveForm {
     Square,
 }
 
+/// Build a SignalSource block
 pub struct SignalSourceBuilder<A> {
     offset: A,
     amplitude: A,
@@ -93,16 +97,17 @@ pub struct SignalSourceBuilder<A> {
 }
 
 impl<A> SignalSourceBuilder<A> {
+    /// Set y-offset (i.e., a DC component)
     pub fn offset(mut self, offset: A) -> SignalSourceBuilder<A> {
         self.offset = offset;
         self
     }
-
+    /// Set amplitude
     pub fn amplitude(mut self, amplitude: A) -> SignalSourceBuilder<A> {
         self.amplitude = amplitude;
         self
     }
-
+    /// Set initial phase
     pub fn initial_phase(mut self, initial_phase: f32) -> SignalSourceBuilder<A> {
         self.initial_phase = initial_phase;
         self
@@ -110,6 +115,7 @@ impl<A> SignalSourceBuilder<A> {
 }
 
 impl SignalSourceBuilder<f32> {
+    /// Create cosine wave
     pub fn cos(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
         SignalSourceBuilder {
             offset: 0.0,
@@ -120,7 +126,7 @@ impl SignalSourceBuilder<f32> {
             wave_form: WaveForm::Cos,
         }
     }
-
+    /// Create sine wave
     pub fn sin(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
         SignalSourceBuilder {
             offset: 0.0,
@@ -131,7 +137,7 @@ impl SignalSourceBuilder<f32> {
             wave_form: WaveForm::Sin,
         }
     }
-
+    /// Create square wave
     pub fn square(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
         SignalSourceBuilder {
             offset: 0.0,
@@ -142,7 +148,7 @@ impl SignalSourceBuilder<f32> {
             wave_form: WaveForm::Square,
         }
     }
-
+    /// Create Signal Source block
     pub fn build(self) -> Block {
         let nco = NCO::new(
             self.initial_phase,
@@ -178,6 +184,7 @@ impl SignalSourceBuilder<f32> {
 }
 
 impl SignalSourceBuilder<Complex32> {
+    /// Create cosine signal
     pub fn cos(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
         SignalSourceBuilder {
             offset: Complex32::new(0.0, 0.0),
@@ -188,7 +195,7 @@ impl SignalSourceBuilder<Complex32> {
             wave_form: WaveForm::Cos,
         }
     }
-
+    /// Create sine signal
     pub fn sin(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
         SignalSourceBuilder {
             offset: Complex32::new(0.0, 0.0),
@@ -200,6 +207,7 @@ impl SignalSourceBuilder<Complex32> {
         }
     }
 
+    /// Create square wave signal
     pub fn square(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
         SignalSourceBuilder {
             offset: Complex32::new(0.0, 0.0),
@@ -211,6 +219,7 @@ impl SignalSourceBuilder<Complex32> {
         }
     }
 
+    /// Create Signal Source block
     pub fn build(self) -> Block {
         let nco = NCO::new(
             self.initial_phase,

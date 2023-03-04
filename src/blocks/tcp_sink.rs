@@ -20,6 +20,7 @@ pub struct TcpSink {
 }
 
 impl TcpSink {
+    /// Create TCP Sink block
     pub fn new(port: u32) -> Block {
         Block::new(
             BlockMetaBuilder::new("TcpSink").build(),

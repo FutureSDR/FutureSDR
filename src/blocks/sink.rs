@@ -42,6 +42,7 @@ where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,
 {
+    /// Create Sink block
     pub fn new(f: F) -> Block {
         Block::new(
             BlockMetaBuilder::new("Sink").build(),

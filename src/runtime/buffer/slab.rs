@@ -13,6 +13,7 @@ use crate::runtime::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 
+/// Slab buffer
 #[derive(Debug, PartialEq, Hash)]
 pub struct Slab {
     min_bytes: usize,
@@ -23,6 +24,7 @@ pub struct Slab {
 impl Eq for Slab {}
 
 impl Slab {
+    /// Create Slab builder
     pub fn new() -> Slab {
         Slab {
             min_bytes: config::config().buffer_size,
@@ -31,6 +33,7 @@ impl Slab {
         }
     }
 
+    /// Create Slab builder with minimum byte size
     pub fn with_size(min_bytes: usize) -> Slab {
         Slab {
             min_bytes,
@@ -39,6 +42,7 @@ impl Slab {
         }
     }
 
+    /// Create Slab builder with given number of buffers
     pub fn with_buffers(n_buffer: usize) -> Slab {
         Slab {
             min_bytes: config::config().buffer_size,
@@ -47,6 +51,7 @@ impl Slab {
         }
     }
 
+    /// Create Slab buffer, defining minimum size and number of buffers
     pub fn with_config(min_bytes: usize, n_buffer: usize, reserved_items: usize) -> Slab {
         Slab {
             min_bytes,
@@ -102,6 +107,7 @@ struct CurrentBuffer {
     tags: Vec<ItemTag>,
 }
 
+/// Slab writer
 #[derive(Debug)]
 pub struct Writer {
     current: Option<CurrentBuffer>,
@@ -122,6 +128,7 @@ struct State {
 }
 
 impl Writer {
+    /// Create Slab writer
     pub fn new(
         item_size: usize,
         min_bytes: usize,
@@ -289,6 +296,7 @@ impl BufferWriterHost for Writer {
     }
 }
 
+/// Slab reader
 #[derive(Debug)]
 pub struct Reader {
     current: Option<CurrentBuffer>,

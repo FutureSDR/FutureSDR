@@ -37,6 +37,7 @@ pub struct ChannelSource<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> ChannelSource<T> {
+    /// Create ChannelSource block
     pub fn new(receiver: Receiver<Box<[T]>>) -> Block {
         Block::new(
             BlockMetaBuilder::new("ChannelSource").build(),

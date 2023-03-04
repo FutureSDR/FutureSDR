@@ -44,6 +44,7 @@ pub struct WebsocketSink<T> {
 }
 
 impl<T: Send + Sync + 'static> WebsocketSink<T> {
+    /// Create WebsocketSink block
     pub fn new(port: u32, mode: WebsocketSinkMode) -> Block {
         Block::new(
             BlockMetaBuilder::new("WebsocketSink").build(),
@@ -177,6 +178,7 @@ pub struct WebsocketSinkBuilder<T> {
 }
 
 impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
+    /// Create WebsocketSink builder
     pub fn new(port: u32) -> WebsocketSinkBuilder<T> {
         WebsocketSinkBuilder {
             port,
@@ -185,12 +187,14 @@ impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
         }
     }
 
+    /// Set mode
     #[must_use]
     pub fn mode(mut self, mode: WebsocketSinkMode) -> WebsocketSinkBuilder<T> {
         self.mode = mode;
         self
     }
 
+    /// Build WebsocketSink
     pub fn build(self) -> Block {
         WebsocketSink::<T>::new(self.port, self.mode)
     }

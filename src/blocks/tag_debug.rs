@@ -38,6 +38,7 @@ pub struct TagDebug<T: Send + 'static> {
 }
 
 impl<T: Send + 'static> TagDebug<T> {
+    /// Create Tag Debug block
     pub fn new(name: impl Into<String>) -> Block {
         Block::new(
             BlockMetaBuilder::new("TagDebug").build(),

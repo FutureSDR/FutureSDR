@@ -17,6 +17,9 @@ use crate::runtime::Topology;
 
 static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
+/// Smol Scheduler
+///
+/// Default scheduler of the smol async runtime
 #[derive(Clone, Debug)]
 pub struct SmolScheduler {
     inner: Arc<SmolSchedulerInner>,
@@ -45,6 +48,11 @@ impl Drop for SmolSchedulerInner {
 }
 
 impl SmolScheduler {
+    /// Create smol scheduler
+    ///
+    /// ## Parameter
+    /// - `n_executors`: number of worker threads
+    /// - `pin_executors`: pin worker threads to CPUs?
     pub fn new(n_executors: usize, pin_executors: bool) -> SmolScheduler {
         let mut slab = SMOL.lock().unwrap();
         let executor = Arc::new(Executor::new());

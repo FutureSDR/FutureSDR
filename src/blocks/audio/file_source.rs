@@ -20,7 +20,7 @@ pub struct FileSource {
 }
 
 impl FileSource {
-    #[allow(clippy::new_ret_no_self)]
+    /// Create FileSource block
     pub fn new(file: &str) -> Block {
         let file = BufReader::new(File::open(file).unwrap());
         let source = Decoder::new(file).unwrap();
@@ -34,11 +34,11 @@ impl FileSource {
             },
         )
     }
-
+    /// Get sample rate
     pub fn sample_rate(&self) -> u32 {
         self.src.sample_rate()
     }
-
+    /// Get number of samples
     pub fn channels(&self) -> u16 {
         self.src.channels()
     }

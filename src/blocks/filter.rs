@@ -49,6 +49,7 @@ where
     A: 'static,
     B: 'static,
 {
+    /// Create Filter block
     pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Block {
         Block::new(
             BlockMetaBuilder::new("Filter").build(),

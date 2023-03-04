@@ -36,6 +36,7 @@ const QUEUE_SIZE: usize = 5;
 const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
 impl AudioSink {
+    /// Create AudioSink block
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> Block {
         Block::new(
@@ -52,7 +53,7 @@ impl AudioSink {
             },
         )
     }
-
+    /// Get default sample rate
     pub fn default_sample_rate() -> Option<u32> {
         Some(
             cpal::default_host()
@@ -63,7 +64,7 @@ impl AudioSink {
                 .0,
         )
     }
-
+    /// Get supported sample rates
     pub fn supported_sample_rates() -> Vec<u32> {
         if let Some(d) = cpal::default_host().default_output_device() {
             if let Ok(configs) = d.supported_output_configs() {

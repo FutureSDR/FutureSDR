@@ -1,3 +1,4 @@
+//! WGPU custom buffers
 mod d2h;
 pub use d2h::ReaderD2H;
 pub use d2h::WriterD2H;
@@ -10,36 +11,51 @@ pub use h2d::H2D;
 use wgpu::{Adapter, Buffer, Device, Queue};
 
 // ================== WGPU MESSAGE ============================
+/// Full input buffer
 #[derive(Debug)]
 pub struct InputBufferFull {
+    /// Buffer
     pub buffer: Box<[u8]>,
+    /// Used bytes
     pub used_bytes: usize,
 }
 
+/// Empty input buffer
 #[derive(Debug)]
 pub struct InputBufferEmpty {
+    /// Buffer
     pub buffer: Box<[u8]>,
 }
 
+/// Full output buffer
 #[derive(Debug)]
 pub struct OutputBufferFull {
+    /// Buffer
     pub buffer: Buffer,
+    /// Used bytes
     pub used_bytes: usize,
 }
 
+/// Empty output buffer
 #[derive(Debug)]
 pub struct OutputBufferEmpty {
+    /// Buffer
     pub buffer: Buffer,
 }
 
+/// WGPU broker
 #[derive(Debug)]
 pub struct Broker {
+    /// WGPU adapter
     pub adapter: Adapter,
+    /// WGPU device
     pub device: Device,
+    /// Device queue
     pub queue: Queue,
 }
 
 impl Broker {
+    /// Create broker
     pub async fn new() -> Broker {
         let instance = wgpu::Instance::new(wgpu::Backends::all());
 
@@ -71,6 +87,7 @@ impl Broker {
         }
     }
 
+    /// Adapter name
     pub fn get_name(&self) -> String {
         self.adapter.get_info().name
     }

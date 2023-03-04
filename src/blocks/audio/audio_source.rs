@@ -32,6 +32,7 @@ pub struct AudioSource {
 unsafe impl Send for AudioSource {}
 
 impl AudioSource {
+    /// Create AudioSource block
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> Block {
         Block::new(

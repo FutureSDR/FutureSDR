@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use wasm_bindgen_futures::spawn_local;
 
+/// WASM Websocket Sink
 pub struct WasmWsSink<T> {
     data_sender: channel::mpsc::Sender<Vec<u8>>,
     data_storage: Vec<u8>,
@@ -27,6 +28,7 @@ pub struct WasmWsSink<T> {
 }
 
 impl<T: Send + Sync + 'static> WasmWsSink<T> {
+    /// Create WASM Websocket Sink block
     pub fn new(url: String, iterations_per_send: usize) -> Block {
         let (sender, mut receiver) = channel::mpsc::channel::<Vec<u8>>(1);
 

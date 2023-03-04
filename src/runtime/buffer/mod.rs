@@ -9,10 +9,12 @@ pub use buffer::BufferWriter;
 pub use buffer::BufferWriterCustom;
 pub use buffer::BufferWriterHost;
 
+/// Double-mapped circular buffer
 #[cfg(not(target_arch = "wasm32"))]
 pub mod circular;
 
 // ===================== SLAB ========================
+/// Slab buffer
 pub mod slab;
 
 // ==================== VULKAN =======================

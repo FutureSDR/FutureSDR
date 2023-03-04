@@ -38,6 +38,7 @@ pub struct Wgpu {
 }
 
 impl Wgpu {
+    /// Create Wgpu block
     pub fn new(
         broker: wgpu::Broker,
         buffer_items: u64,

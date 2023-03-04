@@ -16,9 +16,11 @@ extern "C" {
     fn put_samples(s: Vec<f32>);
 }
 
+/// WASM Freq block
 pub struct WasmFreq;
 
 impl WasmFreq {
+    /// Create WASM Freq block
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Block {
         Block::new(

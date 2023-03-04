@@ -11,6 +11,7 @@ use std::ops::Mul;
 /// 2**31-1        pi - epsilon
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct FixedPointPhase {
+    /// Index in lookup table
     pub value: i32,
 }
 
@@ -62,9 +63,9 @@ impl Mul<i32> for FixedPointPhase {
 }
 
 impl FixedPointPhase {
-    pub const WORDBITS: u32 = 32;
-    pub const NBITS: u32 = 10;
-    pub const ACCUM_MASK: u32 = ((1 << (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) - 1);
+    const WORDBITS: u32 = 32;
+    const NBITS: u32 = 10;
+    const ACCUM_MASK: u32 = ((1 << (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) - 1);
 
     // Should we use use core::f32::consts::PI?
     // As of now, define things as in GNU Radio
@@ -74,6 +75,7 @@ impl FixedPointPhase {
     const TAU: f32 = 2.0 * 3.14159265358979323846;
     const TWO_TO_THE_31: f32 = 2147483648.0;
 
+    /// Create FixedPointPhase
     pub fn new(x: f32) -> Self {
         // Fold x into -PI to PI.
         let d = (x / FixedPointPhase::TAU + 0.5).floor() as i32;
@@ -83,6 +85,7 @@ impl FixedPointPhase {
         FixedPointPhase { value }
     }
 
+    /// Create a sine wave
     pub fn sin(&self) -> f32 {
         let ux: u32 = self.value as u32;
         let index = (ux >> (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) as usize;
@@ -90,6 +93,7 @@ impl FixedPointPhase {
             + FixedPointPhase::S_SINE_TABLE[index][1]
     }
 
+    /// Create a cosine wave
     pub fn cos(&self) -> f32 {
         let ux: u32 = (self.value as u32).wrapping_add(0x40000000);
         let index = (ux >> (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) as usize;
@@ -98,7 +102,7 @@ impl FixedPointPhase {
     }
 
     #[allow(clippy::excessive_precision)]
-    pub const S_SINE_TABLE: [[f32; 2]; 1 << FixedPointPhase::NBITS] = [
+    const S_SINE_TABLE: [[f32; 2]; 1 << FixedPointPhase::NBITS] = [
         [1.462908899582504e-09, 0.000000000000000e+00],
         [1.462853821889299e-09, 6.135884647725872e-03],
         [1.462743668576535e-09, 1.227153828286288e-02],

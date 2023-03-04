@@ -15,7 +15,7 @@ pub struct Copy<T: core::marker::Copy + Send + 'static> {
 }
 
 impl<T: core::marker::Copy + Send + 'static> Copy<T> {
-    /// Create [`Copy`] block
+    /// Create [`struct@Copy`] block
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("Copy").build(),

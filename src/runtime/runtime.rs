@@ -73,6 +73,7 @@ impl<'a> Runtime<'a, SmolScheduler> {
         }
     }
 
+    /// Set custom routes for the control port Axum webserver
     pub fn with_custom_routes(routes: Router) -> Self {
         runtime::init();
         Runtime {
@@ -92,6 +93,7 @@ impl<'a> Default for Runtime<'a, SmolScheduler> {
 
 #[cfg(target_arch = "wasm32")]
 impl<'a> Runtime<'a, WasmScheduler> {
+    /// Create Runtime
     pub fn new() -> Self {
         runtime::init();
         Runtime {
@@ -120,6 +122,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         }
     }
 
+    /// Create runtime with given scheduler and Axum routes
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_config(scheduler: S, routes: Router) -> Self {
         runtime::init();
@@ -130,6 +133,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         }
     }
 
+    /// Spawn task on runtime
     pub fn spawn<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
@@ -137,6 +141,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         self.scheduler.spawn(future)
     }
 
+    /// Block thread, waiting for future to complete
     #[cfg(not(target_arch = "wasm32"))]
     pub fn block_on<T: Send + 'static>(
         &self,
@@ -145,6 +150,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         block_on(self.scheduler.spawn(future))
     }
 
+    /// Spawn task on runtime in background, detaching the handle
     #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_background<T: Send + 'static>(
         &self,
@@ -153,6 +159,9 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         self.scheduler.spawn(future).detach();
     }
 
+    /// Spawn a blocking task
+    ///
+    /// This is usually moved in a separate thread.
     pub fn spawn_blocking<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
@@ -160,6 +169,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         self.scheduler.spawn_blocking(future)
     }
 
+    /// Spawn a blocking task in the background
     #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_blocking_background<T: Send + 'static>(
         &self,
@@ -168,6 +178,9 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
+    /// Start the runtime
+    ///
+    /// Returns, once the flowgraph is constructed and running
     pub async fn start<'b>(
         &'a self,
         fg: Flowgraph,
@@ -200,11 +213,13 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         block_on(handle)
     }
 
+    /// Async version of `run`, mainly for WASM.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg).await;
         handle.await
     }
 
+    /// Get scheduler
     pub fn scheduler(&self) -> S {
         self.scheduler.clone()
     }

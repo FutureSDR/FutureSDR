@@ -1,4 +1,4 @@
-// #![warn(missing_docs)]
+#![warn(missing_docs)]
 #![recursion_limit = "512"]
 #![allow(clippy::new_ret_no_self)]
 #![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
