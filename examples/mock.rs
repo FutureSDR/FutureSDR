@@ -9,7 +9,7 @@ fn main() {
         .take(64)
         .collect();
 
-    let block = Apply::new(|x: &u32| x + 1);
+    let block = Apply::new_typed(|x: &u32| x + 1);
 
     let mut mocker = Mocker::new(block);
     mocker.input(0, input.clone());

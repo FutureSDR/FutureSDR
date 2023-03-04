@@ -8,7 +8,6 @@ use slab::Slab;
 use std::pin::Pin;
 
 use crate::runtime::config;
-use crate::runtime::run_block;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
@@ -44,9 +43,9 @@ impl Scheduler for WasmScheduler {
             inboxes[id] = Some(sender);
 
             if block.is_blocking() {
-                self.spawn_blocking(run_block(block, id, main_channel.clone(), receiver));
+                self.spawn_blocking(block.run(id, main_channel.clone(), receiver));
             } else {
-                self.spawn(run_block(block, id, main_channel.clone(), receiver));
+                self.spawn(block.run(id, main_channel.clone(), receiver));
             }
         }
 

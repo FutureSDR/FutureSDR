@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::runtime::config;
-use crate::runtime::run_block;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
@@ -112,10 +111,10 @@ impl Scheduler for SmolScheduler {
             inboxes[id] = Some(sender);
 
             if block.is_blocking() {
-                self.spawn_blocking(run_block(block, id, main_channel.clone(), receiver))
+                self.spawn_blocking(block.run(id, main_channel.clone(), receiver))
                     .detach();
             } else {
-                self.spawn(run_block(block, id, main_channel.clone(), receiver))
+                self.spawn(block.run(id, main_channel.clone(), receiver))
                     .detach();
             }
         }

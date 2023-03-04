@@ -7,6 +7,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Apply a function to each sample.
@@ -68,14 +69,22 @@ where
     /// ## Parameter
     /// - `f`: Function to apply on each sample
     pub fn new(f: F) -> Block {
-        Block::new(
+        Block::from_typed(Self::new_typed(f))
+    }
+
+    /// Create typed [`Apply`] block
+    ///
+    /// ## Parameter
+    /// - `f`: Function to apply on each sample
+    pub fn new_typed(f: F) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in")
                 .add_output::<B>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
-            Apply {
+            Self {
                 f,
                 _p1: std::marker::PhantomData,
                 _p2: std::marker::PhantomData,

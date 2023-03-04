@@ -370,7 +370,7 @@ impl StreamIo {
             .map(|(i, _)| i)
     }
 
-    pub fn commmit(&mut self) {
+    pub fn commit(&mut self) {
         (self.tag_propagation)(&mut self.inputs, &mut self.outputs);
         for i in self.inputs_mut() {
             i.commit();

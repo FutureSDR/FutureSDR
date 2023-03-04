@@ -37,6 +37,7 @@ mod topology;
 
 pub use block::Block;
 pub use block::Kernel;
+pub use block::TypedBlock;
 pub use block::WorkIo;
 pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
@@ -48,7 +49,6 @@ pub use message_io::MessageIo;
 pub use message_io::MessageIoBuilder;
 pub use message_io::MessageOutput;
 pub use mocker::Mocker;
-pub(crate) use runtime::run_block;
 pub use runtime::Runtime;
 pub use stream_io::StreamInput;
 pub use stream_io::StreamIo;
@@ -145,8 +145,8 @@ pub enum BlockMessage {
 pub enum Error {
     #[error("Block does not exist")]
     InvalidBlock,
-    #[error("Handler does not exist")]
-    InvalidHandler,
+    #[error("Handler does not exist (Id {0:?})")]
+    InvalidHandler(PortId),
     #[error("Error in handler")]
     HandlerError,
     #[error("Block already terminated")]

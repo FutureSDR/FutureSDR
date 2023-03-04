@@ -11,6 +11,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 const MAX_ITER: usize = 4000;
@@ -45,8 +46,12 @@ pub struct MovingAverage<T: MovingAverageType + Send + 'static> {
 
 impl<T: MovingAverageType + Send + 'static> MovingAverage<T> {
     pub fn new(len: usize) -> Block {
+        Block::from_typed(Self::new_typed(len))
+    }
+
+    pub fn new_typed(len: usize) -> TypedBlock<Self> {
         assert!(len > 0);
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("MovingAverage").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
@@ -115,7 +120,7 @@ mod test {
 
     #[test]
     fn mov_avg_one() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(2));
         mocker.input(0, vec![1.0f32, 2.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();
@@ -126,7 +131,7 @@ mod test {
 
     #[test]
     fn mov_avg_no_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(3));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(3));
         mocker.input(0, vec![1.0f32, 2.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();
@@ -137,7 +142,7 @@ mod test {
 
     #[test]
     fn mov_avg_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(2));
         mocker.input(0, vec![1.0f32, 2.0, 3.0, 4.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();

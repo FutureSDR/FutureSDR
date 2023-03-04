@@ -4,19 +4,20 @@ use std::fmt::Debug;
 
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriterHost;
-use crate::runtime::Block;
 use crate::runtime::BlockMessage;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
 use crate::runtime::ItemTag;
+use crate::runtime::Kernel;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
-pub struct Mocker {
-    block: Block,
+pub struct Mocker<K> {
+    block: TypedBlock<K>,
 }
 
-impl Mocker {
-    pub fn new(block: Block) -> Self {
+impl<K: Kernel + 'static> Mocker<K> {
+    pub fn new(block: TypedBlock<K>) -> Self {
         Mocker { block }
     }
 
@@ -25,7 +26,8 @@ impl Mocker {
         T: Debug + Send + 'static,
     {
         self.block
-            .stream_input_mut(id)
+            .sio
+            .input(id)
             .set_reader(BufferReader::Host(Box::new(MockReader::new(
                 data,
                 Vec::new(),
@@ -37,7 +39,8 @@ impl Mocker {
         T: Debug + Send + 'static,
     {
         self.block
-            .stream_input_mut(id)
+            .sio
+            .input(id)
             .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
     }
 
@@ -46,7 +49,8 @@ impl Mocker {
         T: Debug + Send + 'static,
     {
         self.block
-            .stream_output_mut(id)
+            .sio
+            .output(id)
             .init(BufferWriter::Host(Box::new(MockWriter::<T>::new(size))));
     }
 
@@ -54,7 +58,7 @@ impl Mocker {
     where
         T: Debug + Send + 'static,
     {
-        let w = self.block.stream_output_mut(id).writer_mut();
+        let w = self.block.sio.output(id).writer_mut();
         if let BufferWriter::Host(w) = w {
             w.as_any().downcast_mut::<MockWriter<T>>().unwrap().get()
         } else {
@@ -75,8 +79,17 @@ impl Mocker {
         };
 
         loop {
-            self.block.work(&mut io).await.unwrap();
-            self.block.commit();
+            self.block
+                .kernel
+                .work(
+                    &mut io,
+                    &mut self.block.sio,
+                    &mut self.block.mio,
+                    &mut self.block.meta,
+                )
+                .await
+                .unwrap();
+            self.block.sio.commit();
             if !io.call_again {
                 break;
             } else {

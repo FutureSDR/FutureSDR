@@ -17,7 +17,7 @@ pub fn apply(c: &mut Criterion) {
 
     group.bench_function(format!("mock-u32-plus-1-{n_samp}"), |b| {
         b.iter(|| {
-            let block = Apply::new(|x: &u32| x + 1);
+            let block = Apply::new_typed(|x: &u32| x + 1);
 
             let mut mocker = Mocker::new(block);
             mocker.input(0, input.clone());

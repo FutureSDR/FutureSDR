@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::runtime::config;
-use crate::runtime::run_block;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
@@ -96,7 +95,7 @@ impl Scheduler for TpbScheduler {
             let (sender, receiver) = channel::<BlockMessage>(queue_size);
             inboxes[id] = Some(sender);
 
-            self.spawn_blocking(run_block(block, id, main_channel.clone(), receiver))
+            self.spawn_blocking(block.run(id, main_channel.clone(), receiver))
                 .detach();
         }
 
