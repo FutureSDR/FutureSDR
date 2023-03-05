@@ -20,3 +20,5 @@ by your SDR and may cause a crash.
 
   $ argo run
   ```
+  
+- enter a frequency in MHz in the prompt, e.g. `89.1` (and press Enter) to tune the radio to 89.1 MHz. This prompt for a new frequency runs in a loop, so can change the frequency over and over again. 
