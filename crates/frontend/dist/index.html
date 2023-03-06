@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>FutureSDR Web Interface</title>
+        <link rel="shortcut icon" href="/favicon.png">
+        <script src="/js/mermaid.min.js"></script>
+        <script>
+         mermaid.mermaidAPI.initialize({'theme': 'dark'});
+        </script>
+        <script type="module">
+         import init, {add_flowgraph} from "./futuresdr.js"
+
+            const runWasm = async () => {
+                const rustWasm = await init();
+                add_flowgraph("#flowgraph", "http://127.0.0.1:1337");
+            };
+
+            runWasm();
+        </script>
+        <style type="text/css">
+         body {
+             background-color: #313131;
+             color: #aaa;
+         }
+        </style>
+    </head>
+    <body>
+        <div id="flowgraph"></div>
+    </body>
+</html>
