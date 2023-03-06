@@ -163,8 +163,8 @@ impl ControlPort {
 
         let frontend = if let Some(ref p) = config::config().frontend_path {
             Some(ServeDir::new(p))
-        } else if path::Path::new(relative!("frontend/dist")).is_dir() {
-            Some(ServeDir::new(relative!("frontend/dist")))
+        } else if path::Path::new(relative!("crates/frontend/dist")).is_dir() {
+            Some(ServeDir::new(relative!("crates/frontend/dist")))
         } else {
             None
         };
