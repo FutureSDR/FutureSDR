@@ -56,6 +56,7 @@ impl TpbScheduler {
         let e = executor.clone();
         let (sender, receiver) = oneshot::channel::<()>();
         let handle = thread::Builder::new()
+            .stack_size(config::config().stack_size)
             .name("tpb-smol".to_string())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

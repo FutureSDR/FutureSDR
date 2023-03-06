@@ -64,6 +64,9 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
                 "buffer_size" => {
                     c.buffer_size = config_parse::<usize>(v);
                 }
+                "stack_size" => {
+                    c.stack_size = config_parse::<usize>(v);
+                }
                 "log_level" => {
                     c.log_level = config_parse::<LevelFilter>(v);
                 }
@@ -97,6 +100,8 @@ pub struct Config {
     pub queue_size: usize,
     /// Stream buffer size in bytes
     pub buffer_size: usize,
+    /// Thread stack size
+    pub stack_size: usize,
     /// Slab reserved items
     pub slab_reserved: usize,
     /// Log level
@@ -127,6 +132,7 @@ impl Default for Config {
         Config {
             queue_size: 8192,
             buffer_size: 32768,
+            stack_size: 16 * 1024 * 1024,
             slab_reserved: 128,
             log_level: LevelFilter::Debug,
             ctrlport_enable: true,
@@ -141,6 +147,7 @@ impl Default for Config {
         Config {
             queue_size: 8192,
             buffer_size: 32768,
+            stack_size: 16 * 1024 * 1024,
             slab_reserved: 128,
             log_level: LevelFilter::Info,
             ctrlport_enable: false,

@@ -67,6 +67,7 @@ impl FlowScheduler {
             let (sender, receiver) = oneshot::channel::<()>();
 
             let handle = thread::Builder::new()
+                .stack_size(config::config().stack_size)
                 .name(format!("flow-{}", id.id))
                 .spawn(move || {
                     debug!("starting executor thread on core id {}", id.id);

@@ -71,6 +71,7 @@ impl SmolScheduler {
             let (sender, receiver) = oneshot::channel::<()>();
 
             let handle = thread::Builder::new()
+                .stack_size(config::config().stack_size)
                 .name(format!("smol-{}", &c.id))
                 .spawn(move || {
                     if pin_executors {
