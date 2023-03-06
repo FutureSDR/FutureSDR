@@ -14,6 +14,7 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 proc-macro = true
 
 [dependencies]
-syn = {version="1.0.98", features=["full", "extra-traits"]}
-quote = "1.0"
+indexmap = "1.9.2"
 proc-macro2 = "1.0.46"
+quote = "1.0"
+syn = {version="1.0.98", features=["full", "extra-traits"]}

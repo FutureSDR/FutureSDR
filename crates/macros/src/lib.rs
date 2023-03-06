@@ -1,12 +1,12 @@
 //! Macros to make working with FutureSDR a bit nicer.
 
+use indexmap::IndexSet;
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use proc_macro2::TokenTree;
 use quote::quote;
 use quote::quote_spanned;
-use std::collections::HashSet;
 use std::iter::Peekable;
 
 //=========================================================================
@@ -91,7 +91,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut attrs = TokenStream::from(attr).into_iter().peekable();
     let mut out = TokenStream::new();
 
-    let mut blocks = HashSet::<Ident>::new();
+    let mut blocks = IndexSet::<Ident>::new();
     let mut message_connections = Vec::<(Ident, String, Ident, String)>::new();
     let mut stream_connections = Vec::<(Ident, String, Ident, String, Option<TokenStream>)>::new();
 
@@ -244,14 +244,14 @@ enum ParseResult {
     Connections {
         stream: Vec<(Ident, String, Ident, String, Option<TokenStream>)>,
         message: Vec<(Ident, String, Ident, String)>,
-        blocks: HashSet<Ident>,
+        blocks: IndexSet<Ident>,
     },
     Done,
     Error(Option<Span>, String),
 }
 
 fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> ParseResult {
-    let mut blocks = HashSet::<Ident>::new();
+    let mut blocks = IndexSet::<Ident>::new();
     let mut stream = Vec::<(Ident, String, Ident, String, Option<TokenStream>)>::new();
     let mut message = Vec::<(Ident, String, Ident, String)>::new();
 
