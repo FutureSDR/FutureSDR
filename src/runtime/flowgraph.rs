@@ -146,7 +146,7 @@ impl From<String> for PortId {
 }
 
 /// Handle to interact with running [`Flowgraph`]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
 }
