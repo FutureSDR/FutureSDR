@@ -70,6 +70,7 @@ impl AudioSink {
             if let Ok(configs) = d.supported_output_configs() {
                 let mut v = Vec::new();
                 for c in configs {
+                    // println!("{:?}", c);
                     let min = c.min_sample_rate().0;
                     let max = c.max_sample_rate().0;
                     if min >= 10000 {
@@ -104,12 +105,36 @@ impl Kernel for AudioSink {
             .default_output_device()
             .expect("no output device available");
 
+        let mut actual_channels: Option<u16> = None;
+        // On Windows there is an issue in cpal with
+        // shared devices, if the requested configuration
+        // does not match the device configuration.
+        // https://github.com/RustAudio/cpal/issues/593
+        // On MS/Windows, the channels might be greater than the one needed.
+        // So find a compatible configuration, esp. (sample_rate, channels)
+        if let Ok(configs) = device.supported_output_configs() {
+            for c in configs {
+                // println!("{:?}", c);
+                if actual_channels.is_none()
+                    && c.min_sample_rate().0 >= self.sample_rate
+                    && self.sample_rate <= c.max_sample_rate().0
+                {
+                    actual_channels = Some(c.channels());
+                    break;
+                }
+            }
+        }
+
         let config = StreamConfig {
-            channels: self.channels,
+            channels: if let Some(actual_channels) = actual_channels {
+                actual_channels
+            } else {
+                self.channels
+            },
             sample_rate: SampleRate(self.sample_rate),
             buffer_size: BufferSize::Default,
         };
-
+        let duplicate_time = (config.channels / self.channels) as usize;
         let (tx, mut rx) = mpsc::channel(QUEUE_SIZE);
         let mut iter: Option<Vec<f32>> = None;
 
@@ -122,8 +147,21 @@ impl Kernel for AudioSink {
                     while let Some(mut v) =
                         iter.take().or_else(|| rx.try_next().ok().and_then(|x| x))
                     {
-                        let n = std::cmp::min(v.len(), data.len() - i);
-                        data[i..i + n].copy_from_slice(&v[..n]);
+                        let n = std::cmp::min(v.len(), data.len() / duplicate_time - i);
+                        if duplicate_time == 1 {
+                            // Case where channels was compatible
+                            data[i..i + n].copy_from_slice(&v[..n]);
+                        } else {
+                            // Case where we need to duplicate inputs so as to match channels number
+                            for (target, source) in
+                                data.chunks_exact_mut(duplicate_time).zip(v.iter())
+                            {
+                                for t in target.iter_mut().take(duplicate_time) {
+                                    *t = *source;
+                                }
+                            }
+                        }
+
                         i += n;
 
                         if n < v.len() {
