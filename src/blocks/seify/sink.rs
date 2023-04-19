@@ -152,9 +152,8 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             .map(|b| b.slice::<Complex32>())
             .collect();
 
-        let min_in_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
         let streamer = self.streamer.as_mut().unwrap();
-        let n = std::cmp::min(min_in_len, streamer.mtu().unwrap());
+        let n = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
         if n == 0 {
             return Ok(());
         }
@@ -165,7 +164,6 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
                 tag: Tag::NamedUsize(n, len),
             } => {
                 if *index == 0 && n == "burst_start" {
-                    debug_assert!(*len <= streamer.mtu().unwrap());
                     Some(*len)
                 } else {
                     None
@@ -190,7 +188,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         } else {
             // send in non-burst mode
             let ret = streamer.write(&bufs, None, false, 2_000_000)?;
-            if ret != min_in_len {
+            if ret != n {
                 io.call_again = true;
             }
             ret
