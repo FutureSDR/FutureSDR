@@ -57,7 +57,10 @@ pub struct Broker {
 impl Broker {
     /// Create broker
     pub async fn new() -> Broker {
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
+        });
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
