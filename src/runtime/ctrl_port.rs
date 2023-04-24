@@ -170,14 +170,7 @@ impl ControlPort {
         };
 
         if let Some(service) = frontend {
-            app = app.fallback_service(get_service(service).handle_error(
-                |error: std::io::Error| async move {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Unhandled internal error: {error}"),
-                    )
-                },
-            ));
+            app = app.fallback_service(get_service(service));
         }
 
         let handle = std::thread::spawn(move || {
