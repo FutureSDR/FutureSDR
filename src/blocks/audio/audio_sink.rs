@@ -137,6 +137,7 @@ impl Kernel for AudioSink {
                 move |err| {
                     panic!("cpal stream error {err:?}");
                 },
+                None,
             )
             .expect("could not build output stream");
         // On Windows there is an issue in cpal with

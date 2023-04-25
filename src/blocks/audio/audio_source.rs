@@ -81,6 +81,7 @@ impl Kernel for AudioSource {
             move |err| {
                 panic!("cpal stream error {err:?}");
             },
+            None,
         )?;
 
         stream.play()?;
