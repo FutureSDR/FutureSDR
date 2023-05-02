@@ -129,7 +129,7 @@ impl Component for Radio {
             <>
             {
                 for ctx.props().children.iter().map(|mut item| {
-                    let mut props = Rc::make_mut(&mut item.props);
+                    let props = Rc::make_mut(&mut item.props);
                     if props.value == self.value {
                         props.checked = true;
                     } else {
