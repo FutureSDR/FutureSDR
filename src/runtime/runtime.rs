@@ -32,14 +32,21 @@ use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 
 pub struct TaskHandle<'a, T> {
-    task: Task<T>,
+    task: Option<Task<T>>,
     _p: std::marker::PhantomData<&'a ()>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<'a, T> Drop for TaskHandle<'a, T> {
+    fn drop(&mut self) {
+        self.task.take().unwrap().detach()
+    }
 }
 
 impl<'a, T> TaskHandle<'a, T> {
     fn new(task: Task<T>) -> Self {
         TaskHandle {
-            task,
+            task: Some(task),
             _p: std::marker::PhantomData,
         }
     }
@@ -48,7 +55,7 @@ impl<'a, T> TaskHandle<'a, T> {
 impl<'a, T> std::future::Future for TaskHandle<'a, T> {
     type Output = T;
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.task.poll_unpin(cx)
+        self.task.as_mut().unwrap().poll_unpin(cx)
     }
 }
 
