@@ -27,6 +27,8 @@ pub struct Agc<T> {
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_locked: bool,
+    /// Set when gain should be automatically locked, when the reference power is reached for the first time
+    autolock: bool,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -62,6 +64,7 @@ where
         adjustment_rate: f32,
         reference_power: f32,
         gain_locked: bool,
+        autolock: bool,
     ) -> Block {
         assert!(max_gain >= 0.0);
         assert!(squelch >= 0.0);
@@ -85,6 +88,7 @@ where
                 reference_power,
                 adjustment_rate,
                 gain_locked,
+                autolock,
                 _type: std::marker::PhantomData,
             },
         )
@@ -187,6 +191,11 @@ where
             for (src, dst) in i.iter().zip(o.iter_mut()) {
                 if src.abs().to_f32().unwrap() > self.squelch {
                     *dst = self.scale(*src);
+                    if self.autolock && !self.gain_locked {
+                        if dst.abs().to_f32().unwrap() >= self.reference_power {
+                            self.gain_locked = true;
+                        }
+                    }
                 } else {
                     *dst = T::from(0.0).unwrap();
                 }
@@ -220,6 +229,8 @@ where
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_locked: bool,
+    /// Set when gain should be automatically locked, when the reference power is reached for the first time
+    autolock: bool,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -236,6 +247,7 @@ where
     /// - `reference_power`: 1.0
     /// - `adjustment_rate`: 0.0001
     /// - `gain_locked`: false
+    /// - `autolock`: false
     pub fn new() -> AgcBuilder<T> {
         AgcBuilder {
             squelch: 0.0,
@@ -244,6 +256,7 @@ where
             reference_power: 1.0,
             adjustment_rate: 0.0001,
             gain_locked: false,
+            autolock: false,
             _type: std::marker::PhantomData,
         }
     }
@@ -262,7 +275,7 @@ where
 
     /// Adjustment rate, i.e., impact of current sample on gain setting
     pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AgcBuilder<T> {
-        self.squelch = adjustment_rate;
+        self.adjustment_rate = adjustment_rate;
         self
     }
 
@@ -278,6 +291,12 @@ where
         self
     }
 
+    /// Fix gain setting, disabling AGC
+    pub fn autolock(mut self, autolock: bool) -> AgcBuilder<T> {
+        self.autolock = autolock;
+        self
+    }
+
     /// Create [`Agc`] block
     pub fn build(self) -> Block {
         Agc::<T>::new(
@@ -287,6 +306,7 @@ where
             self.adjustment_rate,
             self.reference_power,
             self.gain_locked,
+            self.autolock,
         )
     }
 }
