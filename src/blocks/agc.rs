@@ -191,7 +191,10 @@ where
             for (src, dst) in i.iter().zip(o.iter_mut()) {
                 if src.abs().to_f32().unwrap() > self.squelch {
                     *dst = self.scale(*src);
-                    if self.autolock && !self.gain_locked && dst.abs().to_f32().unwrap() >= self.reference_power {
+                    if self.autolock
+                        && !self.gain_locked
+                        && dst.abs().to_f32().unwrap() >= self.reference_power
+                    {
                         self.gain_locked = true;
                     }
                 } else {
