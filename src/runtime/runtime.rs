@@ -104,7 +104,7 @@ impl<'a> Runtime<'a, WasmScheduler> {
     pub fn new() -> Self {
         runtime::init();
         Runtime {
-            scheduler: WasmScheduler::default(),
+            scheduler: WasmScheduler,
             control_port: ControlPort::new(),
             _p: std::marker::PhantomData,
         }

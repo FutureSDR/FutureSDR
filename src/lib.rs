@@ -45,11 +45,13 @@ pub use anyhow;
 pub use async_io;
 #[cfg(not(target_arch = "wasm32"))]
 pub use async_net;
+/// Async Trait Macro
 #[macro_use]
 pub extern crate async_trait;
 pub use futuredsp;
 pub use futures;
 pub use futures_lite;
+/// Logging macro
 #[macro_use]
 pub extern crate log;
 #[macro_use]
