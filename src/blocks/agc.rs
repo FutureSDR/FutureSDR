@@ -262,7 +262,7 @@ where
 
     /// Adjustment rate, i.e., impact of current sample on gain setting
     pub fn adjustment_rate(mut self, adjustment_rate: f32) -> AgcBuilder<T> {
-        self.squelch = adjustment_rate;
+        self.adjustment_rate = adjustment_rate;
         self
     }
 
