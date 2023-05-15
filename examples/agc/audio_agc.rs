@@ -44,7 +44,8 @@ fn main() -> Result<()> {
     );
 
     // Start the flowgraph and save the handle
-    let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
+    let rt = Runtime::new();
+    let (_res, mut handle) = async_io::block_on(rt.start(fg));
 
     // Keep changing gain and gain lock.
     loop {

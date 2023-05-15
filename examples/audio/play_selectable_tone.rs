@@ -45,7 +45,8 @@ fn main() -> Result<()> {
     fg.connect_stream(selector, "out0", snk, "in")?;
 
     // Start the flowgraph and save the handle
-    let (_res, mut handle) = async_io::block_on(Runtime::new().start(fg));
+    let rt = Runtime::new();
+    let (_res, mut handle) = async_io::block_on(rt.start(fg));
 
     // Keep asking user for the selection
     loop {
