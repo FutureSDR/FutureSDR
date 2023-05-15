@@ -109,7 +109,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
         RunMode::Run => Runtime::new().run(fg),
         RunMode::Terminate => {
             let rt = Runtime::new();
-            let (fg_task, mut fg_handle) = block_on(rt.start(fg));
+            let (fg_task, mut fg_handle) = rt.start_sync(fg);
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;

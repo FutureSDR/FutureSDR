@@ -4,7 +4,7 @@ use rand_distr::{Distribution, Normal};
 use std::time::Duration;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_io::{block_on, Timer};
+use futuresdr::async_io::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Fft;
@@ -138,7 +138,7 @@ fn main() -> Result<()> {
     fg.connect_message(decoder, "rftap", blob_to_udp, "in")?;
 
     let rt = Runtime::new();
-    let (_fg, mut handle) = block_on(rt.start(fg));
+    let (_fg, mut handle) = rt.start_sync(fg);
 
     let mut seq = 0u64;
     rt.spawn_background(async move {

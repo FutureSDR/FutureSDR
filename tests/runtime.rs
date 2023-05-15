@@ -68,7 +68,7 @@ fn fg_terminate() -> Result<()> {
     fg.connect_stream(throttle, "out", null_sink, "in")?;
 
     let rt = Runtime::new();
-    let (fg, mut handle) = block_on(rt.start(fg));
+    let (fg, mut handle) = rt.start_sync(fg);
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
         handle.terminate().await.unwrap();

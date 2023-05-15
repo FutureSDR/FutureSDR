@@ -3,7 +3,6 @@ use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_io::block_on;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
@@ -100,7 +99,7 @@ fn main() -> Result<()> {
                  decoder.rx_frames | udp1;
                  decoder.rftap | udp2);
 
-    let (_fg, _handle) = block_on(rt.start(fg));
+    let (_fg, _handle) = rt.start_sync(fg);
     rt.block_on(async move {
         while let Some(x) = rx_frame.next().await {
             match x {

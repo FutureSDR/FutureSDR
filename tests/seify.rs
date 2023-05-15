@@ -79,7 +79,7 @@ fn builder_config() -> Result<()> {
     connect!(fg, src > snk);
 
     let rt = Runtime::new();
-    block_on(rt.start(fg));
+    rt.start_sync(fg);
 
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 100e6);
@@ -106,7 +106,7 @@ fn config_freq_gain_ports() -> Result<()> {
     connect!(fg, src > snk);
 
     let rt = Runtime::new();
-    let (_task, mut fg_handle) = block_on(rt.start(fg));
+    let (_task, mut fg_handle) = rt.start_sync(fg);
 
     // Freq
     block_on(async {
@@ -145,7 +145,7 @@ fn config_cmd_map() -> Result<()> {
     connect!(fg, src > snk);
 
     let rt = Runtime::new();
-    let (_, mut fg_handle) = block_on(rt.start(fg));
+    let (_, mut fg_handle) = rt.start_sync(fg);
 
     block_on(async {
         let pmt = Pmt::MapStrPmt(HashMap::from([

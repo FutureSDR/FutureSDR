@@ -2,7 +2,7 @@ use clap::Parser;
 use std::time::Duration;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_io::{block_on, Timer};
+use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
@@ -106,7 +106,7 @@ fn main() -> Result<()> {
     )?;
 
     let rt = Runtime::new();
-    let (_fg, mut handle) = block_on(rt.start(fg));
+    let (_fg, mut handle) = rt.start_sync(fg);
 
     let mut seq = 0u64;
     rt.block_on(async move {

@@ -185,9 +185,9 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    /// Start the runtime
+    /// Start a [`Flowgraph`] on the [`Runtime`]
     ///
-    /// Returns, once the flowgraph is constructed and running
+    /// Returns, once the flowgraph is constructed and running.
     pub async fn start<'b>(
         &'a self,
         fg: Flowgraph,
@@ -213,20 +213,28 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
         (TaskHandle::new(task), handle)
     }
 
-    /// Main method that kicks-off the running of a [Flowgraph].
+    /// Start a [`Flowgraph`] on the [`Runtime`]
+    ///
+    /// Blocks until the flowgraph is constructed and running.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn start_sync(&self, fg: Flowgraph) -> (TaskHandle<Result<Flowgraph>>, FlowgraphHandle) {
+        block_on(self.start(fg))
+    }
+
+    /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = block_on(self.start(fg));
         block_on(handle)
     }
 
-    /// Async version of `run`, mainly for WASM.
+    /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph> {
         let (handle, _) = self.start(fg).await;
         handle.await
     }
 
-    /// Get scheduler
+    /// Get the [`Scheduler`] that is associated with the [`Runtime`].
     pub fn scheduler(&self) -> S {
         self.scheduler.clone()
     }
