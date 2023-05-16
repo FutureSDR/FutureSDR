@@ -150,8 +150,8 @@ impl Default for Config {
             stack_size: 16 * 1024 * 1024,
             slab_reserved: 128,
             log_level: LevelFilter::Info,
-            ctrlport_enable: false,
-            ctrlport_bind: None,
+            ctrlport_enable: true,
+            ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
             frontend_path: None,
             misc: HashMap::new(),
         }
