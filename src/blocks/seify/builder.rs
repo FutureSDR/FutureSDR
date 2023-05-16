@@ -2,13 +2,11 @@ use seify::Args;
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction;
-use seify::GenericDevice;
 
 use crate::anyhow::{anyhow, Result};
 use crate::blocks::seify::Config;
 use crate::blocks::seify::Sink;
 use crate::blocks::seify::Source;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 
 pub enum BuilderType {
@@ -17,33 +15,16 @@ pub enum BuilderType {
 }
 
 /// Seify Device builder
-pub struct Builder<D: DeviceTrait + Clone, S: Scheduler> {
+pub struct Builder<D: DeviceTrait + Clone> {
     args: Args,
     channels: Vec<usize>,
     config: Config,
     dev: Option<Device<D>>,
     start_time: Option<i64>,
-    scheduler: Option<S>,
     builder_type: BuilderType,
 }
 
-#[cfg(target_arch = "wasm32")]
-impl Builder<GenericDevice, crate::runtime::scheduler::WasmScheduler> {
-    pub fn new(builder_type: BuilderType) -> Self {
-        Self {
-            args: Args::new(),
-            channels: vec![0],
-            config: Config::new(),
-            dev: None,
-            start_time: None,
-            scheduler: None,
-            builder_type,
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Builder<GenericDevice, crate::runtime::scheduler::SmolScheduler> {
+impl<D: DeviceTrait + Clone> Builder<D> {
     /// Create Seify Device builder
     pub fn new(builder_type: BuilderType) -> Self {
         Self {
@@ -52,43 +33,22 @@ impl Builder<GenericDevice, crate::runtime::scheduler::SmolScheduler> {
             config: Config::new(),
             dev: None,
             start_time: None,
-            scheduler: None,
             builder_type,
         }
     }
-}
-
-#[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-impl<S: crate::runtime::scheduler::Scheduler + Sync> Builder<GenericDevice, S> {
-    /// Create Seify Device builder with async runtime
-    pub fn with_scheduler(builder_type: BuilderType, scheduler: S) -> Self {
-        Self {
-            args: Args::new(),
-            channels: vec![0],
-            config: Config::new(),
-            dev: None,
-            start_time: None,
-            scheduler: Some(scheduler),
-            builder_type,
-        }
-    }
-}
-
-impl<D: DeviceTrait + Clone, S: Scheduler + Sync> Builder<D, S> {
     /// Arguments
     pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
         self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
         Ok(self)
     }
     /// Seify device
-    pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> Builder<D2, S> {
+    pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> Builder<D2> {
         Builder {
             args: self.args,
             channels: self.channels,
             config: self.config,
             dev: Some(dev),
             start_time: self.start_time,
-            scheduler: self.scheduler,
             builder_type: self.builder_type,
         }
     }
@@ -141,21 +101,6 @@ impl<D: DeviceTrait + Clone, S: Scheduler + Sync> Builder<D, S> {
                 }
             },
             None => {
-                #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-                let dev = if let Some(scheduler) = self.scheduler {
-                    Device::from_args_with_runtime(
-                        &self.args,
-                        super::hyper::HyperExecutor(scheduler),
-                        super::hyper::HyperConnector,
-                    )?
-                } else {
-                    Device::from_args_with_runtime(
-                        &self.args,
-                        seify::DefaultExecutor::default(),
-                        seify::DefaultConnector::default(),
-                    )?
-                };
-                #[cfg(not(all(feature = "seify_http", not(target_arch = "wasm32"))))]
                 let dev = Device::from_args(&self.args)?;
                 match self.builder_type {
                     BuilderType::Sink => {

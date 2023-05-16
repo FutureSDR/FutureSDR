@@ -23,13 +23,12 @@ members = [
 [features]
 default = []
 aaronia = ["seify/aaronia"]
-aaronia_http = ["seify/aaronia_http", "seify_http"]
+aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
 lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
 rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify"]
-seify_http = ["seify/web", "dep:async-native-tls"]
 soapy = ["seify/soapy"]
 tpb_scheduler = []
 vulkan = ["dep:vulkano", "dep:vulkano-shaders"]
@@ -91,8 +90,7 @@ num_cpus = "1.15"
 once_cell = "1.17"
 rand = "0.8.5"
 rustfft = "6.1"
-seify = { git = "https://github.com/futuresdr/seify", branch = "main", default-features = false, optional = true }
-#seify = { version = "0.4.1", default-features = false, optional = true }
+seify = { version = "0.6.0", default-features = false, optional = true }
 slab = "0.4.8"
 spin = "0.9.8"
 serde = { version = "1.0", features = ["derive"] }

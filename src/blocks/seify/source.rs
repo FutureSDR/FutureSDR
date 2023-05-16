@@ -191,24 +191,12 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-type Sched = crate::runtime::scheduler::SmolScheduler;
-#[cfg(target_arch = "wasm32")]
-type Sched = crate::runtime::scheduler::WasmScheduler;
-
 /// Seify Source builder
 pub struct SourceBuilder;
 
 impl SourceBuilder {
     /// Create Seify Source builder
-    pub fn new() -> Builder<GenericDevice, Sched> {
+    pub fn new() -> Builder<GenericDevice> {
         Builder::new(BuilderType::Source)
-    }
-    /// Create Seify Source with async runtime
-    #[cfg(all(feature = "seify_http", not(target_arch = "wasm32")))]
-    pub fn with_scheduler<S: crate::runtime::scheduler::Scheduler + Sync>(
-        scheduler: S,
-    ) -> Builder<GenericDevice, S> {
-        Builder::with_scheduler(BuilderType::Source, scheduler)
     }
 }

@@ -50,7 +50,7 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let mut seify = SourceBuilder::with_scheduler(rt.scheduler())
+    let mut seify = SourceBuilder::new()
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain);
