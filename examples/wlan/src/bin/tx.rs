@@ -45,6 +45,7 @@ const PAD_TAIL: usize = 5000;
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    futuresdr::runtime::init();
     println!("Configuration: {args:?}");
 
     let mut size = 4096;

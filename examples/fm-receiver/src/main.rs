@@ -54,6 +54,7 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    futuresdr::runtime::init();
     let args = Args::parse();
     println!("Configuration {args:?}");
 
