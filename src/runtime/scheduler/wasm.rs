@@ -82,6 +82,11 @@ impl Scheduler for WasmScheduler {
 /// WASM Async Task
 pub struct Task<T>(oneshot::Receiver<T>);
 
+impl<T> Task<T> {
+    /// Detach from Task (dummy function for WASM)
+    pub fn detach(self) {}
+}
+
 impl<T> std::future::Future for Task<T> {
     type Output = T;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
