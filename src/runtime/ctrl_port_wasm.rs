@@ -1,9 +1,10 @@
+use crate::runtime::scheduler::Scheduler;
 use crate::runtime::FlowgraphHandle;
 
 pub struct ControlPort;
 
 impl ControlPort {
-    pub fn new() -> Self {
+    pub fn new<S: Scheduler + Send + Sync + 'static>(_scheduler: S) -> Self {
         Self
     }
 
@@ -12,8 +13,5 @@ impl ControlPort {
     }
 }
 
-impl Default for ControlPort {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// Runtime handle added as state to web handlers
+pub struct RuntimeHandle;

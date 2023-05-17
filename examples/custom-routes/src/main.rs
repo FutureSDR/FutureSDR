@@ -1,3 +1,5 @@
+use axum::body::Body;
+use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
@@ -8,6 +10,7 @@ use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::RuntimeHandle;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -20,7 +23,9 @@ fn main() -> Result<()> {
         .build(),
     );
 
-    let router = Router::new().route("/my_route/", get(my_route));
+    let router = Router::<RuntimeHandle, Body>::new()
+        .route("/start_fg/", get(start_fg))
+        .route("/my_route/", get(my_route));
 
     println!("Visit http://127.0.0.1:1337/my_route/");
     Runtime::with_custom_routes(router).run(fg)?;
@@ -42,4 +47,18 @@ async fn my_route() -> Html<&'static str> {
     </html>
     "#,
     )
+}
+
+async fn start_fg(State(rt): State<RuntimeHandle>) {
+    let mut fg = Flowgraph::new();
+    fg.add_block(
+        MessageSourceBuilder::new(
+            Pmt::String("foo".to_string()),
+            time::Duration::from_millis(100),
+        )
+        .n_messages(50)
+        .build(),
+    );
+    let mut handle = rt.start(fg).await;
+    dbg!(handle.description().await.unwrap());
 }

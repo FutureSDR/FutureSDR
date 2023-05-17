@@ -1,6 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
+use axum::body::Body;
+#[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::channel::oneshot;
@@ -30,6 +32,8 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::RuntimeHandle;
 
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
@@ -73,19 +77,21 @@ impl<'a> Runtime<'a, SmolScheduler> {
     /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Self {
         runtime::init();
+        let scheduler = SmolScheduler::default();
         Runtime {
-            scheduler: SmolScheduler::default(),
-            control_port: ControlPort::new(),
+            scheduler: scheduler.clone(),
+            control_port: ControlPort::new(scheduler),
             _p: std::marker::PhantomData,
         }
     }
 
     /// Set custom routes for the control port Axum webserver
-    pub fn with_custom_routes(routes: Router) -> Self {
+    pub fn with_custom_routes(routes: Router<RuntimeHandle, Body>) -> Self {
         runtime::init();
+        let scheduler = SmolScheduler::default();
         Runtime {
-            scheduler: SmolScheduler::default(),
-            control_port: ControlPort::with_routes(routes),
+            scheduler: scheduler.clone(),
+            control_port: ControlPort::with_routes(scheduler, routes),
             _p: std::marker::PhantomData,
         }
     }
@@ -103,9 +109,10 @@ impl<'a> Runtime<'a, WasmScheduler> {
     /// Create Runtime
     pub fn new() -> Self {
         runtime::init();
+        let scheduler = WasmScheduler;
         Runtime {
-            scheduler: WasmScheduler,
-            control_port: ControlPort::new(),
+            scheduler: scheduler.clone(),
+            control_port: ControlPort::new(scheduler),
             _p: std::marker::PhantomData,
         }
     }
@@ -118,24 +125,24 @@ impl<'a> Default for Runtime<'a, WasmScheduler> {
     }
 }
 
-impl<'a, S: Scheduler> Runtime<'a, S> {
+impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     /// Create a [Runtime] with a given [Scheduler]
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
         Runtime {
-            scheduler,
-            control_port: ControlPort::new(),
+            scheduler: scheduler.clone(),
+            control_port: ControlPort::new(scheduler),
             _p: std::marker::PhantomData,
         }
     }
 
     /// Create runtime with given scheduler and Axum routes
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn with_config(scheduler: S, routes: Router) -> Self {
+    pub fn with_config(scheduler: S, routes: Router<RuntimeHandle, Body>) -> Self {
         runtime::init();
         Runtime {
-            scheduler,
-            control_port: ControlPort::with_routes(routes),
+            scheduler: scheduler.clone(),
+            control_port: ControlPort::with_routes(scheduler, routes),
             _p: std::marker::PhantomData,
         }
     }
@@ -240,7 +247,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
     }
 }
 
-async fn run_flowgraph<S: Scheduler>(
+pub(crate) async fn run_flowgraph<S: Scheduler>(
     mut fg: Flowgraph,
     scheduler: S,
     mut main_channel: Sender<FlowgraphMessage>,

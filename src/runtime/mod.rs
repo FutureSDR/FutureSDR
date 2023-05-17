@@ -41,6 +41,7 @@ pub use block::TypedBlock;
 pub use block::WorkIo;
 pub use block_meta::BlockMeta;
 pub use block_meta::BlockMetaBuilder;
+pub use ctrl_port::RuntimeHandle;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
 pub use flowgraph::PortId;

@@ -1,3 +1,0 @@
-log_level = "info"
-ctrlport_enable = true
-ctrlport_bind = "127.0.0.1:1337"
