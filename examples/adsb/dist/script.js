@@ -82,6 +82,7 @@ function update_aircrafts(register) {
                 pos_arr.push(pos);
             }
             let cur_pos = pos_arr[pos_arr.length-1];
+            console.log(cur_pos);
             cur_aircraft_positions.push(cur_pos);
             let cur_velocity = null;
             if(value.velocities.length > 0) {

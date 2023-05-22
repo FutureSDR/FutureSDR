@@ -136,6 +136,7 @@ fn main() -> Result<()> {
     let adsb_tracker = fg.add_block(tracker);
     fg.connect_message(adsb_decoder, "out", adsb_tracker, "in")?;
 
+    println!("Please open the map in the browser: http://127.0.0.1:1337/map.html");
     Runtime::new().run(fg)?;
 
     Ok(())
