@@ -492,7 +492,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 tx,
             } => {
                 let (block_tx, block_rx) = oneshot::channel::<result::Result<Pmt, Error>>();
-                if let Some(inbox) = inboxes[block_id].as_mut() {
+                if let Some(Some(inbox)) = inboxes.get_mut(block_id) {
                     if inbox
                         .send(BlockMessage::Callback {
                             port_id,
