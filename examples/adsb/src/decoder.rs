@@ -110,7 +110,7 @@ impl Decoder {
     #[message_handler]
     async fn packet_received(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -145,6 +145,9 @@ impl Decoder {
                         }
                     }
                 }
+            }
+            Pmt::Finished => {
+                io.finished = true;
             }
             x => {
                 warn!("Received unexpected PMT type: {:?}", x);

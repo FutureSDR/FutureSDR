@@ -64,7 +64,7 @@ impl Tracker {
     #[message_handler]
     async fn handle_ctrl_port(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -74,6 +74,10 @@ impl Tracker {
                 // Reply with register
                 let json = serde_json::to_string(&self.aircraft_register).unwrap();
                 Ok(Pmt::String(json))
+            }
+            Pmt::Finished => {
+                io.finished = true;
+                Ok(Pmt::Ok)
             }
             x => {
                 warn!("Received unexpected PMT type: {:?}", x);
@@ -86,7 +90,7 @@ impl Tracker {
     #[message_handler]
     async fn packet_received(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -116,6 +120,9 @@ impl Tracker {
                         }
                     }
                 }
+            }
+            Pmt::Finished => {
+                io.finished = true;
             }
             x => {
                 warn!("Received unexpected PMT type: {:?}", x);
