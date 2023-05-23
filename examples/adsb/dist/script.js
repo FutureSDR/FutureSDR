@@ -82,7 +82,6 @@ function update_aircrafts(register) {
                 pos_arr.push(pos);
             }
             let cur_pos = pos_arr[pos_arr.length-1];
-            console.log(cur_pos);
             cur_aircraft_positions.push(cur_pos);
             let cur_velocity = null;
             if(value.velocities.length > 0) {
@@ -166,7 +165,7 @@ function update_aircrafts(register) {
 
 function fetch_aircrafts(tracker_block) {
     let ctrl_port = tracker_block.message_inputs.indexOf("ctrl_port");
-    let url = `http://localhost:1337/api/fg/0/block/${tracker_block.id}/call/${ctrl_port}/`;
+    let url = `/api/fg/0/block/${tracker_block.id}/call/${ctrl_port}/`;
     let promise = fetch(url).then((response) => {
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -179,7 +178,7 @@ function fetch_aircrafts(tracker_block) {
 }
 
 function fetch_fg() {
-    let promise = fetch('http://localhost:1337/api/fg/0/').then((response) => {
+    let promise = fetch('/api/fg/0/').then((response) => {
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
