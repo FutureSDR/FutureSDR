@@ -9,9 +9,15 @@ edition = "2021"
 name = "listen-adsb"
 path = "src/bin/listen_adsb.rs"
 
+[features]
+default = ["soapy"]
+aaronia_http = ["futuresdr/aaronia_http"]
+rtlsdr = ["futuresdr/rtlsdr"]
+soapy = ["futuresdr/soapy"]
+
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-futuresdr = { path = "../..", features=["soapy", "rtlsdr"] }
+futuresdr = { path = "../..", features = ["seify"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "3.0"
 serde_json = "1.0"

@@ -9,11 +9,16 @@ default-run = "rx"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["soapy"]
+aaronia_http = ["futuresdr/aaronia_http"]
+soapy = ["futuresdr/soapy"]
+
 [dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
-futuresdr = { path = "../..", features = ["soapy", "aaronia_http"] }
+futuresdr = { path = "../..", features = ["seify"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

@@ -18,9 +18,14 @@ path = "src/bin/loopback.rs"
 name = "tx"
 path = "src/bin/tx.rs"
 
+[features]
+default = ["soapy"]
+aaronia_http = ["futuresdr/aaronia_http"]
+soapy = ["futuresdr/soapy"]
+
 [dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
 crc32fast = "1.3.2"
-futuresdr = { path = "../..", features = ["aaronia_http", "soapy"] }
+futuresdr = { path = "../..", features = ["seify"] }
 rand = "0.8.5"
 rand_distr = "0.4.3"
