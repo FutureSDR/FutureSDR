@@ -148,19 +148,25 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
         let mut bufs: Vec<&mut [Complex32]> =
             outs.iter_mut().map(|b| b.slice::<Complex32>()).collect();
 
-        let min_out_len = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
+        let n = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
         let streamer = self.streamer.as_mut().unwrap();
-        let n = std::cmp::min(min_out_len, streamer.mtu().unwrap());
         if n == 0 {
             return Ok(());
         }
 
-        if let Ok(len) = streamer.read(&mut bufs, 1_000_000) {
-            for i in 0..outs.len() {
-                sio.output(i).produce(len);
+        match streamer.read(&mut bufs, 1_000_000) {
+            Ok(len) => {
+                for i in 0..outs.len() {
+                    sio.output(i).produce(len);
+                }
+            }
+            Err(e) => {
+                error!("Seify Source Error: {:?}", e);
+                io.finished = true;
             }
         }
+
         io.call_again = true;
         Ok(())
     }

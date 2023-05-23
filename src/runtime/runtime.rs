@@ -549,13 +549,13 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 let ids: Vec<usize> = topology.blocks.iter().map(|x| x.0).collect();
                 for id in ids {
                     let (b_tx, rx) = oneshot::channel::<BlockDescription>();
-                    inboxes[id]
-                        .as_mut()
-                        .unwrap()
-                        .send(BlockMessage::BlockDescription { tx: b_tx })
-                        .await
-                        .unwrap();
-                    blocks.push(rx.await.unwrap());
+                    if let Some(Some(inbox)) = inboxes.get_mut(id) {
+                        inbox
+                            .send(BlockMessage::BlockDescription { tx: b_tx })
+                            .await
+                            .unwrap();
+                        blocks.push(rx.await.unwrap());
+                    }
                 }
 
                 let stream_edges = topology
