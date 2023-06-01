@@ -1,7 +1,10 @@
 //! FIR filters
-use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
 use core::intrinsics::{fadd_fast, fmul_fast};
+use core::{
+    cmp::Ordering,
+    ops::{Add, Mul},
+};
 
 use crate::{ComputationStatus, TapsAccessor, UnaryKernel};
 use num_complex::Complex;
@@ -336,76 +339,41 @@ where
     (n, num_producable_samples, status)
 }
 
-impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<f32, f32>
-    for PolyphaseResamplingFirKernel<f32, f32, TA, f32>
+impl<T, TA> UnaryKernel<T, T> for PolyphaseResamplingFirKernel<T, T, TA, T>
+where
+    T: Default + Send + Copy + Mul + Add<<T as Mul>::Output, Output = T>,
+    TA: TapsAccessor<TapType = T>,
 {
-    fn work(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
+    fn work(&self, i: &[T], o: &mut [T]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
             self.interp,
             self.decim,
             &self.taps,
             i,
             o,
-            || 0.0,
+            || T::default(),
             |accum, sample, tap| accum + sample * tap,
         )
     }
 }
 
-impl<TA: TapsAccessor<TapType = f32>> UnaryKernel<Complex<f32>, Complex<f32>>
-    for PolyphaseResamplingFirKernel<Complex<f32>, Complex<f32>, TA, f32>
+impl<T, TA> UnaryKernel<Complex<T>, Complex<T>>
+    for PolyphaseResamplingFirKernel<Complex<T>, Complex<T>, TA, T>
+where
+    T: Default + Send + Copy + Mul + Add<<T as Mul>::Output, Output = T>,
+    TA: TapsAccessor<TapType = T>,
 {
-    fn work(
-        &self,
-        i: &[Complex<f32>],
-        o: &mut [Complex<f32>],
-    ) -> (usize, usize, ComputationStatus) {
+    fn work(&self, i: &[Complex<T>], o: &mut [Complex<T>]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
             self.interp,
             self.decim,
             &self.taps,
             i,
             o,
-            || Complex { re: 0.0, im: 0.0 },
-            |accum, sample, tap| Complex {
-                re: accum.re + sample.re * tap,
-                im: accum.im + sample.im * tap,
+            || Complex {
+                re: T::default(),
+                im: T::default(),
             },
-        )
-    }
-}
-
-impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<f64, f64>
-    for PolyphaseResamplingFirKernel<f64, f64, TA, f64>
-{
-    fn work(&self, i: &[f64], o: &mut [f64]) -> (usize, usize, ComputationStatus) {
-        resampling_fir_kernel_core(
-            self.interp,
-            self.decim,
-            &self.taps,
-            i,
-            o,
-            || 0.0,
-            |accum, sample, tap| accum + sample * tap,
-        )
-    }
-}
-
-impl<TA: TapsAccessor<TapType = f64>> UnaryKernel<Complex<f64>, Complex<f64>>
-    for PolyphaseResamplingFirKernel<Complex<f64>, Complex<f64>, TA, f64>
-{
-    fn work(
-        &self,
-        i: &[Complex<f64>],
-        o: &mut [Complex<f64>],
-    ) -> (usize, usize, ComputationStatus) {
-        resampling_fir_kernel_core(
-            self.interp,
-            self.decim,
-            &self.taps,
-            i,
-            o,
-            || Complex { re: 0.0, im: 0.0 },
             |accum, sample, tap| Complex {
                 re: accum.re + sample.re * tap,
                 im: accum.im + sample.im * tap,
