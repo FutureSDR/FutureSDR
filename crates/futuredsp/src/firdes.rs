@@ -21,10 +21,7 @@ use num_traits::FromPrimitive;
 /// let taps = firdes::lowpass::<f32>(cutoff, rect_win.as_slice());
 /// ```
 pub fn lowpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
-    assert!(
-        cutoff > 0.0 && cutoff < 1.0 / 2.0,
-        "cutoff must be in (0, 1/2)"
-    );
+    assert!(cutoff.abs() < 1.0 / 2.0, "cutoff must be in ]-1/2, 1/2[");
     let omega_c = 2.0 * core::f64::consts::PI * cutoff;
     let alpha = (window.len() - 1) as f64 / 2.0;
     window
@@ -102,12 +99,12 @@ pub fn highpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
 /// ```
 pub fn bandpass<T: FromPrimitive>(lower_cutoff: f64, higher_cutoff: f64, window: &[f64]) -> Vec<T> {
     assert!(
-        lower_cutoff > 0.0 && lower_cutoff < 1.0 / 2.0,
-        "lower_cutoff must be in (0, 1/2)"
+        lower_cutoff.abs() < 1.0 / 2.0,
+        "lower_cutoff must be in ]-1/2, 1/2["
     );
     assert!(
-        higher_cutoff > lower_cutoff && higher_cutoff < 1.0 / 2.0,
-        "higher_cutoff must be in (lower_cutoff, 1/2)"
+        higher_cutoff > lower_cutoff && higher_cutoff.abs() < 1.0 / 2.0,
+        "higher_cutoff must be in ]lower_cutoff, 1/2["
     );
     let lower_omega_c = 2.0 * core::f64::consts::PI * lower_cutoff;
     let higher_omega_c = 2.0 * core::f64::consts::PI * higher_cutoff;
