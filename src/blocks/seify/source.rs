@@ -161,6 +161,9 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
                     sio.output(i).produce(len);
                 }
             }
+            Err(seify::Error::Overflow) => {
+                warn!("Seify Source Overflow");
+            }
             Err(e) => {
                 error!("Seify Source Error: {:?}", e);
                 io.finished = true;
