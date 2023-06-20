@@ -1,0 +1,9 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+# [[hooks]]
+# stage = "build"
+# command = "sh"
+# command_arguments = ["-c", "tailwindcss -o $TRUNK_STAGING_DIR/tailwind.css"]
+

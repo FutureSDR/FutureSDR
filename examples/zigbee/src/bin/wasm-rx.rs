@@ -1,59 +1,62 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::NullSink;
-use futuresdr::blocks::WasmSdr;
+use futuresdr::log::info;
+use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 
-use crate::ClockRecoveryMm;
-use crate::Decoder;
-use crate::Mac;
+use zigbee::ClockRecoveryMm;
+use zigbee::Decoder;
+use zigbee::HackRf;
+use zigbee::Mac;
 
-#[wasm_bindgen]
-pub async fn run_fg() {
+fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    run_fg_impl().await.unwrap();
+    futuresdr::runtime::init();
+    spawn_local(async move {
+        let ret = async_main().await;
+        info!("main returned {:?}", ret);
+    });
 }
 
-async fn run_fg_impl() -> Result<()> {
+async fn async_main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(WasmSdr::new());
+    let src = HackRf::new();
 
     let mut last: Complex32 = Complex32::new(0.0, 0.0);
     let mut iir: f32 = 0.0;
     let alpha = 0.00016;
-    let avg = fg.add_block(Apply::new(move |i: &Complex32| -> f32 {
+    let avg = Apply::new(move |i: &Complex32| -> f32 {
         let phase = (last.conj() * i).arg();
         last = *i;
         iir = (1.0 - alpha) * iir + alpha * phase;
         phase - iir
-    }));
+    });
 
     let omega = 2.0;
     let gain_omega = 0.000225;
     let mu = 0.5;
     let gain_mu = 0.03;
     let omega_relative_limit = 0.0002;
-    let mm = fg.add_block(ClockRecoveryMm::new(
+    let mm = ClockRecoveryMm::new(
         omega,
         gain_omega,
         mu,
         gain_mu,
         omega_relative_limit,
-    ));
+    );
 
-    let decoder = fg.add_block(Decoder::new(6));
-    let mac = fg.add_block(Mac::new());
-    let snk = fg.add_block(NullSink::<u8>::new());
+    let decoder = Decoder::new(6);
+    let mac = Mac::new();
+    let snk = NullSink::<u8>::new();
 
-    fg.connect_stream(src, "out", avg, "in")?;
-    fg.connect_stream(avg, "out", mm, "in")?;
-    fg.connect_stream(mm, "out", decoder, "in")?;
-    fg.connect_stream(mac, "out", snk, "in")?;
-    fg.connect_message(decoder, "out", mac, "rx")?;
+    connect!(fg, src > avg > mm > decoder;
+                 mac > snk;
+                 decoder | mac.rx);
 
     Runtime::new().run_async(fg).await?;
 
