@@ -3,9 +3,9 @@ use std::collections::VecDeque;
 use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::log::{debug, warn};
-use futuresdr::macros::message_handler;
+use futuresdr::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

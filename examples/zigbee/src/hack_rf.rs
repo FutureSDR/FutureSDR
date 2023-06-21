@@ -1,5 +1,5 @@
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -10,9 +10,6 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
@@ -27,17 +24,6 @@ impl From<JsValue> for Error {
         Self::BrowserError(format!("{:?}", e))
     }
 }
-
-struct F(JsFuture);
-impl Future for F {
-    type Output = Result<JsValue, JsValue>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        std::pin::pin!(self.0).poll(cx)
-    }
-}
-unsafe impl Send for F {}
-unsafe impl Sync for F {}
 
 pub struct HackRf {
     device: Option<web_sys::UsbDevice>,
@@ -60,7 +46,6 @@ impl HackRf {
 
 #[async_trait]
 impl Kernel for HackRf {
-    /// Initialize kernel
     async fn init(
         &mut self,
         _s: &mut StreamIo,
@@ -73,9 +58,9 @@ impl Kernel for HackRf {
 
         let filter: serde_json::Value =
             serde_json::from_str(r#"{ "filters": [{ "vendorId": 6421 }] }"#).unwrap();
-        let filter = JsValue::from_serde(&filter).unwrap();
+        let filter = serde_wasm_bindgen::to_value(&filter).unwrap();
 
-        let devices: js_sys::Array = F(JsFuture::from(usb.get_devices()))
+        let devices: js_sys::Array = JsFuture::from(usb.get_devices())
             .await
             .map_err(Error::from)?
             .into();
@@ -85,15 +70,17 @@ impl Kernel for HackRf {
         let device: web_sys::UsbDevice = if devices.length() > 0 {
             devices.get(0).dyn_into().unwrap()
         } else {
-            F(JsFuture::from(usb.request_device(&filter.into())))
+            JsFuture::from(usb.request_device(&filter.into()))
                 .await
                 .map_err(Error::from)?
                 .dyn_into()
                 .map_err(Error::from)?
         };
 
-        F(JsFuture::from(device.open())).await.map_err(Error::from)?;
-        F(JsFuture::from(device.claim_interface(0)))
+        JsFuture::from(device.open())
+            .await
+            .map_err(Error::from)?;
+        JsFuture::from(device.claim_interface(0))
             .await
             .map_err(Error::from)?;
 
