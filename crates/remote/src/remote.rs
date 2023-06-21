@@ -191,7 +191,7 @@ pub enum Handler {
 
 /// A [`Block`] of a [`Flowgraph`].
 #[derive(Clone, Debug)]
-pub struct Block<H: Connect + Clone + Send + Sync + 'static> {
+pub struct Block<H: Connect + Clone + Send + Sync + 'static = HttpConnector> {
     description: BlockDescription,
     client: Client<H>,
     url: String,
@@ -248,6 +248,11 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
         };
         let bytes = hyper::body::to_bytes(body).await?;
         Ok(serde_json::from_slice(&bytes)?)
+    }
+
+    /// BlockDescription
+    pub fn description(&self) -> &BlockDescription {
+        &self.description
     }
 }
 
