@@ -84,11 +84,8 @@ impl Kernel for HackRf {
             .await
             .map_err(Error::from)?;
 
-        // Ok(Self {
-        //     device,
-        //     current_channel: None,
-        //     current_address: None,
-        // })
+        self.device = Some(device);
+
         Ok(())
     }
     async fn work(
