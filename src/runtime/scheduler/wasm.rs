@@ -57,7 +57,7 @@ impl Scheduler for WasmScheduler {
 
     fn spawn<T: Send + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + 'static,
     ) -> Task<T> {
         let (tx, rx) = oneshot::channel::<T>();
         wasm_bindgen_futures::spawn_local(async move {
@@ -72,7 +72,7 @@ impl Scheduler for WasmScheduler {
 
     fn spawn_blocking<T: Send + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + 'static,
     ) -> Task<T> {
         info!("no spawn blocking for wasm, using spawn");
         self.spawn(future)
