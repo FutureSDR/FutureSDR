@@ -21,10 +21,26 @@
     <meta name="theme-color" content="#ffffff" />
 
     <base data-trunk-public-url/>
-    <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0">
+    <!-- <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0"> -->
+    <link data-trunk rel="rust" href="">
 
     <title>FutureSDR :: ZigBee Transceiver</title>
   </head>
   <body>
+    <button id="start" type="button" value="Start">Start</button>
+
+    <script type="module">
+     import init, {run_fg} from "./zigbee.js"
+
+     const runWasm = async () => {
+         const rustWasm = await init();
+     };
+
+
+     runWasm();
+
+     document.getElementById('start').onclick = run_fg
+
+     </script>
   </body>
 </html>

@@ -1,5 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait;
+use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -61,6 +62,8 @@ impl From<Request> for u8 {
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
+    #[error("Argument")]
+    Argument,
     #[error("Browser error")]
     BrowserError(String),
 }
@@ -147,11 +150,87 @@ impl HackRf {
         Ok(())
     }
 
-    async fn set_freq(&mut self, hz: u64) -> Result<(), Error> {
-        let buf: [u8; 8] = freq_params(hz);
-        self.write_control(Request::SetFreq, 0, 0, &buf)
+    // Helper for set_freq
+    fn freq_params(hz: u64) -> [u8; 8] {
+        const MHZ: u64 = 1_000_000;
+
+        let l_freq_mhz: u32 = u32::try_from(hz / MHZ).unwrap_or(u32::MAX).to_le();
+        let l_freq_hz: u32 = u32::try_from(hz - u64::from(l_freq_mhz) * MHZ)
+            .unwrap_or(u32::MAX)
+            .to_le();
+
+        [
+            (l_freq_mhz & 0xFF) as u8,
+            ((l_freq_mhz >> 8) & 0xFF) as u8,
+            ((l_freq_mhz >> 16) & 0xFF) as u8,
+            ((l_freq_mhz >> 24) & 0xFF) as u8,
+            (l_freq_hz & 0xFF) as u8,
+            ((l_freq_hz >> 8) & 0xFF) as u8,
+            ((l_freq_hz >> 16) & 0xFF) as u8,
+            ((l_freq_hz >> 24) & 0xFF) as u8,
+        ]
     }
 
+    async fn set_freq(&mut self, hz: u64) -> Result<(), Error> {
+        let mut buf: [u8; 8] = Self::freq_params(hz);
+        self.write_control(Request::SetFreq, 0, 0, &mut buf).await
+    }
+
+    async fn set_amp_enable(&mut self, en: bool) -> Result<(), Error> {
+        self.write_control(Request::AmpEnable, en.into(), 0, &mut []).await
+    }
+
+    async fn set_baseband_filter_bandwidth(&mut self, hz: u32) -> Result<(), Error> {
+        self.write_control(
+            Request::BasebandFilterBandwidthSet,
+            (hz & 0xFFFF) as u16,
+            (hz >> 16) as u16,
+            &mut [],
+        ).await
+    }
+
+    async fn set_sample_rate(&mut self, hz: u32, div: u32) -> Result<(), Error> {
+        let hz: u32 = hz.to_le();
+        let div: u32 = div.to_le();
+        let mut buf: [u8; 8] = [
+            (hz & 0xFF) as u8,
+            ((hz >> 8) & 0xFF) as u8,
+            ((hz >> 16) & 0xFF) as u8,
+            ((hz >> 24) & 0xFF) as u8,
+            (div & 0xFF) as u8,
+            ((div >> 8) & 0xFF) as u8,
+            ((div >> 16) & 0xFF) as u8,
+            ((div >> 24) & 0xFF) as u8,
+        ];
+        self.write_control(Request::SampleRateSet, 0, 0, &mut buf).await?;
+        self.set_baseband_filter_bandwidth((0.75 * (hz as f32) / (div as f32)) as u32).await
+    }
+
+    async fn set_lna_gain(&mut self, gain: u16) -> Result<(), Error> {
+        if gain > 40 {
+            Err(Error::Argument)
+        } else {
+            let buf: [u8; 1] = self.read_control(Request::SetLnaGain, 0, gain & !0x07).await?;
+            if buf[0] == 0 {
+                Err(Error::Argument)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    async fn set_vga_gain(&mut self, gain: u16) -> Result<(), Error> {
+        if gain > 62 {
+            Err(Error::Argument)
+        } else {
+            let buf: [u8; 1] = self.read_control(Request::SetVgaGain, 0, gain & !0b1).await?;
+            if buf[0] == 0 {
+                Err(Error::Argument)
+            } else {
+                Ok(())
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -167,7 +246,7 @@ impl Kernel for HackRf {
         let usb = navigator.usb();
 
         let filter: serde_json::Value =
-            serde_json::from_str(r#"{ "filters": [{ "vendorId": 0x1D50 }] }"#).unwrap();
+            serde_json::from_str(r#"{ "filters": [{ "vendorId": 7504 }] }"#).unwrap();
         let filter = serde_wasm_bindgen::to_value(&filter).unwrap();
 
         let devices: js_sys::Array = JsFuture::from(usb.get_devices())
@@ -175,11 +254,19 @@ impl Kernel for HackRf {
             .map_err(Error::from)?
             .into();
 
+        info!("devices {:?}", &devices);
+
+        for i in 0..devices.length() {
+            let d : web_sys::UsbDevice = devices.get(0).dyn_into().unwrap();
+            println!("dev {}   {:?}", i, &d);
+        }
         // Open radio if one is already paired and plugged
         // Otherwise ask the user to pair a new radio
         let device: web_sys::UsbDevice = if devices.length() > 0 {
+            info!("multiple devices, getting first");
             devices.get(0).dyn_into().unwrap()
         } else {
+            info!("requesting filtered device. {:?}", &filter);
             JsFuture::from(usb.request_device(&filter.into()))
                 .await
                 .map_err(Error::from)?
@@ -187,12 +274,20 @@ impl Kernel for HackRf {
                 .map_err(Error::from)?
         };
 
+        info!("opening device");
         JsFuture::from(device.open()).await.map_err(Error::from)?;
+        info!("claiming device");
         JsFuture::from(device.claim_interface(0))
             .await
             .map_err(Error::from)?;
 
         self.device = Some(device);
+
+        self.set_amp_enable(true).await.unwrap();
+        self.set_lna_gain(24).await.unwrap();
+        self.set_vga_gain(20).await.unwrap();
+        self.set_freq(2480000000).await.unwrap();
+        self.set_sample_rate(4000000, 2).await.unwrap();
 
         Ok(())
     }

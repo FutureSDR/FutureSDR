@@ -6,6 +6,7 @@ use futuresdr::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use zigbee::ClockRecoveryMm;
@@ -22,7 +23,10 @@ fn main() {
     });
 }
 
-async fn async_main() -> Result<()> {
+#[wasm_bindgen]
+pub async fn run_fg() -> Result<()> {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
     let src = HackRf::new();
