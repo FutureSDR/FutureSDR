@@ -1,13 +1,12 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::NullSink;
-use futuresdr::log::info;
 use futuresdr::connect;
+use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::spawn_local;
 
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
@@ -15,16 +14,15 @@ use zigbee::HackRf;
 use zigbee::Mac;
 
 fn main() {
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    futuresdr::runtime::init();
-    spawn_local(async move {
-        let ret = async_main().await;
-        info!("main returned {:?}", ret);
-    });
 }
 
 #[wasm_bindgen]
-pub async fn run_fg() -> Result<()> {
+pub async fn run_fg() {
+    let r = run_fg_inner().await;
+    info!("run_fg returned {:?}", r);
+}
+
+pub async fn run_fg_inner() -> Result<()> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();

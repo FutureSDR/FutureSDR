@@ -20,9 +20,7 @@
     <meta name="msapplication-TileColor" content="#da532c" />
     <meta name="theme-color" content="#ffffff" />
 
-    <base data-trunk-public-url/>
-    <!-- <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0"> -->
-    <link data-trunk rel="rust" href="">
+    <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0">
 
     <title>FutureSDR :: ZigBee Transceiver</title>
   </head>
@@ -30,7 +28,7 @@
     <button id="start" type="button" value="Start">Start</button>
 
     <script type="module">
-     import init, {run_fg} from "./zigbee.js"
+     import init, {run_fg} from "./wasm-rx.js"
 
      const runWasm = async () => {
          const rustWasm = await init();
