@@ -391,7 +391,7 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
 
     match (i1.clone(), attrs.peek()) {
         (Ident(i), Some(Punct(p))) => {
-            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
+            if [";", ">", "|"].contains(&p.to_string().as_str()) {
                 return Endpoint::new(i);
             } else if p.to_string() != "." {
                 return EndpointResult::Error(
@@ -433,7 +433,7 @@ fn next_endpoint(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Endpo
 
     match (i1.clone(), attrs.peek()) {
         (Ident(i), Some(TokenTree::Punct(p))) => {
-            if vec![";", ">", "|"].contains(&p.to_string().as_str()) {
+            if [";", ">", "|"].contains(&p.to_string().as_str()) {
                 return Endpoint::with_port(i, i2);
             } else if p.to_string() != "." {
                 return EndpointResult::Error(

@@ -24,7 +24,7 @@ fn combine_const_fn() -> Result<()> {
     let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
-    let res = vec![6u32, 8, 10, 12];
+    let res = [6u32, 8, 10, 12];
     assert_eq!(v.len(), res.len());
     for (o, i) in res.iter().zip(v) {
         assert_eq!(o, i);
@@ -51,7 +51,7 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
     let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
-    let res = vec![6u32, 8, 10, 12];
+    let res = [6u32, 8, 10, 12];
     assert_eq!(v.len(), res.len());
     for (o, i) in res.iter().zip(v) {
         assert_eq!(o, i);
@@ -78,7 +78,7 @@ fn combine_const_fn_diff_len_second() -> Result<()> {
     let snk = fg.kernel::<VectorSink<u32>>(vect_sink).unwrap();
     let v = snk.items();
 
-    let res = vec![6u32, 8, 10, 12];
+    let res = [6u32, 8, 10, 12];
     assert_eq!(v.len(), res.len());
     for (o, i) in res.iter().zip(v) {
         assert_eq!(o, i);

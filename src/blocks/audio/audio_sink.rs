@@ -128,7 +128,7 @@ impl Kernel for AudioSink {
                     while let Some(mut v) =
                         iter.take().or_else(|| rx.try_next().ok().and_then(|x| x))
                     {
-                        if v.len() == 0 {
+                        if v.is_empty() {
                             if let Some(t) = terminate.take() {
                                 t.send(()).unwrap();
                             }

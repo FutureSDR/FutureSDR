@@ -215,7 +215,7 @@ impl BufferWriterHost for Writer {
 
         unsafe {
             (
-                (c.buffer.as_mut_ptr() as *mut u8).add(c.offset * self.item_size),
+                c.buffer.as_mut_ptr().add(c.offset * self.item_size),
                 (c.capacity - c.offset) * self.item_size,
             )
         }
@@ -369,7 +369,7 @@ impl BufferReaderHost for Reader {
 
         unsafe {
             (
-                (c.buffer.as_ptr() as *const u8).add(c.offset * self.item_size),
+                c.buffer.as_ptr().add(c.offset * self.item_size),
                 (c.capacity - c.offset) * self.item_size,
                 c.tags.clone(),
             )
