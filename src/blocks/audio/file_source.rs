@@ -1,3 +1,5 @@
+use rodio::source::Buffered;
+use rodio::source::SamplesConverter;
 use rodio::source::Source;
 use rodio::Decoder;
 use std::fs::File;
@@ -16,7 +18,7 @@ use crate::runtime::WorkIo;
 
 /// Read an audio file and output its samples.
 pub struct FileSource {
-    src: Box<dyn Source<Item = f32> + Send>,
+    src: Buffered<SamplesConverter<Decoder<BufReader<File>>, f32>>,
 }
 
 impl FileSource {
@@ -30,7 +32,7 @@ impl FileSource {
             StreamIoBuilder::new().add_output::<f32>("out").build(),
             MessageIoBuilder::new().build(),
             FileSource {
-                src: Box::new(source.convert_samples()),
+                src: source.convert_samples().buffered(),
             },
         )
     }
@@ -49,17 +51,23 @@ impl FileSource {
 impl Kernel for FileSource {
     async fn work(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<f32>();
 
+        let mut n = 0;
         for (i, v) in self.src.by_ref().take(out.len()).enumerate() {
             out[i] = v;
+            n += 1;
         }
-        sio.output(0).produce(out.len());
+
+        sio.output(0).produce(n);
+        if n < out.len() {
+            io.finished = true;
+        }
 
         Ok(())
     }

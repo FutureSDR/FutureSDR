@@ -4,6 +4,7 @@ use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
 use futures::channel::mpsc;
+use futures::channel::oneshot;
 use futures::SinkExt;
 
 use crate::anyhow::Result;
@@ -25,6 +26,7 @@ pub struct AudioSink {
     stream: Option<Stream>,
     min_buffer_size: usize,
     vec: Vec<f32>,
+    terminated: Option<oneshot::Receiver<()>>,
     tx: Option<mpsc::Sender<Vec<f32>>>,
 }
 
@@ -49,6 +51,7 @@ impl AudioSink {
                 stream: None,
                 min_buffer_size: 2048,
                 vec: Vec::new(),
+                terminated: None,
                 tx: None,
             },
         )
@@ -110,6 +113,9 @@ impl Kernel for AudioSink {
             buffer_size: BufferSize::Default,
         };
 
+        let (terminate, terminated) = oneshot::channel();
+        let mut terminate = Some(terminate);
+        self.terminated = Some(terminated);
         let (tx, mut rx) = mpsc::channel(QUEUE_SIZE);
         let mut iter: Option<Vec<f32>> = None;
 
@@ -122,12 +128,20 @@ impl Kernel for AudioSink {
                     while let Some(mut v) =
                         iter.take().or_else(|| rx.try_next().ok().and_then(|x| x))
                     {
+                        if v.len() == 0 {
+                            if let Some(t) = terminate.take() {
+                                t.send(()).unwrap();
+                            }
+                            return;
+                        }
                         let n = std::cmp::min(v.len(), data.len() - i);
                         data[i..i + n].copy_from_slice(&v[..n]);
                         i += n;
 
                         if n < v.len() {
                             iter = Some(v.split_off(n));
+                            debug_assert!(!iter.as_ref().unwrap().is_empty());
+                            debug_assert_eq!(i, data.len());
                             return;
                         } else if i == data.len() {
                             return;
@@ -159,8 +173,9 @@ impl Kernel for AudioSink {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        for _ in 0..QUEUE_SIZE {
-            let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
+        let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
+        if let Some(t) = self.terminated.take() {
+            _ = t.await;
         }
         Ok(())
     }
@@ -173,9 +188,9 @@ impl Kernel for AudioSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();
-        self.vec.extend_from_slice(i);
 
-        if self.vec.len() >= self.min_buffer_size {
+        self.vec.extend_from_slice(i);
+        if self.vec.len() >= self.min_buffer_size || sio.input(0).finished() {
             self.tx
                 .as_mut()
                 .unwrap()
