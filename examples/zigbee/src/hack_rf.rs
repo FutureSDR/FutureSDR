@@ -318,6 +318,7 @@ impl HackRf {
             .dyn_into::<js_sys::DataView>()
             .unwrap();
 
+        debug_assert_eq!(data.byte_length(), TRANSFER_SIZE);
         for i in 0..TRANSFER_SIZE {
             self.buffer[i] = data.get_int8(i);
         }
@@ -390,7 +391,7 @@ impl Kernel for HackRf {
         self.set_freq(2_480_000_000).await.unwrap();
         self.set_vga_gain(20).await.unwrap();
         self.set_lna_gain(24).await.unwrap();
-        self.set_amp_enable(false).await.unwrap();
+        self.set_amp_enable(true).await.unwrap();
         self.set_transceiver_mode(TransceiverMode::Receive)
             .await
             .unwrap();
