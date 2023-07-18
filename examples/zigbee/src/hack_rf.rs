@@ -11,6 +11,8 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use serde::ser::SerializeTuple;
+use serde::ser::Serializer;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
@@ -136,11 +138,20 @@ impl HackRf {
             value.into(),
         );
 
-        let transfer = self
-            .device
-            .as_ref()
-            .unwrap()
-            .control_transfer_out_with_u8_array(&parameter, buf);
+        info!("parameter: {:?}", &parameter);
+        info!("buf: {:?}", &buf);
+
+        let transfer = if buf.is_empty() {
+            self.device
+                .as_ref()
+                .unwrap()
+                .control_transfer_out(&parameter)
+        } else {
+            self.device
+                .as_ref()
+                .unwrap()
+                .control_transfer_out_with_u8_array(&parameter, buf)
+        };
 
         let _ = JsFuture::from(transfer)
             .await?
@@ -176,8 +187,14 @@ impl HackRf {
         self.write_control(Request::SetFreq, 0, 0, &mut buf).await
     }
 
+    async fn set_hw_sync_mode(&mut self, value: u8) -> Result<(), Error> {
+        self.write_control(Request::SetHwSyncMode, value.into(), 0, &mut [])
+            .await
+    }
+
     async fn set_amp_enable(&mut self, en: bool) -> Result<(), Error> {
-        self.write_control(Request::AmpEnable, en.into(), 0, &mut []).await
+        self.write_control(Request::AmpEnable, en.into(), 0, &mut [])
+            .await
     }
 
     async fn set_baseband_filter_bandwidth(&mut self, hz: u32) -> Result<(), Error> {
@@ -186,7 +203,8 @@ impl HackRf {
             (hz & 0xFFFF) as u16,
             (hz >> 16) as u16,
             &mut [],
-        ).await
+        )
+        .await
     }
 
     async fn set_sample_rate(&mut self, hz: u32, div: u32) -> Result<(), Error> {
@@ -202,15 +220,19 @@ impl HackRf {
             ((div >> 16) & 0xFF) as u8,
             ((div >> 24) & 0xFF) as u8,
         ];
-        self.write_control(Request::SampleRateSet, 0, 0, &mut buf).await?;
-        self.set_baseband_filter_bandwidth((0.75 * (hz as f32) / (div as f32)) as u32).await
+        self.write_control(Request::SampleRateSet, 0, 0, &mut buf)
+            .await?;
+        self.set_baseband_filter_bandwidth((0.75 * (hz as f32) / (div as f32)) as u32)
+            .await
     }
 
     async fn set_lna_gain(&mut self, gain: u16) -> Result<(), Error> {
         if gain > 40 {
             Err(Error::Argument)
         } else {
-            let buf: [u8; 1] = self.read_control(Request::SetLnaGain, 0, gain & !0x07).await?;
+            let buf: [u8; 1] = self
+                .read_control(Request::SetLnaGain, 0, gain & !0x07)
+                .await?;
             if buf[0] == 0 {
                 Err(Error::Argument)
             } else {
@@ -223,7 +245,9 @@ impl HackRf {
         if gain > 62 {
             Err(Error::Argument)
         } else {
-            let buf: [u8; 1] = self.read_control(Request::SetVgaGain, 0, gain & !0b1).await?;
+            let buf: [u8; 1] = self
+                .read_control(Request::SetVgaGain, 0, gain & !0b1)
+                .await?;
             if buf[0] == 0 {
                 Err(Error::Argument)
             } else {
@@ -245,19 +269,23 @@ impl Kernel for HackRf {
         let navigator: web_sys::Navigator = window.navigator();
         let usb = navigator.usb();
 
-        let filter: serde_json::Value =
-            serde_json::from_str(r#"{ "filters": [{ "vendorId": 7504 }] }"#).unwrap();
-        let filter = serde_wasm_bindgen::to_value(&filter).unwrap();
+        let filter: serde_json::Value = serde_json::from_str(r#"{ "vendorId": 7504 }"#).unwrap();
+        let s = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        let mut tup = s.serialize_tuple(1).unwrap();
+        tup.serialize_element(&filter).unwrap();
+        let filter = tup.end().unwrap();
+        info!("filter ser: {:?}", &filter);
+
+        let filter = web_sys::UsbDeviceRequestOptions::new(filter.as_ref());
+        info!("filter: {:?}", &filter);
 
         let devices: js_sys::Array = JsFuture::from(usb.get_devices())
             .await
             .map_err(Error::from)?
             .into();
 
-        info!("devices {:?}", &devices);
-
         for i in 0..devices.length() {
-            let d : web_sys::UsbDevice = devices.get(0).dyn_into().unwrap();
+            let d: web_sys::UsbDevice = devices.get(0).dyn_into().unwrap();
             println!("dev {}   {:?}", i, &d);
         }
         // Open radio if one is already paired and plugged
@@ -267,7 +295,7 @@ impl Kernel for HackRf {
             devices.get(0).dyn_into().unwrap()
         } else {
             info!("requesting filtered device. {:?}", &filter);
-            JsFuture::from(usb.request_device(&filter.into()))
+            JsFuture::from(usb.request_device(&filter))
                 .await
                 .map_err(Error::from)?
                 .dyn_into()
@@ -276,6 +304,11 @@ impl Kernel for HackRf {
 
         info!("opening device");
         JsFuture::from(device.open()).await.map_err(Error::from)?;
+        info!("selecting configuration");
+        JsFuture::from(device.select_configuration(1))
+            .await
+            .map_err(Error::from)?;
+
         info!("claiming device");
         JsFuture::from(device.claim_interface(0))
             .await
@@ -283,11 +316,12 @@ impl Kernel for HackRf {
 
         self.device = Some(device);
 
-        self.set_amp_enable(true).await.unwrap();
-        self.set_lna_gain(24).await.unwrap();
-        self.set_vga_gain(20).await.unwrap();
-        self.set_freq(2480000000).await.unwrap();
+        // self.set_amp_enable(true).await.unwrap();
         self.set_sample_rate(4000000, 2).await.unwrap();
+        self.set_hw_sync_mode(0).await.unwrap();
+        self.set_freq(2480000000).await.unwrap();
+        self.set_vga_gain(20).await.unwrap();
+        self.set_lna_gain(24).await.unwrap();
 
         Ok(())
     }
@@ -299,6 +333,7 @@ impl Kernel for HackRf {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let _o = sio.output(0).slice::<Complex32>();
+        info!("WOOOOOOOORK");
         io.finished = true;
 
         Ok(())
