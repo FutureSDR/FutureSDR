@@ -20,12 +20,19 @@
     <meta name="msapplication-TileColor" content="#da532c" />
     <meta name="theme-color" content="#ffffff" />
 
-    <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0">
+    <!-- <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features data-keep-debug data-wasm-opt="0"> -->
+    <link data-trunk rel="rust" data-bin="wasm-rx" data-cargo-no-default-features>
 
     <title>FutureSDR :: ZigBee Transceiver</title>
   </head>
   <body>
     <button id="start" type="button" value="Start">Start</button>
+
+    <div>
+      Received Frames:
+      <div id="log">
+      </div>
+    </div>
 
     <script type="module">
      import init, {run_fg} from "./wasm-rx.js"
@@ -40,5 +47,31 @@
      document.getElementById('start').onclick = run_fg
 
      </script>
+    <script>
+      var logger = document.getElementById('log');
+      var rxed_frame = function(payload) {
+        <!-- console.log(payload); -->
+        var result = "";
+
+        result += "frame control: 0x";
+        result += (payload[1] * 256 + payload[0]).toString(16);
+        result += " | seq nr: ";
+        result += payload[2];
+        result += " | dst pan: 0x";
+        result += (payload[4] * 256 + payload[3]).toString(16);
+        result += " | dst addr: 0x";
+        result += (payload[6] * 256 + payload[5]).toString(16);
+        /* result += " | src addr: 0x";
+                    * result += (payload[8] * 256 + payload[7]).toString(16); */
+        result += " | payload ";
+        for (var i = 7; i < payload.length - 2; i++) {
+          result += String.fromCharCode(payload[i]);
+        }
+        result += " | crc : 0x";
+        result += (payload[payload.length-1] * 256 + payload[payload.length-2]).toString(16);
+        console.log(result);
+        logger.innerHTML += result + '<br />';
+      };
+      </script>
   </body>
 </html>

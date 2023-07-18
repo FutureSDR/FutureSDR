@@ -16,6 +16,8 @@ use serde::ser::Serializer;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
+const TRANSFER_SIZE: usize = 262144;
+
 #[allow(dead_code)]
 #[repr(u8)]
 enum Request {
@@ -62,12 +64,35 @@ impl From<Request> for u8 {
     }
 }
 
+#[allow(dead_code)]
+#[repr(u8)]
+enum TransceiverMode {
+    Off = 0,
+    Receive = 1,
+    Transmit = 2,
+    SS = 3,
+    CpldUpdate = 4,
+    RxSweep = 5,
+}
+
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
     #[error("Argument")]
     Argument,
     #[error("Browser error")]
     BrowserError(String),
+}
+
+impl From<TransceiverMode> for u8 {
+    fn from(m: TransceiverMode) -> Self {
+        m as u8
+    }
+}
+
+impl From<TransceiverMode> for u16 {
+    fn from(m: TransceiverMode) -> Self {
+        m as u16
+    }
 }
 
 impl From<JsValue> for Error {
@@ -77,6 +102,8 @@ impl From<JsValue> for Error {
 }
 
 pub struct HackRf {
+    buffer: [i8; TRANSFER_SIZE],
+    offset: usize,
     device: Option<web_sys::UsbDevice>,
 }
 
@@ -90,7 +117,11 @@ impl HackRf {
                 .add_output::<Complex32>("out")
                 .build(),
             MessageIoBuilder::<Self>::new().build(),
-            Self { device: None },
+            Self {
+                buffer: [0; TRANSFER_SIZE],
+                offset: TRANSFER_SIZE,
+                device: None,
+            },
         )
     }
 
@@ -113,12 +144,21 @@ impl HackRf {
             .device
             .as_ref()
             .unwrap()
-            .control_transfer_out_with_u8_array(&parameter, &mut buf);
+            .control_transfer_in(&parameter, N as u16);
 
-        let _ = JsFuture::from(transfer)
+        let data = JsFuture::from(transfer)
             .await?
-            .dyn_into::<web_sys::UsbOutTransferResult>()
+            .dyn_into::<web_sys::UsbInTransferResult>()
+            .unwrap()
+            .data()
+            .unwrap()
+            .dyn_into::<js_sys::DataView>()
             .unwrap();
+        info!("data {:?}", data);
+
+        for i in 0..N {
+            buf[i] = data.get_uint8(i);
+        }
 
         Ok(buf)
     }
@@ -226,6 +266,11 @@ impl HackRf {
             .await
     }
 
+    async fn set_transceiver_mode(&mut self, mode: TransceiverMode) -> Result<(), Error> {
+        self.write_control(Request::SetTransceiverMode, mode.into(), 0, &mut [])
+            .await
+    }
+
     async fn set_lna_gain(&mut self, gain: u16) -> Result<(), Error> {
         if gain > 40 {
             Err(Error::Argument)
@@ -248,12 +293,37 @@ impl HackRf {
             let buf: [u8; 1] = self
                 .read_control(Request::SetVgaGain, 0, gain & !0b1)
                 .await?;
+            info!("return buf {:?}", &buf);
             if buf[0] == 0 {
                 Err(Error::Argument)
             } else {
                 Ok(())
             }
         }
+    }
+
+    async fn fill_buffer(&mut self) -> Result<(), Error> {
+        let transfer = self
+            .device
+            .as_ref()
+            .unwrap()
+            .transfer_in(1, TRANSFER_SIZE as u32);
+
+        let data = JsFuture::from(transfer)
+            .await?
+            .dyn_into::<web_sys::UsbInTransferResult>()
+            .unwrap()
+            .data()
+            .unwrap()
+            .dyn_into::<js_sys::DataView>()
+            .unwrap();
+
+        for i in 0..TRANSFER_SIZE {
+            self.buffer[i] = data.get_int8(i);
+        }
+        self.offset = 0;
+
+        Ok(())
     }
 }
 
@@ -315,16 +385,19 @@ impl Kernel for HackRf {
             .map_err(Error::from)?;
 
         self.device = Some(device);
-
-        // self.set_amp_enable(true).await.unwrap();
-        self.set_sample_rate(4000000, 2).await.unwrap();
+        self.set_sample_rate(8_000_000, 2).await.unwrap();
         self.set_hw_sync_mode(0).await.unwrap();
-        self.set_freq(2480000000).await.unwrap();
+        self.set_freq(2_480_000_000).await.unwrap();
         self.set_vga_gain(20).await.unwrap();
         self.set_lna_gain(24).await.unwrap();
+        self.set_amp_enable(false).await.unwrap();
+        self.set_transceiver_mode(TransceiverMode::Receive)
+            .await
+            .unwrap();
 
         Ok(())
     }
+
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -332,9 +405,23 @@ impl Kernel for HackRf {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let _o = sio.output(0).slice::<Complex32>();
-        info!("WOOOOOOOORK");
-        io.finished = true;
+        let o = sio.output(0).slice::<Complex32>();
+
+        let n = std::cmp::min(o.len(), (TRANSFER_SIZE - self.offset) / 2);
+
+        for i in 0..n {
+            o[i] = Complex32::new(
+                (self.buffer[self.offset + i * 2] as f32) / 128.0,
+                (self.buffer[self.offset + i * 2 + 1] as f32) / 128.0,
+            );
+        }
+
+        sio.output(0).produce(n);
+        self.offset += n * 2;
+        if self.offset == TRANSFER_SIZE {
+            self.fill_buffer().await.unwrap();
+            io.call_again = true;
+        }
 
         Ok(())
     }
