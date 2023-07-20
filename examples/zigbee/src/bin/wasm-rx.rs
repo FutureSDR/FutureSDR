@@ -48,12 +48,11 @@ pub fn Gui(cx: Scope) -> impl IntoView {
         <button on:click=start>Start</button>
         <Channel handle=handle/>
         <div>
-        "frames " {n_frames}
+            "frames " {n_frames}
         </div>
         <ul>
-        {move || {info!("render"); frames().into_iter().map(|n| view! { cx, <li>{format!("{:?}", n)}</li> }).collect_view(cx)}}
+            {move || frames().into_iter().map(|n| view! { cx, <li>{format!("{:?}", n)}</li> }).collect_view(cx)}
         </ul>
-
     }
 }
 
@@ -63,19 +62,20 @@ pub fn Channel(cx: Scope, handle: ReadSignal<Option<FlowgraphHandle>>) -> impl I
     let select_ref = create_node_ref::<Select>(cx);
     let change = move |_| {
         let select = select_ref.get().unwrap();
-        info!("value {}", select.value());
-        let freq: f64 = select.value().parse().unwrap();
+        info!("setting frequency to {}", select.value());
+        let freq: u64 = select.value().parse().unwrap();
         wasm_bindgen_futures::spawn_local(async move {
             if let Some(mut h) = handle() {
-                let desc = h.description().await.unwrap();
-                info!("desc {:?}", desc);
-                let id = desc
-                    .blocks
-                    .into_iter()
-                    .find(|b| b.instance_name == "HackRf_0")
-                    .unwrap()
-                    .id;
-                let _ = h.call(id, "freq", Pmt::F64(freq)).await;
+                // let desc = h.description().await.unwrap();
+                // info!("desc {:?}", desc);
+                // let id = desc
+                //     .blocks
+                //     .into_iter()
+                //     .find(|b| b.instance_name == "HackRf_0")
+                //     .unwrap()
+                //     .id;
+                let id = 0;
+                let _ = h.call(id, "freq", Pmt::U64(freq)).await;
             }
         });
     };

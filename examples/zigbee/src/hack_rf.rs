@@ -180,7 +180,6 @@ impl HackRf {
             .unwrap()
             .dyn_into::<js_sys::DataView>()
             .unwrap();
-        info!("data {:?}", data);
 
         for i in 0..N {
             buf[i] = data.get_uint8(i);
@@ -204,20 +203,10 @@ impl HackRf {
             value.into(),
         );
 
-        info!("parameter: {:?}", &parameter);
-        info!("buf: {:?}", &buf);
-
-        let transfer = if buf.is_empty() {
-            self.device
-                .as_ref()
-                .unwrap()
-                .control_transfer_out(&parameter)
-        } else {
-            self.device
-                .as_ref()
-                .unwrap()
-                .control_transfer_out_with_u8_array(&parameter, buf)
-        };
+        let transfer = self.device
+            .as_ref()
+            .unwrap()
+            .control_transfer_out_with_u8_array(&parameter, buf);
 
         let _ = JsFuture::from(transfer)
             .await?
@@ -319,7 +308,6 @@ impl HackRf {
             let buf: [u8; 1] = self
                 .read_control(Request::SetVgaGain, 0, gain & !0b1)
                 .await?;
-            info!("return buf {:?}", &buf);
             if buf[0] == 0 {
                 Err(Error::Argument)
             } else {
@@ -371,10 +359,7 @@ impl Kernel for HackRf {
         let mut tup = s.serialize_tuple(1).unwrap();
         tup.serialize_element(&filter).unwrap();
         let filter = tup.end().unwrap();
-        info!("filter ser: {:?}", &filter);
-
         let filter = web_sys::UsbDeviceRequestOptions::new(filter.as_ref());
-        info!("filter: {:?}", &filter);
 
         let devices: js_sys::Array = JsFuture::from(usb.get_devices())
             .await
@@ -388,10 +373,10 @@ impl Kernel for HackRf {
         // Open radio if one is already paired and plugged
         // Otherwise ask the user to pair a new radio
         let device: web_sys::UsbDevice = if devices.length() > 0 {
-            info!("multiple devices, getting first");
+            info!("device already connected");
             devices.get(0).dyn_into().unwrap()
         } else {
-            info!("requesting filtered device. {:?}", &filter);
+            info!("requesting device: {:?}", &filter);
             JsFuture::from(usb.request_device(&filter))
                 .await
                 .map_err(Error::from)?
