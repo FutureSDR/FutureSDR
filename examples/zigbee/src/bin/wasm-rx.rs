@@ -47,10 +47,10 @@ pub fn Gui(cx: Scope) -> impl IntoView {
         <h1>"FutureSDR ZigBee Receiver"</h1>
         <button on:click=start>Start</button>
         <Channel handle=handle/>
-        <div>
-            "frames " {n_frames}
+        <div class="bg-fs-blue font-mono">
+            "Frames received: " {n_frames}
         </div>
-        <ul>
+        <ul class="font-mono">
             {move || frames().into_iter().map(|n| view! { cx, <li>{format!("{:?}", n)}</li> }).collect_view(cx)}
         </ul>
     }
@@ -81,7 +81,7 @@ pub fn Channel(cx: Scope, handle: ReadSignal<Option<FlowgraphHandle>>) -> impl I
     };
 
     view! {cx,
-        <div>
+        <div class="bg-fs-green">
             Channel:
             <select on:change=change node_ref=select_ref>
             <option          value="2405000000">11</option>
@@ -116,11 +116,11 @@ struct Frame {
 
 impl Frame {
     fn new(data: Vec<u8>) -> Self {
-        let dst_pan = format!("{:#0x}", u16::from_le_bytes(data[3..5].try_into().unwrap()));
-        let dst_addr = format!("{:#0x}", u16::from_le_bytes(data[5..7].try_into().unwrap()));
-        let payload = format!("{}", String::from_utf8_lossy(&data[7..data.len() - 2]));
+        let dst_pan = format!("{:#06x}", u16::from_le_bytes(data[3..5].try_into().unwrap()));
+        let dst_addr = format!("{:#06x}", u16::from_le_bytes(data[5..7].try_into().unwrap()));
+        let payload = format!("{:20}", String::from_utf8_lossy(&data[7..data.len() - 2]));
         let crc = format!(
-            "{:#0x}",
+            "{:#06x}",
             u16::from_le_bytes(data[data.len() - 2..data.len()].try_into().unwrap())
         );
 
