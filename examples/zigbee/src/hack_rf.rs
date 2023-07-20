@@ -1,15 +1,15 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait;
 use futuresdr::log::info;
-use futuresdr::num_complex::Complex32;
 use futuresdr::message_handler;
+use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
-use futuresdr::runtime::Pmt;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
@@ -203,7 +203,8 @@ impl HackRf {
             value.into(),
         );
 
-        let transfer = self.device
+        let transfer = self
+            .device
             .as_ref()
             .unwrap()
             .control_transfer_out_with_u8_array(&parameter, buf);

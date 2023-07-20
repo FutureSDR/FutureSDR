@@ -116,8 +116,14 @@ struct Frame {
 
 impl Frame {
     fn new(data: Vec<u8>) -> Self {
-        let dst_pan = format!("{:#06x}", u16::from_le_bytes(data[3..5].try_into().unwrap()));
-        let dst_addr = format!("{:#06x}", u16::from_le_bytes(data[5..7].try_into().unwrap()));
+        let dst_pan = format!(
+            "{:#06x}",
+            u16::from_le_bytes(data[3..5].try_into().unwrap())
+        );
+        let dst_addr = format!(
+            "{:#06x}",
+            u16::from_le_bytes(data[5..7].try_into().unwrap())
+        );
         let payload = format!("{:20}", String::from_utf8_lossy(&data[7..data.len() - 2]));
         let crc = format!(
             "{:#06x}",
