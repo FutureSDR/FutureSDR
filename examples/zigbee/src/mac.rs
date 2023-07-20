@@ -1,6 +1,4 @@
 use std::collections::VecDeque;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait;
@@ -17,12 +15,6 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-extern "C" {
-    fn rxed_frame(s: Vec<u8>);
-}
 
 const MAX_FRAMES: usize = 128;
 const MAX_FRAME_SIZE: usize = 127;
@@ -118,9 +110,6 @@ impl Mac {
             Pmt::Blob(data) => {
                 if Self::check_crc(&data) && data.len() > 2 {
                     debug!("received frame, crc correct, payload length {}", data.len());
-                    #[cfg(target_arch = "wasm32")]
-                    rxed_frame(data.clone());
-
                     let mut rftap = vec![0; data.len() + 12];
                     rftap[0..4].copy_from_slice("RFta".as_bytes());
                     rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
