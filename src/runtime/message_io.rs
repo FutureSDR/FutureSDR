@@ -12,6 +12,11 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::WorkIo;
 
+#[cfg(not(target_arch = "wasm32"))]
+type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>;
+#[cfg(target_arch = "wasm32")]
+type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + 'a>>;
+
 /// Message input port
 pub struct MessageInput<T: ?Sized> {
     name: String,
@@ -24,7 +29,7 @@ pub struct MessageInput<T: ?Sized> {
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,
-            ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>
+            ) -> HandlerFuture<'a>
             + Send
             + Sync,
     >,
@@ -43,7 +48,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
                     &'a mut BlockMeta,
                     Pmt,
                 )
-                    -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>
+                    -> HandlerFuture<'a>
                 + Send
                 + Sync,
         >,
@@ -66,7 +71,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,
-            ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>
+            ) -> HandlerFuture<'a>
             + Send
             + Sync,
     > {
@@ -244,7 +249,7 @@ impl<T: Send> MessageIoBuilder<T> {
                 &'a mut MessageIo<T>,
                 &'a mut BlockMeta,
                 Pmt,
-            ) -> Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>
+            ) -> HandlerFuture<'a>
             + Send
             + Sync
             + 'static,

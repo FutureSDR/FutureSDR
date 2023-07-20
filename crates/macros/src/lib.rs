@@ -542,6 +542,7 @@ pub fn message_handler(
     // println!("pmt {}", pmt);
 
     out.extend(quote! {
+        #[cfg(not(target_arch = "wasm32"))]
         fn #name<'a>(
             &'a mut self,
             #io: &'a mut WorkIo,
@@ -550,9 +551,22 @@ pub fn message_handler(
             #pmt: Pmt,
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + Send + 'a>> {
             use crate::futures::FutureExt;
-            async move {
+            Box::pin(async move {
                 #(#body)*
-            }.boxed()
+            })
+        }
+        #[cfg(target_arch = "wasm32")]
+        fn #name<'a>(
+            &'a mut self,
+            #io: &'a mut WorkIo,
+            #mio: &'a mut MessageIo<Self>,
+            #meta: &'a mut BlockMeta,
+            #pmt: Pmt,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + 'a>> {
+            use crate::futures::FutureExt;
+            Box::pin(async move {
+                #(#body)*
+            })
         }
     });
 
@@ -618,6 +632,7 @@ pub fn message_handler_external(
     // println!("pmt {}", pmt);
 
     out.extend(quote! {
+        #[cfg(not(target_arch = "wasm32"))]
         fn #name<'a>(
             &'a mut self,
             #io: &'a mut WorkIo,
@@ -626,9 +641,22 @@ pub fn message_handler_external(
             #pmt: Pmt,
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + Send + 'a>> {
             use futuresdr::futures::FutureExt;
-            async move {
+            Box::pin(async move {
                 #(#body)*
-            }.boxed()
+            })
+        }
+        #[cfg(target_arch = "wasm32")]
+        fn #name<'a>(
+            &'a mut self,
+            #io: &'a mut WorkIo,
+            #mio: &'a mut MessageIo<Self>,
+            #meta: &'a mut BlockMeta,
+            #pmt: Pmt,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Pmt>> + 'a>> {
+            use futuresdr::futures::FutureExt;
+            Box::pin(async move {
+                #(#body)*
+            })
         }
     });
 
