@@ -45,8 +45,7 @@ pub trait Scheduler: Clone + Send + 'static {
     ) -> Slab<Option<Sender<BlockMessage>>>;
 
     /// Spawn a task
-    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static)
-        -> Task<T>;
+    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T>;
 
     /// Spawn a blocking task in a separate thread
     fn spawn_blocking<T: Send + 'static>(

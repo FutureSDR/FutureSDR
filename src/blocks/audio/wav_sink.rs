@@ -2,7 +2,6 @@ use hound;
 use std::path;
 
 use crate::anyhow::Result;
-use crate::async_trait::async_trait;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;

@@ -1,9 +1,9 @@
 use futuresdr::anyhow::{bail, Error, Result};
 use futuresdr::async_io::block_on;
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::blocks::{Head, NullSink, NullSource, Throttle};
+use futuresdr::connect;
 use futuresdr::log::debug;
-use futuresdr::macros::connect;
 use futuresdr::runtime::{
     Block, BlockMeta, BlockMetaBuilder, Flowgraph, Kernel, MessageIo, MessageIoBuilder, Runtime,
     StreamIo, StreamIoBuilder, WorkIo,

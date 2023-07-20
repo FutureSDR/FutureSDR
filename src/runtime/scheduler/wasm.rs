@@ -55,10 +55,7 @@ impl Scheduler for WasmScheduler {
         inboxes
     }
 
-    fn spawn<T: Send + 'static>(
-        &self,
-        future: impl Future<Output = T> + 'static,
-    ) -> Task<T> {
+    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         let (tx, rx) = oneshot::channel::<T>();
         wasm_bindgen_futures::spawn_local(async move {
             let t = future.await;

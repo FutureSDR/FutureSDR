@@ -47,8 +47,7 @@ impl<T: Send + ?Sized> MessageInput<T> {
                     &'a mut MessageIo<T>,
                     &'a mut BlockMeta,
                     Pmt,
-                )
-                    -> HandlerFuture<'a>
+                ) -> HandlerFuture<'a>
                 + Send
                 + Sync,
         >,

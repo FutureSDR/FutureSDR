@@ -6,7 +6,7 @@ use futuresdr::{
     anyhow::Result,
     async_io::block_on,
     blocks::{seify::*, Head, NullSink},
-    macros::connect,
+    connect,
     num_complex::Complex,
     runtime::{Flowgraph, Pmt, Runtime},
     seify,

@@ -152,6 +152,8 @@ pub(crate) struct TypedBlockWrapper<T> {
     pub(crate) inner: Option<TypedBlock<T>>,
 }
 
+// clippy bug
+#[allow(clippy::needless_pass_by_ref_mut)]
 impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
     async fn call_handler(
         io: &mut WorkIo,
