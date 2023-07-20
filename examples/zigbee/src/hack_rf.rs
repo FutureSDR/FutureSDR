@@ -2,7 +2,9 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_trait;
 use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
+use futuresdr::message_handler;
 use futuresdr::runtime::Block;
+use futuresdr::runtime::Pmt;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -116,13 +118,37 @@ impl HackRf {
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageIoBuilder::<Self>::new()
+                .add_input("freq", Self::freq_handler)
+                .build(),
             Self {
                 buffer: [0; TRANSFER_SIZE],
                 offset: TRANSFER_SIZE,
                 device: None,
             },
         )
+    }
+
+    #[message_handler]
+    fn freq_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let res = match &p {
+            Pmt::F32(v) => self.set_freq(*v as u64).await,
+            Pmt::F64(v) => self.set_freq(*v as u64).await,
+            Pmt::U32(v) => self.set_freq(*v as u64).await,
+            Pmt::U64(v) => self.set_freq(*v).await,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if res.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
     }
 
     async fn read_control<const N: usize>(

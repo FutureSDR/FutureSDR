@@ -2,4 +2,4 @@
 target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
-rustflags = ["--cfg=web_sys_unstable_apis"]
+rustflags = ["--cfg=web_sys_unstable_apis", "-Clink-arg=-zstack-size=16777216", "-Clink-arg=--import-memory", "-Clink-arg=--initial-memory=33554432", "-Clink-arg=--max-memory=4294967296"]
