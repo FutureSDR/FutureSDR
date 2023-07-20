@@ -81,6 +81,7 @@
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
+//! | HackRf | WASM + WebUSB source for HackRF. | ✅ |
 //! | WasmSdr | Receive samples from web world. | ✅ |
 //! | WasmWsSink | Send samples via a WebSocket. | ✅ |
 //! | WasmFreq | Push samples to a GUI sink. | ✅ |
@@ -155,6 +156,12 @@ pub use file_source::FileSource;
 
 mod finite_source;
 pub use finite_source::FiniteSource;
+
+#[cfg(target_arch = "wasm32")]
+mod hack_rf;
+#[cfg(target_arch = "wasm32")]
+pub use hack_rf::HackRf;
+
 mod head;
 pub use head::Head;
 

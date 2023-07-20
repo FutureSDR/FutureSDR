@@ -15,11 +15,6 @@ mod modulator;
 pub use modulator::modulator;
 
 #[cfg(target_arch = "wasm32")]
-mod hack_rf;
-#[cfg(target_arch = "wasm32")]
-pub use hack_rf::HackRf;
-
-#[cfg(target_arch = "wasm32")]
 pub mod wasm_rx;
 
 use futuresdr::anyhow::{bail, Result};

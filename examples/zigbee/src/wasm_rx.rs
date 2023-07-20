@@ -1,5 +1,6 @@
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
+use futuresdr::blocks::HackRf;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
 use futuresdr::connect;
@@ -17,8 +18,8 @@ use std::collections::VecDeque;
 
 use crate::ClockRecoveryMm;
 use crate::Decoder;
-use crate::HackRf;
 use crate::Mac;
+
 
 pub fn wasm_main() {
     _ = console_log::init_with_level(futuresdr::log::Level::Debug);

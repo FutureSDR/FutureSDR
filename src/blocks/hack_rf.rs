@@ -1,22 +1,20 @@
-use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
-use futuresdr::log::info;
-use futuresdr::message_handler;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Block;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::WorkIo;
 use serde::ser::SerializeTuple;
 use serde::ser::Serializer;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
+
+use crate::anyhow::Result;
+use crate::num_complex::Complex32;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::Pmt;
+use crate::runtime::StreamIo;
+use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 const TRANSFER_SIZE: usize = 262144;
 
@@ -103,6 +101,7 @@ impl From<JsValue> for Error {
     }
 }
 
+/// WASM-native HackRf Source
 pub struct HackRf {
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
@@ -112,6 +111,7 @@ pub struct HackRf {
 unsafe impl Send for HackRf {}
 
 impl HackRf {
+    /// Create HackRf Source
     pub fn new() -> Block {
         Block::new(
             BlockMetaBuilder::new("HackRf").build(),
