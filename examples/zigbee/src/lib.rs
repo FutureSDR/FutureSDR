@@ -19,6 +19,9 @@ mod hack_rf;
 #[cfg(target_arch = "wasm32")]
 pub use hack_rf::HackRf;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm_rx;
+
 use futuresdr::anyhow::{bail, Result};
 
 pub fn channel_to_freq(chan: u32) -> Result<f64> {

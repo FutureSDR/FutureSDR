@@ -163,7 +163,7 @@ impl HackRf {
             web_sys::UsbRecipient::Device,
             request.into(),
             web_sys::UsbRequestType::Vendor,
-            value.into(),
+            value,
         );
 
         let transfer = self
@@ -181,8 +181,8 @@ impl HackRf {
             .dyn_into::<js_sys::DataView>()
             .unwrap();
 
-        for i in 0..N {
-            buf[i] = data.get_uint8(i);
+        for (i, b) in buf.iter_mut().enumerate().take(N) {
+            *b = data.get_uint8(i);
         }
 
         Ok(buf)
@@ -200,7 +200,7 @@ impl HackRf {
             web_sys::UsbRecipient::Device,
             request.into(),
             web_sys::UsbRequestType::Vendor,
-            value.into(),
+            value,
         );
 
         let transfer = self
@@ -422,8 +422,8 @@ impl Kernel for HackRf {
 
         let n = std::cmp::min(o.len(), (TRANSFER_SIZE - self.offset) / 2);
 
-        for i in 0..n {
-            o[i] = Complex32::new(
+        for (i, out) in o.iter_mut().enumerate().take(n) {
+            *out = Complex32::new(
                 (self.buffer[self.offset + i * 2] as f32) / 128.0,
                 (self.buffer[self.offset + i * 2 + 1] as f32) / 128.0,
             );

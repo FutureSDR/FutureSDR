@@ -1,11 +1,8 @@
-cargo-features = ["per-package-target"]
-
 [package]
 name = "zigbee"
 version = "0.0.1"
 edition = "2021"
 default-run = "rx"
-default-target = "wasm32-unknown-unknown"
 
 [workspace]
 
