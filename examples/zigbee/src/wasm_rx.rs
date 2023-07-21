@@ -20,7 +20,6 @@ use crate::ClockRecoveryMm;
 use crate::Decoder;
 use crate::Mac;
 
-
 pub fn wasm_main() {
     _ = console_log::init_with_level(futuresdr::log::Level::Debug);
     console_error_panic_hook::set_once();
@@ -205,4 +204,3 @@ async fn run_fg_inner(
 
     Ok(())
 }
-

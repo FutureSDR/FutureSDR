@@ -5,7 +5,9 @@ set -xe
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
 
-# cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
+export RUSTFLAGS='--cfg=web_sys_unstable_apis'
+cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
+
 ###########################################################
 # FMT
 ###########################################################
@@ -54,7 +56,7 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 # CLIPPY
 ###########################################################
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
-cd ${SCRIPTPATH} && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
@@ -74,7 +76,7 @@ cd ${SCRIPTPATH}/perf/null_rand && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/vulkan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/wgpu && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 
 # examples
@@ -93,16 +95,16 @@ cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/rx-to-file && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/spectrum && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/wgpu && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wlan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zeromq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/zigbee && RUSTFLAGS='--cfg=web_sys_unstable_apis' cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 
 ###########################################################
 # Test
