@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: full
+      RUSTFLAGS: '--cfg=web_sys_unstable_apis'
     steps:
       - uses: actions/checkout@v3
 
@@ -131,8 +132,6 @@ jobs:
         run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (main)
-        env:
-          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         run: cargo clippy --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
@@ -169,8 +168,6 @@ jobs:
         run: cargo clippy --all-targets --manifest-path=perf/wgpu/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
-        env:
-          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         run: cargo clippy --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (perf/zynq)
@@ -222,8 +219,6 @@ jobs:
         run: cargo clippy --all-targets --manifest-path=examples/spectrum/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/spectrum)
-        env:
-          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         run: cargo clippy --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (examples/ssb)
@@ -242,8 +237,6 @@ jobs:
         run: cargo clippy --all-targets --manifest-path=examples/wlan/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/wgpu)
-        env:
-          RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         run: cargo clippy --lib --manifest-path=examples/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (examples/zeromq)
