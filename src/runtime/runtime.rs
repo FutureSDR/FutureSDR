@@ -7,6 +7,7 @@ use futures::channel::oneshot;
 use futures::prelude::*;
 use futures::FutureExt;
 use slab::Slab;
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::result;
@@ -295,6 +296,20 @@ impl<S: Scheduler + Sync + 'static> Spawn for S {
 pub struct RuntimeHandle {
     scheduler: Arc<dyn Spawn + Send + Sync + 'static>,
     flowgraphs: Arc<Mutex<Slab<FlowgraphHandle>>>,
+}
+
+impl fmt::Debug for RuntimeHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RuntimeHandle")
+         .field("flowgraphs", &self.flowgraphs)
+         .finish()
+    }
+}
+
+impl PartialEq for RuntimeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.scheduler, &other.scheduler)
+    }
 }
 
 impl RuntimeHandle {

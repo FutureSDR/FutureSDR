@@ -151,6 +151,12 @@ pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
 }
 
+impl PartialEq for FlowgraphHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.inbox.same_receiver(&other.inbox)
+    }
+}
+
 impl FlowgraphHandle {
     pub(crate) fn new(inbox: Sender<FlowgraphMessage>) -> FlowgraphHandle {
         FlowgraphHandle { inbox }
@@ -197,12 +203,13 @@ impl FlowgraphHandle {
     }
 
     /// Get [`FlowgraphDescription`]
-    pub async fn description(&mut self) -> Result<FlowgraphDescription> {
+    pub async fn description(&mut self) -> result::Result<FlowgraphDescription, Error> {
         let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
         self.inbox
             .send(FlowgraphMessage::FlowgraphDescription { tx })
-            .await?;
-        let d = rx.await?;
+            .await
+            .or(Err(Error::FlowgraphTerminated))?;
+        let d = rx.await.or(Err(Error::FlowgraphTerminated))?;
         Ok(d)
     }
 

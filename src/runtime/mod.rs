@@ -201,12 +201,15 @@ pub enum BlockMessage {
 }
 
 /// FutureSDR Error
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
     /// Block does not exist
     #[error("Block does not exist")]
     InvalidBlock,
+    /// Flowgraph does not exist or terminated
+    #[error("Flowgraph terminated")]
+    FlowgraphTerminated,
     /// Handler does not exist
     #[error("Handler does not exist (Id {0:?})")]
     InvalidHandler(PortId),
