@@ -7,6 +7,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
+use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
@@ -18,7 +19,6 @@ use futuresdr::runtime::Runtime;
 
 use wlan::fft_tag_propagation;
 use wlan::Decoder;
-use wlan::Delay;
 use wlan::Encoder;
 use wlan::FrameEqualizer;
 use wlan::Mac;

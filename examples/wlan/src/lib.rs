@@ -12,9 +12,6 @@ pub use channels::parse_channel;
 mod decoder;
 pub use decoder::Decoder;
 
-mod delay;
-pub use delay::Delay;
-
 mod encoder;
 pub use encoder::Encoder;
 

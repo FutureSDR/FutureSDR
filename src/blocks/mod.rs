@@ -24,6 +24,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [ConsoleSink] | Log stream data with [log::info!]. | ✅ |
+//! | [Delay] | Delays samples. | ✅ |
 //! | [Head] | Copies only a given number of samples and stops. | ✅ |
 //! | [NullSink] | Drops samples. | ✅ |
 //! | [NullSource] | Generates a stream of zeros. | ✅ |
@@ -127,6 +128,9 @@ mod copy;
 pub use copy::Copy;
 mod copy_rand;
 pub use copy_rand::{CopyRand, CopyRandBuilder};
+
+mod delay;
+pub use delay::Delay;
 
 mod filter;
 pub use filter::Filter;
