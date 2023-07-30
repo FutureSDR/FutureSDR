@@ -1,16 +1,16 @@
 [package]
-name = "ssb-receiver"
+name = "ssb"
 version = "0.1.0"
 edition = "2021"
 
 [workspace]
 
 [dependencies]
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive"] }
 futuresdr = { path = "../..", features=["soapy", "audio"] }
-num-complex = "0.4.0"
-
+num-complex = "0.4.2"
+hound = "3.5.0"
 
 [[bin]]
-name = "play-ssb"
-path = "play_ssb.rs"
+name = "receive"
+path = "receive.rs"
