@@ -109,8 +109,8 @@ jobs:
       - name: Run cargo fmt (examples/spectrum)
         run: cargo fmt --all --manifest-path=examples/spectrum/Cargo.toml -- --check
 
-      - name: Run cargo fmt (examples/ssb-receiver)
-        run: cargo fmt --all --manifest-path=examples/ssb-receiver/Cargo.toml -- --check
+      - name: Run cargo fmt (examples/ssb)
+        run: cargo fmt --all --manifest-path=examples/ssb/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/wasm)
         run: cargo fmt --all --manifest-path=examples/wasm/Cargo.toml -- --check
@@ -226,8 +226,8 @@ jobs:
           RUSTFLAGS: '--cfg=web_sys_unstable_apis'
         run: cargo clippy --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
-      - name: Run cargo clippy (examples/ssb-receiver)
-        run: cargo clippy --all-targets --manifest-path=examples/ssb-receiver/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (examples/ssb)
+        run: cargo clippy --all-targets --manifest-path=examples/ssb/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/wasm)
         run: cargo clippy --all-targets --manifest-path=examples/wasm/Cargo.toml -- -D warnings
