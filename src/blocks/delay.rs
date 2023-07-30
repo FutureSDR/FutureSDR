@@ -1,14 +1,14 @@
-use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
-use futuresdr::runtime::Block;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::WorkIo;
+use crate::anyhow::Result;
+use crate::async_trait::async_trait;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::StreamIo;
+use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
 
 #[derive(Debug)]
 enum State {
@@ -17,12 +17,33 @@ enum State {
     Skip(usize),
 }
 
+/// Delays samples.
+///
+/// # Inputs
+///
+/// `in`: Stream to delay
+///
+/// # Outputs
+///
+/// `out`: Delayed stream
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Delay;
+/// use futuresdr::runtime::Flowgraph;
+/// use num_complex::Complex;
+///
+/// let mut fg = Flowgraph::new();
+///
+/// let sink = fg.add_block(NullSink::<Complex<f32>>::new(42));
+/// ```
 pub struct Delay<T: Copy + Send + 'static> {
     state: State,
     _type: std::marker::PhantomData<T>,
 }
 
 impl<T: Copy + Send + 'static> Delay<T> {
+    /// Creates a new Dealy block which will delay samples by the specified samples.
     pub fn new(n: isize) -> Block {
         let state = if n > 0 {
             State::Pad(n.try_into().unwrap())
