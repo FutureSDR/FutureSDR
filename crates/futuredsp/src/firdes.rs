@@ -177,9 +177,64 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
     taps.iter().map(|x| T::from_f64(*x).unwrap()).collect()
 }
 
+/// Constructs a hilbert FIR filter which changes the phase by 90º.
+/// The length of the filter equals the length of `window` and must be an odd number.
+/// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
+/// using [`num_traits::FromPrimitive::from_f64()`].
+///
+/// Example usage:
+/// ```
+/// use futuredsp::{firdes, windows};
+///
+/// let window = windows::hamming(65);
+/// let taps = firdes::hilbert::<f32>(window);
+/// ```
+pub fn hilbert<T: FromPrimitive>(window: &[f64]) -> Vec<T> {
+    let ntaps = window.len();
+    assert!(ntaps % 2 != 0, "Must be an odd number");
+
+    let mut taps = vec![0.0; ntaps];
+    let h = (ntaps - 1) / 2;
+    let mut gain = 0.0;
+
+    for i in (1..h).step_by(2) {
+        let x = 1.0 / i as f64;
+        taps[h + i] = x * window[h + i];
+        taps[h - i] = -x * window[h - i];
+        gain = taps[h + i] - gain;
+    }
+
+    gain = 2.0 * gain.abs();
+
+    taps.iter()
+        .map(|x| T::from_f64(x / gain).unwrap())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_hilbert() {
+        let w = vec![1.0; 11];
+        let taps: Vec<f64> = hilbert(w.as_slice());
+
+        // Every other tap is a zero.
+        let zeroes: Vec<f64> = taps.iter().copied().skip(1).step_by(2).collect();
+        assert_eq!(zeroes, vec![0.0; 5]);
+
+        // Values are symetrical
+        assert_eq!(taps[0].abs(), taps[10].abs());
+        assert_eq!(taps[2].abs(), taps[8].abs());
+        assert_eq!(taps[4].abs(), taps[6].abs());
+
+        // Values are the highest at the center
+        assert!(taps[0] > taps[2]);
+        assert!(taps[2] > taps[4]);
+        assert!(taps[6] > taps[8]);
+        assert!(taps[8] > taps[10]);
+    }
 
     #[test]
     fn root_raised_cosine_accuracy() {
