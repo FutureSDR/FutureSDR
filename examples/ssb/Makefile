@@ -1,5 +1,5 @@
 run: ssb_lsb_256k_complex2.dat
-	cargo run --release
+	cargo run --release --bin receive
 
 ssb_lsb_256k_complex2.dat.zip:
 	wget https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip
