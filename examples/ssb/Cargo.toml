@@ -14,3 +14,7 @@ hound = "3.5.0"
 [[bin]]
 name = "receive"
 path = "receive.rs"
+
+[[bin]]
+name = "transmit"
+path = "transmit.rs"
