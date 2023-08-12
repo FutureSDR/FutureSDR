@@ -32,6 +32,20 @@ A dat file with 32 bit complex floating point values.
 You can view/listen to the wav file using a software define radio application like [SDR++](https://www.sdrpp.org/).
 The dat file can be listened to using the `receive` binary (see above) or the [GNURadio flowgraph](./ssb-decoder.grc).
 
+## Roundtrip
+
+You can use `receive` to listen to a file created with `transmit.`
+
+```sh
+cargo run --release --bin transmit INPUT transmitted`
+cargo run --release --bin receive -f transmitted.dat`
+```
+
+* `INPUT` must be an audio file with only one chanel (mono).
+
+Alternatively you can run `make rountrip`.
+In this case, copy an single chanel (mono) audio file named `test.wav` into this directory.
+
 ## Architecture
 
 Goals is to achieve SSB decoding as in:
