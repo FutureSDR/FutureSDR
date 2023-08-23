@@ -301,8 +301,8 @@ pub struct RuntimeHandle {
 impl fmt::Debug for RuntimeHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RuntimeHandle")
-         .field("flowgraphs", &self.flowgraphs)
-         .finish()
+            .field("flowgraphs", &self.flowgraphs)
+            .finish()
     }
 }
 
