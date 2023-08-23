@@ -36,10 +36,10 @@ fn Gui(cx: Scope) -> impl IntoView {
         set_n_frames.update(|n| *n += 1);
     });
     let start = move |_| {
-        if handle().is_some() {
+        if handle.get_untracked().is_some() {
             info!("already running");
         } else {
-            wasm_bindgen_futures::spawn_local(run_fg(set_handle, set_frames));
+            leptos::spawn_local(run_fg(set_handle, set_frames));
         }
     };
     view! {
@@ -64,17 +64,9 @@ fn Channel(cx: Scope, handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoV
         let select = select_ref.get().unwrap();
         info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
-        wasm_bindgen_futures::spawn_local(async move {
-            if let Some(mut h) = handle() {
-                // let desc = h.description().await.unwrap();
-                // info!("desc {:?}", desc);
-                // let id = desc
-                //     .blocks
-                //     .into_iter()
-                //     .find(|b| b.instance_name == "HackRf_0")
-                //     .unwrap()
-                //     .id;
-                let id = 0;
+        leptos::spawn_local(async move {
+            if let Some(mut h) = handle.get_untracked() {
+                let id = 0; // we know that the HackRF is block 0
                 let _ = h.call(id, "freq", Pmt::U64(freq)).await;
             }
         });

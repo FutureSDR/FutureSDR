@@ -25,4 +25,3 @@ console_error_panic_hook = "0.1.7"
 console_log = "1"
 futuresdr = { path = "../.." }
 leptos = { version = "0.4.5", features = ["csr", "nightly"] }
-wasm-bindgen-futures = "0.4.37"
