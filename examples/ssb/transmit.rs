@@ -8,9 +8,9 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Split;
+use futuresdr::connect;
 use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows::hamming;
-use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -20,15 +20,15 @@ use std::path::Path;
 
 #[derive(Clone, Debug)]
 enum Mode {
-    LSB,
-    USB,
+    Lsb,
+    Usb,
 }
 
 impl std::fmt::Display for Mode {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Mode::LSB => write!(f, "LSB"),
-            Mode::USB => write!(f, "USB"),
+            Mode::Lsb => write!(f, "LSB"),
+            Mode::Usb => write!(f, "USB"),
         }
     }
 }
@@ -38,8 +38,8 @@ impl std::str::FromStr for Mode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "LSB" => Ok(Mode::LSB),
-            "USB" => Ok(Mode::USB),
+            "LSB" => Ok(Mode::Lsb),
+            "USB" => Ok(Mode::Usb),
             _ => Err("Not a valid mode".to_owned()),
         }
     }
@@ -50,7 +50,7 @@ struct Cli {
     input: String,
     output: String,
 
-    #[arg(short, long, default_value_t = Mode::LSB)]
+    #[arg(short, long, default_value_t = Mode::Lsb)]
     mode: Mode,
 
     #[clap(short, long, default_value_t = 53e3)]
@@ -95,8 +95,8 @@ fn main() -> Result<()> {
     let delay = Delay::<f32>::new(window.len() as isize / -2);
 
     let to_complex = Combine::new(move |i: &f32, q: &f32| match cli.mode {
-        Mode::LSB => Complex32::new(*i, *q * -1.0),
-        Mode::USB => Complex32::new(*i, *q),
+        Mode::Lsb => Complex32::new(*i, *q * -1.0),
+        Mode::Usb => Complex32::new(*i, *q),
     });
 
     let resampler =
