@@ -3,31 +3,17 @@ on: [push, pull_request]
 name: CI
 
 jobs:
-  lints:
-    name: Lints
+  fmt:
+    name: Fmt
     runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: full
-      RUSTFLAGS: '--cfg=web_sys_unstable_apis'
     steps:
       - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          components: rustfmt, clippy
-          target: wasm32-unknown-unknown
-
-      - name: Install ZeroMQ
-        run: sudo apt-get install -y libzmq3-dev
-
-      - name: Install alsalibs
-        run: sudo apt-get -y install libasound2-dev
-
-      - name: Install LTTng
-        run: sudo apt-get -y install liblttng-ust-dev
-
-      - name: Install Soapy
-        run: sudo apt-get -y install libsoapysdr-dev
+          components: rustfmt
 
       - name: Run cargo fmt (FutureSDR)
         run: cargo fmt --all -- --check
@@ -131,14 +117,32 @@ jobs:
       - name: Run cargo fmt (examples/zigbee)
         run: cargo fmt --all --manifest-path=examples/zigbee/Cargo.toml -- --check
 
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+
+      - name: Install ZeroMQ
+        run: sudo apt-get install -y libzmq3-dev
+
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
+      - name: Install LTTng
+        run: sudo apt-get -y install liblttng-ust-dev
+
+      - name: Install Soapy
+        run: sudo apt-get -y install libsoapysdr-dev
+
       - name: Run cargo clippy (main)
         run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (main)
-        run: cargo clippy --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
-        run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (remote)
         run: cargo clippy --lib --manifest-path=crates/remote/Cargo.toml -- -D warnings
@@ -170,9 +174,6 @@ jobs:
       - name: Run cargo clippy (perf/wgpu)
         run: cargo clippy --all-targets --manifest-path=perf/wgpu/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
-        run: cargo clippy --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
-
       - name: Run cargo clippy (perf/zynq)
         run: cargo clippy --all-targets --manifest-path=perf/zynq/Cargo.toml -- -D warnings
 
@@ -196,9 +197,6 @@ jobs:
 
       - name: Run cargo clippy (examples/cw)
         run: cargo clippy --all-targets --manifest-path=examples/cw/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (examples/cw)
-        run: cargo clippy --lib --manifest-path=examples/cw/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (examples/debug)
         run: cargo clippy --all-targets --manifest-path=examples/debug/Cargo.toml -- -D warnings
@@ -224,17 +222,11 @@ jobs:
       - name: Run cargo clippy (examples/spectrum)
         run: cargo clippy --all-targets --manifest-path=examples/spectrum/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy for wasm32-unknown-unknown (examples/spectrum)
-        run: cargo clippy --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
-
       - name: Run cargo clippy (examples/ssb)
         run: cargo clippy --all-targets --manifest-path=examples/ssb/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/wasm)
         run: cargo clippy --all-targets --manifest-path=examples/wasm/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy for wasm32-unknown-unknown (examples/wasm)
-        run: cargo clippy --lib --manifest-path=examples/wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy (examples/wgpu)
         run: cargo clippy --all-targets --manifest-path=examples/wgpu/Cargo.toml -- -D warnings
@@ -242,14 +234,46 @@ jobs:
       - name: Run cargo clippy (examples/wlan)
         run: cargo clippy --all-targets --manifest-path=examples/wlan/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy for wasm32-unknown-unknown (examples/wgpu)
-        run: cargo clippy --lib --manifest-path=examples/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
-
       - name: Run cargo clippy (examples/zeromq)
         run: cargo clippy --all-targets --manifest-path=examples/zeromq/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/zigbee)
         run: cargo clippy --all-targets --manifest-path=examples/zigbee/Cargo.toml -- -D warnings
+
+  clippy_wasm:
+    name: Clippy Wasm
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
+      RUSTFLAGS: '--cfg=web_sys_unstable_apis'
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+          target: wasm32-unknown-unknown
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (main)
+        run: cargo clippy --lib --workspace --features=audio,wgpu --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
+        run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
+        run: cargo clippy --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/cw)
+        run: cargo clippy --lib --manifest-path=examples/cw/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/spectrum)
+        run: cargo clippy --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/wasm)
+        run: cargo clippy --lib --manifest-path=examples/wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/wgpu)
+        run: cargo clippy --lib --manifest-path=examples/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/zigbee)
         run: cargo clippy --lib --manifest-path=examples/zigbee/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
