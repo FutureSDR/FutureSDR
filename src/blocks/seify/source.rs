@@ -87,6 +87,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v)?,
                 Pmt::U32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
                 Pmt::U64(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(self.dev.frequency(Rx, *c)?)),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -107,6 +108,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
                 Pmt::U32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
                 Pmt::U64(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(std::f64::NAN))),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -127,6 +129,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 Pmt::F64(v) => self.dev.set_sample_rate(Rx, *c, *v)?,
                 Pmt::U32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
                 Pmt::U64(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(self.dev.sample_rate(Rx, *c)?)),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
