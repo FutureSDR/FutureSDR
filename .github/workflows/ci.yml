@@ -98,6 +98,9 @@ jobs:
       - name: Run cargo fmt (examples/fm-receiver)
         run: cargo fmt --all --manifest-path=examples/fm-receiver/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/keyfob)
+        run: cargo fmt --all --manifest-path=examples/keyfob/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/logging)
         run: cargo fmt --all --manifest-path=examples/logging/Cargo.toml -- --check
 
@@ -205,6 +208,9 @@ jobs:
 
       - name: Run cargo clippy (examples/fm-receiver)
         run: cargo clippy --all-targets --manifest-path=examples/fm-receiver/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/keyfob)
+        run: cargo clippy --all-targets --manifest-path=examples/keyfob/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/logging)
         run: cargo clippy --all-targets --manifest-path=examples/logging/Cargo.toml -- -D warnings
