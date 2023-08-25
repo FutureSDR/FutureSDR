@@ -1,5 +1,5 @@
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::log::warn;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;

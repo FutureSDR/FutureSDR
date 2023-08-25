@@ -19,7 +19,7 @@ use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::futuredsp::firdes;
-use futuresdr::macros::connect;
+use futuresdr::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;

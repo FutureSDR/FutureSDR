@@ -4,7 +4,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::SignalSourceBuilder;
-use futuresdr::macros::connect;
+use futuresdr::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;

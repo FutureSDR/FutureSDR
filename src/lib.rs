@@ -17,7 +17,7 @@
 //! use futuresdr::blocks::Head;
 //! use futuresdr::blocks::NullSink;
 //! use futuresdr::blocks::NullSource;
-//! use futuresdr::macros::connect;
+//! use futuresdr::connect;
 //! use futuresdr::runtime::Flowgraph;
 //! use futuresdr::runtime::Runtime;
 //!

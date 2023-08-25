@@ -1,9 +1,9 @@
 use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
 use futuresdr::anyhow::{bail, Result};
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::log::{debug, info, warn};
-use futuresdr::macros::message_handler;
+use futuresdr::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

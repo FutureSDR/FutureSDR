@@ -45,7 +45,7 @@ pub fn Gui(cx: Scope) -> impl IntoView {
     view! {
         cx,
         <h1>"FutureSDR ZigBee Receiver"</h1>
-        <button on:click=start>Start</button>
+        <button on:click=start class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Start</button>
         <Channel handle=handle/>
         <div class="bg-fs-blue font-mono">
             "Frames received: " {n_frames}

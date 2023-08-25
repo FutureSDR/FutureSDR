@@ -1,5 +1,5 @@
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait::async_trait;
+use futuresdr::async_trait;
 use futuresdr::blocks::TagDebug;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Block;

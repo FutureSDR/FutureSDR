@@ -236,7 +236,7 @@ impl<T: Send> MessageIoBuilder<T> {
 
     /// Add input port
     ///
-    /// Use the [`message_handler`](crate::macros::message_handler) macro to define the handler
+    /// Use the [`message_handler`](crate::message_handler) macro to define the handler
     /// function
     #[must_use]
     pub fn add_input(
