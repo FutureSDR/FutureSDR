@@ -104,7 +104,7 @@ impl<const N: usize> TapsAccessor for &[f64; N] {
 
 impl<T> TapsAccessor for Vec<T>
 where
-    T: Float + Send + Sync + Copy,
+    T: Send + Sync + Copy,
 {
     type TapType = T;
 

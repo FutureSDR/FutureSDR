@@ -41,6 +41,9 @@ struct Args {
     /// WLAN Channel Number
     #[clap(short, long, value_parser = parse_channel, default_value = "34")]
     channel: f64,
+    /// DC Offset
+    #[clap(short, long, default_value_t = false)]
+    dc_offset: bool,
 }
 
 fn main() -> Result<()> {
@@ -62,16 +65,30 @@ fn main() -> Result<()> {
     }
 
     let src = seify.build()?;
+    connect!(fg, src);
+
+    let prev = if args.dc_offset {
+        let taps = futuresdr::futuredsp::firdes::highpass::<Complex32>(
+            1.0 / 92.0,
+            &futuresdr::futuredsp::windows::hann(255, false),
+        );
+        let dc = futuresdr::blocks::FirBuilder::new::<Complex32, Complex32, _, _>(taps);
+        connect!(fg, src > dc);
+        dc
+    } else {
+        src
+    };
+
     let delay = Delay::<Complex32>::new(16);
-    connect!(fg, src > delay);
+    connect!(fg, prev > delay);
 
     let complex_to_mag_2 = Apply::new(|i: &Complex32| i.norm_sqr());
     let float_avg = MovingAverage::<f32>::new(64);
-    connect!(fg, src > complex_to_mag_2 > float_avg);
+    connect!(fg, prev > complex_to_mag_2 > float_avg);
 
     let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    connect!(fg, src > in0.mult_conj.out > complex_avg;
+    connect!(fg, prev > in0.mult_conj.out > complex_avg;
                  delay > mult_conj.in1);
 
     let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
