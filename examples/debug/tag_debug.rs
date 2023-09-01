@@ -1,7 +1,7 @@
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
 use futuresdr::blocks::TagDebug;
 use futuresdr::blocks::VectorSource;
+use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

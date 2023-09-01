@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
 use futuresdr::log::{debug, info, warn};
-use futuresdr::message_handler;
+use futuresdr::macros::async_trait;
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

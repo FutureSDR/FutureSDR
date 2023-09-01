@@ -15,8 +15,8 @@ use vulkano::pipeline::PipelineBindPoint;
 use vulkano::sync::{self, GpuFuture};
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::async_trait;
 use futuresdr::log::debug;
+use futuresdr::macros::async_trait;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::BufferEmpty;
 use futuresdr::runtime::buffer::vulkan::ReaderH2D;

@@ -17,7 +17,7 @@
 //! use futuresdr::blocks::Head;
 //! use futuresdr::blocks::NullSink;
 //! use futuresdr::blocks::NullSource;
-//! use futuresdr::connect;
+//! use futuresdr::macros::connect;
 //! use futuresdr::runtime::Flowgraph;
 //! use futuresdr::runtime::Runtime;
 //!
@@ -58,10 +58,12 @@ pub extern crate log;
 #[macro_use]
 extern crate futuresdr_macros;
 
-// macros
-pub use futuresdr_macros::async_trait_external as async_trait;
-pub use futuresdr_macros::connect;
-pub use futuresdr_macros::message_handler_external as message_handler;
+/// Macros
+pub mod macros {
+    pub use futuresdr_macros::async_trait_external as async_trait;
+    pub use futuresdr_macros::connect;
+    pub use futuresdr_macros::message_handler_external as message_handler;
+}
 
 pub use num_complex;
 pub use num_integer;

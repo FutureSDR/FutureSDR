@@ -1,13 +1,13 @@
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::connect;
-use futuresdr::message_handler;
+use futuresdr::macros::async_trait;
+use futuresdr::macros::connect;
+use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

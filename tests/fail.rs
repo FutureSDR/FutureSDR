@@ -1,6 +1,6 @@
 use futuresdr::anyhow::{bail, Result};
-use futuresdr::async_trait;
 use futuresdr::blocks::MessageSink;
+use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

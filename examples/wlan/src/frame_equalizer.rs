@@ -6,8 +6,8 @@ use crate::LONG;
 use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
 use futuresdr::log::info;
+use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;

@@ -1,6 +1,6 @@
 use crate::{N_SAMPLES_PER_HALF_SYM, SYMBOL_ONE_TAPS, SYMBOL_ZERO_TAPS};
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
+use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;

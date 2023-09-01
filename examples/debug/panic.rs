@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
 
 use futuresdr::anyhow::Result;
-use futuresdr::async_trait;
-use futuresdr::connect;
+use futuresdr::macros::async_trait;
+use futuresdr::macros::connect;
 use futuresdr::runtime::scheduler;
 use futuresdr::runtime::{
     Block, BlockMeta, BlockMetaBuilder, Flowgraph, Kernel, MessageIo, MessageIoBuilder, Runtime,
