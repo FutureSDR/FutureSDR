@@ -17,7 +17,7 @@ use keyfob::Decoder;
 #[clap(version)]
 struct Args {
     /// File
-    #[clap(short, long)]
+    #[clap(long)]
     file: Option<String>,
     /// Sample Rate
     #[clap(short, long, default_value_t = 4e6)]
@@ -26,10 +26,10 @@ struct Args {
     #[clap(short, long)]
     args: Option<String>,
     /// Gain
-    #[clap(short, long, default_value_t = 40.0)]
+    #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Frequency
-    #[clap(long, default_value_t = 2.48092e9)]
+    #[clap(short, long, default_value_t = 434.45e6)]
     freq: f64,
 }
 
