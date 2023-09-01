@@ -79,13 +79,7 @@ fn main() -> Result<()> {
     let mu = 0.5;
     let gain_mu = 0.03;
     let omega_relative_limit = 0.0002;
-    let mm = ClockRecoveryMm::new(
-        omega,
-        gain_omega,
-        mu,
-        gain_mu,
-        omega_relative_limit,
-    );
+    let mm = ClockRecoveryMm::new(omega, gain_omega, mu, gain_mu, omega_relative_limit);
 
     let decoder = Decoder::new(6);
     let mac = Mac::new();

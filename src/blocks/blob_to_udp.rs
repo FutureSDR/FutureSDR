@@ -56,17 +56,15 @@ impl BlobToUdp {
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
-            Pmt::Blob(v) => {
-                match self.socket.as_ref().unwrap().send_to(&v, self.remote).await {
-                    Ok(s) => {
-                        assert_eq!(s, v.len());
-                    }
-                    Err(e) => {
-                        println!("udp error: {e:?}");
-                        return Err(e.into());
-                    }
+            Pmt::Blob(v) => match self.socket.as_ref().unwrap().send_to(&v, self.remote).await {
+                Ok(s) => {
+                    assert_eq!(s, v.len());
                 }
-            }
+                Err(e) => {
+                    println!("udp error: {e:?}");
+                    return Err(e.into());
+                }
+            },
             Pmt::Finished => {
                 io.finished = true;
             }
