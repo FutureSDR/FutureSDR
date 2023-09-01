@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use futuresdr::anyhow::Result;
 use futuresdr::async_trait;
-use futuresdr::log::{debug, warn};
+use futuresdr::log::{debug, info, warn};
 use futuresdr::message_handler;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -101,7 +101,7 @@ impl Mac {
     #[message_handler]
     async fn received(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
@@ -109,7 +109,7 @@ impl Mac {
         match p {
             Pmt::Blob(data) => {
                 if Self::check_crc(&data) && data.len() > 2 {
-                    debug!("received frame, crc correct, payload length {}", data.len());
+                    info!("received frame, crc correct, payload length {}", data.len());
                     let mut rftap = vec![0; data.len() + 12];
                     rftap[0..4].copy_from_slice("RFta".as_bytes());
                     rftap[4..6].copy_from_slice(&3u16.to_le_bytes());
@@ -136,6 +136,9 @@ impl Mac {
                 } else {
                     debug!("received frame, crc wrong");
                 }
+            }
+            Pmt::Finished => {
+                io.finished = true;
             }
             _ => {
                 warn!("ZigBee Mac: received wrong PMT type in RX callback (expected Pmt::Blob)");
