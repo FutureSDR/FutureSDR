@@ -68,11 +68,15 @@ fn main() -> Result<()> {
     connect!(fg, src);
 
     let prev = if args.dc_offset {
-        let taps = futuresdr::futuredsp::firdes::highpass::<Complex32>(
-            1.0 / 92.0,
-            &futuresdr::futuredsp::windows::hann(255, false),
-        );
-        let dc = futuresdr::blocks::FirBuilder::new::<Complex32, Complex32, _, _>(taps);
+        let mut avg_real = 0.0;
+        let mut avg_img = 0.0;
+        let ratio = 1.0e-5;
+        let dc = Apply::new(move |c: &Complex32| -> Complex32 {
+            avg_real = ratio * (c.re - avg_real) + avg_real;
+            avg_img = ratio * (c.im - avg_img) + avg_img;
+            Complex32::new(c.re - avg_real, c.im - avg_img)
+        });
+
         connect!(fg, src > dc);
         dc
     } else {
