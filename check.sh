@@ -39,12 +39,12 @@ cd ${SCRIPTPATH}/examples/audio && cargo fmt --check
 cd ${SCRIPTPATH}/examples/custom-routes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/cw && cargo fmt --check
 cd ${SCRIPTPATH}/examples/debug && cargo fmt --check
+cd ${SCRIPTPATH}/examples/file-trx && cargo fmt --check
 cd ${SCRIPTPATH}/examples/firdes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo fmt --check
 cd ${SCRIPTPATH}/examples/keyfob && cargo fmt --check
 cd ${SCRIPTPATH}/examples/logging && cargo fmt --check
 cd ${SCRIPTPATH}/examples/macros && cargo fmt --check
-cd ${SCRIPTPATH}/examples/rx-to-file && cargo fmt --check
 cd ${SCRIPTPATH}/examples/spectrum && cargo fmt --check
 cd ${SCRIPTPATH}/examples/ssb && cargo fmt --check
 cd ${SCRIPTPATH}/examples/wasm && cargo fmt --check
@@ -90,12 +90,12 @@ cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warn
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/debug && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/file-trx && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/rx-to-file && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
@@ -140,7 +140,7 @@ cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/rx-to-file && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/file-trx && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/ssb && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wasm && cargo test --all-targets
