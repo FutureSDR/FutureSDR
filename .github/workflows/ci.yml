@@ -78,6 +78,9 @@ jobs:
       - name: Run cargo fmt (examples/debug)
         run: cargo fmt --all --manifest-path=examples/debug/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/file-trx)
+        run: cargo fmt --all --manifest-path=examples/file-trx/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/firdes)
         run: cargo fmt --all --manifest-path=examples/firdes/Cargo.toml -- --check
 
@@ -92,9 +95,6 @@ jobs:
 
       - name: Run cargo fmt (examples/macros)
         run: cargo fmt --all --manifest-path=examples/macros/Cargo.toml -- --check
-
-      - name: Run cargo fmt (examples/rx-to-file)
-        run: cargo fmt --all --manifest-path=examples/rx-to-file/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/spectrum)
         run: cargo fmt --all --manifest-path=examples/spectrum/Cargo.toml -- --check
@@ -201,6 +201,9 @@ jobs:
       - name: Run cargo clippy (examples/debug)
         run: cargo clippy --all-targets --manifest-path=examples/debug/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (examples/file-trx)
+        run: cargo clippy --all-targets --manifest-path=examples/file-trx/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (examples/firdes)
         run: cargo clippy --all-targets --manifest-path=examples/firdes/Cargo.toml -- -D warnings
 
@@ -215,9 +218,6 @@ jobs:
 
       - name: Run cargo clippy (examples/macros)
         run: cargo clippy --all-targets --manifest-path=examples/macros/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy (examples/rx-to-file)
-        run: cargo clippy --all-targets --manifest-path=examples/rx-to-file/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/spectrum)
         run: cargo clippy --all-targets --manifest-path=examples/spectrum/Cargo.toml -- -D warnings
