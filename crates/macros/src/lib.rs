@@ -518,7 +518,7 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 ///
 /// For technical reasons the `message_handler` macro for use inside and outside the
 /// main crate need to be different. For the user this does not matter, since this
-/// version gets re-exported as `futuresdr::message_handler`.
+/// version gets re-exported as `futuresdr::macros::message_handler`.
 ///
 /// See [`macro@message_handler_external`] for a more information on how to use the macro.
 #[proc_macro_attribute]
