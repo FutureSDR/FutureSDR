@@ -74,9 +74,28 @@ enum OperationMode {
     Mode16,
 }
 
-pub struct Encoder<const N: usize> {}
+pub struct Encoder<const RATE: i64> {}
 
-impl<const N: usize> Encoder<N> {
+impl<const RATE: i64> Encoder<RATE> {
+    const CODE_ORDER: i64 = 11;
+    const MOD_BITS: i64 = 2;
+    const CODE_LEN: i64 = 1 << Self::CODE_ORDER;
+    const SYMBOL_COUNT: i64 = 4;
+    const SYMBOL_LENGTH: i64 = (1280 * RATE) / 8000;
+    const GUARD_LENGTH: i64 = Self::SYMBOL_LENGTH / 8;
+    const EXTENDED_LENGTH: i64 = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
+    const MAX_BITS: i64 = 1360;
+    const COR_SEQ_LEN: i64 = 127;
+    const COR_SEQ_OFF: i64 = 1 - Self::COR_SEQ_LEN;
+    const COR_SEQ_POLY: i64 = 0b10001001;
+    const PRE_SEQ_LEN: i64 = 255;
+    const PRE_SEQ_OFF: i64 = -Self::PRE_SEQ_LEN / 2;
+    const PRE_SEQ_POLY: i64 = 0b100101011;
+    const PAY_CAR_CNT: i64 = 256;
+    const PAY_CAR_OFF: i64 = -Self::PAY_CAR_CNT / 2;
+    const FANCY_OFF: i64 = -(8 * 9 * 3) / 2;
+    const NOISE_POLY: i64 = 0b100101010001;
+
     pub fn encode(
         &self,
         payload: &[u8],
@@ -138,8 +157,8 @@ impl<const N: usize> Encoder<N> {
         Vec::new()
     }
 
-    pub fn rate() -> usize {
-        N
+    pub fn rate() -> i64 {
+        RATE
     }
 
     fn nrz(bit: bool) -> i8 {
@@ -191,24 +210,6 @@ impl<const N: usize> Encoder<N> {
 
 // template<int RATE>
 // class Encoder : public EncoderInterface {
-// 	static const int code_order = 11;
-// 	static const int mod_bits = 2;
-// 	static const int code_len = 1 << code_order;
-// 	static const int symbol_count = 4;
-// 	static const int symbol_length = (1280 * RATE) / 8000;
-// 	static const int guard_length = symbol_length / 8;
-// 	static const int extended_length = symbol_length + guard_length;
-// 	static const int max_bits = 1360;
-// 	static const int cor_seq_len = 127;
-// 	static const int cor_seq_off = 1 - cor_seq_len;
-// 	static const int cor_seq_poly = 0b10001001;
-// 	static const int pre_seq_len = 255;
-// 	static const int pre_seq_off = -pre_seq_len / 2;
-// 	static const int pre_seq_poly = 0b100101011;
-// 	static const int pay_car_cnt = 256;
-// 	static const int pay_car_off = -pay_car_cnt / 2;
-// 	static const int fancy_off = -(8 * 9 * 3) / 2;
-// 	static const int noise_poly = 0b100101010001;
 // 	DSP::FastFourierTransform<symbol_length, cmplx, 1> bwd;
 // 	CODE::CRC<uint16_t> crc;
 // 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bch;
