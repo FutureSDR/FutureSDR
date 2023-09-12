@@ -501,6 +501,81 @@ impl Encoder {
         // CONFIG END
         // ==============================================================
 
+    loop {
+        let mut data_symbol = false;
+
+        match self.count_down {
+            5 => {
+                if self.noise_count {
+                 self.noise_count -= 1;
+                self.noise_symbol()
+            } else {
+                self.count_down -= 1;
+                self.schmidl_cox();
+                data_symbol = true;
+                self.count_down -= 1;
+},
+4 => {
+                self.schmidl_cox();
+                data_symbol = true;
+                self.count_down -= 1;
+},
+3 => {
+    self.preamble();
+    data_symbol = true;
+self.count_down -= 1;
+if operation_mode.into() == 0 {
+self.count_down -= 1;
+}
+}
+2 => {
+    self.payload_symbol();
+    data.symbol = true;
+    self.symbol_number += 1;
+if self.symbol_number == Self::SYMBOL_COUNT {
+self.count_down -= 1;
+}
+}
+1 => {
+    if self.fancy_line {
+        self.fancy_line -= 1;
+        self.fancy_symbol();
+} else {
+self.silence();
+    self.count_down -= 1;
+}
+}   
+_ => {
+    
+
+},
+
+    }
+
+
+},
+} 
+
+// 			default:
+// 				for (int i = 0; i < extended_length; ++i)
+// 					next_sample(audio_buffer, 0, channel_select, i);
+// 				return false;
+// 		}
+// 		for (int i = 0; i < guard_length; ++i) {
+// 			float x = i / float(guard_length - 1);
+// 			float ratio(0.5);
+// 			if (data_symbol)
+// 				x = std::min(x, ratio) / ratio;
+// 			float y = 0.5f * (1 - std::cos(DSP::Const<float>::Pi() * x));
+// 			cmplx sum = DSP::lerp(guard[i], temp[i + symbol_length - guard_length], y);
+// 			next_sample(audio_buffer, sum, channel_select, i);
+// 		}
+// 		for (int i = 0; i < guard_length; ++i)
+// 			guard[i] = temp[i];
+// 		for (int i = 0; i < symbol_length; ++i)
+// 			next_sample(audio_buffer, temp[i], channel_select, i + guard_length);
+// 		return true;
+// 	}
 
 
 
@@ -710,23 +785,6 @@ impl Encoder {
 // 	int fancy_line = 0;
 // 	int noise_count = 0;
 //
-//
-//
-//
-//
-// public:
-// 	Encoder() : noise_seq(noise_poly), crc(0xA8F4), bch({
-// 		0b100011101, 0b101110111, 0b111110011, 0b101101001,
-// 		0b110111101, 0b111100111, 0b100101011, 0b111010111,
-// 		0b000010011, 0b101100101, 0b110001011, 0b101100011,
-// 		0b100011011, 0b100111111, 0b110001101, 0b100101101,
-// 		0b101011111, 0b111111001, 0b111000011, 0b100111001,
-// 		0b110101001, 0b000011111, 0b110000111, 0b110110001}) {}
-//
-// 	int rate() final {
-// 		return RATE;
-// 	}
-//
 // 	bool produce(int16_t *audio_buffer, int channel_select) final {
 // 		bool data_symbol = false;
 // 		switch (count_down) {
@@ -785,51 +843,3 @@ impl Encoder {
 // 		return true;
 // 	}
 //
-// 	void configure(const uint8_t *payload, const int8_t *call_sign, int carrier_frequency, int noise_symbols, bool fancy_header) final {
-// 		int len = 0;
-// 		while (len <= 128 && payload[len])
-// 			++len;
-// 		if (!len)
-// 			operation_mode = 0;
-// 		else if (len <= 85)
-// 			operation_mode = 16;
-// 		else if (len <= 128)
-// 			operation_mode = 15;
-// 		else
-// 			operation_mode = 14;
-// 		carrier_offset = (carrier_frequency * symbol_length) / RATE;
-// 		meta_data = (base37(call_sign) << 8) | operation_mode;
-// 		for (int i = 0; i < 9; ++i)
-// 			call[i] = 0;
-// 		for (int i = 0; i < 9 && call_sign[i]; ++i)
-// 			call[i] = base37_map(call_sign[i]);
-// 		symbol_number = 0;
-// 		count_down = 5;
-// 		fancy_line = 11 * fancy_header;
-// 		noise_count = noise_symbols;
-// 		for (int i = 0; i < guard_length; ++i)
-// 			guard[i] = 0;
-// 		const uint32_t *frozen_bits;
-// 		int data_bits;
-// 		switch (operation_mode) {
-// 			case 14:
-// 				data_bits = 1360;
-// 				frozen_bits = frozen_2048_1392;
-// 				break;
-// 			case 15:
-// 				data_bits = 1024;
-// 				frozen_bits = frozen_2048_1056;
-// 				break;
-// 			case 16:
-// 				data_bits = 680;
-// 				frozen_bits = frozen_2048_712;
-// 				break;
-// 			default:
-// 				return;
-// 		}
-// 		CODE::Xorshift32 scrambler;
-// 		for (int i = 0; i < data_bits / 8; ++i)
-// 			mesg[i] = payload[i] ^ scrambler();
-// 		polar(code, mesg, frozen_bits, data_bits);
-// 	}
-// };
