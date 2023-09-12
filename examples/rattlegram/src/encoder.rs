@@ -23,6 +23,33 @@ const BASE37_BITMAP: [u8; 407] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
+const FROZEN_2048_1392: [u32; 64] = [
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x11f7fff,
+    0xffffffff, 0x7fffffff, 0x17ffffff, 0x117177f, 0x177f7fff, 0x1037f, 0x1011f, 0x1, 0xffffffff,
+    0x177fffff, 0x77f7fff, 0x1011f, 0x1173fff, 0x10117, 0x10117, 0x0, 0x117177f, 0x17, 0x3, 0x0,
+    0x1, 0x0, 0x0, 0x0, 0x7fffffff, 0x11f7fff, 0x11717ff, 0x117, 0x17177f, 0x3, 0x1, 0x0, 0x1037f,
+    0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x1011f, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x0, 0x0,
+];
+const FROZEN_2048_1056: [u32; 64] = [
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0xffffffff, 0x177fffff, 0x177f7fff, 0x1017f,
+    0xffffffff, 0xffffffff, 0xffffffff, 0x177f7fff, 0x7fffffff, 0x13f7fff, 0x1171fff, 0x117,
+    0x3fffffff, 0x11717ff, 0x7177f, 0x1, 0x1017f, 0x1, 0x1, 0x0, 0xffffffff, 0x7fffffff,
+    0x7fffffff, 0x1171fff, 0x17ffffff, 0x7177f, 0x1037f, 0x1, 0x77f7fff, 0x1013f, 0x10117, 0x1,
+    0x10117, 0x0, 0x0, 0x0, 0x1173fff, 0x10117, 0x117, 0x0, 0x7, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x0,
+];
+const FROZEN_2048_712: [u32; 64] = [
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x177fffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x11f7fff,
+    0xffffffff, 0x7fffffff, 0x1fffffff, 0x17177f, 0x177fffff, 0x1037f, 0x1011f, 0x1, 0xffffffff,
+    0xffffffff, 0xffffffff, 0x7fffffff, 0xffffffff, 0x1fffffff, 0x177fffff, 0x1077f, 0xffffffff,
+    0x177f7fff, 0x13f7fff, 0x10117, 0x1171fff, 0x117, 0x7, 0x0, 0x7fffffff, 0x1173fff, 0x11717ff,
+    0x7, 0x3077f, 0x1, 0x1, 0x0, 0x1013f, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0,
+];
+
 fn xor_be_bit(buf: &mut [u8], pos: usize, val: bool) {
     buf[pos / 8] ^= (val as u8) << (7 - pos % 8);
 }
@@ -234,11 +261,23 @@ impl Psk<4> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum OperationMode {
     Null,
     Mode14,
     Mode15,
     Mode16,
+}
+
+impl From<OperationMode> for u64 {
+    fn from(mode: OperationMode) -> Self {
+        match mode {
+            OperationMode::Null => 0,
+            OperationMode::Mode14 => 14,
+            OperationMode::Mode15 => 15,
+            OperationMode::Mode16 => 16,
+        }
+    }
 }
 
 pub struct Encoder {
@@ -255,6 +294,10 @@ pub struct Encoder {
     meta_data: u64,
     crc: Crc,
     bch: Bch,
+    call: [u8; 9],
+    count_down: i64,
+    noise_count: u64,
+    guard: [Complex32; Self::GUARD_LENGTH],
 }
 
 impl Encoder {
@@ -323,61 +366,58 @@ impl Encoder {
             meta_data: 0,
             crc: Crc::new(0xA8F4),
             bch,
+            call: [0; 9],
+            count_down: 0,
+            noise_count: 0,
+            guard: [Complex32::new(0.0, 0.0); Self::GUARD_LENGTH],
         }
     }
 
     pub fn encode(
-        &self,
+        &mut self,
         payload: &[u8],
         call_sign: &[u8],
-        carrier_frequency: u64,
+        carrier_frequency: usize,
         noise_symbols: u64,
         fancy_header: bool,
     ) -> Vec<f32> {
-        let len = payload.len();
+        let operation_mode = match payload.len() {
+            0 => OperationMode::Null,
+            1..=85 => OperationMode::Mode16,
+            86..=128 => OperationMode::Mode15,
+            _ => OperationMode::Mode14,
+        };
+
+        self.carrier_offset = (carrier_frequency * Self::SYMBOL_LENGTH) / Self::RATE;
+        let mode: u64 = operation_mode.into();
+        self.meta_data = (Self::base37(call_sign) << 8) | mode;
+
+        self.call.fill(0);
+        for i in 0..9 {
+            if call_sign[i] == 0 {
+                break;
+            }
+            self.call[i] = Self::base37_map(call_sign[i]);
+        }
+
+        self.symbol_number = 0;
+        self.count_down = 5;
+        self.fancy_line = match fancy_header {
+            true => 11,
+            false => 0,
+        };
+        self.noise_count = noise_symbols;
+
+        self.guard.fill(Complex32::new(0.0, 0.0));
+
+        let (data_bits, frozen_bits) = match operation_mode {
+            OperationMode::Null => return Vec::new(),
+            OperationMode::Mode14 => (1360, FROZEN_2048_1392),
+            OperationMode::Mode15 => (1024, FROZEN_2048_1056),
+            OperationMode::Mode16 => (680, FROZEN_2048_712),
+        };
 
         // 	void configure(const uint8_t *payload, const int8_t *call_sign, int carrier_frequency, int noise_symbols, bool fancy_header) final {
-        // 		int len = 0;
-        // 		while (len <= 128 && payload[len])
-        // 			++len;
-        // 		if (!len)
-        // 			operation_mode = 0;
-        // 		else if (len <= 85)
-        // 			operation_mode = 16;
-        // 		else if (len <= 128)
-        // 			operation_mode = 15;
-        // 		else
-        // 			operation_mode = 14;
-        // 		carrier_offset = (carrier_frequency * symbol_length) / RATE;
-        // 		meta_data = (base37(call_sign) << 8) | operation_mode;
-        // 		for (int i = 0; i < 9; ++i)
-        // 			call[i] = 0;
-        // 		for (int i = 0; i < 9 && call_sign[i]; ++i)
-        // 			call[i] = base37_map(call_sign[i]);
-        // 		symbol_number = 0;
-        // 		count_down = 5;
-        // 		fancy_line = 11 * fancy_header;
-        // 		noise_count = noise_symbols;
-        // 		for (int i = 0; i < guard_length; ++i)
-        // 			guard[i] = 0;
-        // 		const uint32_t *frozen_bits;
-        // 		int data_bits;
-        // 		switch (operation_mode) {
-        // 			case 14:
-        // 				data_bits = 1360;
-        // 				frozen_bits = frozen_2048_1392;
-        // 				break;
-        // 			case 15:
-        // 				data_bits = 1024;
-        // 				frozen_bits = frozen_2048_1056;
-        // 				break;
-        // 			case 16:
-        // 				data_bits = 680;
-        // 				frozen_bits = frozen_2048_712;
-        // 				break;
-        // 			default:
-        // 				return;
-        // 		}
         // 		CODE::Xorshift32 scrambler;
         // 		for (int i = 0; i < data_bits / 8; ++i)
         // 			mesg[i] = payload[i] ^ scrambler();
@@ -408,23 +448,23 @@ impl Encoder {
         Psk::<4>::map(b)
     }
 
-    fn base37(str: &[u8]) -> u64 {
-        fn base37_map(c: u8) -> u8 {
-            if c >= b'0' && c <= b'9' {
-                return c - b'0' + 1;
-            }
-            if c >= b'a' && c <= b'z' {
-                return c - b'a' + 11;
-            }
-            if c >= b'A' && c <= b'Z' {
-                return c - b'A' + 11;
-            }
-            0
+    fn base37_map(c: u8) -> u8 {
+        if c >= b'0' && c <= b'9' {
+            return c - b'0' + 1;
         }
+        if c >= b'a' && c <= b'z' {
+            return c - b'a' + 11;
+        }
+        if c >= b'A' && c <= b'Z' {
+            return c - b'A' + 11;
+        }
+        0
+    }
 
+    fn base37(str: &[u8]) -> u64 {
         let mut acc = 0u64;
         for c in str {
-            acc = 37 * acc + base37_map(*c) as u64;
+            acc = 37 * acc + Self::base37_map(*c) as u64;
         }
         acc
     }
@@ -535,7 +575,7 @@ impl Encoder {
             set_be_bit(data.as_mut_slice(), i + 55, ((cs >> i) & 1) == 1);
         }
 
-        // bch(data, parity); TODO
+        self.bch.process(&data, &mut parity);
 
         let mut seq = Mls::new(Self::PRE_SEQ_POLY);
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PRE_SEQ_LEN as f32;
