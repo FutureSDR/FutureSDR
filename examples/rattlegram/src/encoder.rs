@@ -1,6 +1,8 @@
-use futuresdr::{num_complex::Complex32, num_integer::Roots};
+use futuresdr::num_complex::Complex32;
 use rustfft::Fft;
 use std::sync::Arc;
+
+const BASE37_BITMAP: [407; u8] = { 0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64, 130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2, 66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66, 130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16, 4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64, 4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64, 126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2, 66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66, 124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64, 64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8, 32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64, 66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66, 68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64, 0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126, 130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
 
 struct Mls {
     poly: u64,
@@ -76,29 +78,26 @@ enum OperationMode {
     Mode16,
 }
 
-pub struct Encoder<const RATE: i64>
-where
-    [(); Self::SYMBOL_LENGTH]: Send,
-    [(); Self::PAY_CAR_CNT]: Send,
-    [(); Self::EXTENDED_LENGTH]: Send,
-{
+pub struct Encoder {
     temp: [Complex32; Self::EXTENDED_LENGTH],
     freq: [Complex32; Self::SYMBOL_LENGTH],
     prev: [Complex32; Self::PAY_CAR_CNT],
-    mls: Mls,
+    noise_seq: Mls,
     symbol_number: usize,
     code: [bool; Self::CODE_LEN],
-    carrier_offset: u64,
+    carrier_offset: usize,
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
-    fft: Arc<dyn Fft<Complex32>>,
+    fft: Arc<dyn Fft<f32>>,
+    fancy_line: isize,
 }
 
-impl<const RATE: i64> Encoder<RATE> {
+impl Encoder {
+    const RATE: usize = 48000;
     const CODE_ORDER: usize = 11;
     const MOD_BITS: usize = 2;
     const CODE_LEN: usize = 1 << Self::CODE_ORDER;
     const SYMBOL_COUNT: usize = 4;
-    const SYMBOL_LENGTH: usize = (1280 * RATE) / 8000;
+    const SYMBOL_LENGTH: usize = (1280 * Self::RATE) / 8000;
     const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
     const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
     const MAX_BITS: usize = 1360;
@@ -109,7 +108,7 @@ impl<const RATE: i64> Encoder<RATE> {
     const PRE_SEQ_OFF: i64 = -Self::PRE_SEQ_LEN / 2;
     const PRE_SEQ_POLY: i64 = 0b100101011;
     const PAY_CAR_CNT: usize = 256;
-    const PAY_CAR_OFF: usize = -Self::PAY_CAR_CNT / 2;
+    const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
     const FANCY_OFF: i64 = -(8 * 9 * 3) / 2;
     const NOISE_POLY: i64 = 0b100101010001;
 
@@ -174,8 +173,8 @@ impl<const RATE: i64> Encoder<RATE> {
         Vec::new()
     }
 
-    pub fn rate() -> i64 {
-        RATE
+    pub fn rate() -> usize {
+        Self::RATE
     }
 
     fn nrz(bit: bool) -> f32 {
@@ -186,8 +185,9 @@ impl<const RATE: i64> Encoder<RATE> {
         }
     }
 
-    fn bin(self, carrier: u64) -> u64 {
-        (carrier + self.carrier_offset + Self::SYMBOL_LENGTH) % Self::SYMBOL_LENGTH
+    fn bin(&self, carrier: isize) -> usize {
+        (carrier + self.carrier_offset as isize + Self::SYMBOL_LENGTH as isize) as usize
+            % Self::SYMBOL_LENGTH
     }
 
     fn mod_map(b: &[bool; Self::MOD_BITS]) -> Complex32 {
@@ -219,8 +219,8 @@ impl<const RATE: i64> Encoder<RATE> {
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32;
         self.freq.fill(Complex32::new(0.0, 0.0));
         for i in 0..Self::PAY_CAR_CNT {
-            self.freq[self.bin(i + Self::PAY_CAR_OFF)] =
-                factor * Complex32::new(Self::nrz(self.mls.next()), Self::nrz(self.mls.next()));
+            self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] =
+                factor * Complex32::new(Self::nrz(self.noise_seq.next()), Self::nrz(self.noise_seq.next()));
         }
         self.transform(false);
     }
@@ -231,7 +231,7 @@ impl<const RATE: i64> Encoder<RATE> {
         for i in 0..Self::PAY_CAR_CNT {
             let index = Self::MOD_BITS * (Self::PAY_CAR_CNT * self.symbol_number + i);
             self.prev[i] *= Self::mod_map(&self.code[index..index + 2].try_into().unwrap());
-            self.freq[self.bin(i + Self::PAY_CAR_OFF)] = self.prev[i];
+            self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = self.prev[i];
         }
         self.transform(true);
     }
@@ -245,25 +245,58 @@ impl<const RATE: i64> Encoder<RATE> {
         // if papr_reduction && RATE <= 16000 {
         // 	improve_papr(freq);
         //         }
-        self.fft
-            .process_outofplace_with_scratch(self.freq, &mut self.temp, &mut self.fft_scratch);
+        self.fft.process_outofplace_with_scratch(
+            self.freq.as_mut_slice(),
+            self.temp.as_mut_slice(),
+            self.fft_scratch.as_mut_slice(),
+        );
         for i in 0..Self::SYMBOL_LENGTH {
-            self.temp[i] /= (8 * Self::SYMBOL_LENGTH).sqrt();
+            self.temp[i] /= ((8 * Self::SYMBOL_LENGTH) as f32).sqrt();
         }
     }
 
-    // fn schmidl_cox() {
-    // 	CODE::MLS seq(cor_seq_poly);
-    // 	float factor = std::sqrt(float(2 * symbol_length) / cor_seq_len);
-    // 	for (int i = 0; i < symbol_length; ++i)
-    // 		freq[i] = 0;
-    // 	freq[bin(cor_seq_off - 2)] = factor;
-    // 	for (int i = 0; i < cor_seq_len; ++i)
-    // 		freq[bin(2 * i + cor_seq_off)] = nrz(seq());
-    // 	for (int i = 0; i < cor_seq_len; ++i)
-    // 		freq[bin(2 * i + cor_seq_off)] *= freq[bin(2 * (i - 1) + cor_seq_off)];
-    // 	transform(false);
-    // }
+    fn schmidl_cox(&mut self) {
+        let seq = Mls::new(Self::COR_SEQ_POLY);
+        let factor = (2 * Self::SYMBOL_LENGTH) as f32 / Self::COR_SEQ_LEN as f32;
+        let factor = factor.sqrt();
+
+        self.freq.fill(Complex32::new(0.0, 0.0));
+        self.freq[self.bin(Self::COR_SEQ_OFF - 2)] = factor;
+
+        for i in 0..Self::COR_SEQ_LEN {
+            self.freq[bin(2 * i + Self::COR_SEQ_OFF)] = Self::nrz(seq.next());
+        }
+
+        for i in 0..Self::COR_SEQ_LEN {
+            self.freq[bin(2 * i + Self::COR_SEQ_OFF)] *=
+                self.freq[self.bin(2 * (i - 1) + Self::COR_SEQ_OFF)];
+        }
+        self.transform(false);
+    }
+
+	fn fancy_symbol(&mut self, call: &[u8]) {
+		let active_carriers = 1;
+
+        for j in 0..9 {
+            for i in 0..8 {
+                active_carriers += (base37_bitmap[call[j] + 37 * self.fancy_line] >> i) & 1; 
+            }
+        }
+
+        let factor = Self::SYMBOL_LENGTH as f32 / active_carriers as f32;
+        let factor = factor.sqrt();
+
+        self.freq.fill(Complex32::new(0.0, 0.0));
+
+        for j in 0..9 {
+            for i in 0..8 {
+				if (BASE37_BITMAP[call[j] + 37 * self.fancy_line] & (1 << (7 - i))) != 0 {
+					freq[self.bin((8 * j + i) * 3 + fancy_off)] = factor * Self::nrz(self.noise_seq.next());
+                }
+            }
+        }
+		self.transform(false);
+	}
 }
 
 // template<int RATE>
@@ -286,19 +319,6 @@ impl<const RATE: i64> Encoder<RATE> {
 // 	int noise_count = 0;
 //
 //
-//
-// 	void schmidl_cox() {
-// 		CODE::MLS seq(cor_seq_poly);
-// 		float factor = std::sqrt(float(2 * symbol_length) / cor_seq_len);
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			freq[i] = 0;
-// 		freq[bin(cor_seq_off - 2)] = factor;
-// 		for (int i = 0; i < cor_seq_len; ++i)
-// 			freq[bin(2 * i + cor_seq_off)] = nrz(seq());
-// 		for (int i = 0; i < cor_seq_len; ++i)
-// 			freq[bin(2 * i + cor_seq_off)] *= freq[bin(2 * (i - 1) + cor_seq_off)];
-// 		transform(false);
-// 	}
 //
 // 	void preamble() {
 // 		uint8_t data[9] = {0}, parity[23] = {0};
@@ -327,20 +347,6 @@ impl<const RATE: i64> Encoder<RATE> {
 // 		transform();
 // 	}
 //
-// 	void fancy_symbol() {
-// 		int active_carriers = 1;
-// 		for (int j = 0; j < 9; ++j)
-// 			for (int i = 0; i < 8; ++i)
-// 				active_carriers += (base37_bitmap[call[j] + 37 * fancy_line] >> i) & 1;
-// 		float factor = std::sqrt(float(symbol_length) / active_carriers);
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			freq[i] = 0;
-// 		for (int j = 0; j < 9; ++j)
-// 			for (int i = 0; i < 8; ++i)
-// 				if (base37_bitmap[call[j] + 37 * fancy_line] & (1 << (7 - i)))
-// 					freq[bin((8 * j + i) * 3 + fancy_off)] = factor * nrz(noise_seq());
-// 		transform(false);
-// 	}
 //
 //
 // public:
