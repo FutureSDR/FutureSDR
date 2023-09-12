@@ -1,4 +1,6 @@
-use futuresdr::num_complex::Complex32;
+use futuresdr::{num_complex::Complex32, num_integer::Roots};
+use rustfft::Fft;
+use std::sync::Arc;
 
 struct Mls {
     poly: u64,
@@ -74,7 +76,17 @@ enum OperationMode {
     Mode16,
 }
 
-pub struct Encoder<const RATE: i64> {}
+pub struct Encoder<const RATE: i64> {
+    temp: [Complex32; Self::EXTENDED_LENGTH],
+    freq: [Complex32; Self::SYMBOL_LENGTH],
+    prev: [Complex32; Self::PAY_CAR_CNT],
+    mls: Mls,
+    symbol_number: usize,
+    code: [bool; Self::CODE_LEN],
+    carrier_offset: u64,
+    fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
+    fft: Arc<dyn Fft<Complex32>>,
+}
 
 impl<const RATE: i64> Encoder<RATE> {
     const CODE_ORDER: i64 = 11;
@@ -161,17 +173,21 @@ impl<const RATE: i64> Encoder<RATE> {
         RATE
     }
 
-    fn nrz(bit: bool) -> i8 {
+    fn nrz(bit: bool) -> f32 {
         if bit {
-            -1
+            -1.0
         } else {
-            1
+            1.0
         }
     }
 
-    fn bin(self, carrier: u64, carrier_offset: u64, symbol_length: u64) -> u64 {
-        (carrier + carrier_offset + symbol_length) % symbol_length
+    fn bin(self, carrier: u64) -> u64 {
+        (carrier + self.carrier_offset + Self::SYMBOL_LENGTH) % Self::SYMBOL_LENGTH
     }
+
+	fn mod_map(b: &[bool; Self::MOD_BITS]) -> Complex32 {
+        Psk<4>::map(b)
+	}
 
     fn base37(str: &[u8]) -> u64 {
         fn base37_map(c: u8) -> u8 {
@@ -193,6 +209,41 @@ impl<const RATE: i64> Encoder<RATE> {
         }
         acc
     }
+
+	fn noise_symbol(&mut self) {
+        let factor = Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32;
+        self.freq.fill(Complex32::new(0.0, 0.0));
+        for i in 0..Self::PAY_CAR_CNT {
+            self.freq[self.bin(i + Self::PAY_CAR_OFF)] = factor * Complex32::new(nrz(self.mls.next()), nrz(self.mls.next()));
+        }
+		self.transform(false);
+	}
+
+	fn payload_symbol(&mut self) {
+        self.freq.fill(Complex32::new(0.0, 0.0));
+
+        for i in 0..Self::PAY_CAR_CNT {
+            let index = Self::MOD_BITS * (Self::PAY_CAR_CNT * self.symbol_number + i);
+            self.prev[i] *= Self::mod_map(&code[index..index+2].try_into().unwrap());
+            self.freq[bin(i + Self::PAY_CAR_OFF)] = self.prev[i];
+        }
+		self.transform(true);
+	}
+
+	fn silence(&mut self) {
+        self.temp.fill(Complex32::new(0.0, 0.0));
+	}
+
+	fn transform(&mut self, _papr_reduction: bool) {
+        // TODO
+		// if papr_reduction && RATE <= 16000 {
+		// 	improve_papr(freq);
+		//         }
+		bwd(self.temp, self.freq);
+        for i in 0..Self::SYMBOL_LENGTH {
+            self.temp[i] /= (8 * Self::SYMBOL_LENGTH).sqrt();
+        }
+	}
 
     // fn schmidl_cox() {
     // 	CODE::MLS seq(cor_seq_poly);
@@ -284,35 +335,6 @@ impl<const RATE: i64> Encoder<RATE> {
 // 		transform(false);
 // 	}
 //
-// 	void noise_symbol() {
-// 		float factor = std::sqrt(symbol_length / float(pay_car_cnt));
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			freq[i] = 0;
-// 		for (int i = 0; i < pay_car_cnt; ++i)
-// 			freq[bin(i + pay_car_off)] = factor * cmplx(nrz(noise_seq()), nrz(noise_seq()));
-// 		transform(false);
-// 	}
-//
-// 	void payload_symbol() {
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			freq[i] = 0;
-// 		for (int i = 0; i < pay_car_cnt; ++i)
-// 			freq[bin(i + pay_car_off)] = prev[i] *= mod_map(code + mod_bits * (pay_car_cnt * symbol_number + i));
-// 		transform();
-// 	}
-//
-// 	void silence() {
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			temp[i] = 0;
-// 	}
-//
-// 	void transform(bool papr_reduction = true) {
-// 		if (papr_reduction && RATE <= 16000)
-// 			improve_papr(freq);
-// 		bwd(temp, freq);
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			temp[i] /= std::sqrt(float(8 * symbol_length));
-// 	}
 //
 // public:
 // 	Encoder() : noise_seq(noise_poly), crc(0xA8F4), bch({
