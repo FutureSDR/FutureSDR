@@ -2,7 +2,7 @@ use futuresdr::num_complex::Complex32;
 use rustfft::Fft;
 use std::sync::Arc;
 
-const BASE37_BITMAP: [407; u8] = { 0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64, 130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2, 66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66, 130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16, 4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64, 4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64, 126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2, 66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66, 124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64, 64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8, 32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64, 66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66, 68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64, 0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126, 130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
+const BASE37_BITMAP: [u8; 407] = [ 0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64, 130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2, 66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66, 130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16, 4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64, 4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64, 126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2, 66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66, 124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64, 64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8, 32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64, 66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66, 68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64, 0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126, 130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 struct Mls {
     poly: u64,
@@ -88,7 +88,7 @@ pub struct Encoder {
     carrier_offset: usize,
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
     fft: Arc<dyn Fft<f32>>,
-    fancy_line: isize,
+    fancy_line: usize,
 }
 
 impl Encoder {
@@ -101,16 +101,16 @@ impl Encoder {
     const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
     const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
     const MAX_BITS: usize = 1360;
-    const COR_SEQ_LEN: i64 = 127;
-    const COR_SEQ_OFF: i64 = 1 - Self::COR_SEQ_LEN;
-    const COR_SEQ_POLY: i64 = 0b10001001;
+    const COR_SEQ_LEN: isize = 127;
+    const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
+    const COR_SEQ_POLY: u64 = 0b10001001;
     const PRE_SEQ_LEN: i64 = 255;
     const PRE_SEQ_OFF: i64 = -Self::PRE_SEQ_LEN / 2;
-    const PRE_SEQ_POLY: i64 = 0b100101011;
+    const PRE_SEQ_POLY: u64 = 0b100101011;
     const PAY_CAR_CNT: usize = 256;
     const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
-    const FANCY_OFF: i64 = -(8 * 9 * 3) / 2;
-    const NOISE_POLY: i64 = 0b100101010001;
+    const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
+    const NOISE_POLY: u64 = 0b100101010001;
 
     pub fn encode(
         &self,
@@ -256,30 +256,30 @@ impl Encoder {
     }
 
     fn schmidl_cox(&mut self) {
-        let seq = Mls::new(Self::COR_SEQ_POLY);
+        let mut seq = Mls::new(Self::COR_SEQ_POLY);
         let factor = (2 * Self::SYMBOL_LENGTH) as f32 / Self::COR_SEQ_LEN as f32;
         let factor = factor.sqrt();
 
         self.freq.fill(Complex32::new(0.0, 0.0));
-        self.freq[self.bin(Self::COR_SEQ_OFF - 2)] = factor;
+        self.freq[self.bin(Self::COR_SEQ_OFF - 2)] = Complex32::new(factor, 0.0);
 
         for i in 0..Self::COR_SEQ_LEN {
-            self.freq[bin(2 * i + Self::COR_SEQ_OFF)] = Self::nrz(seq.next());
+            self.freq[self.bin(2 * i + Self::COR_SEQ_OFF)] = Complex32::new(Self::nrz(seq.next()), 0.0);
         }
 
         for i in 0..Self::COR_SEQ_LEN {
-            self.freq[bin(2 * i + Self::COR_SEQ_OFF)] *=
+            self.freq[self.bin(2 * i + Self::COR_SEQ_OFF)] *=
                 self.freq[self.bin(2 * (i - 1) + Self::COR_SEQ_OFF)];
         }
         self.transform(false);
     }
 
 	fn fancy_symbol(&mut self, call: &[u8]) {
-		let active_carriers = 1;
+		let mut active_carriers = 1;
 
         for j in 0..9 {
             for i in 0..8 {
-                active_carriers += (base37_bitmap[call[j] + 37 * self.fancy_line] >> i) & 1; 
+                active_carriers += (BASE37_BITMAP[call[j] as usize + 37 * self.fancy_line] >> i) & 1; 
             }
         }
 
@@ -288,10 +288,10 @@ impl Encoder {
 
         self.freq.fill(Complex32::new(0.0, 0.0));
 
-        for j in 0..9 {
-            for i in 0..8 {
-				if (BASE37_BITMAP[call[j] + 37 * self.fancy_line] & (1 << (7 - i))) != 0 {
-					freq[self.bin((8 * j + i) * 3 + fancy_off)] = factor * Self::nrz(self.noise_seq.next());
+        for j in 0..9isize {
+            for i in 0..8isize {
+				if (BASE37_BITMAP[call[j as usize] as usize + 37 * self.fancy_line] & (1 << (7 - i))) != 0 {
+					self.freq[self.bin((8 * j + i) * 3 + Self::FANCY_OFF)] = Complex32::new(factor * Self::nrz(self.noise_seq.next()), 0.0);
                 }
             }
         }
