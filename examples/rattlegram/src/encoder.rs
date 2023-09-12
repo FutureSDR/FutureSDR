@@ -76,7 +76,12 @@ enum OperationMode {
     Mode16,
 }
 
-pub struct Encoder<const RATE: i64> {
+pub struct Encoder<const RATE: i64>
+where
+    [(); Self::SYMBOL_LENGTH]: Send,
+    [(); Self::PAY_CAR_CNT]: Send,
+    [(); Self::EXTENDED_LENGTH]: Send,
+{
     temp: [Complex32; Self::EXTENDED_LENGTH],
     freq: [Complex32; Self::SYMBOL_LENGTH],
     prev: [Complex32; Self::PAY_CAR_CNT],
@@ -89,22 +94,22 @@ pub struct Encoder<const RATE: i64> {
 }
 
 impl<const RATE: i64> Encoder<RATE> {
-    const CODE_ORDER: i64 = 11;
-    const MOD_BITS: i64 = 2;
-    const CODE_LEN: i64 = 1 << Self::CODE_ORDER;
-    const SYMBOL_COUNT: i64 = 4;
-    const SYMBOL_LENGTH: i64 = (1280 * RATE) / 8000;
-    const GUARD_LENGTH: i64 = Self::SYMBOL_LENGTH / 8;
-    const EXTENDED_LENGTH: i64 = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
-    const MAX_BITS: i64 = 1360;
+    const CODE_ORDER: usize = 11;
+    const MOD_BITS: usize = 2;
+    const CODE_LEN: usize = 1 << Self::CODE_ORDER;
+    const SYMBOL_COUNT: usize = 4;
+    const SYMBOL_LENGTH: usize = (1280 * RATE) / 8000;
+    const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
+    const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
+    const MAX_BITS: usize = 1360;
     const COR_SEQ_LEN: i64 = 127;
     const COR_SEQ_OFF: i64 = 1 - Self::COR_SEQ_LEN;
     const COR_SEQ_POLY: i64 = 0b10001001;
     const PRE_SEQ_LEN: i64 = 255;
     const PRE_SEQ_OFF: i64 = -Self::PRE_SEQ_LEN / 2;
     const PRE_SEQ_POLY: i64 = 0b100101011;
-    const PAY_CAR_CNT: i64 = 256;
-    const PAY_CAR_OFF: i64 = -Self::PAY_CAR_CNT / 2;
+    const PAY_CAR_CNT: usize = 256;
+    const PAY_CAR_OFF: usize = -Self::PAY_CAR_CNT / 2;
     const FANCY_OFF: i64 = -(8 * 9 * 3) / 2;
     const NOISE_POLY: i64 = 0b100101010001;
 
@@ -185,9 +190,9 @@ impl<const RATE: i64> Encoder<RATE> {
         (carrier + self.carrier_offset + Self::SYMBOL_LENGTH) % Self::SYMBOL_LENGTH
     }
 
-	fn mod_map(b: &[bool; Self::MOD_BITS]) -> Complex32 {
-        Psk<4>::map(b)
-	}
+    fn mod_map(b: &[bool; Self::MOD_BITS]) -> Complex32 {
+        Psk::<4>::map(b)
+    }
 
     fn base37(str: &[u8]) -> u64 {
         fn base37_map(c: u8) -> u8 {
@@ -210,40 +215,42 @@ impl<const RATE: i64> Encoder<RATE> {
         acc
     }
 
-	fn noise_symbol(&mut self) {
+    fn noise_symbol(&mut self) {
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32;
         self.freq.fill(Complex32::new(0.0, 0.0));
         for i in 0..Self::PAY_CAR_CNT {
-            self.freq[self.bin(i + Self::PAY_CAR_OFF)] = factor * Complex32::new(nrz(self.mls.next()), nrz(self.mls.next()));
+            self.freq[self.bin(i + Self::PAY_CAR_OFF)] =
+                factor * Complex32::new(Self::nrz(self.mls.next()), Self::nrz(self.mls.next()));
         }
-		self.transform(false);
-	}
+        self.transform(false);
+    }
 
-	fn payload_symbol(&mut self) {
+    fn payload_symbol(&mut self) {
         self.freq.fill(Complex32::new(0.0, 0.0));
 
         for i in 0..Self::PAY_CAR_CNT {
             let index = Self::MOD_BITS * (Self::PAY_CAR_CNT * self.symbol_number + i);
-            self.prev[i] *= Self::mod_map(&code[index..index+2].try_into().unwrap());
-            self.freq[bin(i + Self::PAY_CAR_OFF)] = self.prev[i];
+            self.prev[i] *= Self::mod_map(&self.code[index..index + 2].try_into().unwrap());
+            self.freq[self.bin(i + Self::PAY_CAR_OFF)] = self.prev[i];
         }
-		self.transform(true);
-	}
+        self.transform(true);
+    }
 
-	fn silence(&mut self) {
+    fn silence(&mut self) {
         self.temp.fill(Complex32::new(0.0, 0.0));
-	}
+    }
 
-	fn transform(&mut self, _papr_reduction: bool) {
+    fn transform(&mut self, _papr_reduction: bool) {
         // TODO
-		// if papr_reduction && RATE <= 16000 {
-		// 	improve_papr(freq);
-		//         }
-		bwd(self.temp, self.freq);
+        // if papr_reduction && RATE <= 16000 {
+        // 	improve_papr(freq);
+        //         }
+        self.fft
+            .process_outofplace_with_scratch(self.freq, &mut self.temp, &mut self.fft_scratch);
         for i in 0..Self::SYMBOL_LENGTH {
             self.temp[i] /= (8 * Self::SYMBOL_LENGTH).sqrt();
         }
-	}
+    }
 
     // fn schmidl_cox() {
     // 	CODE::MLS seq(cor_seq_poly);
