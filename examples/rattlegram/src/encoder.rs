@@ -1,8 +1,171 @@
 use futuresdr::num_complex::Complex32;
 use rustfft::Fft;
+use rustfft::FftPlanner;
 use std::sync::Arc;
 
-const BASE37_BITMAP: [u8; 407] = [ 0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64, 130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2, 66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66, 130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16, 4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64, 4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64, 126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2, 66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66, 124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64, 64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8, 32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64, 66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66, 68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64, 0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126, 130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const BASE37_BITMAP: [u8; 407] = [
+    0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64,
+    130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2,
+    66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66,
+    130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16,
+    4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64,
+    4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66,
+    66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64,
+    126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2,
+    66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66,
+    124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64,
+    64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8,
+    32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64,
+    66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66,
+    68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64,
+    0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126,
+    130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+fn xor_be_bit(buf: &mut [u8], pos: usize, val: bool) {
+    buf[pos / 8] ^= (val as u8) << (7 - pos % 8);
+}
+
+fn set_be_bit(buf: &mut [u8], pos: usize, val: bool) {
+    let val = val as u8;
+    buf[pos / 8] = (!(1 << (7 - pos % 8)) & buf[pos / 8]) | (val << (7 - pos % 8));
+}
+
+fn get_be_bit(buf: &[u8], pos: usize) -> bool {
+    (buf[pos / 8] >> (7 - pos % 8)) & 1 == 1
+}
+
+struct Bch {
+    generator: [u8; Self::G],
+}
+
+impl Bch {
+    const LEN: usize = 255;
+    const MSG: usize = 71;
+    const N: usize = Self::LEN;
+    const K: usize = Self::MSG;
+    const NP: usize = Self::N - Self::K;
+    const G: usize = ((Self::NP + 1) + 7) / 8;
+
+    fn slb1(buf: &[u8], pos: usize) -> u8 {
+        (buf[pos] << 1) | (buf[pos + 1] >> 7)
+    }
+
+    fn new(minimal_polynomials: &[i64]) -> Self {
+        let mut generator_degree = 1;
+        let mut generator = [0; Self::G];
+
+        set_be_bit(generator.as_mut_slice(), Self::NP, true);
+
+        for m in minimal_polynomials.iter().copied() {
+            assert!(0 < m);
+            let mut degree = 0;
+            while (m >> degree) > 0 {
+                degree += 1;
+            }
+            degree -= 1;
+            assert!(generator_degree + degree <= Self::NP + 1);
+            for i in generator_degree..=0 {
+                if !get_be_bit(generator.as_slice(), Self::NP - i) {
+                    continue;
+                }
+                set_be_bit(generator.as_mut_slice(), Self::NP - i, m & 1 == 1);
+                for j in 1..=degree {
+                    xor_be_bit(
+                        generator.as_mut_slice(),
+                        Self::NP - (i + j),
+                        ((m >> j) & 1) == 1,
+                    );
+                }
+            }
+            generator_degree += degree;
+        }
+
+        assert_eq!(generator_degree, Self::NP + 1);
+
+        for i in 0..Self::NP {
+            let v = get_be_bit(generator.as_slice(), i + 1);
+            set_be_bit(generator.as_mut_slice(), i, v);
+        }
+        set_be_bit(generator.as_mut_slice(), Self::NP, false);
+
+        Self { generator }
+    }
+
+    fn process(&mut self, data: &[u8], parity: &mut [u8]) {
+        let data_len = Self::K;
+        assert!(0 < data_len);
+        assert!(data_len <= Self::K);
+
+        for l in 0..=(Self::NP - 1) / 8 {
+            parity[l] = 0;
+        }
+
+        for i in 0..data_len {
+            if get_be_bit(data, i) != get_be_bit(parity, 0) {
+                for l in 0..(Self::NP - 1) / 8 {
+                    parity[l] = self.generator[l] ^ Self::slb1(parity, l);
+                }
+                parity[(Self::NP - 1) / 8] =
+                    self.generator[(Self::NP - 1) / 8] ^ (parity[(Self::NP - 1) / 8] << 1);
+            } else {
+                for l in 0..(Self::NP - 1) / 8 {
+                    parity[l] = Self::slb1(parity, l);
+                }
+                parity[(Self::NP - 1) / 8] <<= 1;
+            }
+        }
+    }
+}
+
+struct Crc {
+    crc: u16,
+    poly: u16,
+    lut: [u16; 256],
+}
+
+impl Crc {
+    fn new(poly: u16) -> Self {
+        let mut lut = [0; 256];
+        for j in 0..256u16 {
+            let mut tmp = j;
+            for _ in 0..8 {
+                tmp = Self::update(tmp, false, poly);
+            }
+            lut[j as usize] = tmp;
+        }
+
+        Self { crc: 0, poly, lut }
+    }
+
+    fn reset(&mut self) {
+        self.crc = 0;
+    }
+
+    fn update(prev: u16, data: bool, poly: u16) -> u16 {
+        let tmp = prev ^ data as u16;
+        (prev >> 1) ^ ((tmp & 1) * poly)
+    }
+
+    fn add_u8(&mut self, data: u8) -> u16 {
+        let tmp = self.crc ^ data as u16;
+        self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
+        self.crc
+    }
+
+    fn add_u64(&mut self, data: u64) -> u16 {
+        self.add_u8((data & 0xff) as u8);
+        self.add_u8(((data >> 8) & 0xff) as u8);
+        self.add_u8(((data >> 16) & 0xff) as u8);
+        self.add_u8(((data >> 24) & 0xff) as u8);
+        self.add_u8(((data >> 32) & 0xff) as u8);
+        self.add_u8(((data >> 40) & 0xff) as u8);
+        self.add_u8(((data >> 48) & 0xff) as u8);
+        self.add_u8(((data >> 56) & 0xff) as u8);
+        self.crc
+    }
+}
 
 struct Mls {
     poly: u64,
@@ -89,6 +252,9 @@ pub struct Encoder {
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
     fft: Arc<dyn Fft<f32>>,
     fancy_line: usize,
+    meta_data: u64,
+    crc: Crc,
+    bch: Bch,
 }
 
 impl Encoder {
@@ -104,13 +270,61 @@ impl Encoder {
     const COR_SEQ_LEN: isize = 127;
     const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
     const COR_SEQ_POLY: u64 = 0b10001001;
-    const PRE_SEQ_LEN: i64 = 255;
-    const PRE_SEQ_OFF: i64 = -Self::PRE_SEQ_LEN / 2;
+    const PRE_SEQ_LEN: isize = 255;
+    const PRE_SEQ_OFF: isize = -Self::PRE_SEQ_LEN / 2;
     const PRE_SEQ_POLY: u64 = 0b100101011;
     const PAY_CAR_CNT: usize = 256;
     const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
     const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
     const NOISE_POLY: u64 = 0b100101010001;
+
+    fn new() -> Self {
+        let mut fft_planner = FftPlanner::new();
+        let fft = fft_planner.plan_fft_forward(Self::SYMBOL_LENGTH);
+
+        let bch = Bch::new(&[
+            0b100011101,
+            0b101110111,
+            0b111110011,
+            0b101101001,
+            0b110111101,
+            0b111100111,
+            0b100101011,
+            0b111010111,
+            0b000010011,
+            0b101100101,
+            0b110001011,
+            0b101100011,
+            0b100011011,
+            0b100111111,
+            0b110001101,
+            0b100101101,
+            0b101011111,
+            0b111111001,
+            0b111000011,
+            0b100111001,
+            0b110101001,
+            0b000011111,
+            0b110000111,
+            0b110110001,
+        ]);
+
+        Self {
+            temp: [Complex32::new(0.0, 0.0); Self::EXTENDED_LENGTH],
+            freq: [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH],
+            prev: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
+            noise_seq: Mls::new(Self::NOISE_POLY),
+            symbol_number: 0,
+            code: [false; Self::CODE_LEN],
+            carrier_offset: 0,
+            fft_scratch: [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH],
+            fft,
+            fancy_line: 0,
+            meta_data: 0,
+            crc: Crc::new(0xA8F4),
+            bch,
+        }
+    }
 
     pub fn encode(
         &self,
@@ -219,8 +433,11 @@ impl Encoder {
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32;
         self.freq.fill(Complex32::new(0.0, 0.0));
         for i in 0..Self::PAY_CAR_CNT {
-            self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] =
-                factor * Complex32::new(Self::nrz(self.noise_seq.next()), Self::nrz(self.noise_seq.next()));
+            self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = factor
+                * Complex32::new(
+                    Self::nrz(self.noise_seq.next()),
+                    Self::nrz(self.noise_seq.next()),
+                );
         }
         self.transform(false);
     }
@@ -264,7 +481,8 @@ impl Encoder {
         self.freq[self.bin(Self::COR_SEQ_OFF - 2)] = Complex32::new(factor, 0.0);
 
         for i in 0..Self::COR_SEQ_LEN {
-            self.freq[self.bin(2 * i + Self::COR_SEQ_OFF)] = Complex32::new(Self::nrz(seq.next()), 0.0);
+            self.freq[self.bin(2 * i + Self::COR_SEQ_OFF)] =
+                Complex32::new(Self::nrz(seq.next()), 0.0);
         }
 
         for i in 0..Self::COR_SEQ_LEN {
@@ -274,12 +492,13 @@ impl Encoder {
         self.transform(false);
     }
 
-	fn fancy_symbol(&mut self, call: &[u8]) {
-		let mut active_carriers = 1;
+    fn fancy_symbol(&mut self, call: &[u8]) {
+        let mut active_carriers = 1;
 
         for j in 0..9 {
             for i in 0..8 {
-                active_carriers += (BASE37_BITMAP[call[j] as usize + 37 * self.fancy_line] >> i) & 1; 
+                active_carriers +=
+                    (BASE37_BITMAP[call[j] as usize + 37 * self.fancy_line] >> i) & 1;
             }
         }
 
@@ -290,13 +509,66 @@ impl Encoder {
 
         for j in 0..9isize {
             for i in 0..8isize {
-				if (BASE37_BITMAP[call[j as usize] as usize + 37 * self.fancy_line] & (1 << (7 - i))) != 0 {
-					self.freq[self.bin((8 * j + i) * 3 + Self::FANCY_OFF)] = Complex32::new(factor * Self::nrz(self.noise_seq.next()), 0.0);
+                if (BASE37_BITMAP[call[j as usize] as usize + 37 * self.fancy_line]
+                    & (1 << (7 - i)))
+                    != 0
+                {
+                    self.freq[self.bin((8 * j + i) * 3 + Self::FANCY_OFF)] =
+                        Complex32::new(factor * Self::nrz(self.noise_seq.next()), 0.0);
                 }
             }
         }
-		self.transform(false);
-	}
+        self.transform(false);
+    }
+    fn preamble(&mut self) {
+        let mut data = [0u8; 9];
+        let mut parity = [0u8; 23];
+
+        for i in 0..55 {
+            set_be_bit(data.as_mut_slice(), i, ((self.meta_data >> i) & 1) == 1);
+        }
+
+        self.crc.reset();
+        let cs = self.crc.add_u64(self.meta_data << 9);
+
+        for i in 0..16 {
+            set_be_bit(data.as_mut_slice(), i + 55, ((cs >> i) & 1) == 1);
+        }
+
+        // bch(data, parity); TODO
+
+        let mut seq = Mls::new(Self::PRE_SEQ_POLY);
+        let factor = Self::SYMBOL_LENGTH as f32 / Self::PRE_SEQ_LEN as f32;
+        let factor = factor.sqrt();
+        self.freq.fill(Complex32::new(0.0, 0.0));
+
+        self.freq[self.bin(Self::PRE_SEQ_OFF - 1)] = Complex32::new(factor, 0.0);
+
+        for i in 0..71 {
+            self.freq[self.bin(i + Self::PRE_SEQ_OFF)] =
+                Self::nrz(get_be_bit(data.as_slice(), i as usize)).into();
+        }
+
+        for i in 71..Self::PRE_SEQ_LEN {
+            self.freq[self.bin(i + Self::PRE_SEQ_OFF)] =
+                Self::nrz(get_be_bit(parity.as_slice(), (i - 71) as usize)).into();
+        }
+
+        for i in 0..Self::PRE_SEQ_LEN {
+            self.freq[self.bin(i + Self::PRE_SEQ_OFF)] *=
+                self.freq[self.bin(i - 1 + Self::PRE_SEQ_OFF)];
+        }
+
+        for i in 0..Self::PRE_SEQ_LEN {
+            self.freq[self.bin(i + Self::PRE_SEQ_OFF)] *= Self::nrz(seq.next());
+        }
+
+        for i in 0..Self::PAY_CAR_CNT {
+            self.prev[i] = self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)];
+        }
+
+        self.transform(true);
+    }
 }
 
 // template<int RATE>
@@ -319,33 +591,6 @@ impl Encoder {
 // 	int noise_count = 0;
 //
 //
-//
-// 	void preamble() {
-// 		uint8_t data[9] = {0}, parity[23] = {0};
-// 		for (int i = 0; i < 55; ++i)
-// 			CODE::set_be_bit(data, i, (meta_data >> i) & 1);
-// 		crc.reset();
-// 		uint16_t cs = crc(meta_data << 9);
-// 		for (int i = 0; i < 16; ++i)
-// 			CODE::set_be_bit(data, i + 55, (cs >> i) & 1);
-// 		bch(data, parity);
-// 		CODE::MLS seq(pre_seq_poly);
-// 		float factor = std::sqrt(float(symbol_length) / pre_seq_len);
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			freq[i] = 0;
-// 		freq[bin(pre_seq_off - 1)] = factor;
-// 		for (int i = 0; i < 71; ++i)
-// 			freq[bin(i + pre_seq_off)] = nrz(CODE::get_be_bit(data, i));
-// 		for (int i = 71; i < pre_seq_len; ++i)
-// 			freq[bin(i + pre_seq_off)] = nrz(CODE::get_be_bit(parity, i - 71));
-// 		for (int i = 0; i < pre_seq_len; ++i)
-// 			freq[bin(i + pre_seq_off)] *= freq[bin(i - 1 + pre_seq_off)];
-// 		for (int i = 0; i < pre_seq_len; ++i)
-// 			freq[bin(i + pre_seq_off)] *= nrz(seq());
-// 		for (int i = 0; i < pay_car_cnt; ++i)
-// 			prev[i] = freq[bin(i + pay_car_off)];
-// 		transform();
-// 	}
 //
 //
 //
