@@ -63,6 +63,75 @@ fn get_be_bit(buf: &[u8], pos: usize) -> bool {
     (buf[pos / 8] >> (7 - pos % 8)) & 1 == 1
 }
 
+struct PolarEncoder {}
+
+impl PolarEncoder {
+    fn new() -> Self {
+        Self {}
+    }
+
+    fn get(bits: &[u32], idx: usize) -> bool {
+        ((bits[idx / 32] >> (idx % 32)) & 1) == 1
+    }
+
+    fn encode(codeword: &mut [u32], message: &[u32], frozen: &[u32], level: usize) {
+        let length = 1 << level;
+        for i in (0..length).step_by(2) {
+            let msg0 = if Self::get(frozen, i) { 1 } else { message[i] };
+            let msg1 = if Self::get(frozen, i + 1) {
+                1
+            } else {
+                message[i + 1]
+            };
+            codeword[i] = msg0 * msg1;
+            codeword[i + 1] = msg1;
+        }
+
+        let mut h = 2;
+        while h < length {
+            let mut i = 0;
+            while i < length {
+                for j in i..(i + h) {
+                    codeword[j] = codeword[j] * codeword[j + h];
+                }
+                i += 2 * h;
+            }
+            h *= 2;
+        }
+    }
+}
+
+struct Xorshift32 {
+    y: u32,
+}
+
+impl Xorshift32 {
+    const Y: u32 = 2463534242;
+
+    fn min() -> u32 {
+        0
+    }
+
+    fn max() -> u32 {
+        std::u32::MAX
+    }
+
+    fn new() -> Self {
+        Self { y: Self::Y }
+    }
+
+    fn reset(&mut self) {
+        self.y = Self::Y;
+    }
+
+    fn next(&mut self) -> u32 {
+        self.y ^= self.y << 13;
+        self.y ^= self.y >> 17;
+        self.y ^= self.y << 5;
+        self.y
+    }
+}
+
 struct Bch {
     generator: [u8; Self::G],
 }
@@ -298,6 +367,8 @@ pub struct Encoder {
     count_down: i64,
     noise_count: u64,
     guard: [Complex32; Self::GUARD_LENGTH],
+    mesg: [u8; Self::MAX_BITS / 8],
+    polar: PolarEncoder,
 }
 
 impl Encoder {
@@ -370,6 +441,8 @@ impl Encoder {
             count_down: 0,
             noise_count: 0,
             guard: [Complex32::new(0.0, 0.0); Self::GUARD_LENGTH],
+            mesg: [0; Self::MAX_BITS / 8],
+            polar: PolarEncoder::new(),
         }
     }
 
@@ -417,12 +490,19 @@ impl Encoder {
             OperationMode::Mode16 => (680, FROZEN_2048_712),
         };
 
-        // 	void configure(const uint8_t *payload, const int8_t *call_sign, int carrier_frequency, int noise_symbols, bool fancy_header) final {
-        // 		CODE::Xorshift32 scrambler;
-        // 		for (int i = 0; i < data_bits / 8; ++i)
-        // 			mesg[i] = payload[i] ^ scrambler();
-        // 		polar(code, mesg, frozen_bits, data_bits);
-        // 	}
+        let mut scrambler = Xorshift32::new();
+        for i in 0..data_bits / 8 {
+            self.mesg[i] = payload[i] ^ scrambler.next() as u8;
+        }
+
+        self.polar.encode(self.code, self.mesg, frozen_bits, data_bits);
+
+        // ==============================================================
+        // CONFIG END
+        // ==============================================================
+
+
+
 
         Vec::new()
     }
