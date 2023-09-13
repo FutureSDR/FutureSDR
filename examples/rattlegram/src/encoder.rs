@@ -63,35 +63,105 @@ fn get_be_bit(buf: &[u8], pos: usize) -> bool {
     (buf[pos / 8] >> (7 - pos % 8)) & 1 == 1
 }
 
-struct PolarEncoder {}
+fn get_le_bit(buf: &[u8], pos: usize) -> bool {
+	(buf[pos/8]>>(pos%8))&1 == 1
+}
+
+struct PolarEncoder {
+    crc: Crc32,
+    mesg: [i8; Self::MAX_BITS],
+}
 
 impl PolarEncoder {
+	const CODE_ORDER: usize = 11;
+	const MAX_BITS: usize = 1360 + 32;
+
     fn new() -> Self {
-        Self {}
+        Self {
+            crc: Crc32::new(0x8F6E37A0),
+            mesg: [0; Self::MAX_BITS],
+        }
     }
 
+    fn encode(&mut self, code: &mut [i8], message: &[u8], frozen_bits: &[u32], data_bits: usize) {
+        fn nrz(bit: bool) -> i8 {
+            if bit {
+                -1
+            } else {
+                1
+            }
+        }
+
+        for i in 0..data_bits {
+            self.mesg[i] = nrz(get_le_bit(message, i));
+        }
+
+        self.crc.reset();
+
+        let mut crc = 0;
+        for i in 0..data_bits / 8 {
+            crc = self.crc.add_u8(message[i]);
+        }
+
+        for i in 0..32 {
+            self.mesg[i + data_bits] = nrz(((crc >> i) & 1) == 1);
+        }
+
+		PolarSysEnc::encode(code, self.mesg.as_slice(), frozen_bits, Self::CODE_ORDER);
+	}
+}
+
+struct PolarSysEnc;
+
+impl PolarSysEnc {
     fn get(bits: &[u32], idx: usize) -> bool {
         ((bits[idx / 32] >> (idx % 32)) & 1) == 1
     }
 
-    fn encode(codeword: &mut [u32], message: &[u32], frozen: &[u32], level: usize) {
+    fn encode(codeword: &mut [i8], message: &[i8], frozen: &[u32], level: usize) {
         let length = 1 << level;
-        for i in (0..length).step_by(2) {
-            let msg0 = if Self::get(frozen, i) { 1 } else { message[i] };
+        let mut mi = 0;
+        for i in (0..length as usize).step_by(2) {
+            let msg0 = if Self::get(frozen, i) { 1 } else { let v = message[mi]; mi += 1; v };
             let msg1 = if Self::get(frozen, i + 1) {
                 1
             } else {
-                message[i + 1]
+                let v = message[mi];
+                mi += 1;
+                v
             };
             codeword[i] = msg0 * msg1;
             codeword[i + 1] = msg1;
         }
 
-        let mut h = 2;
-        while h < length {
-            let mut i = 0;
-            while i < length {
-                for j in i..(i + h) {
+        let mut h = 2usize;
+        while h < length as usize {
+            let mut i = 0usize;
+            while i < length as usize {
+                for j in i..(i + h){
+                    codeword[j] = codeword[j] * codeword[j + h];
+                }
+                i += 2 * h;
+            }
+            h *= 2;
+        }
+
+        for i in (0..length as usize).step_by(2) {
+            let msg0 = if Self::get(frozen, i) { 1 } else { codeword[i] };
+            let msg1 = if Self::get(frozen, i + 1) {
+                1
+            } else {
+                codeword[i + 1]
+            };
+            codeword[i] = msg0 * msg1;
+            codeword[i + 1] = msg1;
+        }
+
+        let mut h = 2usize;
+        while h < length as usize {
+            let mut i = 0usize;
+            while i < length as usize {
+                for j in i..(i + h){
                     codeword[j] = codeword[j] * codeword[j + h];
                 }
                 i += 2 * h;
@@ -108,21 +178,21 @@ struct Xorshift32 {
 impl Xorshift32 {
     const Y: u32 = 2463534242;
 
-    fn min() -> u32 {
-        0
-    }
-
-    fn max() -> u32 {
-        std::u32::MAX
-    }
+    // fn min() -> u32 {
+    //     0
+    // }
+    //
+    // fn max() -> u32 {
+    //     std::u32::MAX
+    // }
 
     fn new() -> Self {
         Self { y: Self::Y }
     }
 
-    fn reset(&mut self) {
-        self.y = Self::Y;
-    }
+    // fn reset(&mut self) {
+    //     self.y = Self::Y;
+    // }
 
     fn next(&mut self) -> u32 {
         self.y ^= self.y << 13;
@@ -162,7 +232,7 @@ impl Bch {
             }
             degree -= 1;
             assert!(generator_degree + degree <= Self::NP + 1);
-            for i in generator_degree..=0 {
+            for i in (0..=generator_degree).rev() {
                 if !get_be_bit(generator.as_slice(), Self::NP - i) {
                     continue;
                 }
@@ -185,6 +255,8 @@ impl Bch {
             set_be_bit(generator.as_mut_slice(), i, v);
         }
         set_be_bit(generator.as_mut_slice(), Self::NP, false);
+
+        println!("generator: {:?}", &generator);
 
         Self { generator }
     }
@@ -217,7 +289,6 @@ impl Bch {
 
 struct Crc {
     crc: u16,
-    poly: u16,
     lut: [u16; 256],
 }
 
@@ -232,7 +303,7 @@ impl Crc {
             lut[j as usize] = tmp;
         }
 
-        Self { crc: 0, poly, lut }
+        Self { crc: 0, lut }
     }
 
     fn reset(&mut self) {
@@ -251,6 +322,53 @@ impl Crc {
     }
 
     fn add_u64(&mut self, data: u64) -> u16 {
+        self.add_u8((data & 0xff) as u8);
+        self.add_u8(((data >> 8) & 0xff) as u8);
+        self.add_u8(((data >> 16) & 0xff) as u8);
+        self.add_u8(((data >> 24) & 0xff) as u8);
+        self.add_u8(((data >> 32) & 0xff) as u8);
+        self.add_u8(((data >> 40) & 0xff) as u8);
+        self.add_u8(((data >> 48) & 0xff) as u8);
+        self.add_u8(((data >> 56) & 0xff) as u8);
+        self.crc
+    }
+}
+
+struct Crc32 {
+    crc: u32,
+    lut: [u32; 256],
+}
+
+impl Crc32 {
+    fn new(poly: u32) -> Self {
+        let mut lut = [0; 256];
+        for j in 0..256u32 {
+            let mut tmp = j;
+            for _ in 0..8 {
+                tmp = Self::update(tmp, false, poly);
+            }
+            lut[j as usize] = tmp;
+        }
+
+        Self { crc: 0, lut }
+    }
+
+    fn reset(&mut self) {
+        self.crc = 0;
+    }
+
+    fn update(prev: u32, data: bool, poly: u32) -> u32 {
+        let tmp = prev ^ data as u32;
+        (prev >> 1) ^ ((tmp & 1) * poly)
+    }
+
+    fn add_u8(&mut self, data: u8) -> u32 {
+        let tmp = self.crc ^ data as u32;
+        self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
+        self.crc
+    }
+
+    fn add_u64(&mut self, data: u64) -> u32 {
         self.add_u8((data & 0xff) as u8);
         self.add_u8(((data >> 8) & 0xff) as u8);
         self.add_u8(((data >> 16) & 0xff) as u8);
@@ -287,45 +405,46 @@ impl Mls {
         n ^ (n >> 1)
     }
 
-    fn reset(&mut self, r: Option<u64>) {
-        self.reg = r.unwrap_or(1);
-    }
+    // fn reset(&mut self, r: Option<u64>) {
+    //     self.reg = r.unwrap_or(1);
+    // }
 
     fn next(&mut self) -> bool {
-        let fb = self.reg & self.test;
+        let fb = (self.reg & self.test) != 0;
         self.reg <<= 1;
-        self.reg ^= fb * self.poly;
-        fb != 0
+        self.reg ^= fb as u64 * self.poly;
+        fb
     }
 
-    fn bad(&mut self, r: Option<u64>) -> bool {
-        let r = r.unwrap_or(1);
-        self.reg = r;
-        let len = Self::hibit(self.poly) - 1;
-
-        for i in 1..len {
-            self.next();
-            if self.reg == r {
-                return true;
-            }
-        }
-
-        self.next();
-        self.reg != r
-    }
+    // fn bad(&mut self, r: Option<u64>) -> bool {
+    //     let r = r.unwrap_or(1);
+    //     self.reg = r;
+    //     let len = Self::hibit(self.poly) - 1;
+    //
+    //     for i in 1..len {
+    //         self.next();
+    //         if self.reg == r {
+    //             return true;
+    //         }
+    //     }
+    //
+    //     self.next();
+    //     self.reg != r
+    // }
 }
 
 pub struct Psk<const N: usize> {}
 
 impl Psk<4> {
-    fn map(b: &[bool; 2]) -> Complex32 {
+    fn map(b: &[i8; 2]) -> Complex32 {
         const A: f32 = std::f32::consts::FRAC_1_SQRT_2;
 
         match b {
-            [true, true] => Complex32::new(A, A),
-            [true, false] => Complex32::new(A, -A),
-            [false, true] => Complex32::new(-A, A),
-            [false, false] => Complex32::new(-A, -A),
+            [1, 1] => Complex32::new(A, A),
+            [1, -1] => Complex32::new(A, -A),
+            [-1, 1] => Complex32::new(-A, A),
+            [-1, -1] => Complex32::new(-A, -A),
+            _ => panic!("code has wrong format, expecting one bit per byte"),
         }
     }
 }
@@ -355,7 +474,7 @@ pub struct Encoder {
     prev: [Complex32; Self::PAY_CAR_CNT],
     noise_seq: Mls,
     symbol_number: usize,
-    code: [bool; Self::CODE_LEN],
+    code: [i8; Self::CODE_LEN],
     carrier_offset: usize,
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
     fft: Arc<dyn Fft<f32>>,
@@ -392,9 +511,9 @@ impl Encoder {
     const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
     const NOISE_POLY: u64 = 0b100101010001;
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut fft_planner = FftPlanner::new();
-        let fft = fft_planner.plan_fft_forward(Self::SYMBOL_LENGTH);
+        let fft = fft_planner.plan_fft_inverse(Self::SYMBOL_LENGTH);
 
         let bch = Bch::new(&[
             0b100011101,
@@ -429,7 +548,7 @@ impl Encoder {
             prev: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
             noise_seq: Mls::new(Self::NOISE_POLY),
             symbol_number: 0,
-            code: [false; Self::CODE_LEN],
+            code: [0; Self::CODE_LEN],
             carrier_offset: 0,
             fft_scratch: [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH],
             fft,
@@ -466,10 +585,7 @@ impl Encoder {
         self.meta_data = (Self::base37(call_sign) << 8) | mode;
 
         self.call.fill(0);
-        for i in 0..9 {
-            if call_sign[i] == 0 {
-                break;
-            }
+        for i in 0..call_sign.len() {
             self.call[i] = Self::base37_map(call_sign[i]);
         }
 
@@ -492,94 +608,105 @@ impl Encoder {
 
         let mut scrambler = Xorshift32::new();
         for i in 0..data_bits / 8 {
-            self.mesg[i] = payload[i] ^ scrambler.next() as u8;
+            let d = if i < payload.len() { payload[i] } else { 0 };
+            self.mesg[i] = d ^ scrambler.next() as u8;
         }
 
-        self.polar.encode(self.code, self.mesg, frozen_bits, data_bits);
+        self.polar.encode(
+            self.code.as_mut_slice(),
+            self.mesg.as_slice(),
+            frozen_bits.as_slice(),
+            data_bits,
+        );
 
         // ==============================================================
         // CONFIG END
         // ==============================================================
+        let mut output = Vec::new();
 
-    loop {
-        let mut data_symbol = false;
+        loop {
+            let mut data_symbol = false;
 
-        match self.count_down {
-            5 => {
-                if self.noise_count {
-                 self.noise_count -= 1;
-                self.noise_symbol()
-            } else {
-                self.count_down -= 1;
-                self.schmidl_cox();
-                data_symbol = true;
-                self.count_down -= 1;
-},
-4 => {
-                self.schmidl_cox();
-                data_symbol = true;
-                self.count_down -= 1;
-},
-3 => {
-    self.preamble();
-    data_symbol = true;
-self.count_down -= 1;
-if operation_mode.into() == 0 {
-self.count_down -= 1;
-}
-}
-2 => {
-    self.payload_symbol();
-    data.symbol = true;
-    self.symbol_number += 1;
-if self.symbol_number == Self::SYMBOL_COUNT {
-self.count_down -= 1;
-}
-}
-1 => {
-    if self.fancy_line {
-        self.fancy_line -= 1;
-        self.fancy_symbol();
-} else {
-self.silence();
-    self.count_down -= 1;
-}
-}   
-_ => {
-    
+            match self.count_down {
+                5 => {
+                    if self.noise_count > 0 {
+                        self.noise_count -= 1;
+                        self.noise_symbol()
+                    } else {
+                        self.count_down -= 1;
+                        self.schmidl_cox();
+                        data_symbol = true;
+                        self.count_down -= 1;
+                    }
+                }
+                4 => {
+                    self.schmidl_cox();
+                    data_symbol = true;
+                    self.count_down -= 1;
+                }
+                3 => {
+                    self.preamble();
+                    data_symbol = true;
+                    self.count_down -= 1;
+                    if <OperationMode as Into<u64>>::into(operation_mode) == 0 {
+                        self.count_down -= 1;
+                    }
+                }
+                2 => {
+                    self.payload_symbol();
+                    data_symbol = true;
+                    self.symbol_number += 1;
+                    if self.symbol_number == Self::SYMBOL_COUNT {
+                        self.count_down -= 1;
+                    }
+                }
+                1 => {
+                    if self.fancy_line > 0 {
+                        self.fancy_line -= 1;
+                        self.fancy_symbol();
+                    } else {
+                        self.silence();
+                        self.count_down -= 1;
+                    }
+                }
+                _ => {
+                    for _ in 0..Self::EXTENDED_LENGTH {
+                        output.push(0.0);
+                    }
+                    break;
+                }
+            }
 
-},
+            fn lerp(a: Complex32, b: Complex32, x: f32) -> Complex32 {
+                (1.0 - x) * a + x * b
+            }
 
-    }
+            for i in 0..Self::GUARD_LENGTH {
+                let mut x = i as f32 / (Self::GUARD_LENGTH - 1) as f32;
+                let ratio = 0.5f32;
+                if data_symbol {
+                    x = match x.total_cmp(&ratio) {
+                        std::cmp::Ordering::Less => x / ratio,
+                        _ => 1.0,
+                    }
+                }
+                let y = 0.5 * (1.0 - (std::f32::consts::PI * x).cos());
+                let sum = lerp(
+                    self.guard[i],
+                    self.temp[i + Self::SYMBOL_LENGTH - Self::GUARD_LENGTH],
+                    y,
+                );
+                output.push(sum.re);
+            }
+            for i in 0..Self::GUARD_LENGTH {
+                self.guard[i] = self.temp[i];
+            }
+            for i in 0..Self::SYMBOL_LENGTH {
+                output.push(self.temp[i].re)
+            }
+        }
 
-
-},
-} 
-
-// 			default:
-// 				for (int i = 0; i < extended_length; ++i)
-// 					next_sample(audio_buffer, 0, channel_select, i);
-// 				return false;
-// 		}
-// 		for (int i = 0; i < guard_length; ++i) {
-// 			float x = i / float(guard_length - 1);
-// 			float ratio(0.5);
-// 			if (data_symbol)
-// 				x = std::min(x, ratio) / ratio;
-// 			float y = 0.5f * (1 - std::cos(DSP::Const<float>::Pi() * x));
-// 			cmplx sum = DSP::lerp(guard[i], temp[i + symbol_length - guard_length], y);
-// 			next_sample(audio_buffer, sum, channel_select, i);
-// 		}
-// 		for (int i = 0; i < guard_length; ++i)
-// 			guard[i] = temp[i];
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			next_sample(audio_buffer, temp[i], channel_select, i + guard_length);
-// 		return true;
-// 	}
-
-
-
-        Vec::new()
+        output
     }
 
     pub fn rate() -> usize {
@@ -599,7 +726,7 @@ _ => {
             % Self::SYMBOL_LENGTH
     }
 
-    fn mod_map(b: &[bool; Self::MOD_BITS]) -> Complex32 {
+    fn mod_map(b: &[i8; Self::MOD_BITS]) -> Complex32 {
         Psk::<4>::map(b)
     }
 
@@ -625,7 +752,8 @@ _ => {
     }
 
     fn noise_symbol(&mut self) {
-        let factor = Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32;
+        let factor = (Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32).sqrt();
+        println!("factor {}", factor);
         self.freq.fill(Complex32::new(0.0, 0.0));
         for i in 0..Self::PAY_CAR_CNT {
             self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = factor
@@ -645,6 +773,13 @@ _ => {
             self.prev[i] *= Self::mod_map(&self.code[index..index + 2].try_into().unwrap());
             self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = self.prev[i];
         }
+
+        // println!("freq {:?}", &self.freq);
+        println!("freq");
+        for f in self.freq {
+            print!("{{{:.5}, {:.5}}}, ", f.re, f.im);
+        }
+        println!();
         self.transform(true);
     }
 
@@ -659,7 +794,7 @@ _ => {
         //         }
         self.fft.process_outofplace_with_scratch(
             self.freq.as_mut_slice(),
-            self.temp.as_mut_slice(),
+            &mut self.temp[0..Self::SYMBOL_LENGTH],
             self.fft_scratch.as_mut_slice(),
         );
         for i in 0..Self::SYMBOL_LENGTH {
@@ -687,13 +822,13 @@ _ => {
         self.transform(false);
     }
 
-    fn fancy_symbol(&mut self, call: &[u8]) {
+    fn fancy_symbol(&mut self) {
         let mut active_carriers = 1;
 
         for j in 0..9 {
             for i in 0..8 {
                 active_carriers +=
-                    (BASE37_BITMAP[call[j] as usize + 37 * self.fancy_line] >> i) & 1;
+                    (BASE37_BITMAP[self.call[j] as usize + 37 * self.fancy_line] >> i) & 1;
             }
         }
 
@@ -704,7 +839,7 @@ _ => {
 
         for j in 0..9isize {
             for i in 0..8isize {
-                if (BASE37_BITMAP[call[j as usize] as usize + 37 * self.fancy_line]
+                if (BASE37_BITMAP[self.call[j as usize] as usize + 37 * self.fancy_line]
                     & (1 << (7 - i)))
                     != 0
                 {
@@ -715,6 +850,7 @@ _ => {
         }
         self.transform(false);
     }
+
     fn preamble(&mut self) {
         let mut data = [0u8; 9];
         let mut parity = [0u8; 23];
@@ -730,7 +866,12 @@ _ => {
             set_be_bit(data.as_mut_slice(), i + 55, ((cs >> i) & 1) == 1);
         }
 
+        println!("crc {}", cs);
+        println!("data {:?}", &data);
+
         self.bch.process(&data, &mut parity);
+
+        println!("parity {:?}", &parity);
 
         let mut seq = Mls::new(Self::PRE_SEQ_POLY);
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PRE_SEQ_LEN as f32;
@@ -765,81 +906,3 @@ _ => {
         self.transform(true);
     }
 }
-
-// template<int RATE>
-// class Encoder : public EncoderInterface {
-// 	DSP::FastFourierTransform<symbol_length, cmplx, 1> bwd;
-// 	CODE::CRC<uint16_t> crc;
-// 	CODE::BoseChaudhuriHocquenghemEncoder<255, 71> bch;
-// 	CODE::MLS noise_seq;
-// 	ImprovePAPR<cmplx, symbol_length, RATE <= 16000 ? 4 : 1> improve_papr;
-// 	PolarEncoder<code_type> polar;
-// 	cmplx temp[extended_length], freq[symbol_length], prev[pay_car_cnt], guard[guard_length];
-// 	uint8_t mesg[max_bits / 8], call[9];
-// 	code_type code[code_len];
-// 	uint64_t meta_data;
-// 	int operation_mode = 0;
-// 	int carrier_offset = 0;
-// 	int symbol_number = symbol_count;
-// 	int count_down = 0;
-// 	int fancy_line = 0;
-// 	int noise_count = 0;
-//
-// 	bool produce(int16_t *audio_buffer, int channel_select) final {
-// 		bool data_symbol = false;
-// 		switch (count_down) {
-// 			case 5:
-// 				if (noise_count) {
-// 					--noise_count;
-// 					noise_symbol();
-// 					break;
-// 				}
-// 				--count_down;
-// 			case 4:
-// 				schmidl_cox();
-// 				data_symbol = true;
-// 				--count_down;
-// 				break;
-// 			case 3:
-// 				preamble();
-// 				data_symbol = true;
-// 				--count_down;
-// 				if (!operation_mode)
-// 					--count_down;
-// 				break;
-// 			case 2:
-// 				payload_symbol();
-// 				data_symbol = true;
-// 				if (++symbol_number == symbol_count)
-// 					--count_down;
-// 				break;
-// 			case 1:
-// 				if (fancy_line) {
-// 					--fancy_line;
-// 					fancy_symbol();
-// 					break;
-// 				}
-// 				silence();
-// 				--count_down;
-// 				break;
-// 			default:
-// 				for (int i = 0; i < extended_length; ++i)
-// 					next_sample(audio_buffer, 0, channel_select, i);
-// 				return false;
-// 		}
-// 		for (int i = 0; i < guard_length; ++i) {
-// 			float x = i / float(guard_length - 1);
-// 			float ratio(0.5);
-// 			if (data_symbol)
-// 				x = std::min(x, ratio) / ratio;
-// 			float y = 0.5f * (1 - std::cos(DSP::Const<float>::Pi() * x));
-// 			cmplx sum = DSP::lerp(guard[i], temp[i + symbol_length - guard_length], y);
-// 			next_sample(audio_buffer, sum, channel_select, i);
-// 		}
-// 		for (int i = 0; i < guard_length; ++i)
-// 			guard[i] = temp[i];
-// 		for (int i = 0; i < symbol_length; ++i)
-// 			next_sample(audio_buffer, temp[i], channel_select, i + guard_length);
-// 		return true;
-// 	}
-//
