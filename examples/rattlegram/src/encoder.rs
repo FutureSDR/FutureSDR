@@ -178,21 +178,9 @@ struct Xorshift32 {
 impl Xorshift32 {
     const Y: u32 = 2463534242;
 
-    // fn min() -> u32 {
-    //     0
-    // }
-    //
-    // fn max() -> u32 {
-    //     std::u32::MAX
-    // }
-
     fn new() -> Self {
         Self { y: Self::Y }
     }
-
-    // fn reset(&mut self) {
-    //     self.y = Self::Y;
-    // }
 
     fn next(&mut self) -> u32 {
         self.y ^= self.y << 13;
@@ -255,8 +243,6 @@ impl Bch {
             set_be_bit(generator.as_mut_slice(), i, v);
         }
         set_be_bit(generator.as_mut_slice(), Self::NP, false);
-
-        println!("generator: {:?}", &generator);
 
         Self { generator }
     }
@@ -365,18 +351,6 @@ impl Crc32 {
     fn add_u8(&mut self, data: u8) -> u32 {
         let tmp = self.crc ^ data as u32;
         self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
-        self.crc
-    }
-
-    fn add_u64(&mut self, data: u64) -> u32 {
-        self.add_u8((data & 0xff) as u8);
-        self.add_u8(((data >> 8) & 0xff) as u8);
-        self.add_u8(((data >> 16) & 0xff) as u8);
-        self.add_u8(((data >> 24) & 0xff) as u8);
-        self.add_u8(((data >> 32) & 0xff) as u8);
-        self.add_u8(((data >> 40) & 0xff) as u8);
-        self.add_u8(((data >> 48) & 0xff) as u8);
-        self.add_u8(((data >> 56) & 0xff) as u8);
         self.crc
     }
 }
@@ -753,7 +727,6 @@ impl Encoder {
 
     fn noise_symbol(&mut self) {
         let factor = (Self::SYMBOL_LENGTH as f32 / Self::PAY_CAR_CNT as f32).sqrt();
-        println!("factor {}", factor);
         self.freq.fill(Complex32::new(0.0, 0.0));
         for i in 0..Self::PAY_CAR_CNT {
             self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = factor
@@ -774,12 +747,6 @@ impl Encoder {
             self.freq[self.bin(i as isize + Self::PAY_CAR_OFF)] = self.prev[i];
         }
 
-        // println!("freq {:?}", &self.freq);
-        println!("freq");
-        for f in self.freq {
-            print!("{{{:.5}, {:.5}}}, ", f.re, f.im);
-        }
-        println!();
         self.transform(true);
     }
 
@@ -866,12 +833,7 @@ impl Encoder {
             set_be_bit(data.as_mut_slice(), i + 55, ((cs >> i) & 1) == 1);
         }
 
-        println!("crc {}", cs);
-        println!("data {:?}", &data);
-
         self.bch.process(&data, &mut parity);
-
-        println!("parity {:?}", &parity);
 
         let mut seq = Mls::new(Self::PRE_SEQ_POLY);
         let factor = Self::SYMBOL_LENGTH as f32 / Self::PRE_SEQ_LEN as f32;

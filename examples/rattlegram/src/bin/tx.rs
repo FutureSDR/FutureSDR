@@ -5,7 +5,7 @@ use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut e = Encoder::new();
-    let payload = b"hello world";
+    let payload = b"ja lol ey";
     let call_sign = b"DF1BBL";
     let carrier_frequency = 2000;
     let noise_symbols = 5;
