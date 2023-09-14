@@ -1,34 +1,72 @@
+use clap::Parser;
+use futuresdr::anyhow::bail;
+use futuresdr::anyhow::Result;
+use futuresdr::blocks::audio::AudioSink;
+use futuresdr::blocks::VectorSource;
+use futuresdr::macros::connect;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Runtime;
 use rattlegram::Encoder;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut e = Encoder::new();
-    let payload = b"ja lol ey";
-    let call_sign = b"DF1BBL";
-    let carrier_frequency = 2000;
-    let noise_symbols = 5;
-    let fancy_header = false;
+#[derive(Parser, Debug)]
+#[clap(version)]
+struct Args {
+    #[clap(short, long)]
+    file: Option<String>,
+    #[clap(short, long, default_value_t = 5)]
+    noise_symbols: u64,
+    #[clap(short, long, default_value = "DF1BBL")]
+    call_sign: String,
+    #[clap(short, long, default_value = "Hello World!")]
+    payload: String,
+    #[clap(long, default_value_t = 2000)]
+    carrier_frequency: usize,
+    #[clap(long, default_value_t = false)]
+    fancy_header: bool,
+}
 
-    let sig = e.encode(
-        payload,
-        call_sign,
-        carrier_frequency,
-        noise_symbols,
-        fancy_header,
-    );
+fn main() -> Result<()> {
+    let args = Args::parse();
+    println!("Configuration: {args:?}");
 
-    println!("{} samples", sig.len());
+    let payload = args.payload.into_bytes();
+    let call_sign = args.call_sign.into_bytes();
 
-    let mut out_file = File::create(Path::new("output.f32"))?;
-    for s in &sig {
-        out_file.write_all(&s.to_le_bytes()).expect("write failed");
+    if payload.len() > Encoder::MAX_BITS {
+        bail!(
+            "payload too long ({}, {} allowed)",
+            payload.len(),
+            Encoder::MAX_BITS / 8
+        );
+    }
+    if call_sign.len() > 9 {
+        bail!("call_sign too long ({}, {} allowed)", call_sign.len(), 9);
     }
 
-    let mut out_file = File::create(Path::new("output.wav"))?;
-    let header = wav::Header::new(wav::header::WAV_FORMAT_IEEE_FLOAT, 1, 48_000, 32);
-    wav::write(header, &wav::BitDepth::ThirtyTwoFloat(sig), &mut out_file)?;
+    let mut e = Encoder::new();
+
+    let sig = e.encode(
+        payload.as_slice(),
+        call_sign.as_slice(),
+        args.carrier_frequency,
+        args.noise_symbols,
+        args.fancy_header,
+    );
+
+    if let Some(f) = args.file {
+        let mut out_file = File::create(Path::new(&f))?;
+        let header = wav::Header::new(wav::header::WAV_FORMAT_IEEE_FLOAT, 1, 48_000, 32);
+        wav::write(header, &wav::BitDepth::ThirtyTwoFloat(sig), &mut out_file)?;
+    } else {
+        let mut fg = Flowgraph::new();
+        let src = VectorSource::new(sig);
+        let snk = AudioSink::new(48000, 1);
+        connect!(fg, src > snk);
+
+        Runtime::new().run(fg)?;
+    }
 
     Ok(())
 }

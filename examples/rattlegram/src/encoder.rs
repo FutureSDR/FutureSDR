@@ -465,25 +465,25 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    const RATE: usize = 48000;
-    const CODE_ORDER: usize = 11;
-    const MOD_BITS: usize = 2;
-    const CODE_LEN: usize = 1 << Self::CODE_ORDER;
-    const SYMBOL_COUNT: usize = 4;
-    const SYMBOL_LENGTH: usize = (1280 * Self::RATE) / 8000;
-    const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
-    const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
-    const MAX_BITS: usize = 1360;
-    const COR_SEQ_LEN: isize = 127;
-    const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
-    const COR_SEQ_POLY: u64 = 0b10001001;
-    const PRE_SEQ_LEN: isize = 255;
-    const PRE_SEQ_OFF: isize = -Self::PRE_SEQ_LEN / 2;
-    const PRE_SEQ_POLY: u64 = 0b100101011;
-    const PAY_CAR_CNT: usize = 256;
-    const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
-    const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
-    const NOISE_POLY: u64 = 0b100101010001;
+    pub const RATE: usize = 48000;
+    pub const CODE_ORDER: usize = 11;
+    pub const MOD_BITS: usize = 2;
+    pub const CODE_LEN: usize = 1 << Self::CODE_ORDER;
+    pub const SYMBOL_COUNT: usize = 4;
+    pub const SYMBOL_LENGTH: usize = (1280 * Self::RATE) / 8000;
+    pub const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
+    pub const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
+    pub const MAX_BITS: usize = 1360;
+    pub const COR_SEQ_LEN: isize = 127;
+    pub const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
+    pub const COR_SEQ_POLY: u64 = 0b10001001;
+    pub const PRE_SEQ_LEN: isize = 255;
+    pub const PRE_SEQ_OFF: isize = -Self::PRE_SEQ_LEN / 2;
+    pub const PRE_SEQ_POLY: u64 = 0b100101011;
+    pub const PAY_CAR_CNT: usize = 256;
+    pub const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
+    pub const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
+    pub const NOISE_POLY: u64 = 0b100101010001;
 
     pub fn new() -> Self {
         let mut fft_planner = FftPlanner::new();
