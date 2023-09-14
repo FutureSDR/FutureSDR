@@ -75,7 +75,7 @@ impl PolarSysEnc {
             let mut i = 0usize;
             while i < length as usize {
                 for j in i..(i + h) {
-                    codeword[j] = codeword[j] * codeword[j + h];
+                    codeword[j] *= codeword[j + h];
                 }
                 i += 2 * h;
             }
@@ -98,7 +98,7 @@ impl PolarSysEnc {
             let mut i = 0usize;
             while i < length as usize {
                 for j in i..(i + h) {
-                    codeword[j] = codeword[j] * codeword[j + h];
+                    codeword[j] *= codeword[j + h];
                 }
                 i += 2 * h;
             }

@@ -54,6 +54,12 @@ pub struct Encoder {
     mesg: [u8; Self::MAX_BITS / 8],
 }
 
+impl Default for Encoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Encoder {
     pub const RATE: usize = 48000;
     pub const CODE_ORDER: usize = 11;
@@ -303,13 +309,13 @@ impl Encoder {
     }
 
     fn base37_map(c: u8) -> u8 {
-        if c >= b'0' && c <= b'9' {
+        if (b'0'..=b'9').contains(&c) {
             return c - b'0' + 1;
         }
-        if c >= b'a' && c <= b'z' {
+        if (b'a'..=b'z').contains(&c) {
             return c - b'a' + 11;
         }
-        if c >= b'A' && c <= b'Z' {
+        if (b'A'..=b'Z').contains(&c) {
             return c - b'A' + 11;
         }
         0
