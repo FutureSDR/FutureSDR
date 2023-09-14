@@ -163,8 +163,8 @@ impl Encoder {
         self.meta_data = (Self::base37(call_sign) << 8) | mode;
 
         self.call.fill(0);
-        for i in 0..call_sign.len() {
-            self.call[i] = Self::base37_map(call_sign[i]);
+        for (i, c) in call_sign.iter().enumerate() {
+            self.call[i] = Self::base37_map(*c);
         }
 
         self.symbol_number = 0;
@@ -248,9 +248,7 @@ impl Encoder {
                     }
                 }
                 _ => {
-                    for _ in 0..Self::EXTENDED_LENGTH {
-                        output.push(0.0);
-                    }
+                    output.extend_from_slice(&vec![0.0; Self::EXTENDED_LENGTH]);
                     break;
                 }
             }

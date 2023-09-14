@@ -64,8 +64,8 @@ impl Bch {
         assert!(0 < data_len);
         assert!(data_len <= Self::K);
 
-        for l in 0..=(Self::NP - 1) / 8 {
-            parity[l] = 0;
+        for p in parity.iter_mut().take((Self::NP - 1) / 8) {
+            *p = 0;
         }
 
         for i in 0..data_len {

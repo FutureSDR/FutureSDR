@@ -27,8 +27,8 @@ impl PolarEncoder {
 
         let mut mesg = [0; Self::MAX_BITS];
 
-        for i in 0..data_bits {
-            mesg[i] = nrz(get_le_bit(message, i));
+        for (i, m) in mesg.iter_mut().enumerate().take(data_bits) {
+            *m = nrz(get_le_bit(message, i));
         }
 
         let crc = Self::CRC.checksum(&message[0..data_bits / 8]);

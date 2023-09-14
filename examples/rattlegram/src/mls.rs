@@ -22,6 +22,7 @@ impl Mls {
         n ^ (n >> 1)
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> bool {
         let fb = (self.reg & self.test) != 0;
         self.reg <<= 1;
