@@ -3,352 +3,17 @@ use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
 
-const BASE37_BITMAP: [u8; 407] = [
-    0, 60, 8, 60, 60, 2, 126, 28, 126, 60, 60, 60, 124, 60, 120, 126, 126, 60, 66, 56, 14, 66, 64,
-    130, 66, 60, 124, 60, 124, 60, 254, 66, 66, 130, 66, 130, 126, 0, 66, 24, 66, 66, 6, 64, 32, 2,
-    66, 66, 66, 66, 66, 68, 64, 64, 66, 66, 16, 4, 68, 64, 198, 66, 66, 66, 66, 66, 66, 16, 66, 66,
-    130, 66, 130, 2, 0, 66, 40, 66, 66, 10, 64, 64, 2, 66, 66, 66, 66, 66, 66, 64, 64, 66, 66, 16,
-    4, 72, 64, 170, 66, 66, 66, 66, 66, 64, 16, 66, 66, 130, 36, 68, 2, 0, 70, 8, 2, 2, 18, 64, 64,
-    4, 66, 66, 66, 66, 64, 66, 64, 64, 64, 66, 16, 4, 80, 64, 146, 98, 66, 66, 66, 66, 64, 16, 66,
-    66, 130, 36, 68, 4, 0, 74, 8, 4, 28, 34, 124, 124, 4, 60, 66, 66, 124, 64, 66, 120, 120, 64,
-    126, 16, 4, 96, 64, 146, 82, 66, 66, 66, 66, 60, 16, 66, 66, 130, 24, 40, 8, 0, 82, 8, 8, 2,
-    66, 2, 66, 8, 66, 62, 126, 66, 64, 66, 64, 64, 78, 66, 16, 4, 96, 64, 130, 74, 66, 124, 66,
-    124, 2, 16, 66, 36, 146, 24, 16, 16, 0, 98, 8, 16, 2, 126, 2, 66, 8, 66, 2, 66, 66, 64, 66, 64,
-    64, 66, 66, 16, 4, 80, 64, 130, 70, 66, 64, 66, 80, 2, 16, 66, 36, 146, 36, 16, 32, 0, 66, 8,
-    32, 66, 2, 2, 66, 16, 66, 2, 66, 66, 66, 66, 64, 64, 66, 66, 16, 68, 72, 64, 130, 66, 66, 64,
-    66, 72, 66, 16, 66, 36, 170, 36, 16, 64, 0, 66, 8, 64, 66, 2, 66, 66, 16, 66, 4, 66, 66, 66,
-    68, 64, 64, 66, 66, 16, 68, 68, 64, 130, 66, 66, 64, 74, 68, 66, 16, 66, 24, 198, 66, 16, 64,
-    0, 60, 62, 126, 60, 2, 60, 60, 16, 60, 56, 66, 124, 60, 120, 126, 64, 60, 66, 56, 56, 66, 126,
-    130, 66, 60, 64, 60, 66, 60, 16, 60, 24, 130, 66, 16, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-
-const FROZEN_2048_1392: [u32; 64] = [
-    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x11f7fff,
-    0xffffffff, 0x7fffffff, 0x17ffffff, 0x117177f, 0x177f7fff, 0x1037f, 0x1011f, 0x1, 0xffffffff,
-    0x177fffff, 0x77f7fff, 0x1011f, 0x1173fff, 0x10117, 0x10117, 0x0, 0x117177f, 0x17, 0x3, 0x0,
-    0x1, 0x0, 0x0, 0x0, 0x7fffffff, 0x11f7fff, 0x11717ff, 0x117, 0x17177f, 0x3, 0x1, 0x0, 0x1037f,
-    0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x1011f, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
-    0x0, 0x0, 0x0, 0x0, 0x0,
-];
-const FROZEN_2048_1056: [u32; 64] = [
-    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff,
-    0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0xffffffff, 0x177fffff, 0x177f7fff, 0x1017f,
-    0xffffffff, 0xffffffff, 0xffffffff, 0x177f7fff, 0x7fffffff, 0x13f7fff, 0x1171fff, 0x117,
-    0x3fffffff, 0x11717ff, 0x7177f, 0x1, 0x1017f, 0x1, 0x1, 0x0, 0xffffffff, 0x7fffffff,
-    0x7fffffff, 0x1171fff, 0x17ffffff, 0x7177f, 0x1037f, 0x1, 0x77f7fff, 0x1013f, 0x10117, 0x1,
-    0x10117, 0x0, 0x0, 0x0, 0x1173fff, 0x10117, 0x117, 0x0, 0x7, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0,
-    0x0, 0x0, 0x0, 0x0,
-];
-const FROZEN_2048_712: [u32; 64] = [
-    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x177fffff,
-    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x11f7fff,
-    0xffffffff, 0x7fffffff, 0x1fffffff, 0x17177f, 0x177fffff, 0x1037f, 0x1011f, 0x1, 0xffffffff,
-    0xffffffff, 0xffffffff, 0x7fffffff, 0xffffffff, 0x1fffffff, 0x177fffff, 0x1077f, 0xffffffff,
-    0x177f7fff, 0x13f7fff, 0x10117, 0x1171fff, 0x117, 0x7, 0x0, 0x7fffffff, 0x1173fff, 0x11717ff,
-    0x7, 0x3077f, 0x1, 0x1, 0x0, 0x1013f, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0,
-];
-
-fn xor_be_bit(buf: &mut [u8], pos: usize, val: bool) {
-    buf[pos / 8] ^= (val as u8) << (7 - pos % 8);
-}
-
-fn set_be_bit(buf: &mut [u8], pos: usize, val: bool) {
-    let val = val as u8;
-    buf[pos / 8] = (!(1 << (7 - pos % 8)) & buf[pos / 8]) | (val << (7 - pos % 8));
-}
-
-fn get_be_bit(buf: &[u8], pos: usize) -> bool {
-    (buf[pos / 8] >> (7 - pos % 8)) & 1 == 1
-}
-
-fn get_le_bit(buf: &[u8], pos: usize) -> bool {
-    (buf[pos / 8] >> (pos % 8)) & 1 == 1
-}
-
-struct PolarEncoder {
-    mesg: [i8; Self::MAX_BITS],
-}
-
-impl PolarEncoder {
-    const CODE_ORDER: usize = 11;
-    const MAX_BITS: usize = 1360 + 32;
-    const CRC: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::Algorithm {
-        width: 32,
-        poly: 0x05EC76F1,
-        init: 0x0,
-        refin: true,
-        refout: true,
-        xorout: 0x000000,
-        check: 0x0000,
-        residue: 0x0000,
-    });
-
-    fn new() -> Self {
-        Self {
-            mesg: [0; Self::MAX_BITS],
-        }
-    }
-
-    fn encode(&mut self, code: &mut [i8], message: &[u8], frozen_bits: &[u32], data_bits: usize) {
-        fn nrz(bit: bool) -> i8 {
-            if bit {
-                -1
-            } else {
-                1
-            }
-        }
-
-        for i in 0..data_bits {
-            self.mesg[i] = nrz(get_le_bit(message, i));
-        }
-
-        let crc = Self::CRC.checksum(&message[0..data_bits / 8]);
-
-        for i in 0..32 {
-            self.mesg[i + data_bits] = nrz(((crc >> i) & 1) == 1);
-        }
-
-        PolarSysEnc::encode(code, self.mesg.as_slice(), frozen_bits, Self::CODE_ORDER);
-    }
-}
-
-struct PolarSysEnc;
-
-impl PolarSysEnc {
-    fn get(bits: &[u32], idx: usize) -> bool {
-        ((bits[idx / 32] >> (idx % 32)) & 1) == 1
-    }
-
-    fn encode(codeword: &mut [i8], message: &[i8], frozen: &[u32], level: usize) {
-        let length = 1 << level;
-        let mut mi = 0;
-        for i in (0..length as usize).step_by(2) {
-            let msg0 = if Self::get(frozen, i) {
-                1
-            } else {
-                let v = message[mi];
-                mi += 1;
-                v
-            };
-            let msg1 = if Self::get(frozen, i + 1) {
-                1
-            } else {
-                let v = message[mi];
-                mi += 1;
-                v
-            };
-            codeword[i] = msg0 * msg1;
-            codeword[i + 1] = msg1;
-        }
-
-        let mut h = 2usize;
-        while h < length as usize {
-            let mut i = 0usize;
-            while i < length as usize {
-                for j in i..(i + h) {
-                    codeword[j] = codeword[j] * codeword[j + h];
-                }
-                i += 2 * h;
-            }
-            h *= 2;
-        }
-
-        for i in (0..length as usize).step_by(2) {
-            let msg0 = if Self::get(frozen, i) { 1 } else { codeword[i] };
-            let msg1 = if Self::get(frozen, i + 1) {
-                1
-            } else {
-                codeword[i + 1]
-            };
-            codeword[i] = msg0 * msg1;
-            codeword[i + 1] = msg1;
-        }
-
-        let mut h = 2usize;
-        while h < length as usize {
-            let mut i = 0usize;
-            while i < length as usize {
-                for j in i..(i + h) {
-                    codeword[j] = codeword[j] * codeword[j + h];
-                }
-                i += 2 * h;
-            }
-            h *= 2;
-        }
-    }
-}
-
-struct Xorshift32 {
-    y: u32,
-}
-
-impl Xorshift32 {
-    const Y: u32 = 2463534242;
-
-    fn new() -> Self {
-        Self { y: Self::Y }
-    }
-
-    fn next(&mut self) -> u32 {
-        self.y ^= self.y << 13;
-        self.y ^= self.y >> 17;
-        self.y ^= self.y << 5;
-        self.y
-    }
-}
-
-struct Bch {
-    generator: [u8; Self::G],
-}
-
-impl Bch {
-    const LEN: usize = 255;
-    const MSG: usize = 71;
-    const N: usize = Self::LEN;
-    const K: usize = Self::MSG;
-    const NP: usize = Self::N - Self::K;
-    const G: usize = ((Self::NP + 1) + 7) / 8;
-
-    fn slb1(buf: &[u8], pos: usize) -> u8 {
-        (buf[pos] << 1) | (buf[pos + 1] >> 7)
-    }
-
-    fn new(minimal_polynomials: &[i64]) -> Self {
-        let mut generator_degree = 1;
-        let mut generator = [0; Self::G];
-
-        set_be_bit(generator.as_mut_slice(), Self::NP, true);
-
-        for m in minimal_polynomials.iter().copied() {
-            assert!(0 < m);
-            let mut degree = 0;
-            while (m >> degree) > 0 {
-                degree += 1;
-            }
-            degree -= 1;
-            assert!(generator_degree + degree <= Self::NP + 1);
-            for i in (0..=generator_degree).rev() {
-                if !get_be_bit(generator.as_slice(), Self::NP - i) {
-                    continue;
-                }
-                set_be_bit(generator.as_mut_slice(), Self::NP - i, m & 1 == 1);
-                for j in 1..=degree {
-                    xor_be_bit(
-                        generator.as_mut_slice(),
-                        Self::NP - (i + j),
-                        ((m >> j) & 1) == 1,
-                    );
-                }
-            }
-            generator_degree += degree;
-        }
-
-        assert_eq!(generator_degree, Self::NP + 1);
-
-        for i in 0..Self::NP {
-            let v = get_be_bit(generator.as_slice(), i + 1);
-            set_be_bit(generator.as_mut_slice(), i, v);
-        }
-        set_be_bit(generator.as_mut_slice(), Self::NP, false);
-
-        Self { generator }
-    }
-
-    fn process(&mut self, data: &[u8], parity: &mut [u8]) {
-        let data_len = Self::K;
-        assert!(0 < data_len);
-        assert!(data_len <= Self::K);
-
-        for l in 0..=(Self::NP - 1) / 8 {
-            parity[l] = 0;
-        }
-
-        for i in 0..data_len {
-            if get_be_bit(data, i) != get_be_bit(parity, 0) {
-                for l in 0..(Self::NP - 1) / 8 {
-                    parity[l] = self.generator[l] ^ Self::slb1(parity, l);
-                }
-                parity[(Self::NP - 1) / 8] =
-                    self.generator[(Self::NP - 1) / 8] ^ (parity[(Self::NP - 1) / 8] << 1);
-            } else {
-                for l in 0..(Self::NP - 1) / 8 {
-                    parity[l] = Self::slb1(parity, l);
-                }
-                parity[(Self::NP - 1) / 8] <<= 1;
-            }
-        }
-    }
-}
-
-struct Mls {
-    poly: u64,
-    test: u64,
-    reg: u64,
-}
-
-impl Mls {
-    fn new(poly: u64) -> Self {
-        Self {
-            poly,
-            test: Self::hibit(poly) >> 1,
-            reg: 1,
-        }
-    }
-
-    fn hibit(mut n: u64) -> u64 {
-        n |= n >> 1;
-        n |= n >> 2;
-        n |= n >> 4;
-        n |= n >> 8;
-        n |= n >> 16;
-        n ^ (n >> 1)
-    }
-
-    // fn reset(&mut self, r: Option<u64>) {
-    //     self.reg = r.unwrap_or(1);
-    // }
-
-    fn next(&mut self) -> bool {
-        let fb = (self.reg & self.test) != 0;
-        self.reg <<= 1;
-        self.reg ^= fb as u64 * self.poly;
-        fb
-    }
-
-    // fn bad(&mut self, r: Option<u64>) -> bool {
-    //     let r = r.unwrap_or(1);
-    //     self.reg = r;
-    //     let len = Self::hibit(self.poly) - 1;
-    //
-    //     for i in 1..len {
-    //         self.next();
-    //         if self.reg == r {
-    //             return true;
-    //         }
-    //     }
-    //
-    //     self.next();
-    //     self.reg != r
-    // }
-}
-
-pub struct Psk<const N: usize> {}
-
-impl Psk<4> {
-    fn map(b: &[i8; 2]) -> Complex32 {
-        const A: f32 = std::f32::consts::FRAC_1_SQRT_2;
-
-        match b {
-            [1, 1] => Complex32::new(A, A),
-            [1, -1] => Complex32::new(A, -A),
-            [-1, 1] => Complex32::new(-A, A),
-            [-1, -1] => Complex32::new(-A, -A),
-            _ => panic!("code has wrong format, expecting one bit per byte"),
-        }
-    }
-}
+use crate::get_be_bit;
+use crate::set_be_bit;
+use crate::util::BASE37_BITMAP;
+use crate::util::FROZEN_2048_712;
+use crate::util::FROZEN_2048_1056;
+use crate::util::FROZEN_2048_1392;
+use crate::Bch;
+use crate::Mls;
+use crate::PolarEncoder;
+use crate::Psk;
+use crate::Xorshift32;
 
 #[derive(Clone, Copy)]
 enum OperationMode {
@@ -387,7 +52,6 @@ pub struct Encoder {
     noise_count: u64,
     guard: [Complex32; Self::GUARD_LENGTH],
     mesg: [u8; Self::MAX_BITS / 8],
-    polar: PolarEncoder,
 }
 
 impl Encoder {
@@ -470,7 +134,6 @@ impl Encoder {
             noise_count: 0,
             guard: [Complex32::new(0.0, 0.0); Self::GUARD_LENGTH],
             mesg: [0; Self::MAX_BITS / 8],
-            polar: PolarEncoder::new(),
         }
     }
 
@@ -521,7 +184,7 @@ impl Encoder {
             self.mesg[i] = d ^ scrambler.next() as u8;
         }
 
-        self.polar.encode(
+        PolarEncoder::encode(
             self.code.as_mut_slice(),
             self.mesg.as_slice(),
             frozen_bits.as_slice(),
