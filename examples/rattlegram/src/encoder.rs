@@ -309,13 +309,13 @@ impl Encoder {
     }
 
     fn base37_map(c: u8) -> u8 {
-        if (b'0'..=b'9').contains(&c) {
+        if c.is_ascii_digit() {
             return c - b'0' + 1;
         }
-        if (b'a'..=b'z').contains(&c) {
+        if c.is_ascii_lowercase() {
             return c - b'a' + 11;
         }
-        if (b'A'..=b'Z').contains(&c) {
+        if c.is_ascii_uppercase() {
             return c - b'A' + 11;
         }
         0
