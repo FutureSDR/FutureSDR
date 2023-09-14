@@ -64,21 +64,29 @@ fn get_be_bit(buf: &[u8], pos: usize) -> bool {
 }
 
 fn get_le_bit(buf: &[u8], pos: usize) -> bool {
-	(buf[pos/8]>>(pos%8))&1 == 1
+    (buf[pos / 8] >> (pos % 8)) & 1 == 1
 }
 
 struct PolarEncoder {
-    crc: Crc32,
     mesg: [i8; Self::MAX_BITS],
 }
 
 impl PolarEncoder {
-	const CODE_ORDER: usize = 11;
-	const MAX_BITS: usize = 1360 + 32;
+    const CODE_ORDER: usize = 11;
+    const MAX_BITS: usize = 1360 + 32;
+    const CRC: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::Algorithm {
+        width: 32,
+        poly: 0x05EC76F1,
+        init: 0x0,
+        refin: true,
+        refout: true,
+        xorout: 0x000000,
+        check: 0x0000,
+        residue: 0x0000,
+    });
 
     fn new() -> Self {
         Self {
-            crc: Crc32::new(0x8F6E37A0),
             mesg: [0; Self::MAX_BITS],
         }
     }
@@ -96,19 +104,14 @@ impl PolarEncoder {
             self.mesg[i] = nrz(get_le_bit(message, i));
         }
 
-        self.crc.reset();
-
-        let mut crc = 0;
-        for i in 0..data_bits / 8 {
-            crc = self.crc.add_u8(message[i]);
-        }
+        let crc = Self::CRC.checksum(&message[0..data_bits / 8]);
 
         for i in 0..32 {
             self.mesg[i + data_bits] = nrz(((crc >> i) & 1) == 1);
         }
 
-		PolarSysEnc::encode(code, self.mesg.as_slice(), frozen_bits, Self::CODE_ORDER);
-	}
+        PolarSysEnc::encode(code, self.mesg.as_slice(), frozen_bits, Self::CODE_ORDER);
+    }
 }
 
 struct PolarSysEnc;
@@ -122,7 +125,13 @@ impl PolarSysEnc {
         let length = 1 << level;
         let mut mi = 0;
         for i in (0..length as usize).step_by(2) {
-            let msg0 = if Self::get(frozen, i) { 1 } else { let v = message[mi]; mi += 1; v };
+            let msg0 = if Self::get(frozen, i) {
+                1
+            } else {
+                let v = message[mi];
+                mi += 1;
+                v
+            };
             let msg1 = if Self::get(frozen, i + 1) {
                 1
             } else {
@@ -138,7 +147,7 @@ impl PolarSysEnc {
         while h < length as usize {
             let mut i = 0usize;
             while i < length as usize {
-                for j in i..(i + h){
+                for j in i..(i + h) {
                     codeword[j] = codeword[j] * codeword[j + h];
                 }
                 i += 2 * h;
@@ -161,7 +170,7 @@ impl PolarSysEnc {
         while h < length as usize {
             let mut i = 0usize;
             while i < length as usize {
-                for j in i..(i + h){
+                for j in i..(i + h) {
                     codeword[j] = codeword[j] * codeword[j + h];
                 }
                 i += 2 * h;
@@ -273,88 +282,6 @@ impl Bch {
     }
 }
 
-struct Crc {
-    crc: u16,
-    lut: [u16; 256],
-}
-
-impl Crc {
-    fn new(poly: u16) -> Self {
-        let mut lut = [0; 256];
-        for j in 0..256u16 {
-            let mut tmp = j;
-            for _ in 0..8 {
-                tmp = Self::update(tmp, false, poly);
-            }
-            lut[j as usize] = tmp;
-        }
-
-        Self { crc: 0, lut }
-    }
-
-    fn reset(&mut self) {
-        self.crc = 0;
-    }
-
-    fn update(prev: u16, data: bool, poly: u16) -> u16 {
-        let tmp = prev ^ data as u16;
-        (prev >> 1) ^ ((tmp & 1) * poly)
-    }
-
-    fn add_u8(&mut self, data: u8) -> u16 {
-        let tmp = self.crc ^ data as u16;
-        self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
-        self.crc
-    }
-
-    fn add_u64(&mut self, data: u64) -> u16 {
-        self.add_u8((data & 0xff) as u8);
-        self.add_u8(((data >> 8) & 0xff) as u8);
-        self.add_u8(((data >> 16) & 0xff) as u8);
-        self.add_u8(((data >> 24) & 0xff) as u8);
-        self.add_u8(((data >> 32) & 0xff) as u8);
-        self.add_u8(((data >> 40) & 0xff) as u8);
-        self.add_u8(((data >> 48) & 0xff) as u8);
-        self.add_u8(((data >> 56) & 0xff) as u8);
-        self.crc
-    }
-}
-
-struct Crc32 {
-    crc: u32,
-    lut: [u32; 256],
-}
-
-impl Crc32 {
-    fn new(poly: u32) -> Self {
-        let mut lut = [0; 256];
-        for j in 0..256u32 {
-            let mut tmp = j;
-            for _ in 0..8 {
-                tmp = Self::update(tmp, false, poly);
-            }
-            lut[j as usize] = tmp;
-        }
-
-        Self { crc: 0, lut }
-    }
-
-    fn reset(&mut self) {
-        self.crc = 0;
-    }
-
-    fn update(prev: u32, data: bool, poly: u32) -> u32 {
-        let tmp = prev ^ data as u32;
-        (prev >> 1) ^ ((tmp & 1) * poly)
-    }
-
-    fn add_u8(&mut self, data: u8) -> u32 {
-        let tmp = self.crc ^ data as u32;
-        self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
-        self.crc
-    }
-}
-
 struct Mls {
     poly: u64,
     test: u64,
@@ -454,7 +381,6 @@ pub struct Encoder {
     fft: Arc<dyn Fft<f32>>,
     fancy_line: usize,
     meta_data: u64,
-    crc: Crc,
     bch: Bch,
     call: [u8; 9],
     count_down: i64,
@@ -484,6 +410,16 @@ impl Encoder {
     pub const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
     pub const FANCY_OFF: isize = -(8 * 9 * 3) / 2;
     pub const NOISE_POLY: u64 = 0b100101010001;
+    pub const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::Algorithm {
+        width: 16,
+        poly: 0x2F15,
+        init: 0x0000,
+        refin: true,
+        refout: true,
+        xorout: 0x0000,
+        check: 0x0000,
+        residue: 0x0000,
+    });
 
     pub fn new() -> Self {
         let mut fft_planner = FftPlanner::new();
@@ -528,7 +464,6 @@ impl Encoder {
             fft,
             fancy_line: 0,
             meta_data: 0,
-            crc: Crc::new(0xA8F4),
             bch,
             call: [0; 9],
             count_down: 0,
@@ -826,8 +761,7 @@ impl Encoder {
             set_be_bit(data.as_mut_slice(), i, ((self.meta_data >> i) & 1) == 1);
         }
 
-        self.crc.reset();
-        let cs = self.crc.add_u64(self.meta_data << 9);
+        let cs = Self::CRC.checksum(&(self.meta_data << 9).to_le_bytes());
 
         for i in 0..16 {
             set_be_bit(data.as_mut_slice(), i + 55, ((cs >> i) & 1) == 1);
