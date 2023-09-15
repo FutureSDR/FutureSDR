@@ -1,63 +1,77 @@
 
+#[derive(Clone, PartialEq)]
+struct Kahan {
+	high: f32,
+    low: f32,
+}
+
+impl Kahan {
+    pub fn new(init: f32) -> Self {
+        Self {
+            high: init, low: 0.0
+        }
+    }
+
+    fn same(&self, input: f32) -> bool {
+        let mut tmp = self.clone();
+        tmp.process(input);
+        tmp == self
+    }
+
+    fn process(&mut self, input: f32) -> f32 {
+        let tmp = input - self.low;
+        let sum = self.high + tmp;
+        self.low = (sum - self.high) - tmp;
+        self.high = sum;
+        sum
+    }
+
+    fn get(&self) -> f32 {
+        self.high
+    }
+}
+
 pub struct Kaiser {
     a: f32,
 }
-	/*
-	i0() implements the zero-th order modified Bessel function of the first kind:
-	https://en.wikipedia.org/wiki/Bessel_function#Modified_Bessel_functions:_I%CE%B1,_K%CE%B1
-	$I_\alpha(x) = i^{-\alpha} J_\alpha(ix) = \sum_{m=0}^\infty \frac{1}{m!\, \Gamma(m+\alpha+1)}\left(\frac{x}{2}\right)^{2m+\alpha}$
-	$I_0(x) = J_0(ix) = \sum_{m=0}^\infty \frac{1}{m!\, \Gamma(m+1)}\left(\frac{x}{2}\right)^{2m} = \sum_{m=0}^\infty \left(\frac{x^m}{2^m\,m!}\right)^{2}$
-	We obviously can't use the factorial here, so let's get rid of it:
-	$= 1 + \left(\frac{x}{2 \cdot 1}\right)^2 + \left(\frac{x}{2 \cdot 1}\cdot \frac{x}{2 \cdot 2}\right)^2 + \left(\frac{x}{2 \cdot 1}\cdot \frac{x}{2 \cdot 2}\cdot \frac{x}{2 \cdot 3}\right)^2 + .. = 1 + \sum_{m=1}^\infty \left(\prod_{n=1}^m \frac{x}{2n}\right)^2$
-	*/
-	static TYPE i0(TYPE x)
-	{
-		Kahan<TYPE> sum(1.0);
-		TYPE val = 1.0;
-		// converges for -3*Pi:3*Pi in less than:
-		// float: 25 iterations
-		// double: 35 iterations
-		for (int n = 1; n < 35; ++n) {
-			val *= x / TYPE(2 * n);
-			if (sum.same(val * val))
-				return sum();
-		}
-		return sum();
-	}
-	static TYPE sqr(TYPE x)
-	{
-		return x * x;
-	}
-public:
-	Kaiser(TYPE a) : a(a) {}
-	TYPE operator () (int n, int N) const
-	{
-		return i0(Const<TYPE>::Pi() * a * sqrt(TYPE(1) - sqr(TYPE(2 * n) / TYPE(N - 1) - TYPE(1)))) / i0(Const<TYPE>::Pi() * a);
-	}
-};
+
+impl Kaiser {
+    fn i0(x: f32) -> f32 {
+        let sum = Kahan::new(1.0);
+        let mut val = 1.0;
+
+        for n in 1..35 {
+            val *= x / (2 * n) as f32;
+            if sum.same(val * val) {
+                return sum.get();
+            }
+        }
+        sum.get()
+    }
+
+    fn new(a: f32) -> Self {
+        Self { a }
+    }
+
+    fn get(&self, n: usize, nn: usize) -> f32 {
+        Self::i0(std::f32::consts::PI * self.a * (1.0 - ((2 * n) as f32 / (nn - 1) as f32 - 1.0).powi(2)).powi(2)) / Self::i0(std::f32::consts::PI * self.a)
+    }
+}
 
 
-
-
-struct Hilbert<const N: usize> {
-    real: [f32; N],
-    imco: [f32; (N-1)/4],
+struct Hilbert<const TAPS: usize> {
+    real: [f32; TAPS],
+    imco: [f32; (TAPS-1)/4],
     reco: f32,
 }
 
-impl<const N: usize> Hilbert<N> {
+impl<const TAPS: usize> Hilbert<N> {
     pub fn new() {
+        assert_eq!((TAPS-1) % 4, 0, "TAPS-1 not divisible by four");
 
     }
 
 }
-	static_assert((TAPS-1) % 4 == 0, "TAPS-1 not divisible by four");
-	typedef TYPE complex_type;
-	typedef typename TYPE::value_type value_type;
-	value_type real[TAPS];
-	value_type imco[(TAPS-1)/4];
-	value_type reco;
-public:
 	Hilbert(value_type a = value_type(2))
 	{
 		Kaiser<value_type> win(a);
