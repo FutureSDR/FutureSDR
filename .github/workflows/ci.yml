@@ -129,6 +129,9 @@ jobs:
         with:
           components: clippy
 
+      - name: Apt Update
+        run: sudo apt-get -y update
+
       - name: Install ZeroMQ
         run: sudo apt-get install -y libzmq3-dev
 
@@ -286,7 +289,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
-      - run: sudo apt-get install -y libzmq3-dev
+      - run: sudo apt-get -y update
+      - run: sudo apt-get -y install libzmq3-dev
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
