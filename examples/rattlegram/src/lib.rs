@@ -1,6 +1,9 @@
 mod bch;
 pub use bch::Bch;
 
+mod decoder;
+pub use decoder::Decoder;
+
 mod encoder;
 pub use encoder::Encoder;
 
