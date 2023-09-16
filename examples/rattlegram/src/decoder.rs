@@ -1,55 +1,121 @@
 use futuresdr::anyhow;
 use futuresdr::num_complex::Complex32;
 
-struct Sma4F32<const NUM: usize>
+struct FallingEdgeTrigger {
+    previous: bool,
+}
+
+impl FallingEdgeTrigger {
+    fn new() -> Self {
+        Self {
+            previous: false,
+        }
+    }
+
+    fn put(&mut self, input: bool) -> bool {
+        let tmp = self.previous;
+        self.previous = input;
+        tmp && !input
+    }
+}
+
+struct SchmittTrigger {
+    low: f32,
+    high: f32,
+    previous: bool,
+}
+
+impl SchmittTrigger {
+    fn new() -> Self {
+        let threshold = 1.0/3.0;
+        Self {
+            low: -threshold,
+            high: threshold,previous: false
+        }
+    }
+
+    fn put(&mut self, input: f32) -> bool {
+        if self.previous {
+            if input < self.low {
+                self.previous = false;
+            }
+        } else {
+            if input > self.high {
+                self.previous = true;
+            }
+        }
+        self.previous
+    }
+}
+
+struct Delay<const NUM: usize> {
+    buf: [f32; NUM],
+    pos: usize,
+}
+
+impl<const NUM: usize> Delay<NUM> {
+    fn new() -> Self {
+        Self {
+            buf: [0.0; NUM],pos: 0,
+        }
+    }
+
+    fn put(mut self, input: f32) -> f32 {
+        let tmp = self.buf[self.pos];
+        self.buf[self.pos] = input;
+        self.pos += 1;
+        if self.pos >= NUM {
+            self.pos = 0;
+        }
+        tmp 
+    }
+}
+
+struct Sma4F32<const NUM: usize, const NORM: bool>
 where
     [(); 2 * NUM]:,
 {
     swa: SwaF32<NUM>,
-    norm: Option<f32>,
 }
 
-impl<const NUM: usize> Sma4F32<NUM>
+impl<const NUM: usize, const NORM:bool> Sma4F32<NUM, NORM>
 where
     [(); 2 * NUM]:,
 {
-    fn new(norm: Option<f32>) -> Self {
+    fn new() -> Self {
         Self {
             swa: SwaF32::new(0.0),
-            norm,
         }
     }
 
     fn put(&mut self, input: f32) -> f32 {
-        if let Some(v) = self.norm {
-            self.swa.put(input) / v
+        if NORM {
+            self.swa.put(input) / NUM as f32
         } else {
             self.swa.put(input)
         }
     }
 }
 
-struct Sma4Complex32<const NUM: usize>
+struct Sma4Complex32<const NUM: usize, const NORM: bool>
 where
     [(); 2 * NUM]:,
 {
     swa: SwaComplex32<NUM>,
-    norm: Option<f32>,
 }
 
-impl<const NUM: usize> Sma4Complex32<NUM>
+impl<const NUM: usize, const NORM: bool> Sma4Complex32<NUM, NORM>
 where
     [(); 2 * NUM]:,
 {
-    fn new(norm: Option<f32>) -> Self {
+    fn new() -> Self {
         Self {
             swa: SwaComplex32::new(Complex32::new(0.0, 0.0)),
-            norm,
         }
     }
 
     fn put(&mut self, input: Complex32) -> Complex32 {
-        if let Some(v) = self.norm {
+        if NORM {
             self.swa.put(input) / NUM as f32
         } else {
             self.swa.put(input)
