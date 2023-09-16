@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let samples = data.try_into_thirty_two_float();
     let mut samples = samples.or(Err(anyhow!("failed to convert")))?;
 
-    let decoder = Decoder::new();
+    let mut decoder = Decoder::new();
 
     let rate = 48000;
     let file_length = samples.len();
