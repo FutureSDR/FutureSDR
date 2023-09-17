@@ -1,5 +1,200 @@
 use futuresdr::anyhow;
 use futuresdr::num_complex::Complex32;
+use rustfft::Fft;
+use rustfft::FftPlanner;
+use std::sync::Arc;
+
+use crate::Mls;
+use crate::PolarEncoder;
+
+struct Phasor {
+    prev: Complex32,
+    delta: Complex32,
+}
+
+impl Phasor {
+    fn new() -> Self {
+        Self {
+            prev: Complex32::new(1.0, 0.0),
+            delta: Complex32::new(1.0, 0.0),
+        }
+    }
+
+    fn omega(&mut self, v: f32) {
+        self.delta = Complex32::new(v.cos(), v.sin()); 
+    }
+
+    fn get(&mut self) -> Complex32 {
+        let tmp = self.prev;
+        self.prev *= self.delta;
+        self.prev /= self.prev.abs();
+        tmp
+    }
+}
+
+struct SchmidlCox<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> {
+    tmp0: [Complex32; SYMBOL_LEN],
+    tmp1: [Complex32; SYMBOL_LEN],
+    tmp2: [Complex32; SYMBOL_LEN],
+    kern: [Complex32; SYMBOL_LEN],
+    fft_scratch: [Complex32; SYMBOL_LENGTH],
+    fft_fwd: Arc<dyn Fft<Complex32>>,
+    fft_bwd: Arc<dyn Fft<Complex32>>,
+    index_max: usize,
+    symbol_pos: usize,
+    timing_max: f32,
+    phase_max: f32,
+    cfo_rad: f32,
+    frac_cfo: f32,
+    cor: Sma4Complex32<SYMBOL_LEN, false>,
+    pwr: Sma4F32<{SYMBOL_LEN * 2}, false>,
+    matc: SmaF32<Self::MATCH_LEN, false>,
+    threshold: SchmittTrigger,
+    falling: FallingEdgeTrigger,
+    delay: Delay<Self::MATCH_DEL>,
+}
+
+impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> SchmidlCox<SEARCH_POS, SYMBOL_LEN, GUARD_LEN> {
+    const MATCH_LEN: usize = GUARD_LEN | 1;
+    const MATCH_DEL: usize = (Self::MATCH_LEN - 1) / 2;
+
+
+    fn bin(carrier: isize) -> usize {
+        (carrier + SYMBOL_LEN as isize ) as usize % SYMBOL_LEN
+    }
+
+    fn demod_or_erase(curr: Complex32, prev: Complex32) -> Complex32 {
+        if !(prev.norm() > 0) {
+            return Complex32::new(0.0, 0.0);
+        }
+        let cons = curr / prev;
+        if !(cons.norm() <= 4) {
+            return Complex32::new(0.0, 0.0);
+        }
+        cons
+    }
+
+    fn new(mut sequence: [Complex32; SYMBOL_LEN]) -> Self {
+        let mut fft_planner = FftPlanner::new();
+        let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LENGTH);
+        let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LENGTH);
+
+        let mut kern = [Complex32::new(0.0, 0.0), SYMBOL_LEN];
+        let mut fft_scratch = [Complex32::new(0.0, 0.0), SYMBOL_LEN];
+        fft_fwd.process_outofplace_with_scratch(&mut sequence, &mut kern, &mut fft_scratch);
+
+        for i in 0..SYMBOL_LEN {
+            kern[i] = kern[i].conj() / SYMBOL_LEN as f32;
+        }
+
+        Self {
+            tmp0: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
+            tmp1: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
+            tmp2: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
+            index_max: 0,
+            symbol_pos: SEARCH_POS,
+            timing_max: 0.0,
+            phase_max: 0.0,
+            cfo_rad: 0.0,
+            frac_cfo: 0,
+            fft_bwd,fft_fwd,
+            kern,
+            fft_scratch,
+            cor: Sma4Complex32::new(),
+            pwr: Sma4F32::new(),
+            matc: Sma4F32::new(),
+            threshold: SchmittTrigger::new(0.17 * Self::MATCH_LEN as f32, 0.19 * Self::MATCH_LEN),
+            falling: FallingEdgeTrigger::new(),
+            delay: Delay::new(),
+        }
+    }
+
+    fn put(&mut self, samples: &[Complex32]) -> bool {
+        let p = self.cor.put(samples[SEARCH_POS + SYMBOL_LEN] * samples[SEARCH_POS + 2 * SYMBOL_LEN].conj());
+        let r = 0.5 * self.pwr.put(samples[SEARCH_POS + 2 * SYMBOL_LEN].norm());
+        let min_r = 0.0001 * SYMBOL_LEN as f32;
+        let r = std::cmp::max(r, min_r);
+        let timing = self.matc.put(p.norm() / (r * r));
+        let phase = self.delay(p.arg());
+
+        let collect = self.threshold.put(timing);
+        let process = self.falling(collect);
+
+        if !collect && !process {
+            return false;
+        }
+
+        if self.timing_max < timing {
+            self.timing_max = timing;
+            self.phase_max = phase;
+            self.index_max = Self::MATCH_DEL;
+        } else if {
+            self.index_max += 1;
+        }
+
+        if !process {
+            return false;
+        }
+
+        self.frac_cfo = self.phase_max / SYMBOL_LEN as f32;
+        let mut osc = Phasor::new();
+        osc.omega(self.frac_cfo);
+        let test_pos = SEARCH_POS - self.index_max;
+        self.index_max = 0;
+        self.timing_max = 0.0;
+        for i in 0..SYMBOL_LEN {
+            self.tmp1[i] = samples[i + test_pos + SYMBOL_LEN] * osc.get();
+        }
+        self.fft_fwd.process_outofplace_with_scratch(&mut self.tmp1, &mut self.tmp0, &mut fft_scratch);
+        for i in 0..SYMBOL_LEN {
+            self.tmp1 = Self::demod_or_erase(self.tmp0[i], self.tmp0[Self::bin(i - 1)]);
+        }
+        self.fft_fwd.process_outofplace_with_scratch(&mut self.tmp1, &mut self.tmp0, &mut fft_scratch);
+        for i in 0..SYMBOL_LEN {
+            self.tmp0[i] *= self.kern[i]; 
+        }
+        self.fft_bwd.process_outofplace_with_scratch(&mut self.tmp0, &mut self.tmp2, &mut fft_scratch);
+
+        let shift = 0;
+        let peak = 0.0;
+        let next = 0.0;
+        for i in 0..SYMBOL_LEN {
+            
+        }
+    }
+}
+
+	bool operator()(const cmplx *samples) {
+
+		int shift = 0;
+		value peak = 0;
+		value next = 0;
+		for (int i = 0; i < symbol_len; ++i) {
+			value power = norm(tmp2[i]);
+			if (power > peak) {
+				next = peak;
+				peak = power;
+				shift = i;
+			} else if (power > next) {
+				next = power;
+			}
+		}
+		if (peak <= next * 4)
+			return false;
+
+		int pos_err = std::nearbyint(arg(tmp2[shift]) * symbol_len / Const::TwoPi());
+		if (abs(pos_err) > guard_len / 2)
+			return false;
+		symbol_pos = test_pos - pos_err;
+
+		cfo_rad = shift * (Const::TwoPi() / symbol_len) - frac_cfo;
+		if (cfo_rad >= Const::Pi())
+			cfo_rad -= Const::TwoPi();
+		return true;
+	}
+};
+
+
 
 struct FallingEdgeTrigger {
     previous: bool,
@@ -26,11 +221,11 @@ struct SchmittTrigger {
 }
 
 impl SchmittTrigger {
-    fn new() -> Self {
-        let threshold = 1.0/3.0;
+    fn new(low: f32, high: f32) -> Self {
         Self {
-            low: -threshold,
-            high: threshold,previous: false
+            low,
+            high,
+            previous: false
         }
     }
 
@@ -377,6 +572,7 @@ pub struct Decoder {
     block_dc: BlockDc,
     hilbert: Hilbert<{ Self::FILTER_LENGTH }>,
     buffer: BipBuffer<{ Self::EXTENDED_LENGTH }>,
+    correlator: SchmidlCox<Self::SEARCH_POSITION, Self::SYMBOL_LENGTH, Self::GUARD_LENGTH>,
 }
 
 impl Decoder {
@@ -385,12 +581,34 @@ impl Decoder {
     const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
     const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
     const FILTER_LENGTH: usize = (((33 * Self::RATE) / 8000) & !3) | 1;
+	const COR_SEQ_POLY: u64 = 0b10001001;
+	const COR_SEQ_LEN: usize = 127;
+	const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
+	const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
+
+    fn nrz(bit: bool) -> Complex32 {
+        if bit {
+            Complex32::new(-1.0, 0.0)
+        } else {
+            Complex32::new(1.0, 0.0)
+        }
+    }
+
+    fn cor_seq() -> [Complex32; SYMBOL_LEN] {
+        let mut freq = [0.0; SYMBOL_LEN];
+        let mut mls = Mls::new(Self::COR_SEQ_POLY);
+        for i in 0..Self::SYMBOL_LENGTH {
+            freq[(i + Self::COR_SEQ_OFF / 2 + Self::SYMBOL_LENGTH / 2) % (Self::SYMBOL_LENGTH / 2)] = Self::nrz(mls.next());
+        }
+        freq
+    }
 
     pub fn new() -> Self {
         Self {
             block_dc: BlockDc::new(),
             hilbert: Hilbert::new(),
             buffer: BipBuffer::new(),
+            correlator: SchmidlCox::new(Self::cor_seq()),
         }
     }
 
