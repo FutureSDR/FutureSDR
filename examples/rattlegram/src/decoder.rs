@@ -155,46 +155,36 @@ impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> S
         }
         self.fft_bwd.process_outofplace_with_scratch(&mut self.tmp0, &mut self.tmp2, &mut fft_scratch);
 
-        let shift = 0;
-        let peak = 0.0;
-        let next = 0.0;
+        let mut shift = 0;
+        let mut peak = 0.0;
+        let mut next = 0.0;
         for i in 0..SYMBOL_LEN {
-            
+            let power = self.tmp2[i].norm();
+            if power > peak {
+                next = peak;
+                peak = power;
+                shift = i;
+            } else if power > next {
+                next = power;
+            }
         }
+        if peak <= next * 4.0 {
+            return false;
+        }
+
+        let pos_err = (self.tmp2[shift].arg() * SYMBOL_LEN as f32 / std::f32::consts::TAU).round() as isize;
+        if pos_err.abs() > GUARD_LEN / 2 {
+            return false;
+        }
+        self.symbol_pos = test_pos - pos_err;
+        
+        self.cfo_rad = shift * std::f32::consts::TAU / SYMBOL_LEN as f32 - self.frac_cfo;
+        if self.cfo_rad >= std::f32::consts::PI {
+            self.cfo_rad -= std::f32::consts::TAU;
+        }
+        true
     }
 }
-
-	bool operator()(const cmplx *samples) {
-
-		int shift = 0;
-		value peak = 0;
-		value next = 0;
-		for (int i = 0; i < symbol_len; ++i) {
-			value power = norm(tmp2[i]);
-			if (power > peak) {
-				next = peak;
-				peak = power;
-				shift = i;
-			} else if (power > next) {
-				next = power;
-			}
-		}
-		if (peak <= next * 4)
-			return false;
-
-		int pos_err = std::nearbyint(arg(tmp2[shift]) * symbol_len / Const::TwoPi());
-		if (abs(pos_err) > guard_len / 2)
-			return false;
-		symbol_pos = test_pos - pos_err;
-
-		cfo_rad = shift * (Const::TwoPi() / symbol_len) - frac_cfo;
-		if (cfo_rad >= Const::Pi())
-			cfo_rad -= Const::TwoPi();
-		return true;
-	}
-};
-
-
 
 struct FallingEdgeTrigger {
     previous: bool,
