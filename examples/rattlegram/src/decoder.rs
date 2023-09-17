@@ -5,7 +5,6 @@ use rustfft::FftPlanner;
 use std::sync::Arc;
 
 use crate::Mls;
-use crate::PolarEncoder;
 
 struct Phasor {
     prev: Complex32,
@@ -21,104 +20,111 @@ impl Phasor {
     }
 
     fn omega(&mut self, v: f32) {
-        self.delta = Complex32::new(v.cos(), v.sin()); 
+        self.delta = Complex32::new(v.cos(), v.sin());
     }
 
     fn get(&mut self) -> Complex32 {
         let tmp = self.prev;
         self.prev *= self.delta;
-        self.prev /= self.prev.abs();
+        self.prev /= self.prev.norm();
         tmp
     }
 }
 
-struct SchmidlCox<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> {
-    tmp0: [Complex32; SYMBOL_LEN],
-    tmp1: [Complex32; SYMBOL_LEN],
-    tmp2: [Complex32; SYMBOL_LEN],
-    kern: [Complex32; SYMBOL_LEN],
-    fft_scratch: [Complex32; SYMBOL_LENGTH],
-    fft_fwd: Arc<dyn Fft<Complex32>>,
-    fft_bwd: Arc<dyn Fft<Complex32>>,
+struct SchmidlCox {
+    tmp0: [Complex32; Self::SYMBOL_LEN],
+    tmp1: [Complex32; Self::SYMBOL_LEN],
+    tmp2: [Complex32; Self::SYMBOL_LEN],
+    kern: [Complex32; Self::SYMBOL_LEN],
+    fft_scratch: [Complex32; Self::SYMBOL_LEN],
+    fft_fwd: Arc<dyn Fft<f32>>,
+    fft_bwd: Arc<dyn Fft<f32>>,
     index_max: usize,
     symbol_pos: usize,
     timing_max: f32,
     phase_max: f32,
     cfo_rad: f32,
     frac_cfo: f32,
-    cor: Sma4Complex32<SYMBOL_LEN, false>,
-    pwr: Sma4F32<{SYMBOL_LEN * 2}, false>,
-    matc: SmaF32<Self::MATCH_LEN, false>,
+    cor: Sma4Complex32<{Self::SYMBOL_LEN}, false>,
+    pwr: Sma4F32<{ Self::SYMBOL_LEN * 2 }, false>,
+    matc: Sma4F32<{ Self::MATCH_LEN }, false>,
     threshold: SchmittTrigger,
     falling: FallingEdgeTrigger,
-    delay: Delay<Self::MATCH_DEL>,
+    delay: Delay<{ Self::MATCH_DEL }>,
 }
 
-impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> SchmidlCox<SEARCH_POS, SYMBOL_LEN, GUARD_LEN> {
-    const MATCH_LEN: usize = GUARD_LEN | 1;
+impl SchmidlCox {
+    const RATE: usize = 48000;
+    const SYMBOL_LEN: usize = (1280 * Self::RATE) / 8000;
+    const EXTENDED_LEN: usize = Self::SYMBOL_LEN + Self::GUARD_LEN;
+    const GUARD_LEN: usize = Self::SYMBOL_LEN / 8;
+    const MATCH_LEN: usize = Self::GUARD_LEN | 1;
     const MATCH_DEL: usize = (Self::MATCH_LEN - 1) / 2;
-
+    const SEARCH_POS: usize = Self::EXTENDED_LEN;
 
     fn bin(carrier: isize) -> usize {
-        (carrier + SYMBOL_LEN as isize ) as usize % SYMBOL_LEN
+        (carrier + Self::SYMBOL_LEN as isize) as usize % Self::SYMBOL_LEN
     }
 
     fn demod_or_erase(curr: Complex32, prev: Complex32) -> Complex32 {
-        if !(prev.norm() > 0) {
+        if !(prev.norm_sqr() > 0.0) {
             return Complex32::new(0.0, 0.0);
         }
         let cons = curr / prev;
-        if !(cons.norm() <= 4) {
+        if !(cons.norm_sqr() <= 4.0) {
             return Complex32::new(0.0, 0.0);
         }
         cons
     }
 
-    fn new(mut sequence: [Complex32; SYMBOL_LEN]) -> Self {
+    fn new(mut sequence: [Complex32; Self::SYMBOL_LEN]) -> Self {
         let mut fft_planner = FftPlanner::new();
-        let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LENGTH);
-        let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LENGTH);
+        let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LEN);
+        let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LEN);
 
-        let mut kern = [Complex32::new(0.0, 0.0), SYMBOL_LEN];
-        let mut fft_scratch = [Complex32::new(0.0, 0.0), SYMBOL_LEN];
+        let mut kern = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
+        let mut fft_scratch = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
         fft_fwd.process_outofplace_with_scratch(&mut sequence, &mut kern, &mut fft_scratch);
 
-        for i in 0..SYMBOL_LEN {
-            kern[i] = kern[i].conj() / SYMBOL_LEN as f32;
+        for i in 0..Self::SYMBOL_LEN {
+            kern[i] = kern[i].conj() / Self::SYMBOL_LEN as f32;
         }
 
         Self {
-            tmp0: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
-            tmp1: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
-            tmp2: [Complex32::new(0.0, 0.0); SYMBOL_LEN],
+            tmp0: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
+            tmp1: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
+            tmp2: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
             index_max: 0,
-            symbol_pos: SEARCH_POS,
+            symbol_pos: Self::SEARCH_POS,
             timing_max: 0.0,
             phase_max: 0.0,
             cfo_rad: 0.0,
-            frac_cfo: 0,
-            fft_bwd,fft_fwd,
+            frac_cfo: 0.0,
+            fft_bwd,
+            fft_fwd,
             kern,
             fft_scratch,
             cor: Sma4Complex32::new(),
             pwr: Sma4F32::new(),
             matc: Sma4F32::new(),
-            threshold: SchmittTrigger::new(0.17 * Self::MATCH_LEN as f32, 0.19 * Self::MATCH_LEN),
+            threshold: SchmittTrigger::new(0.17 * Self::MATCH_LEN as f32, 0.19 * Self::MATCH_LEN as f32),
             falling: FallingEdgeTrigger::new(),
             delay: Delay::new(),
         }
     }
 
     fn put(&mut self, samples: &[Complex32]) -> bool {
-        let p = self.cor.put(samples[SEARCH_POS + SYMBOL_LEN] * samples[SEARCH_POS + 2 * SYMBOL_LEN].conj());
-        let r = 0.5 * self.pwr.put(samples[SEARCH_POS + 2 * SYMBOL_LEN].norm());
-        let min_r = 0.0001 * SYMBOL_LEN as f32;
-        let r = std::cmp::max(r, min_r);
-        let timing = self.matc.put(p.norm() / (r * r));
-        let phase = self.delay(p.arg());
+        let p = self
+            .cor
+            .put(samples[Self::SEARCH_POS + Self::SYMBOL_LEN] * samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].conj());
+        let r = 0.5 * self.pwr.put(samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].norm_sqr());
+        let min_r = 0.0001 * Self::SYMBOL_LEN as f32;
+        let r = r.max(min_r);
+        let timing = self.matc.put(p.norm_sqr() / (r * r));
+        let phase = self.delay.put(p.arg());
 
         let collect = self.threshold.put(timing);
-        let process = self.falling(collect);
+        let process = self.falling.put(collect);
 
         if !collect && !process {
             return false;
@@ -128,7 +134,7 @@ impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> S
             self.timing_max = timing;
             self.phase_max = phase;
             self.index_max = Self::MATCH_DEL;
-        } else if {
+        } else if self.index_max < Self::SYMBOL_LEN + Self::GUARD_LEN + Self::MATCH_DEL {
             self.index_max += 1;
         }
 
@@ -136,30 +142,42 @@ impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> S
             return false;
         }
 
-        self.frac_cfo = self.phase_max / SYMBOL_LEN as f32;
+        self.frac_cfo = self.phase_max / Self::SYMBOL_LEN as f32;
         let mut osc = Phasor::new();
         osc.omega(self.frac_cfo);
-        let test_pos = SEARCH_POS - self.index_max;
+        let test_pos = Self::SEARCH_POS - self.index_max;
         self.index_max = 0;
         self.timing_max = 0.0;
-        for i in 0..SYMBOL_LEN {
-            self.tmp1[i] = samples[i + test_pos + SYMBOL_LEN] * osc.get();
+        for i in 0..Self::SYMBOL_LEN {
+            self.tmp1[i] = samples[i + test_pos + Self::SYMBOL_LEN] * osc.get();
         }
-        self.fft_fwd.process_outofplace_with_scratch(&mut self.tmp1, &mut self.tmp0, &mut fft_scratch);
-        for i in 0..SYMBOL_LEN {
-            self.tmp1 = Self::demod_or_erase(self.tmp0[i], self.tmp0[Self::bin(i - 1)]);
+        self.fft_fwd.process_outofplace_with_scratch(
+            &mut self.tmp1,
+            &mut self.tmp0,
+            &mut self.fft_scratch,
+        );
+        for i in 0..Self::SYMBOL_LEN {
+            self.tmp1[i] = Self::demod_or_erase(self.tmp0[i], self.tmp0[Self::bin(i as isize - 1)]);
         }
-        self.fft_fwd.process_outofplace_with_scratch(&mut self.tmp1, &mut self.tmp0, &mut fft_scratch);
-        for i in 0..SYMBOL_LEN {
-            self.tmp0[i] *= self.kern[i]; 
+        self.fft_fwd.process_outofplace_with_scratch(
+            &mut self.tmp1,
+            &mut self.tmp0,
+            &mut self.fft_scratch,
+        );
+        for i in 0..Self::SYMBOL_LEN {
+            self.tmp0[i] *= self.kern[i];
         }
-        self.fft_bwd.process_outofplace_with_scratch(&mut self.tmp0, &mut self.tmp2, &mut fft_scratch);
+        self.fft_bwd.process_outofplace_with_scratch(
+            &mut self.tmp0,
+            &mut self.tmp2,
+            &mut self.fft_scratch,
+        );
 
         let mut shift = 0;
         let mut peak = 0.0;
         let mut next = 0.0;
-        for i in 0..SYMBOL_LEN {
-            let power = self.tmp2[i].norm();
+        for i in 0..Self::SYMBOL_LEN {
+            let power = self.tmp2[i].norm_sqr();
             if power > peak {
                 next = peak;
                 peak = power;
@@ -172,13 +190,15 @@ impl<const SEARCH_POS: usize, const SYMBOL_LEN: usize, const GUARD_LEN: usize> S
             return false;
         }
 
-        let pos_err = (self.tmp2[shift].arg() * SYMBOL_LEN as f32 / std::f32::consts::TAU).round() as isize;
-        if pos_err.abs() > GUARD_LEN / 2 {
+        let pos_err =
+            (self.tmp2[shift].arg() * Self::SYMBOL_LEN as f32 / std::f32::consts::TAU).round() as isize;
+        if pos_err.abs() > Self::GUARD_LEN as isize / 2 {
             return false;
         }
-        self.symbol_pos = test_pos - pos_err;
-        
-        self.cfo_rad = shift * std::f32::consts::TAU / SYMBOL_LEN as f32 - self.frac_cfo;
+        assert!(test_pos as isize > pos_err);
+        self.symbol_pos = (test_pos as isize - pos_err) as usize;
+
+        self.cfo_rad = shift as f32 * std::f32::consts::TAU / Self::SYMBOL_LEN as f32 - self.frac_cfo;
         if self.cfo_rad >= std::f32::consts::PI {
             self.cfo_rad -= std::f32::consts::TAU;
         }
@@ -192,9 +212,7 @@ struct FallingEdgeTrigger {
 
 impl FallingEdgeTrigger {
     fn new() -> Self {
-        Self {
-            previous: false,
-        }
+        Self { previous: false }
     }
 
     fn put(&mut self, input: bool) -> bool {
@@ -215,7 +233,7 @@ impl SchmittTrigger {
         Self {
             low,
             high,
-            previous: false
+            previous: false,
         }
     }
 
@@ -241,18 +259,19 @@ struct Delay<const NUM: usize> {
 impl<const NUM: usize> Delay<NUM> {
     fn new() -> Self {
         Self {
-            buf: [0.0; NUM],pos: 0,
+            buf: [0.0; NUM],
+            pos: 0,
         }
     }
 
-    fn put(mut self, input: f32) -> f32 {
+    fn put(&mut self, input: f32) -> f32 {
         let tmp = self.buf[self.pos];
         self.buf[self.pos] = input;
         self.pos += 1;
         if self.pos >= NUM {
             self.pos = 0;
         }
-        tmp 
+        tmp
     }
 }
 
@@ -263,7 +282,7 @@ where
     swa: SwaF32<NUM>,
 }
 
-impl<const NUM: usize, const NORM:bool> Sma4F32<NUM, NORM>
+impl<const NUM: usize, const NORM: bool> Sma4F32<NUM, NORM>
 where
     [(); 2 * NUM]:,
 {
@@ -562,7 +581,7 @@ pub struct Decoder {
     block_dc: BlockDc,
     hilbert: Hilbert<{ Self::FILTER_LENGTH }>,
     buffer: BipBuffer<{ Self::EXTENDED_LENGTH }>,
-    correlator: SchmidlCox<Self::SEARCH_POSITION, Self::SYMBOL_LENGTH, Self::GUARD_LENGTH>,
+    correlator: SchmidlCox,
 }
 
 impl Decoder {
@@ -571,10 +590,10 @@ impl Decoder {
     const GUARD_LENGTH: usize = Self::SYMBOL_LENGTH / 8;
     const EXTENDED_LENGTH: usize = Self::SYMBOL_LENGTH + Self::GUARD_LENGTH;
     const FILTER_LENGTH: usize = (((33 * Self::RATE) / 8000) & !3) | 1;
-	const COR_SEQ_POLY: u64 = 0b10001001;
-	const COR_SEQ_LEN: usize = 127;
-	const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN;
-	const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
+    const COR_SEQ_POLY: u64 = 0b10001001;
+    const COR_SEQ_LEN: usize = 127;
+    const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN as isize;
+    const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
 
     fn nrz(bit: bool) -> Complex32 {
         if bit {
@@ -584,11 +603,12 @@ impl Decoder {
         }
     }
 
-    fn cor_seq() -> [Complex32; SYMBOL_LEN] {
-        let mut freq = [0.0; SYMBOL_LEN];
+    fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH] {
+        let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
-        for i in 0..Self::SYMBOL_LENGTH {
-            freq[(i + Self::COR_SEQ_OFF / 2 + Self::SYMBOL_LENGTH / 2) % (Self::SYMBOL_LENGTH / 2)] = Self::nrz(mls.next());
+        for i in 0..Self::SYMBOL_LENGTH as isize {
+            freq[(i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2) as usize
+                % (Self::SYMBOL_LENGTH / 2)] = Self::nrz(mls.next());
         }
         freq
     }
