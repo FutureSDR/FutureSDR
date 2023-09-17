@@ -54,13 +54,13 @@ struct SchmidlCox {
 
 impl SchmidlCox {
     const RATE: usize = 48000;
-    const SYMBOL_LEN: usize = (1280 * Self::RATE) / 8000;
-    const EXTENDED_LEN: usize = Self::SYMBOL_LEN + Self::GUARD_LEN;
-    const GUARD_LEN: usize = Self::SYMBOL_LEN / 8;
+    const SYMBOL_LEN: usize = (1280 * Self::RATE) / 8000 / 2;
+    const GUARD_LEN: usize = Self::SYMBOL_LEN / 8 * 2;
+    const EXTENDED_LEN: usize = Self::SYMBOL_LEN * 2 + Self::GUARD_LEN;
     const MATCH_LEN: usize = Self::GUARD_LEN | 1;
     const MATCH_DEL: usize = (Self::MATCH_LEN - 1) / 2;
     const SEARCH_POS: usize = Self::EXTENDED_LEN;
-    const BUFFER_LEN: usize = Self::EXTENDED_LEN * 4;
+    const BUFFER_LEN: usize = Self::EXTENDED_LEN * 4 ;
 
     fn bin(carrier: isize) -> usize {
         (carrier + Self::SYMBOL_LEN as isize) as usize % Self::SYMBOL_LEN
@@ -82,6 +82,13 @@ impl SchmidlCox {
         let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LEN);
         let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LEN);
 
+        println!("symbol len {}", Self::SYMBOL_LEN);
+        print!("cor seq ");
+        for i in 0..Self::SYMBOL_LEN {
+            print!("{}, ", sequence[i].re);
+        }
+        println!();
+
         let mut kern = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
         let mut fft_scratch = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
         fft_fwd.process_outofplace_with_scratch(&mut sequence, &mut kern, &mut fft_scratch);
@@ -89,6 +96,7 @@ impl SchmidlCox {
         for i in 0..Self::SYMBOL_LEN {
             kern[i] = kern[i].conj() / Self::SYMBOL_LEN as f32;
         }
+        println!("kern {:?}", &kern[0..10]);
 
         Self {
             tmp0: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
@@ -643,13 +651,15 @@ impl Decoder {
         }
     }
 
-    fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH] {
-        let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH];
+    fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH / 2] {
+        println!("symbol {} len {} offset {}", Self::SYMBOL_LENGTH, Self::COR_SEQ_LEN, Self::COR_SEQ_OFF);
+        let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH / 2];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
-        for i in 0..Self::SYMBOL_LENGTH as isize {
-            freq[(i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2)
-                as usize
-                % (Self::SYMBOL_LENGTH / 2)] = Self::nrz(mls.next());
+        for i in 0..Self::COR_SEQ_LEN as isize {
+            let index = (i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2) as usize % (Self::SYMBOL_LENGTH / 2);
+            let seq = mls.next();
+            println!("i {} index {} seq {}", i, index, seq as u8);
+            freq[index] = Self::nrz(seq);
         }
         freq
     }
