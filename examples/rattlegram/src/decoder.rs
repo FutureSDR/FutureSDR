@@ -3,7 +3,12 @@ use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
 
+use crate::util::FROZEN_2048_1056;
+use crate::util::FROZEN_2048_1392;
+use crate::util::FROZEN_2048_712;
+use crate::OperationMode;
 use crate::Mls;
+use crate::Xorshift32;
 
 struct Phasor {
     prev: Complex32,
@@ -627,14 +632,16 @@ pub struct Decoder {
     stored_position: usize,
     staged_position: usize,
     staged_mode: usize,
-    operation_mode: usize,
+    operation_mode: OperationMode,
     accumulated: usize,
     stored_cfo_rad: f32,
     staged_cfo_rad: f32,
     staged_call: usize,
     stored_check: bool,
     staged_check: bool,
+    polar: PolarDecoder,
     buf: [Complex32; Self::BUFFER_LENGTH],
+	code: [i8; Self::CODE_LEN];
 }
 
 impl Decoder {
@@ -649,6 +656,7 @@ impl Decoder {
     const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
     const SYMBOL_COUNT: usize = 4;
     const BUFFER_LENGTH: usize = Self::EXTENDED_LENGTH * 4;
+    const CODE_LEN: usize = 1 << 11;
 
     fn nrz(bit: bool) -> Complex32 {
         if bit {
@@ -671,6 +679,15 @@ impl Decoder {
         freq
     }
 
+    fn base37(str: &mut [u8], mut val: usize, len: usize) {
+        let mut i = len - 1;
+        while i >= 0 {
+			str[i] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val % 37];
+            i -= 1;
+            val /= 37;
+        }
+    }
+
     pub fn new() -> Self {
         let mut block_dc = BlockDc::new();
         block_dc.samples(Self::FILTER_LENGTH);
@@ -685,7 +702,7 @@ impl Decoder {
             stored_position: 0,
             staged_position: 0,
             staged_mode: 0,
-            operation_mode: 0,
+            operation_mode: OperationMode::Fail,
             accumulated: 0,
             stored_cfo_rad: 0.0,
             staged_cfo_rad: 0.0,
@@ -693,6 +710,8 @@ impl Decoder {
             stored_check: false,
             staged_check: false,
             buf: [Complex32::new(0.0, 0.0); Self::BUFFER_LENGTH],
+            polar: PolarDecoder::new(),
+            code: [0; Self::CODE_LEN];
         }
     }
 
@@ -740,5 +759,29 @@ impl Decoder {
 
     pub fn process(&mut self) -> DecoderResult {
         DecoderResult::Failed
+    }
+
+    pub fn staged(&self, cfo: &mut f32, mode: &mut usize, call: &mut [u8]) {
+        *cfo = self.staged_cfo_rad * (Self::RATE as f32 / std::f32::consts::TAU);
+        *mode = self.staged_mode;
+        Self::base37(call, self.staged_call, 9);
+    }
+
+    pub fn fetch(&self, payload: &mut [u8]) -> isize {
+        let (data_bits, frozen_bits) = match self.operation_mode {
+            OperationMode::Null => return -1,
+            OperationMode::Mode14 => (1360, FROZEN_2048_1392),
+            OperationMode::Mode15 => (1024, FROZEN_2048_1056),
+            OperationMode::Mode16 => (680, FROZEN_2048_712),
+        };
+        let result = self.polar.process(payload, code, frozen_bits, data_bits);
+        let mut scramber = Xorshift32::new();
+        for i in 0..data_bits/8 {
+			payload[i] ^= scrambler.next();
+        }
+        for i in data_bits/8..170 {
+            payload[i] = 0;
+        }
+        result
     }
 }

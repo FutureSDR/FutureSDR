@@ -11,28 +11,10 @@ use crate::util::FROZEN_2048_1392;
 use crate::util::FROZEN_2048_712;
 use crate::Bch;
 use crate::Mls;
+use crate::OperationMode;
 use crate::PolarEncoder;
 use crate::Psk;
 use crate::Xorshift32;
-
-#[derive(Clone, Copy)]
-enum OperationMode {
-    Null,
-    Mode14,
-    Mode15,
-    Mode16,
-}
-
-impl From<OperationMode> for u64 {
-    fn from(mode: OperationMode) -> Self {
-        match mode {
-            OperationMode::Null => 0,
-            OperationMode::Mode14 => 14,
-            OperationMode::Mode15 => 15,
-            OperationMode::Mode16 => 16,
-        }
-    }
-}
 
 pub struct Encoder {
     temp: [Complex32; Self::EXTENDED_LENGTH],

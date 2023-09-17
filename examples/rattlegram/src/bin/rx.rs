@@ -41,9 +41,9 @@ fn main() -> Result<()> {
 
         let status = decoder.process();
         let cfo = -1.0;
-        let mode = -1;
-        let call_sign = [0u8;192];
-        let payload = [0u8; 170];
+        let mode = 0;
+        let mut call_sign = [0u8;192];
+        let mut payload = [0u8; 170];
 
         match status {
             DecoderResult::Okay => {
@@ -61,7 +61,7 @@ fn main() -> Result<()> {
                 println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
             }
             DecoderResult::Done => {
-                let flips = decoder->fetch(payload);
+                let flips = decoder.fetch(&mut payload);
                 println!("Bit flips: {}", flips);
                 println!("DONE: {}", String::from_utf8_lossy(&payload));
             }
