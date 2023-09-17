@@ -35,7 +35,10 @@ fn main() -> Result<()> {
     samples.extend_from_slice(&vec![0.0; 22 * record_count]);
 
     for s in samples.chunks(record_count) {
-        decoder.feed(s)?;
+        if !decoder.feed(s) {
+            continue;
+        }
+
         match decoder.process() {
             DecoderResult::Failed => println!("failed"),
             _ => (),

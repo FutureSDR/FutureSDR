@@ -1,4 +1,3 @@
-use futuresdr::anyhow;
 use futuresdr::num_complex::Complex32;
 use rustfft::Fft;
 use rustfft::FftPlanner;
@@ -45,7 +44,7 @@ struct SchmidlCox {
     phase_max: f32,
     cfo_rad: f32,
     frac_cfo: f32,
-    cor: Sma4Complex32<{Self::SYMBOL_LEN}, false>,
+    cor: Sma4Complex32<{ Self::SYMBOL_LEN }, false>,
     pwr: Sma4F32<{ Self::SYMBOL_LEN * 2 }, false>,
     matc: Sma4F32<{ Self::MATCH_LEN }, false>,
     threshold: SchmittTrigger,
@@ -61,6 +60,7 @@ impl SchmidlCox {
     const MATCH_LEN: usize = Self::GUARD_LEN | 1;
     const MATCH_DEL: usize = (Self::MATCH_LEN - 1) / 2;
     const SEARCH_POS: usize = Self::EXTENDED_LEN;
+    const BUFFER_LEN: usize = Self::EXTENDED_LEN * 4;
 
     fn bin(carrier: isize) -> usize {
         (carrier + Self::SYMBOL_LEN as isize) as usize % Self::SYMBOL_LEN
@@ -107,17 +107,24 @@ impl SchmidlCox {
             cor: Sma4Complex32::new(),
             pwr: Sma4F32::new(),
             matc: Sma4F32::new(),
-            threshold: SchmittTrigger::new(0.17 * Self::MATCH_LEN as f32, 0.19 * Self::MATCH_LEN as f32),
+            threshold: SchmittTrigger::new(
+                0.17 * Self::MATCH_LEN as f32,
+                0.19 * Self::MATCH_LEN as f32,
+            ),
             falling: FallingEdgeTrigger::new(),
             delay: Delay::new(),
         }
     }
 
-    fn put(&mut self, samples: &[Complex32]) -> bool {
-        let p = self
-            .cor
-            .put(samples[Self::SEARCH_POS + Self::SYMBOL_LEN] * samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].conj());
-        let r = 0.5 * self.pwr.put(samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].norm_sqr());
+    fn put(&mut self, samples: [Complex32; Self::BUFFER_LEN]) -> bool {
+        let p = self.cor.put(
+            samples[Self::SEARCH_POS + Self::SYMBOL_LEN]
+                * samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].conj(),
+        );
+        let r = 0.5
+            * self
+                .pwr
+                .put(samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].norm_sqr());
         let min_r = 0.0001 * Self::SYMBOL_LEN as f32;
         let r = r.max(min_r);
         let timing = self.matc.put(p.norm_sqr() / (r * r));
@@ -190,15 +197,16 @@ impl SchmidlCox {
             return false;
         }
 
-        let pos_err =
-            (self.tmp2[shift].arg() * Self::SYMBOL_LEN as f32 / std::f32::consts::TAU).round() as isize;
+        let pos_err = (self.tmp2[shift].arg() * Self::SYMBOL_LEN as f32 / std::f32::consts::TAU)
+            .round() as isize;
         if pos_err.abs() > Self::GUARD_LEN as isize / 2 {
             return false;
         }
         assert!(test_pos as isize > pos_err);
         self.symbol_pos = (test_pos as isize - pos_err) as usize;
 
-        self.cfo_rad = shift as f32 * std::f32::consts::TAU / Self::SYMBOL_LEN as f32 - self.frac_cfo;
+        self.cfo_rad =
+            shift as f32 * std::f32::consts::TAU / Self::SYMBOL_LEN as f32 - self.frac_cfo;
         if self.cfo_rad >= std::f32::consts::PI {
             self.cfo_rad -= std::f32::consts::TAU;
         }
@@ -419,10 +427,13 @@ where
             pos1: NUM,
         }
     }
-    pub fn get(&self) -> Complex32 {
-        self.buf[std::cmp::min(self.pos0, self.pos1)]
+    pub fn get(&self) -> [Complex32; NUM] {
+        let index = std::cmp::min(self.pos0, self.pos1);
+        let mut buf = [Complex32::new(0.0, 0.0); NUM];
+        buf.copy_from_slice(&self.buf[index..index + NUM]);
+        buf
     }
-    pub fn put(&mut self, input: Complex32) -> Complex32 {
+    pub fn put(&mut self, input: Complex32) -> [Complex32; NUM] {
         self.buf[self.pos0] = input;
         self.buf[self.pos1] = input;
         self.pos0 += 1;
@@ -451,9 +462,9 @@ impl Kahan {
         }
     }
 
-    fn same(&self, input: f32) -> bool {
+    fn same(&mut self, input: f32) -> bool {
         let mut tmp = self.clone();
-        tmp.process(input);
+        self.process(input);
         &tmp == self
     }
 
@@ -476,7 +487,7 @@ pub struct Kaiser {
 
 impl Kaiser {
     fn i0(x: f32) -> f32 {
-        let sum = Kahan::new(1.0);
+        let mut sum = Kahan::new(1.0);
         let mut val = 1.0;
 
         for n in 1..35 {
@@ -493,11 +504,14 @@ impl Kaiser {
     }
 
     fn get(&self, n: usize, nn: usize) -> f32 {
-        Self::i0(
+        let a = Self::i0(
             std::f32::consts::PI
                 * self.a
-                * (1.0 - ((2 * n) as f32 / (nn - 1) as f32 - 1.0).powi(2)).powi(2),
-        ) / Self::i0(std::f32::consts::PI * self.a)
+                * (1.0 - ((2 * n) as f32 / (nn - 1) as f32 - 1.0).powi(2)).sqrt(),
+        );
+        let b = Self::i0(std::f32::consts::PI * self.a);
+        // println!("kaiser n {} N {} ret {}", n, nn, a / b);
+        a / b
     }
 }
 
@@ -526,6 +540,9 @@ where
                 / ((2 * i + 1) as f32 * std::f32::consts::PI);
         }
 
+        // println!("reco {}", reco);
+        // println!("imco {:?}", imco);
+
         Self { real, imco, reco }
     }
 
@@ -542,6 +559,7 @@ where
         }
         self.real[TAPS - 1] = input;
 
+        // println!("hilbert input {} output {}", input, Complex32::new(re, im));
         Complex32::new(re, im)
     }
 }
@@ -563,10 +581,16 @@ impl BlockDc {
         }
     }
 
-    pub fn process(&mut self, sample: f32) -> f32 {
-        let y0 = self.b * (sample - self.x1) + self.a * self.y1;
-        self.x1 = sample;
+    fn samples(&mut self, s: usize) {
+        self.a = (s - 1) as f32 / s as f32;
+        self.b = (1.0 + self.a) / 2.0;
+    }
+
+    pub fn process(&mut self, x0: f32) -> f32 {
+        let y0 = self.b * (x0 - self.x1) + self.a * self.y1;
+        self.x1 = x0;
         self.y1 = y0;
+        // println!("blockdc input {} output {}", x0, y0);
         y0
     }
 }
@@ -580,8 +604,22 @@ pub enum DecoderResult {
 pub struct Decoder {
     block_dc: BlockDc,
     hilbert: Hilbert<{ Self::FILTER_LENGTH }>,
-    buffer: BipBuffer<{ Self::EXTENDED_LENGTH }>,
+    buffer: BipBuffer<{ Self::BUFFER_LENGTH }>,
     correlator: SchmidlCox,
+
+    symbol_numer: usize,
+    symbol_position: usize,
+    stored_position: usize,
+    staged_position: usize,
+    staged_mode: usize,
+    operation_mode: usize,
+    accumulated: usize,
+    stored_cfo_rad: f32,
+    staged_cfo_rad: f32,
+    staged_call: usize,
+    stored_check: bool,
+    staged_check: bool,
+    buf: [Complex32; Self::BUFFER_LENGTH],
 }
 
 impl Decoder {
@@ -594,6 +632,8 @@ impl Decoder {
     const COR_SEQ_LEN: usize = 127;
     const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN as isize;
     const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
+    const SYMBOL_COUNT: usize = 4;
+    const BUFFER_LENGTH: usize = Self::EXTENDED_LENGTH * 4;
 
     fn nrz(bit: bool) -> Complex32 {
         if bit {
@@ -607,58 +647,79 @@ impl Decoder {
         let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
         for i in 0..Self::SYMBOL_LENGTH as isize {
-            freq[(i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2) as usize
+            freq[(i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2)
+                as usize
                 % (Self::SYMBOL_LENGTH / 2)] = Self::nrz(mls.next());
         }
         freq
     }
 
     pub fn new() -> Self {
+        let mut block_dc = BlockDc::new();
+        block_dc.samples(Self::FILTER_LENGTH);
+
         Self {
-            block_dc: BlockDc::new(),
+            block_dc,
             hilbert: Hilbert::new(),
             buffer: BipBuffer::new(),
             correlator: SchmidlCox::new(Self::cor_seq()),
+            symbol_numer: Self::SYMBOL_COUNT,
+            symbol_position: Self::SEARCH_POSITION + Self::EXTENDED_LENGTH,
+            stored_position: 0,
+            staged_position: 0,
+            staged_mode: 0,
+            operation_mode: 0,
+            accumulated: 0,
+            stored_cfo_rad: 0.0,
+            staged_cfo_rad: 0.0,
+            staged_call: 0,
+            stored_check: false,
+            staged_check: false,
+            buf: [Complex32::new(0.0, 0.0); Self::BUFFER_LENGTH],
         }
     }
 
-    pub fn feed(&mut self, samples: &[f32]) -> anyhow::Result<()> {
+    pub fn feed(&mut self, samples: &[f32]) -> bool {
+        static mut RUN: usize = 0;
+
         let sample_count = samples.len();
+        unsafe {
+            print!("sample count {}   run {} ", sample_count, RUN);
+            RUN += 1;
+        }
         assert!(sample_count <= Self::EXTENDED_LENGTH);
 
         for i in 0..sample_count {
-            let _c = self
-                .buffer
-                .put(self.hilbert.get(self.block_dc.process(samples[i])));
+            let b = self.buffer.put(self.hilbert.get(self.block_dc.process(samples[i])));
+            if i == 0 {
+                println!("  buffer {:?}", &b[0..2]);
+            }
+            let c = self.correlator.put(b);
+            if c {
+                self.stored_cfo_rad = self.correlator.cfo_rad;
+                self.stored_position = self.correlator.symbol_pos + self.accumulated;
+                self.stored_check = true;
+                println!("cfo {}, pos {}", self.stored_cfo_rad, self.stored_position);
+            }
+            self.accumulated += 1;
+            if self.accumulated == Self::EXTENDED_LENGTH {
+                self.buf = self.buffer.get();
+            }
         }
 
-        Ok(())
+        if self.accumulated >= Self::EXTENDED_LENGTH {
+            self.accumulated -= Self::EXTENDED_LENGTH;
+            if self.stored_check {
+                self.staged_cfo_rad = self.stored_cfo_rad;
+                self.staged_position = self.stored_position;
+                self.staged_check = true;
+                self.stored_check = false;
+            }
+            true
+        } else {
+            false
+        }
     }
-
-    // 	for (int i = 0; i < sample_count; ++i) {
-    // 		if (correlator(buffer(convert(audio_buffer, channel_select, i)))) {
-    // 			stored_cfo_rad = correlator.cfo_rad;
-    // 			stored_position = correlator.symbol_pos + accumulated;
-    // 			stored_check = true;
-    // 		}
-    // 		if (++accumulated == extended_length)
-    // 			buf = buffer();
-    // 	}
-    // 	if (accumulated >= extended_length) {
-    // 		accumulated -= extended_length;
-    // 		if (stored_check) {
-    // 			staged_cfo_rad = stored_cfo_rad;
-    // 			staged_position = stored_position;
-    // 			staged_check = true;
-    // 			stored_check = false;
-    // 		}
-    // 		return true;
-    // 	}
-    // 	return false;
-    // }
-    //
-    //
-    //
 
     pub fn process(&mut self) -> DecoderResult {
         DecoderResult::Failed
