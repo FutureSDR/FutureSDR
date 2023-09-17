@@ -604,6 +604,13 @@ impl BlockDc {
 }
 
 pub enum DecoderResult {
+    Okay,
+    Fail,
+    Sync,
+    Done,
+    Heap,
+    Nope,
+    Ping,
     Failed,
     Preamble,
     Payload,

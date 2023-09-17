@@ -39,11 +39,54 @@ fn main() -> Result<()> {
             continue;
         }
 
-        match decoder.process() {
-            DecoderResult::Failed => println!("failed"),
-            _ => (),
-        }
-    }
+        let status = decoder.process();
+        let cfo = -1.0;
+        let mode = -1;
+        let call_sign = [0u8;192];
+        let payload = [0u8; 170];
 
+        match status {
+            DecoderResult::Okay => {
+                break;
+            }
+            DecoderResult::Fail => {
+                println!("preamble fail");
+                break;
+            }
+            DecoderResult::Sync => {
+                decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                println!("SYNC:");
+                println!("  CFO: {}", cfo);
+                println!("  Mode: {}", mode);
+                println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+            }
+            DecoderResult::Done => {
+                let flips = decoder->fetch(payload);
+                println!("Bit flips: {}", flips);
+                println!("DONE: {}", String::from_utf8_lossy(&payload));
+            }
+            DecoderResult::Heap => {
+                println!("HEAP ERROR");
+            }
+            DecoderResult::Nope => {
+                decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                println!("NOPE:");
+                println!("  CFO: {}", cfo);
+                println!("  Mode: {}", mode);
+                println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+            }
+            DecoderResult::Ping => {
+                decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                println!("PING:");
+                println!("  CFO: {}", cfo);
+                println!("  Mode: {}", mode);
+                println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+            }
+            _ => {
+                panic!("wrong decoder result");
+
+            }
+        }
+	}
     Ok(())
 }
