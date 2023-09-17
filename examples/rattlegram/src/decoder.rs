@@ -10,6 +10,8 @@ use crate::OperationMode;
 use crate::Mls;
 use crate::Xorshift32;
 
+
+
 struct Phasor {
     prev: Complex32,
     delta: Complex32,
@@ -639,9 +641,9 @@ pub struct Decoder {
     staged_call: usize,
     stored_check: bool,
     staged_check: bool,
-    polar: PolarDecoder,
+    // polar: PolarDecoder,
     buf: [Complex32; Self::BUFFER_LENGTH],
-	code: [i8; Self::CODE_LEN];
+	code: [i8; Self::CODE_LEN],
 }
 
 impl Decoder {
@@ -702,7 +704,7 @@ impl Decoder {
             stored_position: 0,
             staged_position: 0,
             staged_mode: 0,
-            operation_mode: OperationMode::Fail,
+            operation_mode: OperationMode::Null,
             accumulated: 0,
             stored_cfo_rad: 0.0,
             staged_cfo_rad: 0.0,
@@ -710,8 +712,8 @@ impl Decoder {
             stored_check: false,
             staged_check: false,
             buf: [Complex32::new(0.0, 0.0); Self::BUFFER_LENGTH],
-            polar: PolarDecoder::new(),
-            code: [0; Self::CODE_LEN];
+            // polar: PolarDecoder::new(),
+            code: [0; Self::CODE_LEN],
         }
     }
 
@@ -758,7 +760,7 @@ impl Decoder {
     }
 
     pub fn process(&mut self) -> DecoderResult {
-        DecoderResult::Failed
+        DecoderResult::Okay
     }
 
     pub fn staged(&self, cfo: &mut f32, mode: &mut usize, call: &mut [u8]) {
@@ -774,10 +776,11 @@ impl Decoder {
             OperationMode::Mode15 => (1024, FROZEN_2048_1056),
             OperationMode::Mode16 => (680, FROZEN_2048_712),
         };
-        let result = self.polar.process(payload, code, frozen_bits, data_bits);
-        let mut scramber = Xorshift32::new();
+        // let result = self.polar.process(payload, code, frozen_bits, data_bits);
+        let result = 123;
+        let mut scrambler = Xorshift32::new();
         for i in 0..data_bits/8 {
-			payload[i] ^= scrambler.next();
+			payload[i] ^= scrambler.next() as u8;
         }
         for i in data_bits/8..170 {
             payload[i] = 0;

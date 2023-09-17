@@ -40,8 +40,8 @@ fn main() -> Result<()> {
         }
 
         let status = decoder.process();
-        let cfo = -1.0;
-        let mode = 0;
+        let mut cfo = -1.0;
+        let mut mode = 0;
         let mut call_sign = [0u8;192];
         let mut payload = [0u8; 170];
 
