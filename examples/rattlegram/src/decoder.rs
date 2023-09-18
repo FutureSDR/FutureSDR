@@ -735,6 +735,10 @@ pub struct Decoder {
     code: [i8; Self::CODE_LEN],
     osd: OrderedStatisticsDecoder,
     data: [u8; (Self::PRE_SEQ_LEN + 7) / 8],
+    cons: [Complex32; Self::PAY_CAR_CNT],
+    prev: [Complex32; Self::PAY_CAR_CNT],
+    index: [f32; Self::PAY_CAR_CNT],
+    phase: [f32; Self::PAY_CAR_CNT],
 }
 
 impl Decoder {
@@ -748,11 +752,14 @@ impl Decoder {
     const COR_SEQ_OFF: isize = 1 - Self::COR_SEQ_LEN as isize;
     const SEARCH_POSITION: usize = Self::EXTENDED_LENGTH;
     const SYMBOL_COUNT: usize = 4;
+    const MOD_BITS: usize = 2;
     const BUFFER_LENGTH: usize = Self::EXTENDED_LENGTH * 4;
     const CODE_LEN: usize = 1 << 11;
     const PRE_SEQ_LEN: usize = 255;
     const PRE_SEQ_OFF: isize = -(Self::PRE_SEQ_LEN as isize) / 2;
     const PRE_SEQ_POLY: u64 = 0b100101011;
+	const PAY_CAR_CNT: usize = 256;
+	const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
     const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::Algorithm {
         width: 16,
         poly: 0x2F15,
@@ -884,6 +891,10 @@ impl Decoder {
             code: [0; Self::CODE_LEN],
             osd: OrderedStatisticsDecoder::new(),
             data: [0; (Self::PRE_SEQ_LEN + 7) / 8],
+            cons: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
+            prev: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
+            index: [0.0; Self::PAY_CAR_CNT],
+            phase: [0.0; Self::PAY_CAR_CNT],
         }
     }
 
@@ -946,21 +957,26 @@ impl Decoder {
             }
         }
 
-        // if (symbol_number < symbol_count) {
-        // 	for (int i = 0; i < extended_length; ++i)
-        // 		temp[i] = buf[symbol_position + i] * osc();
-        // 	fwd(freq, temp);
-        // 	if (symbol_number >= 0) {
-        // 		for (int i = 0; i < pay_car_cnt; ++i)
-        // 			cons[i] = demod_or_erase(freq[bin(i + pay_car_off)], prev[i]);
-        // 		compensate();
-        // 		demap();
-        // 	}
-        // 	if (++symbol_number == symbol_count)
-        // 		status = STATUS_DONE;
-        // 	for (int i = 0; i < pay_car_cnt; ++i)
-        // 		prev[i] = freq[bin(i + pay_car_off)];
-        // }
+        if self.symbol_number < Self::SYMBOL_COUNT as isize {
+            for i in 0..Self::EXTENDED_LENGTH {
+                self.temp[i] = self.buf[self.symbol_position + i] * self.osc.get();
+            }
+            self.fft_fwd.process_outofplace_with_scratch(&mut self.temp[0..Self::SYMBOL_LENGTH], &mut self.freq, &mut self.fft_scratch);
+            if self.symbol_number >= 0 {
+                for i in 0..Self::PAY_CAR_CNT {
+                    self.cons[i] = Self::demod_or_erase(self.freq[Self::bin(i as isize + Self::PAY_CAR_OFF)], self.prev[i]);
+                }
+                self.compensate()
+                self.demap()
+            }
+            self.symbol_number += 1;
+            if self.symbol_number == Self::SYMBOL_COUNT as isize {
+                status = DecoderResult::Done;
+            }
+            for i in 0..Self::PAY_CAR_CNT {
+                self.prev[i] = self.freq[Self::bin(i as isize + Self::PAY_CAR_OFF)];
+            }
+        }
 
         status
     }
@@ -1053,4 +1069,42 @@ impl Decoder {
         }
         result
     }
+
+    fn compensate(&mut self) {
+        let mut count = 0;
+        for i in 0..Self::PAY_CAR_CNT {
+            let con = self.cons[i];
+            if con.re != 0.0 && con.im != 0.0 {
+                let mut tmp = [0i8; Self::MOD_BITS];
+                Self::mod_hard(&mut tmp, con);
+                self.index[count] = (i as isize + Self::PAY_CAR_OFF) as f32; 
+                self.phase[count] = (con * Self::mod_map(tmp).conj()).arg();
+                count += 1;
+            }
+        }
+
+
+
+
+		int count = 0;
+		for (int i = 0; i < pay_car_cnt; ++i) {
+			cmplx con = cons[i];
+			if (con.real() != 0 && con.imag() != 0) {
+				code_type tmp[mod_bits];
+				mod_hard(tmp, con);
+				index[count] = i + pay_car_off;
+				phase[count] = arg(con * conj(mod_map(tmp)));
+				++count;
+			}
+		}
+		tse.compute(index, phase, count);
+		for (int i = 0; i < pay_car_cnt; ++i)
+			cons[i] *= DSP::polar<float>(1, -tse(i + pay_car_off));
+
+    }
+
+    fn demap(&mut self) {
+
+    }
+
 }
