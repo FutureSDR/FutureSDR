@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OperationMode {
     Null,
     Mode14,
@@ -17,6 +17,16 @@ impl From<OperationMode> for u64 {
     }
 }
 
+impl From<u64> for OperationMode {
+    fn from(val: u64) -> Self {
+        match val {
+            14 => OperationMode::Mode14,
+            15 => OperationMode::Mode15,
+            16 => OperationMode::Mode16,
+            _  => OperationMode::Null,
+        }
+    }
+}
 
 pub fn get_be_bit(buf: &[u8], pos: usize) -> bool {
     (buf[pos / 8] >> (7 - pos % 8)) & 1 == 1

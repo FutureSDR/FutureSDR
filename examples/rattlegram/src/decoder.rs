@@ -3,12 +3,13 @@ use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
 
+use crate::get_be_bit;
 use crate::util::FROZEN_2048_1056;
 use crate::util::FROZEN_2048_1392;
 use crate::util::FROZEN_2048_712;
+use crate::Mls;
 use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
-use crate::Mls;
 use crate::Xorshift32;
 
 struct BoseChaudhuriHocquenghemGenerator;
@@ -33,12 +34,12 @@ impl BoseChaudhuriHocquenghemGenerator {
             m_degree -= 1;
             assert!(gen_poly_degree + m_degree <= Self::NP + 1);
             for i in (0..=gen_poly_degree).rev() {
-                if genpoly[Self::NP-i] == 0 {
+                if genpoly[Self::NP - i] == 0 {
                     continue;
                 }
-                genpoly[Self::NP-i] = (m & 1) as i8;
+                genpoly[Self::NP - i] = (m & 1) as i8;
                 for j in 1..=m_degree {
-                    genpoly[Self::NP-(i+j)] ^= ((m>>j)&1) as i8;
+                    genpoly[Self::NP - (i + j)] ^= ((m >> j) & 1) as i8;
                 }
             }
             gen_poly_degree += m_degree;
@@ -48,28 +49,28 @@ impl BoseChaudhuriHocquenghemGenerator {
         assert!(genpoly[Self::NP] != 0);
     }
 
-  fn matrix(genmat: &mut [i8], systematic: bool, minimal_polynomials: &[i64]) {
+    fn matrix(genmat: &mut [i8], systematic: bool, minimal_polynomials: &[i64]) {
         Self::poly(genmat, minimal_polynomials);
-        for i in Self::NP+1..Self::N {
+        for i in Self::NP + 1..Self::N {
             genmat[i] = 0;
         }
         for j in 1..Self::K {
             for i in 0..j {
-                genmat[Self::N*j+i] = 0;
+                genmat[Self::N * j + i] = 0;
             }
             for i in 0..=Self::NP {
-                genmat[(Self::N+1)*j+i] = genmat[i];
+                genmat[(Self::N + 1) * j + i] = genmat[i];
             }
-            for i in (j+Self::NP+1)..Self::N {
-                genmat[Self::N*j+i] = 0
+            for i in (j + Self::NP + 1)..Self::N {
+                genmat[Self::N * j + i] = 0
             }
         }
         if systematic {
             for k in (1..Self::K).rev() {
                 for j in 0..k {
-                    if genmat[Self::N*j+k] != 0 {
+                    if genmat[Self::N * j + k] != 0 {
                         for i in k..Self::N {
-                            genmat[Self::N*j+i] ^= genmat[Self::N*k+i];
+                            genmat[Self::N * j + i] ^= genmat[Self::N * k + i];
                         }
                     }
                 }
@@ -81,11 +82,12 @@ impl BoseChaudhuriHocquenghemGenerator {
 struct Bpsk;
 
 impl Bpsk {
-	fn quantize(precision: f32, mut value: f32) -> i8 {
+    fn quantize(precision: f32, mut value: f32) -> i8 {
         value *= 2.0 * precision;
+        value = value.round();
         value = value.max(-128.0).min(127.0);
         value as i8
-	}
+    }
 
     fn soft(b: &mut i8, c: Complex32, precision: f32) {
         *b = Self::quantize(precision, c.re);
@@ -147,7 +149,7 @@ impl SchmidlCox {
     const MATCH_LEN: usize = Self::GUARD_LEN | 1;
     const MATCH_DEL: usize = (Self::MATCH_LEN - 1) / 2;
     const SEARCH_POS: usize = Self::EXTENDED_LEN;
-    const BUFFER_LEN: usize = Self::EXTENDED_LEN * 4 ;
+    const BUFFER_LEN: usize = Self::EXTENDED_LEN * 4;
 
     fn bin(carrier: isize) -> usize {
         (carrier + Self::SYMBOL_LEN as isize) as usize % Self::SYMBOL_LEN
@@ -730,7 +732,7 @@ pub struct Decoder {
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
     soft: [i8; Self::PRE_SEQ_LEN],
     generator: [i8; 255 * 71],
-	code: [i8; Self::CODE_LEN],
+    code: [i8; Self::CODE_LEN],
     osd: OrderedStatisticsDecoder,
     data: [u8; (Self::PRE_SEQ_LEN + 7) / 8],
 }
@@ -748,9 +750,19 @@ impl Decoder {
     const SYMBOL_COUNT: usize = 4;
     const BUFFER_LENGTH: usize = Self::EXTENDED_LENGTH * 4;
     const CODE_LEN: usize = 1 << 11;
-	const PRE_SEQ_LEN: usize = 255;
-	const PRE_SEQ_OFF: isize = - (Self::PRE_SEQ_LEN as isize) / 2;
-	const PRE_SEQ_POLY: u64 = 0b100101011;
+    const PRE_SEQ_LEN: usize = 255;
+    const PRE_SEQ_OFF: isize = -(Self::PRE_SEQ_LEN as isize) / 2;
+    const PRE_SEQ_POLY: u64 = 0b100101011;
+    const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::Algorithm {
+        width: 16,
+        poly: 0x2F15,
+        init: 0x0000,
+        refin: true,
+        refout: true,
+        xorout: 0x0000,
+        check: 0x0000,
+        residue: 0x0000,
+    });
 
     fn nrz(bit: bool) -> Complex32 {
         if bit {
@@ -761,11 +773,18 @@ impl Decoder {
     }
 
     fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH / 2] {
-        println!("symbol {} len {} offset {}", Self::SYMBOL_LENGTH, Self::COR_SEQ_LEN, Self::COR_SEQ_OFF);
+        println!(
+            "symbol {} len {} offset {}",
+            Self::SYMBOL_LENGTH,
+            Self::COR_SEQ_LEN,
+            Self::COR_SEQ_OFF
+        );
         let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH / 2];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
         for i in 0..Self::COR_SEQ_LEN as isize {
-            let index = (i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2) as usize % (Self::SYMBOL_LENGTH / 2);
+            let index = (i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2)
+                as usize
+                % (Self::SYMBOL_LENGTH / 2);
             let seq = mls.next();
             println!("i {} index {} seq {}", i, index, seq as u8);
             freq[index] = Self::nrz(seq);
@@ -776,17 +795,17 @@ impl Decoder {
     fn base37(str: &mut [u8], mut val: usize, len: usize) {
         let mut i = len as isize - 1;
         while i >= 0 {
-			str[i as usize] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val % 37];
+            str[i as usize] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val % 37];
             i -= 1;
             val /= 37;
         }
     }
 
-	fn bin(carrier: isize) -> usize {
-		(carrier + Self::SYMBOL_LENGTH as isize) as usize % Self::SYMBOL_LENGTH
-	}
+    fn bin(carrier: isize) -> usize {
+        (carrier + Self::SYMBOL_LENGTH as isize) as usize % Self::SYMBOL_LENGTH
+    }
 
-	fn demod_or_erase(curr: Complex32, prev: Complex32) -> Complex32 {
+    fn demod_or_erase(curr: Complex32, prev: Complex32) -> Complex32 {
         if prev.norm_sqr() <= 0.0 {
             return Complex32::new(0.0, 0.0);
         }
@@ -795,7 +814,7 @@ impl Decoder {
             return Complex32::new(0.0, 0.0);
         }
         cons
-	}
+    }
 
     pub fn new() -> Self {
         let mut block_dc = BlockDc::new();
@@ -805,13 +824,36 @@ impl Decoder {
         let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LENGTH);
 
         let mut generator = [0; 255 * 71];
-		BoseChaudhuriHocquenghemGenerator::matrix(&mut generator, true, &[
-			0b100011101, 0b101110111, 0b111110011, 0b101101001,
-			0b110111101, 0b111100111, 0b100101011, 0b111010111,
-			0b000010011, 0b101100101, 0b110001011, 0b101100011,
-			0b100011011, 0b100111111, 0b110001101, 0b100101101,
-			0b101011111, 0b111111001, 0b111000011, 0b100111001,
-			0b110101001, 0b000011111, 0b110000111, 0b110110001]);
+        BoseChaudhuriHocquenghemGenerator::matrix(
+            &mut generator,
+            true,
+            &[
+                0b100011101,
+                0b101110111,
+                0b111110011,
+                0b101101001,
+                0b110111101,
+                0b111100111,
+                0b100101011,
+                0b111010111,
+                0b000010011,
+                0b101100101,
+                0b110001011,
+                0b101100011,
+                0b100011011,
+                0b100111111,
+                0b110001101,
+                0b100101101,
+                0b101011111,
+                0b111111001,
+                0b111000011,
+                0b100111001,
+                0b110101001,
+                0b000011111,
+                0b110000111,
+                0b110110001,
+            ],
+        );
 
         Self {
             block_dc,
@@ -856,7 +898,9 @@ impl Decoder {
         assert!(sample_count <= Self::EXTENDED_LENGTH);
 
         for i in 0..sample_count {
-            let b = self.buffer.put(self.hilbert.get(self.block_dc.process(samples[i])));
+            let b = self
+                .buffer
+                .put(self.hilbert.get(self.block_dc.process(samples[i])));
             if i == 0 {
                 println!("  buffer {:?}", &b[0..2]);
             }
@@ -902,34 +946,37 @@ impl Decoder {
             }
         }
 
-		// if (symbol_number < symbol_count) {
-		// 	for (int i = 0; i < extended_length; ++i)
-		// 		temp[i] = buf[symbol_position + i] * osc();
-		// 	fwd(freq, temp);
-		// 	if (symbol_number >= 0) {
-		// 		for (int i = 0; i < pay_car_cnt; ++i)
-		// 			cons[i] = demod_or_erase(freq[bin(i + pay_car_off)], prev[i]);
-		// 		compensate();
-		// 		demap();
-		// 	}
-		// 	if (++symbol_number == symbol_count)
-		// 		status = STATUS_DONE;
-		// 	for (int i = 0; i < pay_car_cnt; ++i)
-		// 		prev[i] = freq[bin(i + pay_car_off)];
-		// }
+        // if (symbol_number < symbol_count) {
+        // 	for (int i = 0; i < extended_length; ++i)
+        // 		temp[i] = buf[symbol_position + i] * osc();
+        // 	fwd(freq, temp);
+        // 	if (symbol_number >= 0) {
+        // 		for (int i = 0; i < pay_car_cnt; ++i)
+        // 			cons[i] = demod_or_erase(freq[bin(i + pay_car_off)], prev[i]);
+        // 		compensate();
+        // 		demap();
+        // 	}
+        // 	if (++symbol_number == symbol_count)
+        // 		status = STATUS_DONE;
+        // 	for (int i = 0; i < pay_car_cnt; ++i)
+        // 		prev[i] = freq[bin(i + pay_car_off)];
+        // }
 
-		status
+        status
     }
 
     fn preamble(&mut self) -> DecoderResult {
-
         let mut nco = Phasor::new();
         nco.omega(-self.staged_cfo_rad);
         for i in 0..Self::SYMBOL_LENGTH {
             self.temp[i] = self.buf[self.staged_position + i] * nco.get();
         }
 
-        self.fft_fwd.process_outofplace_with_scratch(&mut self.temp[0..Self::SYMBOL_LENGTH], &mut self.freq, &mut self.fft_scratch);
+        self.fft_fwd.process_outofplace_with_scratch(
+            &mut self.temp[0..Self::SYMBOL_LENGTH],
+            &mut self.freq,
+            &mut self.fft_scratch,
+        );
 
         let mut seq = Mls::new(Self::PRE_SEQ_POLY);
         for i in 00..Self::PRE_SEQ_LEN {
@@ -937,38 +984,49 @@ impl Decoder {
         }
 
         for i in 0..Self::PRE_SEQ_LEN {
-            Bpsk::soft(&mut self.soft[i], Self::demod_or_erase(self.freq[Self::bin(i as isize + Self::PRE_SEQ_OFF)], self.freq[Self::bin(i as isize - 1 + Self::PRE_SEQ_OFF)]), 32.0);
+            Bpsk::soft(
+                &mut self.soft[i],
+                Self::demod_or_erase(
+                    self.freq[Self::bin(i as isize + Self::PRE_SEQ_OFF)],
+                    self.freq[Self::bin(i as isize - 1 + Self::PRE_SEQ_OFF)],
+                ),
+                32.0,
+            );
         }
 
-        if !self.osd.process(&mut self.data, &self.soft, &self.generator) {
+        if !self
+            .osd
+            .process(&mut self.data, &self.soft, &self.generator)
+        {
             return DecoderResult::Fail;
         }
 
-        return DecoderResult::Okay;
+        let mut md = 0u64;
+        for i in 0..55 {
+            md |= if get_be_bit(&self.data, i) { 1 << i } else { 0 };
+        }
+        let mut cs = 0;
+        for i in 0..16 {
+            cs |= if get_be_bit(&self.data, i + 55) { 1 << i } else { 0 };
+        }
 
-		//
-		// if (!osd(data, soft, generator))
-		// 	return STATUS_FAIL;
-		// uint64_t md = 0;
-		// for (int i = 0; i < 55; ++i)
-		// 	md |= (uint64_t) CODE::get_be_bit(data, i) << i;
-		// uint16_t cs = 0;
-		// for (int i = 0; i < 16; ++i)
-		// 	cs |= (uint16_t) CODE::get_be_bit(data, i + 55) << i;
-		// crc.reset();
-		// if (crc(md << 9) != cs)
-		// 	return STATUS_FAIL;
-		// staged_mode = md & 255;
-		// staged_call = md >> 8;
-		// if (staged_mode && (staged_mode < 14 || staged_mode > 16))
-		// 	return STATUS_NOPE;
-		// if (staged_call == 0 || staged_call >= 129961739795077L) {
-		// 	staged_call = 0;
-		// 	return STATUS_NOPE;
-		// }
-		// if (!staged_mode)
-		// 	return STATUS_PING;
-		// return STATUS_OKAY;
+        if Self::CRC.checksum(&(md << 9).to_le_bytes()) != cs {
+            return DecoderResult::Fail;
+        }
+
+        self.staged_mode = (md & 0xff).into();
+        self.staged_call = (md >> 8) as usize;
+
+        if self.staged_mode == OperationMode::Null {
+            return DecoderResult::Nope;
+        }
+        if self.staged_call == 0 || self.staged_call >= 129961739795077 {
+            self.staged_call = 0;
+            return DecoderResult::Nope;
+        }
+
+        // Todo status PING
+        DecoderResult::Okay
     }
 
     pub fn staged(&self, cfo: &mut f32, mode: &mut OperationMode, call: &mut [u8]) {
@@ -987,10 +1045,10 @@ impl Decoder {
         // let result = self.polar.process(payload, code, frozen_bits, data_bits);
         let result = 123;
         let mut scrambler = Xorshift32::new();
-        for i in 0..data_bits/8 {
-			payload[i] ^= scrambler.next() as u8;
+        for i in 0..data_bits / 8 {
+            payload[i] ^= scrambler.next() as u8;
         }
-        for i in data_bits/8..170 {
+        for i in data_bits / 8..170 {
             payload[i] = 0;
         }
         result
