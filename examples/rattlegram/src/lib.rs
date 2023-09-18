@@ -14,6 +14,9 @@ pub use encoder::Encoder;
 mod mls;
 pub use mls::Mls;
 
+mod osd;
+pub use osd::OrderedStatisticsDecoder;
+
 mod polar;
 pub use polar::PolarEncoder;
 

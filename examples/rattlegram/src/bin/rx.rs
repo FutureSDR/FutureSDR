@@ -6,6 +6,7 @@ use std::path::Path;
 
 use rattlegram::Decoder;
 use rattlegram::DecoderResult;
+use rattlegram::OperationMode;
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -26,10 +27,6 @@ fn main() -> Result<()> {
     let mut decoder = Decoder::new();
 
     let rate = 48000;
-    let file_length = samples.len();
-    let symbol_length = (1280 * rate) / 8000;
-    let guard_length = symbol_length / 8;
-    let extended_length = symbol_length + guard_length;
     let record_count = rate / 50;
 
     samples.extend_from_slice(&vec![0.0; 22 * record_count]);
@@ -41,23 +38,21 @@ fn main() -> Result<()> {
 
         let status = decoder.process();
         let mut cfo = -1.0;
-        let mut mode = 0;
+        let mut mode = OperationMode::Null;
         let mut call_sign = [0u8;192];
         let mut payload = [0u8; 170];
 
         match status {
             DecoderResult::Okay => {
-                break;
             }
             DecoderResult::Fail => {
                 println!("preamble fail");
-                break;
             }
             DecoderResult::Sync => {
                 decoder.staged(&mut cfo, &mut mode, &mut call_sign);
                 println!("SYNC:");
                 println!("  CFO: {}", cfo);
-                println!("  Mode: {}", mode);
+                println!("  Mode: {:?}", mode);
                 println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
             }
             DecoderResult::Done => {
@@ -72,14 +67,14 @@ fn main() -> Result<()> {
                 decoder.staged(&mut cfo, &mut mode, &mut call_sign);
                 println!("NOPE:");
                 println!("  CFO: {}", cfo);
-                println!("  Mode: {}", mode);
+                println!("  Mode: {:?}", mode);
                 println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
             }
             DecoderResult::Ping => {
                 decoder.staged(&mut cfo, &mut mode, &mut call_sign);
                 println!("PING:");
                 println!("  CFO: {}", cfo);
-                println!("  Mode: {}", mode);
+                println!("  Mode: {:?}", mode);
                 println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
             }
             _ => {
