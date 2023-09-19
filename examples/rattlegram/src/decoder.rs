@@ -12,6 +12,58 @@ use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
 use crate::Xorshift32;
 
+struct TheilSenEstimator {
+    tmp: [f32; Self::SIZE],
+    xint: f32,
+    yint: f32,
+    slope: f32,
+}
+impl TheilSenEstimator {
+    const LEN_MAX: usize = 256;
+    const SIZE: usize = ((Self::LEN_MAX-1) * Self::LEN_MAX) / 2;
+
+    fn new() -> Self {
+        Self {
+            tmp: [0.0; Self::SIZE],
+            xint: 0.0,
+            yint: 0.0,
+            slope: 0.0,
+        }
+    }
+
+    fn compute(&mut self, x: &[f32], y: &[f32], len: usize) {
+        let mut count = 0;
+        let mut i = 0;
+        while count < Self::SIZE && i < len {
+            let mut j = i + 1;
+            while count < Self::SIZE && j < len {
+                if x[j] != x[i] {
+                    self.tmp[count] = (y[j] - y[i]) / (x[j] - x[i]);
+                    count += 1;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.slope = self.tmp[count/2];
+        count = 0;
+        let mut i = 0;
+        while count < Self::SIZE && i < len {
+            self.tmp[count] = y[i] - self.slope * x[i];
+            count += 1;
+            i += 1;
+        }
+        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.yint = self.tmp[count/2];
+        self.xint = - self.yint / self.slope;
+    }
+
+	fn get(&self, x: f32) -> f32 {
+		self.yint + self.slope * x
+	}
+}
+
 struct BoseChaudhuriHocquenghemGenerator;
 
 impl BoseChaudhuriHocquenghemGenerator {
@@ -725,7 +777,7 @@ pub struct Decoder {
     staged_check: bool,
     osc: Phasor,
     fft_fwd: Arc<dyn Fft<f32>>,
-    // polar: PolarDecoder,
+    polar: PolarDecoder,
     buf: [Complex32; Self::BUFFER_LENGTH],
     temp: [Complex32; Self::EXTENDED_LENGTH],
     freq: [Complex32; Self::SYMBOL_LENGTH],
@@ -888,7 +940,7 @@ impl Decoder {
             generator,
             osc: Phasor::new(),
             fft_fwd,
-            // polar: PolarDecoder::new(),
+            polar: PolarDecoder::new(),
             code: [0; Self::CODE_LEN],
             osd: OrderedStatisticsDecoder::new(),
             data: [0; (Self::PRE_SEQ_LEN + 7) / 8],
@@ -1060,8 +1112,7 @@ impl Decoder {
             OperationMode::Mode15 => (1024, FROZEN_2048_1056),
             OperationMode::Mode16 => (680, FROZEN_2048_712),
         };
-        // let result = self.polar.process(payload, code, frozen_bits, data_bits);
-        let result = 123;
+        let result = self.polar.process(payload, &self.code, frozen_bits, data_bits);
         let mut scrambler = Xorshift32::new();
         for i in 0..data_bits / 8 {
             payload[i] ^= scrambler.next() as u8;
@@ -1133,56 +1184,4 @@ impl Decoder {
 		b[0] = Self::quantize(precision, c.re);
 		b[1] = Self::quantize(precision, c.im);
     }
-}
-
-struct TheilSenEstimator {
-    tmp: [f32; Self::SIZE],
-    xint: f32,
-    yint: f32,
-    slope: f32,
-}
-impl TheilSenEstimator {
-    const LEN_MAX: usize = 256;
-    const SIZE: usize = ((Self::LEN_MAX-1) * Self::LEN_MAX) / 2;
-
-    fn new() -> Self {
-        Self {
-            tmp: [0.0; Self::SIZE],
-            xint: 0.0,
-            yint: 0.0,
-            slope: 0.0,
-        }
-    }
-
-    fn compute(&mut self, x: &[f32], y: &[f32], len: usize) {
-        let mut count = 0;
-        let mut i = 0;
-        while count < Self::SIZE && i < len {
-            let mut j = i + 1;
-            while count < Self::SIZE && j < len {
-                if x[j] != x[i] {
-                    self.tmp[count] = (y[j] - y[i]) / (x[j] - x[i]);
-                    count += 1;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.slope = self.tmp[count/2];
-        count = 0;
-        let mut i = 0;
-        while count < Self::SIZE && i < len {
-            self.tmp[count] = y[i] - self.slope * x[i];
-            count += 1;
-            i += 1;
-        }
-        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.yint = self.tmp[count/2];
-        self.xint = - self.yint / self.slope;
-    }
-
-	fn get(&self, x: f32) -> f32 {
-		self.yint + self.slope * x
-	}
 }

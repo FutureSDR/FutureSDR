@@ -37,6 +37,11 @@ pub fn set_be_bit(buf: &mut [u8], pos: usize, val: bool) {
     buf[pos / 8] = (!(1 << (7 - pos % 8)) & buf[pos / 8]) | (val << (7 - pos % 8));
 }
 
+pub fn set_le_bit(buf: &mut [u8], pos: usize, val: bool) {
+    let val = val as u8;
+	buf[pos/8] = (!(1<<(pos%8))&buf[pos/8])|(val<<(pos%8))
+}
+
 pub fn xor_be_bit(buf: &mut [u8], pos: usize, val: bool) {
     buf[pos / 8] ^= (val as u8) << (7 - pos % 8);
 }
