@@ -1100,7 +1100,38 @@ impl Decoder {
         std::f32::consts::FRAC_1_SQRT_2 * Complex32::new(b[0] as f32, b[1] as f32)
 	}
 
+    fn precision(&self) -> f32 {
+        let mut sp = 0.0;
+        let mut np = 0.0;
+        for i in 0..Self::PAY_CAR_CNT {
+            let mut tmp = [0i8; Self::MOD_BITS];
+            Self::mod_hard(&mut tmp, self.cons[i]);
+            let hard = Self::mod_map(&tmp);
+            let error = self.cons[i] - hard;
+            sp += hard.norm_sqr();
+            np += error.norm_sqr();
+        }
+        sp / np
+    }
+
     fn demap(&mut self) {
+        let pre = self.precision();
+        for i in 0..Self::PAY_CAR_CNT {
+            Self::mod_soft(&mut self.code[Self::MOD_BITS * (self.symbol_number as usize * Self::PAY_CAR_CNT + i)..], self.cons[i], pre)
+        }
+    }
+
+    fn quantize(precision: f32, mut value: f32) -> i8 {
+        let dist = 2.0 * std::f32::consts::FRAC_1_SQRT_2;
+        value *= dist * precision;
+        value = value.round();
+        value = value.max(-128.0).min(127.0);
+        value as i8
+    }
+
+	fn mod_soft(b: &mut [i8], c: Complex32, precision: f32) {
+		b[0] = Self::quantize(precision, c.re);
+		b[1] = Self::quantize(precision, c.im);
     }
 }
 
