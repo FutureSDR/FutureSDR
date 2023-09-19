@@ -11,6 +11,7 @@ use crate::Mls;
 use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
 use crate::Xorshift32;
+use crate::PolarDecoder;
 
 struct TheilSenEstimator {
     tmp: [f32; Self::SIZE],
@@ -1105,14 +1106,14 @@ impl Decoder {
         Self::base37(call, self.staged_call, 9);
     }
 
-    pub fn fetch(&self, payload: &mut [u8]) -> isize {
+    pub fn fetch(&mut self, payload: &mut [u8]) -> i32 {
         let (data_bits, frozen_bits) = match self.operation_mode {
             OperationMode::Null => return -1,
-            OperationMode::Mode14 => (1360, FROZEN_2048_1392),
-            OperationMode::Mode15 => (1024, FROZEN_2048_1056),
-            OperationMode::Mode16 => (680, FROZEN_2048_712),
+            OperationMode::Mode14 => (1360, &FROZEN_2048_1392),
+            OperationMode::Mode15 => (1024, &FROZEN_2048_1056),
+            OperationMode::Mode16 => (680, &FROZEN_2048_712),
         };
-        let result = self.polar.process(payload, &self.code, frozen_bits, data_bits);
+        let result = self.polar.decode(payload, &self.code, frozen_bits, data_bits);
         let mut scrambler = Xorshift32::new();
         for i in 0..data_bits / 8 {
             payload[i] ^= scrambler.next() as u8;
@@ -1185,3 +1186,5 @@ impl Decoder {
 		b[1] = Self::quantize(precision, c.im);
     }
 }
+
+

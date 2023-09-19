@@ -107,12 +107,11 @@ impl PolarSysEnc {
     }
 }
 
-type mesg_type = [i8; 16];
-type metric_type = i8;
+type MesgType = [i8; 16];
 
 pub struct PolarDecoder {
-    mesg: [mesg_type; Self::MAX_BITS],
-    mess: [mesg_type; Self::CODE_LEN],
+    mesg: [MesgType; Self::MAX_BITS],
+    mess: [MesgType; Self::CODE_LEN],
     decode: PolarListDecoder,
     crc: Crc32,
 }
@@ -132,7 +131,7 @@ impl PolarDecoder {
     }
 
     fn systematic(&mut self, frozen_bits: &[u32], crc_bits: usize) {
-        PolarEnc::encode(&self.mess, &self.mesg, frozen_bits, Self::CODE_ORDER);
+        PolarEnc::encode(&mut self.mess, &self.mesg, frozen_bits, Self::CODE_ORDER);
         let mut i = 0;
         let mut j = 0;
         while i < Self::CODE_LEN && j < crc_bits {
@@ -144,25 +143,25 @@ impl PolarDecoder {
         }
     }
 
-    fn decode(&mut self, message: &mut [u8], code: &[i8], frozen_bits: &[u32], data_bits: usize) -> i32 {
+    pub fn decode(&mut self, message: &mut [u8], code: &[i8], frozen_bits: &[u32], data_bits: usize) -> i32 {
         let crc_bits = data_bits + 32;
-        let mut metric = [0; 16];
-        self.decode.decode(&metric, &self.mesg, code, frozen_bits, Self::CODE_ORDER);
+        let mut metric = [0i8; 16];
+        self.decode.decode(&mut metric, &self.mesg, code, frozen_bits, Self::CODE_ORDER);
         self.systematic(frozen_bits, crc_bits);
         let mut order = [0; 16];
         for k in 0..16 {
             order[k] = k;
         }
-        order.sort_by(|a, b| metric[*a].cmp(&metric[*b]).unwrap());
+        order.sort_by(|a, b| metric[*a].cmp(&metric[*b]));
         
-        let best = -1;
+        let mut best = -1isize;
         for k in 0..16 {
             self.crc.reset();
             for i in 0..crc_bits {
                 self.crc.put(self.mesg[i][order[k]] < 0);
             }
             if self.crc.get() == 0 {
-                best = order[k];
+                best = order[k] as isize;
                 break;
             }
         }
@@ -179,7 +178,7 @@ impl PolarDecoder {
                 j += 1;
             }
             let received = code[j] < 0;
-            let decoded = self.mesg[i][best] < 0;
+            let decoded = self.mesg[i][best as usize] < 0;
             if received != decoded {
                 flips += 1;
             }
@@ -200,12 +199,12 @@ impl PolarEnc {
     fn get(bits: &[u32], idx: usize) -> bool {
 		((bits[idx/32] >> (idx%32)) & 1) != 0
     }
-    fn encode(codeword: &mut [mesg_type], message: &[mesg_type], fronzen: &[u32], usize: level) {
+    fn encode(codeword: &mut [MesgType], message: &[MesgType], frozen: &[u32], level: usize) {
         let length = 1 << level;
         let mut mi = 0;
         for i in (0..length).step_by(2) {
-            let msg0 = if get(frozen, i) { [1; 4] } else { let v = message[mi]; mi += 1; v };
-            let msg1 = if get(frozen, i+1) { [1; 4] } else { let v = message[mi]; mi += 1; v };
+            let msg0 = if Self::get(frozen, i) { [1; 16] } else { let v = message[mi]; mi += 1; v };
+            let msg1 = if Self::get(frozen, i+1) { [1; 16] } else { let v = message[mi]; mi += 1; v };
             let mut tmp = [0; 16];
             for k in 0..16 {
                 tmp[k] = msg0[k] * msg1[k];
@@ -236,33 +235,25 @@ struct PolarListDecoder {
 }
 
 impl PolarListDecoder {
-    const MAX_M: usize = 11;
+    // const MAX_M: usize = 11;
 
     fn new() -> Self {
         Self {}
     }
 
-    fn decode(metric: &mut [mesg_type], codeword: &[i8], frozen: &[u32], level: usize) {
+    fn decode(&mut self, _metric: &mut [i8], _message: &[MesgType], _codeword: &[i8], _frozen: &[u32], _level: usize) {
+        todo!()
     }
 }
 
 struct Crc32 {
+    poly: u32,
     crc: u32,
-    lut: [u32; 256],
 }
 
 impl Crc32 {
     fn new(poly: u32) -> Self {
-        let mut lut = [0; 256];
-        for j in 0..256u32 {
-            let mut tmp = j;
-            for _ in 0..8 {
-                tmp = Self::update(tmp, false, poly);
-            }
-            lut[j as usize] = tmp;
-        }
-
-        Self { crc: 0, lut }
+        Self { crc: 0, poly}
     }
 
     fn reset(&mut self) {
@@ -274,15 +265,11 @@ impl Crc32 {
         (prev >> 1) ^ ((tmp & 1) * poly)
     }
 
-    fn add_u8(&mut self, data: u8) -> u32 {
-        let tmp = self.crc ^ data as u32;
-        self.crc = (self.crc >> 8) ^ self.lut[(tmp & 255) as usize];
-        self.crc
-    }
     fn put(&mut self, data:bool) -> u32 {
-        self.crc = self.update(self.crc, data);
+        self.crc = Self::update(self.crc, data, self.poly);
         self.crc
     }
+
     fn get(&self) -> u32 {
         self.crc
     }

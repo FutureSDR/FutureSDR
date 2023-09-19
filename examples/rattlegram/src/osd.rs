@@ -11,7 +11,6 @@ pub struct OrderedStatisticsDecoder {
 impl OrderedStatisticsDecoder {
     const N: usize = 255;
     const K: usize = 71;
-    const O: usize = 2;
     const S: usize = 8;
     const W: usize = (Self::N + Self::S - 1) & !(Self::S - 1);
 
