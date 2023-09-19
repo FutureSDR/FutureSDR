@@ -739,6 +739,7 @@ pub struct Decoder {
     prev: [Complex32; Self::PAY_CAR_CNT],
     index: [f32; Self::PAY_CAR_CNT],
     phase: [f32; Self::PAY_CAR_CNT],
+    tse: TheilSenEstimator,
 }
 
 impl Decoder {
@@ -895,6 +896,7 @@ impl Decoder {
             prev: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
             index: [0.0; Self::PAY_CAR_CNT],
             phase: [0.0; Self::PAY_CAR_CNT],
+            tse: TheilSenEstimator::new(),
         }
     }
 
@@ -966,8 +968,8 @@ impl Decoder {
                 for i in 0..Self::PAY_CAR_CNT {
                     self.cons[i] = Self::demod_or_erase(self.freq[Self::bin(i as isize + Self::PAY_CAR_OFF)], self.prev[i]);
                 }
-                self.compensate()
-                self.demap()
+                self.compensate();
+                self.demap();
             }
             self.symbol_number += 1;
             if self.symbol_number == Self::SYMBOL_COUNT as isize {
@@ -1078,33 +1080,78 @@ impl Decoder {
                 let mut tmp = [0i8; Self::MOD_BITS];
                 Self::mod_hard(&mut tmp, con);
                 self.index[count] = (i as isize + Self::PAY_CAR_OFF) as f32; 
-                self.phase[count] = (con * Self::mod_map(tmp).conj()).arg();
+                self.phase[count] = (con * Self::mod_map(&tmp).conj()).arg();
                 count += 1;
             }
         }
 
-
-
-
-		int count = 0;
-		for (int i = 0; i < pay_car_cnt; ++i) {
-			cmplx con = cons[i];
-			if (con.real() != 0 && con.imag() != 0) {
-				code_type tmp[mod_bits];
-				mod_hard(tmp, con);
-				index[count] = i + pay_car_off;
-				phase[count] = arg(con * conj(mod_map(tmp)));
-				++count;
-			}
-		}
-		tse.compute(index, phase, count);
-		for (int i = 0; i < pay_car_cnt; ++i)
-			cons[i] *= DSP::polar<float>(1, -tse(i + pay_car_off));
-
+        self.tse.compute(&self.index, &self.phase, count);
+        for i in 0..Self::PAY_CAR_CNT {
+            self.cons[i] *= Complex32::from_polar(1.0, - self.tse.get((i as isize + Self::PAY_CAR_OFF) as f32));
+        }
     }
+
+    fn mod_hard(b: &mut [i8], c: Complex32) {
+		b[0] = if c.re < 0.0 { -1 } else { 1 };
+		b[1] = if c.im < 0.0 { -1 } else { 1 };
+    }
+
+    fn mod_map(b: &[i8]) -> Complex32 {
+        std::f32::consts::FRAC_1_SQRT_2 * Complex32::new(b[0] as f32, b[1] as f32)
+	}
 
     fn demap(&mut self) {
+    }
+}
 
+struct TheilSenEstimator {
+    tmp: [f32; Self::SIZE],
+    xint: f32,
+    yint: f32,
+    slope: f32,
+}
+impl TheilSenEstimator {
+    const LEN_MAX: usize = 256;
+    const SIZE: usize = ((Self::LEN_MAX-1) * Self::LEN_MAX) / 2;
+
+    fn new() -> Self {
+        Self {
+            tmp: [0.0; Self::SIZE],
+            xint: 0.0,
+            yint: 0.0,
+            slope: 0.0,
+        }
     }
 
+    fn compute(&mut self, x: &[f32], y: &[f32], len: usize) {
+        let mut count = 0;
+        let mut i = 0;
+        while count < Self::SIZE && i < len {
+            let mut j = i + 1;
+            while count < Self::SIZE && j < len {
+                if x[j] != x[i] {
+                    self.tmp[count] = (y[j] - y[i]) / (x[j] - x[i]);
+                    count += 1;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.slope = self.tmp[count/2];
+        count = 0;
+        let mut i = 0;
+        while count < Self::SIZE && i < len {
+            self.tmp[count] = y[i] - self.slope * x[i];
+            count += 1;
+            i += 1;
+        }
+        self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.yint = self.tmp[count/2];
+        self.xint = - self.yint / self.slope;
+    }
+
+	fn get(&self, x: f32) -> f32 {
+		self.yint + self.slope * x
+	}
 }
