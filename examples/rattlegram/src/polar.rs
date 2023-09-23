@@ -1,5 +1,34 @@
 use crate::{get_le_bit, set_le_bit};
 
+struct Crc32 {
+    poly: u32,
+    crc: u32,
+}
+
+impl Crc32 {
+    fn new(poly: u32) -> Self {
+        Self { crc: 0, poly}
+    }
+
+    fn reset(&mut self) {
+        self.crc = 0;
+    }
+
+    fn update(prev: u32, data: bool, poly: u32) -> u32 {
+        let tmp = prev ^ data as u32;
+        (prev >> 1) ^ ((tmp & 1) * poly)
+    }
+
+    fn put(&mut self, data:bool) -> u32 {
+        self.crc = Self::update(self.crc, data, self.poly);
+        self.crc
+    }
+
+    fn get(&self) -> u32 {
+        self.crc
+    }
+}
+
 pub struct PolarEncoder;
 
 impl PolarEncoder {
@@ -107,7 +136,10 @@ impl PolarSysEnc {
     }
 }
 
+type Type = [i8; 16];
 type MesgType = [i8; 16];
+type Path = i64;
+type Map = [u8; 16];
 
 pub struct PolarDecoder {
     mesg: [MesgType; Self::MAX_BITS],
@@ -145,8 +177,8 @@ impl PolarDecoder {
 
     pub fn decode(&mut self, message: &mut [u8], code: &[i8], frozen_bits: &[u32], data_bits: usize) -> i32 {
         let crc_bits = data_bits + 32;
-        let mut metric = [0i8; 16];
-        self.decode.decode(&mut metric, &self.mesg, code, frozen_bits, Self::CODE_ORDER);
+        let mut metric = [0i64; 16];
+        self.decode.decode(&mut metric, &mut self.mesg, code, frozen_bits, Self::CODE_ORDER);
         self.systematic(frozen_bits, crc_bits);
         let mut order = [0; 16];
         for k in 0..16 {
@@ -232,46 +264,133 @@ impl PolarEnc {
 }
 
 struct PolarListDecoder {
+    soft: [MesgType; 2 * Self::MAX_N],
+    hard: [MesgType; Self::MAX_N],
+    maps: [[u8; 16]; Self::MAX_N],
 }
 
 impl PolarListDecoder {
-    // const MAX_M: usize = 11;
+    const MAX_M: usize = 11;
+    const MAX_N: usize = 1 << Self::MAX_M;
 
     fn new() -> Self {
-        Self {}
+        Self {
+            soft: [[0; 16]; 2 * Self::MAX_N],
+            hard: [[0; 16]; Self::MAX_N],
+            maps: [[0; 16]; Self::MAX_N],
+        }
     }
 
-    fn decode(&mut self, _metric: &mut [i8], _message: &[MesgType], _codeword: &[i8], _frozen: &[u32], _level: usize) {
-        todo!()
+    fn decode(&mut self, metric: &mut [i64], message: &mut [MesgType], codeword: &[i8], frozen: &[u32], level: usize) {
+        assert!(level <= Self::MAX_M);
+        let mut count = 0;
+        metric[0] = 0;
+        for k in 1..16 {
+            metric[k] = 1000;
+        }
+        let length = 1 << level;
+        for i in 0..length {
+            self.soft[length + i] = [codeword[i]; 16];
+        }
+
+        assert_eq!(level, 11);
+		    PolarListTree::<11>::decode(metric, message, &self.maps, &count, &self.hard, &self.soft, frozen);
+
+        let mut acc = self.maps[count-1];
+        let mut i = count as isize -2;
+        while i >= 0 {
+            for k in 0..16 {
+                message[i as usize][k] = acc[message[i as usize][k] as usize] as i8;
+            }
+            for k in 0..16 {
+                acc[k] = acc[self.maps[i as usize][k] as usize];
+            }
+            i -= 1;
+        }
     }
 }
 
-struct Crc32 {
-    poly: u32,
-    crc: u32,
+struct PolarListNode<const M: usize>;
+
+impl<const M: usize> PolarListNode<M> {
+    const N: usize = 1 << M;
+
+    fn rate0(metric: &mut[Path], hard: &[Type], soft: &[Type]) -> Map {
+        hard.fill([1; 16]);
+        for i in 0..Self::N {
+            for k in 0..16 {
+                if soft[i+Self::N][k] < 0 {
+                    metric[k] -= soft[i+Self::N][k] as i64;
+                }
+            }
+        }
+        let mut map = [0u8; 16];
+        for k in 0..16u8 {
+            map[k as usize] = k; 
+        }
+        map
+    }
 }
 
-impl Crc32 {
-    fn new(poly: u32) -> Self {
-        Self { crc: 0, poly}
+impl PolarListNode<0> {
+    fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
+        hard[0] = [1i8; 16];
+        for k in 0..16 {
+            if soft[1][k] < 0 {
+                metric[k] -= soft[1][k] as i64;
+            }
+        }
+        let mut map = [0u8; 16];
+        for k in 0..16u8 {
+            map[k as usize] = k; 
+        }
+        map
     }
 
-    fn reset(&mut self) {
-        self.crc = 0;
+    fn rate1(metric: &mut [Path], message: &[Type], maps: &[Map], count: &mut i64, hard: &[Type], soft: &[Type]) -> Map {
+        let sft = soft[1];
+        let mut fork = [0i64; 2 * 16];
+        for k in 0..16 {
+            fork[k + 16] = metric[k];
+            fork[k] = metric[k];
+        }
+        for k in 0..16 {
+            if sft[k] < 0 {
+                fork[k] -= sft[k];
+            } else {
+                fork[k+16] += sft[k];
+            }
+        }
+        let mut perm = [0i64; 2*16];
+        for k in 0..2*16 {
+            perm[k] = k;
+        }
+        perm.sort_by(|a, b| fork[a] < fork[b]);
+        for k in 0..16 {
+            metric[k] = fork[perm[k]];
+        }
+        let mut map = [0u8; 16];
+        for k in 0..16u8 {
+            map[k as usize] = perm[k] % 16; 
+        }
+        let mut hrd = 0i64;
+        for k in 0..16 {
+            hrd[k] = if perm[k] < 16 { 1 } else { -1 };
+        }
+        message[*count] = hrd;
+        maps[*count] = map;
+        count += 1;
+        *hard = hrd;
+        map
     }
+}
 
-    fn update(prev: u32, data: bool, poly: u32) -> u32 {
-        let tmp = prev ^ data as u32;
-        (prev >> 1) ^ ((tmp & 1) * poly)
-    }
 
-    fn put(&mut self, data:bool) -> u32 {
-        self.crc = Self::update(self.crc, data, self.poly);
-        self.crc
-    }
+struct PolarListTree<const N: usize> {
 
-    fn get(&self) -> u32 {
-        self.crc
-    }
+}
+
+impl<const N: usize> PolarListTree<N> {
+
 }
 
