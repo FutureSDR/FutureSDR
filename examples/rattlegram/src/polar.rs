@@ -1,5 +1,9 @@
 use crate::{get_le_bit, set_le_bit};
 
+struct Assert<const V: bool>;
+trait True {}
+impl True for Assert<true> {}
+
 struct Crc32 {
     poly: u32,
     crc: u32,
@@ -312,7 +316,9 @@ impl PolarListDecoder {
 
 struct PolarListNode<const M: usize>;
 
-impl<const M: usize> PolarListNode<M> {
+impl<const M: usize> PolarListNode<M> 
+    where Assert<{M > 0}>: True
+{
     const N: usize = 1 << M;
 
     fn rate0(metric: &mut[Path], hard: &[Type], soft: &[Type]) -> Map {
@@ -347,7 +353,7 @@ impl PolarListNode<0> {
         map
     }
 
-    fn rate1(metric: &mut [Path], message: &[Type], maps: &[Map], count: &mut i64, hard: &[Type], soft: &[Type]) -> Map {
+    fn rate1(metric: &mut [Path], message: &mut [Type], maps: &[Map], count: &mut usize, hard: &mut Type, soft: &[Type]) -> Map {
         let sft = soft[1];
         let mut fork = [0i64; 2 * 16];
         for k in 0..16 {
@@ -356,30 +362,30 @@ impl PolarListNode<0> {
         }
         for k in 0..16 {
             if sft[k] < 0 {
-                fork[k] -= sft[k];
+                fork[k] -= sft[k] as i64;
             } else {
-                fork[k+16] += sft[k];
+                fork[k+16] += sft[k] as i64;
             }
         }
-        let mut perm = [0i64; 2*16];
+        let mut perm = [0usize; 2*16];
         for k in 0..2*16 {
             perm[k] = k;
         }
-        perm.sort_by(|a, b| fork[a] < fork[b]);
+        perm.sort_by(|a, b| fork[*a].cmp(&fork[*b]));
         for k in 0..16 {
             metric[k] = fork[perm[k]];
         }
         let mut map = [0u8; 16];
-        for k in 0..16u8 {
-            map[k as usize] = perm[k] % 16; 
+        for k in 0..16usize {
+            map[k] = (perm[k] % 16) as u8; 
         }
-        let mut hrd = 0i64;
+        let mut hrd = [0i8; 16];
         for k in 0..16 {
             hrd[k] = if perm[k] < 16 { 1 } else { -1 };
         }
         message[*count] = hrd;
         maps[*count] = map;
-        count += 1;
+        *count += 1;
         *hard = hrd;
         map
     }
