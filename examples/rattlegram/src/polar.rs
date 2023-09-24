@@ -298,7 +298,7 @@ impl PolarListDecoder {
         }
 
         assert_eq!(level, 11);
-		    PolarListTree::<11>::decode(metric, message, &self.maps, &count, &self.hard, &self.soft, frozen);
+		    PolarListTree::<11>::decode(metric, message, &self.maps, &mut count, &mut self.hard, &mut self.soft, frozen);
 
         let mut acc = self.maps[count-1];
         let mut i = count as isize -2;
@@ -391,12 +391,160 @@ impl PolarListNode<0> {
     }
 }
 
-
-struct PolarListTree<const N: usize> {
-
+fn vmin(mut a: Type, b: Type) -> Type {
+    for i in 0..16 {
+        if b[i] < a[i] {
+            a[i] = b[i];
+        }
+    }
+    a
 }
 
-impl<const N: usize> PolarListTree<N> {
-
+fn vmax(mut a: Type, b: Type) -> Type {
+    for i in 0..16 {
+        if b[i] > a[i] {
+            a[i] = b[i];
+        }
+    }
+    a
 }
 
+fn vqabs(mut a: Type) -> Type {
+    for i in 0..16 {
+        a[i] = a[i].saturating_abs();
+    }
+    a
+}
+
+fn vsignum(mut a: Type) -> Type {
+    for i in 0..16 {
+        a[i] = if a[i] > 0 { 1 } else if a[i] == 0 { 0 } else { -1 };
+    }
+    a
+}
+
+fn vsign(mut a: Type, b: Type) -> Type {
+    for i in 0..16 {
+        a[i] = if b[i] > 0 { a[i] } else if b[i] == 0 { 0 } else { -1 * std::cmp::max(a[i], - std::i8::MAX) };
+    }
+    a
+}
+
+fn prod(mut a: Type, b: Type) -> Type {
+		vsign(vmin(vqabs(a), vqabs(b)), vsign(vsignum(a), b))
+}
+
+fn vshuf(mut a: Type, b: Map) -> Type {
+    for i in 0..16 {
+        a[i] = if b[i] < 16 { a[b[i] as usize] } else { 0 };
+    }
+    a
+}
+
+fn vqadd(mut a: Type, b: Type) -> Type {
+    for i in 0..16 {
+        a[i] = a[i].saturating_add(b[i]);
+    }
+    a
+}
+fn qmul(mut a: Type, b: Type) -> Type {
+    for i in 0..16 {
+        a[i] = a[i].saturating_mul(b[i]);
+    }
+    a
+}
+
+fn madd(a: Type, b: Type, c: Type) -> Type {
+		vqadd(vsign(vmax(b, [-127; 16]), a), c)
+}
+
+fn to_map(mut a: Type) -> Map {
+    let mut tmp = [0u8; 16];
+    for i in 0..16 {
+        assert!(a[i] > 0);
+        tmp[i] = a[i] as u8;
+    }
+    tmp
+}
+
+fn to_type(mut a: Map) -> Type {
+    let mut tmp = [0i8; 16];
+    for i in 0..16 {
+        assert!(a[i] <= std::i8::MAX as u8);
+        tmp[i] = a[i] as i8;
+    }
+    tmp
+}
+
+struct PolarListTree<const M: usize>;
+
+impl<const M: usize> PolarListTree<M> 
+    where Assert<{M > 6}>: True,
+        [(); M-1]:
+{
+    const N: usize = 1 << M;
+
+    fn decode(metric: &mut [Path], message: &mut [Type], maps: &[Map], count: &mut usize, hard: &mut [Type], soft: &mut [Type], frozen: &[u32]) -> Map {
+        for i in 0..Self::N/2 {
+            soft[i+Self::N/2] = prod(soft[i+Self::N], soft[i+Self::N/2+Self::N]);
+        }
+        let lmap = PolarListTree::<{M-1}>::decode(metric, message, maps, count, hard, soft, frozen);
+        for i in 0..Self::N/2 {
+            soft[i+Self::N/2] = madd(hard[i], vshuf(soft[i+Self::N], lmap), vshuf(soft[i+Self::N/2+Self::N], lmap));
+        }
+        let rmap = PolarListTree::<{M-1}>::decode(metric, message, maps, count, &mut hard[Self::N/2..], soft, &frozen[Self::N/2/32..]);
+        for i in 0..Self::N/2 {
+            hard[i] = qmul(vshuf(hard[i], rmap), hard[i+Self::N/2]);
+        }
+        to_map(vshuf(to_type(lmap), rmap))
+    }
+}
+
+impl PolarListTree<2> {
+    const M: usize = 2;
+    const N: usize = 1 << Self::M;
+
+    fn decode(metric: &mut [Path], message: &mut [Type], maps: &[Map], count: &mut usize, hard: &mut [Type], soft: &mut [Type], frozen: &[u32]) -> Map {
+    }
+}
+
+	// static MAP decode(PATH *metric, TYPE *message, MAP *maps, int *count, TYPE *hard, TYPE *soft, uint32_t frozen)
+	// {
+	// 	for (int i = 0; i < N/2; ++i)
+	// 		soft[i+N/2] = PH::prod(soft[i+N], soft[i+N/2+N]);
+	// 	MAP lmap, rmap;
+	// 	if ((frozen & ((1<<(1<<(M-1)))-1)) == ((1<<(1<<(M-1)))-1))
+	// 		lmap = PolarListNode<TYPE, M-1>::rate0(metric, hard, soft);
+	// 	else
+	// 		lmap = PolarListTree<TYPE, M-1>::decode(metric, message, maps, count, hard, soft, frozen & ((1<<(1<<(M-1)))-1));
+	// 	for (int i = 0; i < N/2; ++i)
+	// 		soft[i+N/2] = PH::madd(hard[i], vshuf(soft[i+N], lmap), vshuf(soft[i+N/2+N], lmap));
+	// 	if (frozen >> (N/2) == ((1<<(1<<(M-1)))-1))
+	// 		rmap = PolarListNode<TYPE, M-1>::rate0(metric, hard+N/2, soft);
+	// 	else
+	// 		rmap = PolarListTree<TYPE, M-1>::decode(metric, message, maps, count, hard+N/2, soft, frozen >> (N/2));
+	// 	for (int i = 0; i < N/2; ++i)
+	// 		hard[i] = PH::qmul(vshuf(hard[i], rmap), hard[i+N/2]);
+	// 	return vshuf(lmap, rmap);
+	// }
+
+impl PolarListTree<1> {
+    fn decode(metric: &mut [Path], message: &mut [Type], maps: &[Map], count: &mut usize, hard: &mut [Type], soft: &mut [Type], frozen: &[u32]) -> Map {
+        soft[1] = prod(soft[2], soft[3]);
+        let mut lmap = [0u8; 16];
+        let mut rmap = [0u8; 16];
+        if (frozen[0] & 1) == 1 {
+            lmap = PolarListNode::<0>::rate0(metric, hard, soft);
+        } else {
+            lmap = PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[0], soft);
+        }
+        soft[1] = madd(hard[0], vshuf(soft[2], lmap), vshuf(soft[3], lmap));
+        if (frozen[0] >> 1) != 0 {
+            rmap = PolarListNode::<0>::rate0(metric, &mut hard[1..], soft);
+        } else {
+            rmap = PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[1], soft);
+        }
+        hard[0] = qmul(vshuf(hard[0], rmap), hard[1]);
+        to_map(vshuf(to_type(lmap), rmap))
+    }
+}
