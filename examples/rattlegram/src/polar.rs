@@ -140,10 +140,11 @@ impl PolarSysEnc {
     }
 }
 
-type Type = [i8; 16];
-type MesgType = [i8; 16];
+const LEN : usize = 32;
+type Type = [i8; LEN];
+type MesgType = [i8; LEN];
 type Path = i64;
-type Map = [u8; 16];
+type Map = [u8; LEN];
 
 pub struct PolarDecoder {
     mesg: [MesgType; Self::MAX_BITS],
@@ -159,8 +160,8 @@ impl PolarDecoder {
 
     pub fn new() -> Self {
         Self {
-            mesg: [[1; 16]; Self::MAX_BITS],
-            mess: [[1; 16]; Self::CODE_LEN],
+            mesg: [[1; LEN]; Self::MAX_BITS],
+            mess: [[1; LEN]; Self::CODE_LEN],
             decode: PolarListDecoder::new(),
             crc: Crc32::new(0x8F6E37A0),
         }
@@ -187,7 +188,7 @@ impl PolarDecoder {
         data_bits: usize,
     ) -> i32 {
         let crc_bits = data_bits + 32;
-        let mut metric = [0i64; 16];
+        let mut metric = [0i64; LEN];
         self.decode.decode(
             &mut metric,
             &mut self.mesg,
@@ -196,14 +197,14 @@ impl PolarDecoder {
             Self::CODE_ORDER,
         );
         self.systematic(frozen_bits, crc_bits);
-        let mut order = [0; 16];
-        for k in 0..16 {
+        let mut order = [0; LEN];
+        for k in 0..LEN {
             order[k] = k;
         }
         order.sort_by(|a, b| metric[*a].cmp(&metric[*b]));
 
         let mut best = -1isize;
-        for k in 0..16 {
+        for k in 0..LEN {
             self.crc.reset();
             for i in 0..crc_bits {
                 self.crc.put(self.mesg[i][order[k]] < 0);
@@ -251,21 +252,21 @@ impl PolarEnc {
         let mut mi = 0;
         for i in (0..length).step_by(2) {
             let msg0 = if Self::get(frozen, i) {
-                [1; 16]
+                [1; LEN]
             } else {
                 let v = message[mi];
                 mi += 1;
                 v
             };
             let msg1 = if Self::get(frozen, i + 1) {
-                [1; 16]
+                [1; LEN]
             } else {
                 let v = message[mi];
                 mi += 1;
                 v
             };
-            let mut tmp = [0; 16];
-            for k in 0..16 {
+            let mut tmp = [0; LEN];
+            for k in 0..LEN {
                 tmp[k] = msg0[k] * msg1[k];
             }
             codeword[i] = tmp;
@@ -277,8 +278,8 @@ impl PolarEnc {
             let mut i = 0;
             while i < length {
                 for j in i..(i + h) {
-                    let mut tmp = [0; 16];
-                    for k in 0..16 {
+                    let mut tmp = [0; LEN];
+                    for k in 0..LEN {
                         tmp[k] = codeword[j][k] * codeword[j + h][k];
                     }
                     codeword[j] = tmp;
@@ -293,7 +294,7 @@ impl PolarEnc {
 struct PolarListDecoder {
     soft: [MesgType; 2 * Self::MAX_N],
     hard: [MesgType; Self::MAX_N],
-    maps: [[u8; 16]; Self::MAX_N],
+    maps: [[u8; LEN]; Self::MAX_N],
 }
 
 impl PolarListDecoder {
@@ -302,9 +303,9 @@ impl PolarListDecoder {
 
     fn new() -> Self {
         Self {
-            soft: [[0; 16]; 2 * Self::MAX_N],
-            hard: [[0; 16]; Self::MAX_N],
-            maps: [[0; 16]; Self::MAX_N],
+            soft: [[0; LEN]; 2 * Self::MAX_N],
+            hard: [[0; LEN]; Self::MAX_N],
+            maps: [[0; LEN]; Self::MAX_N],
         }
     }
 
@@ -319,12 +320,12 @@ impl PolarListDecoder {
         assert!(level <= Self::MAX_M);
         let mut count = 0;
         metric[0] = 0;
-        for k in 1..16 {
+        for k in 1..LEN {
             metric[k] = 1000;
         }
         let length = 1 << level;
         for i in 0..length {
-            self.soft[length + i] = [codeword[i]; 16];
+            self.soft[length + i] = [codeword[i]; LEN];
         }
 
         assert_eq!(level, 11);
@@ -340,8 +341,6 @@ impl PolarListDecoder {
         );
 
         let mut acc = self.maps[count - 1];
-        println!("count {}", count);
-        println!("message {:?}", &message);
         let mut i = count as isize - 2;
         while i >= 0 {
             message[i as usize] = vshuf(message[i as usize], acc);
@@ -360,16 +359,16 @@ where
     const N: usize = 1 << M;
 
     fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
-        hard[0] = [1; 16];
+        hard[0] = [1; LEN];
         for i in 0..Self::N {
-            for k in 0..16 {
+            for k in 0..LEN {
                 if soft[i + Self::N][k] < 0 {
                     metric[k] -= soft[i + Self::N][k] as i64;
                 }
             }
         }
-        let mut map = [0u8; 16];
-        for k in 0..16u8 {
+        let mut map = [0u8; LEN];
+        for k in 0..LEN as u8 {
             map[k as usize] = k;
         }
         map
@@ -378,14 +377,14 @@ where
 
 impl PolarListNode<0> {
     fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
-        hard[0] = [1i8; 16];
-        for k in 0..16 {
+        hard[0] = [1i8; LEN];
+        for k in 0..LEN {
             if soft[1][k] < 0 {
                 metric[k] -= soft[1][k] as i64;
             }
         }
-        let mut map = [0u8; 16];
-        for k in 0..16u8 {
+        let mut map = [0u8; LEN];
+        for k in 0..LEN as u8 {
             map[k as usize] = k;
         }
         map
@@ -400,33 +399,33 @@ impl PolarListNode<0> {
         soft: &[Type],
     ) -> Map {
         let sft = soft[1];
-        let mut fork = [0i64; 2 * 16];
-        for k in 0..16 {
-            fork[k + 16] = metric[k];
+        let mut fork = [0i64; 2 * LEN];
+        for k in 0..LEN {
+            fork[k + LEN] = metric[k];
             fork[k] = metric[k];
         }
-        for k in 0..16 {
+        for k in 0..LEN {
             if sft[k] < 0 {
                 fork[k] -= sft[k] as i64;
             } else {
-                fork[k + 16] += sft[k] as i64;
+                fork[k + LEN] += sft[k] as i64;
             }
         }
-        let mut perm = [0usize; 2 * 16];
-        for k in 0..2 * 16 {
+        let mut perm = [0usize; 2 * LEN];
+        for k in 0..2 * LEN {
             perm[k] = k;
         }
         perm.sort_by(|a, b| fork[*a].cmp(&fork[*b]));
-        for k in 0..16 {
+        for k in 0..LEN {
             metric[k] = fork[perm[k]];
         }
-        let mut map = [0u8; 16];
-        for k in 0..16usize {
-            map[k] = (perm[k] % 16) as u8;
+        let mut map = [0u8; LEN];
+        for k in 0..LEN {
+            map[k] = (perm[k] % LEN) as u8;
         }
-        let mut hrd = [0i8; 16];
-        for k in 0..16 {
-            hrd[k] = if perm[k] < 16 { 1 } else { -1 };
+        let mut hrd = [0i8; LEN];
+        for k in 0..LEN {
+            hrd[k] = if perm[k] < LEN { 1 } else { -1 };
         }
         message[*count] = hrd;
         maps[*count] = map;
@@ -437,7 +436,7 @@ impl PolarListNode<0> {
 }
 
 fn vmin(mut a: Type, b: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         if b[i] < a[i] {
             a[i] = b[i];
         }
@@ -446,7 +445,7 @@ fn vmin(mut a: Type, b: Type) -> Type {
 }
 
 fn vmax(mut a: Type, b: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         if b[i] > a[i] {
             a[i] = b[i];
         }
@@ -455,14 +454,14 @@ fn vmax(mut a: Type, b: Type) -> Type {
 }
 
 fn vqabs(mut a: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         a[i] = a[i].saturating_abs();
     }
     a
 }
 
 fn vsignum(mut a: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         a[i] = if a[i] > 0 {
             1
         } else if a[i] == 0 {
@@ -475,7 +474,7 @@ fn vsignum(mut a: Type) -> Type {
 }
 
 fn vsign(mut a: Type, b: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         a[i] = if b[i] > 0 {
             a[i]
         } else if b[i] == 0 {
@@ -492,32 +491,32 @@ fn prod(a: Type, b: Type) -> Type {
 }
 
 fn vshuf(mut a: Type, b: Map) -> Type {
-    for i in 0..16 {
-        a[i] = if b[i] < 16 { a[b[i] as usize] } else { 0 };
+    for i in 0..LEN {
+        a[i] = if b[i] < LEN as u8 { a[b[i] as usize] } else { 0 };
     }
     a
 }
 
 fn vqadd(mut a: Type, b: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         a[i] = a[i].saturating_add(b[i]);
     }
     a
 }
 fn qmul(mut a: Type, b: Type) -> Type {
-    for i in 0..16 {
+    for i in 0..LEN {
         a[i] = a[i].saturating_mul(b[i]);
     }
     a
 }
 
 fn madd(a: Type, b: Type, c: Type) -> Type {
-    vqadd(vsign(vmax(b, [-127; 16]), a), c)
+    vqadd(vsign(vmax(b, [-127; LEN]), a), c)
 }
 
 fn to_map(a: Type) -> Map {
-    let mut tmp = [0u8; 16];
-    for i in 0..16 {
+    let mut tmp = [0u8; LEN];
+    for i in 0..LEN {
         assert!(a[i] >= 0);
         tmp[i] = a[i] as u8;
     }
@@ -525,8 +524,8 @@ fn to_map(a: Type) -> Map {
 }
 
 fn to_type(a: Map) -> Type {
-    let mut tmp = [0i8; 16];
-    for i in 0..16 {
+    let mut tmp = [0i8; LEN];
+    for i in 0..LEN {
         assert!(a[i] <= std::i8::MAX as u8);
         tmp[i] = a[i] as i8;
     }
