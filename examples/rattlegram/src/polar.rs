@@ -360,7 +360,7 @@ impl PolarListDecoder {
             frozen,
         );
 
-        println!("message ({}) {:?}", message.len(), message);
+        // println!("message ({}) {:?}", message.len(), message);
 
         let mut acc = self.maps[count - 1];
         let mut i = count as isize - 2;
@@ -464,11 +464,11 @@ impl PolarListNode<0> {
         for k in 0..2 * LEN {
             perm[k] = k;
         }
-        println!("fork ({}) {:?}", fork.len(), fork);
-        println!("perm ({}) {:?}", perm.len(), perm);
+        // println!("fork ({}) {:?}", fork.len(), fork);
+        // println!("perm ({}) {:?}", perm.len(), perm);
         perm.sort_by(|a, b| fork[*a].cmp(&fork[*b]));
-        println!("fork ({}) {:?}", fork.len(), fork);
-        println!("perm ({}) {:?}", perm.len(), perm);
+        // println!("fork ({}) {:?}", fork.len(), fork);
+        // println!("perm ({}) {:?}", perm.len(), perm);
         // panic!("foo");
         for k in 0..LEN {
             metric[k] = fork[perm[k]];
