@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicUsize;
+
 use crate::{get_le_bit, set_le_bit};
 
 struct Assert<const V: bool>;
@@ -160,8 +162,8 @@ impl PolarDecoder {
 
     pub fn new() -> Self {
         Self {
-            mesg: [[1; LEN]; Self::MAX_BITS],
-            mess: [[1; LEN]; Self::CODE_LEN],
+            mesg: [[0; LEN]; Self::MAX_BITS],
+            mess: [[0; LEN]; Self::CODE_LEN],
             decode: PolarListDecoder::new(),
             crc: Crc32::new(0x8F6E37A0),
         }
@@ -187,6 +189,12 @@ impl PolarDecoder {
         frozen_bits: &[u32],
         data_bits: usize,
     ) -> i32 {
+
+        // println!("message ({}) {:?}", message.len(), message);
+        // println!("code ({}) {:?}", code.len(), code);
+        // println!("frozen ({}) {:?}", frozen_bits.len(), frozen_bits);
+        // println!("data_bits {:?}", data_bits);
+
         let crc_bits = data_bits + 32;
         let mut metric = [0i64; LEN];
         self.decode.decode(
@@ -196,6 +204,10 @@ impl PolarDecoder {
             frozen_bits,
             Self::CODE_ORDER,
         );
+
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // println!("message ({}) {:?}", self.mesg.len(), self.mesg);
+
         self.systematic(frozen_bits, crc_bits);
         let mut order = [0; LEN];
         for k in 0..LEN {
@@ -317,6 +329,7 @@ impl PolarListDecoder {
         frozen: &[u32],
         level: usize,
     ) {
+
         assert!(level <= Self::MAX_M);
         let mut count = 0;
         metric[0] = 0;
@@ -327,6 +340,13 @@ impl PolarListDecoder {
         for i in 0..length {
             self.soft[length + i] = [codeword[i]; LEN];
         }
+
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // println!("message ({}) {:?}", message.len(), message);
+        // println!("maps ({}) {:?}", self.maps.len(), self.maps);
+        // println!("codeword ({}) {:?}", codeword.len(), codeword);
+        // println!("hard ({}) {:?}", self.hard.len(), self.hard);
+        // println!("soft ({}) {:?}", self.soft.len(), self.soft);
 
         assert_eq!(level, 11);
         PolarListTree::decode(
@@ -339,6 +359,8 @@ impl PolarListDecoder {
             &mut self.soft,
             frozen,
         );
+
+        println!("message ({}) {:?}", message.len(), message);
 
         let mut acc = self.maps[count - 1];
         let mut i = count as isize - 2;
@@ -359,7 +381,14 @@ where
     const N: usize = 1 << M;
 
     fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
-        hard[0] = [1; LEN];
+        // println!("soft ({}) {:?}", soft.len(), soft);
+        // println!("hard ({}) {:?}", hard.len(), hard);
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // println!("m {:?}", M);
+        // panic!("foo");
+        for i in 0..Self::N {
+            hard[i] = [1; LEN];
+        }
         for i in 0..Self::N {
             for k in 0..LEN {
                 if soft[i + Self::N][k] < 0 {
@@ -371,12 +400,22 @@ where
         for k in 0..LEN as u8 {
             map[k as usize] = k;
         }
+
+        // println!("soft ({}) {:?}", soft.len(), soft);
+        // println!("hard ({}) {:?}", hard.len(), hard);
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // println!("m {:?}", M);
+        // panic!("foo");
         map
     }
 }
 
 impl PolarListNode<0> {
     fn rate0(metric: &mut [Path], hard: &mut [Type], soft: &[Type]) -> Map {
+        // println!("soft ({}) {:?}", soft.len(), soft);
+        // println!("hard ({}) {:?}", hard.len(), hard);
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // panic!("foo");
         hard[0] = [1i8; LEN];
         for k in 0..LEN {
             if soft[1][k] < 0 {
@@ -387,6 +426,9 @@ impl PolarListNode<0> {
         for k in 0..LEN as u8 {
             map[k as usize] = k;
         }
+        // println!("hard ({}) {:?}", hard.len(), hard);
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // panic!("foo");
         map
     }
 
@@ -398,6 +440,13 @@ impl PolarListNode<0> {
         hard: &mut Type,
         soft: &[Type],
     ) -> Map {
+        // println!("soft ({}) {:?}", soft.len(), soft);
+        // println!("hard ({}) {:?}", hard.len(), hard);
+        // println!("maps ({}) {:?}", maps.len(), maps);
+        // println!("message ({}) {:?}", message.len(), message);
+        // println!("count {:?}", count);
+        // println!("metric ({}) {:?}", metric.len(), metric);
+        // panic!("foo");
         let sft = soft[1];
         let mut fork = [0i64; 2 * LEN];
         for k in 0..LEN {
@@ -415,7 +464,12 @@ impl PolarListNode<0> {
         for k in 0..2 * LEN {
             perm[k] = k;
         }
+        println!("fork ({}) {:?}", fork.len(), fork);
+        println!("perm ({}) {:?}", perm.len(), perm);
         perm.sort_by(|a, b| fork[*a].cmp(&fork[*b]));
+        println!("fork ({}) {:?}", fork.len(), fork);
+        println!("perm ({}) {:?}", perm.len(), perm);
+        // panic!("foo");
         for k in 0..LEN {
             metric[k] = fork[perm[k]];
         }
@@ -480,7 +534,8 @@ fn vsign(mut a: Type, b: Type) -> Type {
         } else if b[i] == 0 {
             0
         } else {
-            -1 * std::cmp::max(a[i], -std::i8::MAX)
+            // -1 * std::cmp::max(a[i], -std::i8::MAX)
+            -1 * a[i]
         };
     }
     a
@@ -572,6 +627,11 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
+
+        // if m == 10 {
+        //     println!("soft ({}) {:?}", soft.len(), soft);
+        // }
+
         let lmap = PolarListTree::decode(m - 1, metric, message, maps, count, hard, soft, frozen);
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
@@ -593,6 +653,11 @@ impl PolarListTree {
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
+
+        // if m == 10 {
+        //     println!("lmap {:?}", lmap);
+        //     println!("rmap {:?}", rmap);
+        // }
         to_map(vshuf(to_type(lmap), rmap))
     }
 
@@ -647,8 +712,6 @@ impl PolarListTree {
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
-        println!("lmap {:?}", lmap);
-        println!("rmap {:?}", rmap);
         to_map(vshuf(to_type(lmap), rmap))
     }
 
@@ -775,8 +838,8 @@ impl PolarListTree {
         }
         let lmap;
         let rmap;
-        if (frozen & ((1 << (1 << (2 - 1))) - 1)) == ((1 << (1 << (2 - 1))) - 1) {
-            lmap = PolarListNode::<{ 2 - 1 }>::rate0(metric, hard, soft);
+        if (frozen & ((1 << (1 << (3 - 1))) - 1)) == ((1 << (1 << (3 - 1))) - 1) {
+            lmap = PolarListNode::<{ 3 - 1 }>::rate0(metric, hard, soft);
         } else {
             lmap = PolarListTree::decode_2(
                 metric,
@@ -785,7 +848,7 @@ impl PolarListTree {
                 count,
                 hard,
                 soft,
-                frozen & ((1 << (1 << (2 - 1))) - 1),
+                frozen & ((1 << (1 << (3 - 1))) - 1),
             );
         }
         for i in 0..n / 2 {
@@ -795,8 +858,8 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen >> (n / 2) == ((1 << (1 << (2 - 1))) - 1) {
-            rmap = PolarListNode::<{ 2 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        if frozen >> (n / 2) == ((1 << (1 << (3 - 1))) - 1) {
+            rmap = PolarListNode::<{ 3 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
         } else {
             rmap = PolarListTree::decode_2(
                 metric,
@@ -878,6 +941,16 @@ impl PolarListTree {
         frozen: u32,
     ) -> Map {
         soft[1] = prod(soft[2], soft[3]);
+        // static I: AtomicUsize = AtomicUsize::new(0);
+        // if I.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+        //     println!("soft ({}) {:?}", soft.len(), soft);
+        //     I.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        //     println!("{:?}", prod([-128; LEN], [127; LEN]));
+        //     println!("{:?}", prod([127; LEN], [-128; LEN]));
+        //     println!("{:?}", prod([-128; LEN], [-128; LEN]));
+        //     println!("{:?}", prod([-128; LEN], [127; LEN]));
+        //     println!("{:?}", prod([127; LEN], [-128; LEN]));
+        // }
         let lmap;
         let rmap;
         if (frozen & 1) == 1 {
