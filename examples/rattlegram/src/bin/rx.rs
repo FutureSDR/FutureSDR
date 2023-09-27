@@ -36,8 +36,6 @@ fn main() -> Result<()> {
     let src = if let Some(f) = args.file {
         FileSource::new(&f)
     } else {
-        #[cfg(debug_assertions)]
-        println!("!!!PLEASE USE --release BUILD FOR LIVE DECODING!!!");
         AudioSource::new(48000, 1)
     };
 

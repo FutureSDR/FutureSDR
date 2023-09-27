@@ -266,7 +266,7 @@ impl SchmidlCox {
         }
     }
 
-    fn put(&mut self, samples: [Complex32; Self::BUFFER_LEN]) -> bool {
+    fn put(&mut self, samples: &[Complex32; Self::BUFFER_LEN]) -> bool {
         let p = self.cor.put(
             samples[Self::SEARCH_POS + Self::SYMBOL_LEN]
                 * samples[Self::SEARCH_POS + 2 * Self::SYMBOL_LEN].conj(),
@@ -577,13 +577,16 @@ where
             pos1: NUM,
         }
     }
-    pub fn get(&self) -> [Complex32; NUM] {
+    pub fn get(&self) -> &'static [Complex32; NUM] {
         let index = std::cmp::min(self.pos0, self.pos1);
-        let mut buf = [Complex32::new(0.0, 0.0); NUM];
-        buf.copy_from_slice(&self.buf[index..index + NUM]);
-        buf
+        unsafe {
+            std::slice::from_raw_parts(self.buf.as_ptr().add(index), NUM).try_into().unwrap()
+        }
+        // let mut buf = [Complex32::new(0.0, 0.0); NUM];
+        // buf.copy_from_slice(&self.buf[index..index + NUM]);
+        // buf
     }
-    pub fn put(&mut self, input: Complex32) -> [Complex32; NUM] {
+    pub fn put(&mut self, input: Complex32) -> &'static [Complex32; NUM] {
         self.buf[self.pos0] = input;
         self.buf[self.pos1] = input;
         self.pos0 += 1;
@@ -779,7 +782,7 @@ pub struct Decoder {
     osc: Phasor,
     fft_fwd: Arc<dyn Fft<f32>>,
     polar: PolarDecoder,
-    buf: [Complex32; Self::BUFFER_LENGTH],
+    buf: &'static [Complex32; Self::BUFFER_LENGTH],
     temp: [Complex32; Self::EXTENDED_LENGTH],
     freq: [Complex32; Self::SYMBOL_LENGTH],
     fft_scratch: [Complex32; Self::SYMBOL_LENGTH],
@@ -876,6 +879,7 @@ impl Decoder {
         }
         cons
     }
+    const BUF: [Complex32; Self::BUFFER_LENGTH] = [Complex32::new(0.0, 0.0); Self::BUFFER_LENGTH];
 
     pub fn new() -> Self {
         let mut block_dc = BlockDc::new();
@@ -933,7 +937,7 @@ impl Decoder {
             staged_call: 0,
             stored_check: false,
             staged_check: false,
-            buf: [Complex32::new(0.0, 0.0); Self::BUFFER_LENGTH],
+            buf: &Self::BUF,
             temp: [Complex32::new(0.0, 0.0); Self::EXTENDED_LENGTH],
             freq: [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH],
             fft_scratch: [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH],
