@@ -49,6 +49,7 @@ pub use futuredsp;
 pub use futures;
 pub use futures_lite;
 /// Users should ignore these re-exports
+#[doc(hidden)]
 pub mod ignore {
     pub use async_trait;
 }
