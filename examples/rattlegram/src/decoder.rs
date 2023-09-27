@@ -224,12 +224,12 @@ impl SchmidlCox {
         let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LEN);
         let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LEN);
 
-        println!("symbol len {}", Self::SYMBOL_LEN);
-        print!("cor seq ");
-        for i in 0..Self::SYMBOL_LEN {
-            print!("{}, ", sequence[i].re);
-        }
-        println!();
+        // println!("symbol len {}", Self::SYMBOL_LEN);
+        // print!("cor seq ");
+        // for i in 0..Self::SYMBOL_LEN {
+        //     print!("{}, ", sequence[i].re);
+        // }
+        // println!();
 
         let mut kern = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
         let mut fft_scratch = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
@@ -238,7 +238,7 @@ impl SchmidlCox {
         for i in 0..Self::SYMBOL_LEN {
             kern[i] = kern[i].conj() / Self::SYMBOL_LEN as f32;
         }
-        println!("kern {:?}", &kern[0..10]);
+        // println!("kern {:?}", &kern[0..10]);
 
         Self {
             tmp0: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
@@ -847,7 +847,7 @@ impl Decoder {
                 as usize
                 % (Self::SYMBOL_LENGTH / 2);
             let seq = mls.next();
-            println!("i {} index {} seq {}", i, index, seq as u8);
+            // println!("i {} index {} seq {}", i, index, seq as u8);
             freq[index] = Self::nrz(seq);
         }
         freq
@@ -958,7 +958,7 @@ impl Decoder {
 
         let sample_count = samples.len();
         unsafe {
-            print!("sample count {}   run {} ", sample_count, RUN);
+            // print!("sample count {}   run {} ", sample_count, RUN);
             RUN += 1;
         }
         assert!(sample_count <= Self::EXTENDED_LENGTH);
@@ -968,7 +968,7 @@ impl Decoder {
                 .buffer
                 .put(self.hilbert.get(self.block_dc.process(samples[i])));
             if i == 0 {
-                println!("  buffer {:?}", &b[0..2]);
+                // println!("  buffer {:?}", &b[0..2]);
             }
             let c = self.correlator.put(b);
             if c {

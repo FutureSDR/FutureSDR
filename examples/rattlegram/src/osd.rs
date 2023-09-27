@@ -78,7 +78,7 @@ impl OrderedStatisticsDecoder {
         for i in 0..Self::N {
             self.candidate[i] = self.codeword[i];
         }
-        println!("candidate {:?}", self.candidate);
+        // println!("candidate {:?}", self.candidate);
         let mut best = Self::metric(&self.codeword, &self.softperm);
         let mut next = -1;
 
