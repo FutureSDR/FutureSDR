@@ -6,6 +6,7 @@ pub use bch::Bch;
 
 mod decoder;
 pub use decoder::Decoder;
+pub use decoder::DecoderBlock;
 pub use decoder::DecoderResult;
 
 mod encoder;

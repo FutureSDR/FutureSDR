@@ -1,4 +1,15 @@
+use futuresdr::anyhow::Result;
+use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
@@ -12,6 +23,96 @@ use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
 use crate::Xorshift32;
 use crate::PolarDecoder;
+
+pub struct DecoderBlock {
+    decoder: Box<Decoder>,
+}
+
+impl DecoderBlock {
+    pub fn new() -> Block {
+        Block::new(
+            BlockMetaBuilder::new("RattegramDecoder").build(),
+            StreamIoBuilder::new().add_input::<f32>("in").build(),
+            MessageIoBuilder::new().build(),
+            Self {
+                decoder: Box::new(Decoder::new()),
+            },
+        )
+    }
+}
+
+#[async_trait]
+impl Kernel for DecoderBlock {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        let input = sio.input(0).slice::<f32>();
+
+        for s in input.chunks_exact(48000 / 50) {
+            if !self.decoder.feed(s) {
+                continue;
+            }
+
+            let status = self.decoder.process();
+            let mut cfo = -1.0;
+            let mut mode = OperationMode::Null;
+            let mut call_sign = [0u8; 192];
+            let mut payload = [0u8; 170];
+
+            match status {
+                DecoderResult::Okay => {}
+                DecoderResult::Fail => {
+                    println!("preamble fail");
+                }
+                DecoderResult::Sync => {
+                    self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                    println!("SYNC:");
+                    println!("  CFO: {}", cfo);
+                    println!("  Mode: {:?}", mode);
+                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                }
+                DecoderResult::Done => {
+                    let flips = self.decoder.fetch(&mut payload);
+                    println!("Bit flips: {}", flips);
+                    println!("Message: {}", String::from_utf8_lossy(&payload));
+                }
+                DecoderResult::Heap => {
+                    println!("HEAP ERROR");
+                }
+                DecoderResult::Nope => {
+                    self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                    println!("NOPE:");
+                    println!("  CFO: {}", cfo);
+                    println!("  Mode: {:?}", mode);
+                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                }
+                DecoderResult::Ping => {
+                    self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
+                    println!("PING:");
+                    println!("  CFO: {}", cfo);
+                    println!("  Mode: {:?}", mode);
+                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                }
+                _ => {
+                    panic!("wrong decoder result");
+                }
+            }
+        }
+
+        sio.input(0)
+            .consume(input.len() / (48000 / 50) * (48000 / 50));
+        if sio.input(0).finished() {
+            io.finished = true;
+        }
+
+        Ok(())
+    }
+}
+
 
 struct TheilSenEstimator {
     tmp: [f32; Self::SIZE],
@@ -748,7 +849,7 @@ impl BlockDc {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum DecoderResult {
     Okay,
     Fail,
@@ -979,7 +1080,7 @@ impl Decoder {
                 self.stored_cfo_rad = self.correlator.cfo_rad;
                 self.stored_position = self.correlator.symbol_pos + self.accumulated;
                 self.stored_check = true;
-                println!("cfo {}, pos {}", self.stored_cfo_rad, self.stored_position);
+                // println!("cfo {}, pos {}", self.stored_cfo_rad, self.stored_position);
             }
             self.accumulated += 1;
             if self.accumulated == Self::EXTENDED_LENGTH {
