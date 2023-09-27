@@ -837,12 +837,12 @@ impl Decoder {
     }
 
     fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH / 2] {
-        println!(
-            "symbol {} len {} offset {}",
-            Self::SYMBOL_LENGTH,
-            Self::COR_SEQ_LEN,
-            Self::COR_SEQ_OFF
-        );
+        // println!(
+        //     "symbol {} len {} offset {}",
+        //     Self::SYMBOL_LENGTH,
+        //     Self::COR_SEQ_LEN,
+        //     Self::COR_SEQ_OFF
+        // );
         let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH / 2];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
         for i in 0..Self::COR_SEQ_LEN as isize {
