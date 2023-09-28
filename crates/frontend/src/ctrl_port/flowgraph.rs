@@ -96,10 +96,10 @@ impl Component for Flowgraph {
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Error => {
-                self.code = r#"flowchart LR
+                self.code = r"flowchart LR
                                   id1(Error)
                                   style id1 color:#000,fill:#f00,stroke:#000,stroke-width:4px
-                            "#
+                            "
                 .to_string();
             }
             Msg::Reply(fg) => {

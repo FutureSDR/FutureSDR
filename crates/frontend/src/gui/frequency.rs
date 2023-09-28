@@ -130,7 +130,7 @@ impl Component for Frequency {
 
         gl.viewport(0, 0, display_width as i32, display_height as i32);
 
-        let vert_code = r#"
+        let vert_code = r"
 attribute vec2 gTexCoord0;
 
 uniform sampler2D frequency_data;
@@ -145,12 +145,12 @@ void main()
 
     power = sample.a;
 }
-        "#;
+        ";
         let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
         gl.shader_source(&vert_shader, vert_code);
         gl.compile_shader(&vert_shader);
 
-        let frag_code = r#"
+        let frag_code = r"
 precision mediump float;
 
 varying float power;
@@ -167,7 +167,7 @@ void main()
 {
     gl_FragColor = vec4(hsv2rgb(vec3(power, .7, 0.7)), power);
 }
-        "#;
+        ";
         let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
         gl.shader_source(&frag_shader, frag_code);
         gl.compile_shader(&frag_shader);

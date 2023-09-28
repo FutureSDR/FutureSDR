@@ -155,21 +155,21 @@ impl Time {
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
 
-        let vert_code = r#"
+        let vert_code = r"
             attribute vec2 coordinates;
             void main(void) {
                 gl_Position = vec4(coordinates, 0.0, 1.0);
             }
-        "#;
+        ";
         let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
         gl.shader_source(&vert_shader, vert_code);
         gl.compile_shader(&vert_shader);
 
-        let frag_code = r#"
+        let frag_code = r"
             void main(void) {
                 gl_FragColor = vec4(1.0, 0.0, 0.0, 0.8);
             }
-        "#;
+        ";
         let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
         gl.shader_source(&frag_shader, frag_code);
         gl.compile_shader(&frag_shader);

@@ -48,7 +48,7 @@ fn main() -> Result<()> {
 
 async fn my_route() -> Html<&'static str> {
     Html(
-        r#"
+        r"
     <html>
         <head>
             <meta charset='utf-8' />
@@ -58,7 +58,7 @@ async fn my_route() -> Html<&'static str> {
             <h1>My Custom Route</h1>
         </body>
     </html>
-    "#,
+    ",
     )
 }
 
