@@ -1,0 +1,13 @@
+[package]
+name = "m17"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+rustfft = "6.1"
+futuresdr = { path = "../..", features = ["audio"] }
+crc = "3.0"
+wav = "1.0"
