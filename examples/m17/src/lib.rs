@@ -2,6 +2,7 @@ mod crc;
 pub use crc::Crc;
 
 mod encoder;
+pub use encoder::CallSign;
 pub use encoder::Encoder;
 pub use encoder::LinkSetupFrame;
 
