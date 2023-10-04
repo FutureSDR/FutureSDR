@@ -27,7 +27,6 @@ impl Encoder {
     const SYM_PER_PLD: usize = 184;
 
     pub fn new(mut lsf: LinkSetupFrame) -> Self {
-        lsf.set_crc();
         Self {
             syms: [0.0; Self::MAX_SYM],
             unpacked: [0; 240 + 4 + 4],
@@ -92,7 +91,7 @@ impl Encoder {
         let mut p = 0;
         let mut pb = 0;
         let ud = &mut self.unpacked[0..144 + 4 + 4];
-        let out = &mut self.enc_bits;
+        let out = &mut self.enc_bits[96..];
 
         ud.fill(0);
 
@@ -263,7 +262,9 @@ impl Encoder {
             num |= 0x8000;
         }
         self.conv_encode_frame(data, num);
+        println!("enc {:?}", &self.enc_bits[0..Self::SYM_PER_PLD * 2]);
         self.scramble();
+        println!("rf {:?}", &self.rf_bits[0..Self::SYM_PER_PLD * 2]);
         self.data();
 
         self.frame_number = (self.frame_number + 1) % 0x8000;
@@ -278,10 +279,27 @@ impl Encoder {
 }
 
 pub struct LinkSetupFrame {
-    data: [u8; 6 + 6 + 2 + 14 + 2],
+    data: [u8; 6 + 6 + 2 + 14 + 2], // 30
 }
 
 impl LinkSetupFrame {
+
+    pub fn new(src: CallSign, dst: CallSign) -> Self {
+        assert!(matches!(src, CallSign::UnitId(_)));
+        assert!(matches!(dst, CallSign::UnitId(_) | CallSign::Broadcast));
+
+        let mut data = [0; 30];
+        data[0..6].copy_from_slice(dst.encode());
+        data[6..12].copy_from_slice(src.encode());
+        data[13] = 0b101;
+
+        let mut s = Self {
+            data
+        };
+        s.set_crc();
+        s
+    }
+
     pub fn dst(&self) -> &[u8; 6] {
         self.data[0..6].try_into().unwrap()
     }
@@ -299,7 +317,7 @@ impl LinkSetupFrame {
     }
     fn set_crc(&mut self) {
         let crc = Crc::crc(&self.data[0..28]).to_be_bytes();
-        self.data[28..29].copy_from_slice(&crc);
+        self.data[28..30].copy_from_slice(&crc);
     }
 }
 
