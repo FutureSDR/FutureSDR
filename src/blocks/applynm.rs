@@ -106,7 +106,7 @@ where
             sio.output(0).produce(M * m);
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        if sio.input(0).finished() && (i.len() - N * m) < N {
             io.finished = true;
         }
 
