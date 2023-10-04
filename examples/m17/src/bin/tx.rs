@@ -2,9 +2,13 @@ use codec2::Codec2;
 use codec2::Codec2Mode;
 use futuresdr::anyhow::Result;
 use futuresdr::macros::connect;
+use futuresdr::num_complex::Complex32;
+use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FiniteSource;
 use futuresdr::blocks::FileSink;
+use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::fs::File;
@@ -13,6 +17,7 @@ use std::path::Path;
 use m17::CallSign;
 use m17::LinkSetupFrame;
 use m17::EncoderBlock;
+use m17::RRC_TAPS;
 
 fn main() -> Result<()> {
 
@@ -46,13 +51,32 @@ fn main() -> Result<()> {
 
     let lsf = LinkSetupFrame::new(CallSign::new_id("DF1BBL"), CallSign::new_broadcast());
     let encoder = EncoderBlock::new(lsf);
+    let pulse = ApplyNM::<_, _, _, 1, 10>::new(move |i: &[f32], o: &mut [f32]| {
+        o.fill(0.0);
+        o[0] = i[0];
+    });
 
-    let snk = FileSink::<f32>::new("syms.f32");
-    connect!(fg, src > codec2 > encoder > snk);
+    let rrc = FirBuilder::new::<f32, f32, f32, _>(RRC_TAPS);
+
+    let mut curr = Complex32::new(0.8, 0.0);
+    let sensitivity = 2.0*std::f32::consts::PI*800.0/48000.0;
+    let fm = Apply::new(move |i: &f32| {
+        let c = Complex32::from_polar(1.0, i * 3.3 * sensitivity);
+        curr *= c;
+        curr
+    });
+    let upsample = FirBuilder::new_resampling::<Complex32, Complex32>(16, 1);
+
+    let snk = SinkBuilder::new()
+        .frequency(433475000.0*(1.0+2.75e-6))
+        .gain(60.0)
+        .sample_rate(16.0 * 48000.0)
+        .build()?;
     
-    let rt = Runtime::new();
-    std::thread::sleep_ms(1000);
-    rt.run(fg)?;
+    // let snk = FileSink::<f32>::new("syms.f32");
+    connect!(fg, src > codec2 > encoder > pulse > rrc > fm > upsample > snk);
+    
+    Runtime::new().run(fg)?;
 
     Ok(())
 }

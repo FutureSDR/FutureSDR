@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
 codec2 = "0.3"
-futuresdr = { path = "../..", features = ["audio"] }
+futuresdr = { path = "../..", features = ["audio", "seify", "soapy"] }
 wav = "1.0"
