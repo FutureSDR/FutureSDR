@@ -6,6 +6,9 @@ pub use encoder::CallSign;
 pub use encoder::Encoder;
 pub use encoder::LinkSetupFrame;
 
+mod encoder_block;
+pub use encoder_block::EncoderBlock;
+
 mod golay;
 pub use golay::Golay;
 

@@ -262,9 +262,9 @@ impl Encoder {
             num |= 0x8000;
         }
         self.conv_encode_frame(data, num);
-        println!("enc {:?}", &self.enc_bits[0..Self::SYM_PER_PLD * 2]);
+        // println!("enc {:?}", &self.enc_bits[0..Self::SYM_PER_PLD * 2]);
         self.scramble();
-        println!("rf {:?}", &self.rf_bits[0..Self::SYM_PER_PLD * 2]);
+        // println!("rf {:?}", &self.rf_bits[0..Self::SYM_PER_PLD * 2]);
         self.data();
 
         self.frame_number = (self.frame_number + 1) % 0x8000;
