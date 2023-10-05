@@ -4,7 +4,6 @@ impl Crc {
     const M17_CRC_POLY: u32 = 0x5935;
 
     pub fn crc(data: &[u8]) -> u16 {
-
         let mut crc: u32 = 0xFFFF;
 
         for i in 0..data.len() {

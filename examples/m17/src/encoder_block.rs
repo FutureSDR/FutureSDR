@@ -23,7 +23,10 @@ impl EncoderBlock {
     pub fn new(lsf: LinkSetupFrame) -> Block {
         Block::new(
             BlockMetaBuilder::new("M17Encoder").build(),
-            StreamIoBuilder::new().add_input::<u8>("in").add_output::<f32>("out").build(),
+            StreamIoBuilder::new()
+                .add_input::<u8>("in")
+                .add_output::<f32>("out")
+                .build(),
             MessageIoBuilder::new().build(),
             Self {
                 syms: Vec::new(),
@@ -49,7 +52,7 @@ impl Kernel for EncoderBlock {
         if self.offset < self.syms.len() {
             let n = std::cmp::min(self.syms.len() - self.offset, output.len());
             if n > 0 {
-                output[0..n].copy_from_slice(&self.syms[self.offset..self.offset+n]);
+                output[0..n].copy_from_slice(&self.syms[self.offset..self.offset + n]);
             }
 
             sio.output(0).produce(n);
@@ -59,8 +62,15 @@ impl Kernel for EncoderBlock {
             }
         } else {
             if input.len() >= 16 {
-                let eot = if sio.input(0).finished() && input.len() <= 31 { true } else { false};
-                self.syms = self.encoder.encode(&input[0..16].try_into().unwrap(), eot).to_owned();
+                let eot = if sio.input(0).finished() && input.len() <= 31 {
+                    true
+                } else {
+                    false
+                };
+                self.syms = self
+                    .encoder
+                    .encode(&input[0..16].try_into().unwrap(), eot)
+                    .to_owned();
                 self.offset = 0;
                 sio.input(0).consume(16);
                 io.call_again = true;
@@ -73,4 +83,3 @@ impl Kernel for EncoderBlock {
         Ok(())
     }
 }
-

@@ -26,7 +26,7 @@ impl Encoder {
     const MAX_SYM: usize = 1000;
     const SYM_PER_PLD: usize = 184;
 
-    pub fn new(mut lsf: LinkSetupFrame) -> Self {
+    pub fn new(lsf: LinkSetupFrame) -> Self {
         Self {
             syms: [0.0; Self::MAX_SYM],
             unpacked: [0; 240 + 4 + 4],
@@ -283,7 +283,6 @@ pub struct LinkSetupFrame {
 }
 
 impl LinkSetupFrame {
-
     pub fn new(src: CallSign, dst: CallSign) -> Self {
         assert!(matches!(src, CallSign::UnitId(_)));
         assert!(matches!(dst, CallSign::UnitId(_) | CallSign::Broadcast));
@@ -293,9 +292,7 @@ impl LinkSetupFrame {
         data[6..12].copy_from_slice(src.encode());
         data[13] = 0b101;
 
-        let mut s = Self {
-            data
-        };
+        let mut s = Self { data };
         s.set_crc();
         s
     }
