@@ -25,6 +25,9 @@ pub use polar::PolarDecoder;
 mod psk;
 pub use psk::Psk;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm_tx;
+
 mod util;
 pub use util::get_be_bit;
 pub use util::get_le_bit;

@@ -6,8 +6,15 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-clap = { version = "4.4", features = ["derive"] }
-rustfft = "6.1"
-futuresdr = { path = "../..", features = ["audio"] }
 crc = "3.0"
+futuresdr = { path = "../..", features = ["audio"] }
+rustfft = "6.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clap = { version = "4.4", features = ["derive"] }
 wav = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+console_log = "1"
+leptos = { version = "0.5", features = ["csr", "nightly"] }

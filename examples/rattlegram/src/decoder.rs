@@ -1,4 +1,5 @@
 use futuresdr::anyhow::Result;
+use futuresdr::log::info;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
@@ -66,36 +67,36 @@ impl Kernel for DecoderBlock {
             match status {
                 DecoderResult::Okay => {}
                 DecoderResult::Fail => {
-                    println!("preamble fail");
+                    info!("preamble fail");
                 }
                 DecoderResult::Sync => {
                     self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
-                    println!("SYNC:");
-                    println!("  CFO: {}", cfo);
-                    println!("  Mode: {:?}", mode);
-                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                    info!("SYNC:");
+                    info!("  CFO: {}", cfo);
+                    info!("  Mode: {:?}", mode);
+                    info!("  call sign: {}", String::from_utf8_lossy(&call_sign));
                 }
                 DecoderResult::Done => {
                     let flips = self.decoder.fetch(&mut payload);
-                    println!("Bit flips: {}", flips);
-                    println!("Message: {}", String::from_utf8_lossy(&payload));
+                    info!("Bit flips: {}", flips);
+                    info!("Message: {}", String::from_utf8_lossy(&payload));
                 }
                 DecoderResult::Heap => {
-                    println!("HEAP ERROR");
+                    info!("HEAP ERROR");
                 }
                 DecoderResult::Nope => {
                     self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
-                    println!("NOPE:");
-                    println!("  CFO: {}", cfo);
-                    println!("  Mode: {:?}", mode);
-                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                    info!("NOPE:");
+                    info!("  CFO: {}", cfo);
+                    info!("  Mode: {:?}", mode);
+                    info!("  call sign: {}", String::from_utf8_lossy(&call_sign));
                 }
                 DecoderResult::Ping => {
                     self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
-                    println!("PING:");
-                    println!("  CFO: {}", cfo);
-                    println!("  Mode: {:?}", mode);
-                    println!("  call sign: {}", String::from_utf8_lossy(&call_sign));
+                    info!("PING:");
+                    info!("  CFO: {}", cfo);
+                    info!("  Mode: {:?}", mode);
+                    info!("  call sign: {}", String::from_utf8_lossy(&call_sign));
                 }
                 _ => {
                     panic!("wrong decoder result");
@@ -325,12 +326,12 @@ impl SchmidlCox {
         let fft_bwd = fft_planner.plan_fft_inverse(Self::SYMBOL_LEN);
         let fft_fwd = fft_planner.plan_fft_forward(Self::SYMBOL_LEN);
 
-        // println!("symbol len {}", Self::SYMBOL_LEN);
+        // info!("symbol len {}", Self::SYMBOL_LEN);
         // print!("cor seq ");
         // for i in 0..Self::SYMBOL_LEN {
         //     print!("{}, ", sequence[i].re);
         // }
-        // println!();
+        // info!();
 
         let mut kern = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
         let mut fft_scratch = [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN];
@@ -339,7 +340,7 @@ impl SchmidlCox {
         for i in 0..Self::SYMBOL_LEN {
             kern[i] = kern[i].conj() / Self::SYMBOL_LEN as f32;
         }
-        // println!("kern {:?}", &kern[0..10]);
+        // info!("kern {:?}", &kern[0..10]);
 
         Self {
             tmp0: [Complex32::new(0.0, 0.0); Self::SYMBOL_LEN],
@@ -764,7 +765,7 @@ impl Kaiser {
                 * (1.0 - ((2 * n) as f32 / (nn - 1) as f32 - 1.0).powi(2)).sqrt(),
         );
         let b = Self::i0(std::f32::consts::PI * self.a);
-        // println!("kaiser n {} N {} ret {}", n, nn, a / b);
+        // info!("kaiser n {} N {} ret {}", n, nn, a / b);
         a / b
     }
 }
@@ -794,8 +795,8 @@ where
                 / ((2 * i + 1) as f32 * std::f32::consts::PI);
         }
 
-        // println!("reco {}", reco);
-        // println!("imco {:?}", imco);
+        // info!("reco {}", reco);
+        // info!("imco {:?}", imco);
 
         Self { real, imco, reco }
     }
@@ -813,7 +814,7 @@ where
         }
         self.real[TAPS - 1] = input;
 
-        // println!("hilbert input {} output {}", input, Complex32::new(re, im));
+        // info!("hilbert input {} output {}", input, Complex32::new(re, im));
         Complex32::new(re, im)
     }
 }
@@ -844,7 +845,7 @@ impl BlockDc {
         let y0 = self.b * (x0 - self.x1) + self.a * self.y1;
         self.x1 = x0;
         self.y1 = y0;
-        // println!("blockdc input {} output {}", x0, y0);
+        // info!("blockdc input {} output {}", x0, y0);
         y0
     }
 }
@@ -877,7 +878,7 @@ pub struct Decoder {
     accumulated: usize,
     stored_cfo_rad: f32,
     staged_cfo_rad: f32,
-    staged_call: usize,
+    staged_call: u64,
     stored_check: bool,
     staged_check: bool,
     osc: Phasor,
@@ -938,7 +939,7 @@ impl Decoder {
     }
 
     fn cor_seq() -> [Complex32; Self::SYMBOL_LENGTH / 2] {
-        // println!(
+        // info!(
         //     "symbol {} len {} offset {}",
         //     Self::SYMBOL_LENGTH,
         //     Self::COR_SEQ_LEN,
@@ -951,16 +952,16 @@ impl Decoder {
                 as usize
                 % (Self::SYMBOL_LENGTH / 2);
             let seq = mls.next();
-            // println!("i {} index {} seq {}", i, index, seq as u8);
+            // info!("i {} index {} seq {}", i, index, seq as u8);
             freq[index] = Self::nrz(seq);
         }
         freq
     }
 
-    fn base37(str: &mut [u8], mut val: usize, len: usize) {
+    fn base37(str: &mut [u8], mut val: u64, len: usize) {
         let mut i = len as isize - 1;
         while i >= 0 {
-            str[i as usize] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[val % 37];
+            str[i as usize] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[(val % 37) as usize];
             i -= 1;
             val /= 37;
         }
@@ -1073,14 +1074,14 @@ impl Decoder {
                 .buffer
                 .put(self.hilbert.get(self.block_dc.process(samples[i])));
             if i == 0 {
-                // println!("  buffer {:?}", &b[0..2]);
+                // info!("  buffer {:?}", &b[0..2]);
             }
             let c = self.correlator.put(b);
             if c {
                 self.stored_cfo_rad = self.correlator.cfo_rad;
                 self.stored_position = self.correlator.symbol_pos + self.accumulated;
                 self.stored_check = true;
-                // println!("cfo {}, pos {}", self.stored_cfo_rad, self.stored_position);
+                // info!("cfo {}, pos {}", self.stored_cfo_rad, self.stored_position);
             }
             self.accumulated += 1;
             if self.accumulated == Self::EXTENDED_LENGTH {
@@ -1191,7 +1192,7 @@ impl Decoder {
         }
 
         self.staged_mode = (md & 0xff).into();
-        self.staged_call = (md >> 8) as usize;
+        self.staged_call = (md >> 8) as u64;
 
         if self.staged_mode == OperationMode::Null {
             return DecoderResult::Nope;
