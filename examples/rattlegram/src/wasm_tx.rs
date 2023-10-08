@@ -7,6 +7,7 @@ use futuresdr::log::warn;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use gloo_timers::future::TimeoutFuture;
 use leptos::html::Input;
 use leptos::*;
 
@@ -23,12 +24,16 @@ const ENTER_KEY: u32 = 13;
 #[component]
 fn Gui() -> impl IntoView {
     let (tx, set_tx) = create_signal(None);
-    leptos::spawn_local(run_fg(set_tx));
 
     let input_payload_ref = create_node_ref::<Input>();
     let input_callsign_ref = create_node_ref::<Input>();
 
-    let send = move || {
+    let mut started = false;
+    let mut send = move || {
+        if !started {
+            leptos::spawn_local(run_fg(set_tx));
+            started = true;
+        }
         let call_sign = input_callsign_ref.get().unwrap().value();
         let payload = input_payload_ref.get().unwrap().value();
 
@@ -46,7 +51,6 @@ fn Gui() -> impl IntoView {
         }
 
         let mut e = Encoder::new();
-        
         let sig = e.encode(
             payload.as_bytes(),
             call_sign.as_bytes(),
@@ -54,9 +58,14 @@ fn Gui() -> impl IntoView {
             5,
             false,
         );
-        if let Some(chan) = tx.get().as_mut() {
-            let _ = chan.try_send(sig.into());
-        }
+        leptos::spawn_local(async move {
+            while tx.get_untracked().is_none() {
+                TimeoutFuture::new(100).await;
+            }
+            if let Some(chan) = tx.get_untracked().as_mut() {
+                let _ = chan.try_send(sig.into());
+            }
+        });
     };
 
     let on_input = move |ev: web_sys::KeyboardEvent| {
