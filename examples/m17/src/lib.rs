@@ -12,6 +12,12 @@ pub use encoder_block::EncoderBlock;
 mod golay;
 pub use golay::Golay;
 
+mod moving_average;
+pub use moving_average::MovingAverage;
+
+mod symbol_sync;
+pub use symbol_sync::SymbolSync;
+
 const PUNCTERING_1: [u8; 61] = [
     1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1,
     1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1,
