@@ -1,6 +1,7 @@
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
+use futuresdr::num_integer::Integer;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -13,6 +14,7 @@ use futuresdr::runtime::WorkIo;
 use std::collections::VecDeque;
 
 struct InterpResampler {
+    phase_wrapped: f32,
 }
 
 impl InterpResampler {
@@ -1312,15 +1314,16 @@ impl InterpResampler {
     ];
 
     fn new() -> Self {
-        Self {}
+        Self {
+            phase_wrapped: 0.0,
+        }
     }
 
-    fn interpolate(input: &[f32], mu: f32) -> f32 {
-
+    fn interpolate(&self, input: &[f32], mu: f32) -> f32 {
         fn filter(filter: &[f32; 8], input: &[f32; 8]) -> f32 {
             let mut sum = 0.0;
             for i in 0..8 {
-                sum += filter[i] * input[i]; 
+                sum += filter[i] * input[i];
             }
             sum
         }
@@ -1336,6 +1339,16 @@ impl InterpResampler {
 
     fn ntaps(&self) -> usize {
         8
+    }
+
+    fn next_phase(&self, increment: f32,
+             phase: &mut f32,
+             phase_n: &mut usize,
+             phase_wrapped: &mut f32) {
+        *phase = self.phase_wrapped + increment;
+        let n = phase.floor();
+        *phase_wrapped = *phase - n;
+        *phase_n = n as usize;
     }
 }
 
@@ -1684,10 +1697,66 @@ impl TimingErrorDetector {
 
 pub struct SymbolSync {
     ted: TimingErrorDetector,
+    sps: f32,
+    osps: f32,
+    osps_n: usize,
+    clock: ClockTrackingLoop,
+    interp: InterpResampler,
+    inst_output_period: f32,
+    inst_clock_period: f32,
+    avg_clock_period: f32,
 }
 
 impl SymbolSync {
-    pub fn new() -> Block {
+    pub fn new(
+        sps: f32,
+        loop_bw: f32,
+        damping_factor: f32,
+        ted_gain: f32,
+        max_deviation: f32,
+        osps: usize,
+    ) -> Block {
+
+        assert!(sps > 1.0);
+        assert!(osps >= 1);
+
+        let osps_n = osps;
+        let osps = osps_n as f32;
+        let ted = TimingErrorDetector::new(2, 3, false, false);
+        let interp = InterpResampler::new();
+        let interps_per_symbol_n = ted.inputs_per_symbol().lcm(&osps_n);
+        let interps_per_ted_input_n = interps_per_symbol_n / ted.inputs_per_symbol();
+        let interps_per_output_sample_n = interps_per_symbol_n / osps_n;
+
+        let interps_per_symbol = interps_per_symbol_n as f32;
+        let interps_per_ted_input = interps_per_ted_input_n as f32;
+
+        let interp_clock = interps_per_symbol_n - 1;
+
+        let mut s = Self {
+            ted,
+            interp,
+            sps,
+            osps,
+            osps_n,
+            inst_output_period: sps / osps as f32,
+            inst_clock_period: sps,
+            avg_clock_period: sps,
+            clock: ClockTrackingLoop::new(loop_bw,
+                sps + max_deviation,
+                sps - max_deviation,
+                sps,
+                damping_factor,ted_gain
+            ),
+        };
+
+        s.sync_reset_internal_clocks();
+        inst_interp_period = inst_clock_period / interps_per_symbol;
+        assert!(interps_per_symbol <= sps);
+        s.ted.sync_reset();
+        s.interp.sync_reset(sps);
+        let filter_delay = (s.interp.ntaps() + 1) / 2;
+
         Block::new(
             BlockMetaBuilder::new("SymbolSync").build(),
             StreamIoBuilder::new()
@@ -1695,10 +1764,47 @@ impl SymbolSync {
                 .add_output::<f32>("out")
                 .build(),
             MessageIoBuilder::new().build(),
-            Self {
-                ted: TimingErrorDetector::new(2, 3, false, false),
-            },
+            s,
         )
+    }
+
+    fn loop_bandwidth(&self) -> f32 { self.clock.get_loop_bandwidth() }
+    fn damping_factor(&self) -> f32 { self.clock.get_damping_factor() }
+    fn ted_gain(&self) -> f32 { self.clock.get_ted_gain() }
+    fn alpha(&self) -> f32 { self.clock.get_alpha() }
+    fn beta(&self) -> f32 { self.clock.get_beta() }
+    fn set_loop_bandwidth(&mut self, omega_n_norm: f32) {
+        self.clock.set_loop_bandwidth(omega_n_norm);
+    }
+    fn set_damping_factor(&mut self, zeta: f32) { self.clock.set_damping_factor(zeta); }
+    fn set_ted_gain(&mut self, ted_gain: f32) { self.clock.set_ted_gain(ted_gain); }
+    fn set_alpha(&mut self, alpha: f32) { self.clock.set_alpha(alpha); }
+    fn set_beta(&mut self, beta: f32) { self.clock.set_beta(beta); }
+
+    fn update_internal_clock_outputs(&mut self) {
+        // a d_interp_clock boolean output would always be true.
+        self.ted_input_clock = (self.interp_clock % self.interps_per_ted_input_n) == 0;
+        self.output_sample_clock = (self.interp_clock % self.interps_per_output_sample_n) == 0;
+        self.symbol_clock = (self.interp_clock % self.interps_per_symbol_n) == 0;
+    }
+
+    fn advance_internal_clocks(&mut self) {
+        self.interp_clock = (self.interp_clock + 1) % self.interps_per_symbol_n;
+        self.update_internal_clock_outputs();
+    }
+
+    fn revert_internal_clocks(&mut self) {
+        if self.interp_clock == 0 {
+            self.interp_clock = self.interps_per_symbol_n - 1;
+        } else {
+            self.interp_clock -= 1;
+        }
+        self.update_internal_clock_outputs();
+    }
+
+    fn sync_reset_internal_clocks(&mut self) {
+        self.interp_clock = self.interps_per_symbol_n - 1;
+        self.update_internal_clock_outputs();
     }
 }
 
@@ -1713,8 +1819,77 @@ impl Kernel for SymbolSync {
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();
         let out = sio.output(0).slice::<f32>();
+        let noutput_items = out.len();
 
-        io.finished = true;
+        let ni = input.len().saturating_subtract(self.interp.ntaps());
+        if ni == 0 {
+            return Ok(())
+        }
+
+        let mut ii = 0;
+        let mut oo = 0;
+        let mut interp_output;
+        let mut interp_derivative = 0.0;
+        let mut look_ahead_phase = 0.0;
+        let mut look_ahead_phase_n = 0;
+        let mut look_ahead_phase_wrapped = 0.0;
+
+        while oo < noutput_items {
+            // Block Internal Clocks
+            self.advance_internal_clocks();
+
+            // Symbol Clock and Interpolator Positioning & Alignment
+            interp_output = self.interp.interpolate(&input[ii], self.interp.phase_wrapped());
+            if self.output_sample_clock() {
+                out[oo] = interp_output;
+            }
+
+            // Timing Error Detector
+            if self.ted_input_clock() {
+                self.ted.input(interp_output, interp_derivative);
+            }
+
+            let error = self.ted.error();
+
+            if self.symbol_clock() {
+                // Symbol Clock Tracking and Estimation
+                self.clock.advance_loop(error);
+                self.inst_clock_period = self.clock.get_inst_period();
+                self.avg_clock_period = self.clock.get_avg_period();
+                self.clock.phase_wrap();
+
+                // Symbol Clock and Interpolator Positioning & Alignment
+                self.inst_interp_period = self.inst_clock_period / self.interps_per_symbol;
+
+                // Tag Propagation
+                self.inst_output_period = self.inst_clock_period / self.osps;
+            }
+
+            if self.symbol_clock() {
+                self.interp.next_phase(self.inst_clock_period,
+                                     &mut look_ahead_phase,
+                                     &mut look_ahead_phase_n,
+                                     &mut look_ahead_phase_wrapped);
+
+                if ii + look_ahead_phase_n >= ni {
+                    self.clock.revert_loop();
+                    self.ted.revert();
+                    self.revert_internal_clocks();
+                    break;
+                }
+            }
+
+            self.interp.advance_phase(self.inst_interp_period);
+
+            if self.output_sample_clock() {
+                oo += 1;
+            }
+
+            ii += self.interp.phase_n();
+        }
+
+        self.input(0).consume(ii);
+        self.output(0).produce(oo);
 
         Ok(())
     }
