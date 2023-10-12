@@ -1,10 +1,11 @@
+mod call_sign;
+pub use call_sign::CallSign;
+
 mod crc;
 pub use crc::Crc;
 
 mod encoder;
-pub use encoder::CallSign;
 pub use encoder::Encoder;
-pub use encoder::LinkSetupFrame;
 
 mod encoder_block;
 pub use encoder_block::EncoderBlock;
@@ -17,6 +18,9 @@ pub use decoder_block::DecoderBlock;
 
 mod golay;
 pub use golay::Golay;
+
+mod lsf;
+pub use lsf::LinkSetupFrame;
 
 mod moving_average;
 pub use moving_average::MovingAverage;
