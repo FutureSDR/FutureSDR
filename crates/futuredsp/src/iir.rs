@@ -21,7 +21,7 @@ use num_traits::Zero;
 /// use futuredsp::StatefulUnaryKernel;
 /// use futuredsp::iir::IirKernel;
 ///
-/// let mut iir = IirKernel::<f32, f32, _>::new([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]);
+/// let mut iir = IirKernel::<f32, f32, _>::new([1f32, 2f32, 3f32], [4.0, 5.0, 6.0]);
 ///
 /// let input = [1.0, 2.0, 3.0, 4.0, 5.0];
 /// let mut output = [0.0];

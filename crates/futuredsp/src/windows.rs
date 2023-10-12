@@ -16,7 +16,7 @@ use num_traits::{AsPrimitive, Float, One};
 /// ```
 /// use futuredsp::windows;
 ///
-/// let taps = windows::rect(64);
+/// let taps: Vec<f32> = windows::rect(64);
 /// ```
 pub fn rect<T: Float + One>(len: usize) -> Vec<T> {
     vec![T::one(); len]
@@ -28,7 +28,7 @@ pub fn rect<T: Float + One>(len: usize) -> Vec<T> {
 /// ```
 /// use futuredsp::windows;
 ///
-/// let taps = windows::bartlett(38);
+/// let taps: Vec<f32> = windows::bartlett(38);
 /// ```
 pub fn bartlett<T>(len: usize) -> Vec<T>
 where
