@@ -186,8 +186,8 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
 /// ```
 /// use futuredsp::{firdes, windows};
 ///
-/// let window = windows::hamming(65);
-/// let taps = firdes::hilbert::<f32>(window);
+/// let window = windows::hamming(65, false);
+/// let taps = firdes::hilbert::<f32>(&window);
 /// ```
 pub fn hilbert<T: FromPrimitive>(window: &[f64]) -> Vec<T> {
     let ntaps = window.len();
