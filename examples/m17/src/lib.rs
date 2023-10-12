@@ -9,6 +9,12 @@ pub use encoder::LinkSetupFrame;
 mod encoder_block;
 pub use encoder_block::EncoderBlock;
 
+mod decoder;
+pub use decoder::Decoder;
+
+mod decoder_block;
+pub use decoder_block::DecoderBlock;
+
 mod golay;
 pub use golay::Golay;
 
