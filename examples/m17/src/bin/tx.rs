@@ -4,6 +4,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
+use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FiniteSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::macros::connect;
@@ -63,15 +64,18 @@ fn main() -> Result<()> {
         curr *= c;
         curr
     });
-    let upsample = FirBuilder::new_resampling::<Complex32, Complex32>(16, 1);
+    let snk = FileSink::<Complex32>::new("input.cf32");
+    connect!(fg, src > codec2 > encoder > pulse > rrc > fm > snk);
 
-    let snk = SinkBuilder::new()
-        .frequency(433475000.0 * (1.0 + 2.75e-6))
-        .gain(60.0)
-        .sample_rate(16.0 * 48000.0)
-        .build()?;
-
-    connect!(fg, src > codec2 > encoder > pulse > rrc > fm > upsample > snk);
+    // let upsample = FirBuilder::new_resampling::<Complex32, Complex32>(16, 1);
+    //
+    // let snk = SinkBuilder::new()
+    //     .frequency(433475000.0 * (1.0 + 2.75e-6))
+    //     .gain(60.0)
+    //     .sample_rate(16.0 * 48000.0)
+    //     .build()?;
+    //
+    // connect!(fg, src > codec2 > encoder > pulse > rrc > fm > upsample > snk);
 
     Runtime::new().run(fg)?;
 
