@@ -1,8 +1,10 @@
 use std::collections::VecDeque;
 
 use crate::CallSign;
+use crate::Golay;
 use crate::LinkSetupFrame;
 use crate::PUNCTERING_1;
+use crate::PUNCTERING_2;
 use crate::INTERLEAVER;
 use crate::RAND_SEQ;
 
@@ -165,7 +167,13 @@ pub struct Decoder {
     soft_bit: [u16; 2*Self::SYM_PER_PLD],
     de_soft_bit: [u16; 2*Self::SYM_PER_PLD],
     enc_data: [u16; 272],
+    frame_data: [u8; 19],
     lsf: [u8; 30+1],
+    lich_chunk: [u16; 96],
+    lich_cnt: u8,
+    lich_chunks_rcvd: u8,
+    lich_b: [u8; 6],
+    expected_next_fn: u16,
     viterbi: ViterbiDecoder,
 }
 
@@ -186,9 +194,34 @@ impl Decoder {
             soft_bit: [0; {2*Self::SYM_PER_PLD}],
             de_soft_bit: [0; {2*Self::SYM_PER_PLD}],
             enc_data: [0; 272],
+            frame_data: [0; 19],
             lsf: [0; 30+1],
+            lich_chunk: [0; 96],
+            lich_cnt: 0,
+            lich_chunks_rcvd: 0,
+            lich_b: [0; 6],
+            expected_next_fn: 0,
             viterbi: ViterbiDecoder::new(),
         }
+    }
+
+    fn decode_lich(outp: &mut [u8], inp: &[u16]) {
+        let mut tmp;
+
+        outp.fill(0);
+
+        tmp=Golay::sdecode(&inp[0..]);
+        outp[0]=((tmp>>4)&0xFF) as u8;
+        outp[1]|=((tmp&0xF)<<4) as u8;
+        tmp=Golay::sdecode(&inp[1*24..]);
+        outp[1]|=((tmp>>8)&0xF) as u8;
+        outp[2]=(tmp&0xFF) as u8;
+        tmp=Golay::sdecode(&inp[2*24..]);
+        outp[3]=((tmp>>4)&0xFF) as u8;
+        outp[4]|=((tmp&0xF)<<4) as u8;
+        tmp=Golay::sdecode(&inp[3*24..]);
+        outp[4]|=((tmp>>8)&0xF) as u8;
+        outp[5]=(tmp&0xFF) as u8;
     }
 
     fn sync_dist(&self, sym: &[f32; 8]) -> f32 {
@@ -199,7 +232,9 @@ impl Decoder {
         tmp.sqrt()
     }
 
-    pub fn process(&mut self, sample: f32) {
+    pub fn process(&mut self, sample: f32) -> Option<[u8; 16]> {
+        let mut ret = None;
+
         if !self.synced {
             self.last.pop_front();
             self.last.push_back(sample);
@@ -245,15 +280,13 @@ impl Decoder {
                         self.soft_bit[i*2]=0x0000;
                     }
                     else if self.pld[i]>=Self::SYMBS[1] {
-                        self.soft_bit[i*2]=0x7FFF_u16.wrapping_sub((self.pld[i]*(0xFFFF as f32)/(Self::SYMBS[2]-Self::SYMBS[1])).round() as u16);
+                        self.soft_bit[i*2]=(0x7FFF_i32 - (self.pld[i]*(0xFFFF as f32)/(Self::SYMBS[2]-Self::SYMBS[1])).round() as i32) as u16;
                     }
                     else
                     {
                         self.soft_bit[i*2]=0xFFFF;
                     }
                 }
-
-                println!("de {:?}", &self.soft_bit);
 
                 //derandomize
                 for i in 0..Self::SYM_PER_PLD*2 {
@@ -268,105 +301,59 @@ impl Decoder {
                 }
 
                 if !self.fl {
-                    // //extract data
-                    // for(uint16_t i=0; i<272; i++)
-                    // {
-                    //     enc_data[i]=d_soft_bit[96+i];
-                    // }
-                    //
-                    // //decode
-                    // uint32_t e=decodePunctured(frame_data, enc_data, P_2, 272, 12);
-                    //
-                    // uint16_t fn = (frame_data[1] << 8) | frame_data[2];
-                    //
-                    // //dump data - first byte is empty
-                    // printf("FN: %04X PLD: ", fn);
-                    // for(uint8_t i=3; i<19; i++)
-                    // {
-                    //     printf("%02X", frame_data[i]);
-                    // }
-                    // #ifdef SHOW_VITERBI_ERRS
-                    // printf(" e=%1.1f\n", (float)e/0xFFFF);
-                    // #else
-                    // printf("\n");
-                    // #endif
-                    //
-                    // //send codec2 stream to stdout
-                    // //write(STDOUT_FILENO, &frame_data[3], 16);
-                    //
-                    // //extract LICH
-                    // for(uint16_t i=0; i<96; i++)
-                    // {
-                    //     lich_chunk[i]=d_soft_bit[i];
-                    // }
-                    //
-                    // //Golay decoder
-                    // decode_LICH(lich_b, lich_chunk);
-                    // lich_cnt=lich_b[5]>>5;
-                    //
-                    // //If we're at the start of a superframe, or we missed a frame, reset the LICH state
-                    // if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn))
-                    //     lich_chunks_rcvd=0;
-                    //
-                    // lich_chunks_rcvd|=(1<<lich_cnt);
-                    // memcpy(&lsf[lich_cnt*5], lich_b, 5);
-                    //
-                    // //debug - dump LICH
-                    // if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
-                    // {
-                    //     #ifdef DECODE_CALLSIGNS
-                    //     uint8_t d_dst[12], d_src[12]; //decoded strings
-                    //
-                    //     decode_callsign(d_dst, &lsf[0]);
-                    //     decode_callsign(d_src, &lsf[6]);
-                    //
-                    //     //DST
-                    //     printf("DST: %-9s ", d_dst);
-                    //
-                    //     //SRC
-                    //     printf("SRC: %-9s ", d_src);
-                    //     #else
-                    //     //DST
-                    //     printf("DST: ");
-                    //     for(uint8_t i=0; i<6; i++)
-                    //         printf("%02X", lsf[i]);
-                    //     printf(" ");
-                    //
-                    //     //SRC
-                    //     printf("SRC: ");
-                    //     for(uint8_t i=0; i<6; i++)
-                    //         printf("%02X", lsf[6+i]);
-                    //     printf(" ");
-                    //     #endif
-                    //
-                    //     //TYPE
-                    //     printf("TYPE: ");
-                    //     for(uint8_t i=0; i<2; i++)
-                    //         printf("%02X", lsf[12+i]);
-                    //     printf(" ");
-                    //
-                    //     //META
-                    //     printf("META: ");
-                    //     for(uint8_t i=0; i<14; i++)
-                    //         printf("%02X", lsf[14+i]);
-                    //     //printf(" ");
-                    //
-                    //     //CRC
-                    //     //printf("CRC: ");
-                    //     //for(uint8_t i=0; i<2; i++)
-                    //         //printf("%02X", lsf[28+i]);
-                    //     if(CRC_M17(lsf, 30))
-                    //         printf(" LSF_CRC_ERR");
-                    //     else
-                    //         printf(" LSF_CRC_OK ");
-                    //     printf("\n");
-                    // }
-                    //
-                    // expected_next_fn = (fn + 1) % 0x8000;
+                    // extract data
+                    for i in 0..272 {
+                        self.enc_data[i] = self.de_soft_bit[96+i];
+                    }
+
+                    // decode
+                    let e = self.viterbi.decode_punctured(&mut self.frame_data, &self.enc_data, &PUNCTERING_2);
+                    let e = e as f32 /(0xFFFF as f32);
+
+                    let f_num = (self.frame_data[1] as u16) << 8 | self.frame_data[2] as u16;
+
+                    println!("Num {}: {:?} (Errors {})", f_num, &self.frame_data[3..], e);
+
+                    //send codec2 stream to stdout
+                    //write(STDOUT_FILENO, &frame_data[3], 16);
+                    ret = Some(self.frame_data[3..19].try_into().unwrap());
+
+                    // extract LICH
+                    for i in 0..96 {
+                        self.lich_chunk[i] = self.de_soft_bit[i];
+
+                    }
+                    
+                    // Golay decoder
+                    Self::decode_lich(&mut self.lich_b, &self.lich_chunk);
+                    self.lich_cnt = self.lich_b[5] >> 5;
+                    
+                    // If we're at the start of a superframe, or we missed a frame, reset the LICH state
+                    if (self.lich_cnt==0) || ((f_num % 0x8000)!=self.expected_next_fn) {
+                        self.lich_chunks_rcvd=0;
+                    }
+                    
+                    self.lich_chunks_rcvd |= 1<<self.lich_cnt;
+                    self.lsf[(self.lich_cnt * 5) as usize..((self.lich_cnt + 1) * 5) as usize].copy_from_slice(&self.lich_b[0..5]);
+
+                    if self.lich_chunks_rcvd == 0x3F {
+                        let lsf = LinkSetupFrame::try_from(&self.lsf[0..30].try_into().unwrap());
+                        if let Ok(lsf) = lsf {
+                            let src = CallSign::from_bytes(lsf.src());
+                            let dst = CallSign::from_bytes(lsf.dst());
+                            let t = u16::from_be_bytes(*lsf.r#type());
+                            println!("LSF {} -> {} Type {}", src.to_string(), dst.to_string(), t);
+                        } else {
+                            println!("LSF w/ Wrong CRC.");
+                        }
+                    }
+                    
+                    self.expected_next_fn = (f_num + 1) % 0x8000;
 
                 } else {
                     //decode
                     let e = self.viterbi.decode_punctured(&mut self.lsf, &self.de_soft_bit, &PUNCTERING_1);
+                    let e = e as f32 /(0xFFFF as f32);
                     
                     for i in 0..30 {
                         self.lsf[i] = self.lsf[i+1];
@@ -378,64 +365,11 @@ impl Decoder {
                     if let Ok(lsf) = lsf {
                         let src = CallSign::from_bytes(lsf.src());
                         let dst = CallSign::from_bytes(lsf.dst());
-                        let t = u16::from_le_bytes(*lsf.r#type());
-                        println!("LSF {} -> {} type {}", src.to_string(), dst.to_string(), t);
+                        let t = u16::from_be_bytes(*lsf.r#type());
+                        println!("LSF {} -> {} Type {} Errors {}", src.to_string(), dst.to_string(), t, e);
                     } else {
-                        println!("LSF w/ Wrong CRC");
+                        println!("LSF w/ Wrong CRC. Errors {}", e);
                     }
-
-                    //dump data
-                    // uint8_t d_dst[12], d_src[12]; //decoded strings
-                    //
-                    // decode_callsign(d_dst, &lsf[0]);
-                    // decode_callsign(d_src, &lsf[6]);
-                    //
-                    // //DST
-                    // printf("DST: %-9s ", d_dst);
-                    //
-                    // //SRC
-                    // printf("SRC: %-9s ", d_src);
-                    // #else
-                    // //DST
-                    // printf("DST: ");
-                    // for(uint8_t i=0; i<6; i++)
-                    //     printf("%02X", lsf[i]);
-                    // printf(" ");
-                    //
-                    // //SRC
-                    // printf("SRC: ");
-                    // for(uint8_t i=0; i<6; i++)
-                    //     printf("%02X", lsf[6+i]);
-                    // printf(" ");
-                    // #endif
-                    //
-                    // //TYPE
-                    // printf("TYPE: ");
-                    // for(uint8_t i=0; i<2; i++)
-                    //     printf("%02X", lsf[12+i]);
-                    // printf(" ");
-                    //
-                    // //META
-                    // printf("META: ");
-                    // for(uint8_t i=0; i<14; i++)
-                    //     printf("%02X", lsf[14+i]);
-                    // printf(" ");
-                    //
-                    // //CRC
-                    // //printf("CRC: ");
-                    // //for(uint8_t i=0; i<2; i++)
-                    //     //printf("%02X", lsf[28+i]);
-                    // if(CRC_M17(lsf, 30))
-                    //     printf("LSF_CRC_ERR");
-                    // else
-                    //     printf("LSF_CRC_OK ");
-                    //
-                    // //Viterbi decoder errors
-                    // #ifdef SHOW_VITERBI_ERRS
-                    // printf(" e=%1.1f\n", (float)e/0xFFFF);
-                    // #else
-                    // printf("\n");
-                    // #endif
                 }
 
                 //job done
@@ -447,5 +381,7 @@ impl Decoder {
                 }
             }
         }
+
+        ret
     }
 }

@@ -22,6 +22,7 @@ impl DecoderBlock {
             BlockMetaBuilder::new("M17Decoder").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
+                .add_output::<u8>("out")
                 .build(),
             MessageIoBuilder::new().build(),
             Self {
@@ -41,11 +42,23 @@ impl Kernel for DecoderBlock {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();
-        for s in input {
-            self.decoder.process(*s);
+        let output = sio.output(0).slice::<u8>();
+
+        let mut ii = 0;
+        let mut oo = 0;
+
+        while ii < input.len() && oo + 16 < output.len() {
+            if let Some(d) = self.decoder.process(input[ii]) {
+                output[oo..oo+16].copy_from_slice(&d);
+                oo += 16;
+            }
+            ii += 1;
         }
-        sio.input(0).consume(input.len());
-        if sio.input(0).finished() {
+
+        sio.input(0).consume(ii);
+        sio.output(0).produce(oo);
+
+        if sio.input(0).finished() && ii == input.len() {
             io.finished = true;
         }
 
