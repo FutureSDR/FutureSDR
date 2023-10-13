@@ -1,3 +1,6 @@
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::excessive_precision)]
+#![allow(clippy::new_ret_no_self)]
 mod call_sign;
 pub use call_sign::CallSign;
 

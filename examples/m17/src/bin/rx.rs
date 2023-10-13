@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use codec2::Codec2;
 use codec2::Codec2Mode;
 use futuresdr::anyhow::Result;

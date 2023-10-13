@@ -1,7 +1,7 @@
+#![allow(clippy::excessive_precision)]
 use codec2::Codec2;
 use codec2::Codec2Mode;
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FileSink;
