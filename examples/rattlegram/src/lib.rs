@@ -1,3 +1,6 @@
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::new_ret_no_self)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
