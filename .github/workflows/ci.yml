@@ -93,8 +93,14 @@ jobs:
       - name: Run cargo fmt (examples/logging)
         run: cargo fmt --all --manifest-path=examples/logging/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/m17)
+        run: cargo fmt --all --manifest-path=examples/m17/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/macros)
         run: cargo fmt --all --manifest-path=examples/macros/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/rattlegram)
+        run: cargo fmt --all --manifest-path=examples/rattlegram/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/spectrum)
         run: cargo fmt --all --manifest-path=examples/spectrum/Cargo.toml -- --check
@@ -219,8 +225,14 @@ jobs:
       - name: Run cargo clippy (examples/logging)
         run: cargo clippy --all-targets --manifest-path=examples/logging/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (examples/m17)
+        run: cargo clippy --all-targets --manifest-path=examples/m17/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (examples/macros)
         run: cargo clippy --all-targets --manifest-path=examples/macros/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/rattlegram)
+        run: cargo clippy --all-targets --manifest-path=examples/rattlegram/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/spectrum)
         run: cargo clippy --all-targets --manifest-path=examples/spectrum/Cargo.toml -- -D warnings
@@ -269,6 +281,9 @@ jobs:
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/cw)
         run: cargo clippy --lib --manifest-path=examples/cw/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Run cargo clippy for wasm32-unknown-unknown (examples/rattlegram)
+        run: cargo clippy --lib --manifest-path=examples/rattlegram/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
       - name: Run cargo clippy for wasm32-unknown-unknown (examples/spectrum)
         run: cargo clippy --lib --manifest-path=examples/spectrum/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
@@ -295,6 +310,7 @@ jobs:
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
       - run: cargo test --all-targets --workspace --features=aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu
+      - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
       - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
 
   test-macos:
