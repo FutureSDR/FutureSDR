@@ -349,7 +349,7 @@ impl Decoder {
                             let src = CallSign::from_bytes(lsf.src());
                             let dst = CallSign::from_bytes(lsf.dst());
                             let t = u16::from_be_bytes(*lsf.r#type());
-                            println!("LSF {} -> {} Type {}", src.to_string(), dst.to_string(), t);
+                            println!("LSF {} -> {} Type {}", src, dst, t);
                         } else {
                             println!("LSF w/ Wrong CRC.");
                         }
@@ -378,8 +378,8 @@ impl Decoder {
                         let t = u16::from_be_bytes(*lsf.r#type());
                         println!(
                             "LSF {} -> {} Type {} Errors {}",
-                            src.to_string(),
-                            dst.to_string(),
+                            src,
+                            dst,
                             t,
                             e
                         );
