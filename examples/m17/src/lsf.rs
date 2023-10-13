@@ -46,7 +46,7 @@ impl TryFrom<&[u8; 30]> for LinkSetupFrame {
 
     fn try_from(value: &[u8; 30]) -> Result<Self, Self::Error> {
         let mut lsf = LinkSetupFrame {
-            data: value.clone(),
+            data: *value,
         };
 
         let mut tmp = [0u8; 2];

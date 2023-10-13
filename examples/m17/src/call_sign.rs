@@ -17,8 +17,8 @@ impl CallSign {
         match encoded {
             0 => Self::Invalid,
             0xFFFFFFFFFFFF => Self::Broadcast,
-            1..=0xEE6B27FFFFFF => Self::UnitId(b.clone()),
-            _ => Self::Reserved(b.clone()),
+            1..=0xEE6B27FFFFFF => Self::UnitId(*b),
+            _ => Self::Reserved(*b),
         }
     }
 
@@ -52,8 +52,8 @@ impl CallSign {
         match self {
             Self::Invalid => &[0; 6],
             Self::Broadcast => &[0xFF; 6],
-            Self::UnitId(d) => &d,
-            Self::Reserved(d) => &d,
+            Self::UnitId(d) => d,
+            Self::Reserved(d) => d,
         }
     }
 

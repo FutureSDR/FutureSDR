@@ -62,11 +62,7 @@ impl Kernel for EncoderBlock {
             }
         } else {
             if input.len() >= 16 {
-                let eot = if sio.input(0).finished() && input.len() <= 31 {
-                    true
-                } else {
-                    false
-                };
+                let eot = sio.input(0).finished() && input.len() <= 31;
                 self.syms = self
                     .encoder
                     .encode(&input[0..16].try_into().unwrap(), eot)

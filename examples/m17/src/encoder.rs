@@ -65,7 +65,7 @@ impl Encoder {
         self.offset += 8;
 
         for (i, sym) in syms.iter_mut().enumerate() {
-            *sym = Self::map(((sword >> 14 - (i * 2)) & 3) as u8);
+            *sym = Self::map(((sword >> (14 - (i * 2))) & 3) as u8);
         }
     }
 
@@ -100,13 +100,13 @@ impl Encoder {
 
         for i in 0..16 {
             for j in 0..8 {
-                ud[4 + 16 + i * 8 + j] = ((input[i] >> (7 - j)) & 1) as u8;
+                ud[4 + 16 + i * 8 + j] = ((input[i] >> (7 - j)) & 1);
             }
         }
 
         for i in 0..144 + 4 {
-            let g1 = (ud[i + 4] + ud[i + 1] + ud[i + 0]) % 2;
-            let g2 = (ud[i + 4] + ud[i + 3] + ud[i + 2] + ud[i + 0]) % 2;
+            let g1 = (ud[i + 4] + ud[i + 1] + ud[i]) % 2;
+            let g2 = (ud[i + 4] + ud[i + 3] + ud[i + 2] + ud[i]) % 2;
 
             if PUNCTERING_2[p] > 0 {
                 out[pb] = g1;
@@ -182,8 +182,8 @@ impl Encoder {
         }
 
         for i in 0..240 + 4 {
-            let g1 = (ud[i + 4] + ud[i + 1] + ud[i + 0]) % 2;
-            let g2 = (ud[i + 4] + ud[i + 3] + ud[i + 2] + ud[i + 0]) % 2;
+            let g1 = (ud[i + 4] + ud[i + 1] + ud[i]) % 2;
+            let g2 = (ud[i + 4] + ud[i + 3] + ud[i + 2] + ud[i]) % 2;
 
             if PUNCTERING_1[p] > 0 {
                 out[pb] = g1;
@@ -235,19 +235,19 @@ impl Encoder {
         let val = Golay::encode(((self.lich[0] as u16) << 4) | ((self.lich[1] as u16) >> 4));
         self.lich_encoded[0] = ((val >> 16) & 0xFF) as u8;
         self.lich_encoded[1] = ((val >> 8) & 0xFF) as u8;
-        self.lich_encoded[2] = ((val >> 0) & 0xFF) as u8;
+        self.lich_encoded[2] = (val & 0xFF) as u8;
         let val = Golay::encode((((self.lich[1] as u16) & 0x0F) << 8) | (self.lich[2] as u16));
         self.lich_encoded[3] = ((val >> 16) & 0xFF) as u8;
         self.lich_encoded[4] = ((val >> 8) & 0xFF) as u8;
-        self.lich_encoded[5] = ((val >> 0) & 0xFF) as u8;
+        self.lich_encoded[5] = (val & 0xFF) as u8;
         let val = Golay::encode(((self.lich[3] as u16) << 4) | ((self.lich[4] as u16) >> 4));
         self.lich_encoded[6] = ((val >> 16) & 0xFF) as u8;
         self.lich_encoded[7] = ((val >> 8) & 0xFF) as u8;
-        self.lich_encoded[8] = ((val >> 0) & 0xFF) as u8;
+        self.lich_encoded[8] = (val & 0xFF) as u8;
         let val = Golay::encode((((self.lich[4] as u16) & 0x0F) << 8) | (self.lich[5] as u16));
         self.lich_encoded[9] = ((val >> 16) & 0xFF) as u8;
         self.lich_encoded[10] = ((val >> 8) & 0xFF) as u8;
-        self.lich_encoded[11] = ((val >> 0) & 0xFF) as u8;
+        self.lich_encoded[11] = (val & 0xFF) as u8;
 
         self.enc_bits.fill(0);
         for i in 0..12 {

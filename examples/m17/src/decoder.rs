@@ -175,6 +175,12 @@ pub struct Decoder {
     viterbi: ViterbiDecoder,
 }
 
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Decoder {
     const STR_SYNC: [f32; 8] = [-3.0, -3.0, -3.0, -3.0, 3.0, 3.0, -3.0, 3.0];
     const LSF_SYNC: [f32; 8] = [3.0, 3.0, 3.0, 3.0, -3.0, -3.0, 3.0, -3.0];
@@ -211,7 +217,7 @@ impl Decoder {
         tmp = Golay::sdecode(&inp[0..]);
         outp[0] = ((tmp >> 4) & 0xFF) as u8;
         outp[1] |= ((tmp & 0xF) << 4) as u8;
-        tmp = Golay::sdecode(&inp[1 * 24..]);
+        tmp = Golay::sdecode(&inp[24..]);
         outp[1] |= ((tmp >> 8) & 0xF) as u8;
         outp[2] = (tmp & 0xFF) as u8;
         tmp = Golay::sdecode(&inp[2 * 24..]);
@@ -366,7 +372,7 @@ impl Decoder {
                         self.lsf[i] = self.lsf[i + 1];
                     }
 
-                    println!("e={}", e as f32 / (0xFFFF as f32));
+                    println!("e={}", e / (0xFFFF as f32));
 
                     let lsf = LinkSetupFrame::try_from(&self.lsf[0..30].try_into().unwrap());
                     if let Ok(lsf) = lsf {

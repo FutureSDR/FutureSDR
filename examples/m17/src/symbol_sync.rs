@@ -1468,7 +1468,7 @@ impl ClockTrackingLoop {
         self.prev_avg_period = self.avg_period;
         self.prev_inst_period = self.inst_period;
         self.prev_phase = self.phase;
-        self.avg_period = self.avg_period + self.beta * error;
+        self.avg_period += self.beta * error;
         self.period_limit();
 
         self.inst_period = self.avg_period + self.alpha * error;
@@ -1476,7 +1476,7 @@ impl ClockTrackingLoop {
             self.inst_period = self.avg_period;
         }
 
-        self.phase = self.phase + self.inst_period;
+        self.phase += self.inst_period;
     }
 
     fn revert_loop(&mut self) {
@@ -1507,22 +1507,22 @@ impl ClockTrackingLoop {
     }
 
     fn update_gains(&mut self) {
-        let omega_n_t;
+        
         let omega_d_t;
-        let zeta_omega_n_t;
+        
         let cosx_omega_d_t;
 
-        let k0;
-        let k1;
-        let sinh_zeta_omega_n_t;
-        let alpha;
-        let beta;
+        
+        
+        
+        
+        
 
-        omega_n_t = self.omega_n_norm;
-        zeta_omega_n_t = self.zeta * omega_n_t;
-        k0 = 2.0 / self.ted_gain;
-        k1 = (-zeta_omega_n_t).exp();
-        sinh_zeta_omega_n_t = (zeta_omega_n_t).sinh();
+        let omega_n_t = self.omega_n_norm;
+        let zeta_omega_n_t = self.zeta * omega_n_t;
+        let k0 = 2.0 / self.ted_gain;
+        let k1 = (-zeta_omega_n_t).exp();
+        let sinh_zeta_omega_n_t = (zeta_omega_n_t).sinh();
 
         if self.zeta > 1.0 {
             omega_d_t = omega_n_t * (self.zeta * self.zeta - 1.0).sqrt();
@@ -1535,8 +1535,8 @@ impl ClockTrackingLoop {
             cosx_omega_d_t = omega_d_t.cos();
         }
 
-        alpha = k0 * k1 * sinh_zeta_omega_n_t;
-        beta = k0 * (1.0 - k1 * (sinh_zeta_omega_n_t + cosx_omega_d_t));
+        let alpha = k0 * k1 * sinh_zeta_omega_n_t;
+        let beta = k0 * (1.0 - k1 * (sinh_zeta_omega_n_t + cosx_omega_d_t));
 
         self.set_alpha(alpha);
         self.set_beta(beta);
@@ -1673,8 +1673,8 @@ impl TimingErrorDetector {
     fn input(&mut self, x: f32) {
         self.input.push_front(Complex32::new(x, 0.0));
         self.input.pop_back();
-        assert_eq!(self.needs_derivative, false);
-        assert_eq!(self.needs_lookahead, false);
+        assert!(!self.needs_derivative);
+        assert!(!self.needs_lookahead);
 
         self.advance_input_clock();
         if self.input_clock == 0 {
@@ -1701,12 +1701,12 @@ impl TimingErrorDetector {
     }
 
     fn revert(&mut self, preserve_error: bool) {
-        if (self.input_clock == 0) && (preserve_error == false) {
+        if (self.input_clock == 0) && !preserve_error {
             self.error = self.prev_error;
         }
         self.revert_input_clock();
 
-        assert_eq!(self.needs_derivative, false);
+        assert!(!self.needs_derivative);
 
         self.input.push_back(*self.input.back().unwrap());
         self.input.pop_front();
@@ -1717,7 +1717,7 @@ impl TimingErrorDetector {
         self.prev_error = 0.0;
 
         self.input =
-            VecDeque::from_iter(vec![Complex32::new(0.0, 0.0); self.error_depth].into_iter());
+            VecDeque::from_iter(vec![Complex32::new(0.0, 0.0); self.error_depth]);
         self.sync_reset_input_clock();
     }
 
@@ -1792,7 +1792,7 @@ impl SymbolSync {
             interps_per_ted_input_n,
             interps_per_output_sample_n: interps_per_symbol_n / osps_n,
             inst_interp_period: 0.0,
-            inst_output_period: sps / osps as f32,
+            inst_output_period: sps / osps,
             inst_clock_period: sps,
             avg_clock_period: sps,
             clock: ClockTrackingLoop::new(

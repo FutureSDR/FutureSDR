@@ -79,7 +79,7 @@ impl Golay {
         for i in 0..12 {
             Self::int_to_soft(&mut soft_em, Self::ENCODE_MATRIX[i], 12);
             if value[i] > 0x7FFF {
-                let asdf = checksum.clone();
+                let asdf = checksum;
                 Self::soft_xor(&mut checksum, &asdf, &soft_em, 12);
             }
         }
@@ -145,7 +145,7 @@ impl Golay {
         for i in 0..12 {
             if syndrome[i] > 0x7FFF {
                 Self::int_to_soft(&mut dm, Self::DECODE_MATRIX[i], 12);
-                let asdf = inv_syndrome.clone();
+                let asdf = inv_syndrome;
                 Self::soft_xor(&mut inv_syndrome, &asdf, &dm, 12);
             }
         }
