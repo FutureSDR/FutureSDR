@@ -501,10 +501,8 @@ impl SchmittTrigger {
             if input < self.low {
                 self.previous = false;
             }
-        } else {
-            if input > self.high {
-                self.previous = true;
-            }
+        } else if input > self.high {
+            self.previous = true;
         }
         self.previous
     }
@@ -949,7 +947,7 @@ impl Decoder {
         let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH / 2];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
         for i in 0..Self::COR_SEQ_LEN as isize {
-            let index = (i + Self::COR_SEQ_OFF as isize / 2 + Self::SYMBOL_LENGTH as isize / 2)
+            let index = (i + Self::COR_SEQ_OFF / 2 + Self::SYMBOL_LENGTH as isize / 2)
                 as usize
                 % (Self::SYMBOL_LENGTH / 2);
             let seq = mls.next();
@@ -1204,7 +1202,7 @@ impl Decoder {
         }
 
         self.staged_mode = (md & 0xff).into();
-        self.staged_call = (md >> 8) as u64;
+        self.staged_call = (md >> 8);
 
         if self.staged_mode == OperationMode::Null {
             return DecoderResult::Nope;

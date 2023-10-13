@@ -153,6 +153,12 @@ pub struct PolarDecoder {
     crc: Crc32,
 }
 
+impl Default for PolarDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PolarDecoder {
     const CODE_ORDER: usize = 11;
     const CODE_LEN: usize = 1 << Self::CODE_ORDER;
@@ -531,7 +537,7 @@ fn vsign(mut a: Type, b: Type) -> Type {
             0
         } else {
             // -1 * std::cmp::max(a[i], -std::i8::MAX)
-            -1 * a[i]
+            -a[i]
         };
     }
     a
