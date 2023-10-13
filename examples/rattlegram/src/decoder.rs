@@ -1202,7 +1202,7 @@ impl Decoder {
         }
 
         self.staged_mode = (md & 0xff).into();
-        self.staged_call = (md >> 8);
+        self.staged_call = md >> 8;
 
         if self.staged_mode == OperationMode::Null {
             return DecoderResult::Nope;
