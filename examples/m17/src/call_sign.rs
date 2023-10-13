@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Clone, Debug)]
 pub enum CallSign {
     Broadcast,
@@ -56,9 +58,11 @@ impl CallSign {
             Self::Reserved(d) => d,
         }
     }
+}
 
-    pub fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for CallSign {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
             Self::Invalid => "#INVLD".to_string(),
             Self::Broadcast => "#BCAST".to_string(),
             Self::UnitId(d) => {
@@ -75,6 +79,8 @@ impl CallSign {
                 out
             }
             Self::Reserved(_) => "#RSRVD".to_string(),
-        }
+        };
+
+        write!(f, "{}", s)
     }
 }

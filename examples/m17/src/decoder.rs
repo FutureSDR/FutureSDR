@@ -77,10 +77,7 @@ impl ViterbiDecoder {
         }
 
         //swap
-        let mut tmp = [0u32; Self::NUM_STATES];
-        for i in 0..Self::NUM_STATES {
-            tmp[i] = self.curr_metrics[i];
-        }
+        let tmp = self.curr_metrics;
 
         for i in 0..Self::NUM_STATES {
             self.curr_metrics[i] = self.prev_metrics[i];

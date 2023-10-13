@@ -99,7 +99,7 @@ impl Golay {
         Self::calc_checksum(&mut cksum, &data);
         Self::soft_xor(&mut syndrome, &parity, &cksum, 12);
 
-        weight = Self::spopcount(&mut syndrome, 12);
+        weight = Self::spopcount(&syndrome, 12);
 
         if weight < 4 * 0xFFFE {
             return Self::soft_to_int(&syndrome, 12) as u32;
