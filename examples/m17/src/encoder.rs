@@ -100,7 +100,7 @@ impl Encoder {
 
         for i in 0..16 {
             for j in 0..8 {
-                ud[4 + 16 + i * 8 + j] = ((input[i] >> (7 - j)) & 1);
+                ud[4 + 16 + i * 8 + j] = (input[i] >> (7 - j)) & 1;
             }
         }
 
