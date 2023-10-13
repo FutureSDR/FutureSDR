@@ -1333,7 +1333,7 @@ impl InterpResampler {
         fn filter(filter: &[f32; 8], input: &[f32; 8]) -> f32 {
             let mut sum = 0.0;
             for i in 0..8 {
-                sum += filter[7-i] * input[i];
+                sum += filter[7 - i] * input[i];
             }
             sum
         }

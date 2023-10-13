@@ -49,7 +49,7 @@ impl Kernel for DecoderBlock {
 
         while ii < input.len() && oo + 16 < output.len() {
             if let Some(d) = self.decoder.process(input[ii]) {
-                output[oo..oo+16].copy_from_slice(&d);
+                output[oo..oo + 16].copy_from_slice(&d);
                 oo += 16;
             }
             ii += 1;

@@ -112,7 +112,11 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-u
 # Test
 ###########################################################
 cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=aaronia,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -j 4
+cd ${SCRIPTPATH}/crates/frontend && cargo test --all-targets
+cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
+cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
+cd ${SCRIPTPATH}/crates/types && cargo test --all-targets
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo test --all-targets

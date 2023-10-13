@@ -1,8 +1,8 @@
 use crate::Golay;
 use crate::LinkSetupFrame;
+use crate::INTERLEAVER;
 use crate::PUNCTERING_1;
 use crate::PUNCTERING_2;
-use crate::INTERLEAVER;
 use crate::RAND_SEQ;
 use crate::SYNC_LSF;
 use crate::SYNC_STR;
@@ -276,4 +276,3 @@ impl Encoder {
         &self.syms[0..self.offset]
     }
 }
-

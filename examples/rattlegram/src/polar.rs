@@ -1,4 +1,3 @@
-
 use crate::{get_le_bit, set_le_bit};
 
 struct Assert<const V: bool>;
@@ -141,7 +140,7 @@ impl PolarSysEnc {
     }
 }
 
-const LEN : usize = 32;
+const LEN: usize = 32;
 type Type = [i8; LEN];
 type MesgType = [i8; LEN];
 type Path = i64;
@@ -188,7 +187,6 @@ impl PolarDecoder {
         frozen_bits: &[u32],
         data_bits: usize,
     ) -> i32 {
-
         // println!("message ({}) {:?}", message.len(), message);
         // println!("code ({}) {:?}", code.len(), code);
         // println!("frozen ({}) {:?}", frozen_bits.len(), frozen_bits);
@@ -328,7 +326,6 @@ impl PolarListDecoder {
         frozen: &[u32],
         level: usize,
     ) {
-
         assert!(level <= Self::MAX_M);
         let mut count = 0;
         metric[0] = 0;
@@ -546,7 +543,11 @@ fn prod(a: Type, b: Type) -> Type {
 
 fn vshuf(mut a: Type, b: Map) -> Type {
     for i in 0..LEN {
-        a[i] = if b[i] < LEN as u8 { a[b[i] as usize] } else { 0 };
+        a[i] = if b[i] < LEN as u8 {
+            a[b[i] as usize]
+        } else {
+            0
+        };
     }
     a
 }
@@ -678,15 +679,7 @@ impl PolarListTree {
         if frozen[0] == 0xffffffff {
             lmap = PolarListNode::<{ 6 - 1 }>::rate0(metric, hard, soft);
         } else {
-            lmap = PolarListTree::decode_5(
-                metric,
-                message,
-                maps,
-                count,
-                hard,
-                soft,
-                frozen[0],
-            );
+            lmap = PolarListTree::decode_5(metric, message, maps, count, hard, soft, frozen[0]);
         }
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(

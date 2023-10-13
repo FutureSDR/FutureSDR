@@ -5,4 +5,3 @@ pub fn main() {}
 pub fn main() {
     rattlegram::wasm_tx::wasm_main()
 }
-

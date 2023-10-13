@@ -22,8 +22,8 @@ use crate::util::FROZEN_2048_712;
 use crate::Mls;
 use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
-use crate::Xorshift32;
 use crate::PolarDecoder;
+use crate::Xorshift32;
 
 pub struct DecoderBlock {
     decoder: Box<Decoder>,
@@ -114,7 +114,6 @@ impl Kernel for DecoderBlock {
     }
 }
 
-
 struct TheilSenEstimator {
     tmp: [f32; Self::SIZE],
     xint: f32,
@@ -123,7 +122,7 @@ struct TheilSenEstimator {
 }
 impl TheilSenEstimator {
     const LEN_MAX: usize = 256;
-    const SIZE: usize = ((Self::LEN_MAX-1) * Self::LEN_MAX) / 2;
+    const SIZE: usize = ((Self::LEN_MAX - 1) * Self::LEN_MAX) / 2;
 
     fn new() -> Self {
         Self {
@@ -149,7 +148,7 @@ impl TheilSenEstimator {
             i += 1;
         }
         self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.slope = self.tmp[count/2];
+        self.slope = self.tmp[count / 2];
         count = 0;
         let mut i = 0;
         while count < Self::SIZE && i < len {
@@ -158,13 +157,13 @@ impl TheilSenEstimator {
             i += 1;
         }
         self.tmp[0..count].sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.yint = self.tmp[count/2];
-        self.xint = - self.yint / self.slope;
+        self.yint = self.tmp[count / 2];
+        self.xint = -self.yint / self.slope;
     }
 
-	fn get(&self, x: f32) -> f32 {
-		self.yint + self.slope * x
-	}
+    fn get(&self, x: f32) -> f32 {
+        self.yint + self.slope * x
+    }
 }
 
 struct BoseChaudhuriHocquenghemGenerator;
@@ -682,7 +681,9 @@ where
     pub fn get(&self) -> &'static [Complex32; NUM] {
         let index = std::cmp::min(self.pos0, self.pos1);
         unsafe {
-            std::slice::from_raw_parts(self.buf.as_ptr().add(index), NUM).try_into().unwrap()
+            std::slice::from_raw_parts(self.buf.as_ptr().add(index), NUM)
+                .try_into()
+                .unwrap()
         }
         // let mut buf = [Complex32::new(0.0, 0.0); NUM];
         // buf.copy_from_slice(&self.buf[index..index + NUM]);
@@ -917,8 +918,8 @@ impl Decoder {
     const PRE_SEQ_LEN: usize = 255;
     const PRE_SEQ_OFF: isize = -(Self::PRE_SEQ_LEN as isize) / 2;
     const PRE_SEQ_POLY: u64 = 0b100101011;
-	const PAY_CAR_CNT: usize = 256;
-	const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
+    const PAY_CAR_CNT: usize = 256;
+    const PAY_CAR_OFF: isize = -(Self::PAY_CAR_CNT as isize) / 2;
     const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::Algorithm {
         width: 16,
         poly: 0x2F15,
@@ -1122,10 +1123,17 @@ impl Decoder {
             for i in 0..Self::EXTENDED_LENGTH {
                 self.temp[i] = self.buf[self.symbol_position + i] * self.osc.get();
             }
-            self.fft_fwd.process_outofplace_with_scratch(&mut self.temp[0..Self::SYMBOL_LENGTH], &mut self.freq, &mut self.fft_scratch);
+            self.fft_fwd.process_outofplace_with_scratch(
+                &mut self.temp[0..Self::SYMBOL_LENGTH],
+                &mut self.freq,
+                &mut self.fft_scratch,
+            );
             if self.symbol_number >= 0 {
                 for i in 0..Self::PAY_CAR_CNT {
-                    self.cons[i] = Self::demod_or_erase(self.freq[Self::bin(i as isize + Self::PAY_CAR_OFF)], self.prev[i]);
+                    self.cons[i] = Self::demod_or_erase(
+                        self.freq[Self::bin(i as isize + Self::PAY_CAR_OFF)],
+                        self.prev[i],
+                    );
                 }
                 self.compensate();
                 self.demap();
@@ -1184,7 +1192,11 @@ impl Decoder {
         }
         let mut cs = 0;
         for i in 0..16 {
-            cs |= if get_be_bit(&self.data, i + 55) { 1 << i } else { 0 };
+            cs |= if get_be_bit(&self.data, i + 55) {
+                1 << i
+            } else {
+                0
+            };
         }
 
         if Self::CRC.checksum(&(md << 9).to_le_bytes()) != cs {
@@ -1219,7 +1231,9 @@ impl Decoder {
             OperationMode::Mode15 => (1024, &FROZEN_2048_1056),
             OperationMode::Mode16 => (680, &FROZEN_2048_712),
         };
-        let result = self.polar.decode(payload, &self.code, frozen_bits, data_bits);
+        let result = self
+            .polar
+            .decode(payload, &self.code, frozen_bits, data_bits);
         let mut scrambler = Xorshift32::new();
         for i in 0..data_bits / 8 {
             payload[i] ^= scrambler.next() as u8;
@@ -1237,7 +1251,7 @@ impl Decoder {
             if con.re != 0.0 && con.im != 0.0 {
                 let mut tmp = [0i8; Self::MOD_BITS];
                 Self::mod_hard(&mut tmp, con);
-                self.index[count] = (i as isize + Self::PAY_CAR_OFF) as f32; 
+                self.index[count] = (i as isize + Self::PAY_CAR_OFF) as f32;
                 self.phase[count] = (con * Self::mod_map(&tmp).conj()).arg();
                 count += 1;
             }
@@ -1245,18 +1259,19 @@ impl Decoder {
 
         self.tse.compute(&self.index, &self.phase, count);
         for i in 0..Self::PAY_CAR_CNT {
-            self.cons[i] *= Complex32::from_polar(1.0, - self.tse.get((i as isize + Self::PAY_CAR_OFF) as f32));
+            self.cons[i] *=
+                Complex32::from_polar(1.0, -self.tse.get((i as isize + Self::PAY_CAR_OFF) as f32));
         }
     }
 
     fn mod_hard(b: &mut [i8], c: Complex32) {
-		b[0] = if c.re < 0.0 { -1 } else { 1 };
-		b[1] = if c.im < 0.0 { -1 } else { 1 };
+        b[0] = if c.re < 0.0 { -1 } else { 1 };
+        b[1] = if c.im < 0.0 { -1 } else { 1 };
     }
 
     fn mod_map(b: &[i8]) -> Complex32 {
         std::f32::consts::FRAC_1_SQRT_2 * Complex32::new(b[0] as f32, b[1] as f32)
-	}
+    }
 
     fn precision(&self) -> f32 {
         let mut sp = 0.0;
@@ -1275,7 +1290,12 @@ impl Decoder {
     fn demap(&mut self) {
         let pre = self.precision();
         for i in 0..Self::PAY_CAR_CNT {
-            Self::mod_soft(&mut self.code[Self::MOD_BITS * (self.symbol_number as usize * Self::PAY_CAR_CNT + i)..], self.cons[i], pre)
+            Self::mod_soft(
+                &mut self.code
+                    [Self::MOD_BITS * (self.symbol_number as usize * Self::PAY_CAR_CNT + i)..],
+                self.cons[i],
+                pre,
+            )
         }
     }
 
@@ -1287,10 +1307,8 @@ impl Decoder {
         value as i8
     }
 
-	fn mod_soft(b: &mut [i8], c: Complex32, precision: f32) {
-		b[0] = Self::quantize(precision, c.re);
-		b[1] = Self::quantize(precision, c.im);
+    fn mod_soft(b: &mut [i8], c: Complex32, precision: f32) {
+        b[0] = Self::quantize(precision, c.re);
+        b[1] = Self::quantize(precision, c.im);
     }
 }
-
-

@@ -19,8 +19,8 @@ mod osd;
 pub use osd::OrderedStatisticsDecoder;
 
 mod polar;
-pub use polar::PolarEncoder;
 pub use polar::PolarDecoder;
+pub use polar::PolarEncoder;
 
 mod psk;
 pub use psk::Psk;

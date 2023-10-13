@@ -59,4 +59,3 @@ impl TryFrom<&[u8; 30]> for LinkSetupFrame {
         }
     }
 }
-

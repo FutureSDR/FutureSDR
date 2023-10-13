@@ -51,13 +51,7 @@ fn Gui() -> impl IntoView {
         }
 
         let mut e = Encoder::new();
-        let sig = e.encode(
-            payload.as_bytes(),
-            call_sign.as_bytes(),
-            1500,
-            5,
-            false,
-        );
+        let sig = e.encode(payload.as_bytes(), call_sign.as_bytes(), 1500, 5, false);
         leptos::spawn_local(async move {
             while tx.get_untracked().is_none() {
                 TimeoutFuture::new(100).await;
@@ -104,4 +98,3 @@ async fn run_fg_inner(set_tx: WriteSignal<Option<mpsc::Sender<Box<[f32]>>>>) -> 
     Runtime::new().run_async(fg).await?;
     Ok(())
 }
-

@@ -1,8 +1,8 @@
 use clap::Parser;
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::AudioSource;
+use futuresdr::blocks::ChannelSource;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     connect!(fg, src > snk);
 
     let rt = Runtime::new();
-    let(_task, _handle) = rt.start_sync(fg);
+    let (_task, _handle) = rt.start_sync(fg);
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

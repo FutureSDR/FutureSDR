@@ -23,7 +23,7 @@ impl From<u64> for OperationMode {
             14 => OperationMode::Mode14,
             15 => OperationMode::Mode15,
             16 => OperationMode::Mode16,
-            _  => OperationMode::Null,
+            _ => OperationMode::Null,
         }
     }
 }
@@ -39,7 +39,7 @@ pub fn set_be_bit(buf: &mut [u8], pos: usize, val: bool) {
 
 pub fn set_le_bit(buf: &mut [u8], pos: usize, val: bool) {
     let val = val as u8;
-	buf[pos/8] = (!(1<<(pos%8))&buf[pos/8])|(val<<(pos%8))
+    buf[pos / 8] = (!(1 << (pos % 8)) & buf[pos / 8]) | (val << (pos % 8))
 }
 
 pub fn xor_be_bit(buf: &mut [u8], pos: usize, val: bool) {
