@@ -5,7 +5,6 @@ use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::Combine;
-use futuresdr::blocks::NullSink;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::num_complex::Complex32;
