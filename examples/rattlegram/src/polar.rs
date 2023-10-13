@@ -451,10 +451,9 @@ impl PolarListNode<0> {
         // panic!("foo");
         let sft = soft[1];
         let mut fork = [0i64; 2 * LEN];
-        for k in 0..LEN {
-            fork[k + LEN] = metric[k];
-            fork[k] = metric[k];
-        }
+        fork[LEN..(LEN + LEN)].copy_from_slice(&metric[..LEN]);
+        fork[..LEN].copy_from_slice(&metric[..LEN]);
+
         for k in 0..LEN {
             if sft[k] < 0 {
                 fork[k] -= sft[k] as i64;
@@ -518,12 +517,10 @@ fn vqabs(mut a: Type) -> Type {
 
 fn vsignum(mut a: Type) -> Type {
     for i in 0..LEN {
-        a[i] = if a[i] > 0 {
-            1
-        } else if a[i] == 0 {
-            0
-        } else {
-            -1
+        a[i] = match a[i].cmp(&0) {
+            std::cmp::Ordering::Greater => 1,
+            std::cmp::Ordering::Equal => 0,
+            _ => -1,
         };
     }
     a
@@ -531,13 +528,10 @@ fn vsignum(mut a: Type) -> Type {
 
 fn vsign(mut a: Type, b: Type) -> Type {
     for i in 0..LEN {
-        a[i] = if b[i] > 0 {
-            a[i]
-        } else if b[i] == 0 {
-            0
-        } else {
-            // -1 * std::cmp::max(a[i], -std::i8::MAX)
-            -a[i]
+        a[i] = match b[i].cmp(&0) {
+            std::cmp::Ordering::Greater => a[i],
+            std::cmp::Ordering::Equal => 0,
+            _ => -a[i],
         };
     }
     a
@@ -680,13 +674,11 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
-        let lmap;
-        let rmap;
-        if frozen[0] == 0xffffffff {
-            lmap = PolarListNode::<{ 6 - 1 }>::rate0(metric, hard, soft);
+        let lmap = if frozen[0] == 0xffffffff {
+            PolarListNode::<{ 6 - 1 }>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListTree::decode_5(metric, message, maps, count, hard, soft, frozen[0]);
-        }
+            PolarListTree::decode_5(metric, message, maps, count, hard, soft, frozen[0])
+        };
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
                 hard[i],
@@ -694,10 +686,10 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen[1] == 0xffffffff {
-            rmap = PolarListNode::<{ 6 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        let rmap = if frozen[1] == 0xffffffff {
+            PolarListNode::<{ 6 - 1 }>::rate0(metric, &mut hard[n / 2..], soft)
         } else {
-            rmap = PolarListTree::decode_5(
+            PolarListTree::decode_5(
                 metric,
                 message,
                 maps,
@@ -705,8 +697,8 @@ impl PolarListTree {
                 &mut hard[n / 2..],
                 soft,
                 frozen[1],
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
@@ -726,12 +718,10 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
-        let lmap;
-        let rmap;
-        if (frozen & ((1 << (1 << (5 - 1))) - 1)) == ((1 << (1 << (5 - 1))) - 1) {
-            lmap = PolarListNode::<{ 5 - 1 }>::rate0(metric, hard, soft);
+        let lmap = if (frozen & ((1 << (1 << (5 - 1))) - 1)) == ((1 << (1 << (5 - 1))) - 1) {
+            PolarListNode::<{ 5 - 1 }>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListTree::decode_4(
+            PolarListTree::decode_4(
                 metric,
                 message,
                 maps,
@@ -739,8 +729,8 @@ impl PolarListTree {
                 hard,
                 soft,
                 frozen & ((1 << (1 << (5 - 1))) - 1),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
                 hard[i],
@@ -748,10 +738,10 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen >> (n / 2) == ((1 << (1 << (5 - 1))) - 1) {
-            rmap = PolarListNode::<{ 5 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        let rmap = if frozen >> (n / 2) == ((1 << (1 << (5 - 1))) - 1) {
+            PolarListNode::<{ 5 - 1 }>::rate0(metric, &mut hard[n / 2..], soft)
         } else {
-            rmap = PolarListTree::decode_4(
+            PolarListTree::decode_4(
                 metric,
                 message,
                 maps,
@@ -759,8 +749,8 @@ impl PolarListTree {
                 &mut hard[n / 2..],
                 soft,
                 frozen >> (n / 2),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
@@ -780,12 +770,10 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
-        let lmap;
-        let rmap;
-        if (frozen & ((1 << (1 << (4 - 1))) - 1)) == ((1 << (1 << (4 - 1))) - 1) {
-            lmap = PolarListNode::<{ 4 - 1 }>::rate0(metric, hard, soft);
+        let lmap = if (frozen & ((1 << (1 << (4 - 1))) - 1)) == ((1 << (1 << (4 - 1))) - 1) {
+            PolarListNode::<{ 4 - 1 }>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListTree::decode_3(
+            PolarListTree::decode_3(
                 metric,
                 message,
                 maps,
@@ -793,8 +781,8 @@ impl PolarListTree {
                 hard,
                 soft,
                 frozen & ((1 << (1 << (4 - 1))) - 1),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
                 hard[i],
@@ -802,10 +790,10 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen >> (n / 2) == ((1 << (1 << (4 - 1))) - 1) {
-            rmap = PolarListNode::<{ 4 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        let rmap = if frozen >> (n / 2) == ((1 << (1 << (4 - 1))) - 1) {
+            PolarListNode::<{ 4 - 1 }>::rate0(metric, &mut hard[n / 2..], soft)
         } else {
-            rmap = PolarListTree::decode_3(
+            PolarListTree::decode_3(
                 metric,
                 message,
                 maps,
@@ -813,8 +801,8 @@ impl PolarListTree {
                 &mut hard[n / 2..],
                 soft,
                 frozen >> (n / 2),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
@@ -834,12 +822,10 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
-        let lmap;
-        let rmap;
-        if (frozen & ((1 << (1 << (3 - 1))) - 1)) == ((1 << (1 << (3 - 1))) - 1) {
-            lmap = PolarListNode::<{ 3 - 1 }>::rate0(metric, hard, soft);
+        let lmap = if (frozen & ((1 << (1 << (3 - 1))) - 1)) == ((1 << (1 << (3 - 1))) - 1) {
+            PolarListNode::<{ 3 - 1 }>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListTree::decode_2(
+            PolarListTree::decode_2(
                 metric,
                 message,
                 maps,
@@ -847,8 +833,8 @@ impl PolarListTree {
                 hard,
                 soft,
                 frozen & ((1 << (1 << (3 - 1))) - 1),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
                 hard[i],
@@ -856,10 +842,10 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen >> (n / 2) == ((1 << (1 << (3 - 1))) - 1) {
-            rmap = PolarListNode::<{ 3 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        let rmap = if frozen >> (n / 2) == ((1 << (1 << (3 - 1))) - 1) {
+            PolarListNode::<{ 3 - 1 }>::rate0(metric, &mut hard[n / 2..], soft)
         } else {
-            rmap = PolarListTree::decode_2(
+            PolarListTree::decode_2(
                 metric,
                 message,
                 maps,
@@ -867,8 +853,8 @@ impl PolarListTree {
                 &mut hard[n / 2..],
                 soft,
                 frozen >> (n / 2),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
@@ -888,12 +874,10 @@ impl PolarListTree {
         for i in 0..n / 2 {
             soft[i + n / 2] = prod(soft[i + n], soft[i + n / 2 + n]);
         }
-        let lmap;
-        let rmap;
-        if (frozen & ((1 << (1 << (2 - 1))) - 1)) == ((1 << (1 << (2 - 1))) - 1) {
-            lmap = PolarListNode::<{ 2 - 1 }>::rate0(metric, hard, soft);
+        let lmap = if (frozen & ((1 << (1 << (2 - 1))) - 1)) == ((1 << (1 << (2 - 1))) - 1) {
+            PolarListNode::<{ 2 - 1 }>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListTree::decode_1(
+            PolarListTree::decode_1(
                 metric,
                 message,
                 maps,
@@ -901,8 +885,8 @@ impl PolarListTree {
                 hard,
                 soft,
                 frozen & ((1 << (1 << (2 - 1))) - 1),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             soft[i + n / 2] = madd(
                 hard[i],
@@ -910,10 +894,10 @@ impl PolarListTree {
                 vshuf(soft[i + n / 2 + n], lmap),
             );
         }
-        if frozen >> (n / 2) == ((1 << (1 << (2 - 1))) - 1) {
-            rmap = PolarListNode::<{ 2 - 1 }>::rate0(metric, &mut hard[n / 2..], soft);
+        let rmap = if frozen >> (n / 2) == ((1 << (1 << (2 - 1))) - 1) {
+            PolarListNode::<{ 2 - 1 }>::rate0(metric, &mut hard[n / 2..], soft)
         } else {
-            rmap = PolarListTree::decode_1(
+            PolarListTree::decode_1(
                 metric,
                 message,
                 maps,
@@ -921,8 +905,8 @@ impl PolarListTree {
                 &mut hard[n / 2..],
                 soft,
                 frozen >> (n / 2),
-            );
-        }
+            )
+        };
         for i in 0..n / 2 {
             hard[i] = qmul(vshuf(hard[i], rmap), hard[i + n / 2]);
         }
@@ -949,19 +933,17 @@ impl PolarListTree {
         //     println!("{:?}", prod([-128; LEN], [127; LEN]));
         //     println!("{:?}", prod([127; LEN], [-128; LEN]));
         // }
-        let lmap;
-        let rmap;
-        if (frozen & 1) == 1 {
-            lmap = PolarListNode::<0>::rate0(metric, hard, soft);
+        let lmap = if (frozen & 1) == 1 {
+            PolarListNode::<0>::rate0(metric, hard, soft)
         } else {
-            lmap = PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[0], soft);
-        }
+            PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[0], soft)
+        };
         soft[1] = madd(hard[0], vshuf(soft[2], lmap), vshuf(soft[3], lmap));
-        if (frozen >> 1) != 0 {
-            rmap = PolarListNode::<0>::rate0(metric, &mut hard[1..], soft);
+        let rmap = if (frozen >> 1) != 0 {
+            PolarListNode::<0>::rate0(metric, &mut hard[1..], soft)
         } else {
-            rmap = PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[1], soft);
-        }
+            PolarListNode::<0>::rate1(metric, message, maps, count, &mut hard[1], soft)
+        };
         hard[0] = qmul(vshuf(hard[0], rmap), hard[1]);
         to_map(vshuf(to_type(lmap), rmap))
     }

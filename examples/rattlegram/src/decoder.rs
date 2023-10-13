@@ -947,8 +947,7 @@ impl Decoder {
         let mut freq = [Complex32::new(0.0, 0.0); Self::SYMBOL_LENGTH / 2];
         let mut mls = Mls::new(Self::COR_SEQ_POLY);
         for i in 0..Self::COR_SEQ_LEN as isize {
-            let index = (i + Self::COR_SEQ_OFF / 2 + Self::SYMBOL_LENGTH as isize / 2)
-                as usize
+            let index = (i + Self::COR_SEQ_OFF / 2 + Self::SYMBOL_LENGTH as isize / 2) as usize
                 % (Self::SYMBOL_LENGTH / 2);
             let seq = mls.next();
             // info!("i {} index {} seq {}", i, index, seq as u8);

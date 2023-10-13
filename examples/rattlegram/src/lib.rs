@@ -1,3 +1,4 @@
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_ret_no_self)]
