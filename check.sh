@@ -44,7 +44,9 @@ cd ${SCRIPTPATH}/examples/firdes && cargo fmt --check
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo fmt --check
 cd ${SCRIPTPATH}/examples/keyfob && cargo fmt --check
 cd ${SCRIPTPATH}/examples/logging && cargo fmt --check
+cd ${SCRIPTPATH}/examples/m17 && cargo fmt --check
 cd ${SCRIPTPATH}/examples/macros && cargo fmt --check
+cd ${SCRIPTPATH}/examples/rattlegram && cargo fmt --check
 cd ${SCRIPTPATH}/examples/spectrum && cargo fmt --check
 cd ${SCRIPTPATH}/examples/ssb && cargo fmt --check
 cd ${SCRIPTPATH}/examples/wasm && cargo fmt --check
@@ -95,7 +97,10 @@ cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/m17 && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
@@ -143,7 +148,9 @@ cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/m17 && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/file-trx && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/ssb && cargo test --all-targets
