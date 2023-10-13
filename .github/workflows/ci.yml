@@ -123,8 +123,8 @@ jobs:
       - name: Run cargo fmt (examples/zigbee)
         run: cargo fmt --all --manifest-path=examples/zigbee/Cargo.toml -- --check
 
-  clippy:
-    name: Clippy
+  clippy_main:
+    name: Clippy Main
     runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: full
@@ -153,8 +153,38 @@ jobs:
       - name: Run cargo clippy (main)
         run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 
+      - name: Run cargo clippy (futuredsp)
+        run: cargo clippy --lib --manifest-path=crates/futuredsp/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (remote)
         run: cargo clippy --lib --manifest-path=crates/remote/Cargo.toml -- -D warnings
+
+  clippy_perf:
+    name: Clippy Perf
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+
+      - name: Apt Update
+        run: sudo apt-get -y update
+
+      - name: Install ZeroMQ
+        run: sudo apt-get install -y libzmq3-dev
+
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
+      - name: Install LTTng
+        run: sudo apt-get -y install liblttng-ust-dev
+
+      - name: Install Soapy
+        run: sudo apt-get -y install libsoapysdr-dev
 
       - name: Run cargo clippy (perf/buffer_rand)
         run: cargo clippy --all-targets --manifest-path=perf/buffer_rand/Cargo.toml -- -D warnings
@@ -185,6 +215,33 @@ jobs:
 
       - name: Run cargo clippy (perf/zynq)
         run: cargo clippy --all-targets --manifest-path=perf/zynq/Cargo.toml -- -D warnings
+
+  clippy_examples:
+    name: Clippy Examples
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+
+      - name: Apt Update
+        run: sudo apt-get -y update
+
+      - name: Install ZeroMQ
+        run: sudo apt-get install -y libzmq3-dev
+
+      - name: Install alsalibs
+        run: sudo apt-get -y install libasound2-dev
+
+      - name: Install LTTng
+        run: sudo apt-get -y install liblttng-ust-dev
+
+      - name: Install Soapy
+        run: sudo apt-get -y install libsoapysdr-dev
 
       - name: Run cargo clippy (examples/adsb)
         run: cargo clippy --all-targets --manifest-path=examples/adsb/Cargo.toml -- -D warnings
