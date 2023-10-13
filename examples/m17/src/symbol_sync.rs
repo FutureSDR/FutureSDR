@@ -1507,16 +1507,9 @@ impl ClockTrackingLoop {
     }
 
     fn update_gains(&mut self) {
-        
         let omega_d_t;
-        
-        let cosx_omega_d_t;
 
-        
-        
-        
-        
-        
+        let cosx_omega_d_t;
 
         let omega_n_t = self.omega_n_norm;
         let zeta_omega_n_t = self.zeta * omega_n_t;
@@ -1716,8 +1709,7 @@ impl TimingErrorDetector {
         self.error = 0.0;
         self.prev_error = 0.0;
 
-        self.input =
-            VecDeque::from_iter(vec![Complex32::new(0.0, 0.0); self.error_depth]);
+        self.input = VecDeque::from_iter(vec![Complex32::new(0.0, 0.0); self.error_depth]);
         self.sync_reset_input_clock();
     }
 
