@@ -15,7 +15,7 @@ use crate::runtime::WorkIo;
 ///
 /// Samples are assumed to be encoded in the native format for the runtime. For
 /// example, on most machines, that means little endian. For complex samples,
-/// the real component must come before the complex component.
+/// the real component must come before the imaginary component.
 ///
 /// # Inputs
 ///
