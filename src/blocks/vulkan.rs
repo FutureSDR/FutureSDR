@@ -142,7 +142,7 @@ impl Kernel for Vulkan {
                 .context("no pipeline")?
                 .layout()
                 .set_layouts()
-                .get(0)
+                .first()
                 .context("no desc layout")?
                 .clone(),
         );
