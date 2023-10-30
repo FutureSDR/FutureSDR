@@ -1,0 +1,49 @@
+use futuresdr::runtime::Pmt;
+use futuresdr::runtime::PortId;
+use leptos::html::Select;
+use leptos::logging::*;
+use leptos::*;
+use std::collections::HashMap;
+
+use crate::FlowgraphHandle;
+
+#[component]
+pub fn ListSelector<P: Into<PortId>>(
+    fg_handle: FlowgraphHandle,
+    block_id: usize,
+    handler: P,
+    values: HashMap<String, Pmt>,
+) -> impl IntoView {
+    let handler = handler.into();
+    let select_ref = create_node_ref::<Select>();
+
+    let change = {
+        let values = values.clone();
+        move |_| {
+            let mut fg_handle = fg_handle.clone();
+            let handler = handler.clone();
+            let select = select_ref.get().unwrap();
+            let pmt = values.get(&select.value()).unwrap().clone();
+            leptos::spawn_local(async move {
+                log!(
+                    "sending block {} handler {:?} pmt {:?}",
+                    block_id,
+                    &handler,
+                    &pmt
+                );
+                let _ = fg_handle.call(block_id, handler, pmt).await;
+            });
+        }
+    };
+
+    view! {
+        <select node_ref=select_ref on:change=change> {
+            values.into_iter()
+            .map(|(n, _)| view! {
+                <option value={n.clone()}>{n}</option>
+            })
+            .collect::<Vec<_>>()
+        }
+        </select>
+    }
+}

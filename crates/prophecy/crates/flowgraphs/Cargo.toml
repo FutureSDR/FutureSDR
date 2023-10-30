@@ -1,0 +1,7 @@
+[package]
+name = "flowgraphs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futuresdr = "0.0.34"
