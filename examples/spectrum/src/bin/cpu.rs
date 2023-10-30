@@ -19,13 +19,13 @@ fn main() -> Result<()> {
         .gain(34.0)
         .build()?;
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
-    let power = spectrum::lin2power_db();
+    let mag_sqr = spectrum::power_block();
     let keep = spectrum::Keep1InN::<FFT_SIZE>::new(0.1, 3);
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedBlocking(FFT_SIZE))
         .build();
 
-    connect!(fg, src > fft > power > keep > snk);
+    connect!(fg, src > fft > mag_sqr > keep > snk);
 
     Runtime::new().run(fg)?;
     Ok(())

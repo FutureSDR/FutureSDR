@@ -1,4 +1,4 @@
 #log_level = "debug"
 #log_level = "off"
 ctrlport_enable = true
-ctrlport_bind = "127.0.0.1:1337"
+ctrlport_bind = "0.0.0.0:1337"

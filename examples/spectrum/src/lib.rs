@@ -18,9 +18,9 @@ pub fn lin2db_block() -> Block {
 }
 
 pub fn power_block() -> Block {
-    Apply::new(|x: &Complex32| x.norm())
+    Apply::new(|x: &Complex32| x.norm_sqr())
 }
 
 pub fn lin2power_db() -> Block {
-    Apply::new(|x: &Complex32| 10.0 * x.norm().log10())
+    Apply::new(|x: &Complex32| 10.0 * x.norm_sqr().log10())
 }
