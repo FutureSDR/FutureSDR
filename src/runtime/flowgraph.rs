@@ -2,6 +2,7 @@ use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::SinkExt;
 use std::cmp::{Eq, PartialEq};
+use std::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::result;
@@ -142,6 +143,15 @@ impl From<&str> for PortId {
 impl From<String> for PortId {
     fn from(item: String) -> Self {
         PortId::Name(item)
+    }
+}
+
+impl fmt::Display for PortId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Index(i) => write!(f, "{}", i),
+            Self::Name(s) => write!(f, "{}", s),
+        }
     }
 }
 
