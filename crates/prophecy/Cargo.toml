@@ -12,6 +12,7 @@ default-target = "wasm32-unknown-unknown"
 console_error_panic_hook = "0.1"
 console_log = "1"
 futuresdr = { path = "/home/basti/src/futuresdr/" }
+indexmap = "2.0"
 leptos = { version = "0.5", features = ["csr", "nightly"] }
 log = "0.4"
 gloo-net = "0.4"

@@ -4,45 +4,18 @@
     <title>FutureSDR :: Prophecy GUI</title>
 
     <link rel="icon" href="/favicon-baad1291935ce574.ico">
-    <link rel="stylesheet" href="/style-e607998e66941409.css">
+    <link rel="stylesheet" href="/style-f162d68ae9e03d37.css">
     <script src="/mermaid.min-44357080eeae6d17.js"></script>
     <script>mermaid.mermaidAPI.initialize({
   theme: 'dark',
 });
 </script>
-    <script type="module">import init from '/frontend-ff3565fc8f43adde.js';init('/frontend-ff3565fc8f43adde_bg.wasm');</script>
+    <script type="module">import init from '/frontend-eac6b08dace5c012.js';init('/frontend-eac6b08dace5c012_bg.wasm');</script>
     <base href="/">
   
-<link rel="preload" href="/frontend-ff3565fc8f43adde_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/frontend-ff3565fc8f43adde.js"></head>
+<link rel="preload" href="/frontend-eac6b08dace5c012_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/frontend-eac6b08dace5c012.js"></head>
   <body class="bg-slate-900">
   
 
-<script>(function () {
-    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var url = protocol + '//' + window.location.host + '/_trunk/ws';
-    var poll_interval = 5000;
-    var reload_upon_connect = () => {
-        window.setTimeout(
-            () => {
-                // when we successfully reconnect, we'll force a
-                // reload (since we presumably lost connection to
-                // trunk due to it being killed, so it will have
-                // rebuilt on restart)
-                var ws = new WebSocket(url);
-                ws.onopen = () => window.location.reload();
-                ws.onclose = reload_upon_connect;
-            },
-            poll_interval);
-    };
-
-    var ws = new WebSocket(url);
-    ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.reload) {
-            window.location.reload();
-        }
-    };
-    ws.onclose = reload_upon_connect;
-})()
-</script></body></html>
+</body></html>
