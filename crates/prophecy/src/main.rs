@@ -1,5 +1,4 @@
 use futuresdr::futures::StreamExt;
-use futuresdr::runtime::FlowgraphDescription;
 use futuresdr::runtime::Pmt;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use leptos::html::Input;
@@ -8,8 +7,8 @@ use leptos::logging::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::*;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Duration;
 use web_sys::HtmlInputElement;
 
 use prophecy::FlowgraphHandle;
@@ -17,118 +16,69 @@ use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
+use prophecy::Slider;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::poll_periodically;
 
 #[component]
-pub fn Flowgraph(fg_handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
-    let res_fg = create_local_resource(fg_handle, |fg: Option<FlowgraphHandle>| async move {
-        if let Some(mut h) = fg {
-            Some(h.description().await)
-        } else {
-            None
+pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
+    let fg_desc = create_local_resource(|| (), {
+        let fg_handle = fg_handle.clone();
+        move |_| {
+            let mut fg_handle = fg_handle.clone();
+            async move {
+                if let Ok(desc) = fg_handle.description().await {
+                    Some(desc)
+                } else {
+                    None
+                }
+            }
         }
     });
 
-    let values = HashMap::from([
-        ("foo".to_string(), Pmt::String("foo".to_string())),
-        ("bar".to_string(), Pmt::String("bar".to_string())),
-        ("baz".to_string(), Pmt::String("baz".to_string())),
-    ]);
+    let values = [
+        ("3.2 MHz".to_string(), Pmt::F64(3.2e6)),
+        ("8 MHz".to_string(), Pmt::F64(8e6)),
+        ("16 MHz".to_string(), Pmt::F64(16e6)),
+    ];
+
+    let (gain, set_gain) = create_signal(40.0);
+
+    let freq = poll_periodically(Some(fg_handle.clone()).into(), Duration::from_secs(1), 0, "freq", Pmt::Null);
+    let freq = move || if let Pmt::F64(value) = freq() { value } else { 0.0 };
 
     view! {
-        <h1>"flowgraph: " {move || format!("{:?}", fg_handle())}</h1>
-        { move ||
-            if let Some(fgh) = fg_handle() { view! {
-                <ListSelector fg_handle=fgh.clone() block_id=0 handler="freq" values=values.clone() />
-                <RadioSelector fg_handle=fgh block_id=0 handler="freq" values=values.clone() />
-            }.into_view()} else {view!{}.into_view()}}
+        <h1>"flowgraph: " {let fg_handle=fg_handle.clone(); move || format!("{:?}", fg_handle)}</h1>
+
+        <div class="text-white">
+            <ListSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() select_class="text-black m-4" />
+            <RadioSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() label_class="m-2" />
+            <Slider fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="gain" min=0.0 max=100.0 step=1.0 init=gain() setter=set_gain input_class="align-middle"/>
+            <span class="m-2">"gain: " {move || gain} " dB"</span>
+            <div>
+                <span class="m-2">"frequency: " {move || (freq() / 1e6).round() } " MHz"</span>
+            </div>
+        </div>
         {
-            move || match res_fg.get() {
-                Some(Some(Ok(data))) => view! {
-                    <div><p>{ format!("{:?}", data) }</p>
-                        <ul class="list-inside list-disc"> {
-                            data.blocks.iter()
-                            .map(|n| view! {<li>{n.instance_name.clone()}</li>})
-                            .collect::<Vec<_>>()
-                        } </ul>
+            move || match fg_desc.get() {
+                Some(Some(data)) => view! {
+                    <div>
+                        // <p>{ format!("{:?}", data) }</p>
+                        // <ul class="list-inside list-disc"> {
+                        //     data.blocks.iter()
+                        //     .map(|n| view! {<li>{n.instance_name.clone()}</li>})
+                        //     .collect::<Vec<_>>()
+                        // } </ul>
                     <FlowgraphMermaid fg=data.clone() />
-                    <FlowgraphCanvas fg=data />
+                    // <FlowgraphCanvas fg=data />
                     </div> }.into_view(),
-                Some(Some(Err(e))) => {move ||format!("{:?}", e)}.into_view(),
                 Some(None) => "Flowgraph handle not set.".into_view(),
                 _ => view! {<p>"Connecting..."</p> }.into_view(),
             }
         }
-    }
-}
-
-#[component]
-pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
-    view! {
-        <div> {
-            fg.blocks.into_iter()
-            .map(|b| {
-                let has_stream_inputs = !b.stream_inputs.is_empty();
-                let has_stream_outputs = !b.stream_outputs.is_empty();
-                let has_message_inputs = !b.message_inputs.is_empty();
-                let has_message_outputs = !b.message_outputs.is_empty();
-                view! {
-                <div>
-                    <div class="rounded-full bg-slate-600"> {
-                        b.instance_name
-                    } </div>
-                    <div class="bg-slate-100">
-                        <Show
-                            when=move || has_stream_inputs
-                            fallback=|| ()>
-                            <p>"Stream Inputs"</p>
-                            {
-                                b.stream_inputs.iter()
-                                .map(|x| view! {
-                                    <p> {x} </p>
-                                }).collect::<Vec<_>>()
-                            }
-                        </Show>
-                        <Show
-                            when=move || has_stream_outputs
-                            fallback=|| ()>
-                            <p>"Stream Outputs"</p>
-                            {
-                                b.stream_outputs.iter()
-                                .map(|x| view! {
-                                    <p> {x} </p>
-                                }).collect::<Vec<_>>()
-                            }
-                        </Show>
-                        <Show
-                            when=move || has_message_inputs
-                            fallback=|| ()>
-                            <p>"Message Inputs"</p>
-                            {
-                                b.message_inputs.iter()
-                                .map(|x| view! {
-                                    <p> {x} </p>
-                                }).collect::<Vec<_>>()
-                            }
-                        </Show>
-                        <Show
-                            when=move || has_message_outputs
-                            fallback=|| ()>
-                            <p>"Message Outputs"</p>
-                            {
-                                b.message_outputs.iter()
-                                .map(|x| view! {
-                                    <p> {x} </p>
-                                }).collect::<Vec<_>>()
-                            }
-                        </Show>
-                    </div>
-                </div>
-            }}).collect::<Vec<_>>()
-        } </div>
     }
 }
 
@@ -138,9 +88,9 @@ const ENTER_KEY: u32 = 13;
 pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView {
     let (fg_handle, fg_handle_set) = create_signal(None);
 
-    {
+    let res_fgs = {
         let rt_handle = rt_handle.clone();
-        let res_fgs = create_local_resource(rt_handle.clone(), move |rt: RuntimeHandle| {
+        create_local_resource(rt_handle.clone(), move |rt: RuntimeHandle| {
             let rt_handle = rt_handle.clone();
             async move {
                 let fgs = rt.get_flowgraphs().await;
@@ -153,38 +103,48 @@ pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView
                 }
                 fgs
             }
-        });
-    }
+        })
+    };
 
-    let connect_flowgraph = move |id: usize| {
-        let rt_handle = rt_handle.clone();
+    let connect_flowgraph = move |rt_handle: MaybeSignal<RuntimeHandle>, id: usize| {
         spawn_local(async move {
             if let Ok(fg) = rt_handle.get_untracked().get_flowgraph(id).await {
                 fg_handle_set(Some(fg));
             } else {
                 warn!(
-                    "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
-                    rt_handle(),
-                    id
-                );
+                "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
+                rt_handle(),
+                id
+            );
             }
         });
     };
 
     view! {
-        // {
-        //     move || match res_fgs.get() {
-        //         Some(Ok(data)) => view! {
-        //             <ul class="list-inside list-disc"> {
-        //                 data.into_iter()
-        //                 .map(|n| view! {<li>{n} <button on:click=move |_| connect_flowgraph(n) class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">"Connect"</button></li>})
-        //                 .collect::<Vec<_>>()
-        //             } </ul> }.into_view(),
-        //         Some(Err(e)) => {move || format!("{e:?}")}.into_view(),
-        //         _ => view! {<p>"Connecting..."</p> }.into_view(),
-        //     }
-        // }
-        <Flowgraph fg_handle=fg_handle />
+        {
+            move || match res_fgs.get() {
+                Some(Ok(data)) => view! {
+                    <ul class="list-inside list-disc"> {
+                        data.into_iter().map(|n| view! {
+                            <li>{n} <button on:click={
+                                let rt_handle = rt_handle.clone();
+                                move |_| {
+                                    let rt_handle = rt_handle.clone();
+                                    connect_flowgraph(rt_handle, n) 
+                                }}
+                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">"Connect"</button></li>
+                        }).collect::<Vec<_>>()
+                    } </ul> }.into_view(),
+                Some(Err(e)) => {move || format!("{e:?}")}.into_view(),
+                _ => view! {<p>"Connecting..."</p> }.into_view(),
+            }
+        }
+        {
+            move || match fg_handle.get() {
+                Some(fg_handle) => view! {<Flowgraph fg_handle=fg_handle />}.into_view(),
+                None => "".into_view(),
+            }
+        }
     }
 }
 
@@ -226,7 +186,7 @@ pub fn Prophecy(
         let time_data = time_data.clone();
         let waterfall_data = waterfall_data.clone();
         spawn_local(async move {
-            let mut ws = WebSocket::open("ws://192.168.178.45:9001").unwrap();
+            let mut ws = WebSocket::open("ws://127.0.0.1:9001").unwrap();
             while let Some(msg) = ws.next().await {
                 match msg {
                     Ok(Message::Bytes(b)) => {
@@ -298,7 +258,7 @@ pub fn Prophecy(
                 let freq : f64 = input.value().parse().unwrap();
                 let p = Pmt::F64(freq * 1e6);
                 spawn_local(async move {
-                let _ = gloo_net::http::Request::post("http://192.168.178.45:1337/api/fg/0/block/0/call/freq/")
+                let _ = gloo_net::http::Request::post("http://127.0.0.1:1337/api/fg/0/block/0/call/freq/")
                     .header("Content-Type", "application/json")
                     .body(serde_json::to_string(&p).unwrap()).unwrap()
                     .send()
@@ -320,7 +280,5 @@ pub fn Prophecy(
 pub fn main() {
     _ = console_log::init_with_level(log::Level::Debug);
     console_error_panic_hook::set_once();
-    mount_to_body(
-        || view! { <Prophecy rt_handle=RuntimeHandle::from_url("http://192.168.178.45:1337") /> },
-    )
+    mount_to_body(|| view! { <Prophecy /> })
 }

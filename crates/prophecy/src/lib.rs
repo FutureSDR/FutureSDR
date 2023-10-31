@@ -7,6 +7,9 @@ pub use handle::poll_periodically;
 pub use handle::FlowgraphHandle;
 pub use handle::RuntimeHandle;
 
+mod flowgraph_canvas;
+pub use flowgraph_canvas::FlowgraphCanvas;
+
 mod flowgraph_mermaid;
 pub use flowgraph_mermaid::FlowgraphMermaid;
 
@@ -15,6 +18,9 @@ pub use list_selector::ListSelector;
 
 mod radio_selector;
 pub use radio_selector::RadioSelector;
+
+mod slider;
+pub use slider::Slider;
 
 mod time_sink;
 pub use time_sink::TimeSink;

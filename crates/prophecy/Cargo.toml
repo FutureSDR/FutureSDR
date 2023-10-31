@@ -1,5 +1,7 @@
 cargo-features = ["per-package-target"]
 
+[workspace]
+
 [package]
 name = "prophecy"
 version = "0.1.0"

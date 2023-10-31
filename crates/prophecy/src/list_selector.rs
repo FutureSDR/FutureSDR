@@ -1,21 +1,24 @@
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
+use indexmap::IndexMap;
+use leptos::*;
 use leptos::html::Select;
 use leptos::logging::*;
-use leptos::*;
-use std::collections::HashMap;
 
 use crate::FlowgraphHandle;
 
 #[component]
-pub fn ListSelector<P: Into<PortId>>(
+pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     fg_handle: FlowgraphHandle,
     block_id: usize,
     handler: P,
-    values: HashMap<String, Pmt>,
+    values: V,
+    #[prop(into, optional)]
+    select_class: String
 ) -> impl IntoView {
     let handler = handler.into();
     let select_ref = create_node_ref::<Select>();
+    let values: IndexMap<String, Pmt> = IndexMap::from_iter(values);
 
     let change = {
         let values = values.clone();
@@ -37,7 +40,7 @@ pub fn ListSelector<P: Into<PortId>>(
     };
 
     view! {
-        <select node_ref=select_ref on:change=change> {
+        <select node_ref=select_ref on:change=change class={select_class}> {
             values.into_iter()
             .map(|(n, _)| view! {
                 <option value={n.clone()}>{n}</option>
