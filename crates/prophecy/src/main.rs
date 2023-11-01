@@ -51,13 +51,15 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
     let freq = move || if let Pmt::F64(value) = freq() { value } else { 0.0 };
 
     view! {
-        <h1>"flowgraph: " {let fg_handle=fg_handle.clone(); move || format!("{:?}", fg_handle)}</h1>
+        <h2 class="text-white text-md m-2">"flowgraph: " {let fg_handle=fg_handle.clone(); move || format!("{:?}", fg_handle)}</h2>
 
         <div class="text-white">
-            <ListSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() select_class="text-black m-4" />
+            <ListSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() select_class="text-black m-2" />
+            <div class="m-2">
             <RadioSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() label_class="m-2" />
-            <Slider fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="gain" min=0.0 max=100.0 step=1.0 init=gain() setter=set_gain input_class="align-middle"/>
-            <span class="m-2">"gain: " {move || gain} " dB"</span>
+                <Slider fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="gain" min=0.0 max=100.0 step=1.0 init=gain() setter=set_gain input_class="align-middle"/>
+                <span class="m-2">"gain: " {move || gain} " dB"</span>
+            </div>
             <div>
                 <span class="m-2">"frequency: " {move || (freq() / 1e6).round() } " MHz"</span>
             </div>
@@ -124,7 +126,7 @@ pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView
         {
             move || match res_fgs.get() {
                 Some(Ok(data)) => view! {
-                    <ul class="list-inside list-disc"> {
+                    <ul class="list-inside list-disc text-white m-2"> {
                         data.into_iter().map(|n| view! {
                             <li>{n} <button on:click={
                                 let rt_handle = rt_handle.clone();
@@ -132,7 +134,7 @@ pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView
                                     let rt_handle = rt_handle.clone();
                                     connect_flowgraph(rt_handle, n) 
                                 }}
-                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">"Connect"</button></li>
+                                class="bg-blue-500 hover:bg-blue-700 text-white p-1 m-2 rounded">"Connect"</button></li>
                         }).collect::<Vec<_>>()
                     } </ul> }.into_view(),
                 Some(Err(e)) => {move || format!("{e:?}")}.into_view(),
@@ -167,7 +169,7 @@ pub fn Prophecy(
         rt_handle_set(RuntimeHandle::from_url(url));
     };
 
-    let _on_input = move |ev: web_sys::KeyboardEvent| {
+    let on_input = move |ev: web_sys::KeyboardEvent| {
         ev.stop_propagation();
         let key_code = ev.key_code();
         if key_code == ENTER_KEY {
@@ -175,7 +177,7 @@ pub fn Prophecy(
         }
     };
 
-    let _url = match rt_handle.get_untracked() {
+    let url = match rt_handle.get_untracked() {
         RuntimeHandle::Remote(u) => u,
         RuntimeHandle::Web(_) => panic!("widget should not be used in a WASM Flowgraph"),
     };
@@ -205,25 +207,12 @@ pub fn Prophecy(
     let (min, set_min) = create_signal(-40.0f32);
     let (max, set_max) = create_signal(20.0f32);
 
-    let rt = RuntimeHandle::from_url("http://192.168.178.45:1337");
-    let fgh = prophecy::get_flowgraph_handle(rt, 0).unwrap();
-    let freq = prophecy::poll_periodically(
-        fgh.into(),
-        std::time::Duration::from_secs(1),
-        0,
-        "freq",
-        Pmt::Null,
-    );
-
     view! {
-        <div>
-            <span class="text-white">{move || format!("freq {:?}", freq())}</span>
-        </div>
-        // <h1>"Connect"</h1>
-        // <input node_ref=input_ref value={url} on:keydown=on_input></input>
-        // <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" on:click=move |_| connect_runtime()>
-        //     "Submit"
-        // </button>
+        <h1 class="text-xl text-white m-2">"FutureSDR Prophecy GUI"</h1>
+        <input class="m-2" node_ref=input_ref value=url on:keydown=on_input></input>
+        <button class="bg-blue-500 hover:bg-blue-700 text-white p-1 rounded" on:click=move |_| connect_runtime()>
+            "Submit"
+        </button>
         <FlowgraphSelector rt_handle=rt_handle.into() />
         <div class="flex flex-row flex-wrap">
         <div class="basis-1/3">
