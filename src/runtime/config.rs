@@ -8,20 +8,29 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Mutex;
 
 /// Get global configuration
-pub fn config() -> &'static Config {
-    &CONFIG
+pub fn config() -> Config {
+    CONFIG.lock().unwrap().clone()
+}
+
+/// Set config value
+pub fn set<V: Into<config::Value>>(name: impl Into<String>, value: V) {
+    let mut c = CONFIG.lock().unwrap();
+    c.set_value(name, value);
 }
 
 /// Get value from config
 pub fn get_value(name: &str) -> Option<Value> {
-    CONFIG.misc.get(name).cloned()
+    CONFIG.lock().unwrap().misc.get(name).cloned()
 }
 
 /// Try to parse value from config string
 pub fn get<T: FromStr>(name: &str) -> Option<T> {
     CONFIG
+        .lock()
+        .unwrap()
         .misc
         .get(name)
         .and_then(|v| v.clone().into_string().ok())
@@ -34,7 +43,7 @@ pub fn get_or_default<T: FromStr>(name: &str, default: T) -> T {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-static CONFIG: Lazy<Config> = Lazy::new(|| {
+static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| {
     let mut settings = ::config::Config::builder();
 
     // user config
@@ -67,6 +76,9 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
                 "stack_size" => {
                     c.stack_size = config_parse::<usize>(v);
                 }
+                "slab_reserved" => {
+                    c.slab_reserved = config_parse::<usize>(&v);
+                }
                 "log_level" => {
                     c.log_level = config_parse::<LevelFilter>(v);
                 }
@@ -87,14 +99,14 @@ static CONFIG: Lazy<Config> = Lazy::new(|| {
     }
     assert!(c.validate(), "invalid config");
 
-    c
+    Mutex::new(c)
 });
 
 #[cfg(target_arch = "wasm32")]
-static CONFIG: Lazy<Config> = Lazy::new(Config::default);
+static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(Config::default()));
 
 /// Configuration
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Queue size of inboxes
     pub queue_size: usize,
@@ -116,13 +128,49 @@ pub struct Config {
 }
 
 impl Config {
-    #[cfg(not(target_arch = "wasm32"))]
     fn validate(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
         if self.ctrlport_enable && self.ctrlport_bind.is_none() {
             println!("ctrlport enabled but socket not set");
             return false;
         }
         true
+    }
+
+    fn set_value<V: Into<config::Value>>(&mut self, name: impl Into<String>, value: V) {
+        let name = name.into();
+        let value = value.into();
+
+        match name.as_str() {
+            "queue_size" => {
+                self.queue_size = config_parse::<usize>(&value);
+            }
+            "buffer_size" => {
+                self.buffer_size = config_parse::<usize>(&value);
+            }
+            "stack_size" => {
+                self.stack_size = config_parse::<usize>(&value);
+            }
+            "slab_reserved" => {
+                self.slab_reserved = config_parse::<usize>(&value);
+            }
+            "log_level" => {
+                self.log_level = config_parse::<LevelFilter>(&value);
+            }
+            "ctrlport_enable" => {
+                self.ctrlport_enable = config_parse::<bool>(&value);
+            }
+            "ctrlport_bind" => {
+                self.ctrlport_bind = Some(config_parse::<SocketAddr>(&value));
+            }
+            "frontend_path" => {
+                self.frontend_path = Some(config_parse::<PathBuf>(&value));
+            }
+            _ => {
+                self.misc.insert(name, value.into());
+            }
+        }
+        assert!(self.validate());
     }
 }
 
@@ -158,7 +206,7 @@ impl Default for Config {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 fn config_parse<T: FromStr>(v: &Value) -> T {
     if let Ok(v) = v.clone().into_string() {
         if let Ok(v) = v.parse::<T>() {
