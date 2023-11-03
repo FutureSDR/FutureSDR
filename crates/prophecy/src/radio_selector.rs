@@ -47,7 +47,7 @@ pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
                         });
 
                     } />
-                    <label class={label_class} for={n.clone()}>{n}</label>
+                    <label class={label_class} for={id.to_string()}>{n}</label>
                 }
             })
         .collect::<Vec<_>>()

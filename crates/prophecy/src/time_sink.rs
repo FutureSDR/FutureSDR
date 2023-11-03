@@ -167,11 +167,10 @@ fn render(
             if need_resize {
                 canvas.set_width(display_width);
                 canvas.set_height(display_height);
+                gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
 
-            gl.viewport(0, 0, display_width as i32, display_height as i32);
-
-            let vertex_len = if let Some(bytes) = data.borrow_mut().take() {
+            if let Some(bytes) = data.borrow_mut().take() {
                 let samples = unsafe {
                     let s = bytes.len() / 4;
                     let p = bytes.as_ptr();
@@ -195,9 +194,7 @@ fn render(
                 let u_nsamples = gl.get_uniform_location(&shader, "u_nsamples");
                 gl.uniform1f(u_nsamples.as_ref(), l as f32);
 
-                l as i32
-            } else {
-                *vertex_len
+                *vertex_len = l as i32;
             };
 
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
@@ -205,7 +202,7 @@ fn render(
             let position = gl.get_attrib_location(&shader, "coordinates") as u32;
             gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
             gl.enable_vertex_attrib_array(position);
-            gl.draw_arrays(GL::LINE_STRIP, 0, vertex_len);
+            gl.draw_arrays(GL::LINE_STRIP, 0, *vertex_len);
         }
         request_animation_frame(render(state, data))
     }

@@ -215,9 +215,8 @@ fn render(
             if need_resize {
                 canvas.set_width(display_width);
                 canvas.set_height(display_height);
+                gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
-
-            gl.viewport(0, 0, display_width as i32, display_height as i32);
 
             if let Some(bytes) = data.borrow_mut().take() {
                 assert_eq!(bytes.len(), 2048 * 4);
