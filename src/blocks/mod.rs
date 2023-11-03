@@ -82,9 +82,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | HackRf | WASM + WebUSB source for HackRF. | ✅ |
-//! | WasmSdr | Receive samples from web world. | ✅ |
 //! | WasmWsSink | Send samples via a WebSocket. | ✅ |
-//! | WasmFreq | Push samples to a GUI sink. | ✅ |
 //!
 //! ## Signal Sources
 //! | Block | Usage | WebAssembly? |
@@ -156,11 +154,6 @@ pub use file_source::FileSource;
 
 mod finite_source;
 pub use finite_source::FiniteSource;
-
-#[cfg(target_arch = "wasm32")]
-mod hack_rf;
-#[cfg(target_arch = "wasm32")]
-pub use hack_rf::HackRf;
 
 mod head;
 pub use head::Head;
@@ -240,14 +233,9 @@ mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::{Vulkan, VulkanBuilder};
 
+/// WASM-specfici blocks (target wasm32-unknown-unknown)
 #[cfg(target_arch = "wasm32")]
-mod wasm_sdr;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_sdr::WasmSdr;
-#[cfg(target_arch = "wasm32")]
-mod wasm_freq;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_freq::WasmFreq;
+pub mod wasm;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket_sink;
@@ -271,8 +259,3 @@ pub use zynq::Zynq;
 mod zynq_sync;
 #[cfg(feature = "zynq")]
 pub use zynq_sync::ZynqSync;
-
-#[cfg(target_arch = "wasm32")]
-mod wasm_ws_sink;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_ws_sink::WasmWsSink;

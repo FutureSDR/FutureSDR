@@ -120,6 +120,10 @@ impl HackRf {
                 .build(),
             MessageIoBuilder::<Self>::new()
                 .add_input("freq", Self::freq_handler)
+                .add_input("vga", Self::vga_handler)
+                .add_input("lna", Self::lna_handler)
+                .add_input("amp", Self::amp_handler)
+                .add_input("sample_rate", Self::sample_rate_handler)
                 .build(),
             Self {
                 buffer: [0; TRANSFER_SIZE],
@@ -151,6 +155,90 @@ impl HackRf {
         }
     }
 
+    #[message_handler]
+    fn lna_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let res = match &p {
+            Pmt::F32(v) => self.set_lna_gain(*v as u16).await,
+            Pmt::F64(v) => self.set_lna_gain(*v as u16).await,
+            Pmt::U32(v) => self.set_lna_gain(*v as u16).await,
+            Pmt::U64(v) => self.set_lna_gain(*v as u16).await,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if res.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
+    }
+
+    #[message_handler]
+    fn vga_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let res = match &p {
+            Pmt::F32(v) => self.set_vga_gain(*v as u16).await,
+            Pmt::F64(v) => self.set_vga_gain(*v as u16).await,
+            Pmt::U32(v) => self.set_vga_gain(*v as u16).await,
+            Pmt::U64(v) => self.set_vga_gain(*v as u16).await,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if res.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
+    }
+
+    #[message_handler]
+    fn amp_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let res = match &p {
+            Pmt::Bool(b) => self.set_amp_enable(*b).await,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if res.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
+    }
+
+    #[message_handler]
+    fn sample_rate_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let res = match &p {
+            Pmt::F32(v) => self.set_sample_rate_auto(*v as f64).await,
+            Pmt::F64(v) => self.set_sample_rate_auto(*v).await,
+            Pmt::U32(v) => self.set_sample_rate_auto(*v as f64).await,
+            Pmt::U64(v) => self.set_sample_rate_auto(*v as f64).await,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if res.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
+    }
     async fn read_control<const N: usize>(
         &self,
         request: Request,
@@ -262,6 +350,42 @@ impl HackRf {
         )
         .await
     }
+
+    const MAX_N: usize = 32;
+
+    #[allow(unused_assignments)]
+    async fn set_sample_rate_auto(&mut self, freq: f64) -> Result<(), Error> {
+        let freq_frac = 1.0 + freq - freq.trunc();
+
+        let mut d = freq;
+        let u = unsafe { &mut *(&mut d as *mut f64 as *mut u64) };
+        let e = (*u >> 52) - 1023;
+        let mut m = (1u64 << 52) - 1;
+
+        d = freq_frac;
+        *u &= m;
+        m &= !((1 << (e + 4)) - 1);
+        let mut a = 0;
+
+        let mut i = 1;
+        for _ in 1..Self::MAX_N {
+            a += *u;
+            if ((a & m) == 0) || ((!a & m) == 0)  {
+                break;
+            }
+            i += 1;
+        }
+
+        if i == Self::MAX_N {
+            i = 1;
+        }
+
+        let freq_hz = (freq * i as f64 + 0.5).trunc() as u32;
+        let divider = i as u32;
+
+        return self.set_sample_rate(freq_hz, divider).await;
+    }
+
 
     async fn set_sample_rate(&mut self, hz: u32, div: u32) -> Result<(), Error> {
         let hz: u32 = hz.to_le();
