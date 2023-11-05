@@ -168,88 +168,7 @@ impl std::str::FromStr for Pmt {
                 return Ok(p);
             }
         }
-
-        let res = match s {
-            "Ok" => Pmt::Ok,
-            "InvalidValue" => Pmt::InvalidValue,
-            "Null" => Pmt::Null,
-            "Finished" => Pmt::Finished,
-            "true" => Pmt::Bool(true),
-            "false" => Pmt::Bool(false),
-            s => { 
-                if let Ok(v) = s.parse::<u32>() {
-                    Pmt::U32(v)
-                } else if let Ok(v) = s.parse::<u64>() {
-                    Pmt::U64(v)
-                } else if let Ok(v) = s.parse::<f64>() {
-                    Pmt::F64(v)
-                } else {
-                    if let Some(split) = s.trim().strip_prefix("[").and_then(|v| v.strip_suffix("]")) {
-                        let mut v = Vec::new();
-                        let mut b = 0;
-                        let mut cur = String::new();
-                        for c in split.chars() {
-                            if c == '(' {
-                                cur.push(c);
-                                b += 1;
-                            } else if c == ')' {
-                                cur.push(c);
-                                b -= 1;
-                                if b < 0 {
-                                    return Err(PmtConversionError);
-                                }
-                            } else if c == ',' {
-                                if b == 0 {
-                                    v.push(std::mem::take(&mut cur));
-                                } else {
-                                    cur.push(c);
-                                }
-                            } else {
-                                cur.push(c);
-                            }
-                        }
-                        v.push(cur);
-                        dbg!(&v);
-                        let v : Vec<String> = v.into_iter().map(|v| v.trim().to_string()).collect();
-                        let blob: Vec<u8> = v.iter().map_while(|s| s.parse::<u8>().ok()).collect();
-                        let vecf: Vec<f32> = v.iter().map_while(|s| s.parse::<f32>().ok()).collect();
-                        let vecu: Vec<u64> = v.iter().map_while(|s| s.parse::<u64>().ok()).collect();
-                        let vecp: Vec<Pmt> = v.iter().map_while(|s| s.parse::<Pmt>().ok()).collect();
-                        let map: Vec<(String, Pmt)> = v.iter().map_while(|s| {
-                            s.strip_prefix("(")
-                            .and_then(|v| v.strip_suffix(")"))
-                            .and_then(|v| {
-                                let mut s = v.split(",");
-                                if let Some(key) = s.next().and_then(|v| Some(v.trim().to_string())) {
-                                    if let Some(value) = s.next().and_then(|v| Some(v.trim())).and_then(|v| v.parse::<Pmt>().ok()) {
-                                        return Some((key, value));
-                                    }
-                                }
-                                None
-                            })
-                        }).collect();
-                        dbg!(&map);
-                        if blob.len() == v.len() {
-                            Pmt::Blob(blob)
-                        } else if vecf.len() == v.len() {
-                            Pmt::VecF32(vecf)
-                        } else if vecu.len() == v.len() {
-                            Pmt::VecU64(vecu)
-                        } else if map.len() == v.len() {
-                            let hash = HashMap::from_iter(map.into_iter());
-                            Pmt::MapStrPmt(hash)
-                        } else if vecp.len() == v.len() {
-                            Pmt::VecPmt(vecp)
-                        } else {
-                            Pmt::String(s.to_string())
-                        }
-                    } else {
-                        Pmt::String(s.to_string())
-                    }
-                }
-            }
-        };
-        Ok(res)
+        Err(PmtConversionError)
     }
 }
 
@@ -388,26 +307,6 @@ mod test {
         assert_eq!(p.to_string(), "Null");
         let p = Pmt::String("foo".to_string());
         assert_eq!(p.to_string(), "foo");
-    }
-
-    #[test]
-    fn pmt_parse() {
-        let s = "123";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::U32(123)));
-        let s = "false";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Bool(false)));
-        let s = "[1,2,3]";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
-        let s = "  [ 1,2  ,3  ] ";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
-        let s = "  [ 1.0,2  ,3  ] ";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::VecF32(vec![1.0,2.0,3.0])));
-        let s = "  [ 1.0, false  ,3  ] ";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::VecPmt(vec![Pmt::F64(1.0), Pmt::Bool(false), Pmt::U32(3)])));
-        let s = "  [ 1.0, false  ,3 ";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::String(s.to_string())));
-        let s = "[ (foo, 123), (bar, baz)]";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::MapStrPmt(HashMap::from([("foo".to_string(), Pmt::U32(123)), ("bar".to_string(), Pmt::String("baz".to_string()))]))));
     }
 
     #[test]
