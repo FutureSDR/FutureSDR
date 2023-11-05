@@ -5,10 +5,10 @@ use leptos::html::Span;
 use leptos::logging::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::*;
-use prophecy::FlowgraphMermaid;
-use prophecy::RuntimeHandle;
-use prophecy::RadioSelector;
 use prophecy::FlowgraphHandle;
+use prophecy::FlowgraphMermaid;
+use prophecy::RadioSelector;
+use prophecy::RuntimeHandle;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
@@ -84,7 +84,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="text-white">
             <button class="bg-slate-600 hover:bg-slate-800 rounded p-2 m-4" on:click=ctrl_click>Show/Hide Controlls</button>
         </div>
-        <Show when=ctrl> 
+        <Show when=ctrl>
             <div class="border-2 border-slate-500 rounded-md flex flex-row flex-wrap m-4 p-4">
                 <div class="basis-1/3">
                     <input type="range" min="-100" max="50" value="-40" class="align-middle"

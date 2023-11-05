@@ -370,7 +370,7 @@ impl HackRf {
         let mut i = 1;
         for _ in 1..Self::MAX_N {
             a += *u;
-            if ((a & m) == 0) || ((!a & m) == 0)  {
+            if ((a & m) == 0) || ((!a & m) == 0) {
                 break;
             }
             i += 1;
@@ -385,7 +385,6 @@ impl HackRf {
 
         return self.set_sample_rate(freq_hz, divider).await;
     }
-
 
     async fn set_sample_rate(&mut self, hz: u32, div: u32) -> Result<(), Error> {
         let hz: u32 = hz.to_le();
