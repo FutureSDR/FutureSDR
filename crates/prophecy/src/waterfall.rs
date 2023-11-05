@@ -239,11 +239,11 @@ fn render(
                 )
                 .unwrap();
 
-                let loc = gl.get_attrib_location(&shader, "gTexCoord0") as u32;
+                let loc = gl.get_attrib_location(shader, "gTexCoord0") as u32;
                 gl.enable_vertex_attrib_array(loc);
                 gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
-                let loc = gl.get_uniform_location(&shader, "yoffset");
+                let loc = gl.get_uniform_location(shader, "yoffset");
                 gl.uniform1f(loc.as_ref(), *texture_offset as f32 / SHADER_HEIGHT as f32);
 
                 gl.draw_elements_with_i32(GL::TRIANGLES, *num_indices, GL::UNSIGNED_SHORT, 0);

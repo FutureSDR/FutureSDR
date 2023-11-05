@@ -66,10 +66,10 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         <h2 class="text-white text-md m-2">"flowgraph: " {let fg_handle=fg_handle.clone(); move || format!("{:?}", fg_handle)}</h2>
 
         <div class="text-white">
-            <ListSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() select_class="text-black m-2" />
+            <ListSelector fg_handle={fg_handle.clone()} block_id=0 handler="sample_rate" values=values.clone() select_class="text-black m-2" />
             <div class="m-2">
-            <RadioSelector fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="sample_rate" values=values.clone() label_class="m-2" />
-                <Slider fg_handle={let fg_handle = fg_handle.clone(); fg_handle} block_id=0 handler="gain" min=0.0 max=100.0 step=1.0 init=gain() setter=set_gain input_class="align-middle"/>
+            <RadioSelector fg_handle={fg_handle.clone()} block_id=0 handler="sample_rate" values=values.clone() label_class="m-2" />
+                <Slider fg_handle={fg_handle.clone()} block_id=0 handler="gain" min=0.0 max=100.0 step=1.0 init=gain() setter=set_gain input_class="align-middle"/>
                 <span class="m-2">"gain: " {move || gain} " dB"</span>
             </div>
             <div>

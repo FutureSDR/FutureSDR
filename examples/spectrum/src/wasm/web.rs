@@ -178,8 +178,6 @@ pub fn Gui() -> impl IntoView {
     view! {
         <h1 class="text-xl text-white m-4"> FutureSDR Spectrum</h1>
         {
-            let time_data = time_data;
-            let waterfall_data = waterfall_data;
             move || {
              match handle.get() {
                  Some(handle) => {

@@ -188,18 +188,18 @@ fn render(
                     std::slice::from_raw_parts(vertices.as_ptr() as *const u8, l * 2 * 4)
                 };
 
-                gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
+                gl.bind_buffer(GL::ARRAY_BUFFER, Some(vertex_buffer));
                 gl.buffer_data_with_u8_array(GL::ARRAY_BUFFER, vertex_data, GL::DYNAMIC_DRAW);
 
-                let u_nsamples = gl.get_uniform_location(&shader, "u_nsamples");
+                let u_nsamples = gl.get_uniform_location(shader, "u_nsamples");
                 gl.uniform1f(u_nsamples.as_ref(), l as f32);
 
                 *vertex_len = l as i32;
             };
 
-            gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
+            gl.bind_buffer(GL::ARRAY_BUFFER, Some(vertex_buffer));
 
-            let position = gl.get_attrib_location(&shader, "coordinates") as u32;
+            let position = gl.get_attrib_location(shader, "coordinates") as u32;
             gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
             gl.enable_vertex_attrib_array(position);
             gl.draw_arrays(GL::LINE_STRIP, 0, *vertex_len);
