@@ -106,11 +106,39 @@ pub enum Pmt {
     Any(Box<dyn PmtAny>),
 }
 
+impl fmt::Display for Pmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pmt::Ok => write!(f, "Ok"),
+            Pmt::InvalidValue => write!(f, "InvalidValue"),
+            Pmt::Null => write!(f, "Null"),
+            Pmt::String(v) => write!(f, "{}", v),
+            Pmt::Bool(v) => write!(f, "{}", v),
+            Pmt::Usize(v) => write!(f, "{}", v),
+            Pmt::U32(v) => write!(f, "{}", v),
+            Pmt::U64(v) => write!(f, "{}", v),
+            Pmt::F32(v) => write!(f, "{}", v),
+            Pmt::F64(v) => write!(f, "{}", v),
+            Pmt::VecF32(v) => write!(f, "{:?}", v),
+            Pmt::VecU64(v) => write!(f, "{:?}", v),
+            Pmt::Blob(v) => write!(f, "{:?}", v),
+            Pmt::VecPmt(v) => write!(f, "{:?}", v),
+            Pmt::Finished => write!(f, "Finished"),
+            Pmt::MapStrPmt(v) => write!(f, "{:?}", v),
+            Pmt::Any(v) => write!(f, "{:?}",v),
+        }
+    }
+}
+
 impl PartialEq for Pmt {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Pmt::Ok, Pmt::Ok) => true,
+            (Pmt::InvalidValue, Pmt::InvalidValue) => true,
             (Pmt::Null, Pmt::Null) => true,
             (Pmt::String(x), Pmt::String(y)) => x == y,
+            (Pmt::Bool(x), Pmt::Bool(y)) => x == y,
+            (Pmt::Usize(x), Pmt::Usize(y)) => x == y,
             (Pmt::U32(x), Pmt::U32(y)) => x == y,
             (Pmt::U64(x), Pmt::U64(y)) => x == y,
             (Pmt::F32(x), Pmt::F32(y)) => x == y,
@@ -118,27 +146,114 @@ impl PartialEq for Pmt {
             (Pmt::VecF32(x), Pmt::VecF32(y)) => x == y,
             (Pmt::VecU64(x), Pmt::VecU64(y)) => x == y,
             (Pmt::Blob(x), Pmt::Blob(y)) => x == y,
+            (Pmt::VecPmt(x), Pmt::VecPmt(y)) => x == y,
+            (Pmt::Finished, Pmt::Finished) => true,
+            (Pmt::MapStrPmt(x), Pmt::MapStrPmt(y)) => x == y,
             _ => false,
         }
     }
 }
 
-impl Pmt {
-    /// Checks if PMT is a [`Pmt::String`]
-    pub fn is_string(&self) -> bool {
-        matches!(self, Pmt::String(_))
-    }
+impl std::str::FromStr for Pmt {
+    type Err = PmtConversionError;
 
-    /// Converts a [`Pmt::String`] to string
-    ///
-    /// Returns `None` if the [`Pmt`] is not of type string.
-    pub fn to_string(&self) -> Option<String> {
-        match &self {
-            Pmt::String(s) => Some(s.clone()),
-            _ => None,
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(p) = serde_json::from_str(s) {
+            return Ok(p);
         }
-    }
 
+        if let Some((a, b)) = s.split_once(':') {
+            let s = format!("{{ \"{}\": {}}}", a, b);
+            if let Ok(p) = serde_json::from_str(&s) {
+                return Ok(p);
+            }
+        }
+
+        let res = match s {
+            "Ok" => Pmt::Ok,
+            "InvalidValue" => Pmt::InvalidValue,
+            "Null" => Pmt::Null,
+            "Finished" => Pmt::Finished,
+            "true" => Pmt::Bool(true),
+            "false" => Pmt::Bool(false),
+            s => { 
+                if let Ok(v) = s.parse::<u32>() {
+                    Pmt::U32(v)
+                } else if let Ok(v) = s.parse::<u64>() {
+                    Pmt::U64(v)
+                } else if let Ok(v) = s.parse::<f64>() {
+                    Pmt::F64(v)
+                } else {
+                    if let Some(split) = s.trim().strip_prefix("[").and_then(|v| v.strip_suffix("]")) {
+                        let mut v = Vec::new();
+                        let mut b = 0;
+                        let mut cur = String::new();
+                        for c in split.chars() {
+                            if c == '(' {
+                                cur.push(c);
+                                b += 1;
+                            } else if c == ')' {
+                                cur.push(c);
+                                b -= 1;
+                                if b < 0 {
+                                    return Err(PmtConversionError);
+                                }
+                            } else if c == ',' {
+                                if b == 0 {
+                                    v.push(std::mem::take(&mut cur));
+                                } else {
+                                    cur.push(c);
+                                }
+                            } else {
+                                cur.push(c);
+                            }
+                        }
+                        v.push(cur);
+                        dbg!(&v);
+                        let v : Vec<String> = v.into_iter().map(|v| v.trim().to_string()).collect();
+                        let blob: Vec<u8> = v.iter().map_while(|s| s.parse::<u8>().ok()).collect();
+                        let vecf: Vec<f32> = v.iter().map_while(|s| s.parse::<f32>().ok()).collect();
+                        let vecu: Vec<u64> = v.iter().map_while(|s| s.parse::<u64>().ok()).collect();
+                        let vecp: Vec<Pmt> = v.iter().map_while(|s| s.parse::<Pmt>().ok()).collect();
+                        let map: Vec<(String, Pmt)> = v.iter().map_while(|s| {
+                            s.strip_prefix("(")
+                            .and_then(|v| v.strip_suffix(")"))
+                            .and_then(|v| {
+                                let mut s = v.split(",");
+                                if let Some(key) = s.next().and_then(|v| Some(v.trim().to_string())) {
+                                    if let Some(value) = s.next().and_then(|v| Some(v.trim())).and_then(|v| v.parse::<Pmt>().ok()) {
+                                        return Some((key, value));
+                                    }
+                                }
+                                None
+                            })
+                        }).collect();
+                        dbg!(&map);
+                        if blob.len() == v.len() {
+                            Pmt::Blob(blob)
+                        } else if vecf.len() == v.len() {
+                            Pmt::VecF32(vecf)
+                        } else if vecu.len() == v.len() {
+                            Pmt::VecU64(vecu)
+                        } else if map.len() == v.len() {
+                            let hash = HashMap::from_iter(map.into_iter());
+                            Pmt::MapStrPmt(hash)
+                        } else if vecp.len() == v.len() {
+                            Pmt::VecPmt(vecp)
+                        } else {
+                            Pmt::String(s.to_string())
+                        }
+                    } else {
+                        Pmt::String(s.to_string())
+                    }
+                }
+            }
+        };
+        Ok(res)
+    }
+}
+
+impl Pmt {
     /// Create a [`Pmt`] by parsing a string into a specific [`PmtKind`].
     pub fn from_string(s: &str, t: &PmtKind) -> Option<Pmt> {
         match t {
@@ -179,7 +294,7 @@ impl Pmt {
 /// PMT conversion error.
 ///
 /// This error is returned, if conversion to/from PMTs fail.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, Error, PartialEq)]
 #[error("PMt conversion error")]
 pub struct PmtConversionError;
 
@@ -203,6 +318,19 @@ impl TryInto<usize> for Pmt {
     fn try_into(self) -> Result<usize, Self::Error> {
         match self {
             Pmt::Usize(f) => Ok(f),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryInto<u64> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        match self {
+            Pmt::U32(v) => Ok(v as u64),
+            Pmt::U64(v) => Ok(v as u64),
+            Pmt::Usize(v) => Ok(v as u64),
             _ => Err(PmtConversionError),
         }
     }
@@ -257,11 +385,45 @@ mod test {
     #[test]
     fn pmt() {
         let p = Pmt::Null;
-        assert!(!p.is_string());
-        assert_eq!(p.to_string(), None);
-        let p = Pmt::String("foo".to_owned());
-        assert!(p.is_string());
-        assert_eq!(p.to_string(), Some("foo".to_owned()));
+        assert_eq!(p.to_string(), "Null");
+        let p = Pmt::String("foo".to_string());
+        assert_eq!(p.to_string(), "foo");
+    }
+
+    #[test]
+    fn pmt_parse() {
+        let s = "123";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::U32(123)));
+        let s = "false";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Bool(false)));
+        let s = "[1,2,3]";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
+        let s = "  [ 1,2  ,3  ] ";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
+        let s = "  [ 1.0,2  ,3  ] ";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::VecF32(vec![1.0,2.0,3.0])));
+        let s = "  [ 1.0, false  ,3  ] ";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::VecPmt(vec![Pmt::F64(1.0), Pmt::Bool(false), Pmt::U32(3)])));
+        let s = "  [ 1.0, false  ,3 ";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::String(s.to_string())));
+        let s = "[ (foo, 123), (bar, baz)]";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::MapStrPmt(HashMap::from([("foo".to_string(), Pmt::U32(123)), ("bar".to_string(), Pmt::String("baz".to_string()))]))));
+    }
+
+    #[test]
+    fn pmt_parse_json() {
+        let s = "{ \"U32\": 123 }";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::U32(123)));
+        let s = "{ \"Bool\": true }";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Bool(true)));
+        let s = "Bool: true";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Bool(true)));
+        let s = "U32: 123";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::U32(123)));
+        let s = "F64: 123";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::F64(123.0)));
+        let s = "Blob: [1,2,3]";
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
     }
 
     #[test]
