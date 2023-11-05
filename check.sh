@@ -15,6 +15,7 @@ cd ${SCRIPTPATH} && cargo fmt --check
 cd ${SCRIPTPATH}/crates/frontend && cargo fmt --check
 cd ${SCRIPTPATH}/crates/futuredsp && cargo fmt --check
 cd ${SCRIPTPATH}/crates/macros && cargo fmt --check
+cd ${SCRIPTPATH}/crates/prophecy && cargo fmt --check
 cd ${SCRIPTPATH}/crates/remote && cargo fmt --check
 cd ${SCRIPTPATH}/crates/types && cargo fmt --check
 
@@ -65,6 +66,8 @@ cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets --target=wasm32-u
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
@@ -120,6 +123,7 @@ cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=aaronia,vulk
 cd ${SCRIPTPATH}/crates/frontend && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
+cd ${SCRIPTPATH}/crates/prophecy && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/types && cargo test --all-targets
 
