@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use web_sys::HtmlInputElement;
 
+use prophecy::poll_periodically;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
@@ -21,7 +22,6 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
-use prophecy::poll_periodically;
 
 #[component]
 pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
@@ -47,8 +47,20 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
 
     let (gain, set_gain) = create_signal(40.0);
 
-    let freq = poll_periodically(Some(fg_handle.clone()).into(), Duration::from_secs(1), 0, "freq", Pmt::Null);
-    let freq = move || if let Pmt::F64(value) = freq() { value } else { 0.0 };
+    let freq = poll_periodically(
+        Some(fg_handle.clone()).into(),
+        Duration::from_secs(1),
+        0,
+        "freq",
+        Pmt::Null,
+    );
+    let freq = move || {
+        if let Pmt::F64(value) = freq() {
+            value
+        } else {
+            0.0
+        }
+    };
 
     view! {
         <h2 class="text-white text-md m-2">"flowgraph: " {let fg_handle=fg_handle.clone(); move || format!("{:?}", fg_handle)}</h2>
@@ -114,10 +126,10 @@ pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView
                 fg_handle_set(Some(fg));
             } else {
                 warn!(
-                "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
-                rt_handle(),
-                id
-            );
+                    "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
+                    rt_handle(),
+                    id
+                );
             }
         });
     };
@@ -132,7 +144,7 @@ pub fn FlowgraphSelector(rt_handle: MaybeSignal<RuntimeHandle>) -> impl IntoView
                                 let rt_handle = rt_handle.clone();
                                 move |_| {
                                     let rt_handle = rt_handle.clone();
-                                    connect_flowgraph(rt_handle, n) 
+                                    connect_flowgraph(rt_handle, n)
                                 }}
                                 class="bg-blue-500 hover:bg-blue-700 text-white p-1 m-2 rounded">"Connect"</button></li>
                         }).collect::<Vec<_>>()

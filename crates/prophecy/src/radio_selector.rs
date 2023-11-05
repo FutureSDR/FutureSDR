@@ -1,8 +1,8 @@
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
+use indexmap::IndexMap;
 use leptos::logging::*;
 use leptos::*;
-use indexmap::IndexMap;
 use uuid::Uuid;
 
 use crate::FlowgraphHandle;
@@ -13,10 +13,8 @@ pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     block_id: usize,
     handler: P,
     values: V,
-    #[prop(into, optional)]
-    label_class: String
+    #[prop(into, optional)] label_class: String,
 ) -> impl IntoView {
-
     let handler = handler.into();
     let uuid = Uuid::new_v4();
     let values: IndexMap<String, Pmt> = IndexMap::from_iter(values);

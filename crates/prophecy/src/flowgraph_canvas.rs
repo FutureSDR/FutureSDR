@@ -1,5 +1,5 @@
-use leptos::*;
 use futuresdr::runtime::FlowgraphDescription;
+use leptos::*;
 
 #[component]
 pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
@@ -67,5 +67,3 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
         } </div>
     }
 }
-
-

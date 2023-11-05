@@ -1,9 +1,9 @@
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 use indexmap::IndexMap;
-use leptos::*;
 use leptos::html::Select;
 use leptos::logging::*;
+use leptos::*;
 
 use crate::FlowgraphHandle;
 
@@ -13,8 +13,7 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     block_id: usize,
     handler: P,
     values: V,
-    #[prop(into, optional)]
-    select_class: String
+    #[prop(into, optional)] select_class: String,
 ) -> impl IntoView {
     let handler = handler.into();
     let select_ref = create_node_ref::<Select>();

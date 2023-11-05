@@ -11,20 +11,13 @@ pub fn Slider<P: Into<PortId>>(
     fg_handle: FlowgraphHandle,
     block_id: usize,
     handler: P,
-    #[prop(default = 0.0)]
-    min: f64,
-    #[prop(default = 100.0)]
-    max: f64,
-    #[prop(default = 1.0)]
-    step: f64,
-    #[prop(optional)]
-    init: Option<f64>,
-    #[prop(optional)]
-    setter: Option<WriteSignal<f64>>,
-    #[prop(into, optional)]
-    input_class: String
+    #[prop(default = 0.0)] min: f64,
+    #[prop(default = 100.0)] max: f64,
+    #[prop(default = 1.0)] step: f64,
+    #[prop(optional)] init: Option<f64>,
+    #[prop(optional)] setter: Option<WriteSignal<f64>>,
+    #[prop(into, optional)] input_class: String,
 ) -> impl IntoView {
-
     let handler = handler.into();
     let init = init.unwrap_or(min);
 
@@ -53,4 +46,3 @@ pub fn Slider<P: Into<PortId>>(
         } />
     }
 }
-
