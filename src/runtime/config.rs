@@ -77,7 +77,7 @@ static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| {
                     c.stack_size = config_parse::<usize>(v);
                 }
                 "slab_reserved" => {
-                    c.slab_reserved = config_parse::<usize>(&v);
+                    c.slab_reserved = config_parse::<usize>(v);
                 }
                 "log_level" => {
                     c.log_level = config_parse::<LevelFilter>(v);
@@ -167,7 +167,7 @@ impl Config {
                 self.frontend_path = Some(config_parse::<PathBuf>(&value));
             }
             _ => {
-                self.misc.insert(name, value.into());
+                self.misc.insert(name, value);
             }
         }
         assert!(self.validate());

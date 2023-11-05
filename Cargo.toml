@@ -95,7 +95,7 @@ slab = "0.4.8"
 spin = "0.9.8"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
-wgpu = { version = "0.16.0", optional = true }
+wgpu = { version = "0.16.3", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "1.0"
@@ -142,7 +142,7 @@ xilinx-dma = { version = "0.0.8", features = ["async"], optional = true }
 android_logger = "0.13.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.64"
+version = "=0.3.64" # need to pin, due to incompatibilites w/ wgpu
 features = [
   'Document',
   'Element',

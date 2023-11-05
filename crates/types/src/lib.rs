@@ -248,7 +248,7 @@ impl TryInto<u64> for Pmt {
     fn try_into(self) -> Result<u64, Self::Error> {
         match self {
             Pmt::U32(v) => Ok(v as u64),
-            Pmt::U64(v) => Ok(v as u64),
+            Pmt::U64(v) => Ok(v),
             Pmt::Usize(v) => Ok(v as u64),
             _ => Err(PmtConversionError),
         }

@@ -383,7 +383,7 @@ impl HackRf {
         let freq_hz = (freq * i as f64 + 0.5).trunc() as u32;
         let divider = i as u32;
 
-        return self.set_sample_rate(freq_hz, divider).await;
+        self.set_sample_rate(freq_hz, divider).await
     }
 
     async fn set_sample_rate(&mut self, hz: u32, div: u32) -> Result<(), Error> {
