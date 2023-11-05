@@ -125,7 +125,7 @@ impl fmt::Display for Pmt {
             Pmt::VecPmt(v) => write!(f, "{:?}", v),
             Pmt::Finished => write!(f, "Finished"),
             Pmt::MapStrPmt(v) => write!(f, "{:?}", v),
-            Pmt::Any(v) => write!(f, "{:?}",v),
+            Pmt::Any(v) => write!(f, "{:?}", v),
         }
     }
 }
@@ -322,7 +322,7 @@ mod test {
         let s = "F64: 123";
         assert_eq!(s.parse::<Pmt>(), Ok(Pmt::F64(123.0)));
         let s = "Blob: [1,2,3]";
-        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1,2,3])));
+        assert_eq!(s.parse::<Pmt>(), Ok(Pmt::Blob(vec![1, 2, 3])));
     }
 
     #[test]
