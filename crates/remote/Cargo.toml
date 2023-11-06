@@ -22,7 +22,7 @@ hyper = { version = "0.14", features = ["client", "http1", "tcp"] }
 serde = "1.0.152"
 serde_json = "1.0.91"
 thiserror = "1.0.38"
-futuresdr-types = { version = "0.0.9", path = "../types/" }
+futuresdr-types = { version = "0.0.10", path = "../types/" }
 
 [dev-dependencies]
 tokio = { version = "1", features = [ "macros", "rt", "rt-multi-thread"] }

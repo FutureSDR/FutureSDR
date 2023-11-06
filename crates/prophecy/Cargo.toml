@@ -11,7 +11,7 @@ description = "FutureSDR GUI"
 console_error_panic_hook = "0.1"
 console_log = "1"
 futuresdr = { path = "../../" }
-futuresdr-types = { path = "../types/" }
+futuresdr-types = { version = "0.0.10", path = "../types/" }
 indexmap = "2.0"
 leptos = { version = "0.5", features = ["csr", "nightly"] }
 log = "0.4"
