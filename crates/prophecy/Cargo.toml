@@ -10,7 +10,7 @@ description = "FutureSDR GUI"
 [dependencies]
 console_error_panic_hook = "0.1"
 console_log = "1"
-futuresdr = { path = "../../../futuresdr/" }
+futuresdr = { path = "../../" }
 futuresdr-types = { path = "../types/" }
 indexmap = "2.0"
 leptos = { version = "0.5", features = ["csr", "nightly"] }
