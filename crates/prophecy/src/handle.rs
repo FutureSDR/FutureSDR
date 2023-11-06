@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use futuresdr::runtime;
-use futuresdr::runtime::FlowgraphDescription;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::PortId;
+use futuresdr_types::FlowgraphDescription;
+use futuresdr_types::Pmt;
+use futuresdr_types::PortId;
 use gloo_net::http::Request;
 use leptos::logging::*;
 use leptos::*;

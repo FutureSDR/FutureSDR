@@ -1,4 +1,4 @@
-use futuresdr::runtime::FlowgraphDescription;
+use futuresdr_types::FlowgraphDescription;
 use leptos::*;
 
 #[component]

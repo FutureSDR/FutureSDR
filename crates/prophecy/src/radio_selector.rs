@@ -1,5 +1,5 @@
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::PortId;
+use futuresdr_types::Pmt;
+use futuresdr_types::PortId;
 use indexmap::IndexMap;
 use leptos::logging::*;
 use leptos::*;
