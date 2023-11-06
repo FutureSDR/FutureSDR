@@ -1,6 +1,6 @@
 use futuresdr::anyhow::Result;
+use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Apply;
-use futuresdr::blocks::HackRf;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
 use futuresdr::futures::channel::mpsc;
