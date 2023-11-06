@@ -23,6 +23,8 @@ pub use list_selector::ListSelector;
 
 mod pmt;
 pub use pmt::Pmt;
+pub use pmt::PmtInput;
+pub use pmt::PmtInputList;
 
 mod radio_selector;
 pub use radio_selector::RadioSelector;

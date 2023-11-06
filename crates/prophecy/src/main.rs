@@ -15,6 +15,9 @@ use prophecy::poll_periodically;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
+use prophecy::Pmt;
+use prophecy::PmtInput;
+use prophecy::PmtInputList;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
 use prophecy::Slider;
@@ -219,8 +222,22 @@ pub fn Prophecy(
     let (min, set_min) = create_signal(-40.0f32);
     let (max, set_max) = create_signal(20.0f32);
 
+    let (pmt, set_pmt) = create_signal(Pmt::Null);
+    // let asdf = Pmt::MapStrPmt(std::collections::HashMap::from([
+    //     ("foo".to_string(), Pmt::U32(123)),
+    //     ("bar".to_string(), Pmt::Ok),
+    //     ("baz".to_string(), Pmt::F32(1.0)),
+    // ]));
+    // log!("{}", serde_json::to_string(&asdf).unwrap());
+
     view! {
         <h1 class="text-xl text-white m-2">"FutureSDR Prophecy GUI"</h1>
+        <Pmt pmt=pmt span_class="text-white m-4"/>
+        <PmtInput set_pmt=set_pmt button=true button_text="hi" button_class="text-green-500" input_class="bg-slate-500" error_class="text-red-500" />
+        <div>
+            <PmtInputList set_pmt=set_pmt button=true button_text="hi" button_class="text-green-500" input_class="bg-slate-500" error_class="text-red-500" />
+        </div>
+
         <input class="m-2" node_ref=input_ref value=url on:keydown=on_input></input>
         <button class="bg-blue-500 hover:bg-blue-700 text-white p-1 rounded" on:click=move |_| connect_runtime()>
             "Submit"
