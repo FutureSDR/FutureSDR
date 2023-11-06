@@ -158,6 +158,16 @@ impl std::str::FromStr for Pmt {
     type Err = PmtConversionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ok" | "ok" => return Ok(Pmt::Ok),
+            "Null" | "null" => return Ok(Pmt::Null),
+            "true" => return Ok(Pmt::Bool(true)),
+            "false" => return Ok(Pmt::Bool(false)),
+            "InvalidValue" | "invalidvalue" => return Ok(Pmt::InvalidValue),
+            "Finished" | "finished" => return Ok(Pmt::Finished),
+            _ => (),
+        }
+
         if let Ok(p) = serde_json::from_str(s) {
             return Ok(p);
         }
@@ -295,6 +305,58 @@ pub enum PmtKind {
     MapStrPmt,
     /// Any
     Any,
+}
+
+impl fmt::Display for PmtKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PmtKind::Ok => write!(f, "Ok"),
+            PmtKind::InvalidValue => write!(f, "InvalidValue"),
+            PmtKind::Null => write!(f, "Null"),
+            PmtKind::String => write!(f, "String"),
+            PmtKind::Bool => write!(f, "Bool"),
+            PmtKind::Usize => write!(f, "Usize"),
+            PmtKind::U32 => write!(f, "U32"),
+            PmtKind::U64 => write!(f, "U64"),
+            PmtKind::F32 => write!(f, "F32"),
+            PmtKind::F64 => write!(f, "F64"),
+            PmtKind::VecF32 => write!(f, "VecF32"),
+            PmtKind::VecU64 => write!(f, "VecU64"),
+            PmtKind::Blob => write!(f, "Blob"),
+            PmtKind::VecPmt => write!(f, "VecPmt"),
+            PmtKind::Finished => write!(f, "Finished"),
+            PmtKind::MapStrPmt => write!(f, "MapStrPmt"),
+            PmtKind::Any => write!(f, "Any"),
+        }
+    }
+}
+
+impl std::str::FromStr for PmtKind {
+    type Err = PmtConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ok" => return Ok(PmtKind::Ok),
+            "InvalidValue" => return Ok(PmtKind::InvalidValue),
+            "Null" => return Ok(PmtKind::Null),
+            "String" => return Ok(PmtKind::String),
+            "Bool" => return Ok(PmtKind::Bool),
+            "Usize" => return Ok(PmtKind::Usize),
+            "U32" => return Ok(PmtKind::U32),
+            "U64" => return Ok(PmtKind::U64),
+            "F32" => return Ok(PmtKind::F32),
+            "F64" => return Ok(PmtKind::F64),
+            "VecF32" => return Ok(PmtKind::VecF32),
+            "VecU64" => return Ok(PmtKind::VecU64),
+            "Blob" => return Ok(PmtKind::Blob),
+            "VecPmt" => return Ok(PmtKind::VecPmt),
+            "Finished" => return Ok(PmtKind::Finished),
+            "MapStrPmt" => return Ok(PmtKind::MapStrPmt),
+            "Any" => return Ok(PmtKind::Any),
+            _ => (),
+        }
+        Err(PmtConversionError)
+    }
 }
 
 #[cfg(test)]
