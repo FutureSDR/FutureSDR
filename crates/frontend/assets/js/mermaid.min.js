@@ -1,1 +1,0 @@
-../../node_modules/mermaid/dist/mermaid.min.js

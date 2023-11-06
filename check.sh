@@ -12,7 +12,6 @@ cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
 # FMT
 ###########################################################
 cd ${SCRIPTPATH} && cargo fmt --check
-cd ${SCRIPTPATH}/crates/frontend && cargo fmt --check
 cd ${SCRIPTPATH}/crates/futuredsp && cargo fmt --check
 cd ${SCRIPTPATH}/crates/macros && cargo fmt --check
 cd ${SCRIPTPATH}/crates/prophecy && cargo fmt --check
@@ -62,8 +61,6 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 # aaronia feature is not tested, since most user might not have the sdr installed
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/crates/frontend && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
@@ -122,7 +119,6 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-u
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
 cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -j 4
-cd ${SCRIPTPATH}/crates/frontend && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/prophecy && cargo test --all-targets
