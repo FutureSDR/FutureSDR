@@ -73,7 +73,7 @@ impl fmt::Display for CallSign {
 
                 let mut out = String::new();
                 while encoded > 0 {
-                    out.push(Self::CHAR_MAP[(encoded % 40) as usize].try_into().unwrap());
+                    out.push(Self::CHAR_MAP[(encoded % 40) as usize].into());
                     encoded /= 40;
                 }
                 out

@@ -370,7 +370,7 @@ impl Drop for FlowExecutor {
             let active = state.active.lock().unwrap();
 
             for (_, w) in active.iter() {
-                w.clone().wake();
+                w.wake_by_ref();
             }
 
             drop(active);
