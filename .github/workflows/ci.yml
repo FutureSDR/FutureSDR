@@ -21,8 +21,20 @@ jobs:
       - name: Run cargo fmt (Frontend)
         run: cargo fmt --all --manifest-path=crates/frontend/Cargo.toml -- --check
 
+      - name: Run cargo fmt (FutureDSP)
+        run: cargo fmt --all --manifest-path=crates/futuredsp/Cargo.toml -- --check
+
+      - name: Run cargo fmt (Macros)
+        run: cargo fmt --all --manifest-path=crates/macros/Cargo.toml -- --check
+
+      - name: Run cargo fmt (Prophecy)
+        run: cargo fmt --all --manifest-path=crates/prophecy/Cargo.toml -- --check
+
       - name: Run cargo fmt (Remote)
         run: cargo fmt --all --manifest-path=crates/remote/Cargo.toml -- --check
+
+      - name: Run cargo fmt (Types)
+        run: cargo fmt --all --manifest-path=crates/types/Cargo.toml -- --check
 
       - name: Run cargo fmt (perf/buffer_rand)
         run: cargo fmt --all --manifest-path=perf/buffer_rand/Cargo.toml -- --check
@@ -153,11 +165,23 @@ jobs:
       - name: Run cargo clippy (main)
         run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 
+      - name: Run cargo clippy (frontend)
+        run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (futuredsp)
         run: cargo clippy --lib --manifest-path=crates/futuredsp/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (macros)
+        run: cargo clippy --lib --manifest-path=crates/macros/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (prophecy)
+        run: cargo clippy --lib --manifest-path=crates/prophecy/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (remote)
         run: cargo clippy --lib --manifest-path=crates/remote/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (types)
+        run: cargo clippy --lib --manifest-path=crates/types/Cargo.toml -- -D warnings
 
   clippy_perf:
     name: Clippy Perf
@@ -331,6 +355,9 @@ jobs:
 
       - name: Run cargo clippy for wasm32-unknown-unknown (frontend)
         run: cargo clippy --lib --manifest-path=crates/frontend/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (prophecy)
+        run: cargo clippy --lib --manifest-path=crates/prophecy/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
         run: cargo clippy --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
