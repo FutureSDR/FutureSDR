@@ -5,6 +5,9 @@ pub use gloo_net;
 pub use gloo_timers;
 pub use leptos;
 
+mod constellation_sink;
+pub use constellation_sink::ConstellationSink;
+
 mod handle;
 pub use handle::call_periodically;
 pub use handle::get_flowgraph_handle;
