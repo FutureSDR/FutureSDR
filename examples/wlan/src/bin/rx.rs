@@ -9,6 +9,7 @@ use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
+use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
@@ -110,7 +111,9 @@ fn main() -> Result<()> {
     fft.set_tag_propagation(Box::new(fft_tag_propagation));
     let frame_equalizer = FrameEqualizer::new();
     let decoder = Decoder::new();
-    connect!(fg, sync_long > fft > frame_equalizer > decoder);
+    let symbol_sink = WebsocketPmtSink(9002);
+    connect!(fg, sync_long > fft > frame_equalizer > decoder;
+        frame_equalizer.symbols | symbol_sink.in);
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = MessagePipe::new(tx_frame);

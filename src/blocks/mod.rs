@@ -61,6 +61,7 @@
 //! | [TcpSource] | Reads samples from a TCP socket. | ❌ |
 //! | [TcpSink] | Push samples into a TCP socket. | ❌ |
 //! | [WebsocketSink] | Push samples in a WebSocket. | ❌ |
+//! | [WebsocketPmtSink] | Push samples from Pmts a WebSocket. | ❌ |
 //! | [zeromq::PubSink] | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //! | [zeromq::SubSource] | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //!
@@ -241,6 +242,11 @@ pub mod wasm;
 mod websocket_sink;
 #[cfg(not(target_arch = "wasm32"))]
 pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode};
+
+#[cfg(not(target_arch = "wasm32"))]
+mod websocket_pmt_sink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_pmt_sink::WebsocketPmtSink;
 
 #[cfg(feature = "wgpu")]
 mod wgpu;

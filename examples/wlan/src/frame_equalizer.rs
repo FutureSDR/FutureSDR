@@ -107,7 +107,9 @@ impl FrameEqualizer {
                 .add_input::<Complex32>("in")
                 .add_output::<u8>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageIoBuilder::new()
+                .add_output("symbols")
+                .build(),
             Self {
                 equalizer: Equalizer::new(),
                 state: State::Skip,
@@ -315,6 +317,8 @@ impl Kernel for FrameEqualizer {
                             (&mut out[o * 48..(o + 1) * 48]).try_into().unwrap(),
                             *modulation,
                         );
+
+                        mio.post(0, Pmt::VecF32(Vec::from(&self.sym_out))).await;
 
                         i += 1;
                         o += 1;
