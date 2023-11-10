@@ -82,8 +82,17 @@ impl Kernel for WebsocketPmtSink {
     ) -> Result<()> {
         if let Some(ref mut conn) = self.conn {
             match self.pmts.pop_front() {
-                Some(Pmt::VecF32(v)) => {
-                    let v: Vec<u8> = v.into_iter().map(|f| f.to_le_bytes()).flatten().collect();
+                Some(Pmt::VecCF32(v)) => {
+                    let v: Vec<u8> = v
+                        .into_iter()
+                        .map(|f| {
+                            let mut b = [0; 8];
+                            b[..4].copy_from_slice(&f.re.to_le_bytes());
+                            b[4..].copy_from_slice(&f.im.to_le_bytes());
+                            b
+                        })
+                        .flatten()
+                        .collect();
                     if !v.is_empty() {
                         let acc = Box::pin(self.listener.as_ref().context("no listener")?.accept());
                         let send = conn.send(Message::Binary(v));
