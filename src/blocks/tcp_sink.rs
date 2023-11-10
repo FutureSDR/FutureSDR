@@ -13,23 +13,25 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 /// Push samples into a TCP socket.
-pub struct TcpSink {
+pub struct TcpSink<T: Send + 'static> {
     port: u32,
     listener: Option<TcpListener>,
     socket: Option<TcpStream>,
+    _type: std::marker::PhantomData<T>,
 }
 
-impl TcpSink {
+impl<T: Send + 'static> TcpSink<T> {
     /// Create TCP Sink block
     pub fn new(port: u32) -> Block {
         Block::new(
             BlockMetaBuilder::new("TcpSink").build(),
-            StreamIoBuilder::new().add_input::<u8>("in").build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             TcpSink {
                 port,
                 listener: None,
                 socket: None,
+                _type: std::marker::PhantomData::<T>,
             },
         )
     }
@@ -37,7 +39,7 @@ impl TcpSink {
 
 #[doc(hidden)]
 #[async_trait]
-impl Kernel for TcpSink {
+impl<T: Send + 'static> Kernel for TcpSink<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -56,7 +58,7 @@ impl Kernel for TcpSink {
             debug!("tcp sink accepted connection");
         }
 
-        let i = sio.input(0).slice::<u8>();
+        let i = sio.input(0).slice_unchecked::<u8>();
 
         match self
             .socket
@@ -73,8 +75,11 @@ impl Kernel for TcpSink {
             io.finished = true;
         }
 
-        debug!("tcp sink wrote bytes {}", i.len());
-        sio.input(0).consume(i.len());
+        debug!(
+            "tcp sink wrote bytes {}",
+            i.len() / std::mem::size_of::<T>()
+        );
+        sio.input(0).consume(i.len() / std::mem::size_of::<T>());
 
         Ok(())
     }
