@@ -39,6 +39,9 @@ pub use sync_short::SyncShort;
 mod viterbi_decoder;
 pub use viterbi_decoder::ViterbiDecoder;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 pub const MAX_PAYLOAD_SIZE: usize = 1500;
 pub const MAX_PSDU_SIZE: usize = MAX_PAYLOAD_SIZE + 28; // MAC, CRC
 pub const MAX_SYM: usize = ((16 + 8 * MAX_PSDU_SIZE + 6) / 24) + 1;

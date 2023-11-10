@@ -16,6 +16,7 @@ use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
@@ -182,7 +183,7 @@ impl Kernel for FrameEqualizer {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        mio: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<Complex32>();
@@ -318,7 +319,7 @@ impl Kernel for FrameEqualizer {
                             *modulation,
                         );
 
-                        mio.post(0, Pmt::VecF32(Vec::from(&self.sym_out))).await;
+                        mio.post(0, Pmt::VecCF32(Vec::from(&self.sym_out))).await;
 
                         i += 1;
                         o += 1;
