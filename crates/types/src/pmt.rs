@@ -1,4 +1,5 @@
 use dyn_clone::DynClone;
+use num_complex::Complex32;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
@@ -75,6 +76,8 @@ pub enum Pmt {
     F32(f32),
     /// F64, 64-bit float
     F64(f64),
+    /// Vector of 32-bit complex floats.
+    VecCF32(Vec<Complex32>),
     /// Vector of 32-bit floats.
     VecF32(Vec<f32>),
     /// Vector of 64-bit floats.
@@ -110,6 +113,7 @@ impl fmt::Display for Pmt {
             Pmt::U64(v) => write!(f, "{}", v),
             Pmt::F32(v) => write!(f, "{}", v),
             Pmt::F64(v) => write!(f, "{}", v),
+            Pmt::VecCF32(v) => write!(f, "{:?}", v),
             Pmt::VecF32(v) => write!(f, "{:?}", v),
             Pmt::VecU64(v) => write!(f, "{:?}", v),
             Pmt::Blob(v) => write!(f, "{:?}", v),
@@ -282,6 +286,8 @@ pub enum PmtKind {
     F32,
     /// F64
     F64,
+    /// VecCF32
+    VecCF32,
     /// VecF32
     VecF32,
     /// VecU64
@@ -311,6 +317,7 @@ impl fmt::Display for PmtKind {
             PmtKind::U64 => write!(f, "U64"),
             PmtKind::F32 => write!(f, "F32"),
             PmtKind::F64 => write!(f, "F64"),
+            PmtKind::VecCF32 => write!(f, "VecCF32"),
             PmtKind::VecF32 => write!(f, "VecF32"),
             PmtKind::VecU64 => write!(f, "VecU64"),
             PmtKind::Blob => write!(f, "Blob"),
