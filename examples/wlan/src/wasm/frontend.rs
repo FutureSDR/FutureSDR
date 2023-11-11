@@ -35,8 +35,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
 
     let (width, set_width) = create_signal(2.0f32);
 
-    let min_label = create_node_ref::<Span>();
-    let max_label = create_node_ref::<Span>();
+    let width_label = create_node_ref::<Span>();
     let gain_label = create_node_ref::<Span>();
 
     view! {
@@ -46,10 +45,10 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                     on:change= move |v| {
                         let target = v.target().unwrap();
                         let input : HtmlInputElement = target.dyn_into().unwrap();
-                        min_label.get().unwrap().set_inner_text(&format!("width: {}", input.value()));
+                        width_label.get().unwrap().set_inner_text(&format!("width: {}", input.value()));
                         set_width(input.value().parse().unwrap());
                     } />
-                <span class="text-white p-2 m-2" node_ref=min_label>"width: 2"</span>
+                <span class="text-white p-2 m-2" node_ref=width_label>"width: 2"</span>
             </div>
 
             <div class="basis-1/3 text-white">

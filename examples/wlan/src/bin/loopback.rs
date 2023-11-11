@@ -11,6 +11,7 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
+use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
@@ -74,7 +75,7 @@ fn main() -> Result<()> {
     )?;
 
     // add noise
-    let normal = Normal::new(0.0f32, 0.001).unwrap();
+    let normal = Normal::new(0.0f32, 0.01).unwrap();
     let noise = fg.add_block(Apply::new(move |i: &Complex32| -> Complex32 {
         let re = normal.sample(&mut rand::thread_rng());
         let imag = normal.sample(&mut rand::thread_rng());
@@ -126,8 +127,10 @@ fn main() -> Result<()> {
     let frame_equalizer = fg.add_block(FrameEqualizer::new());
     fg.connect_stream(fft, "out", frame_equalizer, "in")?;
 
+    let symbol_sink = fg.add_block(WebsocketPmtSink::new(9002));
     let decoder = fg.add_block(Decoder::new());
     fg.connect_stream(frame_equalizer, "out", decoder, "in")?;
+    fg.connect_message(frame_equalizer, "symbols", symbol_sink, "in")?;
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
