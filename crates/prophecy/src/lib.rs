@@ -8,6 +8,9 @@ pub use leptos;
 mod constellation_sink;
 pub use constellation_sink::ConstellationSink;
 
+mod constellation_sink_glow;
+pub use constellation_sink_glow::ConstellationSinkGlow;
+
 mod handle;
 pub use handle::call_periodically;
 pub use handle::get_flowgraph_handle;

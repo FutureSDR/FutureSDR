@@ -3,62 +3,47 @@ use gloo_net::websocket::{futures::WebSocket, Message};
 use leptos::html::Canvas;
 use leptos::logging::*;
 use leptos::*;
+use num_complex::Complex32;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::WebGl2RenderingContext as GL;
+use web_sys::WebGlBuffer;
 use web_sys::WebGlProgram;
+use web_sys::WebGl2RenderingContext as GL;
 
-pub enum WaterfallMode {
-    Websocket(String),
-    Data(Rc<RefCell<Option<Vec<u8>>>>),
-}
-
-impl Default for WaterfallMode {
-    fn default() -> Self {
-        Self::Websocket("ws://127.0.0.1:9001".to_string())
-    }
-}
+pub const BINS: usize = 128;
 
 struct RenderState {
     canvas: HtmlElement<Canvas>,
     gl: GL,
+    width: MaybeSignal<f32>,
     shader: WebGlProgram,
-    texture_offset: i32,
+    texture: [f32; BINS * BINS],
 }
 
-const SHADER_HEIGHT: usize = 256;
-
 #[component]
-pub fn Waterfall(
-    #[prop(into)] min: MaybeSignal<f32>,
-    #[prop(into)] max: MaybeSignal<f32>,
-    #[prop(optional)] mode: WaterfallMode,
+pub fn ConstellationSinkGlow(
+    #[prop(into)] width: MaybeSignal<f32>,
+    #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
-    let data = match mode {
-        WaterfallMode::Data(d) => d,
-        WaterfallMode::Websocket(s) => {
-            let data = Rc::new(RefCell::new(None));
-            {
-                let data = data.clone();
-                spawn_local(async move {
-                    let mut ws = WebSocket::open(&s).unwrap();
-                    while let Some(msg) = ws.next().await {
-                        match msg {
-                            Ok(Message::Bytes(b)) => {
-                                *data.borrow_mut() = Some(b);
-                            }
-                            _ => {
-                                log!("TimeSink: WebSocket {:?}", msg);
-                            }
-                        }
+    let data = Rc::new(RefCell::new(None));
+    {
+        let data = data.clone();
+        spawn_local(async move {
+            let mut ws = WebSocket::open(&websocket).unwrap();
+            while let Some(msg) = ws.next().await {
+                match msg {
+                    Ok(Message::Bytes(b)) => {
+                        *data.borrow_mut() = Some(b);
                     }
-                    log!("TimeSink: WebSocket Closed");
-                });
+                    _ => {
+                        log!("ConstellationSinkGlow: WebSocket {:?}", msg);
+                    }
+                }
             }
-            data
-        }
-    };
+            log!("ConstellationSinkGlow: WebSocket Closed");
+        });
+    }
 
     let canvas_ref = create_node_ref::<Canvas>();
     canvas_ref.on_load(move |canvas_ref| {
@@ -71,15 +56,15 @@ pub fn Waterfall(
                 .unwrap();
 
             let vert_code = r"
-                attribute vec2 gTexCoord0;
+                attribute vec2 texCoord;
                 varying vec2 coord;
 
-                void main()
-                {
-                    gl_Position = vec4(gTexCoord0, 0, 1);
-                    coord = gTexCoord0;
+                void main(void) {
+                    gl_Position = vec4(texCoord, 0, 1);
+                    coord = texCoord;
                 }
             ";
+
             let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
             gl.shader_source(&vert_shader, vert_code);
             gl.compile_shader(&vert_shader);
@@ -88,10 +73,7 @@ pub fn Waterfall(
                 precision mediump float;
 
                 varying vec2 coord;
-                uniform float u_min;
-                uniform float u_max;
-                uniform float yoffset;
-                uniform sampler2D frequency_data;
+                uniform sampler2D sampler;
 
                 vec3 color_map(float t) {
                     const vec3 c0 = vec3(0.2777273272234177, 0.005407344544966578, 0.3340998053353061);
@@ -105,13 +87,12 @@ pub fn Waterfall(
                     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
                 }
 
-                void main()
-                {
-                    vec4 sample = texture2D(frequency_data, vec2(coord.x * 0.5 + 0.5, coord.y * 0.5 - 0.5 + yoffset));
-                    float power = (10.0 * log(sample.r) / log(10.0) - u_min) / (u_max - u_min);
-                    gl_FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 0.9);
+                void main(void) {
+                    vec4 sample = texture2D(sampler, vec2(coord.x * 0.5 + 0.5, coord.y * 0.5 - 0.5));
+                    gl_FragColor = vec4(color_map(clamp(sample.r, 0.0, 1.0)), 0.9);
                 }
             ";
+
             let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
             gl.shader_source(&frag_shader, frag_code);
             gl.compile_shader(&frag_shader);
@@ -131,15 +112,15 @@ pub fn Waterfall(
 
             let pbo = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::PIXEL_UNPACK_BUFFER, Some(&pbo));
-            let bytes = vec![0; 2048 * SHADER_HEIGHT * 4];
-            gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::STATIC_DRAW);
+            let bytes = vec![0; BINS * BINS * 4];
+            gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::DYNAMIC_DRAW);
 
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_i32(
                 GL::TEXTURE_2D,
                 0,
                 GL::R32F as i32,
-                2048,
-                SHADER_HEIGHT as i32,
+                BINS as i32,
+                BINS as i32,
                 0,
                 GL::RED,
                 GL::FLOAT,
@@ -158,6 +139,7 @@ pub fn Waterfall(
             );
 
             let indices = vec![0, 1, 2, 0, 2, 3];
+            let num_indices = indices.len() as i32;
 
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
@@ -168,21 +150,12 @@ pub fn Waterfall(
                 GL::STATIC_DRAW,
             );
 
-            {
-                let gl = gl.clone();
-                let shader = shader.clone();
-                create_render_effect(move |_| {
-                    let u_min = gl.get_uniform_location(&shader, "u_min");
-                    gl.uniform1f(u_min.as_ref(), min.get());
-                    let u_max = gl.get_uniform_location(&shader, "u_max");
-                    gl.uniform1f(u_max.as_ref(), max.get());
-                });
-            }
+            let texture = [0f32; BINS * BINS];
 
-            let state = RenderState {
-                canvas,gl, shader, texture_offset: 0,
-            };
-            request_animation_frame(render(Rc::new(RefCell::new(state)), data))
+            let state = Rc::new(RefCell::new(RenderState {
+                canvas, gl, shader, texture, width,
+            }));
+            request_animation_frame(render(state, data))
         });
     });
 
@@ -197,11 +170,13 @@ fn render(
 ) -> impl FnOnce() + 'static {
     move || {
         {
+            // log!("render");
             let RenderState {
                 canvas,
                 gl,
                 shader,
-                texture_offset,
+                texture,
+                width,
             } = &mut (*state.borrow_mut());
 
             let display_width = canvas.client_width() as u32;
@@ -216,38 +191,66 @@ fn render(
             }
 
             if let Some(bytes) = data.borrow_mut().take() {
-                assert_eq!(bytes.len(), 2048 * 4);
+                // log!("got data");
+                let samples = unsafe {
+                    let s = bytes.len() / 8;
+                    let p = bytes.as_ptr();
+                    std::slice::from_raw_parts(p as *const Complex32, s)
+                };
+                
+                // log!("decay");
+                let decay = 0.999f32.powi(samples.len() as i32);
+                texture.iter_mut().for_each(|v| *v *= decay);
+                // log!("width");
+                let width = width.get_untracked();
 
+                // log!("bins");
+                for s in samples.into_iter() {
+                    let w = ((s.re + width) / (2.0 * width) * BINS as f32).round() as i64;
+                    if w >= 0 && w < BINS as i64 {
+                        let h = ((s.im + width) / (2.0 * width) * BINS as f32).round() as i64;
+                        if h >= 0 && h < BINS as i64 {
+                            texture[h as usize * BINS + w as usize] += 0.1;
+                        }
+                    }
+                }
+
+                // for w in 0..BINS {
+                //     for h in 0..BINS {
+                //         texture[w * BINS + h] = w as f32 / BINS as f32;
+                //     }
+                // }
+
+                let bytes = unsafe {
+                    std::slice::from_raw_parts(texture.as_ptr() as *const u8, BINS * BINS * 4)
+                };
+
+                // log!("pub");
                 // ===== prepare texture
-                gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::STATIC_DRAW);
+                gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, bytes, GL::DYNAMIC_DRAW);
 
-                // gl.bind_texture(GL::TEXTURE_2D, Some(texture));
-
+                // log!("tex");
                 gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
                     GL::TEXTURE_2D,
                     0,
                     0,
-                    *texture_offset,
-                    2048,
-                    1,
+                    0,
+                    BINS as i32,
+                    BINS as i32,
                     GL::RED,
                     GL::FLOAT,
                     0,
                 )
                 .unwrap();
 
-                let loc = gl.get_attrib_location(shader, "gTexCoord0") as u32;
+                let loc = gl.get_attrib_location(shader, "texCoord") as u32;
                 gl.enable_vertex_attrib_array(loc);
                 gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
-                let loc = gl.get_uniform_location(shader, "yoffset");
-                gl.uniform1f(loc.as_ref(), *texture_offset as f32 / SHADER_HEIGHT as f32);
-
                 gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
-
-                *texture_offset = (*texture_offset + 1) % SHADER_HEIGHT as i32;
             }
         }
         request_animation_frame(render(state, data))
     }
 }
+
