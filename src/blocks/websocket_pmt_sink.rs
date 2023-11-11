@@ -112,6 +112,10 @@ impl Kernel for WebsocketPmtSink {
                                 }
                             }
                         }
+
+                        if !self.pmts.is_empty() {
+                            io.call_again = true;
+                        }
                     }
                 }
                 Some(p) => {

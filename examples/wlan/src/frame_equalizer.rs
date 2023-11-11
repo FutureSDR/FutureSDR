@@ -98,6 +98,7 @@ pub struct FrameEqualizer {
     decoded_bits: [u8; 24],
     bits_out: [u8; 48],
     decoder: ViterbiDecoder,
+    syms: Vec<Complex32>,
 }
 
 impl FrameEqualizer {
@@ -119,6 +120,7 @@ impl FrameEqualizer {
                 decoded_bits: [0; 24],
                 bits_out: [0; 48],
                 decoder: ViterbiDecoder::new(),
+                syms: Vec::new(),
             },
         )
     }
@@ -319,13 +321,16 @@ impl Kernel for FrameEqualizer {
                             *modulation,
                         );
 
-                        mio.post(0, Pmt::VecCF32(Vec::from(&self.sym_out))).await;
+                        self.syms.extend_from_slice(&self.sym_out);
 
                         i += 1;
                         o += 1;
 
                         n_sym -= 1;
                         if n_sym == 0 {
+                            if !self.syms.is_empty() {
+                                mio.post(0, Pmt::VecCF32(std::mem::take(&mut self.syms))).await;
+                            }
                             self.state = State::Skip;
                         } else {
                             self.state = State::Copy(n_sym, *all_sym, *modulation);

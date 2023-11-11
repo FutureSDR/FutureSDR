@@ -9,7 +9,7 @@ use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
-use prophecy::ConstellationSink;
+use prophecy::ConstellationSinkGlow;
 use prophecy::ListSelector;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -153,8 +153,8 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
             </div>
         </div>
 
-        <div class="border-2 border-slate-500 rounded-md m-4" style="height: 400px; max-height: 40vh">
-            <ConstellationSink width=width />
+        <div class="border-2 border-slate-500 rounded-md m-4" style="height: 800px; max-height: 90vh">
+            <ConstellationSinkGlow width=width />
         </div>
 
         <div class="border-2 border-slate-500 rounded-md m-4 p-4">
