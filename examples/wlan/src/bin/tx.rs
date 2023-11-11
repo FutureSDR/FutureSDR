@@ -73,7 +73,7 @@ fn main() -> Result<()> {
         64,
         FftDirection::Inverse,
         true,
-        Some((1.0f32 / 52.0).sqrt() * 0.6),
+        Some((1.0f32 / 52.0).sqrt()),
     );
     fft.set_tag_propagation(Box::new(fft_tag_propagation));
     let fft = fg.add_block(fft);
@@ -112,14 +112,14 @@ fn main() -> Result<()> {
     let mut seq = 0u64;
     rt.block_on(async move {
         loop {
-            Timer::after(Duration::from_secs_f32(0.8)).await;
+            Timer::after(Duration::from_secs_f32(0.1)).await;
             handle
                 .call(
                     0,
                     0,
                     Pmt::Any(Box::new((
-                        format!("FutureSDR {seq}").as_bytes().to_vec(),
-                        Mcs::Qpsk_1_2,
+                        format!("FutureSDR {seq}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").as_bytes().to_vec(),
+                        Mcs::Qam16_1_2,
                     ))),
                 )
                 .await
