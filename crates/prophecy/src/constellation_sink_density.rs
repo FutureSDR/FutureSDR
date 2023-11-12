@@ -7,7 +7,6 @@ use num_complex::Complex32;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::WebGlProgram;
 use web_sys::WebGl2RenderingContext as GL;
 
 use crate::ArrayView;
@@ -18,7 +17,6 @@ struct RenderState {
     canvas: HtmlElement<Canvas>,
     gl: GL,
     width: MaybeSignal<f32>,
-    shader: WebGlProgram,
     texture: [f32; BINS * BINS],
 }
 
@@ -159,7 +157,7 @@ pub fn ConstellationSinkDensity(
             gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, shader, texture, width,
+                canvas, gl, texture, width,
             }));
             request_animation_frame(render(state, data))
         });
@@ -179,7 +177,6 @@ fn render(
             let RenderState {
                 canvas,
                 gl,
-                shader,
                 texture,
                 width,
             } = &mut (*state.borrow_mut());

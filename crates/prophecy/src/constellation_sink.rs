@@ -6,7 +6,6 @@ use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::WebGlBuffer;
 use web_sys::WebGlProgram;
 use web_sys::WebGlRenderingContext as GL;
 

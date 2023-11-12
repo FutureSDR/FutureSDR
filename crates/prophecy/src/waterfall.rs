@@ -9,6 +9,8 @@ use wasm_bindgen::JsCast;
 use web_sys::WebGl2RenderingContext as GL;
 use web_sys::WebGlProgram;
 
+use crate::ArrayView;
+
 pub enum WaterfallMode {
     Websocket(String),
     Data(Rc<RefCell<Option<Vec<u8>>>>),
@@ -109,7 +111,7 @@ pub fn Waterfall(
                 {
                     vec4 sample = texture2D(frequency_data, vec2(coord.x * 0.5 + 0.5, coord.y * 0.5 - 0.5 + yoffset));
                     float power = (10.0 * log(sample.r) / log(10.0) - u_min) / (u_max - u_min);
-                    gl_FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 0.9);
+                    gl_FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 1.0);
                 }
             ";
             let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
@@ -129,12 +131,9 @@ pub fn Waterfall(
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
 
-            let pbo = gl.create_buffer().unwrap();
-            gl.bind_buffer(GL::PIXEL_UNPACK_BUFFER, Some(&pbo));
-            let bytes = vec![0; 2048 * SHADER_HEIGHT * 4];
-            gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::STATIC_DRAW);
-
-            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_i32(
+            let texture = vec![0.0f32; 2048 * SHADER_HEIGHT];
+            let view = unsafe { f32::view(&texture) };
+            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
                 GL::TEXTURE_2D,
                 0,
                 GL::R32F as i32,
@@ -143,30 +142,33 @@ pub fn Waterfall(
                 0,
                 GL::RED,
                 GL::FLOAT,
-                0
+                &view,
+                0,
             ).unwrap();
 
-            let vertexes = vec![-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
-
+            let vertexes = [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            let array_buffer = js_sys::Float32Array::from(vertexes.as_slice()).buffer();
-            gl.buffer_data_with_opt_array_buffer(
+            let view = unsafe {f32::view(&vertexes)};
+            gl.buffer_data_with_array_buffer_view(
                 GL::ARRAY_BUFFER,
-                Some(&array_buffer),
+                &view,
                 GL::STATIC_DRAW,
             );
 
-            let indices = vec![0, 1, 2, 0, 2, 3];
-
+            let indices = [0, 1, 2, 0, 2, 3];
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
-            let array_buffer = js_sys::Uint16Array::from(indices.as_slice()).buffer();
-            gl.buffer_data_with_opt_array_buffer(
+            let view = unsafe { u16::view(&indices) };
+            gl.buffer_data_with_array_buffer_view(
                 GL::ELEMENT_ARRAY_BUFFER,
-                Some(&array_buffer),
+                &view,
                 GL::STATIC_DRAW,
             );
+
+            let loc = gl.get_attrib_location(&shader, "gTexCoord0") as u32;
+            gl.enable_vertex_attrib_array(loc);
+            gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
             {
                 let gl = gl.clone();
@@ -218,12 +220,14 @@ fn render(
             if let Some(bytes) = data.borrow_mut().take() {
                 assert_eq!(bytes.len(), 2048 * 4);
 
-                // ===== prepare texture
-                gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::STATIC_DRAW);
+                let samples = unsafe {
+                    let s = bytes.len() / 4;
+                    let p = bytes.as_ptr();
+                    std::slice::from_raw_parts(p as *const f32, s)
+                };
 
-                // gl.bind_texture(GL::TEXTURE_2D, Some(texture));
-
-                gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
+                let view = unsafe { f32::view(samples) };
+                gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
                     GL::TEXTURE_2D,
                     0,
                     0,
@@ -232,20 +236,16 @@ fn render(
                     1,
                     GL::RED,
                     GL::FLOAT,
+                    &view,
                     0,
                 )
                 .unwrap();
 
-                let loc = gl.get_attrib_location(shader, "gTexCoord0") as u32;
-                gl.enable_vertex_attrib_array(loc);
-                gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
-
                 let loc = gl.get_uniform_location(shader, "yoffset");
                 gl.uniform1f(loc.as_ref(), *texture_offset as f32 / SHADER_HEIGHT as f32);
+                *texture_offset = (*texture_offset + 1) % SHADER_HEIGHT as i32;
 
                 gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
-
-                *texture_offset = (*texture_offset + 1) % SHADER_HEIGHT as i32;
             }
         }
         request_animation_frame(render(state, data))
