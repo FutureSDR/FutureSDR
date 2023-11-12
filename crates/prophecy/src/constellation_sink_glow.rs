@@ -49,8 +49,15 @@ pub fn ConstellationSinkGlow(
     let canvas_ref = create_node_ref::<Canvas>();
     canvas_ref.on_load(move |canvas_ref| {
         let _ = canvas_ref.on_mount(move |canvas| {
+            let context_options = js_sys::Object::new();
+            js_sys::Reflect::set(
+                &context_options,
+                &"premultipliedAlpha".into(),
+                &wasm_bindgen::JsValue::FALSE,
+            ).expect("Cannot create context options");
+
             let gl: GL = canvas
-                .get_context("webgl2")
+                .get_context_with_context_options("webgl2", &context_options)
                 .unwrap()
                 .unwrap()
                 .dyn_into()
@@ -147,6 +154,10 @@ pub fn ConstellationSinkGlow(
                 GL::STATIC_DRAW,
             );
 
+            let loc = gl.get_attrib_location(&shader, "texCoord") as u32;
+            gl.enable_vertex_attrib_array(loc);
+            gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
+
             let state = Rc::new(RefCell::new(RenderState {
                 canvas, gl, shader, texture, width,
             }));
@@ -219,10 +230,6 @@ fn render(
                     0,
                 )
                 .unwrap();
-
-                let loc = gl.get_attrib_location(shader, "texCoord") as u32;
-                gl.enable_vertex_attrib_array(loc);
-                gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
                 gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
             }
