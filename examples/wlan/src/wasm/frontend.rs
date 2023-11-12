@@ -2,12 +2,12 @@ use futuresdr::runtime::Pmt;
 use leptos::html::Span;
 use leptos::wasm_bindgen::JsCast;
 use leptos::*;
+use prophecy::ConstellationSinkDensity;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
+use prophecy::ListSelector;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
-use prophecy::ConstellationSinkDensity;
-use prophecy::ListSelector;
 use web_sys::HtmlInputElement;
 
 #[component]

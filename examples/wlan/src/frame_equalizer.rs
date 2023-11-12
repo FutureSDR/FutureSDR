@@ -109,9 +109,7 @@ impl FrameEqualizer {
                 .add_input::<Complex32>("in")
                 .add_output::<u8>("out")
                 .build(),
-            MessageIoBuilder::new()
-                .add_output("symbols")
-                .build(),
+            MessageIoBuilder::new().add_output("symbols").build(),
             Self {
                 equalizer: Equalizer::new(),
                 state: State::Skip,
@@ -329,7 +327,8 @@ impl Kernel for FrameEqualizer {
                         n_sym -= 1;
                         if n_sym == 0 {
                             if !self.syms.is_empty() {
-                                mio.post(0, Pmt::VecCF32(std::mem::take(&mut self.syms))).await;
+                                mio.post(0, Pmt::VecCF32(std::mem::take(&mut self.syms)))
+                                    .await;
                             }
                             self.state = State::Skip;
                         } else {

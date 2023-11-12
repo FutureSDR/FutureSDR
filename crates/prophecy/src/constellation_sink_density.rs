@@ -198,12 +198,12 @@ fn render(
                     let p = bytes.as_ptr();
                     std::slice::from_raw_parts(p as *const Complex32, s)
                 };
-                
+
                 let decay = 0.999f32.powi(samples.len() as i32);
                 texture.iter_mut().for_each(|v| *v *= decay);
 
                 let width = width.get_untracked();
-                for s in samples.into_iter() {
+                for s in samples.iter() {
                     let w = ((s.re + width) / (2.0 * width) * BINS as f32).round() as i64;
                     if w >= 0 && w < BINS as i64 {
                         let h = ((s.im + width) / (2.0 * width) * BINS as f32).round() as i64;
@@ -213,7 +213,7 @@ fn render(
                     }
                 }
 
-                let view = unsafe {f32::view(texture) };
+                let view = unsafe { f32::view(texture) };
                 gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
                     GL::TEXTURE_2D,
                     0,
@@ -234,4 +234,3 @@ fn render(
         request_animation_frame(render(state, data))
     }
 }
-

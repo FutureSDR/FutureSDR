@@ -45,4 +45,3 @@ macro_rules! impl_array_view {
 impl_array_view!(f32, Float32Array, WebGl2RenderingContext::FLOAT);
 impl_array_view!(u16, Uint16Array, WebGl2RenderingContext::UNSIGNED_INT);
 impl_array_view!(u8, Uint8Array, WebGl2RenderingContext::UNSIGNED_BYTE);
-

@@ -97,7 +97,10 @@ pub fn ConstellationSink(
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, shader, vertex_len: 0
+                canvas,
+                gl,
+                shader,
+                vertex_len: 0,
             }));
             request_animation_frame(render(state, data))
         });
