@@ -6,9 +6,12 @@ use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::WebGlBuffer;
+use web_sys::WebGl2RenderingContext as GL;
 use web_sys::WebGlProgram;
-use web_sys::WebGlRenderingContext as GL;
+
+use crate::ArrayView;
+
+const MAX_SAMPLES: usize = 4096;
 
 pub enum TimeSinkMode {
     Websocket(String),
@@ -25,7 +28,6 @@ struct RenderState {
     canvas: HtmlElement<Canvas>,
     gl: GL,
     shader: WebGlProgram,
-    vertex_buffer: WebGlBuffer,
     vertex_len: i32,
 }
 
@@ -64,7 +66,7 @@ pub fn TimeSink(
     canvas_ref.on_load(move |canvas_ref| {
         let _ = canvas_ref.on_mount(move |canvas| {
             let gl: GL = canvas
-                .get_context("webgl")
+                .get_context("webgl2")
                 .unwrap()
                 .unwrap()
                 .dyn_into()
@@ -132,9 +134,21 @@ pub fn TimeSink(
             }
 
             let vertex_buffer = gl.create_buffer().unwrap();
+            let init_data = [0.0f32; MAX_SAMPLES * 2];
+            let view = unsafe { f32::view(&init_data) };
+            gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
+            gl.buffer_data_with_array_buffer_view(
+                GL::ARRAY_BUFFER,
+                &view,
+                GL::DYNAMIC_DRAW,
+            );
+
+            let position = gl.get_attrib_location(&shader, "coordinates") as u32;
+            gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
+            gl.enable_vertex_attrib_array(position);
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, shader, vertex_buffer, vertex_len: 0
+                canvas, gl, shader, vertex_len: 0
             }));
             request_animation_frame(render(state, data))
         });
@@ -155,7 +169,6 @@ fn render(
                 canvas,
                 gl,
                 shader,
-                vertex_buffer,
                 vertex_len,
             } = &mut (*state.borrow_mut());
 
@@ -172,7 +185,7 @@ fn render(
 
             if let Some(bytes) = data.borrow_mut().take() {
                 let samples = unsafe {
-                    let s = bytes.len() / 4;
+                    let s = std::cmp::min(bytes.len() / 4, MAX_SAMPLES);
                     let p = bytes.as_ptr();
                     std::slice::from_raw_parts(p as *const f32, s)
                 };
@@ -184,12 +197,8 @@ fn render(
                     .flat_map(|(i, v)| vec![i as f32, *v])
                     .collect();
 
-                let vertex_data = unsafe {
-                    std::slice::from_raw_parts(vertices.as_ptr() as *const u8, l * 2 * 4)
-                };
-
-                gl.bind_buffer(GL::ARRAY_BUFFER, Some(vertex_buffer));
-                gl.buffer_data_with_u8_array(GL::ARRAY_BUFFER, vertex_data, GL::DYNAMIC_DRAW);
+                let view = unsafe { f32::view(&vertices) };
+                gl.buffer_sub_data_with_i32_and_array_buffer_view(GL::ARRAY_BUFFER, 0, &view);
 
                 let u_nsamples = gl.get_uniform_location(shader, "u_nsamples");
                 gl.uniform1f(u_nsamples.as_ref(), l as f32);
@@ -197,11 +206,6 @@ fn render(
                 *vertex_len = l as i32;
             };
 
-            gl.bind_buffer(GL::ARRAY_BUFFER, Some(vertex_buffer));
-
-            let position = gl.get_attrib_location(shader, "coordinates") as u32;
-            gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
-            gl.enable_vertex_attrib_array(position);
             gl.draw_arrays(GL::LINE_STRIP, 0, *vertex_len);
         }
         request_animation_frame(render(state, data))
