@@ -7,9 +7,10 @@ use num_complex::Complex32;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::WebGlBuffer;
 use web_sys::WebGlProgram;
 use web_sys::WebGl2RenderingContext as GL;
+
+use crate::ArrayView;
 
 pub const BINS: usize = 128;
 
@@ -89,7 +90,8 @@ pub fn ConstellationSinkGlow(
 
                 void main(void) {
                     vec4 sample = texture2D(sampler, vec2(coord.x * 0.5 + 0.5, coord.y * 0.5 - 0.5));
-                    gl_FragColor = vec4(color_map(clamp(sample.r, 0.0, 1.0)), 0.9);
+                    float value = clamp(sample.r, 0.0, 1.0);
+                    gl_FragColor = vec4(color_map(value), value);
                 }
             ";
 
@@ -110,12 +112,9 @@ pub fn ConstellationSinkGlow(
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
 
-            let pbo = gl.create_buffer().unwrap();
-            gl.bind_buffer(GL::PIXEL_UNPACK_BUFFER, Some(&pbo));
-            let bytes = vec![0; BINS * BINS * 4];
-            gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, &bytes, GL::DYNAMIC_DRAW);
-
-            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_i32(
+            let texture = [0.0f32; BINS * BINS];
+            let view = unsafe { f32::view(&texture) };
+            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
                 GL::TEXTURE_2D,
                 0,
                 GL::R32F as i32,
@@ -124,33 +123,29 @@ pub fn ConstellationSinkGlow(
                 0,
                 GL::RED,
                 GL::FLOAT,
+                &view,
                 0
             ).unwrap();
 
-            let vertexes = vec![-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
-
+            let vertexes = [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            let array_buffer = js_sys::Float32Array::from(vertexes.as_slice()).buffer();
-            gl.buffer_data_with_opt_array_buffer(
+            let view = unsafe {f32::view(&vertexes)};
+            gl.buffer_data_with_array_buffer_view(
                 GL::ARRAY_BUFFER,
-                Some(&array_buffer),
+                &view,
                 GL::STATIC_DRAW,
             );
 
-            let indices = vec![0, 1, 2, 0, 2, 3];
-            let num_indices = indices.len() as i32;
-
+            let indices = [0, 1, 2, 0, 2, 3];
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
-            let array_buffer = js_sys::Uint16Array::from(indices.as_slice()).buffer();
-            gl.buffer_data_with_opt_array_buffer(
+            let view = unsafe { u16::view(&indices) };
+            gl.buffer_data_with_array_buffer_view(
                 GL::ELEMENT_ARRAY_BUFFER,
-                Some(&array_buffer),
+                &view,
                 GL::STATIC_DRAW,
             );
-
-            let texture = [0f32; BINS * BINS];
 
             let state = Rc::new(RefCell::new(RenderState {
                 canvas, gl, shader, texture, width,
@@ -170,7 +165,6 @@ fn render(
 ) -> impl FnOnce() + 'static {
     move || {
         {
-            // log!("render");
             let RenderState {
                 canvas,
                 gl,
@@ -191,20 +185,16 @@ fn render(
             }
 
             if let Some(bytes) = data.borrow_mut().take() {
-                // log!("got data");
                 let samples = unsafe {
                     let s = bytes.len() / 8;
                     let p = bytes.as_ptr();
                     std::slice::from_raw_parts(p as *const Complex32, s)
                 };
                 
-                // log!("decay");
                 let decay = 0.999f32.powi(samples.len() as i32);
                 texture.iter_mut().for_each(|v| *v *= decay);
-                // log!("width");
-                let width = width.get_untracked();
 
-                // log!("bins");
+                let width = width.get_untracked();
                 for s in samples.into_iter() {
                     let w = ((s.re + width) / (2.0 * width) * BINS as f32).round() as i64;
                     if w >= 0 && w < BINS as i64 {
@@ -215,22 +205,8 @@ fn render(
                     }
                 }
 
-                // for w in 0..BINS {
-                //     for h in 0..BINS {
-                //         texture[w * BINS + h] = w as f32 / BINS as f32;
-                //     }
-                // }
-
-                let bytes = unsafe {
-                    std::slice::from_raw_parts(texture.as_ptr() as *const u8, BINS * BINS * 4)
-                };
-
-                // log!("pub");
-                // ===== prepare texture
-                gl.buffer_data_with_u8_array(GL::PIXEL_UNPACK_BUFFER, bytes, GL::DYNAMIC_DRAW);
-
-                // log!("tex");
-                gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
+                let view = unsafe {f32::view(texture) };
+                gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
                     GL::TEXTURE_2D,
                     0,
                     0,
@@ -239,6 +215,7 @@ fn render(
                     BINS as i32,
                     GL::RED,
                     GL::FLOAT,
+                    &view,
                     0,
                 )
                 .unwrap();

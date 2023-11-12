@@ -5,6 +5,9 @@ pub use gloo_net;
 pub use gloo_timers;
 pub use leptos;
 
+mod array_view;
+pub use array_view::ArrayView;
+
 mod constellation_sink;
 pub use constellation_sink::ConstellationSink;
 
