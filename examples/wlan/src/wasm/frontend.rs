@@ -1,18 +1,13 @@
-use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
-use gloo_net::websocket::{futures::WebSocket, Message};
 use leptos::html::Span;
-use leptos::logging::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::*;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
-use prophecy::ConstellationSinkGlow;
+use prophecy::ConstellationSinkDensity;
 use prophecy::ListSelector;
-use std::cell::RefCell;
-use std::rc::Rc;
 use web_sys::HtmlInputElement;
 
 #[component]
@@ -153,7 +148,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         </div>
 
         <div class="border-2 border-slate-500 rounded-md m-4" style="height: 800px; max-height: 90vh">
-            <ConstellationSinkGlow width=width />
+            <ConstellationSinkDensity width=width />
         </div>
 
         <div class="border-2 border-slate-500 rounded-md m-4 p-4">
