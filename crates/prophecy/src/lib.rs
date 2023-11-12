@@ -11,8 +11,8 @@ pub use array_view::ArrayView;
 mod constellation_sink;
 pub use constellation_sink::ConstellationSink;
 
-mod constellation_sink_glow;
-pub use constellation_sink_glow::ConstellationSinkGlow;
+mod constellation_sink_density;
+pub use constellation_sink_density::ConstellationSinkDensity;
 
 mod handle;
 pub use handle::call_periodically;

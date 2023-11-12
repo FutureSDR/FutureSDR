@@ -23,7 +23,7 @@ struct RenderState {
 }
 
 #[component]
-pub fn ConstellationSinkGlow(
+pub fn ConstellationSinkDensity(
     #[prop(into)] width: MaybeSignal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
@@ -38,11 +38,11 @@ pub fn ConstellationSinkGlow(
                         *data.borrow_mut() = Some(b);
                     }
                     _ => {
-                        log!("ConstellationSinkGlow: WebSocket {:?}", msg);
+                        log!("ConstellationSinkDensity: WebSocket {:?}", msg);
                     }
                 }
             }
-            log!("ConstellationSinkGlow: WebSocket Closed");
+            log!("ConstellationSinkDensity: WebSocket Closed");
         });
     }
 
