@@ -13,6 +13,7 @@ use std::time::Duration;
 use web_sys::HtmlInputElement;
 
 use prophecy::poll_periodically;
+use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
@@ -297,5 +298,5 @@ pub fn Prophecy() -> impl IntoView {
 pub fn main() {
     _ = console_log::init_with_level(log::Level::Debug);
     console_error_panic_hook::set_once();
-    mount_to_body(|| view! { <Prophecy /> })
+    mount_to_body(|| view! { <FlowgraphCanvas /> })
 }
