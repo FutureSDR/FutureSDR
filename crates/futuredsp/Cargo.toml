@@ -12,16 +12,16 @@ keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
 [dependencies]
-num-complex = "0.4.0"
+num-complex = "0.4"
 num-traits = "0.2"
 log = "0.4"
 
 [build-dependencies]
-rustc_version = "0.4.0"
+rustc_version = "0.4"
 
 [dev-dependencies]
-criterion = { version = "0.4.0", features = [ "html_reports" ] }
-rand = "0.8.4"
+criterion = { version = "0.5", features = [ "html_reports" ] }
+rand = "0.8"
 
 [[bench]]
 name = "benchmarks"
