@@ -6,10 +6,10 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features=["soapy", "audio"] }
-num-complex = "0.4.2"
-hound = "3.5.0"
+num-complex = "0.4"
+hound = "3.5"
 
 [[bin]]
 name = "receive"

@@ -11,5 +11,5 @@ aaronia_http = ["futuresdr/aaronia_http"]
 soapy = ["futuresdr/soapy"]
 
 [dependencies]
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features=["seify"] }

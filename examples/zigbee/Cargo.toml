@@ -17,11 +17,11 @@ soapy = ["futuresdr/soapy"]
 [dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["seify"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.7"
+console_error_panic_hook = "0.1"
 console_log = "1"
 futuresdr = { path = "../.." }
-leptos = { version = "0.4.5", features = ["csr", "nightly"] }
+leptos = { version = "0.5", features = ["csr", "nightly"] }

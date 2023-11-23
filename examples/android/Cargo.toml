@@ -10,5 +10,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../..", features = ["vulkan"] }
-jni = { version = "0.19" }
-rand = "0.8.0"
+jni = { version = "0.21" }
+rand = "0.8"

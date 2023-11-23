@@ -10,4 +10,4 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../..", features = ["soapy"] }
-jni = { version = "0.19" }
+jni = { version = "0.21" }

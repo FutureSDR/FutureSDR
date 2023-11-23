@@ -16,9 +16,9 @@ path = "src/bin/listen_cw.rs"
 futuresdr = { path = "../..", features = ["audio"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
-wasm-bindgen = "0.2.84"
-wasm-bindgen-futures = "0.4.34"
+console_error_panic_hook = "0.1"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"

@@ -23,15 +23,15 @@ use crate::Mac;
 pub fn wasm_main() {
     _ = console_log::init_with_level(futuresdr::log::Level::Debug);
     console_error_panic_hook::set_once();
-    mount_to_body(|cx| view! {cx,  <Gui /> })
+    mount_to_body(|| view! { <Gui /> })
 }
 
 #[component]
-fn Gui(cx: Scope) -> impl IntoView {
-    let (n_frames, set_n_frames) = create_signal(cx, -1);
-    let (frames, set_frames) = create_signal(cx, VecDeque::new());
-    let (handle, set_handle) = create_signal(cx, None);
-    create_effect(cx, move |_| {
+fn Gui() -> impl IntoView {
+    let (n_frames, set_n_frames) = create_signal(-1);
+    let (frames, set_frames) = create_signal(VecDeque::new());
+    let (handle, set_handle) = create_signal(None);
+    create_effect(move |_| {
         _ = frames();
         set_n_frames.update(|n| *n += 1);
     });
@@ -43,7 +43,6 @@ fn Gui(cx: Scope) -> impl IntoView {
         }
     };
     view! {
-        cx,
         <h1>"FutureSDR ZigBee Receiver"</h1>
         <button on:click=start type="button" class="bg-fs-blue hover:brightness-75 text-slate-200 font-bold py-2 px-4 rounded">Start</button>
         <Channel handle=handle/>
@@ -51,15 +50,15 @@ fn Gui(cx: Scope) -> impl IntoView {
             "Frames received: " {n_frames}
         </div>
         <ul class="font-mono">
-            {move || frames().into_iter().map(|n| view! { cx, <li>{format!("{:?}", n)}</li> }).collect_view(cx)}
+            {move || frames().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
         </ul>
     }
 }
 
 #[component]
-fn Channel(cx: Scope, handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
+fn Channel(handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
     let _ = handle;
-    let select_ref = create_node_ref::<Select>(cx);
+    let select_ref = create_node_ref::<Select>();
     let change = move |_| {
         let select = select_ref.get().unwrap();
         info!("setting frequency to {}", select.value());
@@ -72,7 +71,7 @@ fn Channel(cx: Scope, handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoV
         });
     };
 
-    view! {cx,
+    view! {
         <div class="bg-fs-green">
             Channel:
             <select on:change=change node_ref=select_ref>
