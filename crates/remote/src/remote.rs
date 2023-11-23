@@ -1,43 +1,23 @@
-use futures::Future;
 use futuresdr_types::BlockDescription;
 use futuresdr_types::FlowgraphDescription;
 use futuresdr_types::Pmt;
-use hyper::client::connect::Connect;
-use hyper::client::HttpConnector;
-use hyper::rt::Executor;
-use hyper::Body;
-use hyper::Client;
-use hyper::Request;
+use reqwest::Client;
+use reqwest::IntoUrl;
 use serde::Deserialize;
-use std::pin::Pin;
 
 use crate::Error;
 
-async fn get<H: Connect + Clone + Send + Sync + 'static, T: for<'a> Deserialize<'a>>(
-    client: &Client<H>,
-    url: String,
-) -> Result<T, Error> {
-    let url: hyper::Uri = url.parse()?;
-    let body = match client.get(url.clone()).await {
-        Ok(b) => {
-            if !b.status().is_success() {
-                return Err(Error::Endpoint(url));
-            }
-            b.into_body()
-        }
-        Err(e) => return Err(e.into()),
-    };
-    let bytes = hyper::body::to_bytes(body).await?;
-    Ok(serde_json::from_slice(&bytes)?)
+async fn get<T: for<'a> Deserialize<'a>>(client: Client, url: impl IntoUrl) -> Result<T, Error> {
+    Ok(client.get(url).send().await?.json::<T>().await?)
 }
 
 /// Connection to a remote runtime.
-pub struct Remote<H: Connect + Clone + Send + Sync + 'static> {
-    client: Client<H>,
+pub struct Remote {
+    client: Client,
     url: String,
 }
 
-impl Remote<HttpConnector> {
+impl Remote {
     /// Create a [`Remote`].
     pub fn new<I: Into<String>>(url: I) -> Self {
         Self {
@@ -45,20 +25,9 @@ impl Remote<HttpConnector> {
             url: url.into(),
         }
     }
-}
-
-impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
-    /// Create a [`Remote`] with an async runtime.
-    pub fn with_runtime<E>(url: String, connector: H, executor: E) -> Self
-    where
-        E: Executor<Pin<Box<dyn Future<Output = ()> + Send>>> + Send + Sync + 'static,
-    {
-        let client = Client::builder().executor(executor).build(connector);
-        Self { client, url }
-    }
 
     /// Get a specific [`Flowgraph`].
-    pub async fn flowgraph(&self, id: usize) -> Result<Flowgraph<H>, Error> {
+    pub async fn flowgraph(&self, id: usize) -> Result<Flowgraph, Error> {
         let fgs = self.flowgraphs().await?;
         fgs.iter()
             .find(|x| x.id == id)
@@ -67,13 +36,13 @@ impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
     }
 
     /// Get a list of all running [`Flowgraphs`](Flowgraph).
-    pub async fn flowgraphs(&self) -> Result<Vec<Flowgraph<H>>, Error> {
-        let ids: Vec<usize> = get(&self.client, format!("{}/api/fg/", self.url)).await?;
+    pub async fn flowgraphs(&self) -> Result<Vec<Flowgraph>, Error> {
+        let ids: Vec<usize> = get(self.client.clone(), format!("{}/api/fg/", self.url)).await?;
         let mut v = Vec::new();
 
         for i in ids.into_iter() {
             let fg: FlowgraphDescription =
-                get(&self.client, format!("{}/api/fg/{}/", self.url, i)).await?;
+                get(self.client.clone(), format!("{}/api/fg/{}/", self.url, i)).await?;
             v.push(fg);
         }
 
@@ -94,22 +63,26 @@ impl<H: Connect + Clone + Send + Sync + 'static> Remote<H> {
 
 /// A remote Flowgraph.
 #[derive(Clone, Debug)]
-pub struct Flowgraph<H: Connect + Clone + Send + Sync + 'static> {
+pub struct Flowgraph {
     id: usize,
     description: FlowgraphDescription,
-    client: Client<H>,
+    client: Client,
     url: String,
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
+impl Flowgraph {
     /// Update the [`Flowgraph`], getting current blocks and connections.
     pub async fn update(&mut self) -> Result<(), Error> {
-        self.description = get(&self.client, format!("{}/api/fg/{}/", self.url, self.id)).await?;
+        self.description = get(
+            self.client.clone(),
+            format!("{}/api/fg/{}/", self.url, self.id),
+        )
+        .await?;
         Ok(())
     }
 
     /// Get a list of the [`Blocks`](Block) of the [`Flowgraph`].
-    pub fn blocks(&self) -> Vec<Block<H>> {
+    pub fn blocks(&self) -> Vec<Block> {
         self.description
             .blocks
             .iter()
@@ -123,7 +96,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
     }
 
     /// Get a specific [`Block`](Block) of the [`Flowgraph`].
-    pub fn block(&self, id: usize) -> Option<Block<H>> {
+    pub fn block(&self, id: usize) -> Option<Block> {
         self.description
             .blocks
             .iter()
@@ -137,7 +110,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
     }
 
     /// Get a list of all message [`Connections`](Connection) of the [`Flowgraph`].
-    pub fn message_connections(&self) -> Vec<Connection<H>> {
+    pub fn message_connections(&self) -> Vec<Connection> {
         self.description
             .message_edges
             .iter()
@@ -152,7 +125,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
     }
 
     /// Get a list of all stream [`Connections`](Connection) of the [`Flowgraph`].
-    pub fn stream_connections(&self) -> Vec<Connection<H>> {
+    pub fn stream_connections(&self) -> Vec<Connection> {
         self.description
             .stream_edges
             .iter()
@@ -167,7 +140,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Flowgraph<H> {
     }
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Flowgraph<H> {
+impl std::fmt::Display for Flowgraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -191,18 +164,18 @@ pub enum Handler {
 
 /// A [`Block`] of a [`Flowgraph`].
 #[derive(Clone, Debug)]
-pub struct Block<H: Connect + Clone + Send + Sync + 'static = HttpConnector> {
+pub struct Block {
     description: BlockDescription,
-    client: Client<H>,
+    client: Client,
     url: String,
     flowgraph_id: usize,
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
+impl Block {
     /// Update the [`Block`], retrieving a new [`BlockDescription`] from the [`Flowgraph`].
     pub async fn update(&mut self) -> Result<(), Error> {
         self.description = get(
-            &self.client,
+            self.client.clone(),
             format!(
                 "{}/api/fg/{}/block/{}/",
                 self.url, self.flowgraph_id, self.description.id
@@ -222,8 +195,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
 
     /// Call a message handler of a [`Block`] with the given [`Pmt`](futuresdr_types::Pmt).
     pub async fn callback(&self, handler: Handler, pmt: Pmt) -> Result<Pmt, Error> {
-        let json = serde_json::to_string(&pmt)?;
-        let url: hyper::Uri = match handler {
+        let url = match handler {
             Handler::Name(n) => format!(
                 "{}/api/fg/{}/block/{}/call/{}/",
                 &self.url, self.flowgraph_id, self.description.id, n
@@ -232,22 +204,16 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
                 "{}/api/fg/{}/block/{}/call/{}/",
                 &self.url, self.flowgraph_id, self.description.id, i
             ),
-        }
-        .parse()?;
-        let req = Request::post(url.clone())
-            .header(hyper::header::CONTENT_TYPE, "application/json")
-            .body(Body::from(json))?;
-        let body = match self.client.request(req).await {
-            Ok(b) => {
-                if !b.status().is_success() {
-                    return Err(Error::Endpoint(url));
-                }
-                b.into_body()
-            }
-            Err(e) => return Err(e.into()),
         };
-        let bytes = hyper::body::to_bytes(body).await?;
-        Ok(serde_json::from_slice(&bytes)?)
+
+        Ok(self
+            .client
+            .post(url)
+            .json(&pmt)
+            .send()
+            .await?
+            .json::<Pmt>()
+            .await?)
     }
 
     /// BlockDescription
@@ -256,7 +222,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Block<H> {
     }
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Block<H> {
+impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -277,21 +243,21 @@ pub enum ConnectionType {
 
 /// A Connection between [`Blocks`](Block)
 #[derive(Clone, Debug)]
-pub struct Connection<H: Connect + Clone + Send + Sync + 'static> {
+pub struct Connection {
     connection_type: ConnectionType,
-    src_block: Block<H>,
+    src_block: Block,
     src_port: usize,
-    dst_block: Block<H>,
+    dst_block: Block,
     dst_port: usize,
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> Connection<H> {
+impl Connection {
     /// Connection type
     pub fn connection_type(&self) -> ConnectionType {
         self.connection_type.clone()
     }
     /// Source block
-    pub fn src_block(&self) -> &Block<H> {
+    pub fn src_block(&self) -> &Block {
         &self.src_block
     }
     /// Source port
@@ -299,7 +265,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Connection<H> {
         self.src_port
     }
     /// Source block
-    pub fn dst_block(&self) -> &Block<H> {
+    pub fn dst_block(&self) -> &Block {
         &self.dst_block
     }
     /// Source port
@@ -308,7 +274,7 @@ impl<H: Connect + Clone + Send + Sync + 'static> Connection<H> {
     }
 }
 
-impl<H: Connect + Clone + Send + Sync + 'static> std::fmt::Display for Connection<H> {
+impl std::fmt::Display for Connection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.connection_type {
             ConnectionType::Stream => write!(

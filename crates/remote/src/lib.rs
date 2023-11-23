@@ -38,23 +38,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     /// Error in [`hyper`] crate.
-    #[error("Hyper")]
-    Hyper(#[from] hyper::Error),
-    /// Error parsing a string to a [`hyper::Uri].
-    #[error("Invalid uri")]
-    Uri(#[from] http::uri::InvalidUri),
-    /// IO error.
-    #[error("IO error")]
-    Io(#[from] std::io::Error),
-    /// Error (de-)serializing to JSON.
-    #[error("Serde error")]
-    Serde(#[from] serde_json::Error),
-    /// Wrong HTTP REST URL.
-    #[error("Wrong endpoint")]
-    Endpoint(hyper::Uri),
-    /// Error in [`http`] crate.
-    #[error("HTTP error")]
-    Http(#[from] http::Error),
+    #[error("Reqwest")]
+    Reqwest(#[from] reqwest::Error),
     /// Wrong [`Flowgraph`] ID.
     #[error("Wrong flowgraph id")]
     FlowgraphId(usize),
