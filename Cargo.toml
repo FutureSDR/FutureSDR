@@ -81,7 +81,7 @@ dyn-clone = "1.0"
 futures = "0.3.29"
 futures-lite = "2.0"
 futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
-futuresdr-macros = { path = "crates/macros", version = "0.0.5" }
+futuresdr-macros = { path = "crates/macros", version = "0.0.6" }
 futuresdr-types = { path = "crates/types", version = "0.0.11" }
 log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4"
