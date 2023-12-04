@@ -122,7 +122,7 @@ impl Encoder {
         Ok(Pmt::Null)
     }
 
-    fn generate_bits(&mut self, data: &Vec<u8>) {
+    fn generate_bits(&mut self, data: &[u8]) {
         for i in 0..data.len() {
             for b in 0..8 {
                 self.bits[16 + i * 8 + b] = u8::from((data[i] & (1 << b)) > 0);
@@ -219,7 +219,7 @@ impl Encoder {
         }
     }
 
-    fn encode(&mut self, data: &Vec<u8>, frame: &FrameParam) {
+    fn encode(&mut self, data: &[u8], frame: &FrameParam) {
         self.generate_bits(data);
         self.scramble(frame.n_data_bits(), frame.n_pad());
         self.convolutional_encode(frame.n_data_bits());
