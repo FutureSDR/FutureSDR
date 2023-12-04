@@ -136,7 +136,7 @@ vulkano-shaders = { version = "0.32", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 lttng-ust = { git = "https://github.com/sprt/lttng-ust-rs.git", version = "0.1.0", optional = true}
-xilinx-dma = { version = "0.0.9", features = ["async"], optional = true }
+xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.13"
