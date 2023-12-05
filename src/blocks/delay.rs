@@ -34,7 +34,7 @@ enum State {
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add_block(NullSink::<Complex<f32>>::new(42));
+/// let sink = fg.add_block(Delay::<Complex<f32>>::new(42));
 /// ```
 pub struct Delay<T: Copy + Send + 'static> {
     state: State,
