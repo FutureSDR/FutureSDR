@@ -7,6 +7,7 @@ use axum::Json;
 use axum::Router;
 use std::path;
 use std::thread::JoinHandle;
+use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
@@ -161,9 +162,11 @@ impl ControlPort {
 
             runtime.block_on(async move {
                 let addr = config::config().ctrlport_bind.unwrap();
-                if let Ok(s) = axum::Server::try_bind(&addr) {
+                if let Ok(listener) = TcpListener::bind(&addr).await {
                     debug!("Listening on {}", addr);
-                    s.serve(app.into_make_service()).await.unwrap();
+                    axum::serve(listener, app.into_make_service())
+                        .await
+                        .unwrap();
                 } else {
                     warn!("CtrlPort address {} already in use", addr);
                 }
