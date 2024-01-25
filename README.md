@@ -21,12 +21,12 @@ is:
 [crates-badge]: https://img.shields.io/crates/v/futuresdr.svg
 [crates-url]: https://crates.io/crates/futuresdr
 [apache-badge]: https://img.shields.io/badge/license-Apache%202-blue
-[apache-url]: https://github.com/futuresdr/futuresdr/blob/master/LICENSE
+[apache-url]: https://github.com/futuresdr/futuresdr/blob/main/LICENSE
 [actions-badge]: https://github.com/futuresdr/futuresdr/workflows/CI/badge.svg
-[actions-url]: https://github.com/futuresdr/futuresdr/actions?query=workflow%3ACI+branch%3Amaster
+[actions-url]: https://github.com/futuresdr/futuresdr/actions?query=workflow%3ACI+branch%3Amain
 
 [Website](https://www.futuresdr.org) |
-[Guides](https://www.futuresdr.org/tutorial) |
+[Guides](https://www.futuresdr.org/learn) |
 [API Docs](https://docs.rs/futuresdr/latest/futuresdr) |
 [Chat](https://discord.com/invite/vCz29eDbGP/)
 
@@ -84,7 +84,7 @@ guide][contr] for more information. If you develop larger features or work on
 major changes with the main intention to submit them upstream, it would be
 great, if you could announce them in advance.
 
-[contr]: https://github.com/futuresdr/futuresdr/blob/master/CONTRIBUTING.md
+[contr]: https://github.com/futuresdr/futuresdr/blob/main/CONTRIBUTING.md
 
 ## Conduct
 
@@ -112,7 +112,7 @@ The main motivation for this license is that
 * using Open Source and not contributing back (for the time being) seems better
   than not using Open Source at all
 
-[lic]: https://github.com/futuresdr/futuresdr/blob/master/LICENSE.
+[lic]: https://github.com/futuresdr/futuresdr/blob/main/LICENSE
 
 ## Contributions
 
