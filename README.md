@@ -91,7 +91,7 @@ great, if you could announce them in advance.
 The FutureSDR project adheres to the [Rust Code of Conduct][coc]. It describes
 the _minimum_ behavior expected from all contributors.
 
-[coc]: https://github.com/rust-lang/rust/blob/master/CODE_OF_CONDUCT.md
+[coc]: https://www.rust-lang.org/policies/code-of-conduct
 
 ## License
 
