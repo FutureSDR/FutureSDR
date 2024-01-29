@@ -1,6 +1,7 @@
 //! A signal processing library for SDR and real-time DSP.
 #![warn(missing_docs)]
 #![no_std]
+#![allow(internal_features)]
 #![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
 
 #[macro_use]
