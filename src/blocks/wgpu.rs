@@ -37,6 +37,8 @@ pub struct Wgpu {
     n_output_buffers: usize,
 }
 
+unsafe impl Send for Wgpu {}
+
 impl Wgpu {
     /// Create Wgpu block
     pub fn new(
@@ -180,8 +182,10 @@ impl Kernel for Wgpu {
                     .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
                 {
-                    let mut cpass =
-                        encoder.begin_compute_pass(&ComputePassDescriptor { label: None });
+                    let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                        label: None,
+                        timestamp_writes: None,
+                    });
                     cpass.set_pipeline(self.pipeline.as_ref().unwrap());
                     cpass.set_bind_group(0, &bind_group, &[]);
                     cpass.insert_debug_marker("FutureSDR compute");

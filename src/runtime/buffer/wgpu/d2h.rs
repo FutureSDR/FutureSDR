@@ -60,6 +60,8 @@ pub struct WriterD2H {
     reader_input_id: Option<usize>,
 }
 
+unsafe impl Send for WriterD2H {}
+
 impl WriterD2H {
     /// Create buffer writer
     pub fn new(
@@ -67,6 +69,7 @@ impl WriterD2H {
         writer_inbox: Sender<BlockMessage>,
         writer_output_id: usize,
     ) -> BufferWriter {
+        #[allow(clippy::arc_with_non_send_sync)]
         BufferWriter::Custom(Box::new(WriterD2H {
             item_size,
             outbound: Arc::new(Mutex::new(VecDeque::new())),
@@ -161,6 +164,8 @@ pub struct ReaderD2H {
     my_inbox: Sender<BlockMessage>,
     finished: bool,
 }
+
+unsafe impl Send for ReaderD2H {}
 
 #[derive(Debug)]
 struct CurrentBuffer {

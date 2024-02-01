@@ -21,7 +21,7 @@ members = [
 ]
 
 [features]
-default = []
+default = ["wgpu"]
 aaronia = ["seify/aaronia"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
@@ -75,7 +75,7 @@ required-features = ["seify", "soapy"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-config = "0.13"
+config = "0.14"
 dirs = "5.0"
 dyn-clone = "1.0"
 futures = "0.3"
@@ -95,13 +95,13 @@ slab = "0.4"
 spin = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
-wgpu = { version = "0.16.3", optional = true }
+wgpu = { version = "0.19", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "1.0"
 cpal = { version = "0.15", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.2", features = ["js"] }
-gloo-net = {version = "0.4", default-features = false, features = ["websocket", "json"]}
+gloo-net = {version = "0.5", default-features = false, features = ["websocket", "json"]}
 gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
 rodio = { version = "0.17", default-features = false, optional = true }
@@ -118,7 +118,7 @@ async-lock = "3.1"
 async-native-tls = { version = "0.5", optional = true }
 async-net = "2.0"
 async-task = "4.5"
-async-tungstenite = "0.23"
+async-tungstenite = "0.24"
 axum = "0.7"
 blocking = "1.5"
 concurrent-queue = "2.3"
@@ -142,7 +142,7 @@ xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 android_logger = "0.13"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "=0.3.64" # need to pin, due to incompatibilites w/ wgpu
+version = "0.3"
 features = [
   'Document',
   'Element',
