@@ -1,6 +1,7 @@
 use std::sync::Arc;
+use vulkano::buffer::Buffer;
+use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
-use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -8,10 +9,16 @@ use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor_set::WriteDescriptorSet;
+use vulkano::memory::allocator::AllocationCreateInfo;
+use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::pipeline::compute::ComputePipelineCreateInfo;
+use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
+use vulkano::pipeline::PipelineLayout;
+use vulkano::pipeline::PipelineShaderStageCreateInfo;
 use vulkano::sync::{self, GpuFuture};
 
 use crate::anyhow::{Context, Result};
@@ -57,16 +64,19 @@ pub struct Vulkan {
     capacity: u64,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
-    memory_allocator: StandardMemoryAllocator,
-    descriptor_set_allocator: StandardDescriptorSetAllocator,
+    memory_allocator: Arc<StandardMemoryAllocator>,
+    descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     command_buffer_allocator: StandardCommandBufferAllocator,
 }
 
 impl Vulkan {
     /// Create Vulkan block
     pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
-        let memory_allocator = StandardMemoryAllocator::new_default(broker.device());
-        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device());
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(broker.device()));
+        let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
+            broker.device(),
+            Default::default(),
+        ));
         let command_buffer_allocator =
             StandardCommandBufferAllocator::new(broker.device(), Default::default());
 
@@ -112,40 +122,41 @@ impl Kernel for Vulkan {
         let input = i(sio, 0);
 
         for _ in 0..4u32 {
-            let buffer;
-            unsafe {
-                buffer = CpuAccessibleBuffer::uninitialized_array(
-                    &self.memory_allocator,
-                    self.capacity,
-                    BufferUsage {
-                        storage_buffer: true,
-                        ..BufferUsage::empty()
-                    },
-                    false,
-                )?;
-            }
+            let buffer = Buffer::new_slice(
+                self.memory_allocator.clone(),
+                BufferCreateInfo {
+                    usage: BufferUsage::STORAGE_BUFFER,
+                    ..Default::default()
+                },
+                AllocationCreateInfo {
+                    memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                        | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                    ..Default::default()
+                },
+                self.capacity,
+            )?;
             input.submit(BufferEmpty { buffer });
         }
 
-        let shader = cs::load(self.broker.device())?;
+        let cs = cs::load(self.broker.device())
+            .unwrap()
+            .entry_point("main")
+            .unwrap();
+        let stage = PipelineShaderStageCreateInfo::new(cs);
+        let layout = PipelineLayout::new(
+            self.broker.device(),
+            PipelineDescriptorSetLayoutCreateInfo::from_stages([&stage])
+                .into_pipeline_layout_create_info(self.broker.device())
+                .unwrap(),
+        )
+        .unwrap();
         let pipeline = ComputePipeline::new(
             self.broker.device(),
-            shader.entry_point("main").unwrap(),
-            &(),
             None,
-            |_| {},
+            ComputePipelineCreateInfo::stage_layout(stage, layout),
         )?;
-        self.pipeline = Some(pipeline);
-        self.layout = Some(
-            self.pipeline
-                .as_ref()
-                .context("no pipeline")?
-                .layout()
-                .set_layouts()
-                .first()
-                .context("no desc layout")?
-                .clone(),
-        );
+        self.pipeline = Some(pipeline.clone());
+        self.layout = Some(pipeline.layout().set_layouts()[0].clone());
 
         Ok(())
     }
@@ -172,8 +183,8 @@ impl Kernel for Vulkan {
                 &self.descriptor_set_allocator,
                 layout.clone(),
                 [WriteDescriptorSet::buffer(0, m.buffer.clone())],
-            )
-            .unwrap();
+                [],
+            )?;
 
             let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
             if m.used_bytes as u32 / 4 % 64 > 0 {
@@ -187,14 +198,15 @@ impl Kernel for Vulkan {
             )?;
 
             builder
-                .bind_pipeline_compute(pipeline.clone())
+                .bind_pipeline_compute(pipeline.clone())?
                 .bind_descriptor_sets(
                     PipelineBindPoint::Compute,
                     pipeline.layout().clone(),
                     0,
-                    set.clone(),
-                )
+                    set,
+                )?
                 .dispatch([dispatch, 1, 1])?;
+
             let command_buffer = builder.build()?;
 
             let future = sync::now(self.broker.device().clone())

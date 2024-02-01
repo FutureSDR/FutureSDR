@@ -2,7 +2,6 @@ use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
 use std::sync::{Arc, Mutex};
-use vulkano::buffer::BufferAccess;
 
 use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::BufferFull;

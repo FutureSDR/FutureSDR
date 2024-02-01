@@ -1,11 +1,13 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
-use vulkano::buffer::CpuAccessibleBuffer;
+use vulkano::buffer::Subbuffer;
 use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
+use vulkano::device::QueueFlags;
 use vulkano::device::{Device, DeviceCreateInfo};
+use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::VulkanLibrary;
 
@@ -23,7 +25,7 @@ pub use h2d::H2D;
 #[derive(Debug)]
 pub struct BufferFull {
     /// Buffer
-    pub buffer: Arc<CpuAccessibleBuffer<[u8]>>,
+    pub buffer: Subbuffer<[u8]>,
     /// Used bytes
     pub used_bytes: usize,
 }
@@ -32,7 +34,7 @@ pub struct BufferFull {
 #[derive(Debug)]
 pub struct BufferEmpty {
     /// Buffer
-    pub buffer: Arc<CpuAccessibleBuffer<[u8]>>,
+    pub buffer: Subbuffer<[u8]>,
 }
 
 // ================== VULKAN BROKER ============================
@@ -50,7 +52,7 @@ impl Broker {
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
-                enumerate_portability: true,
+                flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
                 ..Default::default()
             },
         )
@@ -66,7 +68,7 @@ impl Broker {
             .filter_map(|p| {
                 p.queue_family_properties()
                     .iter()
-                    .position(|q| q.queue_flags.compute)
+                    .position(|q| q.queue_flags.intersects(QueueFlags::COMPUTE))
                     .map(|i| (p, i as u32))
             })
             .min_by_key(|(p, _)| match p.properties().device_type {
