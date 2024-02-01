@@ -8,6 +8,10 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "loopback"
+path = "src/loopback.rs"
+
 [dependencies]
 futuresdr = { path = "../..", features = ["wgpu"] }
 rand = "0.8"

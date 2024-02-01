@@ -1,6 +1,4 @@
 use std::iter::repeat_with;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
@@ -11,15 +9,11 @@ use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub async fn run_fg() {
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    console_log::init().expect("could not initialize logger");
-    run().await.unwrap();
+pub async fn run() {
+    run_inner().await.unwrap()
 }
 
-pub async fn run() -> Result<()> {
+async fn run_inner() -> Result<()> {
     let n_items = 123123;
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
