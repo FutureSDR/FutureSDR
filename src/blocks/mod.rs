@@ -60,6 +60,7 @@
 //! | [FileSource] | Read samples from a file. | ❌ |
 //! | [TcpSource] | Reads samples from a TCP socket. | ❌ |
 //! | [TcpSink] | Push samples into a TCP socket. | ❌ |
+//! | [UdpSource] | Reads samples from a UDP socket. | ❌ |
 //! | [WebsocketSink] | Push samples in a WebSocket. | ❌ |
 //! | [WebsocketPmtSink] | Push samples from Pmts a WebSocket. | ❌ |
 //! | [zeromq::PubSink] | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
@@ -117,6 +118,9 @@ pub mod audio;
 mod blob_to_udp;
 #[cfg(not(target_arch = "wasm32"))]
 pub use blob_to_udp::BlobToUdp;
+
+mod channel_source;
+pub use channel_source::ChannelSource;
 
 mod combine;
 pub use combine::Combine;
@@ -221,8 +225,10 @@ mod throttle;
 #[cfg(not(target_arch = "wasm32"))]
 pub use throttle::Throttle;
 
-mod channel_source;
-pub use channel_source::ChannelSource;
+#[cfg(not(target_arch = "wasm32"))]
+mod udp_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub use udp_source::UdpSource;
 
 mod vector_sink;
 pub use vector_sink::{VectorSink, VectorSinkBuilder};

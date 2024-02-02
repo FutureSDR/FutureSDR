@@ -1,6 +1,6 @@
-use async_net::{TcpListener, TcpStream};
-use futures::AsyncReadExt;
-
+use async_net::UdpSocket;
+// use futures::AsyncReadExt;
+//
 use crate::anyhow::{Context, Result};
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -12,24 +12,24 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/// Read samples from a TCP socket.
-pub struct TcpSource<T: Send + 'static> {
+/// Read samples from a UDP socket.
+pub struct UdpSource<T: Send + 'static> {
     bind: String,
-    listener: Option<TcpListener>,
-    socket: Option<TcpStream>,
+    max_packet_bytes: usize,
+    socket: Option<UdpSocket>,
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> TcpSource<T> {
-    /// Create TCP Source block
-    pub fn new(bind: impl Into<String>) -> Block {
+impl<T: Send + 'static> UdpSource<T> {
+    /// Create UDP Source block
+    pub fn new(bind: impl Into<String>, max_packet_bytes: usize) -> Block {
         Block::new(
-            BlockMetaBuilder::new("TcpSource").build(),
+            BlockMetaBuilder::new("UdpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
-            TcpSource {
+            UdpSource {
                 bind: bind.into(),
-                listener: None,
+                max_packet_bytes,
                 socket: None,
                 _type: std::marker::PhantomData::<T>,
             },
@@ -39,7 +39,7 @@ impl<T: Send + 'static> TcpSource<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for TcpSource<T> {
+impl<T: Send + 'static> Kernel for UdpSource<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -47,35 +47,24 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        if self.socket.is_none() {
-            let (socket, _) = self
-                .listener
-                .as_mut()
-                .context("no listener")?
-                .accept()
-                .await?;
-            self.socket = Some(socket);
-            debug!("tcp source accepted connection");
-        }
-
         let out = sio.output(0).slice_unchecked::<u8>();
-        if out.is_empty() {
+        if out.len() < self.max_packet_bytes {
             return Ok(());
         }
 
         match self
             .socket
-            .as_mut()
+            .as_ref()
             .context("no socket")?
-            .read_exact(out)
+            .recv_from(out)
             .await
         {
-            Ok(_) => {
-                debug!("tcp source read bytes {}", out.len());
-                sio.output(0).produce(out.len() / std::mem::size_of::<T>());
+            Ok((s, _)) => {
+                debug!("udp source read bytes {}", s);
+                sio.output(0).produce(s / std::mem::size_of::<T>());
             }
             Err(_) => {
-                debug!("tcp source socket closed");
+                debug!("udp source socket closed");
                 io.finished = true;
             }
         }
@@ -89,7 +78,7 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.listener = Some(TcpListener::bind(self.bind.clone()).await?);
+        self.socket = Some(UdpSocket::bind(self.bind.clone()).await?);
         Ok(())
     }
 }
