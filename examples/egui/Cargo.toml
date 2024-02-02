@@ -1,0 +1,33 @@
+[package]
+name = "futuresdr-egui"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["soapy"]
+aaronia_http = ["futuresdr/aaronia_http"]
+soapy = ["futuresdr/soapy"]
+
+[dependencies]
+eframe = "0.25"
+env_logger = { version = "0.11", default-features = false, features = [
+    "auto-color",
+    "humantime",
+] }
+futuresdr-remote = { path = "../../crates/remote/" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clap = { version = "4", features = ["derive"] }
+futuresdr = { path = "../..", features = ["seify"] }
+tokio = { version = "1", features = ["full"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1"
+console_log = "1"
+futuresdr = { path = "../.." }
+
