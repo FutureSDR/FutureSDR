@@ -18,7 +18,6 @@ pub struct Keep1InN<const N: usize> {
 }
 
 impl<const N: usize> Keep1InN<N> {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(alpha: f32, n: usize) -> Block {
         Block::new(
             BlockMetaBuilder::new("Keep1InN").build(),
@@ -86,4 +85,3 @@ impl<const N: usize> Kernel for Keep1InN<N> {
         Ok(())
     }
 }
-

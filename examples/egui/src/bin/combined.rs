@@ -73,7 +73,7 @@ impl MyApp {
 
             let src = SourceBuilder::new()
                 .frequency(100e6)
-                .sample_rate(8e6)
+                .sample_rate(3.2e6)
                 .gain(34.0)
                 .build()?;
             let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
