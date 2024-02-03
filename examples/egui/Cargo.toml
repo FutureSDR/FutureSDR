@@ -20,6 +20,8 @@ env_logger = { version = "0.11", default-features = false, features = [
     "humantime",
 ] }
 futuresdr-remote = { path = "../../crates/remote/" }
+tungstenite = "0.21"
+url = "2.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clap = { version = "4", features = ["derive"] }
