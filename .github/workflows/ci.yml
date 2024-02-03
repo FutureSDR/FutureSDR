@@ -9,7 +9,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -141,7 +141,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -186,7 +186,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -243,7 +243,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -343,7 +343,7 @@ jobs:
       RUST_BACKTRACE: full
       RUSTFLAGS: '--cfg=web_sys_unstable_apis'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -383,7 +383,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: sudo apt-get -y update
       - run: sudo apt-get -y install libzmq3-dev
@@ -400,7 +400,7 @@ jobs:
     env:
       RUST_BACKTRACE: full
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo test --all-targets --workspace --features=aaronia_http,flow_scheduler,tpb_scheduler,wgpu
 
@@ -413,6 +413,6 @@ jobs:
       - uses: crazy-max/ghaction-chocolatey@v2
         with:
           args: install ninja
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo test --all-targets --workspace --features=aaronia_http,flow_scheduler,tpb_scheduler,wgpu
