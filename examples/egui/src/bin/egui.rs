@@ -24,7 +24,7 @@ use futuresdr_egui::FFT_SIZE;
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([350.0, 380.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([900.0, 600.0]),
         multisampling: 4,
         renderer: eframe::Renderer::Glow,
         ..Default::default()
@@ -51,7 +51,7 @@ async fn process_gui_actions(
     while let Some(m) = rx.recv().await {
         match m {
             GuiAction::SetFreq(f) => {
-                println!("setting frequency to {}", f);
+                println!("setting frequency to {}MHz", f);
                 sdr.callback(Handler::Id(0), Pmt::U64(f * 1000000)).await?
             }
         };
@@ -110,39 +110,44 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("FutureSDR + egui");
-            if ui
-                .add(
-                    egui::Slider::new(&mut self.freq, 50..=150)
-                        .suffix("MHz")
-                        .text("frequency"),
-                )
-                .changed()
-            {
-                let _ = self.actions.send(GuiAction::SetFreq(self.freq));
-            }
-            if ui
-                .add(
-                    egui::Slider::new(&mut self.min, -50.0..=0.0)
-                        .suffix("dB")
-                        .text("min"),
-                )
-                .changed()
-            {
-                let _ = self.spectrum.lock().set_min(self.min);
-            }
-            if ui
-                .add(
-                    egui::Slider::new(&mut self.max, -20.0..=50.0)
-                        .suffix("dB")
-                        .text("max"),
-                )
-                .changed()
-            {
-                let _ = self.spectrum.lock().set_max(self.max);
-            }
+            ui.columns(3, |columns| {
+                if columns[0]
+                    .add(
+                        egui::Slider::new(&mut self.freq, 80..=200)
+                            .clamp_to_range(false)
+                            .suffix("MHz")
+                            .text("frequency"),
+                    )
+                    .changed()
+                {
+                    let _ = self.actions.send(GuiAction::SetFreq(self.freq));
+                }
+                if columns[1]
+                    .add(
+                        egui::Slider::new(&mut self.min, -50.0..=0.0)
+                            .clamp_to_range(false)
+                            .suffix("dB")
+                            .text("min"),
+                    )
+                    .changed()
+                {
+                    self.spectrum.lock().set_min(self.min);
+                }
+                if columns[2]
+                    .add(
+                        egui::Slider::new(&mut self.max, -20.0..=50.0)
+                            .clamp_to_range(false)
+                            .suffix("dB")
+                            .text("max"),
+                    )
+                    .changed()
+                {
+                    self.spectrum.lock().set_max(self.max);
+                }
+            });
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 let (rect, _response) =
-                    ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
+                    ui.allocate_exact_size(ui.available_size(), egui::Sense::drag());
                 let spectrum = self.spectrum.clone();
                 let callback = egui::PaintCallback {
                     rect,
@@ -154,7 +159,6 @@ impl eframe::App for MyApp {
                 };
                 ui.painter().add(callback);
             });
-
         });
         ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
@@ -268,8 +272,8 @@ impl Spectrum {
                 gl.get_uniform_location(program, "u_nsamples").as_ref(),
                 FFT_SIZE as f32,
             );
-            gl.uniform_1_f32(gl.get_uniform_location(program, "u_min").as_ref(), -30.0);
-            gl.uniform_1_f32(gl.get_uniform_location(program, "u_max").as_ref(), 20.0);
+            gl.uniform_1_f32(gl.get_uniform_location(program, "u_min").as_ref(), -50.0);
+            gl.uniform_1_f32(gl.get_uniform_location(program, "u_max").as_ref(), 50.0);
 
             let vertex_array = gl
                 .create_vertex_array()
@@ -307,7 +311,6 @@ impl Spectrum {
 
         unsafe {
             gl.use_program(Some(self.program));
-
 
             if let Some(m) = self.new_min.take() {
                 gl.uniform_1_f32(gl.get_uniform_location(self.program, "u_min").as_ref(), m);
