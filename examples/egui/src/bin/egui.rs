@@ -52,8 +52,7 @@ async fn process_gui_actions(
         match m {
             GuiAction::SetFreq(f) => {
                 println!("setting frequency to {}", f);
-                sdr.callback(Handler::Id(0), Pmt::U64(f * 1000000))
-                    .await?
+                sdr.callback(Handler::Id(0), Pmt::U64(f * 1000000)).await?
             }
         };
     }
@@ -63,6 +62,8 @@ async fn process_gui_actions(
 
 struct MyApp {
     freq: u64,
+    min: f32,
+    max: f32,
     actions: UnboundedSender<GuiAction>,
     spectrum: Arc<Mutex<Spectrum>>,
 }
@@ -83,6 +84,7 @@ impl MyApp {
             connect(Url::parse("ws://127.0.0.1:9001").unwrap()).expect("Can't connect");
         match socket.get_ref() {
             MaybeTlsStream::Plain(s) => s.set_nonblocking(true).unwrap(),
+            MaybeTlsStream::Rustls(s) => s.sock.set_nonblocking(true).unwrap(),
             _ => {}
         }
 
@@ -95,6 +97,8 @@ impl MyApp {
             .expect("You need to run eframe with the glow backend");
 
         Self {
+            min: -50.0,
+            max: 50.0,
             freq: 100,
             actions: tx,
             spectrum: Arc::new(Mutex::new(Spectrum::new(gl, socket))),
@@ -116,6 +120,26 @@ impl eframe::App for MyApp {
             {
                 let _ = self.actions.send(GuiAction::SetFreq(self.freq));
             }
+            if ui
+                .add(
+                    egui::Slider::new(&mut self.min, -50.0..=0.0)
+                        .suffix("dB")
+                        .text("min"),
+                )
+                .changed()
+            {
+                let _ = self.spectrum.lock().set_min(self.min);
+            }
+            if ui
+                .add(
+                    egui::Slider::new(&mut self.max, -20.0..=50.0)
+                        .suffix("dB")
+                        .text("max"),
+                )
+                .changed()
+            {
+                let _ = self.spectrum.lock().set_max(self.max);
+            }
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 let (rect, _response) =
                     ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
@@ -130,8 +154,9 @@ impl eframe::App for MyApp {
                 };
                 ui.painter().add(callback);
             });
+
         });
-        ctx.request_repaint_after(std::time::Duration::from_millis(1));
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
 
     fn on_exit(&mut self, gl: Option<&glow::Context>) {
@@ -146,6 +171,8 @@ struct Spectrum {
     program: glow::Program,
     vertex_array: glow::VertexArray,
     coordinates: [f32; FFT_SIZE * 2],
+    new_min: Option<f32>,
+    new_max: Option<f32>,
 }
 
 impl Spectrum {
@@ -241,8 +268,8 @@ impl Spectrum {
                 gl.get_uniform_location(program, "u_nsamples").as_ref(),
                 FFT_SIZE as f32,
             );
-            gl.uniform_1_f32(gl.get_uniform_location(program, "u_min").as_ref(), -100.0);
-            gl.uniform_1_f32(gl.get_uniform_location(program, "u_max").as_ref(), 0.0);
+            gl.uniform_1_f32(gl.get_uniform_location(program, "u_min").as_ref(), -30.0);
+            gl.uniform_1_f32(gl.get_uniform_location(program, "u_max").as_ref(), 20.0);
 
             let vertex_array = gl
                 .create_vertex_array()
@@ -253,6 +280,8 @@ impl Spectrum {
                 vertex_array,
                 socket,
                 coordinates: [0.0; FFT_SIZE * 2],
+                new_min: None,
+                new_max: None,
             }
         }
     }
@@ -265,15 +294,28 @@ impl Spectrum {
         }
     }
 
+    fn set_min(&mut self, min: f32) {
+        self.new_min = Some(min);
+    }
+
+    fn set_max(&mut self, max: f32) {
+        self.new_max = Some(max);
+    }
+
     fn paint(&mut self, gl: &glow::Context) {
         use glow::HasContext as _;
 
         unsafe {
             gl.use_program(Some(self.program));
-            gl.bind_vertex_array(Some(self.vertex_array));
-            let coords = gl.get_attrib_location(self.program, "coordinates").unwrap();
-            gl.enable_vertex_attrib_array(coords);
-            gl.vertex_attrib_pointer_f32(coords, 2, glow::FLOAT, false, 0, 0);
+
+
+            if let Some(m) = self.new_min.take() {
+                gl.uniform_1_f32(gl.get_uniform_location(self.program, "u_min").as_ref(), m);
+            }
+
+            if let Some(m) = self.new_max.take() {
+                gl.uniform_1_f32(gl.get_uniform_location(self.program, "u_max").as_ref(), m);
+            }
 
             if let Ok(Message::Binary(v)) = self.socket.read() {
                 let mut data = v;
@@ -291,10 +333,10 @@ impl Spectrum {
                     .coordinates
                     .chunks_exact_mut(2)
                     .zip(samples.iter().enumerate())
-                    {
-                        a[0] = i as f32;
-                        a[1] = *f;
-                    }
+                {
+                    a[0] = i as f32;
+                    a[1] = *f;
+                }
 
                 let bytes = {
                     let s = self.coordinates.len() * std::mem::size_of::<f32>();
@@ -302,12 +344,11 @@ impl Spectrum {
                     std::slice::from_raw_parts(p as *const u8, s)
                 };
 
-                // println!("{:?}", self.coordinates);
-                //
                 let vbo = gl.create_buffer().unwrap();
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
                 gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
+                gl.bind_vertex_array(Some(self.vertex_array));
                 let coords = gl.get_attrib_location(self.program, "coordinates").unwrap();
                 gl.enable_vertex_attrib_array(coords);
                 gl.vertex_attrib_pointer_f32(coords, 2, glow::FLOAT, false, 0, 0);
