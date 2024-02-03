@@ -87,6 +87,9 @@ jobs:
       - name: Run cargo fmt (examples/debug)
         run: cargo fmt --all --manifest-path=examples/debug/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/egui)
+        run: cargo fmt --all --manifest-path=examples/egui/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/file-trx)
         run: cargo fmt --all --manifest-path=examples/file-trx/Cargo.toml -- --check
 
@@ -284,6 +287,9 @@ jobs:
 
       - name: Run cargo clippy (examples/debug)
         run: cargo clippy --all-targets --manifest-path=examples/debug/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/egui)
+        run: cargo clippy --all-targets --manifest-path=examples/egui/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/file-trx)
         run: cargo clippy --all-targets --manifest-path=examples/file-trx/Cargo.toml -- -D warnings
