@@ -173,6 +173,7 @@ impl eframe::App for MyApp {
 struct Spectrum {
     socket: WebSocket<MaybeTlsStream<TcpStream>>,
     program: glow::Program,
+    array_buffer: glow::NativeBuffer,
     vertex_array: glow::VertexArray,
     coordinates: [f32; FFT_SIZE * 2],
     new_min: Option<f32>,
@@ -281,6 +282,7 @@ impl Spectrum {
 
             Self {
                 program,
+                array_buffer: gl.create_buffer().unwrap(),
                 vertex_array,
                 socket,
                 coordinates: [0.0; FFT_SIZE * 2],
@@ -347,8 +349,7 @@ impl Spectrum {
                     std::slice::from_raw_parts(p as *const u8, s)
                 };
 
-                let vbo = gl.create_buffer().unwrap();
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.array_buffer));
                 gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
                 gl.bind_vertex_array(Some(self.vertex_array));

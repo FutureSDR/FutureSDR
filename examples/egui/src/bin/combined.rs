@@ -174,6 +174,7 @@ struct Spectrum {
     rx_samples: Receiver<Box<[f32; FFT_SIZE]>>,
     program: glow::Program,
     vertex_array: glow::VertexArray,
+    array_buffer: glow::NativeBuffer,
     coordinates: [f32; FFT_SIZE * 2],
     new_min: Option<f32>,
     new_max: Option<f32>,
@@ -282,6 +283,7 @@ impl Spectrum {
             Self {
                 program,
                 vertex_array,
+                array_buffer: gl.create_buffer().unwrap(),
                 rx_samples,
                 coordinates: [0.0; FFT_SIZE * 2],
                 new_min: None,
@@ -341,17 +343,16 @@ impl Spectrum {
                     std::slice::from_raw_parts(p as *const u8, s)
                 };
 
-                let vbo = gl.create_buffer().unwrap();
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.array_buffer));
                 gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
                 gl.bind_vertex_array(Some(self.vertex_array));
                 let coords = gl.get_attrib_location(self.program, "coordinates").unwrap();
                 gl.enable_vertex_attrib_array(coords);
                 gl.vertex_attrib_pointer_f32(coords, 2, glow::FLOAT, false, 0, 0);
-            }
 
-            gl.draw_arrays(glow::LINE_STRIP, 0, FFT_SIZE as i32);
+                gl.draw_arrays(glow::LINE_STRIP, 0, FFT_SIZE as i32);
+            }
         }
     }
 }
