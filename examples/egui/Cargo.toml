@@ -19,17 +19,9 @@ env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",
     "humantime",
 ] }
+futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
+tokio = { version = "1", features = ["full"] }
 tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
 url = "2.5"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clap = { version = "4", features = ["derive"] }
-futuresdr = { path = "../..", features = ["seify"] }
-tokio = { version = "1", features = ["full"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1"
-console_log = "1"
-futuresdr = { path = "../.." }
 
