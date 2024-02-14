@@ -103,7 +103,11 @@ impl StreamInput {
         }
 
         let c = self.current.as_ref().unwrap();
-        unsafe { slice::from_raw_parts(c.ptr as *const T, c.len / mem::size_of::<T>()) }
+        if c.ptr.is_null() {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(c.ptr as *const T, c.len / mem::size_of::<T>()) }
+        }
     }
 
     /// Returns a mutable slice to the input buffer.
@@ -266,11 +270,15 @@ impl StreamOutput {
     pub fn slice_unchecked<T>(&mut self) -> &'static mut [T] {
         let (ptr, len) = self.writer.as_mut().unwrap().bytes();
 
-        unsafe {
-            slice::from_raw_parts_mut(
-                ptr.cast::<T>().add(self.offset),
-                (len / mem::size_of::<T>()) - self.offset,
-            )
+        if ptr.is_null() {
+            &mut []
+        } else {
+            unsafe {
+                slice::from_raw_parts_mut(
+                    ptr.cast::<T>().add(self.offset),
+                    (len / mem::size_of::<T>()) - self.offset,
+                )
+            }
         }
     }
 
