@@ -142,7 +142,7 @@ xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 android_logger = "0.13"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3"
+version = "=0.3.67" # wgpu 19.1 breaks w/ 0.3.68
 features = [
   'Document',
   'Element',
