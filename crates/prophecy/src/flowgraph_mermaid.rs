@@ -23,13 +23,13 @@ fn flowgraph_to_mermaid(fg: FlowgraphDescription) -> String {
     for e in fg.stream_edges {
         let src_port = &fg.blocks[e.0].stream_outputs[e.1];
         let dst_port = &fg.blocks[e.2].stream_inputs[e.3];
-        let con = src_port.clone() + " > " + &dst_port;
+        let con = src_port.clone() + " > " + dst_port;
         g.push_str(&format!("N{}-->|{}| N{};\n", e.0, con, e.2));
     }
     for e in fg.message_edges {
         let src_port = &fg.blocks[e.0].message_outputs[e.1];
         let dst_port = &fg.blocks[e.2].message_inputs[e.3];
-        let con = src_port.clone() + " > " + &dst_port;
+        let con = src_port.clone() + " > " + dst_port;
         g.push_str(&format!("N{}-.->|{}| N{};\n", e.0, con, e.2));
     }
     g
