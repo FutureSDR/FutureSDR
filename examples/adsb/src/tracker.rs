@@ -1,4 +1,3 @@
-use crate::decoder::{AdsbPacket, DecoderMetaData};
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::log::{info, warn};
@@ -14,11 +13,10 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
+use crate::decoder::DecoderMetaData;
 use crate::*;
 
 /// The duration considered to be recent when decoding CPR frames
