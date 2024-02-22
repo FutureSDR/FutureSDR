@@ -1,7 +1,6 @@
 //! Message/Event/RPC-based Ports
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 

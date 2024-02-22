@@ -9,7 +9,6 @@ use crate::runtime::BlockMessage;
 use crate::runtime::PortId;
 use slab::Slab;
 use std::any::{Any, TypeId};
-use std::cmp::{Eq, PartialEq};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 

@@ -6,6 +6,7 @@ use num_complex::Complex;
 use rand::Rng;
 
 extern crate alloc;
+#[allow(unused_imports)]
 use alloc::vec::Vec;
 
 trait Generatable {

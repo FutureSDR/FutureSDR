@@ -9,7 +9,6 @@ use futuresdr::{
     macros::connect,
     num_complex::Complex,
     runtime::{Flowgraph, Pmt, Runtime},
-    seify,
     seify::Direction::*,
 };
 use std::collections::HashMap;

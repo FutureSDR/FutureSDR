@@ -1,4 +1,3 @@
-use hound;
 use std::path;
 
 use crate::anyhow::Result;

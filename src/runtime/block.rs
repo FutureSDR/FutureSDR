@@ -1,8 +1,9 @@
 use futures::channel::mpsc::{Receiver, Sender};
 use futures::future::join_all;
 use futures::future::Either;
-use futures::prelude::*;
 use futures::FutureExt;
+use futures::SinkExt;
+use futures::StreamExt;
 use std::any::Any;
 use std::fmt;
 use std::future::Future;
@@ -427,7 +428,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                 if let Some(f) = work_io.block_on.take() {
                     let p = inbox.as_mut().peek();
 
-                    match future::select(f, p).await {
+                    match futures::future::select(f, p).await {
                         Either::Left(_) => {
                             work_io.call_again = true;
                         }

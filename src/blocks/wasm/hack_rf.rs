@@ -1,6 +1,6 @@
 use serde::ser::SerializeTuple;
 use serde::ser::Serializer;
-use wasm_bindgen::{prelude::*, JsCast};
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::anyhow::Result;

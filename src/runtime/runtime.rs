@@ -8,7 +8,6 @@ use futures::prelude::*;
 use futures::FutureExt;
 use slab::Slab;
 use std::fmt;
-use std::future::Future;
 use std::pin::Pin;
 use std::result;
 use std::sync::Arc;

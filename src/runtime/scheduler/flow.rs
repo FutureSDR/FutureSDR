@@ -3,7 +3,6 @@ use async_lock::Barrier;
 use async_task::Runnable;
 use async_task::Task;
 use concurrent_queue::ConcurrentQueue;
-use core_affinity;
 use futures::channel::mpsc::{channel, Sender};
 use futures::channel::oneshot;
 use futures_lite::future::{self, Future, FutureExt};
