@@ -32,6 +32,7 @@ struct RenderState {
 const SHADER_HEIGHT: usize = 256;
 
 #[component]
+/// Waterfall Sink
 pub fn Waterfall(
     #[prop(into)] min: MaybeSignal<f32>,
     #[prop(into)] max: MaybeSignal<f32>,

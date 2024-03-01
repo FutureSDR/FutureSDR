@@ -8,6 +8,9 @@ use uuid::Uuid;
 use crate::FlowgraphHandle;
 
 #[component]
+/// Radio Selector
+///
+/// Selecting an entry triggers sending a PMT.
 pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     fg_handle: FlowgraphHandle,
     block_id: usize,

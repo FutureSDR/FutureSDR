@@ -7,6 +7,9 @@ use web_sys::HtmlInputElement;
 use crate::FlowgraphHandle;
 
 #[component]
+/// Slider
+///
+/// Changing the value triggers sending a corresponding PMT.
 pub fn Slider<P: Into<PortId>>(
     fg_handle: FlowgraphHandle,
     block_id: usize,

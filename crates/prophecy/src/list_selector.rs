@@ -8,6 +8,9 @@ use leptos::*;
 use crate::FlowgraphHandle;
 
 #[component]
+/// List Selector
+///
+/// Selecting an entry from a list triggers sending a PMT.
 pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     fg_handle: FlowgraphHandle,
     block_id: usize,

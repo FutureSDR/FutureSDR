@@ -18,6 +18,7 @@ use std::rc::Rc;
 use web_sys::HtmlInputElement;
 
 #[component]
+/// Spectrum Widget
 pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let rt_url = window().location().origin().unwrap();
     let rt_handle = RuntimeHandle::from_url(rt_url);
@@ -169,6 +170,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
 }
 
 #[component]
+/// Main GUI
 pub fn Gui() -> impl IntoView {
     let rt_url = window().location().origin().unwrap();
     let rt_handle = RuntimeHandle::from_url(rt_url);

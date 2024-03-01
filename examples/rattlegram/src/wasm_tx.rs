@@ -22,6 +22,7 @@ pub fn wasm_main() {
 const ENTER_KEY: u32 = 13;
 
 #[component]
+/// Main GUI
 fn Gui() -> impl IntoView {
     let (tx, set_tx) = create_signal(None);
 

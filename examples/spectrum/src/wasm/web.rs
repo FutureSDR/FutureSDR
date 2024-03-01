@@ -34,6 +34,7 @@ use futuresdr::runtime::WorkIo;
 const FFT_SIZE: usize = 2048;
 
 #[component]
+/// Spectrum Widget
 pub fn Spectrum(
     handle: prophecy::FlowgraphHandle,
     time_data: Rc<RefCell<Option<Vec<u8>>>>,
@@ -168,6 +169,7 @@ pub fn Spectrum(
 }
 
 #[component]
+/// Main GUI
 pub fn Gui() -> impl IntoView {
     let (handle, set_handle) = create_signal(None);
 

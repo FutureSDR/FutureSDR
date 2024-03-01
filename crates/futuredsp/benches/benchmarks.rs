@@ -67,13 +67,13 @@ fn bench_fir_dynamic_taps<InputType, OutputType, TapType: Generatable>(
     });
 }
 
-fn bench_fir_static_taps<InputType, OutputType, TapType: Generatable, const N: usize>(
+fn bench_fir_static_taps<InputType, OutputType, TapType, const N: usize>(
     b: &mut criterion::Bencher,
     nsamps: usize,
 ) where
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
-    TapType: std::fmt::Debug,
+    TapType: Generatable + std::fmt::Debug,
     [TapType; N]: TapsAccessor<TapType = TapType>,
     NonResamplingFirKernel<InputType, OutputType, [TapType; N], TapType>:
         UnaryKernel<InputType, OutputType>,

@@ -5,6 +5,7 @@ use leptos::html::Select;
 use leptos::*;
 
 #[component]
+/// Reactive textual representation of PMT.
 pub fn Pmt(
     #[prop(into)] pmt: MaybeSignal<Pmt>,
     #[prop(into, optional)] span_class: String,
@@ -44,6 +45,7 @@ pub fn Pmt(
 const ENTER_KEY: u32 = 13;
 
 #[component]
+/// Input a PMT
 pub fn PmtInput(
     set_pmt: WriteSignal<Pmt>,
     #[prop(default = false)] button: bool,
@@ -92,6 +94,7 @@ pub fn PmtInput(
 }
 
 #[component]
+/// PMT Input with list for type selection
 pub fn PmtInputList(
     set_pmt: WriteSignal<Pmt>,
     #[prop(default = vec![

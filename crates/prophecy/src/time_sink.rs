@@ -32,6 +32,7 @@ struct RenderState {
 }
 
 #[component]
+/// Time Sink
 pub fn TimeSink(
     #[prop(into)] min: MaybeSignal<f32>,
     #[prop(into)] max: MaybeSignal<f32>,

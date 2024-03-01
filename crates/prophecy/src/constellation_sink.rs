@@ -17,6 +17,7 @@ struct RenderState {
 }
 
 #[component]
+/// Constellation Sink
 pub fn ConstellationSink(
     #[prop(into)] width: MaybeSignal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,

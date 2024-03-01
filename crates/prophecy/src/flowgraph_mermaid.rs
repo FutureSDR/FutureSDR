@@ -36,6 +36,7 @@ fn flowgraph_to_mermaid(fg: FlowgraphDescription) -> String {
 }
 
 #[component]
+/// Mermaid Graph of Flowgraph
 pub fn FlowgraphMermaid(fg: FlowgraphDescription) -> impl IntoView {
     div().on_mount(|_| mermaid_render()).child(
         pre()

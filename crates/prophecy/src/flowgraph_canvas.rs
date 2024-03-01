@@ -4,6 +4,7 @@ use leptos_use::core::Position;
 use leptos_use::*;
 
 #[component]
+/// Flowgraph Canvas (WIP)
 pub fn FlowgraphCanvas() -> impl IntoView {
     let el = create_node_ref::<Div>();
     let UseDraggableReturn { style, .. } = use_draggable_with_options(

@@ -27,6 +27,7 @@ pub fn wasm_main() {
 }
 
 #[component]
+/// Main GUI
 fn Gui() -> impl IntoView {
     let (n_frames, set_n_frames) = create_signal(-1);
     let (frames, set_frames) = create_signal(VecDeque::new());
