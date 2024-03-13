@@ -53,7 +53,9 @@ impl Kernel for DecoderBlock {
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();
 
-        for s in input.chunks_exact(48000 / 50) {
+        // for s in input.chunks_exact(48000 / 50) {
+        // info!("processing {} samples", input.len());
+        for s in input.chunks_exact(512) {
             if !self.decoder.feed(s) {
                 continue;
             }
@@ -104,8 +106,11 @@ impl Kernel for DecoderBlock {
             }
         }
 
+        // sio.input(0)
+        //     .consume(input.len() / (48000 / 50) * (48000 / 50));
         sio.input(0)
-            .consume(input.len() / (48000 / 50) * (48000 / 50));
+            .consume(input.len() / (512) * (512));
+        
         if sio.input(0).finished() {
             io.finished = true;
         }

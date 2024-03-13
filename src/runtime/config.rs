@@ -196,7 +196,7 @@ impl Default for Config {
             queue_size: 8192,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
-            slab_reserved: 128,
+            slab_reserved: 0,
             log_level: LevelFilter::Info,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
