@@ -30,7 +30,10 @@ mod psk;
 pub use psk::Psk;
 
 #[cfg(target_arch = "wasm32")]
-pub mod wasm_tx;
+pub mod wasm;
+
+#[cfg(target_arch = "wasm32")]
+mod wasm_decoder;
 
 mod util;
 pub use util::get_be_bit;

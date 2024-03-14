@@ -1,4 +1,4 @@
 [build]
 target = "index.html"
 dist = "dist"
-public_url = "/rattle/"
+# public_url = "/rattle/"
