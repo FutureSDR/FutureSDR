@@ -8,19 +8,28 @@ use crate::OperationMode;
 
 #[wasm_bindgen]
 struct WasmDecoder {
+    samples: Vec<f32>,
     decoder: Decoder,
 }
 
 #[wasm_bindgen]
 impl WasmDecoder {
     pub fn new() -> Self {
+        _ = console_log::init_with_level(futuresdr::log::Level::Debug);
+        console_error_panic_hook::set_once();
         Self {
+            samples: Vec::new(),
             decoder: Decoder::new(),
         }
     }
 
     pub fn process(&mut self, samples: Vec<f32>) {
-        if !self.decoder.feed(&samples) {
+        self.samples.extend_from_slice(&samples);
+        // info!("samples len {}", self.samples.len());
+        if self.samples.len() < 4096 {
+            return;
+        }
+        if !self.decoder.feed(&std::mem::take(&mut self.samples)) {
             return;
         }
 

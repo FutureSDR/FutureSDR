@@ -1,3 +1,4 @@
+import "./text-encoder.js";
 import init, { WasmDecoder } from "./wasm-decoder.js";
 
 class DecoderProcessor extends AudioWorkletProcessor {
@@ -20,7 +21,7 @@ class DecoderProcessor extends AudioWorkletProcessor {
       const { sampleRate } = event;
       this.sampleRate = sampleRate;
       this.decoder = WasmDecoder.new();
-      console.log("decoder initialized");
+      console.log("decoder initialized, sample rate ", sampleRate);
       // this.samples = new Array(numAudioSamplesPerAnalysis).fill(0);
     }
   }
