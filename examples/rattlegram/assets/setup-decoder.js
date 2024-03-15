@@ -33,7 +33,6 @@ async function getWebAudioMediaStream() {
 }
 
 export async function setupAudio(messageSetter) {
-  // const onRxCallback = (a) => console.log("onrxcallback", a);
   const mediaStream = await getWebAudioMediaStream();
 
   const context = new window.AudioContext();
@@ -43,9 +42,7 @@ export async function setupAudio(messageSetter) {
 
   try {
     const response = await window.fetch("wasm-decoder_bg.wasm");
-    console.log("fetched")
     const wasmBytes = await response.arrayBuffer();
-    console.log("bytes")
 
     const processorUrl = "decoder-processor.js";
     try {

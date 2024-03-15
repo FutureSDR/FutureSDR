@@ -2,7 +2,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::futures::channel::mpsc;
-use futuresdr::log::info;
 use futuresdr::log::warn;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
@@ -93,7 +92,7 @@ fn Gui() -> impl IntoView {
             <hr />
             <button on:click=move |_| { if !rx_started { leptos::spawn_local(async move { start_rx(set_messages).await; })} rx_started = true } class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"Start RX"</button>
             <br/>
-            <ul>
+            <ul class="list-disc p-4">
             {move || messages().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
             </ul>
         </div>
@@ -101,7 +100,7 @@ fn Gui() -> impl IntoView {
 }
 async fn run_fg(set_tx: WriteSignal<Option<mpsc::Sender<Box<[f32]>>>>) {
     let res = run_fg_inner(set_tx).await;
-    info!("fg terminated {:?}", res);
+    warn!("fg terminated {:?}", res);
 }
 
 #[wasm_bindgen]

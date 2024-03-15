@@ -21,7 +21,6 @@ export default class DecoderNode extends AudioWorkletNode {
         sampleRate: this.context.sampleRate,
       });
     } else {
-      console.log("decoder node received ", event);
       this.messageSetter.message(event);
     }
   }
