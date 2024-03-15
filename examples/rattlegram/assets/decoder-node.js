@@ -1,6 +1,6 @@
 export default class DecoderNode extends AudioWorkletNode {
-  init(wasmBytes, onRxCallback) {
-    this.onRxCallback = onRxCallback;
+  init(wasmBytes, messageSetter) {
+    this.messageSetter = messageSetter;
     this.port.onmessage = (event) => this.onmessage(event.data);
     this.port.postMessage({
       type: "send-wasm-module",
@@ -20,8 +20,9 @@ export default class DecoderNode extends AudioWorkletNode {
         type: "init-decoder",
         sampleRate: this.context.sampleRate,
       });
-    } else if (event.type === "pitch") {
-      this.onRxCallback(event.pitch);
+    } else {
+      console.log("decoder node received ", event);
+      this.messageSetter.message(event);
     }
   }
 }

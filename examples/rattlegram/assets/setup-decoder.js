@@ -32,9 +32,8 @@ async function getWebAudioMediaStream() {
   }
 }
 
-// export async function setupAudio(onRxCallback) {
-export async function setupAudio() {
-  const onRxCallback = (a) => a;
+export async function setupAudio(messageSetter) {
+  // const onRxCallback = (a) => console.log("onrxcallback", a);
   const mediaStream = await getWebAudioMediaStream();
 
   const context = new window.AudioContext();
@@ -43,48 +42,23 @@ export async function setupAudio() {
   let node;
 
   try {
-    // Fetch the WebAssembly module that performs pitch detection.
     const response = await window.fetch("wasm-decoder_bg.wasm");
     console.log("fetched")
     const wasmBytes = await response.arrayBuffer();
     console.log("bytes")
 
-    // Add our audio processor worklet to the context.
     const processorUrl = "decoder-processor.js";
-    // try {
-      console.log("addmodule")
-      console.log(context)
-      console.log(context.audioWorklet)
+    try {
       await context.audioWorklet.addModule(processorUrl);
-    // } catch (e) {
-    //   throw new Error(
-    //     `Failed to load audio analyzer worklet at url: ${processorUrl}. Further info: ${e.message}`
-    //   );
-    // }
+    } catch (e) {
+      throw new Error(
+        `Failed to load audio analyzer worklet at url: ${processorUrl}. Further info: ${e.message}`
+      );
+    }
 
-    // Create the AudioWorkletNode which enables the main JavaScript thread to
-    // communicate with the audio processor (which runs in a Worklet).
     node = new DecoderNode(context, "DecoderProcessor");
-
-    // numAudioSamplesPerAnalysis specifies the number of consecutive audio samples that
-    // the pitch detection algorithm calculates for each unit of work. Larger values tend
-    // to produce slightly more accurate results but are more expensive to compute and
-    // can lead to notes being missed in faster passages i.e. where the music note is
-    // changing rapidly. 1024 is usually a good balance between efficiency and accuracy
-    // for music analysis.
-    // const numAudioSamplesPerAnalysis = 1024;
-
-    // Send the Wasm module to the audio node which in turn passes it to the
-    // processor running in the Worklet thread. Also, pass any configuration
-    // parameters for the Wasm detection algorithm.
-    node.init(wasmBytes, onRxCallback);
-
-    // Connect the audio source (microphone output) to our analysis node.
+    node.init(wasmBytes, messageSetter);
     audioSource.connect(node);
-
-    // Connect our analysis node to the output. Required even though we do not
-    // output any audio. Allows further downstream audio processing or output to
-    // occur.
     node.connect(context.destination);
   } catch (err) {
     throw new Error(

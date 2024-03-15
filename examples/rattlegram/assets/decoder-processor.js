@@ -31,16 +31,14 @@ class DecoderProcessor extends AudioWorkletProcessor {
       console.log("not yet init, not processing");
       return true;
     }
-    console.log("processing");
     const inputChannels = inputs[0];
     const inputSamples = inputChannels[0];
 
-    this.decoder.process(inputSamples);
-    // const result = this.detector.detect_pitch(this.samples);
-    //
-    // if (result !== 0) {
-    //   this.port.postMessage({ type: "pitch", pitch: result });
-    // }
+    const result = this.decoder.process(inputSamples);
+    if (result) {
+      console.log(result);
+      this.port.postMessage(result);
+    }
 
     return true;
   }

@@ -10,24 +10,15 @@ use futuresdr::runtime::Runtime;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html::Input;
 use leptos::*;
+use std::collections::VecDeque;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::AudioContext;
-use web_sys::AudioProcessingEvent;
-use web_sys::AudioWorkletNode;
-use web_sys::AudioWorkletNodeOptions;
-use web_sys::MediaStream;
-use web_sys::MediaStreamAudioSourceNode;
-use web_sys::MediaStreamAudioSourceOptions;
-use web_sys::MediaStreamConstraints;
 
-use crate::DecoderBlock;
+use crate::wasm_decoder::DecoderMessage;
 use crate::Encoder;
-const BUFFER_SIZE: u16 = 2048;
 
 #[wasm_bindgen(module = "/assets/setup-decoder.js")]
 extern "C" {
-    async fn setupAudio();
+    async fn setupAudio(m: MessageSetter);
 }
 
 pub fn wasm_main() {
@@ -42,6 +33,7 @@ const ENTER_KEY: u32 = 13;
 /// Main GUI
 fn Gui() -> impl IntoView {
     let (tx, set_tx) = create_signal(None);
+    let (messages, set_messages) = create_signal(VecDeque::new());
 
     let input_payload_ref = create_node_ref::<Input>();
     let input_callsign_ref = create_node_ref::<Input>();
@@ -88,14 +80,22 @@ fn Gui() -> impl IntoView {
         }
     };
 
+    let mut rx_started = false;
+
     view! {
-        <h1 class="p-4 text-4xl font-extrabold leading-none tracking-tight text-gray-900">"FutureSDR Rattlegram Transmitter"</h1>
+        <h1 class="p-4 text-4xl font-extrabold leading-none tracking-tight text-gray-900">"FutureSDR Rattlegram Transceiver"</h1>
 
         <div class="p-4">
             Call Sign: <input class="mb-4" node_ref=input_callsign_ref value="DF1BBL" on:keydown=on_input></input>
             Payload: <input class="mb-4" node_ref=input_payload_ref value="Hi" on:keydown=on_input></input>
             <br/>
-            <button on:click=move |_| { send()} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">"Send"</button>
+            <button on:click=move |_| { send()} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"TX Message"</button>
+            <hr />
+            <button on:click=move |_| { if !rx_started { leptos::spawn_local(async move { start_rx(set_messages).await; })} rx_started = true } class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"Start RX"</button>
+            <br/>
+            <ul>
+            {move || messages().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
+            </ul>
         </div>
     }
 }
@@ -104,76 +104,39 @@ async fn run_fg(set_tx: WriteSignal<Option<mpsc::Sender<Box<[f32]>>>>) {
     info!("fg terminated {:?}", res);
 }
 
-async fn run_fg_inner(set_tx: WriteSignal<Option<mpsc::Sender<Box<[f32]>>>>) -> Result<()> {
-
-    setupAudio().await;
-    // let mut constraints = MediaStreamConstraints::new();
-    // constraints.audio(&JsValue::from(true));
-    //
-    // let media_stream_promise = window()
-    //     .navigator()
-    //     .media_devices()
-    //     .unwrap()
-    //     .get_user_media_with_constraints(&constraints)
-    //     .unwrap();
-    //
-    // let media_stream = JsFuture::from(media_stream_promise)
-    //     .await
-    //     .map(MediaStream::from)
-    //     .unwrap();
-    //
-    // info!("dev {:?}", media_stream);
-    //
-    // let context = AudioContext::new().unwrap();
-    //
-    // // Create audio source from media stream.
-    // let audio_src = MediaStreamAudioSourceNode::new(
-    //     &context,
-    //     &MediaStreamAudioSourceOptions::new(&media_stream),
-    // )
-    // .unwrap();
-    //
-    // info!("sample rate: {}", context.sample_rate());
-    //
-    // let mut options = AudioWorkletNodeOptions::new();
-    // options.number_of_inputs(1).number_of_outputs(0);
-    //
-    // let node = AudioWorkletNode::new_with_options(&context, "decoder", &options).unwrap();
-
-    // let proc = context
-    //     .create_script_processor_with_buffer_size(BUFFER_SIZE.into())
-    //     .unwrap();
-
-    // let (mic_tx, mic_rx) = mpsc::channel(10);
-
-    // let js_function: Closure<dyn Fn(AudioProcessingEvent)> =
-    //     Closure::wrap(Box::new(move |event| {
-    //         let inbuf = event.input_buffer().expect("Failed to get input buffer");
-    //         info!("len {:?}", inbuf.length());
-    //         info!("channels {:?}", inbuf.number_of_channels());
-    //         info!("sample rate {:?}", inbuf.sample_rate());
-    //         let data = inbuf.get_channel_data(0).unwrap().into_boxed_slice();
-    //         info!("data len {:?}", data.len());
-    //         let _res = mic_tx.clone().try_send(data);
-    //     }));
-    // // proc.set_onaudioprocess(Some(js_function.as_ref().unchecked_ref()));
-    // node.js_function.forget();
-
-    // audio_src.connect_with_audio_node(&proc).unwrap();
-
-    // let mut fg = Flowgraph::new();
-
-    // let mic_src = ChannelSource::<f32>::new(mic_rx);
-    // let decoder = DecoderBlock::new();
-    // connect!(fg, mic_src > decoder);
-
-    // let (tx, rx) = mpsc::channel(10);
-    // let src = ChannelSource::<f32>::new(rx);
-    // let snk = AudioSink::new(48000, 1);
-    // connect!(fg, mic_src > decoder; src > snk);
-
-    // set_tx(Some(tx));
-    // Runtime::new().run_async(fg).await?;
-    Ok(())
+#[wasm_bindgen]
+struct MessageSetter {
+    messages: WriteSignal<VecDeque<DecoderMessage>>,
 }
 
+impl MessageSetter {
+    pub fn new(messages: WriteSignal<VecDeque<DecoderMessage>>) -> Self {
+        Self { messages }
+    }
+}
+
+#[wasm_bindgen]
+impl MessageSetter {
+    pub fn message(&mut self, s: String) {
+        self.messages.update(|m| {
+            m.push_back(serde_json::from_str(&s).unwrap());
+        });
+    }
+}
+
+async fn start_rx(messages: WriteSignal<VecDeque<DecoderMessage>>) {
+    setupAudio(MessageSetter::new(messages)).await;
+}
+
+async fn run_fg_inner(set_tx: WriteSignal<Option<mpsc::Sender<Box<[f32]>>>>) -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let (tx, rx) = mpsc::channel(10);
+    let src = ChannelSource::<f32>::new(rx);
+    let snk = AudioSink::new(48000, 1);
+    connect!(fg, src > snk);
+
+    set_tx(Some(tx));
+    Runtime::new().run_async(fg).await?;
+    Ok(())
+}
