@@ -1,0 +1,79 @@
+use crate::futures::channel::mpsc::Sender;
+
+use crate::anyhow::Result;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
+use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Kernel;
+use crate::runtime::MessageIo;
+use crate::runtime::MessageIoBuilder;
+use crate::runtime::StreamIo;
+use crate::runtime::StreamIoBuilder;
+use crate::runtime::WorkIo;
+
+/// Get samples out of a Flowgraph into a channel.
+///
+/// # Inputs
+///
+/// `in`: Samples retrieved from teh flowgraph
+///
+/// # Usage
+/// ```
+/// use futuresdr::futures::channel::mpsc;
+/// use futuresdr::blocks::{VectorSource, ChannelSink};
+/// use futuresdr::runtime::Flowgraph;
+///
+/// let mut fg = Flowgraph::new();
+/// let (mut tx, rx) = mpsc::channel(10);
+/// let vec = vec![0, 1, 2];
+/// let src = fg.add_block(VectorSource::<u32>::new(vec));
+/// let cs = fg.add_block(ChannelSink::<u32>::new(tx));
+/// // start flowgraph
+/// ```
+pub struct ChannelSink<T: Send + 'static> {
+    sender: Sender<Box<[T]>>,
+}
+
+impl<T: Send + Clone + 'static> ChannelSink<T> {
+    /// Create ChannelSink block
+    pub fn new(sender: Sender<Box<[T]>>) -> Block {
+        Block::new(
+            BlockMetaBuilder::new("ChannelSink").build(),
+            StreamIoBuilder::new().add_input::<T>("in").build(),
+            MessageIoBuilder::new().build(),
+            ChannelSink::<T> { sender },
+        )
+    }
+}
+
+#[doc(hidden)]
+#[async_trait]
+impl<T: Send + Clone + 'static> Kernel for ChannelSink<T> {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        sio: &mut StreamIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        let i = sio.input(0).slice::<T>();
+
+        if !i.is_empty() {
+            match self.sender.try_send(i.into()) {
+                Ok(_) => {
+                    info!("sent data...");
+                }
+                Err(err) => {
+                    info!("{}", err.to_string());
+                }
+            }
+            sio.input(0).consume(i.len());
+        }
+
+        if sio.input(0).finished() {
+            io.finished = true;
+        }
+
+        Ok(())
+    }
+}

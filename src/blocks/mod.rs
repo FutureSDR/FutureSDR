@@ -56,6 +56,7 @@
 //! |---|---|---|
 //! | [BlobToUdp] | Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
 //! | [ChannelSource] | Push samples through a channel into a stream connection. | ✅ |
+//! | [ChannelSink] | Read samples from Flowgraph and send them into a channel | ✅ |
 //! | [FileSink] | Write samples to a file. | ❌ |
 //! | [FileSource] | Read samples from a file. | ❌ |
 //! | [TcpSource] | Reads samples from a TCP socket. | ❌ |
@@ -121,6 +122,9 @@ pub use blob_to_udp::BlobToUdp;
 
 mod channel_source;
 pub use channel_source::ChannelSource;
+
+mod channel_sink;
+pub use channel_sink::ChannelSink;
 
 mod combine;
 pub use combine::Combine;
