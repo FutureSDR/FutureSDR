@@ -488,7 +488,7 @@ impl Sleepers {
         for item in &mut self.wakers {
             if item.0 == id {
                 if !item.1.will_wake(waker) {
-                    item.1 = waker.clone();
+                    item.1.clone_from(waker);
                 }
                 return false;
             }

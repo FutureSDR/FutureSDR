@@ -58,12 +58,9 @@ impl<T: Send + Clone + 'static> Kernel for ChannelSink<T> {
         let i = sio.input(0).slice::<T>();
 
         if !i.is_empty() {
-            match self.sender.try_send(i.into()) {
-                Err(err) => {
-                    warn!("Channel Sink: {}", err.to_string());
-                    io.finished = true;
-                }
-                _ => {}
+            if let Err(err) = self.sender.try_send(i.into()) {
+                warn!("Channel Sink: {}", err.to_string());
+                io.finished = true;
             }
             sio.input(0).consume(i.len());
         }
