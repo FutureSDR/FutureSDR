@@ -1,6 +1,5 @@
-use crate::futures::channel::mpsc::Sender;
-
 use crate::anyhow::Result;
+use crate::futures::channel::mpsc::Sender;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -15,7 +14,7 @@ use crate::runtime::WorkIo;
 ///
 /// # Inputs
 ///
-/// `in`: Samples retrieved from teh flowgraph
+/// `in`: Samples retrieved from the flowgraph
 ///
 /// # Usage
 /// ```
@@ -41,7 +40,7 @@ impl<T: Send + Clone + 'static> ChannelSink<T> {
             BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
-            ChannelSink::<T> { sender },
+            Self { sender },
         )
     }
 }
@@ -60,12 +59,11 @@ impl<T: Send + Clone + 'static> Kernel for ChannelSink<T> {
 
         if !i.is_empty() {
             match self.sender.try_send(i.into()) {
-                Ok(_) => {
-                    info!("sent data...");
-                }
                 Err(err) => {
-                    info!("{}", err.to_string());
+                    warn!("Channel Sink: {}", err.to_string());
+                    io.finished = true;
                 }
+                _ => {}
             }
             sio.input(0).consume(i.len());
         }
