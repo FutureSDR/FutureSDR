@@ -59,11 +59,16 @@ impl WasmDecoder {
                 info!("SYNC:");
                 info!("  CFO: {}", cfo);
                 info!("  Mode: {:?}", mode);
-                info!("  call sign: {}", String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)));
+                info!(
+                    "  call sign: {}",
+                    String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
+                );
                 return Some(
                     serde_json::to_string(&DecoderMessage::Sync {
                         cfo,
-                        call_sign: String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)).to_string(),
+                        call_sign: String::from_utf8_lossy(&call_sign)
+                            .trim_matches(char::from(0))
+                            .to_string(),
                     })
                     .unwrap(),
                 );
@@ -71,11 +76,16 @@ impl WasmDecoder {
             DecoderResult::Done => {
                 let flips = self.decoder.fetch(&mut payload);
                 info!("Bit flips: {}", flips);
-                info!("Message: {}", String::from_utf8_lossy(&payload).trim_matches(char::from(0)));
+                info!(
+                    "Message: {}",
+                    String::from_utf8_lossy(&payload).trim_matches(char::from(0))
+                );
                 return Some(
                     serde_json::to_string(&DecoderMessage::Done {
                         bit_flips: flips,
-                        message: String::from_utf8_lossy(&payload).trim_matches(char::from(0)).to_string(),
+                        message: String::from_utf8_lossy(&payload)
+                            .trim_matches(char::from(0))
+                            .to_string(),
                     })
                     .unwrap(),
                 );
@@ -89,11 +99,16 @@ impl WasmDecoder {
                 info!("NOPE:");
                 info!("  CFO: {}", cfo);
                 info!("  Mode: {:?}", mode);
-                info!("  call sign: {}", String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)));
+                info!(
+                    "  call sign: {}",
+                    String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
+                );
                 return Some(
                     serde_json::to_string(&DecoderMessage::Nope {
                         cfo,
-                        call_sign: String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)).to_string(),
+                        call_sign: String::from_utf8_lossy(&call_sign)
+                            .trim_matches(char::from(0))
+                            .to_string(),
                     })
                     .unwrap(),
                 );
@@ -103,11 +118,16 @@ impl WasmDecoder {
                 info!("PING:");
                 info!("  CFO: {}", cfo);
                 info!("  Mode: {:?}", mode);
-                info!("  call sign: {}", String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)));
+                info!(
+                    "  call sign: {}",
+                    String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
+                );
                 return Some(
                     serde_json::to_string(&DecoderMessage::Ping {
                         cfo,
-                        call_sign: String::from_utf8_lossy(&call_sign).trim_matches(char::from(0)).to_string(),
+                        call_sign: String::from_utf8_lossy(&call_sign)
+                            .trim_matches(char::from(0))
+                            .to_string(),
                     })
                     .unwrap(),
                 );

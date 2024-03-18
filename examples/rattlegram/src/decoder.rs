@@ -104,9 +104,8 @@ impl Kernel for DecoderBlock {
             }
         }
 
-        sio.input(0)
-            .consume(input.len() / (512) * (512));
-        
+        sio.input(0).consume(input.len() / (512) * (512));
+
         if sio.input(0).finished() {
             io.finished = true;
         }
