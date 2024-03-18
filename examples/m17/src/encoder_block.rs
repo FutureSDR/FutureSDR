@@ -63,10 +63,9 @@ impl Kernel for EncoderBlock {
         } else {
             if input.len() >= 16 {
                 let eot = sio.input(0).finished() && input.len() <= 31;
-                self.syms = self
-                    .encoder
+                self.encoder
                     .encode(&input[0..16].try_into().unwrap(), eot)
-                    .to_owned();
+                    .clone_into(&mut self.syms);
                 self.offset = 0;
                 sio.input(0).consume(16);
                 io.call_again = true;

@@ -49,10 +49,10 @@ impl WasmDecoder {
         let mut payload = [0u8; 170];
 
         match status {
-            DecoderResult::Okay => return None,
+            DecoderResult::Okay => None,
             DecoderResult::Fail => {
                 info!("preamble fail");
-                return Some(serde_json::to_string(&DecoderMessage::Fail).unwrap());
+                Some(serde_json::to_string(&DecoderMessage::Fail).unwrap())
             }
             DecoderResult::Sync => {
                 self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
@@ -63,7 +63,7 @@ impl WasmDecoder {
                     "  call sign: {}",
                     String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
                 );
-                return Some(
+                Some(
                     serde_json::to_string(&DecoderMessage::Sync {
                         cfo,
                         call_sign: String::from_utf8_lossy(&call_sign)
@@ -71,7 +71,7 @@ impl WasmDecoder {
                             .to_string(),
                     })
                     .unwrap(),
-                );
+                )
             }
             DecoderResult::Done => {
                 let flips = self.decoder.fetch(&mut payload);
@@ -80,7 +80,7 @@ impl WasmDecoder {
                     "Message: {}",
                     String::from_utf8_lossy(&payload).trim_matches(char::from(0))
                 );
-                return Some(
+                Some(
                     serde_json::to_string(&DecoderMessage::Done {
                         bit_flips: flips,
                         message: String::from_utf8_lossy(&payload)
@@ -88,11 +88,11 @@ impl WasmDecoder {
                             .to_string(),
                     })
                     .unwrap(),
-                );
+                )
             }
             DecoderResult::Heap => {
                 info!("HEAP ERROR");
-                return Some(serde_json::to_string(&DecoderMessage::HeapError).unwrap());
+                Some(serde_json::to_string(&DecoderMessage::HeapError).unwrap())
             }
             DecoderResult::Nope => {
                 self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
@@ -103,7 +103,7 @@ impl WasmDecoder {
                     "  call sign: {}",
                     String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
                 );
-                return Some(
+                Some(
                     serde_json::to_string(&DecoderMessage::Nope {
                         cfo,
                         call_sign: String::from_utf8_lossy(&call_sign)
@@ -111,7 +111,7 @@ impl WasmDecoder {
                             .to_string(),
                     })
                     .unwrap(),
-                );
+                )
             }
             DecoderResult::Ping => {
                 self.decoder.staged(&mut cfo, &mut mode, &mut call_sign);
@@ -122,7 +122,7 @@ impl WasmDecoder {
                     "  call sign: {}",
                     String::from_utf8_lossy(&call_sign).trim_matches(char::from(0))
                 );
-                return Some(
+                Some(
                     serde_json::to_string(&DecoderMessage::Ping {
                         cfo,
                         call_sign: String::from_utf8_lossy(&call_sign)
@@ -130,7 +130,7 @@ impl WasmDecoder {
                             .to_string(),
                     })
                     .unwrap(),
-                );
+                )
             }
             _ => {
                 panic!("wrong decoder result");
