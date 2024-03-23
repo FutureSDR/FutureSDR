@@ -532,7 +532,7 @@ impl Kernel for HackRf {
         self.set_sample_rate(8_000_000, 2).await.unwrap();
         self.set_hw_sync_mode(0).await.unwrap();
         self.set_freq(2_480_000_000).await.unwrap();
-        self.set_vga_gain(20).await.unwrap();
+        self.set_vga_gain(4).await.unwrap();
         self.set_lna_gain(24).await.unwrap();
         self.set_amp_enable(true).await.unwrap();
         self.set_transceiver_mode(TransceiverMode::Receive)
