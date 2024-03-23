@@ -1,7 +1,6 @@
 use futuresdr::log::info;
-use futuresdr::runtime::FlowgraphHandle;
-use futuresdr::runtime::Pmt;
 use gloo_worker::Spawnable;
+use gloo_worker::WorkerBridge;
 use leptos::html::Select;
 use leptos::*;
 use std::collections::VecDeque;
@@ -47,7 +46,7 @@ fn Gui() -> impl IntoView {
 }
 
 #[component]
-fn Channel(handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
+fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl IntoView {
     let _ = handle;
     let select_ref = create_node_ref::<Select>();
     let change = move |_| {
@@ -55,10 +54,10 @@ fn Channel(handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
         info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
         leptos::spawn_local(async move {
-            if let Some(mut h) = handle.get_untracked() {
-                let id = 0; // we know that the HackRF is block 0
-                let _ = h.call(id, "freq", Pmt::U64(freq)).await;
+            if let Some(h) = handle.get_untracked() {
+                h.send(WorkerMessage::Freq(freq));
             }
+
         });
     };
 
@@ -93,7 +92,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 async fn run_fg(
-    _set_handle: WriteSignal<Option<FlowgraphHandle>>,
+    set_handle: WriteSignal<Option<&WorkerBridge<Worker>>>,
     set_frames: WriteSignal<VecDeque<Frame>>,
 ) {
     let window = web_sys::window().expect("No global 'window' exists!");
@@ -141,4 +140,5 @@ async fn run_fg(
         .spawn("./wasm-worker.js");
     let bridge = Box::leak(Box::new(bridge));
     bridge.send(WorkerMessage::Start);
+    set_handle(Some(bridge));
 }

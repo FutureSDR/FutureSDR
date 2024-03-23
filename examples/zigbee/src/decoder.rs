@@ -131,7 +131,7 @@ impl Kernel for Decoder {
                                 let len = (i << 4) | *o;
                                 if len < 128 {
                                     self.state = State::Decode {
-                                        len: len as usize,
+                                        len: (len as usize).saturating_sub(2),
                                         data: Vec::new(),
                                         byte: None,
                                     };

@@ -475,11 +475,16 @@ impl Kernel for HackRf {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        // let window = web_sys::window().expect("No global 'window' exists!");
-        // let navigator: web_sys::Navigator = window.navigator();
-        let scope : WorkerGlobalScope = js_sys::global().dyn_into().expect("No global 'window' exists!");
-        let navigator = scope.navigator();
-        let usb = navigator.usb();
+        let usb = {
+            if let Some(window) = web_sys::window() {
+                let navigator: web_sys::Navigator = window.navigator();
+                navigator.usb()
+            } else {
+                let scope : WorkerGlobalScope = js_sys::global().dyn_into().expect("Neither window nor Worker context exists.");
+                let navigator = scope.navigator();
+                navigator.usb()
+            }
+        };
 
         let filter: serde_json::Value = serde_json::from_str(r#"{ "vendorId": 7504 }"#).unwrap();
         let s = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
