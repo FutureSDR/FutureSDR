@@ -1,24 +1,14 @@
-use futuresdr::anyhow::Result;
-use futuresdr::blocks::wasm::HackRf;
-use futuresdr::blocks::Apply;
-use futuresdr::blocks::MessagePipe;
-use futuresdr::blocks::NullSink;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::StreamExt;
 use futuresdr::log::info;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::FlowgraphHandle;
 use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
+use gloo_worker::Spawnable;
 use leptos::html::Select;
 use leptos::*;
 use std::collections::VecDeque;
 
-use crate::ClockRecoveryMm;
-use crate::Decoder;
-use crate::Mac;
+use crate::wasm_worker::Frame;
+use crate::wasm_worker::Worker;
+use crate::wasm_worker::WorkerMessage;
 
 pub fn wasm_main() {
     _ = console_log::init_with_level(futuresdr::log::Level::Debug);
@@ -97,102 +87,58 @@ fn Channel(handle: ReadSignal<Option<FlowgraphHandle>>) -> impl IntoView {
     }
 }
 
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
-struct Frame {
-    dst_addr: String,
-    dst_pan: String,
-    crc: String,
-    payload: String,
-}
-
-impl Frame {
-    fn new(data: Vec<u8>) -> Self {
-        let dst_pan = format!(
-            "{:#06x}",
-            u16::from_le_bytes(data[3..5].try_into().unwrap())
-        );
-        let dst_addr = format!(
-            "{:#06x}",
-            u16::from_le_bytes(data[5..7].try_into().unwrap())
-        );
-        let payload = format!("{:20}", String::from_utf8_lossy(&data[7..data.len() - 2]));
-        let crc = format!(
-            "{:#06x}",
-            u16::from_le_bytes(data[data.len() - 2..data.len()].try_into().unwrap())
-        );
-
-        Frame {
-            dst_addr,
-            dst_pan,
-            crc,
-            payload,
-        }
-    }
-}
+use serde::ser::SerializeTuple;
+use serde::ser::Serializer;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
 async fn run_fg(
-    set_handle: WriteSignal<Option<FlowgraphHandle>>,
+    _set_handle: WriteSignal<Option<FlowgraphHandle>>,
     set_frames: WriteSignal<VecDeque<Frame>>,
 ) {
-    let r = run_fg_inner(set_handle, set_frames).await;
-    info!("run_fg returned {:?}", r);
-}
+    let window = web_sys::window().expect("No global 'window' exists!");
+    let navigator: web_sys::Navigator = window.navigator();
+    let usb = navigator.usb();
 
-async fn run_fg_inner(
-    set_handle: WriteSignal<Option<FlowgraphHandle>>,
-    set_frames: WriteSignal<VecDeque<Frame>>,
-) -> Result<()> {
-    let mut fg = Flowgraph::new();
+    let filter: serde_json::Value = serde_json::from_str(r#"{ "vendorId": 7504 }"#).unwrap();
+    let s = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    let mut tup = s.serialize_tuple(1).unwrap();
+    tup.serialize_element(&filter).unwrap();
+    let filter = tup.end().unwrap();
+    let filter = web_sys::UsbDeviceRequestOptions::new(filter.as_ref());
 
-    let src = HackRf::new();
+    let devices: js_sys::Array = JsFuture::from(usb.get_devices()).await.unwrap().into();
 
-    let mut last: Complex32 = Complex32::new(0.0, 0.0);
-    let mut iir: f32 = 0.0;
-    let alpha = 0.00016;
-    let avg = Apply::new(move |i: &Complex32| -> f32 {
-        let phase = (last.conj() * i).arg();
-        last = *i;
-        iir = (1.0 - alpha) * iir + alpha * phase;
-        phase - iir
-    });
-
-    let omega = 2.0;
-    let gain_omega = 0.000225;
-    let mu = 0.5;
-    let gain_mu = 0.03;
-    let omega_relative_limit = 0.0002;
-    let mm = ClockRecoveryMm::new(omega, gain_omega, mu, gain_mu, omega_relative_limit);
-
-    let decoder = Decoder::new(6);
-    let mac = Mac::new();
-    let snk = NullSink::<u8>::new();
-
-    let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
-    let message_pipe = MessagePipe::new(tx_frame);
-
-    connect!(fg, src > avg > mm > decoder;
-                 mac > snk;
-                 decoder | mac.rx;
-                 mac.rxed | message_pipe);
-
-    let rt = Runtime::new();
-    let (_task, handle) = rt.start(fg).await;
-    set_handle.set(Some(handle));
-
-    while let Some(x) = rx_frame.next().await {
-        match x {
-            Pmt::Blob(data) => {
-                set_frames.update(|f| {
-                    f.push_front(Frame::new(data));
-                    if f.len() > 20 {
-                        f.pop_back();
-                    }
-                });
-            }
-            _ => break,
-        }
+    for i in 0..devices.length() {
+        let d: web_sys::UsbDevice = devices.get(0).dyn_into().unwrap();
+        println!("dev {}   {:?}", i, &d);
     }
 
-    Ok(())
+    // Open radio if one is already paired and plugged
+    // Otherwise ask the user to pair a new radio
+    let _device: web_sys::UsbDevice = if devices.length() > 0 {
+        info!("device already connected");
+        devices.get(0).dyn_into().unwrap()
+    } else {
+        info!("requesting device: {:?}", &filter);
+        JsFuture::from(usb.request_device(&filter))
+            .await
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    };
+
+    let bridge = Worker::spawner()
+        .callback(move |frame| {
+            info!("{:?}", &frame);
+            set_frames.update(|f| {
+                f.push_front(frame);
+                if f.len() > 20 {
+                    f.pop_back();
+                }
+            });
+        })
+        .spawn("./wasm-worker.js");
+    let bridge = Box::leak(Box::new(bridge));
+    bridge.send(WorkerMessage::Start);
 }

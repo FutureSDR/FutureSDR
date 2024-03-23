@@ -2,6 +2,7 @@ use serde::ser::SerializeTuple;
 use serde::ser::Serializer;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::WorkerGlobalScope;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
@@ -474,8 +475,10 @@ impl Kernel for HackRf {
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let window = web_sys::window().expect("No global 'window' exists!");
-        let navigator: web_sys::Navigator = window.navigator();
+        // let window = web_sys::window().expect("No global 'window' exists!");
+        // let navigator: web_sys::Navigator = window.navigator();
+        let scope : WorkerGlobalScope = js_sys::global().dyn_into().expect("No global 'window' exists!");
+        let navigator = scope.navigator();
         let usb = navigator.usb();
 
         let filter: serde_json::Value = serde_json::from_str(r#"{ "vendorId": 7504 }"#).unwrap();

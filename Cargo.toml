@@ -147,19 +147,21 @@ features = [
   'Document',
   'Element',
   'HtmlElement',
-  'Node',
-  'Window',
   'Navigator',
+  'Node',
   'Usb',
-  'UsbDeviceRequestOptions',
-  'UsbDevice',
-  'UsbDeviceFilter',
-  'UsbInTransferResult',
   'UsbConfiguration',
   'UsbControlTransferParameters',
+  'UsbDevice',
+  'UsbDeviceFilter',
+  'UsbDeviceRequestOptions',
+  'UsbInTransferResult',
   'UsbOutTransferResult',
   'UsbRecipient',
-  'UsbRequestType'
+  'UsbRequestType',
+  'Window',
+  'WorkerGlobalScope',
+  'WorkerNavigator',
 ]
 
 [build-dependencies]
