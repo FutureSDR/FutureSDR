@@ -1,6 +1,6 @@
 .PHONY: build
 
 build:
-	RUSTFLAGS='-C target-cpu=generic' wasm-pack build --target web --out-name wasm --out-dir ./dist --dev
+	wasm-pack build --target web --out-name wasm --out-dir ./dist --dev
 	./gulp default serve
 
