@@ -1,3 +1,4 @@
 [build]
 target = "index-web.html"
 dist = "dist"
+# public_url = "/spectrum/"
