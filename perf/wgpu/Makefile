@@ -22,11 +22,5 @@ perf-data/fs%.csv:
 	@echo SAMPLES=$(SAMPLES)
 	@echo BUFFER_SIZE=$(BUFFER_SIZE)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --scheduler=smol1 --samples=$(SAMPLES) --buffer_size=$(BUFFER_SIZE) | grep -v cset > $@
-
-.PHONY: build
-
-build:
-	RUSTFLAGS='--cfg=web_sys_unstable_apis' wasm-pack build --target web --out-name wasm --out-dir ./dist --release #--dev
-	./gulp default serve
+	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --scheduler=smol1 --samples=$(SAMPLES) --buffer-size=$(BUFFER_SIZE) | grep -v cset > $@
 
