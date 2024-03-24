@@ -57,7 +57,6 @@ fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl In
             if let Some(h) = handle.get_untracked() {
                 h.send(WorkerMessage::Freq(freq));
             }
-
         });
     };
 

@@ -480,7 +480,9 @@ impl Kernel for HackRf {
                 let navigator: web_sys::Navigator = window.navigator();
                 navigator.usb()
             } else {
-                let scope : WorkerGlobalScope = js_sys::global().dyn_into().expect("Neither window nor Worker context exists.");
+                let scope: WorkerGlobalScope = js_sys::global()
+                    .dyn_into()
+                    .expect("Neither window nor Worker context exists.");
                 let navigator = scope.navigator();
                 navigator.usb()
             }
