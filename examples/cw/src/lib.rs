@@ -2,15 +2,11 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
-#[cfg(not(target_arch = "wasm32"))]
-use futuresdr::blocks::ConsoleSink;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::fmt;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 #[derive(Copy, Clone)]
 pub enum CWAlphabet {
@@ -84,7 +80,7 @@ fn morse(i: &char) -> Vec<CWAlphabet> {
 }
 
 const SAMPLE_RATE: usize = 48_000;
-const SIDETONE_FREQ: f32 = 440.0; // Usually between 400Hz and 750Hz
+const SIDETONE_FREQ: f32 = 700.0; // Usually between 400Hz and 750Hz
 const DOT_LENGTH: usize = SAMPLE_RATE / 20;
 
 impl IntoIterator for CWAlphabet {
@@ -112,19 +108,7 @@ impl IntoIterator for CWAlphabet {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub async fn run_fg(msg: String) {
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    run_fg_impl(msg).await.unwrap();
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn run_fg(msg: String) -> Result<()> {
-    run_fg_impl(msg).await
-}
-
-pub async fn run_fg_impl(msg: String) -> Result<()> {
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
     let mut fg = Flowgraph::new();
@@ -134,7 +118,7 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     let switch_command = fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c));
     let sidetone_src = fg.add_block(
         SignalSourceBuilder::<f32>::sin(SIDETONE_FREQ, SAMPLE_RATE as f32)
-            .amplitude(0.2)
+            .amplitude(0.5)
             .build(),
     );
     let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
@@ -144,12 +128,6 @@ pub async fn run_fg_impl(msg: String) -> Result<()> {
     fg.connect_stream(switch_command, "out", switch_sidetone, "in0")?;
     fg.connect_stream(sidetone_src, "out", switch_sidetone, "in1")?;
     fg.connect_stream(switch_sidetone, "out", audio_snk, "in")?;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let console = fg.add_block(ConsoleSink::<CWAlphabet>::new(""));
-        fg.connect_stream(morse, "out", console, "in")?;
-    }
 
     Runtime::new().run_async(fg).await?;
     Ok(())
