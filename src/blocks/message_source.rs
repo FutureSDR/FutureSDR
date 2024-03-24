@@ -1,6 +1,6 @@
 use async_io::Timer;
 use std::time::Duration;
-use std::time::Instant;
+use web_time::Instant;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
