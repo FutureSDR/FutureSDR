@@ -47,7 +47,7 @@ pub async fn run(run: u64, scheduler: String, samples: u64, buffer_size: u64) ->
         }
     }
 
-    let start = instant::Instant::now();
+    let start = web_time::Instant::now();
     let fg = runtime.run_async(fg).await?;
     let elapsed = start.elapsed();
 

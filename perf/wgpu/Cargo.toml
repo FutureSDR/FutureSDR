@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 futuresdr = { path = "../..", features = ["wgpu"] }
 log = { version = "0.4", features = ["release_max_level_off"] }
 rand = "0.8"
-instant = { version = "0.1", features = [ "wasm-bindgen" ] }
+web-time = { version = "1.1" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
