@@ -1,3 +1,5 @@
+use web_time::Instant;
+
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -8,7 +10,6 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use std::time::Instant;
 
 /// Limit sample rate.
 ///
