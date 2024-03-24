@@ -8,10 +8,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "listen-cw"
-path = "src/bin/listen_cw.rs"
-
 [dependencies]
 futuresdr = { path = "../..", features = ["audio"] }
 
