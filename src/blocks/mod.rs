@@ -30,7 +30,7 @@
 //! | [NullSource] | Generates a stream of zeros. | ✅ |
 //! | [Selector] | Forward the input stream with a given index to the output stream with a given index. | ✅ |
 //! | [TagDebug] | Drop samples, printing tags. | ✅ |
-//! | [Throttle] | Limit sample rate. | ❌ |
+//! | [Throttle] | Limit sample rate. | ✅ |
 //! | [VectorSink] | Store received samples in vector. | ✅ |
 //! | [VectorSource] | Stream samples from vector. | ✅ |
 //!
@@ -224,9 +224,7 @@ mod tcp_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub use tcp_source::TcpSource;
 
-#[cfg(not(target_arch = "wasm32"))]
 mod throttle;
-#[cfg(not(target_arch = "wasm32"))]
 pub use throttle::Throttle;
 
 #[cfg(not(target_arch = "wasm32"))]

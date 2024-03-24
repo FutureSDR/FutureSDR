@@ -34,12 +34,22 @@ pub struct WorkIo {
     /// Block on future
     ///
     /// The block will be called (1) if somehting happens or (2) if the future resolves
+    #[cfg(not(target_arch = "wasm32"))]
     pub block_on: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    /// The block will be called (1) if somehting happens or (2) if the future resolves
+    #[cfg(target_arch = "wasm32")]
+    pub block_on: Option<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
 impl WorkIo {
     /// Helper to set the future of the Work IO
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn block_on<F: Future<Output = ()> + Send + 'static>(&mut self, f: F) {
+        self.block_on = Some(Box::pin(f));
+    }
+    /// Helper to set the future of the Work IO
+    #[cfg(target_arch = "wasm32")]
+    pub fn block_on<F: Future<Output = ()> + 'static>(&mut self, f: F) {
         self.block_on = Some(Box::pin(f));
     }
 }

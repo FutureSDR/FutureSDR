@@ -8,8 +8,6 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use async_io::Timer;
-use std::time::Duration;
 use std::time::Instant;
 
 /// Limit sample rate.
@@ -95,7 +93,10 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
         }
 
         io.block_on(async {
-            Timer::after(Duration::from_millis(100)).await;
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            #[cfg(not(target_arch = "wasm32"))]
+            async_io::Timer::after(std::time::Duration::from_millis(100)).await;
         });
 
         Ok(())
