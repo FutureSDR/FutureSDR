@@ -29,7 +29,7 @@ pub enum WorkerMessage {
 enum Handle {
     None,
     Receiver(Receiver<FlowgraphHandle>),
-    Handle(FlowgraphHandle),
+    Flowgraph(FlowgraphHandle),
 }
 
 pub struct Worker {
@@ -123,13 +123,13 @@ impl gloo_worker::Worker for Worker {
                 Handle::None => {}
                 Handle::Receiver(ref mut r) => {
                     if let Ok(Some(mut h)) = r.try_next() {
-                        self.handle = Handle::Handle(h.clone());
+                        self.handle = Handle::Flowgraph(h.clone());
                         leptos::spawn_local(async move {
                             h.call(0, "freq", Pmt::U64(f)).await.unwrap();
                         });
                     }
                 }
-                Handle::Handle(h) => {
+                Handle::Flowgraph(h) => {
                     let mut h = h.clone();
                     leptos::spawn_local(async move {
                         h.call(0, "freq", Pmt::U64(f)).await.unwrap();
