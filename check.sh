@@ -1,5 +1,12 @@
 #!/bin/bash
 
+###########################################################
+# Install dependencies
+# sudo apt install libssl-dev libasound2-dev libsoapysdr-dev liblttng-ust-dev clang cmake protobuf-compiler pkg-config
+# #rustup install nightly
+# #rustup default nightly  # check.sh requires nightly rust for compiling some examples
+# rustup target add wasm32-unknown-unknown
+###########################################################
 set -xe
 
 SCRIPT=$(readlink -f $0)
@@ -49,6 +56,7 @@ cd ${SCRIPTPATH}/examples/m17 && cargo fmt --check
 cd ${SCRIPTPATH}/examples/macros && cargo fmt --check
 cd ${SCRIPTPATH}/examples/rattlegram && cargo fmt --check
 cd ${SCRIPTPATH}/examples/spectrum && cargo fmt --check
+cd ${SCRIPTPATH}/examples/telemetry && cargo fmt --check
 cd ${SCRIPTPATH}/examples/ssb && cargo fmt --check
 cd ${SCRIPTPATH}/examples/wasm && cargo fmt --check
 cd ${SCRIPTPATH}/examples/wgpu && cargo fmt --check
@@ -106,6 +114,7 @@ cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warning
 cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/telemetry && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
@@ -157,6 +166,7 @@ cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/file-trx && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/telemetry && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/ssb && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wasm && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wgpu && cargo test --all-targets

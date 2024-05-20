@@ -20,6 +20,8 @@ pub struct MessageSource {
     interval: Duration,
     t_last: Instant,
     n_messages: Option<usize>,
+    #[cfg(feature = "telemetry")]
+    telemetry_resource: crate::telemetry::TelemetryResource,
 }
 
 impl MessageSource {
@@ -34,6 +36,13 @@ impl MessageSource {
                 interval,
                 t_last: Instant::now(),
                 n_messages,
+                #[cfg(feature = "telemetry")]
+                telemetry_resource: {
+                    crate::telemetry::TelemetryResource::new(
+                        "MessageSourceTelemetry".to_string(),
+                        env!("CARGO_PKG_VERSION").to_lowercase(),
+                    )
+                },
             },
         )
     }
@@ -53,12 +62,56 @@ impl Kernel for MessageSource {
         mio: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
+        // Feature Gating might be difficult for traces, which might open up a big context block
+        #[cfg(feature = "telemetry")]
+        if _b.telemetry_config().active_traces().contains("test_trace") {
+            let tracer = self.telemetry_resource.get_tracer();
+            use crate::telemetry::opentelemetry::{
+                trace::TraceContextExt, trace::Tracer, Key, KeyValue,
+            };
+
+            tracer.in_span("Main operation", |cx| {
+                let span = cx.span();
+                span.add_event(
+                    "Nice operation!".to_string(),
+                    vec![Key::new("bogons").i64(100)],
+                );
+                span.set_attribute(KeyValue::new("another.key", "yes"));
+
+                info!(target: "telemetry-test", "log message inside a span");
+
+                tracer.in_span("Sub operation...", |cx| {
+                    let span = cx.span();
+                    span.set_attribute(KeyValue::new("another.key", "yes"));
+                    span.add_event("Sub span event", vec![]);
+                });
+            });
+        }
+
         let now = Instant::now();
+
+        info!(target: "telemetry-test", "This should be collected by the opentelemetry-collector");
 
         if now >= self.t_last + self.interval {
             mio.post(0, self.message.clone()).await;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
+                #[cfg(feature = "telemetry")]
+                if _b
+                    .telemetry_config()
+                    .active_metrics()
+                    .contains("message_count")
+                {
+                    use crate::telemetry::opentelemetry::{metrics::Unit, KeyValue};
+                    let meter = self.telemetry_resource.get_meter();
+                    let counter = meter
+                        .u64_counter("n_messages")
+                        .with_description("Number of Messages processed by Block")
+                        .with_unit(Unit::new("count"))
+                        .init();
+                    counter.add(1, &[KeyValue::new("test_key", "test_value")]);
+                }
+
                 *n -= 1;
                 if *n == 0 {
                     io.finished = true;

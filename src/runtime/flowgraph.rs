@@ -197,6 +197,25 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
+    #[cfg(feature = "telemetry")]
+    /// Configure a blocks [`Telemetry`] settings
+    pub async fn configure_telemetry(
+        &mut self,
+        block_id: usize,
+        telemetry_config: crate::telemetry::TelemetryConfig,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel::<result::Result<(), Error>>();
+        self.inbox
+            .send(FlowgraphMessage::Telemetry {
+                block_id,
+                telemetry_config,
+                tx,
+            })
+            .await?;
+        let d = rx.await??;
+        Ok(d)
+    }
+
     /// Send a terminate message to the [`Flowgraph`]
     ///
     /// Does not wait until the [`Flowgraph`] is actually terminated.

@@ -66,3 +66,6 @@ pub use num_complex;
 pub use num_integer;
 #[cfg(feature = "seify")]
 pub use seify;
+
+#[cfg(feature = "telemetry")]
+pub use telemetry;

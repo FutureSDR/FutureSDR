@@ -24,6 +24,8 @@ use crate::runtime::scheduler::SmolScheduler;
 use crate::runtime::scheduler::Task;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
+//#[cfg(feature = "telemetry")]
+//use crate::runtime::Telemetry;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
@@ -551,6 +553,33 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                         } else {
                             let _ = tx.send(Err(Error::RuntimeError));
                         }
+                    } else {
+                        let _ = tx.send(Err(Error::BlockTerminated));
+                    }
+                } else {
+                    let _ = tx.send(Err(Error::InvalidBlock));
+                }
+            }
+            #[cfg(feature = "telemetry")]
+            FlowgraphMessage::Telemetry {
+                block_id,
+                telemetry_config,
+                tx,
+            } => {
+                if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
+                    // let _ = b.send(BlockMessage::Telemetry { enabled: enabled}).await;
+                    //let (b_tx, rx) = oneshot::channel::<BlockTelemetryConfig>();
+                    if b.send(BlockMessage::Telemetry {
+                        telemetry_config: telemetry_config,
+                    })
+                    .await
+                    .is_ok()
+                    {
+                        /* if let Ok(b) = rx.await {
+                            let _ = tx.send(Ok(b));
+                        } else {
+                            let _ = tx.send(Err(Error::RuntimeError));
+                        } */
                     } else {
                         let _ = tx.send(Err(Error::BlockTerminated));
                     }

@@ -2,6 +2,8 @@
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use std::result;
+#[cfg(feature = "telemetry")]
+use telemetry::TelemetryConfig;
 use thiserror::Error;
 
 mod block;
@@ -76,6 +78,9 @@ use buffer::BufferWriter;
 ///
 pub fn init() {
     logging::init();
+
+    //#[cfg(feature = "telemetry")]
+    //telemetry::init_globals();
 }
 
 /// Flowgraph inbox message type
@@ -132,6 +137,16 @@ pub enum FlowgraphMessage {
         block_id: usize,
         /// Back channel for result
         tx: oneshot::Sender<result::Result<BlockDescription, Error>>,
+    },
+    #[cfg(feature = "telemetry")]
+    /// Enable or Disable BlockTelemetry
+    Telemetry {
+        /// Block Id
+        block_id: usize,
+        /// Activate or Deactivate telemetry
+        telemetry_config: TelemetryConfig,
+        /// Back channel for result
+        tx: oneshot::Sender<result::Result<(), Error>>,
     },
 }
 
@@ -197,6 +212,12 @@ pub enum BlockMessage {
         data: Pmt,
         /// Back channel for handler result
         tx: oneshot::Sender<result::Result<Pmt, Error>>,
+    },
+    #[cfg(feature = "telemetry")]
+    /// Configure Block Telemetry
+    Telemetry {
+        /// Enable or disable telemetry
+        telemetry_config: TelemetryConfig,
     },
 }
 

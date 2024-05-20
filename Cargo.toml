@@ -17,6 +17,7 @@ members = [
     ".",
     "crates/futuredsp",
     "crates/macros",
+    "crates/telemetry",
     "crates/types",
 ]
 
@@ -35,6 +36,7 @@ vulkan = ["dep:vulkano", "dep:vulkano-shaders"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
 zynq = ["dep:xilinx-dma"]
+telemetry = ["dep:telemetry", "tokio/macros", "tokio/rt-multi-thread"]
 
 [[bench]]
 name = "flowgraph"
@@ -55,6 +57,11 @@ required-features = ["vulkan"]
 [[example]]
 name = "zynq"
 required-features = ["zynq"]
+
+[[example]]
+name = "telemetry"
+path="examples/telemetry/src/main.rs"
+required-features = ["telemetry"]
 
 [[test]]
 name = "flow"
@@ -83,6 +90,7 @@ futures-lite = "2.2"
 futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
 futuresdr-macros = { path = "crates/macros", version = "0.0.6" }
 futuresdr-types = { path = "crates/types", version = "0.0.11" }
+telemetry = { path = "crates/telemetry", version = "0.0.1", optional = true}
 log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4"
 num-integer = "0.1"
