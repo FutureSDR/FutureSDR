@@ -15,7 +15,7 @@ pub struct BlockMeta {
 impl BlockMeta {
     fn new(type_name: String, blocking: bool) -> BlockMeta {
         BlockMeta {
-            type_name: type_name.clone(),
+            type_name,
             instance_name: None,
             blocking,
             #[cfg(feature = "telemetry")]

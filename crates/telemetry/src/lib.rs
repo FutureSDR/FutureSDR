@@ -115,45 +115,49 @@ static RESOURCE: Lazy<Resource> = Lazy::new(|| {
     )])
 });
 
-pub fn init_logs() -> Result<sdklogs::LoggerProvider, opentelemetry::logs::LogError> {
+pub fn init_logs(
+    logs_endpoint: String,
+) -> Result<sdklogs::LoggerProvider, opentelemetry::logs::LogError> {
     opentelemetry_otlp::new_pipeline()
         .logging()
         .with_log_config(Config::default().with_resource(RESOURCE.clone()))
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .http()
-                .with_endpoint("http://localhost:4318/v1/logs"),
+                .with_endpoint(logs_endpoint), //"http://localhost:4318/v1/logs"
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_tracer() -> Result<sdktrace::Tracer, TraceError> {
+pub fn init_tracer(tracer_endpoint: String) -> Result<sdktrace::Tracer, TraceError> {
     opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_trace_config(sdktrace::config().with_resource(RESOURCE.clone()))
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .http()
-                .with_endpoint("http://localhost:4318/v1/traces"),
+                .with_endpoint(tracer_endpoint), //"http://localhost:4318/v1/traces"
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_metrics() -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
+pub fn init_metrics(
+    metrics_endpoint: String,
+) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
     opentelemetry_otlp::new_pipeline()
         .metrics(opentelemetry_sdk::runtime::Tokio)
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 .http()
-                .with_endpoint("http://localhost:4318/v1/metrics"),
+                .with_endpoint(metrics_endpoint), //"http://localhost:4318/v1/metrics"
         )
         .with_resource(RESOURCE.clone())
         .build()
 }
 
-pub fn init_globals() {
+pub fn init_globals(metrics_endpoint: String, tracer_endpoint: String) {
     info!("Initializing Telemetry");
-    let result = init_tracer();
+    let result = init_tracer(tracer_endpoint);
     assert!(
         result.is_ok(),
         "Init tracer failed with error: {:?}",
@@ -165,7 +169,7 @@ pub fn init_globals() {
         global::set_tracer_provider(provider);
     }
 
-    let result = init_metrics();
+    let result = init_metrics(metrics_endpoint);
     assert!(
         result.is_ok(),
         "Init metrics failed with error: {:?}",
