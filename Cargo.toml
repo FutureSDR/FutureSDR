@@ -22,7 +22,7 @@ members = [
 ]
 
 [features]
-default = []
+default = ["telemetry"]
 aaronia = ["seify/aaronia"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]

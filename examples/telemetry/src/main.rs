@@ -7,39 +7,25 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
-use futuresdr::log::{self, info, Level};
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 
-use futuresdr::telemetry::{
-    opentelemetry::global, opentelemetry_appender_log::OpenTelemetryLogBridge, TelemetryConfig,
-};
+use futuresdr::telemetry::TelemetryConfig;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let result = futuresdr::telemetry::init_metrics();
-
-    assert!(
-        result.is_ok(),
-        "Init metrics failed with error: {:?}",
-        result.err()
+    let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals(
+        "http://localhost:4317".to_string(),
+        "http://localhost:4317".to_string(),
+        "http://localhost:4317".to_string(),
     );
 
-    // handle must be present for now, to allow telemetry collection. Global handle somehow does not work yet
-    let meter_provider = result.unwrap();
+    //    "http://localhost:4318/v1/metrics".to_string(),
+    //    "http://localhost:4318/v1/traces".to_string(),
+    //    "http://localhost:4318/v1/logs".to_string(),
 
-    // Opentelemetry will not provide a global API to manage the logger
-    // provider. Application users must manage the lifecycle of the logger
-    // provider on their own. Dropping logger providers will disable log
-    // emitting.
-    let logger_provider = futuresdr::telemetry::init_logs().unwrap();
-
-    // Create a new OpenTelemetryLogBridge using the above LoggerProvider.
-    let otel_log_appender = OpenTelemetryLogBridge::new(&logger_provider);
-    log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
-    log::set_max_level(Level::Info.to_level_filter());
-
+    // Configure Flowgraph
     let mut fg = Flowgraph::new();
 
     let msg_source = MessageSourceBuilder::new(
@@ -62,8 +48,6 @@ async fn main() -> Result<()> {
     let rt = Runtime::new();
     let (th, mut fgh) = rt.start_sync(fg);
 
-    info!(target: "first telemetry-test", "This should be collected by the opentelemetry-collector");
-
     // Enable Telemetry after one second of waiting
     // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     let telemetry_config = TelemetryConfig::new(
@@ -80,7 +64,8 @@ async fn main() -> Result<()> {
     let elapsed = now.elapsed();
     println!("flowgraph took {elapsed:?}");
 
-    global::shutdown_tracer_provider();
+    //global::shutdown_tracer_provider();
+    tracer_provider.force_flush();
     logger_provider.shutdown()?;
     // Metrics are exported by default every 30 seconds when using stdout exporter,
     // however shutting down the MeterProvider here instantly flushes

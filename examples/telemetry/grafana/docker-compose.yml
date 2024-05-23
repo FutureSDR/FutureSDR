@@ -1,0 +1,87 @@
+volumes:
+  grafana:
+  postgres:
+services:
+  # Grafana Alloy batches and processes traces sent to it, generating
+  # auto-logs from those traces.
+  # Includes Metrics, Logs, Traces and Profiles.
+  alloy:
+    image: grafana/alloy:latest #v1.1.0
+    container_name: alloy
+    ports:
+      # - "4317:4317"
+      - "12345:12345"
+      - "12348:12348"
+      - "6832:6832"
+      - "55679:55679"
+    volumes:
+      - "./alloy/config.alloy:/etc/alloy/config.alloy"
+      - "./alloy/endpoints.json:/etc/alloy/endpoints.json"
+    command:
+      [
+        "run",
+        "--server.http.listen-addr=0.0.0.0:12345",
+        "--stability.level=public-preview",
+        "/etc/alloy/config.alloy"
+      ]
+
+  # The Grafana dashboarding server.
+  grafana:
+    image: grafana/grafana:latest #11.0.0
+    container_name: grafana
+    volumes:
+      - "./grafana/definitions:/var/lib/grafana/dashboards"
+      - "./grafana/provisioning:/etc/grafana/provisioning"
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_FEATURE_TOGGLES_ENABLE=flameGraph traceqlSearch traceQLStreaming correlations metricsSummary traceqlEditor traceToMetrics traceToProfiles datatrails
+      - GF_INSTALL_PLUGINS=https://storage.googleapis.com/integration-artifacts/grafana-lokiexplore-app/grafana-lokiexplore-app-latest.zip;grafana-lokiexplore-app
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+
+  # The Tempo service stores traces send to it by Grafana Alloy, and takes
+  # queries from Grafana to visualise those traces.
+  tempo:
+    image: grafana/tempo:latest #2.4.1
+    container_name: tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+      - "9411:9411"
+      - "55680:55680"
+      - "55681:55681"
+      - "14250:14250"
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - "./tempo/tempo.yaml:/etc/tempo.yaml"
+
+  # The Loki service stores logs sent to it, and takes queries from Grafana
+  # to visualise those logs.
+  loki:
+    image: grafana/loki:latest #3.0.0
+    container_name: loki
+    command:
+      [
+        "--pattern-ingester.enabled=true",
+        "-config.file=/etc/loki/loki.yaml"
+      ]
+    ports:
+      - "3100:3100"
+    volumes:
+      - "./loki/loki.yaml:/etc/loki/loki.yaml"
+
+  mimir:
+    image: grafana/mimir:latest #2.12.0
+    container_name: mimir
+    command:
+      [
+        "-ingester.native-histograms-ingestion-enabled=true",
+        "-config.file=/etc/mimir.yaml"
+      ]
+    ports:
+      - "9009:9009"
+    volumes:
+      - "./mimir/mimir.yaml:/etc/mimir.yaml"
