@@ -21,6 +21,7 @@ async fn main() -> Result<()> {
         "http://localhost:4317".to_string(),
     );
 
+    // For HTTP instead of gRPC use the following endpoints
     //    "http://localhost:4318/v1/metrics".to_string(),
     //    "http://localhost:4318/v1/traces".to_string(),
     //    "http://localhost:4318/v1/logs".to_string(),
@@ -48,12 +49,11 @@ async fn main() -> Result<()> {
     let rt = Runtime::new();
     let (th, mut fgh) = rt.start_sync(fg);
 
-    // Enable Telemetry after one second of waiting
-    // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     let telemetry_config = TelemetryConfig::new(
         HashSet::from(["message_count".to_string()]),
         HashSet::from(["test_trace".to_string()]),
     );
+
     // Send telemetry config to MessageSource Block. Config is activated immediately.
     let _ = fgh
         .configure_telemetry(msg_source_block_id, telemetry_config)

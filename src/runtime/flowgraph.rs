@@ -212,8 +212,8 @@ impl FlowgraphHandle {
                 tx,
             })
             .await?;
-        let d = rx.await??;
-        Ok(d)
+        rx.await??;
+        Ok(())
     }
 
     /// Send a terminate message to the [`Flowgraph`]

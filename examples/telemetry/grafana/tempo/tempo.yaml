@@ -12,17 +12,10 @@ server:
 # The distributor receives incoming trace span data for the system.
 distributor:
   receivers:             # This configuration will listen on all ports and protocols that tempo is capable of.
-    jaeger:              # The receivers all come from the OpenTelemetry collector.  More configuration information can
-      protocols:         # be found there: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
-        thrift_http:     #
-        grpc:            # For a production deployment you should only enable the receivers you need!
-        thrift_binary:   #
-        thrift_compact:
     otlp:
       protocols:
         http:
         grpc:            # This example repository only utilises the OTLP gRPC receiver on port 4317.
-    zipkin:              # Receive trace data in any supported Zipkin format.
 
 # The ingester receives data from the distributor and processes it into indices and blocks.
 ingester:
@@ -81,7 +74,6 @@ metrics_generator:
     # Configure extra labels to be added to metrics.
     external_labels:
       source: tempo                         # Add a `{source="tempo"}` label.
-      group: 'mythical'                     # Add a `{group="mythical"}` label.
   # Configures where the store for metrics is located.
   storage:
     # WAL for metrics generation.

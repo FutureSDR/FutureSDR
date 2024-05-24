@@ -67,9 +67,7 @@ impl Kernel for MessageSource {
         if _b.telemetry_config().active_traces().contains("test_trace") {
             let tracer = self.telemetry_resource.get_tracer();
             use crate::telemetry::opentelemetry::{
-                trace::TraceContextExt,
-                trace::Tracer,
-                Key, // KeyValue,
+                trace::TraceContextExt, trace::Tracer, Key, KeyValue,
             };
 
             tracer.in_span("Main operation", |cx| {
@@ -78,7 +76,7 @@ impl Kernel for MessageSource {
                     "Nice operation!".to_string(),
                     vec![Key::new("bogons").i64(100)],
                 );
-                /* span.set_attribute(KeyValue::new("another.key", "yes"));
+                span.set_attribute(KeyValue::new("another.key", "yes"));
 
                 info!(target: "telemetry-test", "log message inside a span");
 
@@ -86,7 +84,7 @@ impl Kernel for MessageSource {
                     let span = cx.span();
                     span.set_attribute(KeyValue::new("another.key", "yes"));
                     span.add_event("Sub span event", vec![]);
-                }); */
+                });
             });
         }
 

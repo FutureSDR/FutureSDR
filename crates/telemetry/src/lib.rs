@@ -1,7 +1,7 @@
-use log::{info, Level};
+//use log::{info, Level};
 use once_cell::sync::Lazy;
 pub use opentelemetry;
-pub use opentelemetry_appender_log;
+//pub use opentelemetry_appender_log;
 pub use opentelemetry_otlp;
 pub use opentelemetry_sdk;
 
@@ -12,13 +12,16 @@ use opentelemetry::{
     KeyValue,
 };
 
-use opentelemetry_appender_log::OpenTelemetryLogBridge;
+// use opentelemetry_appender_log::OpenTelemetryLogBridge;
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace as sdktrace;
-use opentelemetry_sdk::{
-    logs::{self as sdklogs, Config},
-    Resource,
-};
+use opentelemetry_sdk::{logs as sdklogs, Resource};
+
+use tracing::info;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
+
 use std::collections::HashSet;
 
 pub struct TelemetryResource {
@@ -114,7 +117,7 @@ pub fn init_logs(
 ) -> Result<sdklogs::LoggerProvider, opentelemetry::logs::LogError> {
     opentelemetry_otlp::new_pipeline()
         .logging()
-        .with_log_config(Config::default().with_resource(RESOURCE.clone()))
+        .with_resource(RESOURCE.clone())
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 //.http() // HTTP
@@ -161,7 +164,7 @@ pub fn init_globals(
     opentelemetry_sdk::trace::TracerProvider,
     opentelemetry_sdk::logs::LoggerProvider,
 ) {
-    info!("Initializing Telemetry");
+    // info!("Initializing Telemetry");
 
     // Setup Meter
     let result = init_metrics(metrics_endpoint);
@@ -187,6 +190,7 @@ pub fn init_globals(
         "Getting tracer failed with error: {:?}",
         result.is_none()
     );
+
     let tracer_provider = result.unwrap();
     info!("Setting global tracer provider!");
     global::set_tracer_provider(tracer_provider.clone());
@@ -203,10 +207,31 @@ pub fn init_globals(
         result.err()
     );
     let logger_provider = result.unwrap();
-    let otel_log_appender = OpenTelemetryLogBridge::new(&logger_provider);
+    // Create a new OpenTelemetryTracingBridge using the above LoggerProvider.
+    let layer = OpenTelemetryTracingBridge::new(&logger_provider);
     info!("Setting global logger provider!");
-    log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
-    log::set_max_level(Level::Info.to_level_filter());
+
+    // Add a tracing filter to filter events from crates used by opentelemetry-otlp.
+    // The filter levels are set as follows:
+    // - Allow `info` level and above by default.
+    // - Restrict `hyper`, `tonic`, and `reqwest` to `error` level logs only.
+    // This ensures events generated from these crates within the OTLP Exporter are not looped back,
+    // thus preventing infinite event generation.
+    // Note: This will also drop events from these crates used outside the OTLP Exporter.
+    // For more details, see: https://github.com/open-telemetry/opentelemetry-rust/issues/761
+    let filter = EnvFilter::new("info")
+        .add_directive("hyper=error".parse().unwrap())
+        .add_directive("tonic=error".parse().unwrap())
+        .add_directive("reqwest=error".parse().unwrap());
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(layer)
+        .init();
+
+    //let otel_log_appender = OpenTelemetryLogBridge::new(&logger_provider);
+    //log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
+    //log::set_max_level(Level::Info.to_level_filter());
 
     (meter_provider, tracer_provider, logger_provider)
 }

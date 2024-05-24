@@ -569,11 +569,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
                     // let _ = b.send(BlockMessage::Telemetry { enabled: enabled}).await;
                     //let (b_tx, rx) = oneshot::channel::<BlockTelemetryConfig>();
-                    if b.send(BlockMessage::Telemetry {
-                        telemetry_config: telemetry_config,
-                    })
-                    .await
-                    .is_ok()
+                    if b.send(BlockMessage::Telemetry { telemetry_config })
+                        .await
+                        .is_ok()
                     {
                         /* if let Ok(b) = rx.await {
                             let _ = tx.send(Ok(b));

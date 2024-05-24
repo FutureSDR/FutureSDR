@@ -6,94 +6,15 @@ datasources:
     access: proxy
     uid: loki
     url: http://loki:3100
-    # jsonData:
-    #   derivedFields:
-    #     - datasourceUid: tempo
-    #       matcherRegex: "^.*?traceI[d|D]=(\\w+).*$"
-    #       name: traceId
-    #       url: '$${__value.raw}'
 
   - name: Tempo
     type: tempo
     access: proxy
     uid: tempo
     url: http://tempo:3200
-    # jsonData:
-    #   nodeGraph:
-    #     enabled: true
-    #   serviceMap:
-    #     datasourceUid: 'Mimir'
-    #   tracesToLogs:
-    #     datasourceUid: loki
-    #     filterByTraceID: false
-    #     spanEndTimeShift: "500ms"
-    #     spanStartTimeShift: "-500ms"
-    #     tags: ['beast']
-    # correlations:
-    #   - targetUID: postgres
-    #     label: "Count $$beast in table"
-    #     description: ''
-    #     config:
-    #       type: query
-    #       field: tags
-    #       target:
-    #         editorMode: code
-    #         format: table
-    #         rawQuery: true
-    #         rawSql: "SELECT COUNT(*) FROM $$beast;"
-    #         refId: A
-    #         sql:
-    #           columns:
-    #           - parameters: []
-    #             type: function
-    #           groupBy:
-    #           - property:
-    #               type: string
-    #             type: groupBy
-    #           limit: 50
-    #       transformations:
-    #       - type: regex
-    #         expression: .*{"value":"(.*?)","key":"beast".*}
-    #         mapValue: beast
-    #   - targetUID: postgres
-    #     label: "$$statement"
-    #     description: "Runs the found DB statement in the span"
-    #     config:
-    #       type: query
-    #       field: tags
-    #       target:
-    #         editorMode: code
-    #         filters:
-    #         - operator: "="
-    #           scope: span
-    #         format: table
-    #         limit: 20
-    #         queryType: traceqlSearch
-    #         rawQuery: true
-    #         rawSql: "$$statement;"
-    #         refId: A
-    #         sql:
-    #           columns:
-    #           - parameters: []
-    #             type: function
-    #           groupBy:
-    #           - property:
-    #               type: string
-    #             type: groupBy
-    #           limit: 50
-    #       transformations:
-    #       - type: regex
-    #         expression: .*{"value":"(.*?)","key":"db.statement".*}
-    #         mapValue: statement
 
   - name: Mimir
     type: prometheus
     access: proxy
     uid: mimir
     url: http://mimir:9009/prometheus
-    # jsonData:
-    #   exemplarTraceIdDestinations:
-    #     - datasourceUid: tempo
-    #       name: traceID
-    #   httpMethod: POST
-    #   timeInterval: "2s"
