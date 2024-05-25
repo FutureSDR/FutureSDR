@@ -13,6 +13,9 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+#[cfg(feature = "telemetry")]
+use crate::telemetry::opentelemetry::KeyValue;
+
 /// Automatic Gain Control Block
 pub struct Agc<T> {
     /// Minimum value that has to be reached in order for AGC to start adjusting gain.
@@ -27,6 +30,9 @@ pub struct Agc<T> {
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_locked: bool,
+
+    #[cfg(feature = "telemetry")]
+    telemetry_resource: crate::telemetry::TelemetryResource,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -85,6 +91,13 @@ where
                 reference_power,
                 adjustment_rate,
                 gain_locked,
+                #[cfg(feature = "telemetry")]
+                telemetry_resource: {
+                    crate::telemetry::TelemetryResource::new(
+                        "MessageSourceTelemetry".to_string(),
+                        env!("CARGO_PKG_VERSION").to_lowercase(),
+                    )
+                },
                 _type: std::marker::PhantomData,
             },
         )
@@ -179,17 +192,63 @@ where
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
+        #[cfg(feature = "telemetry")]
+        let agc_gauge = {
+            /* println!(
+                "Collecting the following metrics: {:?}",
+                _meta.telemetry_config().active_metrics()
+            ); */
+
+            let meter = self.telemetry_resource.get_meter();
+            let gauge = meter
+                .f64_gauge("agc_gauge")
+                .with_description("Gauge to measure AGC parameters")
+                .with_unit("dB")
+                .init();
+
+            gauge
+        };
+
         let i = sio.input(0).slice::<T>();
         let o = sio.output(0).slice::<T>();
 
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (src, dst) in i.iter().zip(o.iter_mut()) {
-                if src.abs().to_f32().unwrap() > self.squelch {
+                let input_power = src.abs().to_f32().unwrap();
+                if input_power > self.squelch {
                     *dst = self.scale(*src);
                 } else {
                     *dst = T::from(0.0).unwrap();
                 }
+                let output_power = (*dst).abs().to_f32().unwrap();
+
+                #[cfg(feature = "telemetry")]
+                if _meta
+                    .telemetry_config()
+                    .active_metrics()
+                    .contains("agc_stats")
+                {
+                    // println!("Collecting AGC telemetry data");
+                    agc_gauge.record(input_power.into(), &[KeyValue::new("type", "input_power")]);
+                    agc_gauge.record(
+                        output_power.into(),
+                        &[KeyValue::new("type", "output_power")],
+                    );
+                }
+            }
+
+            #[cfg(feature = "telemetry")]
+            if _meta
+                .telemetry_config()
+                .active_metrics()
+                .contains("agc_stats")
+            {
+                agc_gauge.record(self.squelch.into(), &[KeyValue::new("type", "squelch")]);
+                agc_gauge.record(
+                    self.reference_power.into(),
+                    &[KeyValue::new("type", "reference_power")],
+                );
             }
 
             sio.input(0).consume(m);

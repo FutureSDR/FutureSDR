@@ -14,6 +14,9 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+#[cfg(feature = "telemetry")]
+use crate::telemetry::opentelemetry::{trace::TraceContextExt, trace::Tracer, Key, KeyValue};
+
 /// Output the same message periodically.
 pub struct MessageSource {
     message: Pmt,
@@ -60,16 +63,26 @@ impl Kernel for MessageSource {
         io: &mut WorkIo,
         _sio: &mut StreamIo,
         mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
+        _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Feature Gating might be difficult for traces, which might open up a big context block
         #[cfg(feature = "telemetry")]
-        if _b.telemetry_config().active_traces().contains("test_trace") {
+        let (tracer, counter) = {
             let tracer = self.telemetry_resource.get_tracer();
-            use crate::telemetry::opentelemetry::{
-                trace::TraceContextExt, trace::Tracer, Key, KeyValue,
-            };
+            let meter = self.telemetry_resource.get_meter();
+            let counter = meter
+                .u64_counter("u64_counter")
+                .with_description("Count Values")
+                .with_unit("count")
+                .init();
+            (tracer, counter)
+        };
 
+        if _meta
+            .telemetry_config()
+            .active_traces()
+            .contains("test_trace")
+        {
             tracer.in_span("Main operation", |cx| {
                 let span = cx.span();
                 span.add_event(
@@ -97,19 +110,12 @@ impl Kernel for MessageSource {
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
                 #[cfg(feature = "telemetry")]
-                if _b
+                if _meta
                     .telemetry_config()
                     .active_metrics()
                     .contains("message_count")
                 {
-                    use crate::telemetry::opentelemetry::{metrics::Unit, KeyValue};
-                    let meter = self.telemetry_resource.get_meter();
-                    let counter = meter
-                        .u64_counter("n_messages")
-                        .with_description("Number of Messages processed by Block")
-                        .with_unit(Unit::new("count"))
-                        .init();
-                    counter.add(1, &[KeyValue::new("test_key", "test_value")]);
+                    counter.add(1, &[KeyValue::new("type", "message_count")]);
                 }
 
                 *n -= 1;
@@ -130,7 +136,7 @@ impl Kernel for MessageSource {
         &mut self,
         _sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
+        _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())

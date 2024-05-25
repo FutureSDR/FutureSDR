@@ -63,7 +63,6 @@ impl TelemetryResource {
 /// Telemetry Configuration
 #[derive(Debug)]
 pub struct TelemetryConfig {
-    //logger: Logger,
     active_metrics: HashSet<String>,
     active_traces: HashSet<String>,
 }
@@ -112,7 +111,7 @@ static RESOURCE: Lazy<Resource> = Lazy::new(|| {
     )])
 });
 
-pub fn init_logs(
+pub fn init_logger_provider(
     logs_endpoint: String,
 ) -> Result<sdklogs::LoggerProvider, opentelemetry::logs::LogError> {
     opentelemetry_otlp::new_pipeline()
@@ -127,7 +126,9 @@ pub fn init_logs(
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_tracer(tracer_endpoint: String) -> Result<sdktrace::Tracer, TraceError> {
+pub fn init_tracer_provider(
+    tracer_endpoint: String,
+) -> Result<sdktrace::TracerProvider, TraceError> {
     opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_trace_config(sdktrace::config().with_resource(RESOURCE.clone()))
@@ -140,18 +141,18 @@ pub fn init_tracer(tracer_endpoint: String) -> Result<sdktrace::Tracer, TraceErr
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_metrics(
+pub fn init_meter_provider(
     metrics_endpoint: String,
 ) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
     opentelemetry_otlp::new_pipeline()
         .metrics(opentelemetry_sdk::runtime::Tokio)
+        .with_resource(RESOURCE.clone())
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 //.http() // HTTP
                 .tonic() // gRPC
                 .with_endpoint(metrics_endpoint), //"http://localhost:4318/v1/metrics"
         )
-        .with_resource(RESOURCE.clone())
         .build()
 }
 
@@ -167,31 +168,14 @@ pub fn init_globals(
     // info!("Initializing Telemetry");
 
     // Setup Meter
-    let result = init_metrics(metrics_endpoint);
-    assert!(
-        result.is_ok(),
-        "Init metrics failed with error: {:?}",
-        result.err()
-    );
-    let meter_provider = result.unwrap();
+    let meter_provider =
+        init_meter_provider(metrics_endpoint).expect("Failed to initialize meter provider.");
     info!("Setting global meter provider!");
     global::set_meter_provider(meter_provider.clone());
 
     // Setup Tracer
-    let result = init_tracer(tracer_endpoint);
-    assert!(
-        result.is_ok(),
-        "Init tracer failed with error: {:?}",
-        result.err()
-    );
-    let result = result.unwrap().provider();
-    assert!(
-        result.is_some(),
-        "Getting tracer failed with error: {:?}",
-        result.is_none()
-    );
-
-    let tracer_provider = result.unwrap();
+    let tracer_provider =
+        init_tracer_provider(tracer_endpoint).expect("Failed to initialize tracer provider.");
     info!("Setting global tracer provider!");
     global::set_tracer_provider(tracer_provider.clone());
 
@@ -200,13 +184,8 @@ pub fn init_globals(
     // provider. Application users must manage the lifecycle of the logger
     // provider on their own. Dropping logger providers will disable log
     // emitting.
-    let result = init_logs(logger_endpoint);
-    assert!(
-        result.is_ok(),
-        "Init logger provider failed with error: {:?}",
-        result.err()
-    );
-    let logger_provider = result.unwrap();
+    let logger_provider =
+        init_logger_provider(logger_endpoint).expect("Failed to initialize logger provider.");
     // Create a new OpenTelemetryTracingBridge using the above LoggerProvider.
     let layer = OpenTelemetryTracingBridge::new(&logger_provider);
     info!("Setting global logger provider!");
@@ -219,7 +198,9 @@ pub fn init_globals(
     // thus preventing infinite event generation.
     // Note: This will also drop events from these crates used outside the OTLP Exporter.
     // For more details, see: https://github.com/open-telemetry/opentelemetry-rust/issues/761
-    let filter = EnvFilter::new("info")
+    let filter = EnvFilter::new("debug")
+        .add_directive("h2=error".parse().unwrap())
+        .add_directive("tower=error".parse().unwrap())
         .add_directive("hyper=error".parse().unwrap())
         .add_directive("tonic=error".parse().unwrap())
         .add_directive("reqwest=error".parse().unwrap());
