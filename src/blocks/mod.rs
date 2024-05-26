@@ -273,3 +273,6 @@ pub use zynq::Zynq;
 mod zynq_sync;
 #[cfg(feature = "zynq")]
 pub use zynq_sync::ZynqSync;
+
+#[cfg(feature = "gui")]
+pub mod gui;
