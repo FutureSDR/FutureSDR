@@ -36,6 +36,10 @@ wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
 zynq = ["dep:xilinx-dma"]
 
+gui = []
+egui = ["gui", "dep:egui", "dep:eframe", "dep:egui_plot", "dep:colorgrad"]
+textplots = ["gui", "dep:textplots", "dep:drawille", "dep:console", "dep:ctrlc", "dep:rgb"]
+
 [[bench]]
 name = "flowgraph"
 harness = false
@@ -97,6 +101,17 @@ serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 web-time = { version = "1.1" }
 wgpu = { version = "0.19", optional = true }
+
+egui = { version = "0.27", optional = true }
+eframe = { version = "0.27", optional = true }
+egui_plot = { version = "0.27", optional = true }
+colorgrad = { version = "0.6", optional = true }
+
+textplots = { version = "0.8", optional = true }
+drawille = { version = "0.3", optional = true }
+console = { version = "0.15", optional = true }
+ctrlc = { version = "3", optional = true }
+rgb = { version = "0.8", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "1.0"

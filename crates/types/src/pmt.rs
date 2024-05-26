@@ -215,12 +215,50 @@ impl Pmt {
     }
 }
 
+impl From<f32> for Pmt {
+    fn from(f: f32) -> Self {
+        Pmt::F32(f)
+    }
+}
+
+impl From<f64> for Pmt {
+    fn from(f: f64) -> Self {
+        Pmt::F64(f)
+    }
+}
+
+impl From<u32> for Pmt {
+    fn from(f: u32) -> Self {
+        Pmt::U32(f)
+    }
+}
+
+impl From<u64> for Pmt {
+    fn from(f: u64) -> Self {
+        Pmt::U64(f)
+    }
+}
+
 /// PMT conversion error.
 ///
 /// This error is returned, if conversion to/from PMTs fail.
 #[derive(Debug, Clone, Error, PartialEq)]
 #[error("PMt conversion error")]
 pub struct PmtConversionError;
+
+impl TryInto<f32> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<f32, Self::Error> {
+        match self {
+            Pmt::F32(f) => Ok(f),
+            Pmt::F64(f) => Ok(f as f32),
+            Pmt::U32(f) => Ok(f as f32),
+            Pmt::U64(f) => Ok(f as f32),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
 
 impl TryInto<f64> for Pmt {
     type Error = PmtConversionError;

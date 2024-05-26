@@ -38,6 +38,9 @@
 pub mod blocks;
 pub mod runtime;
 
+#[cfg(feature = "gui")]
+pub mod gui;
+
 // re-exports
 pub use anyhow;
 #[cfg(not(target_arch = "wasm32"))]
