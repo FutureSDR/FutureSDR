@@ -67,7 +67,7 @@ impl Kernel for MessageSource {
     ) -> Result<()> {
         // Feature Gating might be difficult for traces, which might open up a big context block
         #[cfg(feature = "telemetry")]
-        let (tracer, counter) = {
+        let (tracer, counter, gauge) = {
             let tracer = self.telemetry_resource.get_tracer();
             let meter = self.telemetry_resource.get_meter();
             let counter = meter
@@ -75,7 +75,12 @@ impl Kernel for MessageSource {
                 .with_description("Count Values")
                 .with_unit("count")
                 .init();
-            (tracer, counter)
+            let gauge = meter
+                .f64_gauge("f64_gauge")
+                .with_description("Concrete Values")
+                .with_unit("f64")
+                .init();
+            (tracer, counter, gauge)
         };
 
         if _meta
@@ -116,6 +121,16 @@ impl Kernel for MessageSource {
                     .contains("message_count")
                 {
                     counter.add(1, &[KeyValue::new("type", "message_count")]);
+                }
+
+                #[cfg(feature = "telemetry")]
+                if _meta
+                    .telemetry_config()
+                    .active_metrics()
+                    .contains("concrete_value")
+                {
+                    println!("Recoridng Gauge Value {}", (*n as f64));
+                    gauge.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
                 }
 
                 *n -= 1;

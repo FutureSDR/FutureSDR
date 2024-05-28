@@ -15,6 +15,10 @@ use opentelemetry::{
 // use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::metrics::{
+    reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
+    PeriodicReader, SdkMeterProvider,
+};
 use opentelemetry_sdk::trace as sdktrace;
 use opentelemetry_sdk::{logs as sdklogs, Resource};
 
@@ -22,7 +26,7 @@ use tracing::info;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 pub struct TelemetryResource {
     meter: Meter,
@@ -144,16 +148,34 @@ pub fn init_tracer_provider(
 pub fn init_meter_provider(
     metrics_endpoint: String,
 ) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
-    opentelemetry_otlp::new_pipeline()
-        .metrics(opentelemetry_sdk::runtime::Tokio)
-        .with_resource(RESOURCE.clone())
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                //.http() // HTTP
-                .tonic() // gRPC
-                .with_endpoint(metrics_endpoint), //"http://localhost:4318/v1/metrics"
+    let exporter = opentelemetry_otlp::new_exporter()
+        //.http() // HTTP
+        .tonic() // gRPC
+        .with_endpoint(metrics_endpoint)
+        .build_metrics_exporter(
+            Box::new(DefaultAggregationSelector::new()),
+            Box::new(DefaultTemporalitySelector::new()),
         )
-        .build()
+        .unwrap();
+    let reader = PeriodicReader::builder(exporter, opentelemetry_sdk::runtime::Tokio)
+        .with_interval(Duration::from_secs(1))
+        .build();
+
+    Ok(SdkMeterProvider::builder()
+        .with_reader(reader)
+        .with_resource(RESOURCE.clone())
+        .build())
+
+    /* opentelemetry_otlp::new_pipeline()
+    .metrics(opentelemetry_sdk::runtime::Tokio)
+    .with_resource(RESOURCE.clone())
+    .with_exporter(
+        opentelemetry_otlp::new_exporter()
+            //.http() // HTTP
+            .tonic() // gRPC
+            .with_endpoint(metrics_endpoint), //"http://localhost:4318/v1/metrics"
+    )
+    .build() */
 }
 
 pub fn init_globals(

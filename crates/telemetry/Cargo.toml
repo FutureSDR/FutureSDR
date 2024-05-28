@@ -16,6 +16,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter","registry", "st
 opentelemetry = { git = "https://github.com/open-telemetry/opentelemetry-rust.git" }
 opentelemetry_sdk = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", features = ["rt-tokio", "metrics", "logs"] }
 opentelemetry-otlp = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", features = ["http-proto", "reqwest-client", "logs"] }
+# opentelemetry-stdout = { git = "https://github.com/open-telemetry/opentelemetry-rust.git" , features = ["metrics"] }
 opentelemetry-appender-tracing = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", default-features = false}
 opentelemetry-semantic-conventions = { git = "https://github.com/open-telemetry/opentelemetry-rust.git" }
 

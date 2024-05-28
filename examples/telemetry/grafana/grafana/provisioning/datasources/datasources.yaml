@@ -18,3 +18,5 @@ datasources:
     access: proxy
     uid: mimir
     url: http://mimir:9009/prometheus
+    jsonData:
+      timeInterval: 1s # How often is metric data queried from Mimir

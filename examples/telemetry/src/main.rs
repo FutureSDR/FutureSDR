@@ -31,9 +31,9 @@ async fn main() -> Result<()> {
 
     let msg_source = MessageSourceBuilder::new(
         Pmt::String("foo".to_string()),
-        time::Duration::from_millis(100),
+        time::Duration::from_millis(1000),
     )
-    .n_messages(20)
+    .n_messages(200)
     .build();
     let msg_copy = MessageCopy::new();
     let msg_sink = MessageSink::new();
@@ -50,8 +50,8 @@ async fn main() -> Result<()> {
     let (th, mut fgh) = rt.start_sync(fg);
 
     let telemetry_config = TelemetryConfig::new(
-        HashSet::from(["message_count".to_string()]),
-        HashSet::from(["test_trace".to_string()]),
+        HashSet::from(["message_count".to_string(), "concrete_value".to_string()]), // "message_count".to_string(), 
+        HashSet::from(["test_trace".to_string()]), //"test_trace".to_string()
     );
 
     // Send telemetry config to MessageSource Block. Config is activated immediately.
