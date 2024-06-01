@@ -15,10 +15,6 @@ use opentelemetry::{
 // use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::metrics::{
-    reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-    PeriodicReader, SdkMeterProvider,
-};
 use opentelemetry_sdk::trace as sdktrace;
 use opentelemetry_sdk::{logs as sdklogs, Resource};
 
@@ -26,7 +22,7 @@ use tracing::info;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
-use std::{collections::HashSet, time::Duration};
+use std::collections::HashSet;
 
 pub struct TelemetryResource {
     meter: Meter,
@@ -115,8 +111,8 @@ static RESOURCE: Lazy<Resource> = Lazy::new(|| {
     )])
 });
 
-pub fn init_logger_provider(
-    logs_endpoint: String,
+pub fn init_logger_provider<T: Into<String>>(
+    logs_endpoint: T,
 ) -> Result<sdklogs::LoggerProvider, opentelemetry::logs::LogError> {
     opentelemetry_otlp::new_pipeline()
         .logging()
@@ -125,63 +121,46 @@ pub fn init_logger_provider(
             opentelemetry_otlp::new_exporter()
                 //.http() // HTTP
                 .tonic() // gRPC
-                .with_endpoint(logs_endpoint), //"http://localhost:4318/v1/logs"
+                .with_endpoint(logs_endpoint.into()), //"http://localhost:4318/v1/logs"
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_tracer_provider(
-    tracer_endpoint: String,
+pub fn init_tracer_provider<T: Into<String>>(
+    tracer_endpoint: T,
 ) -> Result<sdktrace::TracerProvider, TraceError> {
     opentelemetry_otlp::new_pipeline()
         .tracing()
-        .with_trace_config(sdktrace::config().with_resource(RESOURCE.clone()))
+        .with_trace_config(sdktrace::Config::default().with_resource(RESOURCE.clone()))
         .with_exporter(
             opentelemetry_otlp::new_exporter()
                 //.http() // HTTP
                 .tonic() // gRPC
-                .with_endpoint(tracer_endpoint), //"http://localhost:4318/v1/traces"
+                .with_endpoint(tracer_endpoint.into()), //"http://localhost:4318/v1/traces"
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
-pub fn init_meter_provider(
-    metrics_endpoint: String,
+pub fn init_meter_provider<T: Into<String>>(
+    metrics_endpoint: T,
 ) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
-    let exporter = opentelemetry_otlp::new_exporter()
-        //.http() // HTTP
-        .tonic() // gRPC
-        .with_endpoint(metrics_endpoint)
-        .build_metrics_exporter(
-            Box::new(DefaultAggregationSelector::new()),
-            Box::new(DefaultTemporalitySelector::new()),
-        )
-        .unwrap();
-    let reader = PeriodicReader::builder(exporter, opentelemetry_sdk::runtime::Tokio)
-        .with_interval(Duration::from_secs(1))
-        .build();
-
-    Ok(SdkMeterProvider::builder()
-        .with_reader(reader)
+    opentelemetry_otlp::new_pipeline()
+        .metrics(opentelemetry_sdk::runtime::Tokio)
         .with_resource(RESOURCE.clone())
-        .build())
-
-    /* opentelemetry_otlp::new_pipeline()
-    .metrics(opentelemetry_sdk::runtime::Tokio)
-    .with_resource(RESOURCE.clone())
-    .with_exporter(
-        opentelemetry_otlp::new_exporter()
-            //.http() // HTTP
-            .tonic() // gRPC
-            .with_endpoint(metrics_endpoint), //"http://localhost:4318/v1/metrics"
-    )
-    .build() */
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                //.http() // HTTP
+                .tonic() // gRPC
+                .with_endpoint(metrics_endpoint.into()) //"http://localhost:4318/v1/metrics"
+                .with_timeout(std::time::Duration::from_millis(1000)),
+        )
+        .build()
 }
 
-pub fn init_globals(
-    metrics_endpoint: String,
-    tracer_endpoint: String,
-    logger_endpoint: String,
+pub fn init_globals<T: Into<String>>(
+    metrics_endpoint: T, //String,
+    tracer_endpoint: T,  //String,
+    logger_endpoint: T,  //String,
 ) -> (
     opentelemetry_sdk::metrics::SdkMeterProvider,
     opentelemetry_sdk::trace::TracerProvider,
@@ -191,13 +170,13 @@ pub fn init_globals(
 
     // Setup Meter
     let meter_provider =
-        init_meter_provider(metrics_endpoint).expect("Failed to initialize meter provider.");
+        init_meter_provider(metrics_endpoint.into()).expect("Failed to initialize meter provider.");
     info!("Setting global meter provider!");
     global::set_meter_provider(meter_provider.clone());
 
     // Setup Tracer
-    let tracer_provider =
-        init_tracer_provider(tracer_endpoint).expect("Failed to initialize tracer provider.");
+    let tracer_provider = init_tracer_provider(tracer_endpoint.into())
+        .expect("Failed to initialize tracer provider.");
     info!("Setting global tracer provider!");
     global::set_tracer_provider(tracer_provider.clone());
 
@@ -206,8 +185,8 @@ pub fn init_globals(
     // provider. Application users must manage the lifecycle of the logger
     // provider on their own. Dropping logger providers will disable log
     // emitting.
-    let logger_provider =
-        init_logger_provider(logger_endpoint).expect("Failed to initialize logger provider.");
+    let logger_provider = init_logger_provider(logger_endpoint.into())
+        .expect("Failed to initialize logger provider.");
     // Create a new OpenTelemetryTracingBridge using the above LoggerProvider.
     let layer = OpenTelemetryTracingBridge::new(&logger_provider);
     info!("Setting global logger provider!");

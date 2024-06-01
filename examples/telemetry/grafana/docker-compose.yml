@@ -18,7 +18,7 @@ services:
       [
         "run",
         "--server.http.listen-addr=0.0.0.0:12345",
-        "--stability.level=public-preview",
+        # "--stability.level=public-preview",
         "/etc/alloy/config.alloy"
       ]
     networks:
@@ -36,6 +36,8 @@ services:
     environment:
       - GF_FEATURE_TOGGLES_ENABLE=flameGraph traceqlSearch traceQLStreaming correlations metricsSummary traceqlEditor traceToMetrics traceToProfiles datatrails
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/main.json
+      - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1ms
+      - GF_METRICS_INTERVAL_SECONDS=50ms # Flush/write interval when sending metrics to external TSDB.
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
