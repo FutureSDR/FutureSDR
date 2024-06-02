@@ -18,6 +18,7 @@ services:
       [
         "run",
         "--server.http.listen-addr=0.0.0.0:12345",
+        "--disable-reporting",
         # "--stability.level=public-preview",
         "/etc/alloy/config.alloy"
       ]

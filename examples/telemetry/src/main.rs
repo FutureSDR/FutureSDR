@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
         "http://localhost:4317".to_string(),
     );
 
+    let mpp = meter_provider.clone();
     // For HTTP instead of gRPC use the following endpoints
     //    "http://localhost:4318/v1/metrics".to_string(),
     //    "http://localhost:4318/v1/traces".to_string(),
@@ -55,6 +56,10 @@ async fn main() -> Result<()> {
         .init();
     // Telemetry Setup End
 
+    gauge.record(0.5, &[KeyValue::new("type", "test")]);
+    gauge.record(1.0, &[KeyValue::new("type", "test")]);
+    gauge.record(2.0, &[KeyValue::new("type", "test2")]);
+
     let mut fg1 = Flowgraph::new();
 
     let src = SignalSourceBuilder::<Complex32>::sin(freq, sample_rate).build();
@@ -66,6 +71,9 @@ async fn main() -> Result<()> {
         gauge.record(x.im() as f64, &[KeyValue::new("type", "im")]);
         gauge.record(absolute as f64, &[KeyValue::new("type", "absolute")]);
         println!("re: {}, im: {}, abs: {}", x.re(), x.im(), absolute);
+        // We need a force_flush() here on the meter_provider to record the exact values and dont aggregate them over time.
+        // Might have to wait for implementation here: https://github.com/open-telemetry/opentelemetry-specification/issues/617
+        let _ = mpp.force_flush(); // Make sure metrics are flushed immediately and not aggregated.
         absolute.into()
     });
     let snk = ConsoleSink::<f32>::new(", ");

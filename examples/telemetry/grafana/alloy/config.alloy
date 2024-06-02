@@ -1,7 +1,7 @@
 // https://grafana.com/docs/alloy/latest/tasks/opentelemetry-to-lgtm-stack/
 logging {
     level  = "debug"
-    format = "json"
+    format = "logfmt"
 }
 
 // Configuration file containing hosts and credentials
@@ -26,6 +26,15 @@ otelcol.receiver.otlp "alloy" {
     logs    = [otelcol.processor.batch.telemetry.input]
     traces  = [otelcol.processor.batch.telemetry.input]
   }
+  //output {
+  //  metrics = [otelcol.exporter.prometheus.mimir.input] // Mimir
+  //  logs    = [otelcol.exporter.loki.loki.input] // Loki
+  //  traces  = [otelcol.exporter.otlp.tempo.input] // Tempo
+  //}
+
+  //debug_metrics {
+  //  disable_high_cardinality_metrics = true
+  //}
 }
 
 // Batch processor, which forwards telemetry data to the respective processing backends like mimir (via prometheus protocol)), loki or tempo.
@@ -47,6 +56,7 @@ prometheus.remote_write "mimir" {
 	// The endpoint is the Mimir service.
     endpoint {
         url = json_path(local.file.endpoints.content, ".metrics.url")[0]
+        // proxy_url = "http://192.168.1.10:8080"
 
         // Basic auth credentials. If the endpoint is not TLS, whilst sent, these will be ignored.
         basic_auth {

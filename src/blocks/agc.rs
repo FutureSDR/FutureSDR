@@ -235,6 +235,8 @@ where
                         output_power.into(),
                         &[KeyValue::new("type", "output_power")],
                     );
+                    // We need a force_flush() here on the meter_provider to record the exact values and dont aggregate them over time.
+                    // Might have to wait for implementation here: https://github.com/open-telemetry/opentelemetry-specification/issues/617
                 }
             }
 
@@ -249,6 +251,8 @@ where
                     self.reference_power.into(),
                     &[KeyValue::new("type", "reference_power")],
                 );
+                // We need a force_flush() here on the meter_provider to record the exact values and dont aggregate them over time.
+                // Might have to wait for implementation here: https://github.com/open-telemetry/opentelemetry-specification/issues/617
             }
 
             sio.input(0).consume(m);
