@@ -14,8 +14,30 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+/* #[cfg(feature = "telemetry")]
+use crate::telemetry::opentelemetry::{trace::TraceContextExt, trace::Tracer, Key, KeyValue}; */
+
+use std::sync::LazyLock;
+use telemetry::opentelemetry::global;
+use telemetry::opentelemetry::metrics::{Counter, Gauge, Meter};
+use telemetry::opentelemetry::KeyValue;
+//static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("AGC_METER"));
 #[cfg(feature = "telemetry")]
-use crate::telemetry::opentelemetry::{trace::TraceContextExt, trace::Tracer, Key, KeyValue};
+static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("MSG_METER"));
+static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
+    METER
+        .u64_counter("u64_counter")
+        .with_description("Count Values")
+        .with_unit("count")
+        .init()
+});
+static GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
+    METER
+        .f64_gauge("f64_gauge")
+        .with_description("Concrete Values")
+        .with_unit("f64")
+        .init()
+});
 
 /// Output the same message periodically.
 pub struct MessageSource {
@@ -23,8 +45,8 @@ pub struct MessageSource {
     interval: Duration,
     t_last: Instant,
     n_messages: Option<usize>,
-    #[cfg(feature = "telemetry")]
-    telemetry_resource: crate::telemetry::TelemetryResource,
+    /* #[cfg(feature = "telemetry")]
+    telemetry_resource: crate::telemetry::TelemetryResource, */
 }
 
 impl MessageSource {
@@ -39,13 +61,13 @@ impl MessageSource {
                 interval,
                 t_last: Instant::now(),
                 n_messages,
-                #[cfg(feature = "telemetry")]
+                /* #[cfg(feature = "telemetry")]
                 telemetry_resource: {
                     crate::telemetry::TelemetryResource::new(
                         "MessageSourceTelemetry".to_string(),
                         env!("CARGO_PKG_VERSION").to_lowercase(),
                     )
-                },
+                }, */
             },
         )
     }
@@ -66,7 +88,7 @@ impl Kernel for MessageSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Feature Gating might be difficult for traces, which might open up a big context block
-        #[cfg(feature = "telemetry")]
+        /* #[cfg(feature = "telemetry")]
         let (tracer, counter, gauge) = {
             let tracer = self.telemetry_resource.get_tracer();
             let meter = self.telemetry_resource.get_meter();
@@ -104,7 +126,7 @@ impl Kernel for MessageSource {
                     span.add_event("Sub span event", vec![]);
                 });
             });
-        }
+        } */
 
         let now = Instant::now();
 
@@ -114,7 +136,7 @@ impl Kernel for MessageSource {
             mio.post(0, self.message.clone()).await;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
-                #[cfg(feature = "telemetry")]
+                /* #[cfg(feature = "telemetry")]
                 if _meta
                     .telemetry_config()
                     .active_metrics()
@@ -131,7 +153,11 @@ impl Kernel for MessageSource {
                 {
                     println!("Recoridng Gauge Value {}", (*n as f64));
                     gauge.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
-                }
+                } */
+
+                COUNTER.add(1, &[KeyValue::new("type", "message_count")]);
+                GAUGE.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
+                let _ = telemetry::METER_PROVIDER.force_flush();
 
                 *n -= 1;
                 if *n == 0 {

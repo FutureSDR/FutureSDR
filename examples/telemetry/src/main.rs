@@ -14,21 +14,22 @@ use futuresdr::telemetry::opentelemetry::KeyValue;
 use num_complex::Complex32;
 use num_complex::ComplexFloat;
 
-/* use std::collections::HashSet;
-use std::time;
-use futuresdr::telemetry::TelemetryConfig;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
-use futuresdr::runtime::Pmt; */
+use futuresdr::runtime::Pmt;
+use futuresdr::telemetry::TelemetryConfig;
+use std::collections::HashSet;
+use std::time;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals(
+    /* let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals(
         "http://localhost:4317".to_string(),
         "http://localhost:4317".to_string(),
         "http://localhost:4317".to_string(),
-    );
+    ); */
+    let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals();
 
     let mpp = meter_provider.clone();
     // For HTTP instead of gRPC use the following endpoints
@@ -82,7 +83,8 @@ async fn main() -> Result<()> {
 
     rt.run(fg1)?;
 
-    /* let mut fg2 = Flowgraph::new();
+    // Second example
+    let mut fg2 = Flowgraph::new();
     let msg_source = MessageSourceBuilder::new(
         Pmt::String("foo".to_string()),
         time::Duration::from_millis(1000),
@@ -117,7 +119,7 @@ async fn main() -> Result<()> {
     let _ = th.await;
 
     //let elapsed = now.elapsed();
-    //println!("flowgraph took {elapsed:?}"); */
+    //println!("flowgraph took {elapsed:?}");
 
     //global::shutdown_tracer_provider();
     tracer_provider.force_flush();

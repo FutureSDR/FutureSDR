@@ -197,6 +197,17 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
+    /* #[cfg(feature = "telemetry")]
+    // Make telemetry providers available to a flowgraph
+    pub async fn register_telemetry_providers(
+        &mut self,
+        logger_provider: impl crate::telemetry::opentelemetry::logs::LoggerProvider,
+        tracer_provider: impl crate::telemetry::opentelemetry::trace::TracerProvider,
+        meter_provider: impl crate::telemetry::opentelemetry::metrics::MeterProvider,
+    ) -> Result<()> {
+        Ok(())
+    } */
+
     #[cfg(feature = "telemetry")]
     /// Configure a blocks [`Telemetry`] settings
     pub async fn configure_telemetry(

@@ -18,11 +18,25 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace as sdktrace;
 use opentelemetry_sdk::{logs as sdklogs, Resource};
 
-use tracing::info;
+//use tracing::info;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 use std::collections::HashSet;
+
+use opentelemetry_sdk::logs::LoggerProvider;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::trace::TracerProvider;
+use std::sync::LazyLock;
+pub static METER_PROVIDER: LazyLock<SdkMeterProvider> = LazyLock::new(|| {
+    init_meter_provider("http://localhost:4317").expect("Failed to initialize meter provider.")
+});
+pub static TRACER_PROVIDER: LazyLock<TracerProvider> = LazyLock::new(|| {
+    init_tracer_provider("http://localhost:4317").expect("Failed to initialize tracer provider.")
+});
+pub static LOGGER_PROVIDER: LazyLock<LoggerProvider> = LazyLock::new(|| {
+    init_logger_provider("http://localhost:4317").expect("Failed to initialize logger provider.")
+});
 
 pub struct TelemetryResource {
     meter: Meter,
@@ -157,7 +171,49 @@ pub fn init_meter_provider<T: Into<String>>(
         .build()
 }
 
-pub fn init_globals<T: Into<String>>(
+pub fn init_globals() -> (
+    opentelemetry_sdk::metrics::SdkMeterProvider,
+    opentelemetry_sdk::trace::TracerProvider,
+    opentelemetry_sdk::logs::LoggerProvider,
+) {
+    global::set_meter_provider(METER_PROVIDER.clone());
+    global::set_tracer_provider(TRACER_PROVIDER.clone());
+
+    // Setup Logger
+    // Opentelemetry will not provide a global API to manage the logger
+    // provider. Application users must manage the lifecycle of the logger
+    // provider on their own. Dropping logger providers will disable log
+    // emitting.
+    // Create a new OpenTelemetryTracingBridge using the above LoggerProvider.
+    let layer = OpenTelemetryTracingBridge::new(&LOGGER_PROVIDER.clone());
+
+    // Add a tracing filter to filter events from crates used by opentelemetry-otlp.
+    // The filter levels are set as follows:
+    // - Allow `info` level and above by default.
+    // - Restrict `hyper`, `tonic`, and `reqwest` to `error` level logs only.
+    // This ensures events generated from these crates within the OTLP Exporter are not looped back,
+    // thus preventing infinite event generation.
+    // Note: This will also drop events from these crates used outside the OTLP Exporter.
+    // For more details, see: https://github.com/open-telemetry/opentelemetry-rust/issues/761
+    let filter = EnvFilter::new("debug")
+        .add_directive("h2=error".parse().unwrap())
+        .add_directive("tower=error".parse().unwrap())
+        .add_directive("hyper=error".parse().unwrap())
+        .add_directive("tonic=error".parse().unwrap())
+        .add_directive("reqwest=error".parse().unwrap());
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(layer)
+        .init();
+
+    (
+        METER_PROVIDER.clone(),
+        TRACER_PROVIDER.clone(),
+        LOGGER_PROVIDER.clone(),
+    )
+}
+/* pub fn init_globals<T: Into<String>>(
     metrics_endpoint: T, //String,
     tracer_endpoint: T,  //String,
     logger_endpoint: T,  //String,
@@ -216,4 +272,4 @@ pub fn init_globals<T: Into<String>>(
     //log::set_max_level(Level::Info.to_level_filter());
 
     (meter_provider, tracer_provider, logger_provider)
-}
+} */
