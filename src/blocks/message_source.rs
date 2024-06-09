@@ -157,7 +157,7 @@ impl Kernel for MessageSource {
 
                 COUNTER.add(1, &[KeyValue::new("type", "message_count")]);
                 GAUGE.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
-                let _ = telemetry::METER_PROVIDER.force_flush();
+                let _ = crate::runtime::METER_PROVIDER.force_flush();
 
                 *n -= 1;
                 if *n == 0 {

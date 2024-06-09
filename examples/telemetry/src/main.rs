@@ -10,6 +10,9 @@ use futuresdr::blocks::Throttle;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::LOGGER_PROVIDER;
+use futuresdr::runtime::METER_PROVIDER;
+use futuresdr::runtime::TRACER_PROVIDER;
 use futuresdr::telemetry::opentelemetry::KeyValue;
 use num_complex::Complex32;
 use num_complex::ComplexFloat;
@@ -29,15 +32,15 @@ async fn main() -> Result<()> {
         "http://localhost:4317".to_string(),
         "http://localhost:4317".to_string(),
     ); */
-    let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals();
+    //let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals();
 
-    let mpp = meter_provider.clone();
     // For HTTP instead of gRPC use the following endpoints
     //    "http://localhost:4318/v1/metrics".to_string(),
     //    "http://localhost:4318/v1/traces".to_string(),
     //    "http://localhost:4318/v1/logs".to_string(),
 
     let rt = Runtime::new();
+    let mpp = METER_PROVIDER.clone();
 
     let sample_rate = 50.0;
     let freq = 1.0;
@@ -122,12 +125,12 @@ async fn main() -> Result<()> {
     //println!("flowgraph took {elapsed:?}");
 
     //global::shutdown_tracer_provider();
-    tracer_provider.force_flush();
-    logger_provider.shutdown()?;
+    TRACER_PROVIDER.force_flush();
+    LOGGER_PROVIDER.shutdown()?;
     // Metrics are exported by default every 30 seconds when using stdout exporter,
     // however shutting down the MeterProvider here instantly flushes
     // the metrics, instead of waiting for the 30 sec interval.
-    meter_provider.shutdown()?;
+    METER_PROVIDER.shutdown()?;
 
     Ok(())
 }

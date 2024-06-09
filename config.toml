@@ -7,4 +7,9 @@ ctrlport_bind = "127.0.0.1:1337"
 [my]
 a = 1
 b = "foo"
-
+logger_endpoint = "http://localhost:4317" # "http://localhost:4318/v1/logs"
+logger_protocol = "gRPC"
+tracer_endpoint = "http://localhost:4317" # "http://localhost:4318/v1/traces"
+tracer_protocol = "gRPC"
+metrics_endpoint = "http://localhost:4317" # "http://localhost:4318/v1/metrics"
+metrics_protocol = "gRPC"

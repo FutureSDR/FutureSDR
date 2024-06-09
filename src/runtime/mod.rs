@@ -68,6 +68,72 @@ pub use futuresdr_types::PortId;
 use buffer::BufferReader;
 use buffer::BufferWriter;
 
+#[cfg(feature = "telemetry")]
+use std::sync::LazyLock;
+#[cfg(feature = "telemetry")]
+use telemetry::opentelemetry_sdk::{
+    logs::LoggerProvider, metrics::SdkMeterProvider, trace::TracerProvider,
+};
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/metrics" or "http://localhost:4317"
+pub static METER_PROVIDER: LazyLock<SdkMeterProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("metrics_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("metrics_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_meter_provider(exporter_type, endpoint)
+        .expect("Failed to initialize meter provider.")
+});
+
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/traces" or "http://localhost:4317"
+pub static TRACER_PROVIDER: LazyLock<TracerProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("tracer_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("tracer_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_tracer_provider(exporter_type, endpoint)
+        .expect("Failed to initialize tracer provider.")
+});
+
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/logs" or "http://localhost:4317"
+pub static LOGGER_PROVIDER: LazyLock<LoggerProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("logger_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("logger_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_logger_provider(exporter_type, endpoint)
+        .expect("Failed to initialize logger provider.")
+});
+
 /// Initialize runtime
 ///
 /// This function does not have to be called. Once a [`Runtime`] is started,
@@ -79,8 +145,13 @@ use buffer::BufferWriter;
 pub fn init() {
     logging::init();
 
-    //#[cfg(feature = "telemetry")]
-    //telemetry::init_globals();
+    #[cfg(feature = "telemetry")]
+    {
+        let meter_provider = METER_PROVIDER.clone();
+        let tracer_provider = TRACER_PROVIDER.clone();
+        // let logger_provider = LOGGER_PROVIDER.clone();
+        telemetry::init_globals(meter_provider, tracer_provider); // , logger_provider
+    }
 }
 
 /// Flowgraph inbox message type
