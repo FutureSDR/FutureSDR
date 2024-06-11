@@ -556,8 +556,8 @@ struct Ticker<'a> {
     ///
     /// States a ticker can be in:
     /// 1) Woken.
-    /// 2a) Sleeping and unnotified.
-    /// 2b) Sleeping and notified.
+    ///    2a) Sleeping and unnotified.
+    ///    2b) Sleeping and notified.
     sleeping: AtomicUsize,
 }
 

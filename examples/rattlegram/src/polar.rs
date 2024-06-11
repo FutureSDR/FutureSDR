@@ -581,7 +581,7 @@ fn to_map(a: Type) -> Map {
 fn to_type(a: Map) -> Type {
     let mut tmp = [0i8; LEN];
     for i in 0..LEN {
-        assert!(a[i] <= std::i8::MAX as u8);
+        assert!(a[i] <= i8::MAX as u8);
         tmp[i] = a[i] as i8;
     }
     tmp

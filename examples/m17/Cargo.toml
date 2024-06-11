@@ -9,4 +9,4 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 codec2 = "0.3"
 futuresdr = { path = "../..", features = ["audio", "seify", "soapy"] }
-wav = "1"
+hound = "3.5"

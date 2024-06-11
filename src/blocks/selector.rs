@@ -175,7 +175,7 @@ where
             let nb_drop = if self.drop_policy == DropPolicy::SameRate {
                 m / item_size // Drop at the same rate as the selected one
             } else {
-                std::usize::MAX // Drops all other inputs
+                usize::MAX // Drops all other inputs
             };
             for i in 0..N {
                 if i != self.input_index {

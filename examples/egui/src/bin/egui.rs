@@ -17,7 +17,6 @@ use tungstenite::connect;
 use tungstenite::protocol::WebSocket;
 use tungstenite::stream::MaybeTlsStream;
 use tungstenite::Message;
-use url::Url;
 
 use futuresdr_egui::FFT_SIZE;
 
@@ -80,8 +79,7 @@ impl MyApp {
                 .unwrap();
         });
 
-        let (socket, response) =
-            connect(Url::parse("ws://127.0.0.1:9001").unwrap()).expect("Can't connect");
+        let (socket, response) = connect("ws://127.0.0.1:9001").expect("Can't connect");
         match socket.get_ref() {
             MaybeTlsStream::Plain(s) => s.set_nonblocking(true).unwrap(),
             MaybeTlsStream::Rustls(s) => s.sock.set_nonblocking(true).unwrap(),

@@ -1,21 +1,33 @@
-<!DOCTYPE html><html lang="en"><head>
-    <meta charset="utf-8">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FutureSDR :: Prophecy GUI</title>
 
-    <link rel="icon" href="/favicon-baad1291935ce574.ico">
-    <link rel="stylesheet" href="/style-4f33879b62bcbcb6.css">
-    <script src="/mermaid.min-44357080eeae6d17.js"></script>
-    <script>mermaid.mermaidAPI.initialize({
+    <link rel="icon" href="/favicon-baad1291935ce574.ico" integrity="sha384&#x2D;dFl6ag&#x2F;qXmQ5UAh&#x2B;4iLD&#x2B;ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS"/>
+    <link rel="stylesheet" href="/style-205efecb16456eec.css" integrity="sha384&#x2D;BeS7NVXmvg0cNxsKV4ndZW0KazgFuc&#x2B;jhu1u&#x2B;2tCD1kT8dXZ1Y2hWEEdZk7ZvXRU"/>
+    <script src="/mermaid.min-44357080eeae6d17.js" integrity="sha384&#x2D;22TIzueDpidabmrJrRZOuoeirwerzh0k58p3BiRQXtofpDZCl37VJCT0b1REkoAk"></script>
+    <script nonce="t3NRmFT/NgABvxk9QKpX6g==">mermaid.mermaidAPI.initialize({
   theme: 'dark',
 });
 </script>
-    <script type="module">import init from '/prophecy-7a66b0f0228c3a18.js';init('/prophecy-7a66b0f0228c3a18_bg.wasm');</script>
-    <base href="/">
-  
-<link rel="preload" href="/prophecy-7a66b0f0228c3a18_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/prophecy-7a66b0f0228c3a18.js"></head>
-  <body class="bg-slate-900">
-  
+    
+<script type="module" nonce="O55nLnhzx2ipCfVYe56grQ==">
+import init, * as bindings from '/prophecy-36f8db7d2d3affad.js';
+const wasm = await init('/prophecy-36f8db7d2d3affad_bg.wasm');
 
-</body></html>
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+    <base href="/" />
+  
+<link rel="modulepreload" href="/prophecy-36f8db7d2d3affad.js" crossorigin=anonymous integrity="sha384-nAmPxsF3f21+uQFro8QQqeAEoKxoOgHTETPcTZHLlovpnwDyh9LKX2l65kU4ZEuA">
+<link rel="preload" href="/prophecy-36f8db7d2d3affad_bg.wasm" crossorigin=anonymous integrity="sha384-N3ykHHH3WayFj5C81+0zG2oV+MWZm2Cjjop8BVhE0e/Dlz7DzhzkhT/USKqT9AsQ" as="fetch" type="application/wasm"></head>
+  <body class="bg-slate-900">
+  </body>
+</html>

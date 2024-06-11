@@ -14,7 +14,7 @@ aaronia_http = ["futuresdr/aaronia_http"]
 soapy = ["futuresdr/soapy"]
 
 [dependencies]
-eframe = "0.25"
+eframe = "0.27"
 env_logger = { version = "0.11", default-features = false, features = [
     "auto-color",
     "humantime",
@@ -22,6 +22,5 @@ env_logger = { version = "0.11", default-features = false, features = [
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
 tokio = { version = "1", features = ["full"] }
-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
-url = "2.5"
+tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
 

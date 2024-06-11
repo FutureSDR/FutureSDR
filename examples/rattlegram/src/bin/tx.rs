@@ -7,8 +7,6 @@ use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use rattlegram::Encoder;
-use std::fs::File;
-use std::path::Path;
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -56,9 +54,15 @@ fn main() -> Result<()> {
     );
 
     if let Some(f) = args.file {
-        let mut out_file = File::create(Path::new(&f))?;
-        let header = wav::Header::new(wav::header::WAV_FORMAT_IEEE_FLOAT, 1, 48_000, 32);
-        wav::write(header, &wav::BitDepth::ThirtyTwoFloat(sig), &mut out_file)?;
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut writer = hound::WavWriter::create(f, spec).unwrap();
+        sig.into_iter()
+            .for_each(|s| writer.write_sample(s).unwrap());
     } else {
         let mut fg = Flowgraph::new();
         let src = VectorSource::new(sig);

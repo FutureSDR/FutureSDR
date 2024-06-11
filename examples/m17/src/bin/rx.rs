@@ -125,7 +125,7 @@ fn main() -> Result<()> {
     let codec = ApplyNM::<_, _, _, { (64 + 7) / 8 }, 160>::new(move |i: &[u8], o: &mut [i16]| {
         c2.decode(o, i);
     });
-    let conv = Apply::new(|i: &i16| (*i as f32) / std::i16::MAX as f32);
+    let conv = Apply::new(|i: &i16| (*i as f32) / i16::MAX as f32);
     let upsample = FirBuilder::new_resampling::<f32, f32>(6, 1);
     let snk = AudioSink::new(48000, 1);
 

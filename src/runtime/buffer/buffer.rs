@@ -1,7 +1,6 @@
 use futures::channel::mpsc::Sender;
 use std::any::Any;
 use std::fmt::Debug;
-use std::usize;
 
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;

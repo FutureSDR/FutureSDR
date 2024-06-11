@@ -9,6 +9,7 @@ use ::wgpu::ComputePipeline;
 use ::wgpu::ComputePipelineDescriptor;
 use ::wgpu::Maintain;
 use ::wgpu::MapMode;
+use ::wgpu::PipelineCompilationOptions;
 use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
 use std::borrow::Cow;
@@ -126,6 +127,7 @@ impl Kernel for Wgpu {
                     layout: None,
                     module: &cs_module,
                     entry_point: "main",
+                    compilation_options: PipelineCompilationOptions::default(),
                 });
 
         self.pipeline = Some(compute_pipeline);

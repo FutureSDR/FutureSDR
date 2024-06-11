@@ -239,7 +239,7 @@ impl Bpsk {
     fn quantize(precision: f32, mut value: f32) -> i8 {
         value *= 2.0 * precision;
         value = value.round();
-        value = value.max(-128.0).min(127.0);
+        value = value.clamp(-128.0, 127.0);
         value as i8
     }
 
@@ -1300,7 +1300,7 @@ impl Decoder {
         let dist = 2.0 * std::f32::consts::FRAC_1_SQRT_2;
         value *= dist * precision;
         value = value.round();
-        value = value.max(-128.0).min(127.0);
+        value = value.clamp(-128.0, 127.0);
         value as i8
     }
 

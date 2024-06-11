@@ -108,7 +108,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
                 Pmt::U32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
                 Pmt::U64(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(std::f64::NAN))),
+                Pmt::Null => return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(f64::NAN))),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }

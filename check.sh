@@ -61,15 +61,11 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
-cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 
 # perf
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo clippy --all-targets -- -D warnings
@@ -81,7 +77,6 @@ cd ${SCRIPTPATH}/perf/null_rand && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/vulkan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 
 # examples
@@ -92,7 +87,6 @@ cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warning
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/debug && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/egui && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/file-trx && cargo clippy --all-targets -- -D warnings
@@ -103,17 +97,25 @@ cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/m17 && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wlan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zeromq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --all-targets -- -D warnings
+
+# WASM
+cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,wgpu --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 
 ###########################################################

@@ -11,8 +11,6 @@ use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use std::fs::File;
-use std::path::Path;
 
 use m17::CallSign;
 use m17::EncoderBlock;
@@ -22,13 +20,13 @@ use m17::RRC_TAPS;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let mut in_file = File::open(Path::new("rick.wav"))?;
-    let (header, data) = wav::read(&mut in_file)?;
-    assert_eq!(header.channel_count, 1);
-    assert_eq!(header.sampling_rate, 8000);
-    assert_eq!(header.audio_format, wav::WAV_FORMAT_PCM);
-    assert_eq!(header.bits_per_sample, 16);
-    let data = data.try_into_sixteen().unwrap();
+    let reader = hound::WavReader::open("rick.wav").expect("failed to open rick.wav");
+    let spec = reader.spec();
+    assert_eq!(spec.channels, 1);
+    assert_eq!(spec.sample_rate, 8000);
+    assert_eq!(spec.sample_format, hound::SampleFormat::Int);
+    assert_eq!(spec.bits_per_sample, 16);
+    let data: Vec<i16> = reader.into_samples::<i16>().map(|v| v.unwrap()).collect();
 
     let mut i = 0;
     let src = FiniteSource::new(move || {
