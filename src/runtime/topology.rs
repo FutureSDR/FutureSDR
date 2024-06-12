@@ -1,7 +1,7 @@
 use futures::channel::mpsc::Sender;
 use std::collections::HashMap;
 
-use crate::anyhow::{bail, Context, Result};
+use crate::anyhow::{anyhow, bail, Context, Result};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
@@ -294,7 +294,7 @@ impl Topology {
                         .count()
                         == 0
                     {
-                        bail!("unconnected stream output port");
+                        return Err(anyhow!("unconnected stream output port of block {:?}", block.instance_name()));
                     }
                 }
 

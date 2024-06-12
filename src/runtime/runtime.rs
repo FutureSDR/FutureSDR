@@ -15,7 +15,7 @@ use std::sync::Mutex;
 use std::task;
 use std::task::Poll;
 
-use crate::anyhow::{bail, Context, Result};
+use crate::anyhow::{anyhow, bail, Context, Result};
 use crate::runtime;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
@@ -209,7 +209,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
-        let (tx, rx) = oneshot::channel::<()>();
+        let (tx, rx) = oneshot::channel::<Result<()>>();
         let task = self.scheduler.spawn(run_flowgraph(
             fg,
             self.scheduler.clone(),
@@ -217,8 +217,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
             fg_inbox_rx,
             tx,
         ));
-        rx.await
-            .expect("run_flowgraph did not signal startup completed");
+        rx.await.expect("run_flowgraph crashed").unwrap();
         let handle = FlowgraphHandle::new(fg_inbox);
         self.flowgraphs.lock().unwrap().insert(handle.clone());
         (TaskHandle::new(task), handle)
@@ -275,17 +274,15 @@ impl<S: Scheduler + Sync + 'static> Spawn for S {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
-        let (tx, rx) = oneshot::channel::<()>();
+        let (tx, rx) = oneshot::channel::<Result<()>>();
         self.spawn(run_flowgraph(
             fg,
             self.clone(),
             fg_inbox.clone(),
             fg_inbox_rx,
             tx,
-        ))
-        .detach();
-        rx.await
-            .expect("run_flowgraph did not signal startup completed");
+        )).detach();
+        rx.await.expect("run_flowgraph crashed").unwrap();
         FlowgraphHandle::new(fg_inbox)
     }
 }
@@ -347,11 +344,14 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     scheduler: S,
     mut main_channel: Sender<FlowgraphMessage>,
     mut main_rx: Receiver<FlowgraphMessage>,
-    initialized: oneshot::Sender<()>,
+    initialized: oneshot::Sender<Result<()>>,
 ) -> Result<Flowgraph> {
     debug!("in run_flowgraph");
     let mut topology = fg.topology.take().context("flowgraph not initialized")?;
-    topology.validate()?;
+    if let Err(e) = topology.validate() {
+        initialized.send(Err(anyhow!("{}", &e))).unwrap();
+        return Err(e);
+    }
 
     let mut inboxes = scheduler.run_topology(&mut topology, &main_channel);
 
@@ -368,24 +368,24 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 
             inboxes[*dst]
                 .as_mut()
-                .unwrap()
+                .context("did not find dst block")?
                 .send(BlockMessage::StreamInputInit {
                     dst_port: *dst_port,
                     reader: writer.add_reader(dst_inbox, *dst_port),
                 })
                 .await
-                .unwrap();
+                .context("could not connect stream input")?;
         }
 
         inboxes[*src]
             .as_mut()
-            .unwrap()
+            .context("did not find src block")?
             .send(BlockMessage::StreamOutputInit {
                 src_port: *src_port,
                 writer,
             })
             .await
-            .unwrap();
+            .context("could not connect stream output")?;
     }
 
     debug!("connect message io");
@@ -460,7 +460,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     }
 
     initialized
-        .send(())
+        .send(Ok(()))
         .expect("failed to signal flowgraph startup complete.");
 
     if block_error {
