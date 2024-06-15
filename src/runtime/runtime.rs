@@ -24,8 +24,6 @@ use crate::runtime::scheduler::SmolScheduler;
 use crate::runtime::scheduler::Task;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
-//#[cfg(feature = "telemetry")]
-//use crate::runtime::Telemetry;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
@@ -35,6 +33,8 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+// #[cfg(feature = "telemetry")]
+// use telemetry::TelemetryConfig;
 
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
@@ -567,8 +567,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 tx,
             } => {
                 if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
-                    // let _ = b.send(BlockMessage::Telemetry { enabled: enabled}).await;
-                    //let (b_tx, rx) = oneshot::channel::<BlockTelemetryConfig>();
+                    // let (b_tx, rx) = oneshot::channel::<TelemetryConfig>();
                     if b.send(BlockMessage::Telemetry { telemetry_config })
                         .await
                         .is_ok()

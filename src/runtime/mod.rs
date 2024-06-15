@@ -2,8 +2,6 @@
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use std::result;
-#[cfg(feature = "telemetry")]
-use telemetry::TelemetryConfig;
 use thiserror::Error;
 
 mod block;
@@ -74,6 +72,7 @@ use {
     telemetry::opentelemetry_sdk::{
         logs::LoggerProvider, metrics::SdkMeterProvider, trace::TracerProvider,
     },
+    telemetry::TelemetryConfig,
 };
 #[cfg(feature = "telemetry")]
 /// "http://localhost:4318/v1/metrics" or "http://localhost:4317"

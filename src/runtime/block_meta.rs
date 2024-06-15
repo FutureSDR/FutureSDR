@@ -1,7 +1,5 @@
 #[cfg(feature = "telemetry")]
-use std::collections::HashSet;
-#[cfg(feature = "telemetry")]
-use telemetry::TelemetryConfig;
+use {std::collections::HashSet, telemetry::TelemetryConfig};
 
 /// Block metadata
 pub struct BlockMeta {
