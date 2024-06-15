@@ -7,8 +7,6 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-once_cell = { version = "*" }
-
 tracing = { version = "0.1", features = ["std"]}
 tracing-core = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter","registry", "std"] }

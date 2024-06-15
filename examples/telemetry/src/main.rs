@@ -27,18 +27,6 @@ use std::time;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /* let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals(
-        "http://localhost:4317".to_string(),
-        "http://localhost:4317".to_string(),
-        "http://localhost:4317".to_string(),
-    ); */
-    //let (meter_provider, tracer_provider, logger_provider) = futuresdr::telemetry::init_globals();
-
-    // For HTTP instead of gRPC use the following endpoints
-    //    "http://localhost:4318/v1/metrics".to_string(),
-    //    "http://localhost:4318/v1/traces".to_string(),
-    //    "http://localhost:4318/v1/logs".to_string(),
-
     let rt = Runtime::new();
     let mpp = METER_PROVIDER.clone();
 
@@ -124,8 +112,7 @@ async fn main() -> Result<()> {
     //let elapsed = now.elapsed();
     //println!("flowgraph took {elapsed:?}");
 
-    //global::shutdown_tracer_provider();
-    TRACER_PROVIDER.force_flush();
+    TRACER_PROVIDER.shutdown()?;
     LOGGER_PROVIDER.shutdown()?;
     // Metrics are exported by default every 30 seconds when using stdout exporter,
     // however shutting down the MeterProvider here instantly flushes

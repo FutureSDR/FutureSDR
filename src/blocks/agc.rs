@@ -1,8 +1,5 @@
 use num_complex::ComplexFloat;
 use rustfft::num_traits::ToPrimitive;
-//use telemetry::opentelemetry::global::meter_provider;
-//use telemetry::opentelemetry::metrics::Meter;
-//use telemetry::opentelemetry::metrics::MeterProvider;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -16,10 +13,12 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-use std::sync::LazyLock;
-use telemetry::opentelemetry::global;
-use telemetry::opentelemetry::metrics::Gauge;
-//static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("AGC_METER"));
+#[cfg(feature = "telemetry")]
+use {
+    std::sync::LazyLock, telemetry::opentelemetry::global,
+    telemetry::opentelemetry::metrics::Gauge, telemetry::opentelemetry::KeyValue,
+};
+
 #[cfg(feature = "telemetry")]
 static AGC_GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
     global::meter("AGC_METER")
@@ -28,15 +27,6 @@ static AGC_GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
         .with_unit("dB")
         .init()
 });
-//opentelemetry_sdk::metrics::SdkMeterProvider::
-//static METER_PROVIDER: LazyLock<telemetry::opentelemetry_sdk::metrics::SdkMeterProvider> = LazyLock::new(|| global::meter_provider());
-
-#[cfg(feature = "telemetry")]
-use crate::telemetry::opentelemetry::KeyValue;
-
-// Maybe we can get a handle here to a meter provider or tracer provider that are registered in the
-// main function and can be retrieved via a global handle.
-// use crate::telemetry::opentelemetry::global;
 
 /// Automatic Gain Control Block
 pub struct Agc<T> {
@@ -52,9 +42,6 @@ pub struct Agc<T> {
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
     gain_locked: bool,
-
-    //#[cfg(feature = "telemetry")]
-    //telemetry_resource: crate::telemetry::TelemetryResource,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -113,13 +100,6 @@ where
                 reference_power,
                 adjustment_rate,
                 gain_locked,
-                /*#[cfg(feature = "telemetry")]
-                telemetry_resource: {
-                    crate::telemetry::TelemetryResource::new(
-                        "MessageSourceTelemetry".to_string(),
-                        env!("CARGO_PKG_VERSION").to_lowercase(),
-                    )
-                },*/
                 _type: std::marker::PhantomData,
             },
         )
@@ -214,27 +194,6 @@ where
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        #[cfg(feature = "telemetry")]
-        /* let agc_gauge = {
-            /* println!(
-                "Collecting the following metrics: {:?}",
-                _meta.telemetry_config().active_metrics()
-            ); */
-
-            let meter = self.telemetry_resource.get_meter();
-            let gauge = meter
-                .f64_gauge("agc_gauge")
-                .with_description("Gauge to measure AGC parameters")
-                .with_unit("dB")
-                .init();
-
-            gauge
-        }; */
-        /* let agc_gauge = METER
-            .f64_gauge("agc_gauge")
-            .with_description("Gauge to measure AGC parameters")
-            .with_unit("dB")
-            .init(); */
         let i = sio.input(0).slice::<T>();
         let o = sio.output(0).slice::<T>();
 
@@ -247,40 +206,32 @@ where
                 } else {
                     *dst = T::from(0.0).unwrap();
                 }
-                let output_power = (*dst).abs().to_f32().unwrap();
 
                 #[cfg(feature = "telemetry")]
-                if _meta
-                    .telemetry_config()
-                    .active_metrics()
-                    .contains("agc_stats")
-                {
-                    // println!("Collecting AGC telemetry data");
+                if _meta.telemetry_config().active_metrics().contains("agc") {
+                    println!("Collecting AGC telemetry data");
                     AGC_GAUGE.record(input_power.into(), &[KeyValue::new("type", "input_power")]);
+                    let output_power = (*dst).abs().to_f32().unwrap();
                     AGC_GAUGE.record(
                         output_power.into(),
                         &[KeyValue::new("type", "output_power")],
                     );
-                    let _ = crate::runtime::METER_PROVIDER.force_flush();
                     // We need a force_flush() here on the meter_provider to record the exact values and dont aggregate them over time.
                     // Might have to wait for implementation here: https://github.com/open-telemetry/opentelemetry-specification/issues/617
+                    let _ = crate::runtime::METER_PROVIDER.force_flush();
                 }
             }
 
             #[cfg(feature = "telemetry")]
-            if _meta
-                .telemetry_config()
-                .active_metrics()
-                .contains("agc_stats")
-            {
+            if _meta.telemetry_config().active_metrics().contains("agc") {
                 AGC_GAUGE.record(self.squelch.into(), &[KeyValue::new("type", "squelch")]);
                 AGC_GAUGE.record(
                     self.reference_power.into(),
                     &[KeyValue::new("type", "reference_power")],
                 );
-                let _ = crate::runtime::METER_PROVIDER.force_flush();
                 // We need a force_flush() here on the meter_provider to record the exact values and dont aggregate them over time.
                 // Might have to wait for implementation here: https://github.com/open-telemetry/opentelemetry-specification/issues/617
+                let _ = crate::runtime::METER_PROVIDER.force_flush();
             }
 
             sio.input(0).consume(m);

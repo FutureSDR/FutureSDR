@@ -69,10 +69,11 @@ use buffer::BufferReader;
 use buffer::BufferWriter;
 
 #[cfg(feature = "telemetry")]
-use std::sync::LazyLock;
-#[cfg(feature = "telemetry")]
-use telemetry::opentelemetry_sdk::{
-    logs::LoggerProvider, metrics::SdkMeterProvider, trace::TracerProvider,
+use {
+    std::sync::LazyLock,
+    telemetry::opentelemetry_sdk::{
+        logs::LoggerProvider, metrics::SdkMeterProvider, trace::TracerProvider,
+    },
 };
 #[cfg(feature = "telemetry")]
 /// "http://localhost:4318/v1/metrics" or "http://localhost:4317"
@@ -147,10 +148,8 @@ pub fn init() {
 
     #[cfg(feature = "telemetry")]
     {
-        let meter_provider = METER_PROVIDER.clone();
-        let tracer_provider = TRACER_PROVIDER.clone();
-        // let logger_provider = LOGGER_PROVIDER.clone();
-        telemetry::init_globals(meter_provider, tracer_provider); // , logger_provider
+        telemetry::init_globals(METER_PROVIDER.clone(), TRACER_PROVIDER.clone());
+        // , LOGGER_PROVIDER.clone()
     }
 }
 

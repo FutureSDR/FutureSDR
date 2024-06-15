@@ -14,16 +14,17 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
-/* #[cfg(feature = "telemetry")]
-use crate::telemetry::opentelemetry::{trace::TraceContextExt, trace::Tracer, Key, KeyValue}; */
+#[cfg(feature = "telemetry")]
+use {
+    std::sync::LazyLock,
+    telemetry::opentelemetry::global,
+    telemetry::opentelemetry::metrics::{Counter, Gauge, Meter},
+    telemetry::opentelemetry::KeyValue,
+};
 
-use std::sync::LazyLock;
-use telemetry::opentelemetry::global;
-use telemetry::opentelemetry::metrics::{Counter, Gauge, Meter};
-use telemetry::opentelemetry::KeyValue;
-//static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("AGC_METER"));
 #[cfg(feature = "telemetry")]
 static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("MSG_METER"));
+#[cfg(feature = "telemetry")]
 static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
     METER
         .u64_counter("u64_counter")
@@ -31,6 +32,7 @@ static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
         .with_unit("count")
         .init()
 });
+#[cfg(feature = "telemetry")]
 static GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
     METER
         .f64_gauge("f64_gauge")
@@ -45,8 +47,6 @@ pub struct MessageSource {
     interval: Duration,
     t_last: Instant,
     n_messages: Option<usize>,
-    /* #[cfg(feature = "telemetry")]
-    telemetry_resource: crate::telemetry::TelemetryResource, */
 }
 
 impl MessageSource {
@@ -61,13 +61,6 @@ impl MessageSource {
                 interval,
                 t_last: Instant::now(),
                 n_messages,
-                /* #[cfg(feature = "telemetry")]
-                telemetry_resource: {
-                    crate::telemetry::TelemetryResource::new(
-                        "MessageSourceTelemetry".to_string(),
-                        env!("CARGO_PKG_VERSION").to_lowercase(),
-                    )
-                }, */
             },
         )
     }
@@ -87,77 +80,22 @@ impl Kernel for MessageSource {
         mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        // Feature Gating might be difficult for traces, which might open up a big context block
-        /* #[cfg(feature = "telemetry")]
-        let (tracer, counter, gauge) = {
-            let tracer = self.telemetry_resource.get_tracer();
-            let meter = self.telemetry_resource.get_meter();
-            let counter = meter
-                .u64_counter("u64_counter")
-                .with_description("Count Values")
-                .with_unit("count")
-                .init();
-            let gauge = meter
-                .f64_gauge("f64_gauge")
-                .with_description("Concrete Values")
-                .with_unit("f64")
-                .init();
-            (tracer, counter, gauge)
-        };
-
-        if _meta
-            .telemetry_config()
-            .active_traces()
-            .contains("test_trace")
-        {
-            tracer.in_span("Main operation", |cx| {
-                let span = cx.span();
-                span.add_event(
-                    "Nice operation!".to_string(),
-                    vec![Key::new("bogons").i64(100)],
-                );
-                span.set_attribute(KeyValue::new("another.key", "yes"));
-
-                info!(target: "telemetry-test", "log message inside a span");
-
-                tracer.in_span("Sub operation...", |cx| {
-                    let span = cx.span();
-                    span.set_attribute(KeyValue::new("another.key", "yes"));
-                    span.add_event("Sub span event", vec![]);
-                });
-            });
-        } */
-
         let now = Instant::now();
-
-        info!(target: "telemetry-test", "This should be collected by the opentelemetry-collector");
 
         if now >= self.t_last + self.interval {
             mio.post(0, self.message.clone()).await;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
-                /* #[cfg(feature = "telemetry")]
-                if _meta
-                    .telemetry_config()
-                    .active_metrics()
-                    .contains("message_count")
-                {
-                    counter.add(1, &[KeyValue::new("type", "message_count")]);
-                }
-
                 #[cfg(feature = "telemetry")]
                 if _meta
                     .telemetry_config()
                     .active_metrics()
-                    .contains("concrete_value")
+                    .contains("message_source")
                 {
-                    println!("Recoridng Gauge Value {}", (*n as f64));
-                    gauge.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
-                } */
-
-                COUNTER.add(1, &[KeyValue::new("type", "message_count")]);
-                GAUGE.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
-                let _ = crate::runtime::METER_PROVIDER.force_flush();
+                    COUNTER.add(1, &[KeyValue::new("type", "message_count")]);
+                    GAUGE.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
+                    let _ = crate::runtime::METER_PROVIDER.force_flush();
+                }
 
                 *n -= 1;
                 if *n == 0 {
