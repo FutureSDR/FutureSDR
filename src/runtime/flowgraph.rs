@@ -52,7 +52,7 @@ impl Flowgraph {
         src_port: impl Into<PortId>,
         dst_block: usize,
         dst_port: impl Into<PortId>,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         self.topology.as_mut().unwrap().connect_stream(
             src_block,
             src_port.into(),
@@ -70,7 +70,7 @@ impl Flowgraph {
         dst_block: usize,
         dst_port: impl Into<PortId>,
         buffer: B,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         self.topology.as_mut().unwrap().connect_stream(
             src_block,
             src_port.into(),
@@ -87,7 +87,7 @@ impl Flowgraph {
         src_port: impl Into<PortId>,
         dst_block: usize,
         dst_port: impl Into<PortId>,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         self.topology.as_mut().unwrap().connect_message(
             src_block,
             src_port.into(),
@@ -152,8 +152,8 @@ impl FlowgraphHandle {
                 tx,
             })
             .await
-            .map_err(|_| Error::InvalidBlock)?;
-        rx.await.map_err(|_| Error::HandlerError)?
+            .or(Err(Error::InvalidBlock(block_id)))?;
+        rx.await.or(Err(Error::HandlerError))?
     }
 
     /// Call message handler
@@ -172,7 +172,7 @@ impl FlowgraphHandle {
                 tx,
             })
             .await
-            .map_err(|_| Error::InvalidBlock)?;
+            .map_err(|_| Error::InvalidBlock(block_id))?;
         rx.await.map_err(|_| Error::HandlerError)?
     }
 

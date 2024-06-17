@@ -1,11 +1,11 @@
 use futures::channel::mpsc::Sender;
 use std::collections::HashMap;
 
-use crate::anyhow::{anyhow, bail, Context, Result};
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
 use crate::runtime::BlockMessage;
+use crate::runtime::Error;
 use crate::runtime::PortId;
 use slab::Slab;
 use std::any::{Any, TypeId};
@@ -167,50 +167,52 @@ impl Topology {
         dst_block: usize,
         dst_port: PortId,
         buffer_builder: B,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         let src = self
             .blocks
             .get(src_block)
-            .context("src block invalid")?
+            .ok_or(Error::InvalidBlock(src_block))?
             .as_ref()
-            .context("src block not present")?;
+            .ok_or(Error::InvalidBlock(src_block))?;
         let dst = self
             .blocks
             .get(dst_block)
-            .context("dst block invalid")?
+            .ok_or(Error::InvalidBlock(dst_block))?
             .as_ref()
-            .context("dst block not present")?;
+            .ok_or(Error::InvalidBlock(dst_block))?;
 
         let src_port_id = match src_port {
-            PortId::Name(s) => src
-                .stream_output_name_to_id(&s)
-                .context("invalid src port name")?,
+            PortId::Name(ref s) => src
+                .stream_output_name_to_id(s)
+                .ok_or(Error::InvalidStreamPort(src_block, src_port.clone()))?,
             PortId::Index(i) => {
                 if i < src.stream_outputs().len() {
                     i
                 } else {
-                    bail!("invalid src port id {}", i)
+                    return Err(Error::InvalidStreamPort(src_block, src_port));
                 }
             }
         };
         let sp = src.stream_output(src_port_id);
 
         let dst_port_id = match dst_port {
-            PortId::Name(s) => dst
-                .stream_input_name_to_id(&s)
-                .context("invalid dst port name")?,
+            PortId::Name(ref s) => dst
+                .stream_input_name_to_id(s)
+                .ok_or(Error::InvalidStreamPort(dst_block, dst_port.clone()))?,
             PortId::Index(i) => {
                 if i < dst.stream_inputs().len() {
                     i
                 } else {
-                    bail!("invalid dst port id {}", i)
+                    return Err(Error::InvalidStreamPort(dst_block, dst_port));
                 }
             }
         };
         let dp = dst.stream_input(dst_port_id);
 
         if sp.type_id() != dp.type_id() {
-            bail!("item types do not match");
+            return Err(Error::ConnectError(
+                src_block, src_port, dst_block, dst_port,
+            ));
         }
 
         let buffer_entry = BufferBuilderEntry {
@@ -233,41 +235,41 @@ impl Topology {
         src_port: PortId,
         dst_block: usize,
         dst_port: PortId,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         let src = self
             .blocks
             .get(src_block)
-            .context("invalid src block")?
+            .ok_or(Error::InvalidBlock(src_block))?
             .as_ref()
-            .context("src block not present")?;
+            .ok_or(Error::InvalidBlock(src_block))?;
         let dst = self
             .blocks
             .get(dst_block)
-            .context("invalid dst block")?
+            .ok_or(Error::InvalidBlock(dst_block))?
             .as_ref()
-            .context("dst block not present")?;
+            .ok_or(Error::InvalidBlock(dst_block))?;
 
         let src_port_id = match src_port {
-            PortId::Name(s) => src
-                .message_output_name_to_id(&s)
-                .context("invalid src port name")?,
+            PortId::Name(ref s) => src
+                .message_output_name_to_id(s)
+                .ok_or(Error::InvalidMessagePort(Some(src_block), src_port.clone()))?,
             PortId::Index(i) => {
                 if i < src.message_outputs().len() {
                     i
                 } else {
-                    bail!("wrong src port id {}", i)
+                    return Err(Error::InvalidMessagePort(Some(src_block), src_port.clone()));
                 }
             }
         };
         let dst_port_id = match dst_port {
-            PortId::Name(s) => dst
-                .message_input_name_to_id(&s)
-                .context("invalid dst port name")?,
+            PortId::Name(ref s) => dst
+                .message_input_name_to_id(s)
+                .ok_or(Error::InvalidMessagePort(Some(dst_block), dst_port.clone()))?,
             PortId::Index(i) => {
                 if i < dst.message_outputs().len() {
                     i
                 } else {
-                    bail!("wrong dst port id {}", i)
+                    return Err(Error::InvalidMessagePort(Some(dst_block), dst_port));
                 }
             }
         };
@@ -282,11 +284,11 @@ impl Topology {
     ///
     /// Make sure that all stream ports are connected. Check if connections are valid, e.g., every
     /// stream input has exactly one connection.
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> Result<(), Error> {
         // check if all stream ports are connected (neither message inputs nor outputs have to be connected)
         for (block_id, e) in self.blocks.iter() {
             if let Some(block) = e {
-                for (out_id, _) in block.stream_outputs().iter().enumerate() {
+                for (out_id, out_port) in block.stream_outputs().iter().enumerate() {
                     if self
                         .stream_edges
                         .iter()
@@ -294,7 +296,11 @@ impl Topology {
                         .count()
                         == 0
                     {
-                        return Err(anyhow!("unconnected stream output port of block {:?}", block.instance_name()));
+                        return Err(Error::ValidationError(format!(
+                            "unconnected stream output port {:?} of block {:?}",
+                            out_port,
+                            block.instance_name()
+                        )));
                     }
                 }
 
@@ -308,24 +314,39 @@ impl Topology {
                         .count()
                         != 1
                     {
-                        bail!("stream input port does not have exactly one input");
+                        return Err(Error::ValidationError(format!(
+                            "Block {} stream input {} does not have exactly one input",
+                            block_id, input_id
+                        )));
                     }
                 }
             } else {
-                bail!("block not owned by topology");
+                return Err(Error::ValidationError(format!(
+                    "Block {} not owned by topology",
+                    block_id
+                )));
             }
         }
 
         // check if all stream edges are valid
         for ((src, src_port, _), v) in self.stream_edges.iter() {
-            let src_block = self.block_ref(*src).expect("src block not found");
+            let src_block = self.block_ref(*src).ok_or(Error::ValidationError(format!(
+                "Source block {} not found",
+                src
+            )))?;
             let output = src_block.stream_output(*src_port);
 
             for (dst, dst_port) in v.iter() {
-                let dst_block = self.block_ref(*dst).expect("dst block not found");
+                let dst_block = self.block_ref(*dst).ok_or(Error::ValidationError(format!(
+                    "Destination block {} not found",
+                    dst
+                )))?;
                 let input = dst_block.stream_input(*dst_port);
-                if output.item_size() != input.item_size() {
-                    bail!("item size of stream connection does not match");
+                if output.type_id() != input.type_id() {
+                    return Err(Error::ValidationError(format!(
+                        "Item size of stream connection does not match ({}, {:?} -> {}, {:?})",
+                        src, src_port, dst, dst_port
+                    )));
                 }
             }
         }
@@ -334,16 +355,24 @@ impl Topology {
         // all instance names are Some
         // all instance names are unique
         let mut v = Vec::new();
-        for (_, b) in self.blocks.iter() {
-            let c = b.as_ref().expect("block is not set");
-            let name = c.instance_name().expect("block instance name not set");
+        for (i, b) in self.blocks.iter() {
+            let c = b.as_ref().ok_or(Error::ValidationError(format!(
+                "Block {} not present/not owned by topology",
+                i
+            )))?;
+            let name = c.instance_name().ok_or(Error::ValidationError(format!(
+                "Block {}, {:?} has no instance name",
+                i, c
+            )))?;
             v.push(name.to_string());
         }
         v.sort();
         let len = v.len();
         v.dedup();
         if len != v.len() {
-            bail!("duplicate block instance names");
+            return Err(Error::ValidationError(
+                "Duplicate block instance names".to_string(),
+            ));
         }
 
         Ok(())

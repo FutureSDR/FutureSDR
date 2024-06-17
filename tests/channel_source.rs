@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use futuresdr::anyhow::{anyhow, Result};
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::VectorSink;
@@ -21,7 +21,7 @@ fn channel_source_min() -> Result<()> {
         let (fg, _) = rt.start(fg).await;
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         tx.close().await?;
-        fg.await as Result<Flowgraph>
+        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
@@ -48,7 +48,7 @@ fn channel_source_small() -> Result<()> {
         tx.send(vec![].into_boxed_slice()).await?;
         tx.send(vec![5].into_boxed_slice()).await?;
         tx.close().await?;
-        fg.await as Result<Flowgraph>
+        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();
@@ -73,7 +73,7 @@ fn channel_source_big() -> Result<()> {
         tx.send(vec![0; 99999].into_boxed_slice()).await?;
         tx.send(vec![1; 88888].into_boxed_slice()).await?;
         tx.close().await?;
-        fg.await as Result<Flowgraph>
+        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = fg.kernel::<VectorSink<u32>>(snk).unwrap();

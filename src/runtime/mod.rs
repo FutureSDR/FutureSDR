@@ -205,21 +205,30 @@ pub enum BlockMessage {
 #[non_exhaustive]
 pub enum Error {
     /// Block does not exist
-    #[error("Block does not exist")]
-    InvalidBlock,
+    #[error("Block {0} does not exist")]
+    InvalidBlock(usize),
     /// Flowgraph does not exist or terminated
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
-    /// Handler does not exist
-    #[error("Handler does not exist (Id {0:?})")]
-    InvalidHandler(PortId),
-    /// Error in Handler
+    /// Message port does not exist
+    #[error("Block {0:?} does not have message port ({1:?})")]
+    InvalidMessagePort(Option<usize>, PortId),
+    /// Stream port does not exist
+    #[error("Block {0} does not have stream port ({1:?})")]
+    InvalidStreamPort(usize, PortId),
+    /// Connect Error
+    #[error("Connect Error {0}, {1:?} -> {2}, {3:?}")]
+    ConnectError(usize, PortId, usize, PortId),
+    /// Error in handler
     #[error("Error in handler")]
     HandlerError,
     /// Block is already terminated
     #[error("Block already terminated")]
     BlockTerminated,
     /// Runtime error
-    #[error("Error in runtime")]
-    RuntimeError,
+    #[error("Runtime error ({0})")]
+    RuntimeError(String),
+    /// Validation error
+    #[error("Validation error {0}")]
+    ValidationError(String),
 }

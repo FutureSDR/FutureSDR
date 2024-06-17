@@ -9,6 +9,7 @@ use futuresdr::blocks::NullSource;
 use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
+use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -19,7 +20,7 @@ fn connect(
     dst: usize,
     dst_port: &'static str,
     slab: bool,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     if slab {
         fg.connect_stream_with_type(src, src_port, dst, dst_port, Slab::new())
     } else {

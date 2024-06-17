@@ -2,7 +2,6 @@ use clap::Parser;
 use std::time;
 
 use futuresdr::anyhow::{Context, Result};
-// use futuresdr::blocks::Copy;
 use futuresdr::blocks::CopyRand;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -11,6 +10,7 @@ use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
+use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -22,7 +22,7 @@ fn connect(
     dst_port: &'static str,
     slab: bool,
     min_bytes: usize,
-) -> Result<()> {
+) -> std::result::Result<(), Error> {
     if slab {
         fg.connect_stream_with_type(src, src_port, dst, dst_port, Slab::with_size(min_bytes))
     } else {

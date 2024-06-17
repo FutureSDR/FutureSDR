@@ -179,13 +179,13 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                 if i < mio.inputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidHandler(PortId::Index(i)));
+                    return Err(Error::InvalidMessagePort(None, PortId::Index(i)));
                 }
             }
             PortId::Name(n) => match mio.input_name_to_id(&n) {
                 Some(s) => s,
                 None => {
-                    return Err(Error::InvalidHandler(PortId::Name(n)));
+                    return Err(Error::InvalidMessagePort(None, PortId::Name(n)));
                 }
             },
         };
@@ -311,7 +311,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                         )
                         .await
                         {
-                            Err(Error::InvalidHandler(port_id)) => {
+                            Err(Error::InvalidMessagePort(_, port_id)) => {
                                 error!(
                                     "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
                                     meta.instance_name().unwrap(),
@@ -356,7 +356,8 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                                     "{}: Error in callback. Terminating.",
                                     meta.instance_name().unwrap(),
                                 );
-                                let _ = tx.send(Err(Error::InvalidHandler(port_id)));
+                                let _ = tx
+                                    .send(Err(Error::InvalidMessagePort(Some(block_id), port_id)));
                                 main_inbox
                                     .send(FlowgraphMessage::BlockError {
                                         block_id,

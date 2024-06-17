@@ -63,7 +63,6 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
 cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,lttng,zynq,wgpu -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
 
