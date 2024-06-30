@@ -3,7 +3,7 @@ services:
   # auto-logs from those traces.
   # Includes Metrics, Logs, Traces and Profiles.
   alloy:
-    image: grafana/alloy:v1.1.0
+    image: grafana/alloy:latest
     container_name: alloy
     ports:
       - "4317:4317"
@@ -24,7 +24,7 @@ services:
 
   # The Grafana dashboarding server.
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:11.0.1
     container_name: grafana
     volumes:
       - "./grafana/definitions/dashboards:/var/lib/grafana/dashboards"
@@ -33,7 +33,7 @@ services:
       - "3000:3000"
     environment:
       - GF_FEATURE_TOGGLES_ENABLE=flameGraph traceqlSearch traceQLStreaming correlations metricsSummary traceqlEditor traceToMetrics traceToProfiles datatrails
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/main.json
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/example.json
       - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1ms
       - GF_METRICS_INTERVAL_SECONDS=1ms # Flush/write interval when sending metrics to external TSDB.
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -86,10 +86,6 @@ services:
       - "./mimir/mimir.yaml:/etc/mimir.yaml"
     networks:
      - futuresdr_telemetry
-
-#volumes:
-#  grafana:
-#  postgres:
 
 networks:
   futuresdr_telemetry:

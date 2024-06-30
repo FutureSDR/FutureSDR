@@ -19,4 +19,4 @@ datasources:
     uid: mimir
     url: http://mimir:9009/prometheus
     jsonData:
-      timeInterval: 50ms # How often is metric data queried from Mimir
+      timeInterval: 1ms # How often is metric data queried from Mimir

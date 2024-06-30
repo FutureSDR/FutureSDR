@@ -16,12 +16,16 @@ mod ctrl_port;
 mod ctrl_port;
 use crate::runtime::ctrl_port::ControlPort;
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(target_os = "android"),
+    not(feature = "telemetry")
+))]
 mod logging;
-#[cfg(target_os = "android")]
+#[cfg(all(target_os = "android", not(feature = "telemetry")))]
 #[path = "logging_android.rs"]
 mod logging;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(feature = "telemetry")))]
 #[path = "logging_wasm.rs"]
 mod logging;
 

@@ -19,11 +19,12 @@ use {
     std::sync::LazyLock,
     telemetry::opentelemetry::global,
     telemetry::opentelemetry::metrics::{Counter, Gauge, Meter},
-    telemetry::opentelemetry::KeyValue,
+    telemetry::opentelemetry::trace::{TraceContextExt as _, Tracer},
+    telemetry::opentelemetry::{Key, KeyValue},
 };
 
 #[cfg(feature = "telemetry")]
-static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("MSG_METER"));
+static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("MSG_SOURCE_METER"));
 #[cfg(feature = "telemetry")]
 static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
     METER
@@ -36,8 +37,8 @@ static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
 static GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
     METER
         .f64_gauge("f64_gauge")
-        .with_description("Concrete Values")
-        .with_unit("f64")
+        .with_description("Measure concrete Values")
+        .with_unit("concrete")
         .init()
 });
 
@@ -81,6 +82,37 @@ impl Kernel for MessageSource {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
+        #[cfg(feature = "telemetry")]
+        if _meta
+            .telemetry_config()
+            .active_traces()
+            .contains("test_trace")
+        {
+            let tracer = global::tracer("tracer");
+
+            tracer.in_span("Main operation", |cx| {
+                let span = cx.span();
+
+                span.add_event("Flowgraph 1!".to_string(), vec![Key::new("fsdr").i64(100)]);
+                span.set_attribute(KeyValue::new("flowgraph ID", "1"));
+
+                tracer.in_span("Flowgraph 1 Sub Operation", |cx| {
+                    let span = cx.span();
+                    //span.set_attribute(KeyValue::new("another.key", "yes"));
+                    //let _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000));
+                    span.add_event("Sub span event 1", vec![]);
+                });
+
+                debug!("my-event-inside-span");
+
+                tracer.in_span("Flowgraph 2 Sub Operation", |cx| {
+                    let span = cx.span();
+                    //span.set_attribute(KeyValue::new("another.key", "yes"));
+                    //let _ = tokio::time::sleep(tokio::time::Duration::from_millis(2000));
+                    span.add_event("Sub span event 2", vec![]);
+                });
+            });
+        }
 
         if now >= self.t_last + self.interval {
             mio.post(0, self.message.clone()).await;

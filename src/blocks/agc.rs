@@ -199,9 +199,9 @@ where
 
         // Gain is only exactly 1.0 when the AGC block is freshly initialized
         // We then can set the gain to a suitable value to scale
-        // the input power to e.g. 95% of the reference power immediately.
+        // the input power to e.g. 99% of the reference power immediately.
         if self.gain == 1.0 {
-            self.gain = (self.reference_power / input.abs().to_f32().unwrap()) * 0.95;
+            self.gain = (self.reference_power / input.abs().to_f32().unwrap()) * 0.99;
         }
 
         // The gain adjustment rate should not be fixed, but depending
