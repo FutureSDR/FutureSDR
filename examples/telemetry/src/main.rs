@@ -8,14 +8,14 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::Throttle;
 use futuresdr::macros::connect;
+use futuresdr::num_complex::Complex32;
+use futuresdr::num_complex::ComplexFloat;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::LOGGER_PROVIDER;
 use futuresdr::runtime::METER_PROVIDER;
 use futuresdr::runtime::TRACER_PROVIDER;
 use futuresdr::telemetry::opentelemetry::KeyValue;
-use num_complex::Complex32;
-use num_complex::ComplexFloat;
 
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;

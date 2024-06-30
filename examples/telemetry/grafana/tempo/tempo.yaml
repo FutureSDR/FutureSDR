@@ -8,6 +8,8 @@ stream_over_http_enabled: true
 server:
   # Listen for all incoming requests on port 3200.
   http_listen_port: 3200
+  # Log messages at info level.
+  log_level: info #debug
 
 # The distributor receives incoming trace span data for the system.
 distributor:

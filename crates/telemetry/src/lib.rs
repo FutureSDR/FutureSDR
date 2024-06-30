@@ -139,13 +139,12 @@ pub fn init_meter_provider<T: Into<String>>(
 pub fn init_globals(
     meter_provider: opentelemetry_sdk::metrics::SdkMeterProvider,
     tracer_provider: opentelemetry_sdk::trace::TracerProvider,
-    //logger_provider: opentelemetry_sdk::logs::LoggerProvider,
+    logger_provider: opentelemetry_sdk::logs::LoggerProvider,
 ) {
     global::set_meter_provider(meter_provider);
     global::set_tracer_provider(tracer_provider);
 
     // TODO: Uncommenting this leads to a panic
-    /*
     use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::EnvFilter;
@@ -177,5 +176,5 @@ pub fn init_globals(
     tracing_subscriber::registry()
         .with(filter)
         .with(layer)
-        .init(); */
+        .init();
 }

@@ -1,6 +1,6 @@
 // https://grafana.com/docs/alloy/latest/tasks/opentelemetry-to-lgtm-stack/
 logging {
-    level  = "debug"
+    level  = "info"
     format = "logfmt"
 }
 

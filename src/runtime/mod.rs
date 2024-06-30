@@ -143,13 +143,15 @@ pub static LOGGER_PROVIDER: LazyLock<LoggerProvider> = LazyLock::new(|| {
 /// FutureSDR logging before a [`Runtime`] is started.
 ///
 pub fn init() {
+    #[cfg(not(feature = "telemetry"))]
     logging::init();
 
     #[cfg(feature = "telemetry")]
-    {
-        telemetry::init_globals(METER_PROVIDER.clone(), TRACER_PROVIDER.clone());
-        // , LOGGER_PROVIDER.clone()
-    }
+    telemetry::init_globals(
+        METER_PROVIDER.clone(),
+        TRACER_PROVIDER.clone(),
+        LOGGER_PROVIDER.clone(),
+    );
 }
 
 /// Flowgraph inbox message type
