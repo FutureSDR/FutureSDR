@@ -3,3 +3,4 @@ target
 node_modules
 perf-data
 package-lock.json
+.DS_Store

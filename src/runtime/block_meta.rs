@@ -1,8 +1,13 @@
+#[cfg(feature = "telemetry")]
+use {std::collections::HashSet, telemetry::TelemetryConfig};
+
 /// Block metadata
 pub struct BlockMeta {
     type_name: String,
     instance_name: Option<String>,
     blocking: bool,
+    #[cfg(feature = "telemetry")]
+    telemetry_config: TelemetryConfig,
 }
 
 impl BlockMeta {
@@ -11,6 +16,8 @@ impl BlockMeta {
             type_name,
             instance_name: None,
             blocking,
+            #[cfg(feature = "telemetry")]
+            telemetry_config: TelemetryConfig::new(HashSet::new(), HashSet::new()),
         }
     }
     /// Name of block type
@@ -30,6 +37,16 @@ impl BlockMeta {
     /// Blocking blocks will be spawned on a separate thread.
     pub fn is_blocking(&self) -> bool {
         self.blocking
+    }
+    #[cfg(feature = "telemetry")]
+    /// Get telemetry config
+    pub fn telemetry_config(&self) -> &TelemetryConfig {
+        &self.telemetry_config
+    }
+    #[cfg(feature = "telemetry")]
+    /// Update telemetry config
+    pub fn update_telemetry_config(&mut self, telemetry_config: TelemetryConfig) {
+        self.telemetry_config = telemetry_config;
     }
 }
 

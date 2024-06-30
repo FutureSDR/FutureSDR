@@ -272,6 +272,10 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
             // ================== non blocking
             loop {
                 match inbox.next().now_or_never() {
+                    #[cfg(feature = "telemetry")]
+                    Some(Some(BlockMessage::Telemetry { telemetry_config })) => {
+                        meta.update_telemetry_config(telemetry_config);
+                    }
                     Some(Some(BlockMessage::Notify)) => {}
                     Some(Some(BlockMessage::BlockDescription { tx })) => {
                         let stream_inputs: Vec<String> =

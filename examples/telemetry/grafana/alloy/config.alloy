@@ -1,0 +1,117 @@
+// https://grafana.com/docs/alloy/latest/tasks/opentelemetry-to-lgtm-stack/
+logging {
+    level  = "info"
+    format = "logfmt"
+}
+
+// Configuration file containing hosts and credentials
+local.file "endpoints" {
+    // The endpoints file is used to define the endpoints, credentials and options
+    // for the Alloy export to.
+    filename = "/etc/alloy/endpoints.json"
+}
+
+// https://grafana.com/docs/alloy/latest/tasks/collect-opentelemetry-data/#configure-an-opentelemetry-protocol-receiver
+// Metrics can be sent to the Alloy OTEL receiver via gRPC on port 4317 or v ia HTTP on port 4318
+otelcol.receiver.otlp "alloy" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  // Send received telemetry data to the respective batch processors
+  output {
+    metrics = [otelcol.processor.batch.telemetry.input]
+    logs    = [otelcol.processor.batch.telemetry.input]
+    traces  = [otelcol.processor.batch.telemetry.input]
+  }
+  //output {
+  //  metrics = [otelcol.exporter.prometheus.mimir.input] // Mimir
+  //  logs    = [otelcol.exporter.loki.loki.input] // Loki
+  //  traces  = [otelcol.exporter.otlp.tempo.input] // Tempo
+  //}
+
+  //debug_metrics {
+  //  disable_high_cardinality_metrics = true
+  //}
+}
+
+// Batch processor, which forwards telemetry data to the respective processing backends like mimir (via prometheus protocol)), loki or tempo.
+otelcol.processor.batch "telemetry" {
+  output {
+    metrics = [otelcol.exporter.prometheus.mimir.input] // Mimir
+    logs    = [otelcol.exporter.loki.loki.input] // Loki
+    traces  = [otelcol.exporter.otlp.tempo.input] // Tempo
+  }
+}
+
+// Prometheus Remote Write is a popular metrics transmission protocol supported by most metrics systems, including Grafana Mimir.
+// To send from OTLP to Mimir, you can do a passthrough from the otelcol.exporter.prometheus to the prometheus.remote_write component. 
+otelcol.exporter.prometheus "mimir" {
+	forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+	// The endpoint is the Mimir service.
+    endpoint {
+        url = json_path(local.file.endpoints.content, ".metrics.url")[0]
+        // proxy_url = "http://192.168.1.10:8080"
+
+        // Basic auth credentials. If the endpoint is not TLS, whilst sent, these will be ignored.
+        basic_auth {
+            username = json_path(local.file.endpoints.content, ".metrics.basicAuth.username")[0]
+            password = json_path(local.file.endpoints.content, ".metrics.basicAuth.password")[0]
+        }
+    }
+}
+
+// Grafana Loki is a horizontally scalable, highly available, multi-tenant log aggregation system inspired by Prometheus.
+// Similar to Prometheus, to send from OTLP to Loki, you can do a passthrough from the otelcol.exporter.loki component to loki.write component.
+otelcol.exporter.loki "loki" {
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	// Output the Loki log to the local Loki instance.
+    endpoint {
+        url = json_path(local.file.endpoints.content, ".logs.url")[0]
+
+        // The basic auth credentials for the Loki instance.
+        basic_auth {
+            username = json_path(local.file.endpoints.content, ".logs.basicAuth.username")[0]
+            password = json_path(local.file.endpoints.content, ".logs.basicAuth.password")[0]
+        }
+    }
+}
+
+// Grafana Tempo is an open source, easy-to-use, scalable distributed tracing backend.
+// Tempo can ingest OTLP directly, and you can use the OTLP exporter to send the traces to Tempo.
+otelcol.exporter.otlp "tempo" {
+  // Define the client for exporting.
+    client {
+        // Authentication block.
+        auth = otelcol.auth.headers.tempo.handler
+
+        // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
+        endpoint = json_path(local.file.endpoints.content, ".traces.url")[0]
+
+        // Configure TLS settings for communicating with the endpoint.
+        tls {
+            // The connection is insecure.
+            insecure = json_path(local.file.endpoints.content, ".traces.tls.insecure")[0]
+            // Do not verify TLS certificates when connecting.
+            insecure_skip_verify = json_path(local.file.endpoints.content, ".traces.tls.insecureSkipVerify")[0]
+        }
+    }
+}
+
+// The OpenTelemetry auth headers component is used to define the headers for the OTLP exporter. Note we don't
+// use basic auth here because the OTel spec. demands TLS enabled for basic auth. Using basic header auth
+// allow us to still wire up the basic auth credentials to the Tempo exporter even when they won't be required.
+otelcol.auth.headers "tempo" {
+    header {
+        key = "Authorization"
+        value = join(["Basic ", json_path(local.file.endpoints.content, ".traces.basicAuthToken")[0]], "")
+    }
+}

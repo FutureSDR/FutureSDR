@@ -1,0 +1,22 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: loki
+    url: http://loki:3100
+
+  - name: Tempo
+    type: tempo
+    access: proxy
+    uid: tempo
+    url: http://tempo:3200
+
+  - name: Mimir
+    type: prometheus
+    access: proxy
+    uid: mimir
+    url: http://mimir:9009/prometheus
+    jsonData:
+      timeInterval: 1ms # How often is metric data queried from Mimir

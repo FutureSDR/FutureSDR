@@ -33,6 +33,8 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+// #[cfg(feature = "telemetry")]
+// use telemetry::TelemetryConfig;
 
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
@@ -551,6 +553,30 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                         } else {
                             let _ = tx.send(Err(Error::RuntimeError));
                         }
+                    } else {
+                        let _ = tx.send(Err(Error::BlockTerminated));
+                    }
+                } else {
+                    let _ = tx.send(Err(Error::InvalidBlock));
+                }
+            }
+            #[cfg(feature = "telemetry")]
+            FlowgraphMessage::Telemetry {
+                block_id,
+                telemetry_config,
+                tx,
+            } => {
+                if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
+                    // let (b_tx, rx) = oneshot::channel::<TelemetryConfig>();
+                    if b.send(BlockMessage::Telemetry { telemetry_config })
+                        .await
+                        .is_ok()
+                    {
+                        /* if let Ok(b) = rx.await {
+                            let _ = tx.send(Ok(b));
+                        } else {
+                            let _ = tx.send(Err(Error::RuntimeError));
+                        } */
                     } else {
                         let _ = tx.send(Err(Error::BlockTerminated));
                     }

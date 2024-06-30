@@ -14,6 +14,34 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
+#[cfg(feature = "telemetry")]
+use {
+    std::sync::LazyLock,
+    telemetry::opentelemetry::global,
+    telemetry::opentelemetry::metrics::{Counter, Gauge, Meter},
+    telemetry::opentelemetry::trace::{TraceContextExt as _, Tracer},
+    telemetry::opentelemetry::{Key, KeyValue},
+};
+
+#[cfg(feature = "telemetry")]
+static METER: LazyLock<Meter> = LazyLock::new(|| global::meter("MSG_SOURCE_METER"));
+#[cfg(feature = "telemetry")]
+static COUNTER: LazyLock<Counter<u64>> = LazyLock::new(|| {
+    METER
+        .u64_counter("u64_counter")
+        .with_description("Count Values")
+        .with_unit("count")
+        .init()
+});
+#[cfg(feature = "telemetry")]
+static GAUGE: LazyLock<Gauge<f64>> = LazyLock::new(|| {
+    METER
+        .f64_gauge("f64_gauge")
+        .with_description("Measure concrete Values")
+        .with_unit("concrete")
+        .init()
+});
+
 /// Output the same message periodically.
 pub struct MessageSource {
     message: Pmt,
@@ -51,14 +79,56 @@ impl Kernel for MessageSource {
         io: &mut WorkIo,
         _sio: &mut StreamIo,
         mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
+        _meta: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
+        #[cfg(feature = "telemetry")]
+        if _meta
+            .telemetry_config()
+            .active_traces()
+            .contains("test_trace")
+        {
+            let tracer = global::tracer("tracer");
+
+            tracer.in_span("Main operation", |cx| {
+                let span = cx.span();
+
+                span.add_event("Flowgraph 1!".to_string(), vec![Key::new("fsdr").i64(100)]);
+                span.set_attribute(KeyValue::new("flowgraph ID", "1"));
+
+                tracer.in_span("Flowgraph 1 Sub Operation", |cx| {
+                    let span = cx.span();
+                    //span.set_attribute(KeyValue::new("another.key", "yes"));
+                    //let _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000));
+                    span.add_event("Sub span event 1", vec![]);
+                });
+
+                debug!("my-event-inside-span");
+
+                tracer.in_span("Flowgraph 2 Sub Operation", |cx| {
+                    let span = cx.span();
+                    //span.set_attribute(KeyValue::new("another.key", "yes"));
+                    //let _ = tokio::time::sleep(tokio::time::Duration::from_millis(2000));
+                    span.add_event("Sub span event 2", vec![]);
+                });
+            });
+        }
 
         if now >= self.t_last + self.interval {
             mio.post(0, self.message.clone()).await;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
+                #[cfg(feature = "telemetry")]
+                if _meta
+                    .telemetry_config()
+                    .active_metrics()
+                    .contains("message_source")
+                {
+                    COUNTER.add(1, &[KeyValue::new("type", "message_count")]);
+                    GAUGE.record(*n as f64, &[KeyValue::new("type", "concrete_value")]);
+                    let _ = crate::runtime::METER_PROVIDER.force_flush();
+                }
+
                 *n -= 1;
                 if *n == 0 {
                     io.finished = true;
@@ -77,7 +147,7 @@ impl Kernel for MessageSource {
         &mut self,
         _sio: &mut StreamIo,
         _mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
+        _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())

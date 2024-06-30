@@ -16,12 +16,16 @@ mod ctrl_port;
 mod ctrl_port;
 use crate::runtime::ctrl_port::ControlPort;
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(target_os = "android"),
+    not(feature = "telemetry")
+))]
 mod logging;
-#[cfg(target_os = "android")]
+#[cfg(all(target_os = "android", not(feature = "telemetry")))]
 #[path = "logging_android.rs"]
 mod logging;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(feature = "telemetry")))]
 #[path = "logging_wasm.rs"]
 mod logging;
 
@@ -66,6 +70,74 @@ pub use futuresdr_types::PortId;
 use buffer::BufferReader;
 use buffer::BufferWriter;
 
+#[cfg(feature = "telemetry")]
+use {
+    std::sync::LazyLock,
+    telemetry::opentelemetry_sdk::{
+        logs::LoggerProvider, metrics::SdkMeterProvider, trace::TracerProvider,
+    },
+    telemetry::TelemetryConfig,
+};
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/metrics" or "http://localhost:4317"
+pub static METER_PROVIDER: LazyLock<SdkMeterProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("metrics_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("metrics_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_meter_provider(exporter_type, endpoint)
+        .expect("Failed to initialize meter provider.")
+});
+
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/traces" or "http://localhost:4317"
+pub static TRACER_PROVIDER: LazyLock<TracerProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("tracer_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("tracer_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_tracer_provider(exporter_type, endpoint)
+        .expect("Failed to initialize tracer provider.")
+});
+
+#[cfg(feature = "telemetry")]
+/// "http://localhost:4318/v1/logs" or "http://localhost:4317"
+pub static LOGGER_PROVIDER: LazyLock<LoggerProvider> = LazyLock::new(|| {
+    let endpoint = config::get_value("logger_endpoint")
+        .unwrap_or("http://localhost:4317".into())
+        .into_string()
+        .unwrap();
+    let protocol = config::get_value("logger_protocol")
+        .unwrap_or("gRPC".into())
+        .into_string()
+        .unwrap();
+    let exporter_type = match protocol.as_str() {
+        "HTTP" => telemetry::ExporterType::HTTP,
+        _ => telemetry::ExporterType::GRPC,
+    };
+
+    telemetry::init_logger_provider(exporter_type, endpoint)
+        .expect("Failed to initialize logger provider.")
+});
+
 /// Initialize runtime
 ///
 /// This function does not have to be called. Once a [`Runtime`] is started,
@@ -75,7 +147,15 @@ use buffer::BufferWriter;
 /// FutureSDR logging before a [`Runtime`] is started.
 ///
 pub fn init() {
+    #[cfg(not(feature = "telemetry"))]
     logging::init();
+
+    #[cfg(feature = "telemetry")]
+    telemetry::init_globals(
+        METER_PROVIDER.clone(),
+        TRACER_PROVIDER.clone(),
+        LOGGER_PROVIDER.clone(),
+    );
 }
 
 /// Flowgraph inbox message type
@@ -132,6 +212,16 @@ pub enum FlowgraphMessage {
         block_id: usize,
         /// Back channel for result
         tx: oneshot::Sender<result::Result<BlockDescription, Error>>,
+    },
+    #[cfg(feature = "telemetry")]
+    /// Enable or Disable BlockTelemetry
+    Telemetry {
+        /// Block Id
+        block_id: usize,
+        /// Activate or Deactivate telemetry
+        telemetry_config: TelemetryConfig,
+        /// Back channel for result
+        tx: oneshot::Sender<result::Result<(), Error>>,
     },
 }
 
@@ -197,6 +287,12 @@ pub enum BlockMessage {
         data: Pmt,
         /// Back channel for handler result
         tx: oneshot::Sender<result::Result<Pmt, Error>>,
+    },
+    #[cfg(feature = "telemetry")]
+    /// Configure Block Telemetry
+    Telemetry {
+        /// Enable or disable telemetry
+        telemetry_config: TelemetryConfig,
     },
 }
 
