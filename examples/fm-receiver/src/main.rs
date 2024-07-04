@@ -131,7 +131,7 @@ fn main() -> Result<()> {
     let transition = 10_000.0 / (audio_rate * audio_mult) as f64;
     println!("cutoff {cutoff}   transition {transition}");
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
-    let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _, _>(
+    let resamp2 = FirBuilder::new_resampling_with_taps::<f32, f32, _>(
         1,
         audio_mult as usize,
         audio_filter_taps,

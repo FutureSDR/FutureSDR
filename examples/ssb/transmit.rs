@@ -82,14 +82,14 @@ fn main() -> Result<()> {
     // Using a bandpass instead, can help to tame low frequencies bleeding
     // ouside of the chosen bandwidth.
     let taps = firdes::kaiser::lowpass(cli.audio_bandwidth / audio_rate, 350.0 / audio_rate, 0.05);
-    let lowpass = FirBuilder::new::<f32, f32, _, _>(taps);
+    let lowpass = FirBuilder::new::<f32, f32, _>(taps);
 
     let split = Split::new(move |v: &f32| (*v, *v));
 
     // Phase transformation by 90°.
     let window = hamming(167, false);
     let taps = firdes::hilbert(window.as_slice());
-    let hilbert = FirBuilder::new::<f32, f32, _, _>(taps);
+    let hilbert = FirBuilder::new::<f32, f32, _>(taps);
 
     // Match the delay caused by the phase transformation.
     let delay = Delay::<f32>::new(window.len() as isize / -2);

@@ -116,7 +116,7 @@ fn main() -> Result<()> {
     });
     let moving_average = MovingAverage::new(4800);
     let subtract = Combine::new(|i1: &f32, i2: &f32| i1 - i2);
-    let rrc = FirBuilder::new::<f32, f32, f32, _>(TAPS);
+    let rrc = FirBuilder::new::<f32, f32, _>(TAPS);
     let symbol_sync = SymbolSync::new(10.0, 2.0 * std::f32::consts::PI * 0.0015, 1.0, 1.0, 0.05, 1);
     let decoder = DecoderBlock::new();
     let mut c2 = Codec2::new(Codec2Mode::MODE_3200);

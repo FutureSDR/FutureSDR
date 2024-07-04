@@ -123,24 +123,21 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let iir = fg.add_block(IirBuilder::new::<f32, f32, _, _>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
+/// let iir = fg.add_block(IirBuilder::new::<f32, f32, _>([1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]));
 /// ```
 pub struct IirBuilder;
 
 impl IirBuilder {
     /// Create IIR filter builder
-    pub fn new<InputType, OutputType, TapsType, TapType>(
-        a_taps: TapsType,
-        b_taps: TapsType,
-    ) -> Block
+    pub fn new<InputType, OutputType, TapsType>(a_taps: TapsType, b_taps: TapsType) -> Block
     where
         InputType: 'static + Send + Clone,
         OutputType: 'static + Send + Clone,
         TapsType: 'static + Taps + Send,
-        TapType: 'static + Send,
+        TapsType::TapType: 'static + Send,
         IirFilter<InputType, OutputType, TapsType>: IirKernel<InputType, OutputType>,
     {
-        Iir::<InputType, OutputType, TapType, IirFilter<InputType, OutputType, TapsType>>::new(
+        Iir::<InputType, OutputType, TapsType::TapType, IirFilter<InputType, OutputType, TapsType>>::new(
             IirFilter::new(a_taps, b_taps),
         )
     }

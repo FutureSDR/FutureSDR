@@ -14,7 +14,7 @@ fn fir_f32() -> Result<()> {
     let taps = [1.0f32, 1.0, 1.0];
 
     let src = fg.add_block(VectorSource::<f32>::new(orig));
-    let fir = fg.add_block(FirBuilder::new::<f32, f32, [f32; 3], f32>(taps));
+    let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(taps));
     let snk = fg.add_block(VectorSinkBuilder::<f32>::new().build());
 
     fg.connect_stream(src, "out", fir, "in")?;

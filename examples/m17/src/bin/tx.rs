@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         o[0] = i[0];
     });
 
-    let rrc = FirBuilder::new::<f32, f32, f32, _>(RRC_TAPS);
+    let rrc = FirBuilder::new::<f32, f32, _>(RRC_TAPS);
 
     let mut curr = Complex32::new(0.8, 0.0);
     let sensitivity = 2.0 * std::f32::consts::PI * 800.0 / 48000.0;

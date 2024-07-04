@@ -106,11 +106,11 @@ fn main() -> Result<()> {
     let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
     fg.connect_stream(interp_block, "out", complex_to_mag_2, "in")?;
 
-    let nf_est_block = fg.add_block(FirBuilder::new::<f32, f32, _, _>(vec![1.0f32 / 32.0; 32]));
+    let nf_est_block = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0f32 / 32.0; 32]));
     fg.connect_stream(complex_to_mag_2, "out", nf_est_block, "in")?;
 
     let preamble_taps: Vec<f32> = PreambleDetector::preamble_correlator_taps();
-    let preamble_corr_block = fg.add_block(FirBuilder::new::<f32, f32, _, _>(preamble_taps));
+    let preamble_corr_block = fg.add_block(FirBuilder::new::<f32, f32, _>(preamble_taps));
     fg.connect_stream(complex_to_mag_2, "out", preamble_corr_block, "in")?;
 
     let preamble_detector = fg.add_block(PreambleDetector::new(args.preamble_threshold));

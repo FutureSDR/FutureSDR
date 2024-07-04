@@ -40,7 +40,7 @@ pub enum ComputationStatus {
 }
 
 /// Implements a trait to run computations with stateless kernels.
-pub trait FirKernel<InputType, OutputType>: Send {
+pub trait FirKernel<InputType, OutputType, TapType>: Send {
     /// Computes the kernel on the given input, outputting into the given
     /// output. For a `UnaryKernel`, kernels will not have internal memory - in
     /// particular, this means that a single instantiated kernel does not need

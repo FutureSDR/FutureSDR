@@ -65,7 +65,7 @@ fn main() -> Result<()> {
     });
 
     let taps = firdes::lowpass::<f32>(15e3 / 250e3, &windows::hamming(128, false));
-    let low_pass = FirBuilder::new::<f32, f32, _, _>(taps);
+    let low_pass = FirBuilder::new::<f32, f32, _>(taps);
 
     let slice = Apply::new(move |i: &f32| -> u8 {
         if *i > 0.0 {

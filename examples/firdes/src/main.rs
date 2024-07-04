@@ -42,8 +42,8 @@ fn main() -> Result<()> {
     println!("Filter has {} taps", filter_taps.len());
 
     let filter_block = match enable_filter {
-        true => FirBuilder::new::<f32, f32, _, _>(filter_taps),
-        _ => FirBuilder::new::<f32, f32, _, _>([1.0_f32]),
+        true => FirBuilder::new::<f32, f32, _>(filter_taps),
+        _ => FirBuilder::new::<f32, f32, _>([1.0_f32]),
     };
 
     let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1);

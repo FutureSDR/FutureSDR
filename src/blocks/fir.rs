@@ -22,7 +22,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Filter: 'static + FirKernel<InputType, OutputType> + Send,
+    Filter: 'static + FirKernel<InputType, OutputType, TapType> + Send,
 {
     filter: Filter,
     _input_type: std::marker::PhantomData<InputType>,
@@ -35,7 +35,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Filter: 'static + FirKernel<InputType, OutputType> + Send,
+    Filter: 'static + FirKernel<InputType, OutputType, TapType> + Send,
 {
     /// Create FIR block
     pub fn new(filter: Filter) -> Block {
@@ -63,7 +63,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Filter: 'static + FirKernel<InputType, OutputType> + Send,
+    Filter: 'static + FirKernel<InputType, OutputType, TapType> + Send,
 {
     async fn work(
         &mut self,
@@ -117,25 +117,28 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _, _>([1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, _, _>(&[1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _, _>(vec![1.0f32, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>([1.0f32, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, _>(&[1.0f32, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0f32, 2.0, 3.0]));
 ///
-/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]));
+/// let fir = fg.add_block(FirBuilder::new_resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]));
 /// ```
 pub struct FirBuilder;
 
 impl FirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new<InputType, OutputType, TapsType, TapType>(taps: TapsType) -> Block
+    pub fn new<InputType, OutputType, TapsType>(taps: TapsType) -> Block
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
-        TapsType: 'static + Taps<TapType = TapType> + Send,
-        TapType: 'static + Send,
-        FirFilter<InputType, OutputType, TapsType, TapType>: FirKernel<InputType, OutputType>,
+        TapsType: 'static + Taps + Send,
+        TapsType::TapType: 'static + Send,
+        FirFilter<InputType, OutputType, TapsType>:
+            FirKernel<InputType, OutputType, TapsType::TapType>,
     {
-        Fir::<InputType, OutputType, TapType, FirFilter<InputType, OutputType, TapsType, TapType>>::new(FirFilter::new(taps))
+        Fir::<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>::new(
+            FirFilter::new(taps),
+        )
     }
 
     /// Create a new rationally resampling FIR filter that changes the sampling
@@ -145,8 +148,8 @@ impl FirBuilder {
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
-        PolyphaseResamplingFir<InputType, OutputType, Vec<f32>, f32>:
-            FirKernel<InputType, OutputType>,
+        PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>:
+            FirKernel<InputType, OutputType, f32>,
     {
         // Reduce factors
         let gcd = num_integer::gcd(interp, decim);
@@ -154,13 +157,13 @@ impl FirBuilder {
         let decim = decim / gcd;
         // Design filter
         let taps = firdes::kaiser::multirate::<f32>(interp, decim, 12, 0.0001);
-        FirBuilder::new_resampling_with_taps::<InputType, OutputType, _, f32>(interp, decim, taps)
+        FirBuilder::new_resampling_with_taps::<InputType, OutputType, _>(interp, decim, taps)
     }
 
     /// Create a new rationally resampling FIR filter that changes the sampling
     /// rate by a factor `interp/decim` and uses `taps` as the interpolation/decimation filter.
     /// The length of `taps` must be divisible by `interp`.
-    pub fn new_resampling_with_taps<InputType, OutputType, TapsType, TapType>(
+    pub fn new_resampling_with_taps<InputType, OutputType, TapsType>(
         interp: usize,
         decim: usize,
         taps: TapsType,
@@ -168,16 +171,16 @@ impl FirBuilder {
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
-        TapType: 'static + Send,
-        TapsType: 'static + Taps<TapType = TapType> + Send,
-        PolyphaseResamplingFir<InputType, OutputType, TapsType, TapType>:
-            FirKernel<InputType, OutputType>,
+        TapsType: 'static + Taps + Send,
+        TapsType::TapType: 'static + Send,
+        PolyphaseResamplingFir<InputType, OutputType, TapsType>:
+            FirKernel<InputType, OutputType, TapsType::TapType>,
     {
         Fir::<
             InputType,
             OutputType,
-            TapType,
-            PolyphaseResamplingFir<InputType, OutputType, TapsType, TapType>,
+            TapsType::TapType,
+            PolyphaseResamplingFir<InputType, OutputType, TapsType>,
         >::new(PolyphaseResamplingFir::new(interp, decim, taps))
     }
 }

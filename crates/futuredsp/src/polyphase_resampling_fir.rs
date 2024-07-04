@@ -1,7 +1,5 @@
 //! Polyphase Resampling FIR
 use core::cmp::Ordering;
-use core::ops::Add;
-use core::ops::Mul;
 use num_complex::Complex;
 
 use crate::ComputationStatus;
@@ -32,16 +30,13 @@ use crate::Taps;
 /// let decim = 2;
 /// let interp = 3;
 /// let taps: [f32; 6] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-/// let fir = PolyphaseResamplingFir::<f32, f32, _, _>::new(interp, decim, taps);
+/// let fir = PolyphaseResamplingFir::<f32, f32, _>::new(interp, decim, taps);
 ///
 /// let input = [1.0, 2.0, 3.0];
 /// let mut output = [0.0; 3];
 /// fir.filter(&input, &mut output);
 /// ```
-pub struct PolyphaseResamplingFir<InputType, OutputType, TA, TT>
-where
-    TA: Taps<TapType = TT>,
-{
+pub struct PolyphaseResamplingFir<InputType, OutputType, TA> {
     interp: usize,
     decim: usize,
     taps: TA,
@@ -49,7 +44,7 @@ where
     _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<InputType, OutputType, TA, TT> PolyphaseResamplingFir<InputType, OutputType, TA, TT>
+impl<InputType, OutputType, TA, TT> PolyphaseResamplingFir<InputType, OutputType, TA>
 where
     TA: Taps<TapType = TT>,
 {
@@ -126,41 +121,35 @@ where
     (n, num_producable_samples, status)
 }
 
-impl<T, TA> FirKernel<T, T> for PolyphaseResamplingFir<T, T, TA, T>
-where
-    T: Default + Send + Copy + Mul + Add<<T as Mul>::Output, Output = T>,
-    TA: Taps<TapType = T>,
-{
-    fn filter(&self, i: &[T], o: &mut [T]) -> (usize, usize, ComputationStatus) {
+impl<TA: Taps<TapType = f32>> FirKernel<f32, f32, f32> for PolyphaseResamplingFir<f32, f32, TA> {
+    fn filter(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
             self.interp,
             self.decim,
             &self.taps,
             i,
             o,
-            || T::default(),
+            || 0.0,
             |accum, sample, tap| accum + sample * tap,
         )
     }
 }
 
-impl<T, TA> FirKernel<Complex<T>, Complex<T>>
-    for PolyphaseResamplingFir<Complex<T>, Complex<T>, TA, T>
-where
-    T: Default + Send + Copy + Mul + Add<<T as Mul>::Output, Output = T>,
-    TA: Taps<TapType = T>,
+impl<TA: Taps<TapType = f32>> FirKernel<Complex<f32>, Complex<f32>, f32>
+    for PolyphaseResamplingFir<Complex<f32>, Complex<f32>, TA>
 {
-    fn filter(&self, i: &[Complex<T>], o: &mut [Complex<T>]) -> (usize, usize, ComputationStatus) {
+    fn filter(
+        &self,
+        i: &[Complex<f32>],
+        o: &mut [Complex<f32>],
+    ) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
             self.interp,
             self.decim,
             &self.taps,
             i,
             o,
-            || Complex {
-                re: T::default(),
-                im: T::default(),
-            },
+            || Complex { re: 0.0, im: 0.0 },
             |accum, sample, tap| Complex {
                 re: accum.re + sample.re * tap,
                 im: accum.im + sample.im * tap,
