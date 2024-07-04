@@ -1,3 +1,8 @@
+use futuredsp::ComputationStatus;
+use futuredsp::IirFilter;
+use futuredsp::IirKernel;
+use futuredsp::Taps;
+
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -8,8 +13,6 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
-use futuredsp::iir::IirKernel;
-use futuredsp::{StatefulUnaryKernel, TapsAccessor};
 
 /// IIR filter.
 pub struct Iir<InputType, OutputType, TapType, Core>
@@ -17,7 +20,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
+    Core: 'static + IirKernel<InputType, OutputType> + Send,
 {
     core: Core,
     _input_type: std::marker::PhantomData<InputType>,
@@ -30,7 +33,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
+    Core: 'static + IirKernel<InputType, OutputType> + Send,
 {
     /// Create IIR filter block
     pub fn new(core: Core) -> Block {
@@ -58,7 +61,7 @@ where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Core: 'static + StatefulUnaryKernel<InputType, OutputType> + Send,
+    Core: 'static + IirKernel<InputType, OutputType> + Send,
 {
     async fn work(
         &mut self,
@@ -70,12 +73,12 @@ where
         let i = sio.input(0).slice::<InputType>();
         let o = sio.output(0).slice::<OutputType>();
 
-        let (consumed, produced, status) = self.core.work(i, o);
+        let (consumed, produced, status) = self.core.filter(i, o);
 
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);
 
-        if sio.input(0).finished() && status.produced_all_samples() {
+        if sio.input(0).finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
             io.finished = true;
         }
 
@@ -120,24 +123,25 @@ where
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let iir = fg.add_block(IirBuilder::new::<f32, f32, f32, [f32; 3]>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
+/// let iir = fg.add_block(IirBuilder::new::<f32, f32, _, _>([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
 /// ```
-pub struct IirBuilder {
-    //
-}
+pub struct IirBuilder;
 
 impl IirBuilder {
     /// Create IIR filter builder
-    pub fn new<InputType, OutputType, TapType, Taps>(a_taps: Taps, b_taps: Taps) -> Block
+    pub fn new<InputType, OutputType, TapsType, TapType>(
+        a_taps: TapsType,
+        b_taps: TapsType,
+    ) -> Block
     where
         InputType: 'static + Send + Clone,
         OutputType: 'static + Send + Clone,
+        TapsType: 'static + Taps + Send,
         TapType: 'static + Send,
-        Taps: 'static + TapsAccessor + Send,
-        IirKernel<InputType, OutputType, Taps>: StatefulUnaryKernel<InputType, OutputType> + Send,
+        IirFilter<InputType, OutputType, TapsType>: IirKernel<InputType, OutputType>,
     {
-        Iir::<InputType, OutputType, TapType, IirKernel<InputType, OutputType, Taps>>::new(
-            IirKernel::new(a_taps, b_taps),
+        Iir::<InputType, OutputType, TapType, IirFilter<InputType, OutputType, TapsType>>::new(
+            IirFilter::new(a_taps, b_taps),
         )
     }
 }
