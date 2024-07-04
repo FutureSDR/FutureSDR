@@ -83,7 +83,9 @@ futures-lite = "2.3"
 futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
 futuresdr-macros = { path = "crates/macros", version = "0.0.6" }
 futuresdr-types = { path = "crates/types", version = "0.0.11" }
-log = { version = "0.4", features = ["std", "max_level_debug", "release_max_level_info"] }
+# they broke additive features in 0.4.22
+# https://github.com/rust-lang/log/issues/635
+log = { version = "=0.4.21", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4"
 num-integer = "0.1"
 num_cpus = "1.16"
