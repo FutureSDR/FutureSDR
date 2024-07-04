@@ -1,13 +1,15 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use futuredsp::fir::NonResamplingFirKernel;
-use futuredsp::iir::IirKernel;
-use futuredsp::{StatefulUnaryKernel, TapsAccessor, UnaryKernel};
-use num_complex::Complex;
-use rand::Rng;
-
 extern crate alloc;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use num_complex::Complex;
+use rand::Rng;
+
+use futuredsp::FirFilter;
+use futuredsp::FirKernel;
+use futuredsp::IirFilter;
+use futuredsp::IirKernel;
+use futuredsp::Taps;
 
 trait Generatable {
     fn generate() -> Self;
@@ -54,16 +56,15 @@ fn bench_fir_dynamic_taps<InputType, OutputType, TapType: Generatable>(
 ) where
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
-    Vec<TapType>: TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<InputType, OutputType, Vec<TapType>, TapType>:
-        UnaryKernel<InputType, OutputType>,
+    Vec<TapType>: Taps<TapType = TapType>,
+    FirFilter<InputType, OutputType, Vec<TapType>, TapType>: FirKernel<InputType, OutputType>,
 {
     let taps: Vec<_> = (0..ntaps).map(|_| TapType::generate()).collect();
     let input: Vec<_> = (0..nsamps + ntaps).map(|_| InputType::generate()).collect();
     let mut output = vec![OutputType::generate(); nsamps];
-    let fir = NonResamplingFirKernel::<InputType, OutputType, _, _>::new(black_box(taps));
+    let fir = FirFilter::<InputType, OutputType, _, _>::new(black_box(taps));
     b.iter(|| {
-        fir.work(black_box(&input), black_box(&mut output));
+        fir.filter(black_box(&input), black_box(&mut output));
     });
 }
 
@@ -74,17 +75,16 @@ fn bench_fir_static_taps<InputType, OutputType, TapType, const N: usize>(
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
     TapType: Generatable + std::fmt::Debug,
-    [TapType; N]: TapsAccessor<TapType = TapType>,
-    NonResamplingFirKernel<InputType, OutputType, [TapType; N], TapType>:
-        UnaryKernel<InputType, OutputType>,
+    [TapType; N]: Taps<TapType = TapType>,
+    FirFilter<InputType, OutputType, [TapType; N], TapType>: FirKernel<InputType, OutputType>,
 {
     let taps: Vec<_> = (0..N).map(|_| TapType::generate()).collect();
     let taps: [TapType; N] = taps.try_into().unwrap();
     let input: Vec<_> = (0..nsamps + N).map(|_| InputType::generate()).collect();
     let mut output = vec![OutputType::generate(); nsamps];
-    let fir = NonResamplingFirKernel::<InputType, OutputType, _, _>::new(black_box(taps));
+    let fir = FirFilter::<InputType, OutputType, _, _>::new(black_box(taps));
     b.iter(|| {
-        fir.work(black_box(&input), black_box(&mut output));
+        fir.filter(black_box(&input), black_box(&mut output));
     });
 }
 
@@ -96,8 +96,8 @@ fn bench_iir<InputType, OutputType, TapType: Generatable>(
 ) where
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
-    Vec<TapType>: TapsAccessor<TapType = TapType>,
-    IirKernel<InputType, OutputType, Vec<TapType>>: StatefulUnaryKernel<InputType, OutputType>,
+    Vec<TapType>: Taps<TapType = TapType>,
+    IirFilter<InputType, OutputType, Vec<TapType>>: IirKernel<InputType, OutputType>,
 {
     let a_taps: Vec<_> = (0..n_a_taps).map(|_| TapType::generate()).collect();
     let b_taps: Vec<_> = (0..n_b_taps).map(|_| TapType::generate()).collect();
@@ -105,9 +105,9 @@ fn bench_iir<InputType, OutputType, TapType: Generatable>(
         .map(|_| InputType::generate())
         .collect();
     let mut output = vec![OutputType::generate(); nsamps];
-    let mut iir = IirKernel::new(black_box(a_taps), black_box(b_taps));
+    let mut iir = IirFilter::new(black_box(a_taps), black_box(b_taps));
     b.iter(|| {
-        iir.work(black_box(&input), black_box(&mut output));
+        iir.filter(black_box(&input), black_box(&mut output));
     });
 }
 

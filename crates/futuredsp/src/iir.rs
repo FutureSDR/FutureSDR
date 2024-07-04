@@ -1,15 +1,15 @@
 //! IIR filters
-use core::ops::{AddAssign, Mul};
-
-use crate::{ComputationStatus, StatefulUnaryKernel, TapsAccessor};
-
 extern crate alloc;
 use alloc::vec::Vec;
+use core::ops::{AddAssign, Mul};
 use num_traits::Zero;
+
+use crate::ComputationStatus;
+use crate::Taps;
 
 /// An IIR filter.
 ///
-/// Calling `work()` on this struct always produces exactly as many samples as
+/// Calling `filter()` on this struct always produces exactly as many samples as
 /// it consumes. Note that this kernel is stateful, and thus implements the
 /// [StatefulUnaryKernel] trait.
 ///
@@ -18,17 +18,17 @@ use num_traits::Zero;
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::StatefulUnaryKernel;
-/// use futuredsp::iir::IirKernel;
+/// use futuredsp::IirKernel;
+/// use futuredsp::IirFilter;
 ///
-/// let mut iir = IirKernel::<f32, f32, _>::new([1f32, 2f32, 3f32], [4.0, 5.0, 6.0]);
+/// let mut iir = IirFilter::<f32, f32, _>::new([1f32, 2f32, 3f32], [4.0, 5.0, 6.0]);
 ///
 /// let input = [1.0, 2.0, 3.0, 4.0, 5.0];
 /// let mut output = [0.0];
-/// iir.work(&input, &mut output);
+/// iir.filter(&input, &mut output);
 /// assert_eq!(output[0], 42.0);
 /// ```
-pub struct IirKernel<InputType, OutputType, TapsType: TapsAccessor> {
+pub struct IirFilter<InputType, OutputType, TapsType: Taps> {
     a_taps: TapsType,
     b_taps: TapsType,
     memory: Vec<InputType>,
@@ -36,8 +36,8 @@ pub struct IirKernel<InputType, OutputType, TapsType: TapsAccessor> {
     _output_type: core::marker::PhantomData<OutputType>,
 }
 
-impl<InputType, OutputType, TapType, TapsType: TapsAccessor<TapType = TapType>>
-    IirKernel<InputType, OutputType, TapsType>
+impl<InputType, OutputType, TapType, TapsType: Taps<TapType = TapType>>
+    IirFilter<InputType, OutputType, TapsType>
 {
     /// Create Iir kernel
     pub fn new(a_taps: TapsType, b_taps: TapsType) -> Self {
@@ -51,18 +51,34 @@ impl<InputType, OutputType, TapType, TapsType: TapsAccessor<TapType = TapType>>
     }
 }
 
-impl<TapsType: TapsAccessor<TapType = f32>> StatefulUnaryKernel<f32, f32>
-    for IirKernel<f32, f32, TapsType>
-{
-    fn work(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
+/// Implements a trait to run computations with stateless kernels.
+pub trait IirKernel<InputType, OutputType>: Send {
+    /// Computes the kernel on the given input, outputting into the given
+    /// output. For a `UnaryKernel`, kernels will not have internal memory - in
+    /// particular, this means that a single instantiated kernel does not need
+    /// to be reserved for a single stream of data.
+    ///
+    /// Returns a tuple containing, in order:
+    /// - The number of samples consumed from the input,
+    /// - The number of samples produced in the output, and
+    /// - A `ComputationStatus` which indicates whether the buffers were undersized.
+    ///
+    /// Elements of `output` beyond what is produced are left in an unspecified state.
+    fn filter(
+        &mut self,
+        input: &[InputType],
+        output: &mut [OutputType],
+    ) -> (usize, usize, ComputationStatus);
+}
+
+impl<TapsType: Taps<TapType = f32>> IirKernel<f32, f32> for IirFilter<f32, f32, TapsType> {
+    fn filter(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
 }
 
-impl<TapsType: TapsAccessor<TapType = f64>> StatefulUnaryKernel<f64, f64>
-    for IirKernel<f64, f64, TapsType>
-{
-    fn work(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
+impl<TapsType: Taps<TapType = f64>> IirKernel<f64, f64> for IirFilter<f64, f64, TapsType> {
+    fn filter(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
 }
@@ -76,7 +92,7 @@ fn taps_accessor_work<TT, T>(
     o: &mut [T],
 ) -> (usize, usize, ComputationStatus)
 where
-    TT: TapsAccessor<TapType = T>,
+    TT: Taps<TapType = T>,
     T: Copy + AddAssign + Zero + Mul<Output = T>,
 {
     if i.is_empty() {
@@ -176,7 +192,7 @@ mod test {
     use alloc::vec;
 
     struct Feeder {
-        filter: IirKernel<f32, f32, Vec<f32>>,
+        filter: IirFilter<f32, f32, Vec<f32>>,
         input: Vec<f32>,
     }
 
@@ -185,7 +201,7 @@ mod test {
             self.input.push(input);
 
             let mut out = [0.0];
-            let (n_consumed, n_produced, _status) = self.filter.work(&self.input[..], &mut out);
+            let (n_consumed, n_produced, _status) = self.filter.filter(&self.input[..], &mut out);
             assert_eq!(n_consumed, n_produced); // If we consume samples, we produce samples
             if n_consumed > 0 {
                 self.input.drain(0..n_consumed);
@@ -200,7 +216,7 @@ mod test {
 
     fn make_filter(a_taps: Vec<f32>, b_taps: Vec<f32>) -> Feeder {
         Feeder {
-            filter: IirKernel {
+            filter: IirFilter {
                 a_taps,
                 b_taps,
                 memory: vec![],

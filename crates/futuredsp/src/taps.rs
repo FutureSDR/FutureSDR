@@ -1,10 +1,11 @@
+//! Filter Taps
 extern crate alloc;
 use alloc::vec::Vec;
 use num_complex::Complex;
 use num_traits::Float;
 
 /// Abstraction over taps
-pub trait TapsAccessor: Send {
+pub trait Taps: Send {
     /// Tap type
     type TapType;
 
@@ -18,7 +19,7 @@ pub trait TapsAccessor: Send {
     unsafe fn get(&self, index: usize) -> Self::TapType;
 }
 
-impl<const N: usize, T> TapsAccessor for [Complex<T>; N]
+impl<const N: usize, T> Taps for [Complex<T>; N]
 where
     T: Float + Send + Sync + Copy,
 {
@@ -34,7 +35,7 @@ where
     }
 }
 
-impl<const N: usize, T> TapsAccessor for &[Complex<T>; N]
+impl<const N: usize, T> Taps for &[Complex<T>; N]
 where
     T: Float + Send + Sync + Copy,
 {
@@ -50,7 +51,7 @@ where
     }
 }
 
-impl<const N: usize> TapsAccessor for [f32; N] {
+impl<const N: usize> Taps for [f32; N] {
     type TapType = f32;
 
     fn num_taps(&self) -> usize {
@@ -63,7 +64,7 @@ impl<const N: usize> TapsAccessor for [f32; N] {
     }
 }
 
-impl<const N: usize> TapsAccessor for &[f32; N] {
+impl<const N: usize> Taps for &[f32; N] {
     type TapType = f32;
 
     fn num_taps(&self) -> usize {
@@ -76,7 +77,7 @@ impl<const N: usize> TapsAccessor for &[f32; N] {
     }
 }
 
-impl<const N: usize> TapsAccessor for [f64; N] {
+impl<const N: usize> Taps for [f64; N] {
     type TapType = f64;
 
     fn num_taps(&self) -> usize {
@@ -89,7 +90,7 @@ impl<const N: usize> TapsAccessor for [f64; N] {
     }
 }
 
-impl<const N: usize> TapsAccessor for &[f64; N] {
+impl<const N: usize> Taps for &[f64; N] {
     type TapType = f64;
 
     fn num_taps(&self) -> usize {
@@ -102,7 +103,7 @@ impl<const N: usize> TapsAccessor for &[f64; N] {
     }
 }
 
-impl<T> TapsAccessor for Vec<T>
+impl<T> Taps for Vec<T>
 where
     T: Send + Sync + Copy,
 {
