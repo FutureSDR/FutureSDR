@@ -53,7 +53,7 @@ impl Kernel for DecoderBlock {
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();
 
-        for s in input.chunks_exact(512) {
+        for s in input.chunks_exact(960) {
             if !self.decoder.feed(s) {
                 continue;
             }
@@ -104,7 +104,7 @@ impl Kernel for DecoderBlock {
             }
         }
 
-        sio.input(0).consume(input.len() / (512) * (512));
+        sio.input(0).consume(input.len() / (960) * (960));
 
         if sio.input(0).finished() {
             io.finished = true;
@@ -314,7 +314,7 @@ impl SchmidlCox {
             return Complex32::new(0.0, 0.0);
         }
         let cons = curr / prev;
-        if !(cons.norm_sqr() <= 4.0) {
+        if !(cons.norm_sqr() <= 10.0) {
             return Complex32::new(0.0, 0.0);
         }
         cons
@@ -974,7 +974,7 @@ impl Decoder {
             return Complex32::new(0.0, 0.0);
         }
         let cons = curr / prev;
-        if cons.norm_sqr() > 4.0 {
+        if cons.norm_sqr() > 10.0 {
             return Complex32::new(0.0, 0.0);
         }
         cons
