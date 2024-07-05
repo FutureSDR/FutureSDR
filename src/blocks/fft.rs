@@ -10,6 +10,7 @@ use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
+use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
@@ -25,6 +26,10 @@ use crate::runtime::WorkIo;
 /// # Outputs
 ///
 /// `out`: FFT results (Complex32)
+///
+/// # Messages
+///
+/// `fft_size`: Change the FFT size (Pmt::Usize)
 ///
 /// # Usage
 /// ```
@@ -80,7 +85,9 @@ impl Fft {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::<Fft>::new().build(),
+            MessageIoBuilder::<Fft>::new()
+                .add_input("fft_size", Self::fft_size_handler)
+                .build(),
             Fft {
                 len,
                 plan,
@@ -90,6 +97,37 @@ impl Fft {
                 scratch: vec![Complex32::new(0.0, 0.0); len * 10].into_boxed_slice(),
             },
         )
+    }
+
+    /// Handle incoming messages to change FFT size
+    #[message_handler]
+    fn fft_size_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Usize(new_len) => self.set_fft_size(new_len),
+            Pmt::Null => Ok(Pmt::Usize(self.len)),
+            _ => Ok(Pmt::InvalidValue),
+        }
+    }
+
+    /// Set a new FFT size
+    fn set_fft_size(&mut self, new_len: usize) -> Result<Pmt> {
+        let mut planner = FftPlanner::<f32>::new();
+        let new_plan = match self.direction {
+            FftDirection::Forward => planner.plan_fft_forward(new_len),
+            FftDirection::Inverse => planner.plan_fft_inverse(new_len),
+        };
+
+        self.len = new_len;
+        self.plan = new_plan;
+        self.scratch = vec![Complex32::new(0.0, 0.0); new_len * 10].into_boxed_slice();
+
+        Ok(Pmt::Ok)
     }
 }
 
