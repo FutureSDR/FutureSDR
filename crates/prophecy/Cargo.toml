@@ -9,7 +9,6 @@ description = "FutureSDR GUI"
 
 [dependencies]
 console_error_panic_hook = "0.1"
-console_log = "1"
 futures = "0.3"
 futuresdr = { version = "0.0.37", path = "../../" }
 futuresdr-types = { version = "0.0.11", path = "../types/" }

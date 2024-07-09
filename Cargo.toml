@@ -83,9 +83,6 @@ futures-lite = "2.3"
 futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
 futuresdr-macros = { path = "crates/macros", version = "0.0.6" }
 futuresdr-types = { path = "crates/types", version = "0.0.11" }
-# they broke additive features in 0.4.22
-# https://github.com/rust-lang/log/issues/635
-log = { version = "=0.4.21", features = ["std", "max_level_debug", "release_max_level_info"] }
 num-complex = "0.4"
 num-integer = "0.1"
 num_cpus = "1.16"
@@ -97,19 +94,20 @@ slab = "0.4"
 spin = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
+tracing = { version = "0.1", features = ["log", "max_level_debug", "release_max_level_info"] }
 web-time = { version = "1.1" }
 wgpu = { version = "0.20", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_log = "1.0"
 cpal = { version = "0.15", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.2", features = ["js"] }
 gloo-net = {version = "0.5", default-features = false, features = ["websocket", "json"]}
 gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
-rodio = { version = "0.18", default-features = false, optional = true }
+rodio = { version = "0.19", default-features = false, optional = true }
 serde-wasm-bindgen = "0.6"
 serde_json = "1.0"
+tracing-wasm = "0.2"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
@@ -129,9 +127,10 @@ core_affinity = "0.8"
 cpal = { version = "0.15", optional = true }
 hound = {version = "3.5", optional = true }
 libc = "0.2"
-rodio = { version = "0.18", default-features = false, features = ["symphonia-all"], optional = true }
+rodio = { version = "0.19", default-features = false, features = ["symphonia-all"], optional = true }
 tokio = { version = "1", features = ["rt"] }
 tower-http = { version = "0.5", features = ["add-extension", "cors", "fs"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = "0.0.10"
 vulkano = { version = "0.34", optional = true }
 vulkano-shaders = { version = "0.34", optional = true }
@@ -142,7 +141,7 @@ lttng-ust = { git = "https://github.com/sprt/lttng-ust-rs.git", version = "0.1.0
 xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
-android_logger = "0.13"
+android_logger = "0.14"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"

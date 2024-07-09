@@ -1,17 +1,29 @@
-use env_logger::Builder;
-use std::time;
-
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSourceBuilder;
-use futuresdr::log::info;
-use futuresdr::log::LevelFilter;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::info;
+use futuresdr::tracing::level_filters::LevelFilter;
+use std::time;
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::fmt;
+use tracing_subscriber::prelude::*;
 
 fn main() -> Result<()> {
-    let mut builder = Builder::from_default_env();
-    builder.filter(None, LevelFilter::Info).init();
+    let format = fmt::layer()
+        .with_level(true)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .compact();
+
+    let filter = EnvFilter::from_env("FOO_LOG").add_directive(LevelFilter::DEBUG.into());
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(format)
+        .init();
 
     let mut fg = Flowgraph::new();
 

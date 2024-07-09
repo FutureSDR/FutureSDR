@@ -3,7 +3,6 @@ use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;
 
 use futuresdr::anyhow::Result;
-use futuresdr::log::{debug, warn};
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
@@ -15,6 +14,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::{debug, warn};
 
 pub struct Mac {
     current_frame: [u8; MAX_PSDU_SIZE],

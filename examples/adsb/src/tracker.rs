@@ -1,6 +1,5 @@
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
-use futuresdr::log::{info, warn};
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
@@ -13,6 +12,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::{info, warn};
 use std::cmp::Ordering;
 use std::time::Duration;
 

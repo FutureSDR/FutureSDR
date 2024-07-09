@@ -2,7 +2,6 @@ use async_executor::{Executor, Task};
 use futures::channel::mpsc::{channel, Sender};
 use futures::channel::oneshot;
 use futures::future::Future;
-use log::debug;
 use once_cell::sync::Lazy;
 use slab::Slab;
 use std::fmt;

@@ -222,10 +222,9 @@ impl BufferReaderHost for ReaderD2H {
 
         let buffer = self.buffer.as_mut().unwrap();
         let capacity = buffer.slice.len() / self.item_size;
-        log::info!(
+        info!(
             "Consume -- capacity: {}, offset: {}",
-            capacity,
-            buffer.offset
+            capacity, buffer.offset
         );
         debug_assert!(amount + buffer.offset <= capacity);
 

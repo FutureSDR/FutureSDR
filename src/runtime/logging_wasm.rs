@@ -1,7 +1,3 @@
-use log::Level;
-
 pub fn init() {
-    if console_log::init_with_level(Level::Info).is_err() {
-        debug!("logger already initialized");
-    }
+    tracing_wasm::set_as_global_default();
 }

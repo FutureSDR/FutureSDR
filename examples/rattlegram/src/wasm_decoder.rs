@@ -1,4 +1,4 @@
-use futuresdr::log::info;
+use futuresdr::tracing::info;
 use web_sys::wasm_bindgen;
 use web_sys::wasm_bindgen::prelude::*;
 
@@ -25,7 +25,6 @@ pub enum DecoderMessage {
 #[wasm_bindgen]
 impl WasmDecoder {
     pub fn new() -> Self {
-        _ = console_log::init_with_level(futuresdr::log::Level::Debug);
         console_error_panic_hook::set_once();
         Self {
             samples: Vec::new(),

@@ -1,4 +1,4 @@
-use futuresdr::log::info;
+use futuresdr::tracing::info;
 use gloo_worker::Spawnable;
 use gloo_worker::WorkerBridge;
 use leptos::html::Select;
@@ -10,7 +10,6 @@ use crate::wasm_worker::Worker;
 use crate::wasm_worker::WorkerMessage;
 
 pub fn wasm_main() {
-    _ = console_log::init_with_level(futuresdr::log::Level::Debug);
     console_error_panic_hook::set_once();
     mount_to_body(|| view! { <Gui /> })
 }

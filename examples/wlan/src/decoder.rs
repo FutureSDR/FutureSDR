@@ -1,5 +1,4 @@
 use futuresdr::anyhow::Result;
-use futuresdr::log::warn;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -13,6 +12,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::warn;
 
 use crate::Mcs;
 use crate::MAX_ENCODED_BITS;

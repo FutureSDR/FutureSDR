@@ -15,7 +15,6 @@ use vulkano::pipeline::PipelineBindPoint;
 use vulkano::sync::{self, GpuFuture};
 
 use futuresdr::anyhow::{Context, Result};
-use futuresdr::log::debug;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::BufferEmpty;
@@ -31,6 +30,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::debug;
 
 #[allow(clippy::needless_question_mark)]
 #[allow(deprecated)]

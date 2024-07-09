@@ -10,13 +10,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 futuresdr = { path = "../..", features = ["wgpu"] }
-log = { version = "0.4", features = ["release_max_level_off"] }
 rand = "0.8"
+tracing = { version = "0.1", features = ["release_max_level_off"] }
 web-time = { version = "1.1" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-console_log = "1"
 leptos = { version = "0.6", features = ["csr", "nightly"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

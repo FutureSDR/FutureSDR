@@ -14,11 +14,7 @@ aaronia_http = ["futuresdr/aaronia_http"]
 soapy = ["futuresdr/soapy"]
 
 [dependencies]
-eframe = "0.27"
-env_logger = { version = "0.11", default-features = false, features = [
-    "auto-color",
-    "humantime",
-] }
+eframe = "0.28"
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
 tokio = { version = "1", features = ["full"] }

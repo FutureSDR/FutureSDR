@@ -4,10 +4,10 @@ use futuresdr::anyhow::{Context, Result};
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;
-use futuresdr::log::info;
 use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::info;
 
 pub async fn run() {
     run_inner().await.unwrap()

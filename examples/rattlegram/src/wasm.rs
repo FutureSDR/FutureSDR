@@ -2,10 +2,10 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::futures::channel::mpsc;
-use futuresdr::log::warn;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::warn;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html::Input;
 use leptos::*;
@@ -21,7 +21,6 @@ extern "C" {
 }
 
 pub fn wasm_main() {
-    _ = console_log::init_with_level(futuresdr::log::Level::Debug);
     console_error_panic_hook::set_once();
     mount_to_body(|| view! { <Gui /> })
 }

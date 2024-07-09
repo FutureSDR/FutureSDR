@@ -5,9 +5,9 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::log::info;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::info;
 
 pub async fn run() -> Result<()> {
     let n_items = 100_000;

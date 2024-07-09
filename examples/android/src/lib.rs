@@ -7,12 +7,12 @@ use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
-use futuresdr::log::info;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::D2H;
 use futuresdr::runtime::buffer::vulkan::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::info;
 
 pub fn run_fg() -> Result<()> {
     let mut fg = Flowgraph::new();

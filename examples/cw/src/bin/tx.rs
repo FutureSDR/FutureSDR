@@ -58,7 +58,6 @@ mod foo {
 
     pub fn main() -> Result<()> {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-        console_log::init().expect("could not initialize logger");
         mount_to_body(|| view! { <Gui /> });
         Ok(())
     }

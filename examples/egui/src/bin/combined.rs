@@ -23,7 +23,7 @@ use futuresdr_egui::ChannelSink;
 use futuresdr_egui::FFT_SIZE;
 
 fn main() -> Result<(), eframe::Error> {
-    env_logger::init();
+    futuresdr::runtime::init();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([900.0, 600.0]),
         multisampling: 4,
@@ -33,7 +33,7 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "FutureSDR + egui",
         options,
-        Box::new(|cc| Box::new(MyApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(MyApp::new(cc)))),
     )
 }
 

@@ -1,25 +1,23 @@
-use log::{Metadata, Record};
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::fmt;
+use tracing_subscriber::prelude::*;
 
 use crate::runtime::config;
 
-struct Logger;
-
-impl log::Log for Logger {
-    fn enabled(&self, _metadata: &Metadata) -> bool {
-        true
-    }
-
-    fn log(&self, record: &Record) {
-        println!("FutureSDR: {} - {}", record.level(), record.args());
-    }
-
-    fn flush(&self) {}
-}
-
 pub fn init() {
-    if log::set_boxed_logger(Box::new(Logger)).is_err() {
+    let format = fmt::layer()
+        .with_level(true)
+        .with_target(true)
+        .with_thread_ids(false)
+        .with_thread_names(true)
+        .compact();
+
+    let level = config::config().log_level;
+    let filter = EnvFilter::from_env("FUTURESDR_LOG").add_directive(level.into());
+
+    let subscriber = tracing_subscriber::registry().with(filter).with(format);
+
+    if tracing::subscriber::set_global_default(subscriber).is_err() {
         debug!("logger already initialized");
-    } else {
-        log::set_max_level(config::config().log_level);
     }
 }

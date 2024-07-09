@@ -6,7 +6,6 @@ use crate::LONG;
 use crate::POLARITY;
 
 use futuresdr::anyhow::Result;
-use futuresdr::log::info;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
@@ -21,6 +20,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::info;
 
 const INTERLEAVER_PATTERN: [usize; 48] = [
     0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 1, 4, 7, 10, 13, 16, 19, 22, 25,

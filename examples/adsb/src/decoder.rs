@@ -1,7 +1,6 @@
 use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
 use futuresdr::anyhow::{bail, Result};
-use futuresdr::log::{debug, info, warn};
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
@@ -13,6 +12,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::{debug, info, warn};
 use serde::Serialize;
 use std::time::SystemTime;
 

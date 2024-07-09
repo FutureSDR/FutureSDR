@@ -2,13 +2,13 @@
 use config::Value;
 #[cfg(not(target_arch = "wasm32"))]
 use config::{File, Source};
-use log::LevelFilter;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Mutex;
+use tracing::level_filters::LevelFilter;
 
 /// Get global configuration
 pub fn config() -> Config {
@@ -182,7 +182,7 @@ impl Default for Config {
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
             slab_reserved: 128,
-            log_level: LevelFilter::Debug,
+            log_level: LevelFilter::DEBUG,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
             frontend_path: None,
@@ -197,7 +197,7 @@ impl Default for Config {
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
             slab_reserved: 0,
-            log_level: LevelFilter::Info,
+            log_level: LevelFilter::INFO,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
             frontend_path: None,

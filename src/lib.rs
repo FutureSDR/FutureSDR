@@ -49,7 +49,7 @@ pub use futures;
 pub use futures_lite;
 /// Logging macro
 #[macro_use]
-pub extern crate log;
+pub extern crate tracing;
 #[macro_use]
 extern crate futuresdr_macros;
 

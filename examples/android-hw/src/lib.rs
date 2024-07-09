@@ -11,10 +11,10 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::log::info;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::info;
 
 pub fn run_fg() -> Result<()> {
     futuresdr::runtime::init();

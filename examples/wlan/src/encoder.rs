@@ -4,7 +4,6 @@ use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 
 use futuresdr::anyhow::Result;
-use futuresdr::log::warn;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::Block;
@@ -18,6 +17,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::warn;
 use std::collections::VecDeque;
 
 /// Maximum number of frames to queue for transmission

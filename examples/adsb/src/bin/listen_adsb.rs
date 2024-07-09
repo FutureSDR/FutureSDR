@@ -10,11 +10,11 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Throttle;
-use futuresdr::log::{warn, LevelFilter};
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::tracing::warn;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
@@ -56,11 +56,9 @@ fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
 }
 
 fn main() -> Result<()> {
-    let mut builder = env_logger::Builder::from_default_env();
-    builder.filter(None, LevelFilter::Info).init();
-
     let args = Args::parse();
     let mut fg = Flowgraph::new();
+    futuresdr::runtime::init();
 
     let src = match args.file {
         Some(f) => {

@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["zynq"] }
-log = { version = "0.4", features = ["release_max_level_off"] }
 rand = "0.8"
+tracing = { version = "0.1", features = ["release_max_level_off"] }
 
 [[bin]]
 name = "zynq"

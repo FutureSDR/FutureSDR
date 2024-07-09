@@ -1,13 +1,13 @@
 use futuresdr::anyhow::{bail, Result};
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::{Head, NullSink, NullSource, Throttle};
-use futuresdr::log::debug;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::{
     Block, BlockMeta, BlockMetaBuilder, Error, Flowgraph, Kernel, MessageIo, MessageIoBuilder,
     Runtime, StreamIo, StreamIoBuilder, WorkIo,
 };
+use futuresdr::tracing::debug;
 use std::cmp;
 use std::marker::PhantomData;
 

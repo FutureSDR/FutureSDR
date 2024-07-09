@@ -1,5 +1,4 @@
 use futuresdr::anyhow::Result;
-use futuresdr::log::info;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
@@ -10,6 +9,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::info;
 
 #[derive(Debug)]
 enum State {
