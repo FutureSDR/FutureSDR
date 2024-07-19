@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         .adjustment_rate(0.1)
         .reference_power(1.0)
         .build();
-    let gain_locked_handler_id = agc.message_input_name_to_id("gain_locked").unwrap();
+    let gain_lock_handler_id = agc.message_input_name_to_id("gain_lock").unwrap();
     let max_gain_handler_id = agc.message_input_name_to_id("max_gain").unwrap();
     let _adjustment_rate_handler_id = agc.message_input_name_to_id("adjustment_rate").unwrap();
     let reference_power_handler_id = agc.message_input_name_to_id("reference_power").unwrap();
@@ -60,7 +60,7 @@ fn main() -> Result<()> {
 
         // Setting a gain lock prevents gain changes from happening
         println!("Setting gain lock for 5s");
-        async_io::block_on(handle.call(agc, gain_locked_handler_id, Pmt::Bool(true)))?;
+        async_io::block_on(handle.call(agc, gain_lock_handler_id, Pmt::Bool(true)))?;
 
         // Audio should get quiet faster, but gain is still locked here. it will be released after 5 seconds
         println!("Setting reference power to 0.2");
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
 
         // Gain lock released! Audio should get more quiet here for 10 seconds
         println!("Releasing gain lock");
-        async_io::block_on(handle.call(agc, gain_locked_handler_id, Pmt::Bool(false)))?;
+        async_io::block_on(handle.call(agc, gain_lock_handler_id, Pmt::Bool(false)))?;
         sleep(Duration::from_secs(10));
     }
 }
