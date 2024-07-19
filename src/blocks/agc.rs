@@ -26,7 +26,9 @@ pub struct Agc<T> {
     /// the update rate of the loop.
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
-    gain_locked: bool,
+    gain_lock: bool,
+    /// Set when gain should be automatically locked, when reference power is reached.
+    auto_lock: bool,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -41,11 +43,13 @@ where
     /// - `max_gain`: maximum gain setting
     /// - `gain`: initial gain setting
     /// - `reference_power`: target power level
-    /// - `gain_locked`: lock gain to fixed value
+    /// - `gain_lock`: lock gain to fixed value
+    /// - `auto_lock`: lock gain, when reference power is reached
     ///
     /// ## Message Handler
     ///
-    /// - `gain_locked`: set `gain_locked` parameter with a [`Pmt::Bool`].
+    /// - `auto_lock`: set `auto_lock` parameter with a [`Pmt::Bool`].
+    /// - `gain_lock`: set `gain_lock` parameter with a [`Pmt::Bool`].
     /// - `max_gain`: set `max_gain` parameter with a [`Pmt::F32`].
     /// - `adjustment_rate`: set `adjustment_rate` with a [`Pmt::F32`].
     /// - `reference_power`: set `reference_power` with a [`Pmt::F32`].
@@ -61,7 +65,8 @@ where
         gain: f32,
         adjustment_rate: f32,
         reference_power: f32,
-        gain_locked: bool,
+        gain_lock: bool,
+        auto_lock: bool,
     ) -> Block {
         assert!(max_gain >= 0.0);
         assert!(squelch >= 0.0);
@@ -73,7 +78,8 @@ where
                 .add_output::<T>("out")
                 .build(),
             MessageIoBuilder::<Self>::new()
-                .add_input("gain_locked", Self::gain_locked)
+                .add_input("auto_lock", Self::auto_lock)
+                .add_input("gain_lock", Self::gain_lock)
                 .add_input("max_gain", Self::max_gain)
                 .add_input("adjustment_rate", Self::adjustment_rate)
                 .add_input("reference_power", Self::reference_power)
@@ -84,14 +90,15 @@ where
                 gain,
                 reference_power,
                 adjustment_rate,
-                gain_locked,
+                gain_lock,
+                auto_lock,
                 _type: std::marker::PhantomData,
             },
         )
     }
 
     #[message_handler]
-    async fn gain_locked(
+    async fn auto_lock(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
@@ -99,7 +106,23 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::Bool(l) = p {
-            self.gain_locked = l;
+            self.auto_lock = l;
+            Ok(Pmt::Ok)
+        } else {
+            Ok(Pmt::InvalidValue)
+        }
+    }
+
+    #[message_handler]
+    async fn gain_lock(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Bool(l) = p {
+            self.gain_lock = l;
             Ok(Pmt::Ok)
         } else {
             Ok(Pmt::InvalidValue)
@@ -157,10 +180,51 @@ where
     #[inline(always)]
     fn scale(&mut self, input: T) -> T {
         let output = input * T::from(self.gain).unwrap();
-        if !self.gain_locked {
-            self.gain +=
-                (self.reference_power - output.abs().to_f32().unwrap()) * self.adjustment_rate;
-            self.gain = self.gain.min(self.max_gain);
+        // if the input power is very low or very high compared to the reference power, we still want to reach the reference power quickly.
+        // Thus we should make the gain also dependent on the input_power in relation to the reference power.
+
+        // Gain is only exactly 1.0 when the AGC block is freshly initialized
+        // We then can set the gain to a suitable value to scale
+        // the input power to e.g. 99% of the reference power immediately.
+        if self.gain == 1.0 {
+            self.gain = (self.reference_power / input.abs().to_f32().unwrap()) * 0.99;
+        }
+
+        // The gain adjustment rate should not be fixed, but depending
+        // on the input power in relation to the reference power (Thus actually the gain).
+        // We dont want the gain to be adjusted very strongly on rather weak signals,
+        // as it might make them being flattened out after a short time.
+        // Thus, if we have a high gain factor ( a multitude of 1.0 or very close to zero) -> log10(gain).abs() is:
+        //   - getting closer to zero, we want bigger changes -> higher adjustment_rate value
+        //   - getting bigger, we want smaller changes -> smaller adjustment_rate value
+        let dynamic_adjustment_rate = self.adjustment_rate.powf(self.gain.log10().abs());
+
+        let output_abs = output.abs().to_f32().unwrap();
+
+        if self.auto_lock && !self.gain_lock {
+            let input_abs = input.abs().to_f32().unwrap();
+            // Two scenarios exist here:
+            if input_abs > self.reference_power {
+                // 1. Input power is greater than reference power (We are scaling the signal down)
+                //    - As soon as the output power is smaller than the reference power, we lock the gain.
+                if output_abs < self.reference_power {
+                    self.gain_lock = true;
+                    debug!("Locked gain at at {}", self.gain)
+                }
+            } else {
+                // 2. Input power is smaller than reference power (We are scaling the signal up)
+                //    - As soon as the output power is greater than the reference power, we lock the gain.
+                if output_abs > self.reference_power {
+                    self.gain_lock = true;
+                    debug!("Locked gain at at {}", self.gain)
+                }
+            }
+        }
+
+        if !self.gain_lock {
+            // Slow down AGC adjustments 1/adjustment_rate times
+            self.gain *=
+                1.0 + (self.reference_power / output_abs).log10() * dynamic_adjustment_rate;
         }
         output
     }
@@ -185,10 +249,11 @@ where
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (src, dst) in i.iter().zip(o.iter_mut()) {
-                if src.abs().to_f32().unwrap() > self.squelch {
+                let input_power = src.abs().to_f32().unwrap();
+                if input_power > self.squelch {
                     *dst = self.scale(*src);
                 } else {
-                    *dst = T::from(0.0).unwrap();
+                    *dst = T::from(self.reference_power).unwrap();
                 }
             }
 
@@ -219,7 +284,9 @@ where
     /// the update rate of the loop.
     adjustment_rate: f32,
     /// Set when gain should not be adjusted anymore, but rather be locked to the current value
-    gain_locked: bool,
+    gain_lock: bool,
+    /// Set when gain should be automatically locked, when reference power is reached.
+    auto_lock: bool,
     _type: std::marker::PhantomData<T>,
 }
 
@@ -235,7 +302,8 @@ where
     /// - `gain`: 1.0
     /// - `reference_power`: 1.0
     /// - `adjustment_rate`: 0.0001
-    /// - `gain_locked`: false
+    /// - `gain_lock`: false
+    /// - `auto_lock`: false
     pub fn new() -> AgcBuilder<T> {
         AgcBuilder {
             squelch: 0.0,
@@ -243,7 +311,8 @@ where
             gain: 1.0,
             reference_power: 1.0,
             adjustment_rate: 0.0001,
-            gain_locked: false,
+            gain_lock: false,
+            auto_lock: false,
             _type: std::marker::PhantomData,
         }
     }
@@ -273,8 +342,14 @@ where
     }
 
     /// Fix gain setting, disabling AGC
-    pub fn gain_locked(mut self, gain_locked: bool) -> AgcBuilder<T> {
-        self.gain_locked = gain_locked;
+    pub fn gain_lock(mut self, gain_lock: bool) -> AgcBuilder<T> {
+        self.gain_lock = gain_lock;
+        self
+    }
+
+    /// Activate gain auto_locking, when the target reference power is reached
+    pub fn auto_lock(mut self, auto_lock: bool) -> AgcBuilder<T> {
+        self.auto_lock = auto_lock;
         self
     }
 
@@ -286,7 +361,8 @@ where
             self.gain,
             self.adjustment_rate,
             self.reference_power,
-            self.gain_locked,
+            self.gain_lock,
+            self.auto_lock,
         )
     }
 }
