@@ -1,6 +1,3 @@
-use num_complex::ComplexFloat;
-use rustfft::num_traits::ToPrimitive;
-
 use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
@@ -12,6 +9,7 @@ use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
+use num_complex::ComplexFloat;
 
 /// Automatic Gain Control Block
 pub struct Agc<T> {
@@ -186,9 +184,9 @@ where
         // Gain is only exactly 1.0 when the AGC block is freshly initialized
         // We then can set the gain to a suitable value to scale
         // the input power to e.g. 99% of the reference power immediately.
-        if self.gain == 1.0 {
-            self.gain = (self.reference_power / input.abs().to_f32().unwrap()) * 0.99;
-        }
+        // if self.gain == 1.0 {
+        //     self.gain = (self.reference_power / input.abs().to_f32().unwrap()) * 0.99;
+        // }
 
         // The gain adjustment rate should not be fixed, but depending
         // on the input power in relation to the reference power (Thus actually the gain).
@@ -199,22 +197,22 @@ where
         //   - getting bigger, we want smaller changes -> smaller adjustment_rate value
         let dynamic_adjustment_rate = self.adjustment_rate.powf(self.gain.log10().abs());
 
-        let output_abs = output.abs().to_f32().unwrap();
+        let output_power = output.to_f32().unwrap().powi(2);
 
         if self.auto_lock && !self.gain_lock {
-            let input_abs = input.abs().to_f32().unwrap();
+            let input_power = input.to_f32().unwrap().powi(2);
             // Two scenarios exist here:
-            if input_abs > self.reference_power {
+            if input_power > self.reference_power {
                 // 1. Input power is greater than reference power (We are scaling the signal down)
                 //    - As soon as the output power is smaller than the reference power, we lock the gain.
-                if output_abs < self.reference_power {
+                if output_power < self.reference_power {
                     self.gain_lock = true;
                     debug!("Locked gain at at {}", self.gain)
                 }
             } else {
                 // 2. Input power is smaller than reference power (We are scaling the signal up)
                 //    - As soon as the output power is greater than the reference power, we lock the gain.
-                if output_abs > self.reference_power {
+                if output_power > self.reference_power {
                     self.gain_lock = true;
                     debug!("Locked gain at at {}", self.gain)
                 }
@@ -224,7 +222,7 @@ where
         if !self.gain_lock {
             // Slow down AGC adjustments 1/adjustment_rate times
             self.gain *=
-                1.0 + (self.reference_power / output_abs).log10() * dynamic_adjustment_rate;
+                1.0 + (self.reference_power / output_power).log10() * dynamic_adjustment_rate;
         }
         output
     }
@@ -249,11 +247,11 @@ where
         let m = std::cmp::min(i.len(), o.len());
         if m > 0 {
             for (src, dst) in i.iter().zip(o.iter_mut()) {
-                let input_power = src.abs().to_f32().unwrap();
+                let input_power = src.to_f32().unwrap().powi(2);
                 if input_power > self.squelch {
                     *dst = self.scale(*src);
                 } else {
-                    *dst = T::from(self.reference_power).unwrap();
+                    *dst = T::from(0.0).unwrap();
                 }
             }
 
