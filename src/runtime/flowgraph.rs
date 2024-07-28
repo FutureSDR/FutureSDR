@@ -111,6 +111,19 @@ impl Flowgraph {
             .and_then(|t| t.block_mut(id))
             .and_then(|b| b.kernel_mut())
     }
+
+    /// Detach GUI handles from all blocks in the flowgraph
+    #[cfg(feature = "gui")]
+    pub fn detach_gui_handles(&mut self) -> Vec<Box<dyn crate::gui::GuiWidget + Send>> {
+        self.topology
+            .as_mut()
+            .map(|top| {
+                top.blocks_mut()
+                    .filter_map(|block| block.detach_gui_handle())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 impl Default for Flowgraph {
