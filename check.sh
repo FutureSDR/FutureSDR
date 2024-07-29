@@ -32,7 +32,6 @@ cd ${SCRIPTPATH}/perf/zynq && cargo fmt --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo fmt --check
-cd ${SCRIPTPATH}/examples/agc && cargo fmt --check
 cd ${SCRIPTPATH}/examples/android && cargo fmt --check
 cd ${SCRIPTPATH}/examples/android-hw && cargo fmt --check
 cd ${SCRIPTPATH}/examples/audio && cargo fmt --check
@@ -81,7 +80,6 @@ cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/agc && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
@@ -143,7 +141,6 @@ cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/agc && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets

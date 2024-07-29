@@ -21,7 +21,6 @@
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Agc](Agc) | Automatic Gain Control | ✅ |
 //! | [Fft](Fft) | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
 //! | [Iir](IirBuilder) | IIR filter. | ✅ |
@@ -110,9 +109,6 @@
 //! | [FileSource](audio::FileSource) | Read an audio file and output its samples. | ❌ |
 //! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
-
-mod agc;
-pub use agc::{Agc, AgcBuilder};
 
 mod apply;
 pub use apply::Apply;
