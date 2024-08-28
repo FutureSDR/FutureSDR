@@ -54,18 +54,14 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let mut seify = SourceBuilder::new()
+    let src = SourceBuilder::new()
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
-        .gain(args.gain);
-    if let Some(ref s) = args.args {
-        seify = seify.args(s)?;
-    }
-    if let Some(ref s) = args.antenna {
-        seify = seify.antenna(s);
-    }
+        .gain(args.gain)
+        .antenna(args.antenna)
+        .args(args.args)?
+        .build()?;
 
-    let src = seify.build()?;
     connect!(fg, src);
 
     let prev = if args.dc_offset {

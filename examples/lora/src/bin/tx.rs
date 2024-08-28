@@ -60,17 +60,13 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let mut sink = SinkBuilder::new()
+    let sink = SinkBuilder::new()
         .sample_rate((Into::<usize>::into(args.bandwidth) * args.oversampling) as f64)
         .frequency(args.channel.into())
-        .gain(args.gain);
-    if let Some(a) = args.antenna {
-        sink = sink.antenna(a);
-    }
-    if let Some(a) = args.args {
-        sink = sink.args(a)?;
-    }
-    let sink = sink.build().unwrap();
+        .gain(args.gain)
+        .antenna(args.antenna)
+        .args(args.args)?
+        .build()?;
 
     let transmitter = Transmitter::new(
         args.code_rate.into(),

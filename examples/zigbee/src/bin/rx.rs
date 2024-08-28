@@ -49,19 +49,13 @@ fn main() -> Result<()> {
 
     let src = match args.file {
         Some(file) => FileSource::<Complex32>::new(file, false),
-        None => {
-            let mut src = SourceBuilder::new()
-                .frequency(args.freq)
-                .sample_rate(args.sample_rate)
-                .gain(args.gain);
-            if let Some(a) = args.antenna {
-                src = src.antenna(a);
-            }
-            if let Some(a) = args.args {
-                src = src.args(a)?;
-            }
-            src.build()?
-        }
+        None => SourceBuilder::new()
+            .frequency(args.freq)
+            .sample_rate(args.sample_rate)
+            .gain(args.gain)
+            .antenna(args.antenna)
+            .args(args.args)?
+            .build()?,
     };
 
     let mut last: Complex32 = Complex32::new(0.0, 0.0);

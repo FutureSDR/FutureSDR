@@ -86,18 +86,15 @@ fn main() -> Result<()> {
         "in",
         Circular::with_size(prefix_in_size),
     )?;
-    let mut snk = SinkBuilder::new()
+    let snk = SinkBuilder::new()
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
-        .gain(args.gain);
-    if let Some(a) = args.antenna {
-        snk = snk.antenna(a);
-    }
-    if let Some(a) = args.args {
-        snk = snk.args(a)?;
-    }
+        .gain(args.gain)
+        .antenna(args.antenna)
+        .args(args.args)?
+        .build()?;
 
-    let snk = fg.add_block(snk.build()?);
+    let snk = fg.add_block(snk);
     fg.connect_stream_with_type(
         prefix,
         "out",

@@ -69,17 +69,15 @@ fn main() -> Result<()> {
         }
         None => {
             // Load seify source
-            let mut src = SourceBuilder::new()
+            let src = SourceBuilder::new()
                 .frequency(1090e6)
                 .sample_rate(args.sample_rate)
-                .gain(args.gain);
-            if let Some(a) = args.antenna {
-                src = src.antenna(a);
-            }
-            if let Some(a) = args.args {
-                src = src.args(a)?;
-            }
-            fg.add_block(src.build()?)
+                .gain(args.gain)
+                .antenna(args.antenna)
+                .args(args.args)?
+                .build()?;
+
+            fg.add_block(src)
         }
     };
 
