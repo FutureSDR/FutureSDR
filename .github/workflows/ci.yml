@@ -105,6 +105,9 @@ jobs:
       - name: Run cargo fmt (examples/logging)
         run: cargo fmt --all --manifest-path=examples/logging/Cargo.toml -- --check
 
+      - name: Run cargo fmt (examples/lora)
+        run: cargo fmt --all --manifest-path=examples/lora/Cargo.toml -- --check
+
       - name: Run cargo fmt (examples/m17)
         run: cargo fmt --all --manifest-path=examples/m17/Cargo.toml -- --check
 
@@ -305,6 +308,9 @@ jobs:
 
       - name: Run cargo clippy (examples/logging)
         run: cargo clippy --all-targets --manifest-path=examples/logging/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (examples/lora)
+        run: cargo clippy --all-targets --manifest-path=examples/lora/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/m17)
         run: cargo clippy --all-targets --manifest-path=examples/m17/Cargo.toml -- -D warnings

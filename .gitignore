@@ -3,3 +3,10 @@ target
 node_modules
 perf-data
 package-lock.json
+.idea/
+logs/
+terrain/
+results/
+
+eeprom.bin
+dd

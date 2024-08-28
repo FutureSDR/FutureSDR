@@ -4,6 +4,8 @@ extern crate alloc;
 use alloc::vec::Vec;
 use num_traits::FromPrimitive;
 
+/// Lowpass FIR Filter
+///
 /// Constructs a lowpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
 /// using the specified window. The length of the filter equals the length of `window`.
 /// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
@@ -39,6 +41,8 @@ pub fn lowpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
         .collect()
 }
 
+/// Highpass FIR Filter
+///
 /// Constructs a highpass FIR filter with unit gain and cutoff frequency `cutoff` (in cycles/sample)
 /// using the specified window.  The length of the filter equals the length of `window`.
 /// Note that `window.len()` must be odd.
@@ -79,6 +83,8 @@ pub fn highpass<T: FromPrimitive>(cutoff: f64, window: &[f64]) -> Vec<T> {
         .collect()
 }
 
+/// Bandpass FIR Filter
+///
 /// Constructs a bandpass FIR filter with unit gain and cutoff frequencies
 /// `lower_cutoff` and `higher_cutoff` (in cycles/sample) using the specified window.
 ///  The length of the filter equals the length of `window`.
@@ -129,6 +135,8 @@ pub fn bandpass<T: FromPrimitive>(lower_cutoff: f64, higher_cutoff: f64, window:
         .collect()
 }
 
+/// Root Raised Cosine Filter
+///
 /// Constructs a root raised cosine filter with roll-off factor `roll_off`, truncated to
 /// `span` symbols. Each symbol is represented using `sps` samples. `span * sps` must be
 /// even. The returned filter has a length `span * sps + 1`.
@@ -177,6 +185,8 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
     taps.iter().map(|x| T::from_f64(*x).unwrap()).collect()
 }
 
+/// Hilbert FIR Filter
+///
 /// Constructs a hilbert FIR filter which changes the phase by 90º.
 /// The length of the filter equals the length of `window` and must be an odd number.
 /// The filter taps are constructed internally as `f64` and then casted to the generic type `T`
@@ -341,6 +351,8 @@ pub mod kaiser {
         super::highpass(omega_c, win.as_slice())
     }
 
+    /// Bandpass FIR Filter
+    ///
     /// Designs a bandpass FIR filter with lower cutoff frequency `lower_cutoff`,
     /// higher cutoff frequency `higher_cutoff`, and transition widths
     /// `transition_bw` (in cycles/sample).
@@ -382,6 +394,8 @@ pub mod kaiser {
         super::bandpass(lower_omega_c, higher_omega_c, win.as_slice())
     }
 
+    /// Nyquist FIR Filter
+    ///
     /// Designs a Nyquist FIR filter (L-th band filter) for polyphase resampling with
     /// interpolation factor `interp` and decimation factor `decim`. Each polyphase
     /// filter will contain `2 * half_polyphase_len` taps.

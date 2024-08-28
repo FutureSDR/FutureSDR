@@ -1,0 +1,16 @@
+[package]
+name = "lora"
+version = "0.1.0"
+edition = "2021"
+readme = "./README.md"
+license = "GPL-3.0-only"
+
+[workspace]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+futuredsp = { path = "../../crates/futuredsp" }
+futuresdr = { path = "../..", features = ["seify", "soapy"] }
+num-traits = "0.2"
+rustfft = "6.2"
+scilib = "1.0"

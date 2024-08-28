@@ -43,6 +43,9 @@ where
         })
         .collect()
 }
+
+/// Generalized Cosine Window
+///
 /// A generalized cosine window of a given length with coefficients `coeffs`.
 /// If `periodic` is `false`, a symmetric filter is returned, which is suitable for
 /// filter design. If `periodic` is true, a perfect periodic window is
@@ -146,6 +149,8 @@ pub fn kaiser(len: usize, beta: f64) -> Vec<f64> {
         .collect()
 }
 
+/// Gaussian Window
+///
 /// A Gaussian window of a given length with width factor `alpha`, which is
 /// inversely proportional to the standard deviation.
 /// Note that sometimes, the width of a Gaussian window is specified in terms of

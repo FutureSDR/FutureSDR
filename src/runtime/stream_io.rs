@@ -71,10 +71,13 @@ impl StreamInput {
     /// Consume `amount` samples from buffer
     pub fn consume(&mut self, amount: usize) {
         debug_assert!(self.current.is_some());
+        // debug_assert!(
+        //     amount
+        //         <= self.current.as_mut().unwrap().len
+        //             - self.current.as_mut().unwrap().index * self.item_size
+        // );
         debug_assert!(
-            amount
-                <= self.current.as_mut().unwrap().len
-                    - self.current.as_mut().unwrap().index * self.item_size
+            amount <= self.current.as_mut().unwrap().len - self.current.as_mut().unwrap().index // TODO index is in bytes, not elements
         );
 
         self.current.as_mut().unwrap().index += amount * self.item_size;

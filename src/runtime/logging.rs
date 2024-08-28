@@ -13,7 +13,10 @@ pub fn init() {
         .compact();
 
     let level = config::config().log_level;
-    let filter = EnvFilter::from_env("FUTURESDR_LOG").add_directive(level.into());
+    let filter = EnvFilter::builder()
+        .with_default_directive(level.into())
+        .with_env_var("FUTURESDR_LOG")
+        .from_env_lossy();
 
     let subscriber = tracing_subscriber::registry().with(filter).with(format);
 

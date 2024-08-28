@@ -5,11 +5,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use num_complex::Complex;
 use rand::Rng;
 
+use futuredsp::prelude::*;
 use futuredsp::FirFilter;
-use futuredsp::FirKernel;
 use futuredsp::IirFilter;
-use futuredsp::IirKernel;
-use futuredsp::Taps;
 
 trait Generatable {
     fn generate() -> Self;
@@ -57,7 +55,7 @@ fn bench_fir_dynamic_taps<InputType, OutputType, TapType: Generatable>(
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
     Vec<TapType>: Taps<TapType = TapType>,
-    FirFilter<InputType, OutputType, Vec<TapType>>: FirKernel<InputType, OutputType, TapType>,
+    FirFilter<InputType, OutputType, Vec<TapType>>: Filter<InputType, OutputType, TapType>,
 {
     let taps: Vec<_> = (0..ntaps).map(|_| TapType::generate()).collect();
     let input: Vec<_> = (0..nsamps + ntaps).map(|_| InputType::generate()).collect();
@@ -76,13 +74,13 @@ fn bench_fir_static_taps<InputType, OutputType, TapType, const N: usize>(
     OutputType: Generatable + Clone,
     TapType: Generatable + std::fmt::Debug,
     [TapType; N]: Taps<TapType = TapType>,
-    FirFilter<InputType, OutputType, [TapType; N]>: FirKernel<InputType, OutputType, TapType>,
+    FirFilter<InputType, OutputType, [TapType; N]>: Filter<InputType, OutputType, TapType>,
 {
     let taps: Vec<_> = (0..N).map(|_| TapType::generate()).collect();
     let taps: [TapType; N] = taps.try_into().unwrap();
     let input: Vec<_> = (0..nsamps + N).map(|_| InputType::generate()).collect();
     let mut output = vec![OutputType::generate(); nsamps];
-    let fir = FirFilter::<InputType, OutputType, _>::new(black_box(taps));
+    let fir = FirFilter::<InputType, OutputType, [TapType; N]>::new(black_box(taps));
     b.iter(|| {
         fir.filter(black_box(&input), black_box(&mut output));
     });
@@ -97,7 +95,7 @@ fn bench_iir<InputType, OutputType, TapType: Generatable>(
     InputType: Generatable + Clone,
     OutputType: Generatable + Clone,
     Vec<TapType>: Taps<TapType = TapType>,
-    IirFilter<InputType, OutputType, Vec<TapType>>: IirKernel<InputType, OutputType>,
+    IirFilter<InputType, OutputType, Vec<TapType>>: StatefulFilter<InputType, OutputType, TapType>,
 {
     let a_taps: Vec<_> = (0..n_a_taps).map(|_| TapType::generate()).collect();
     let b_taps: Vec<_> = (0..n_b_taps).map(|_| TapType::generate()).collect();

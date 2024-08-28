@@ -68,6 +68,8 @@ pub enum Pmt {
     Bool(bool),
     /// Usize
     Usize(usize),
+    /// Isize
+    Isize(isize),
     /// U32, 32-bit unsiged integer
     U32(u32),
     /// U64, 64-bit unsigned integer
@@ -109,6 +111,7 @@ impl fmt::Display for Pmt {
             Pmt::String(v) => write!(f, "{}", v),
             Pmt::Bool(v) => write!(f, "{}", v),
             Pmt::Usize(v) => write!(f, "{}", v),
+            Pmt::Isize(v) => write!(f, "{}", v),
             Pmt::U32(v) => write!(f, "{}", v),
             Pmt::U64(v) => write!(f, "{}", v),
             Pmt::F32(v) => write!(f, "{}", v),
@@ -134,6 +137,7 @@ impl PartialEq for Pmt {
             (Pmt::String(x), Pmt::String(y)) => x == y,
             (Pmt::Bool(x), Pmt::Bool(y)) => x == y,
             (Pmt::Usize(x), Pmt::Usize(y)) => x == y,
+            (Pmt::Isize(x), Pmt::Isize(y)) => x == y,
             (Pmt::U32(x), Pmt::U32(y)) => x == y,
             (Pmt::U64(x), Pmt::U64(y)) => x == y,
             (Pmt::F32(x), Pmt::F32(y)) => x == y,
@@ -247,6 +251,17 @@ impl TryInto<usize> for Pmt {
     }
 }
 
+impl TryInto<isize> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<isize, Self::Error> {
+        match self {
+            Pmt::Isize(f) => Ok(f),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
 impl TryInto<u64> for Pmt {
     type Error = PmtConversionError;
 
@@ -278,6 +293,8 @@ pub enum PmtKind {
     Bool,
     /// Usize
     Usize,
+    /// Isize
+    Isize,
     /// U32
     U32,
     /// U64
@@ -313,6 +330,7 @@ impl fmt::Display for PmtKind {
             PmtKind::String => write!(f, "String"),
             PmtKind::Bool => write!(f, "Bool"),
             PmtKind::Usize => write!(f, "Usize"),
+            PmtKind::Isize => write!(f, "isize"),
             PmtKind::U32 => write!(f, "U32"),
             PmtKind::U64 => write!(f, "U64"),
             PmtKind::F32 => write!(f, "F32"),
@@ -340,6 +358,7 @@ impl std::str::FromStr for PmtKind {
             "String" => return Ok(PmtKind::String),
             "Bool" => return Ok(PmtKind::Bool),
             "Usize" => return Ok(PmtKind::Usize),
+            "Isize" => return Ok(PmtKind::Isize),
             "U32" => return Ok(PmtKind::U32),
             "U64" => return Ok(PmtKind::U64),
             "F32" => return Ok(PmtKind::F32),

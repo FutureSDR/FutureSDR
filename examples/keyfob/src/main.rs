@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let resamp = FirBuilder::new_resampling::<Complex32, Complex32>(1, 16);
+    let resamp = FirBuilder::resampling::<Complex32, Complex32>(1, 16);
     let complex_to_mag = Apply::new(|i: &Complex32| -> f32 { i.norm_sqr() });
 
     let mut cur = 0.0;

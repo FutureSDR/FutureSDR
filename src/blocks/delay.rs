@@ -8,6 +8,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
+use futuresdr_types::Pmt;
 
 #[derive(Debug)]
 enum State {
@@ -56,12 +57,54 @@ impl<T: Copy + Send + 'static> Delay<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageIoBuilder::new()
+                .add_input("new_value", Self::new_value_handler)
+                .build(),
             Self {
                 state,
                 _type: std::marker::PhantomData,
             },
         )
+    }
+
+    #[message_handler]
+    pub fn new_value_handler<'a>(
+        &'a mut self,
+        _io: &'a mut WorkIo,
+        _mio: &'a mut MessageIo<Self>,
+        _meta: &'a mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::MapStrPmt(new_value) = p {
+            let pad: bool = if let Pmt::Bool(temp) = new_value.get("pad").unwrap() {
+                *temp
+            } else {
+                panic!("invalid pad bool")
+            };
+            let value: usize = if let Pmt::Usize(temp) = new_value.get("value").unwrap() {
+                *temp
+            } else {
+                panic!("invalid value")
+            };
+            let val = if pad {
+                value as isize
+            } else {
+                -(value as isize)
+            };
+            let new_val = match self.state {
+                State::Pad(n) => n as isize + val,
+                State::Skip(n) => -(n as isize) + val,
+                State::Copy => val,
+            };
+            self.state = match new_val.cmp(&0) {
+                std::cmp::Ordering::Greater => State::Pad(new_val as usize),
+                std::cmp::Ordering::Equal => State::Copy,
+                std::cmp::Ordering::Less => State::Skip(new_val.unsigned_abs()),
+            }
+        } else {
+            warn! {"PMT to new_value_handler was not a MapStrPmt"}
+        }
+        Ok(Pmt::Null)
     }
 }
 

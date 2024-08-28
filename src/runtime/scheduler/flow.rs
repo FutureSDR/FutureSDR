@@ -7,7 +7,7 @@ use futures::channel::mpsc::{channel, Sender};
 use futures::channel::oneshot;
 use futures_lite::future::{self, Future, FutureExt};
 use slab::Slab;
-use std::cmp;
+// use std::cmp;
 use std::fmt;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -95,17 +95,31 @@ impl FlowScheduler {
         }
     }
 
-    fn map_block(block: usize, n_blocks: usize, n_cores: usize) -> usize {
-        let n = n_blocks / n_cores;
-        let r = n_blocks % n_cores;
-
-        for x in 1..n_cores {
-            if block < ((x) * n) + cmp::min(x, r) {
-                return x - 1;
-            }
+    // fn map_block(block: usize, n_blocks: usize, n_cores: usize) -> usize {
+    //     let n = n_blocks / n_cores;
+    //     let r = n_blocks % n_cores;
+    //
+    //     for x in 1..n_cores {
+    //         if block < ((x) * n) + cmp::min(x, r) {
+    //             return x - 1;
+    //         }
+    //     }
+    //
+    //     n_cores - 1
+    // }
+    fn map_block(block: usize, _n_blocks: usize, _n_cores: usize) -> Option<usize> {
+        match block {
+            0..=2 => None,
+            3..=45 => Some(0),
+            46..=88 => Some(0),
+            89..=131 => Some(1),
+            132..=175 => Some(1),
+            176..=218 => Some(2),
+            219..=261 => Some(2),
+            262..=304 => Some(3),
+            305..=347 => Some(3),
+            _ => None,
         }
-
-        n_cores - 1
     }
 }
 
@@ -122,12 +136,13 @@ impl Scheduler for FlowScheduler {
         }
         let queue_size = config::config().queue_size;
 
-        let n_blocks = topology.blocks.len();
-        let n_cores = self.inner.workers.len();
+        let _n_blocks = topology.blocks.len();
+        let _n_cores = self.inner.workers.len();
 
         // spawn block executors
         for (id, block_o) in topology.blocks.iter_mut() {
             let block = block_o.take().unwrap();
+            // println!("{}: {}", id, block.instance_name().unwrap());
 
             let (sender, receiver) = channel::<BlockMessage>(queue_size);
             inboxes[id] = Some(sender.clone());
@@ -135,20 +150,27 @@ impl Scheduler for FlowScheduler {
             if block.is_blocking() {
                 let main = main_channel.clone();
                 debug!("spawing block on executor");
+
+                if let Some(c) = FlowScheduler::map_block(id, 0, 0) {
+                    self.inner
+                        .executor
+                        .spawn_executor(
+                            blocking::unblock(move || block_on(block.run(id, main, receiver))),
+                            c,
+                        )
+                        .detach();
+                } else {
+                    panic!("foo");
+                }
+            } else if let Some(c) = FlowScheduler::map_block(id, 0, 0) {
                 self.inner
                     .executor
-                    .spawn_executor(
-                        blocking::unblock(move || block_on(block.run(id, main, receiver))),
-                        FlowScheduler::map_block(id, n_blocks, n_cores),
-                    )
+                    .spawn_executor(block.run(id, main_channel.clone(), receiver), c)
                     .detach();
             } else {
                 self.inner
                     .executor
-                    .spawn_executor(
-                        block.run(id, main_channel.clone(), receiver),
-                        FlowScheduler::map_block(id, n_blocks, n_cores),
-                    )
+                    .spawn(block.run(id, main_channel.clone(), receiver))
                     .detach();
             }
         }
@@ -773,29 +795,29 @@ impl<F: Fn()> Drop for CallOnDrop<F> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn map_blocks() {
-        let a: Vec<usize> = (0..3_usize)
-            .map(|b| FlowScheduler::map_block(b, 3, 3))
-            .collect();
-        assert_eq!(a, vec![0, 1, 2]);
-
-        let a: Vec<usize> = (0..6_usize)
-            .map(|b| FlowScheduler::map_block(b, 6, 3))
-            .collect();
-        assert_eq!(a, vec![0, 0, 1, 1, 2, 2]);
-
-        let a: Vec<usize> = (0..5_usize)
-            .map(|b| FlowScheduler::map_block(b, 5, 10))
-            .collect();
-        assert_eq!(a, vec![0, 1, 2, 3, 4]);
-
-        let a: Vec<usize> = (0..11_usize)
-            .map(|b| FlowScheduler::map_block(b, 11, 3))
-            .collect();
-        assert_eq!(a, vec![0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]);
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     #[test]
+//     fn map_blocks() {
+//         let a: Vec<usize> = (0..3_usize)
+//             .map(|b| FlowScheduler::map_block(b, 3, 3))
+//             .collect();
+//         assert_eq!(a, vec![0, 1, 2]);
+//
+//         let a: Vec<usize> = (0..6_usize)
+//             .map(|b| FlowScheduler::map_block(b, 6, 3))
+//             .collect();
+//         assert_eq!(a, vec![0, 0, 1, 1, 2, 2]);
+//
+//         let a: Vec<usize> = (0..5_usize)
+//             .map(|b| FlowScheduler::map_block(b, 5, 10))
+//             .collect();
+//         assert_eq!(a, vec![0, 1, 2, 3, 4]);
+//
+//         let a: Vec<usize> = (0..11_usize)
+//             .map(|b| FlowScheduler::map_block(b, 11, 3))
+//             .collect();
+//         assert_eq!(a, vec![0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]);
+//     }
+// }

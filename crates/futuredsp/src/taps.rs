@@ -14,9 +14,9 @@ pub trait Taps: Send {
 
     /// Gets the `index`th tap.
     ///
-    /// # Safety
+    /// # Panics
     /// The invariant `index < num_taps()` must be upheld.
-    unsafe fn get(&self, index: usize) -> Self::TapType;
+    fn get(&self, index: usize) -> Self::TapType;
 }
 
 impl<const N: usize, T> Taps for [Complex<T>; N]
@@ -29,9 +29,9 @@ where
         N
     }
 
-    unsafe fn get(&self, index: usize) -> Complex<T> {
+    fn get(&self, index: usize) -> Complex<T> {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -45,9 +45,9 @@ where
         N
     }
 
-    unsafe fn get(&self, index: usize) -> Complex<T> {
+    fn get(&self, index: usize) -> Complex<T> {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -58,9 +58,9 @@ impl<const N: usize> Taps for [f32; N] {
         N
     }
 
-    unsafe fn get(&self, index: usize) -> f32 {
+    fn get(&self, index: usize) -> f32 {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -71,9 +71,9 @@ impl<const N: usize> Taps for &[f32; N] {
         N
     }
 
-    unsafe fn get(&self, index: usize) -> f32 {
+    fn get(&self, index: usize) -> f32 {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -84,9 +84,9 @@ impl<const N: usize> Taps for [f64; N] {
         N
     }
 
-    unsafe fn get(&self, index: usize) -> f64 {
+    fn get(&self, index: usize) -> f64 {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -97,9 +97,9 @@ impl<const N: usize> Taps for &[f64; N] {
         N
     }
 
-    unsafe fn get(&self, index: usize) -> f64 {
+    fn get(&self, index: usize) -> f64 {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }
 
@@ -113,8 +113,8 @@ where
         self.len()
     }
 
-    unsafe fn get(&self, index: usize) -> T {
+    fn get(&self, index: usize) -> T {
         debug_assert!(index < self.num_taps());
-        *self.get_unchecked(index)
+        unsafe { *self.get_unchecked(index) }
     }
 }

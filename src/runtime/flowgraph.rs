@@ -119,6 +119,12 @@ impl Default for Flowgraph {
     }
 }
 
+impl AsMut<Flowgraph> for Flowgraph {
+    fn as_mut(&mut self) -> &mut Flowgraph {
+        self
+    }
+}
+
 /// Handle to interact with running [`Flowgraph`]
 #[derive(Debug, Clone)]
 pub struct FlowgraphHandle {

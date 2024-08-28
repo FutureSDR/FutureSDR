@@ -96,7 +96,7 @@ fn main() -> Result<()> {
              Use a sampling frequency that is a divisor of {DEMOD_SAMPLE_RATE} for the best performance."
         );
     }
-    let interp_block = fg.add_block(FirBuilder::new_resampling::<Complex32, Complex32>(
+    let interp_block = fg.add_block(FirBuilder::resampling::<Complex32, Complex32>(
         interp, decim,
     ));
     fg.connect_stream(src, "out", interp_block, "in")?;

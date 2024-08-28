@@ -2,6 +2,7 @@ use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction;
 
+use crate::runtime::Error;
 use crate::runtime::Pmt;
 
 /// Seify Config
@@ -36,7 +37,7 @@ impl Config {
         dev: &Device<D>,
         channels: &Vec<usize>,
         dir: Direction,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Error> {
         for c in channels {
             if let Some(ref a) = self.antenna {
                 dev.set_antenna(dir, *c, a)?;
@@ -59,9 +60,8 @@ impl Config {
     }
 }
 
-use crate::anyhow::bail;
 impl TryFrom<Pmt> for Config {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(pmt: Pmt) -> Result<Self, Self::Error> {
         match pmt {
@@ -69,7 +69,7 @@ impl TryFrom<Pmt> for Config {
                 if let Some(cfg) = a.downcast_ref::<Self>() {
                     Ok(cfg.clone())
                 } else {
-                    bail!("downcast failed")
+                    Err(Error::PmtConversionError)
                 }
             }
             Pmt::MapStrPmt(mut m) => {
@@ -97,7 +97,7 @@ impl TryFrom<Pmt> for Config {
                 }
                 Ok(cfg)
             }
-            _ => bail!("cannot convert this PMT"),
+            _ => Err(Error::PmtConversionError),
         }
     }
 }

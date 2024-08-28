@@ -1,4 +1,4 @@
-//! FIR filters
+//! FIR Filters
 use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
 use core::intrinsics::{fadd_fast, fmul_fast};
@@ -7,7 +7,7 @@ use num_traits::Float;
 use num_traits::Zero;
 
 use crate::ComputationStatus;
-use crate::FirKernel;
+use crate::Filter;
 use crate::Taps;
 
 /// A non-resampling FIR filter. Calling `filter()` on this struct always
@@ -19,8 +19,8 @@ use crate::Taps;
 ///
 /// Example usage:
 /// ```
+/// use futuredsp::prelude::*;
 /// use futuredsp::FirFilter;
-/// use futuredsp::FirKernel;
 ///
 /// let fir = FirFilter::<f32, f32, _>::new([1f32, 2f32, 3f32]);
 ///
@@ -94,7 +94,7 @@ where
 mod inner {
     use super::*;
 
-    impl<TA: Taps<TapType = f32>> FirKernel<f32, f32, f32> for FirFilter<f32, f32, TA> {
+    impl<TA: Taps<TapType = f32>> Filter<f32, f32, f32> for FirFilter<f32, f32, TA> {
         fn filter(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
             fir_kernel_core(
                 &self.taps,
@@ -106,7 +106,7 @@ mod inner {
         }
     }
 
-    impl<TA: Taps<TapType = f64>> FirKernel<f64, f64, f64> for FirFilter<f64, f64, TA> {
+    impl<TA: Taps<TapType = f64>> Filter<f64, f64, f64> for FirFilter<f64, f64, TA> {
         fn filter(&self, i: &[f64], o: &mut [f64]) -> (usize, usize, ComputationStatus) {
             fir_kernel_core(
                 &self.taps,
@@ -118,7 +118,7 @@ mod inner {
         }
     }
 
-    impl<TA: Taps<TapType = T>, T> FirKernel<Complex<T>, Complex<T>, T>
+    impl<TA: Taps<TapType = T>, T> Filter<Complex<T>, Complex<T>, T>
         for FirFilter<Complex<T>, Complex<T>, TA>
     where
         T: Float + Send + Sync + Copy + Zero,
@@ -149,7 +149,7 @@ mod inner {
 mod inner {
     use super::*;
 
-    impl<TA: Taps<TapType = f32>> FirKernel<f32, f32, f32> for FirFilter<f32, f32, TA> {
+    impl<TA: Taps<TapType = f32>> Filter<f32, f32, f32> for FirFilter<f32, f32, TA> {
         fn filter(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
             fir_kernel_core(
                 &self.taps,
@@ -161,7 +161,7 @@ mod inner {
         }
     }
 
-    impl<TA: Taps<TapType = f64>> FirKernel<f64, f64, f64> for FirFilter<f64, f64, TA> {
+    impl<TA: Taps<TapType = f64>> Filter<f64, f64, f64> for FirFilter<f64, f64, TA> {
         fn filter(&self, i: &[f64], o: &mut [f64]) -> (usize, usize, ComputationStatus) {
             fir_kernel_core(
                 &self.taps,
@@ -173,7 +173,7 @@ mod inner {
         }
     }
 
-    impl<TA: Taps<TapType = T>, T> FirKernel<Complex<T>, Complex<T>, T>
+    impl<TA: Taps<TapType = T>, T> Filter<Complex<T>, Complex<T>, T>
         for FirFilter<Complex<T>, Complex<T>, TA>
     where
         T: Float + Send + Sync + Copy + Zero,
@@ -200,7 +200,7 @@ mod inner {
     }
 }
 
-impl<TA: Taps<TapType = Complex<f32>>> FirKernel<Complex<f32>, Complex<f32>, Complex<f32>>
+impl<TA: Taps<TapType = Complex<f32>>> Filter<Complex<f32>, Complex<f32>, Complex<f32>>
     for FirFilter<Complex<f32>, Complex<f32>, TA>
 {
     fn filter(

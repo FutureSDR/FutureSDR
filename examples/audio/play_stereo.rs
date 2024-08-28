@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let inner = src.kernel::<FileSource>().unwrap();
 
     // resample to 48kHz
-    let resample = FirBuilder::new_resampling::<f32, f32>(48_000, inner.sample_rate() as usize);
+    let resample = FirBuilder::resampling::<f32, f32>(48_000, inner.sample_rate() as usize);
 
     assert_eq!(inner.channels(), 1, "We expect mp3 to be single channel.");
     let mono_to_stereo = ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {

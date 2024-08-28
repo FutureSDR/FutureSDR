@@ -5,6 +5,7 @@ use core::ops::{AddAssign, Mul};
 use num_traits::Zero;
 
 use crate::ComputationStatus;
+use crate::StatefulFilter;
 use crate::Taps;
 
 /// An IIR filter.
@@ -18,7 +19,7 @@ use crate::Taps;
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::IirKernel;
+/// use futuredsp::prelude::*;
 /// use futuredsp::IirFilter;
 ///
 /// let mut iir = IirFilter::<f32, f32, _>::new([1f32, 2f32, 3f32], [4.0, 5.0, 6.0]);
@@ -51,33 +52,17 @@ impl<InputType, OutputType, TapType, TapsType: Taps<TapType = TapType>>
     }
 }
 
-/// Implements a trait to run computations with stateless kernels.
-pub trait IirKernel<InputType, OutputType>: Send {
-    /// Computes the kernel on the given input, outputting into the given
-    /// output. For a `UnaryKernel`, kernels will not have internal memory - in
-    /// particular, this means that a single instantiated kernel does not need
-    /// to be reserved for a single stream of data.
-    ///
-    /// Returns a tuple containing, in order:
-    /// - The number of samples consumed from the input,
-    /// - The number of samples produced in the output, and
-    /// - A `ComputationStatus` which indicates whether the buffers were undersized.
-    ///
-    /// Elements of `output` beyond what is produced are left in an unspecified state.
-    fn filter(
-        &mut self,
-        input: &[InputType],
-        output: &mut [OutputType],
-    ) -> (usize, usize, ComputationStatus);
-}
-
-impl<TapsType: Taps<TapType = f32>> IirKernel<f32, f32> for IirFilter<f32, f32, TapsType> {
+impl<TapsType: Taps<TapType = f32>> StatefulFilter<f32, f32, f32>
+    for IirFilter<f32, f32, TapsType>
+{
     fn filter(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
 }
 
-impl<TapsType: Taps<TapType = f64>> IirKernel<f64, f64> for IirFilter<f64, f64, TapsType> {
+impl<TapsType: Taps<TapType = f64>> StatefulFilter<f64, f64, f64>
+    for IirFilter<f64, f64, TapsType>
+{
     fn filter(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
@@ -149,14 +134,14 @@ where
         // Calculate the intermediate value
         for b_tap in 0..b_taps.num_taps() {
             // Safety: We're iterating only up to the # of taps in B
-            *o += unsafe { b_taps.get(b_tap) } * i[n_consumed + b_taps.num_taps() - b_tap - 1];
+            *o += b_taps.get(b_tap) * i[n_consumed + b_taps.num_taps() - b_tap - 1];
         }
 
         // Apply the feedback a taps
         #[allow(clippy::needless_range_loop)]
         for a_tap in 0..a_taps.num_taps() {
             // Safety: The iterand is limited to a_taps' length
-            *o += unsafe { a_taps.get(a_tap) } * memory[a_tap];
+            *o += a_taps.get(a_tap) * memory[a_tap];
         }
 
         // Update the memory

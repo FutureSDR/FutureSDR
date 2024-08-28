@@ -1,7 +1,6 @@
+use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
-use futuredsp::IirKernel;
-use futuredsp::Taps;
 
 use crate::anyhow::Result;
 use crate::runtime::Block;
@@ -15,25 +14,27 @@ use crate::runtime::StreamIoBuilder;
 use crate::runtime::WorkIo;
 
 /// IIR filter.
-pub struct Iir<InputType, OutputType, TapType, Core>
+pub struct Iir<InputType, OutputType, TapsType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: 'static + IirKernel<InputType, OutputType> + Send,
+    TapsType: 'static + Send + Taps,
+    Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
 {
     core: Core,
     _input_type: std::marker::PhantomData<InputType>,
     _output_type: std::marker::PhantomData<OutputType>,
-    _tap_type: std::marker::PhantomData<TapType>,
+    _tap_type: std::marker::PhantomData<TapsType>,
 }
 
-impl<InputType, OutputType, TapType, Core> Iir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapsType, Core> Iir<InputType, OutputType, TapsType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: 'static + IirKernel<InputType, OutputType> + Send,
+    TapsType: 'static + Send + Taps,
+    Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
+    IirFilter<InputType, OutputType, TapsType>:
+        StatefulFilter<InputType, OutputType, TapsType::TapType>,
 {
     /// Create IIR filter block
     pub fn new(core: Core) -> Block {
@@ -43,7 +44,7 @@ where
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageIoBuilder::<Iir<InputType, OutputType, TapType, Core>>::new().build(),
+            MessageIoBuilder::<Self>::new().build(),
             Iir {
                 core,
                 _input_type: std::marker::PhantomData,
@@ -56,12 +57,14 @@ where
 
 #[doc(hidden)]
 #[async_trait]
-impl<InputType, OutputType, TapType, Core> Kernel for Iir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapsType, Core> Kernel for Iir<InputType, OutputType, TapsType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: 'static + IirKernel<InputType, OutputType> + Send,
+    TapsType: 'static + Send + Taps,
+    Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
+    IirFilter<InputType, OutputType, TapsType>:
+        StatefulFilter<InputType, OutputType, TapsType::TapType>,
 {
     async fn work(
         &mut self,
@@ -135,9 +138,10 @@ impl IirBuilder {
         OutputType: 'static + Send + Clone,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
-        IirFilter<InputType, OutputType, TapsType>: IirKernel<InputType, OutputType>,
+        IirFilter<InputType, OutputType, TapsType>:
+            StatefulFilter<InputType, OutputType, TapsType::TapType>,
     {
-        Iir::<InputType, OutputType, TapsType::TapType, IirFilter<InputType, OutputType, TapsType>>::new(
+        Iir::<InputType, OutputType, TapsType, IirFilter<InputType, OutputType, TapsType>>::new(
             IirFilter::new(a_taps, b_taps),
         )
     }
