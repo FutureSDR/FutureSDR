@@ -112,9 +112,9 @@ impl Mapper {
         }
         // pilots
         for i in [11, 25, 39] {
-            output[i] = POLARITY[index];
+            output[i] = POLARITY[index % 127];
         }
-        output[53] = -POLARITY[index];
+        output[53] = -POLARITY[index % 127];
         // data
         for (i, c) in (6..11)
             .chain(12..25)
