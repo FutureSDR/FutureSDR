@@ -171,9 +171,6 @@ jobs:
       - name: Run cargo clippy (macros)
         run: cargo clippy --lib --manifest-path=crates/macros/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy (prophecy)
-        run: cargo clippy --lib --manifest-path=crates/prophecy/Cargo.toml -- -D warnings
-
       - name: Run cargo clippy (remote)
         run: cargo clippy --lib --manifest-path=crates/remote/Cargo.toml -- -D warnings
 
