@@ -11,13 +11,13 @@ description = "FutureSDR GUI"
 console_error_panic_hook = "0.1"
 futures = "0.3"
 futuresdr = { version = "0.0.37", path = "../../" }
-futuresdr-types = { version = "0.0.11", path = "../types/" }
-gloo-net = "0.5"
+futuresdr-types = { version = "0.0.12", path = "../types/" }
+gloo-net = "0.6"
 gloo-timers = { version = "0.3", features = ["futures"] }
 indexmap = "2.2"
 js-sys = "0.3"
 leptos = { version = "0.6", features = ["csr", "nightly"] }
-leptos-use = "0.10"
+leptos-use = "0.11"
 log = "0.4"
 num-complex = "0.4"
 serde = { version = "1", features = ["derive"] }

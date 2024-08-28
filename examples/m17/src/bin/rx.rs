@@ -106,7 +106,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = FileSource::<Complex32>::new("input.cf32", false);
-    // let downsample = FirBuilder::new_resampling::<Complex32, Complex32>(1, 4);
+    // let downsample = FirBuilder::resampling::<Complex32, Complex32>(1, 4);
     // expects 48000 hz
     let mut last = Complex32::new(0.0, 0.0);
     let demod = Apply::new(move |v: &Complex32| -> f32 {
@@ -126,7 +126,7 @@ fn main() -> Result<()> {
         c2.decode(o, i);
     });
     let conv = Apply::new(|i: &i16| (*i as f32) / i16::MAX as f32);
-    let upsample = FirBuilder::new_resampling::<f32, f32>(6, 1);
+    let upsample = FirBuilder::resampling::<f32, f32>(6, 1);
     let snk = AudioSink::new(48000, 1);
 
     connect!(fg, src > demod > subtract.0;

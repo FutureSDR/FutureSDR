@@ -3,15 +3,31 @@ use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction;
 
-use crate::anyhow::{anyhow, Result};
 use crate::blocks::seify::Config;
 use crate::blocks::seify::Sink;
 use crate::blocks::seify::Source;
 use crate::runtime::Block;
+use crate::runtime::Error;
 
 pub enum BuilderType {
     Source,
     Sink,
+}
+
+pub trait IntoAntenna {
+    fn into(self) -> Option<String>;
+}
+
+impl IntoAntenna for String {
+    fn into(self) -> Option<String> {
+        Some(self)
+    }
+}
+
+impl IntoAntenna for Option<String> {
+    fn into(self) -> Option<String> {
+        self
+    }
 }
 
 /// Seify Device builder
@@ -37,8 +53,9 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         }
     }
     /// Arguments
-    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self> {
-        self.args = a.try_into().or(Err(anyhow!("Couldn't convert to Args")))?;
+    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self, Error> {
+        self.args
+            .merge(a.try_into().or(Err(Error::SeifyArgsConversionError))?);
         Ok(self)
     }
     /// Seify device
@@ -63,8 +80,8 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self
     }
     /// Antenna
-    pub fn antenna<A: Into<String>>(mut self, s: A) -> Self {
-        self.config.antenna = Some(s.into());
+    pub fn antenna<A: IntoAntenna>(mut self, s: A) -> Self {
+        self.config.antenna = s.into();
         self
     }
     /// Bandwidth
@@ -88,7 +105,7 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self
     }
     /// Builder Seify block
-    pub fn build(mut self) -> Result<Block> {
+    pub fn build(mut self) -> Result<Block, Error> {
         match self.dev.take() {
             Some(dev) => match self.builder_type {
                 BuilderType::Sink => {

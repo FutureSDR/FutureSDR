@@ -3,9 +3,11 @@ use core::cmp::Ordering;
 use num_complex::Complex;
 
 use crate::ComputationStatus;
-use crate::FirKernel;
+use crate::Filter;
 use crate::Taps;
 
+/// Rational Resampling Polyphase FIR filter
+///
 /// A rational resampling polyphase FIR filter. For every input value, this filter
 /// produces `interp/decim` output samples. The length of `taps` must be divisible by `interp`.
 /// For the best performance, `interp` and `decim` should be relatively prime.
@@ -24,7 +26,7 @@ use crate::Taps;
 ///
 /// Example usage:
 /// ```
-/// use futuredsp::FirKernel;
+/// use futuredsp::prelude::*;
 /// use futuredsp::PolyphaseResamplingFir;
 ///
 /// let decim = 2;
@@ -121,7 +123,7 @@ where
     (n, num_producable_samples, status)
 }
 
-impl<TA: Taps<TapType = f32>> FirKernel<f32, f32, f32> for PolyphaseResamplingFir<f32, f32, TA> {
+impl<TA: Taps<TapType = f32>> Filter<f32, f32, f32> for PolyphaseResamplingFir<f32, f32, TA> {
     fn filter(&self, i: &[f32], o: &mut [f32]) -> (usize, usize, ComputationStatus) {
         resampling_fir_kernel_core(
             self.interp,
@@ -135,7 +137,7 @@ impl<TA: Taps<TapType = f32>> FirKernel<f32, f32, f32> for PolyphaseResamplingFi
     }
 }
 
-impl<TA: Taps<TapType = f32>> FirKernel<Complex<f32>, Complex<f32>, f32>
+impl<TA: Taps<TapType = f32>> Filter<Complex<f32>, Complex<f32>, f32>
     for PolyphaseResamplingFir<Complex<f32>, Complex<f32>, TA>
 {
     fn filter(

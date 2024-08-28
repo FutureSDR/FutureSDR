@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     });
 
     let resampler =
-        FirBuilder::new_resampling::<Complex32, Complex32>(file_rate as usize, audio_rate as usize);
+        FirBuilder::resampling::<Complex32, Complex32>(file_rate as usize, audio_rate as usize);
 
     let mut osc = Complex32::new(1.0, 0.0);
     let shift = Complex32::from_polar(1.0, TAU * cli.frequency / file_rate as f32);

@@ -3,6 +3,7 @@ use seify::DeviceTrait;
 use seify::Direction::Rx;
 use seify::GenericDevice;
 use seify::RxStreamer;
+use std::time::Duration;
 
 use crate::anyhow::{Context, Result};
 use crate::blocks::seify::builder::BuilderType;
@@ -50,6 +51,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 .add_input("gain", Self::gain_handler)
                 .add_input("sample_rate", Self::sample_rate_handler)
                 .add_input("cmd", Self::cmd_handler)
+                .add_input("terminate", Self::terminate_handler)
                 .build(),
             Source {
                 channels,
@@ -58,6 +60,25 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 streamer: None,
             },
         )
+    }
+
+    #[message_handler]
+    fn terminate_handler(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        match &p {
+            Pmt::Ok => {
+                // allow some time for the RX streamer to receive any samples sent right before the sink terminated
+                async_std::task::sleep(Duration::from_secs_f32(0.5)).await;
+                io.finished = true
+            }
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        Ok(Pmt::Ok)
     }
 
     #[message_handler]

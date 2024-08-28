@@ -3,6 +3,7 @@ use seify::DeviceTrait;
 use seify::Direction::Tx;
 use seify::GenericDevice;
 use seify::TxStreamer;
+use std::time::Duration;
 
 use crate::anyhow::{Context, Result};
 use crate::blocks::seify::Builder;
@@ -52,6 +53,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
                 .add_input("gain", Self::gain_handler)
                 .add_input("sample_rate", Self::sample_rate_handler)
                 .add_input("cmd", Self::cmd_handler)
+                .add_output("terminate_out")
                 .build(),
             Self {
                 channels,
@@ -143,7 +145,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let bufs: Vec<&[Complex32]> = sio
@@ -153,50 +155,68 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             .collect();
 
         let streamer = self.streamer.as_mut().unwrap();
-        let n = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
-        if n == 0 {
-            return Ok(());
-        }
-
-        let t = sio.input(0).tags().iter().find_map(|x| match x {
-            ItemTag {
-                index,
-                tag: Tag::NamedUsize(n, len),
-            } => {
-                if *index == 0 && n == "burst_start" {
-                    Some(*len)
-                } else {
-                    None
+        let nitems_per_input_stream = bufs.iter().map(|b| b.len());
+        let n = nitems_per_input_stream.clone().min().unwrap_or(0);
+        let consumed = if n > 0 {
+            let t = sio.input(0).tags().iter().find_map(|x| match x {
+                ItemTag {
+                    index,
+                    tag: Tag::NamedUsize(n, len),
+                } => {
+                    if *index == 0 && n == "burst_start" {
+                        Some(*len)
+                    } else {
+                        None
+                    }
                 }
-            }
-            _ => None,
-        });
+                _ => None,
+            });
 
-        io.finished = sio.inputs().iter().any(|x| x.finished());
-
-        let consumed = if let Some(len) = t {
-            if n >= len {
-                // send burst
-                let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..len]).collect();
-                let ret = streamer.write(&bufs, None, true, 2_000_000)?;
-                debug_assert_eq!(ret, len);
-                ret
+            let consumed = if let Some(len) = t {
+                if n >= len {
+                    // send burst
+                    let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..len]).collect();
+                    let ret = streamer.write(&bufs, None, true, 2_000_000)?;
+                    debug_assert_eq!(ret, len);
+                    ret
+                } else {
+                    // wait for more samples
+                    0
+                }
             } else {
-                // wait for more samples
-                0
-            }
+                // send in non-burst mode
+                let ret = streamer.write(&bufs, None, false, 2_000_000)?;
+                if ret != n {
+                    io.call_again = true;
+                }
+                ret
+            };
+
+            sio.inputs_mut()
+                .iter_mut()
+                .for_each(|i| i.consume(consumed));
+            consumed
         } else {
-            // send in non-burst mode
-            let ret = streamer.write(&bufs, None, false, 2_000_000)?;
-            if ret != n {
-                io.call_again = true;
-            }
-            ret
+            0
         };
 
-        sio.inputs_mut()
-            .iter_mut()
-            .for_each(|i| i.consume(consumed));
+        io.finished = sio
+            .inputs()
+            .iter()
+            .zip(nitems_per_input_stream)
+            .any(|(input, input_length)| input.finished() && input_length - consumed == 0);
+        if io.finished {
+            // allow the necessary time plus overhead for the TX streamer to write the samples to the device before being terminated
+            let smallest_sample_rate: f32 =
+                self.channels
+                    .iter()
+                    .map(|c| self.dev.sample_rate(Tx, *c).unwrap())
+                    .fold(f64::INFINITY, |a, b| a.min(b)) as f32;
+            let termination_delay = consumed as f32 / smallest_sample_rate;
+            async_std::task::sleep(Duration::from_secs_f32(termination_delay + 0.5)).await;
+            // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup
+            mio.output_mut(0).post(Pmt::Ok).await;
+        }
 
         Ok(())
     }

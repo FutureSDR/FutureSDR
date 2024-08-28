@@ -12,6 +12,12 @@
 //! | [Split] | Apply a function to split a stream. | ✅ |
 //! | [FiniteSource] | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
 //!
+//! ## Streams
+//! | Block | Usage | WebAssembly? |
+//! |---|---|---|
+//! | [StreamDeinterleaver](StreamDeinterleaver) | Stream Deinterleave | ✅ |
+//! | [StreamDuplicator](StreamDuplicator) | Stream Duplicator | ✅ |
+//!
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
@@ -19,6 +25,10 @@
 //! | [Fft](Fft) | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
 //! | [Iir](IirBuilder) | IIR filter. | ✅ |
+//! | [PfbArbResampler](PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
+//! | [PfbChannelizer](PfbChannelizer) | Polyphase Channelizer | ✅ |
+//! | [PfbSynthesizer](PfbSynthesizer) | Polyphase Synthesizer | ✅ |
+//! | [XlatingFir](XlatingFirBuilder) | Xlating FIR filter and decimator. | ✅ |
 //!
 //! ## Misc
 //! | Block | Usage | WebAssembly? |
@@ -192,6 +202,11 @@ pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
 
+mod pfb;
+pub use pfb::arb_resampler::PfbArbResampler;
+pub use pfb::channelizer::PfbChannelizer;
+pub use pfb::synthesizer::PfbSynthesizer;
+
 /// Seify hardware driver blocks
 #[cfg(feature = "seify")]
 pub mod seify;
@@ -210,6 +225,12 @@ mod source;
 pub use source::Source;
 mod split;
 pub use split::Split;
+
+mod stream_deinterleaver;
+pub use stream_deinterleaver::StreamDeinterleaver;
+
+mod stream_duplicator;
+pub use stream_duplicator::StreamDuplicator;
 
 mod tag_debug;
 pub use tag_debug::TagDebug;
@@ -261,6 +282,10 @@ mod wgpu;
 #[cfg(feature = "wgpu")]
 pub use self::wgpu::Wgpu;
 
+pub mod xlating_fir;
+pub use xlating_fir::XlatingFir;
+pub use xlating_fir::XlatingFirBuilder;
+
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
 
@@ -271,5 +296,6 @@ pub use zynq::Zynq;
 
 #[cfg(feature = "zynq")]
 mod zynq_sync;
+
 #[cfg(feature = "zynq")]
 pub use zynq_sync::ZynqSync;

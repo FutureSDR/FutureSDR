@@ -9,6 +9,7 @@ pub use description::FlowgraphDescription;
 
 mod pmt;
 pub use pmt::Pmt;
+pub use pmt::PmtConversionError;
 pub use pmt::PmtKind;
 
 mod port_id;

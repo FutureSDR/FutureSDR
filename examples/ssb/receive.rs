@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     freq_xlating.set_instance_name(format!("freq_xlating {center_freq}"));
 
     let mut low_pass_filter =
-        FirBuilder::new_resampling::<Complex32, Complex32>(audio_rate as usize, file_rate as usize);
+        FirBuilder::resampling::<Complex32, Complex32>(audio_rate as usize, file_rate as usize);
     low_pass_filter.set_instance_name(format!("resampler {audio_rate} {file_rate}"));
 
     const VOLUME_ADJUSTEMENT: f32 = 0.5;

@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let interp = 2;
     let decim = 3;
     const DOWNSAMPLED_FREQ: u32 = 44_100;
-    let resamp_block = FirBuilder::new_resampling::<f32, f32>(interp, decim);
+    let resamp_block = FirBuilder::resampling::<f32, f32>(interp, decim);
 
     // Design bandpass filter for the middle tone
     let lower_cutoff = (TONE_FREQ.1 - 200.0) as f64 / DOWNSAMPLED_FREQ as f64;

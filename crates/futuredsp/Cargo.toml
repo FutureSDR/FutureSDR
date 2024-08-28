@@ -11,16 +11,20 @@ description = "A signal processing library for SDR and real-time DSP."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
+[features]
+default = ["gpl-code"]
+gpl-code = []
+
 [dependencies]
 num-complex = "0.4"
 num-traits = "0.2"
-log = "0.4"
+tracing = "0.1"
 
 [build-dependencies]
 rustc_version = "0.4"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = [ "html_reports" ] }
+criterion = { version = "0.5", features = ["html_reports"] }
 rand = "0.8"
 
 [[bench]]

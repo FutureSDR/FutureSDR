@@ -185,7 +185,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
     for blk_id in blocks.clone() {
         out.extend(quote! {
             #[allow(unused_variables)]
-            let #blk_id = Foo::add(&mut #fg, #blk_id);
+            let #blk_id = Foo::add(#fg.as_mut(), #blk_id);
         });
     }
     // Stream connections

@@ -1,6 +1,7 @@
 //! ## SDR Runtime
 use futures::channel::mpsc;
 use futures::channel::oneshot;
+use futuresdr_types::PmtConversionError;
 use std::result;
 use thiserror::Error;
 
@@ -231,4 +232,26 @@ pub enum Error {
     /// Validation error
     #[error("Validation error {0}")]
     ValidationError(String),
+    /// PMT Conversion Error
+    #[error("PMT conversion error")]
+    PmtConversionError,
+    /// Seify Args Conversion Error
+    #[error("Seify Args conversion error")]
+    SeifyArgsConversionError,
+    /// Seify Error
+    #[error("Seify error ({0})")]
+    SeifyError(String),
+}
+
+#[cfg(feature = "seify")]
+impl From<seify::Error> for Error {
+    fn from(value: seify::Error) -> Self {
+        Error::SeifyError(value.to_string())
+    }
+}
+
+impl From<PmtConversionError> for Error {
+    fn from(_value: PmtConversionError) -> Self {
+        Error::PmtConversionError
+    }
 }

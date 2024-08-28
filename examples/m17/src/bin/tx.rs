@@ -65,7 +65,7 @@ fn main() -> Result<()> {
     let snk = FileSink::<Complex32>::new("input.cf32");
     connect!(fg, src > codec2 > encoder > pulse > rrc > fm > snk);
 
-    // let upsample = FirBuilder::new_resampling::<Complex32, Complex32>(16, 1);
+    // let upsample = FirBuilder::resampling::<Complex32, Complex32>(16, 1);
     //
     // let snk = SinkBuilder::new()
     //     .frequency(433475000.0 * (1.0 + 2.75e-6))
