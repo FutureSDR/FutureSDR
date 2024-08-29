@@ -1,6 +1,3 @@
-//  Copyright 2004,2005,2009 Free Software Foundation, Inc.
-//  SPDX-License-Identifier: GPL-3.0-or-later
-
 // Routines for designing optimal FIR filters.
 //
 // For a great intro to how all this stuff works, see section 6.6 of
@@ -10,10 +7,6 @@
 use alloc::vec::Vec;
 
 use super::remez_impl::pm_remez;
-
-// from . import filter_python as filter
-
-//  ----------------------------------------------------------------
 
 /// Builds a low pass filter.
 ///

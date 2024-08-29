@@ -77,6 +77,15 @@ fn main() -> Result<()> {
 }
 ```
 
+## Credits
+
+* The LoRa example is based on a Rust port of [gr-lora-sdr](https://github.com/tapparelj/gr-lora_sdr).
+* The M17 example is based on the C implementation of [SP5WWP](https://github.com/M17-Project/M17_Implementations).
+* The Rattlegram example is based on the [Rattelgram](https://github.com/aicodix/rattlegram) app.
+* The Remez Exchange algorithm in FutureDSP is a Rust port of the [implementation of Jake Janovetz](https://github.com/janovetz/remez-exchange).
+* The WLAN example is based on a Rust port of [gr-ieee802-11](https://github.com/bastibl/gr-ieee802-11).
+* The ZigBee example is based on a Rust port of [gr-ieee802-15-4](https://github.com/bastibl/gr-ieee802-15-4).
+
 ## Contributing
 
 Contributions are very welcome. Please see the (work-in-progress) [contributing
@@ -97,14 +106,6 @@ the _minimum_ behavior expected from all contributors.
 
 This project is licensed under the [Apache 2.0 license][lic].
 
-Using this license is in contrast to the large majority of Open Source SDR
-applications and frameworks, which are mostly AGLP, LGPL, or GPL. In a nutshell,
-this means that there is *no* money to be made from relicensing the project for
-commercial use, since this is already allowed by Apache 2.0. Furthermore,
-companies can use (parts of) the project and integrate (adapted) versions in
-commercial products without releasing the source or contributing back to the
-project.
-
 The main motivation for this license is that
 * it better fits the Rust ecosystem
 * it eases adoption; one can use (parts of) the code with close to no strings
@@ -119,3 +120,4 @@ The main motivation for this license is that
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in FutureSDR, shall be licensed as Apache 2.0, without any
 additional terms or conditions.
+

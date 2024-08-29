@@ -7,9 +7,7 @@ pub use basic::lowpass;
 pub use basic::root_raised_cosine;
 
 /// Remez Algorithm
-#[cfg(feature = "gpl-code")]
 pub mod remez;
-#[cfg(feature = "gpl-code")]
 mod remez_impl;
 
 mod basic;
