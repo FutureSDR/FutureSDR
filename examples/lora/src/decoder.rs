@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
@@ -11,7 +13,6 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::info;
-use std::collections::HashMap;
 
 use crate::utils::*;
 use crate::Frame;
@@ -26,6 +27,7 @@ impl Decoder {
             MessageIoBuilder::new()
                 .add_input("in", Self::handler)
                 .add_output("out")
+                .add_output("out_annotated")
                 .add_output("rftap")
                 .add_output("crc_check")
                 .build(),
@@ -88,7 +90,7 @@ impl Decoder {
                 let crc_valid: bool =
                     ((dewhitened[l - 2] as u16) + ((dewhitened[l - 1] as u16) << 8)) as i32
                         == crc as i32;
-                mio.output_mut(2).post(Pmt::Bool(crc_valid)).await;
+                mio.output_mut(3).post(Pmt::Bool(crc_valid)).await;
                 if !crc_valid {
                     info!("crc check failed");
                     false
@@ -119,7 +121,7 @@ impl Decoder {
             rftap[25] = 0; // net_id_caching
             rftap[26] = 0x12; // sync word
             rftap[27..].copy_from_slice(&dewhitened);
-            mio.output_mut(1).post(Pmt::Blob(rftap.clone())).await;
+            mio.output_mut(2).post(Pmt::Blob(rftap.clone())).await;
 
             // let data = String::from_utf8_lossy(&dewhitened[..dewhitened.len() - 2]);
             // info!("received frame: {}", data);
@@ -142,35 +144,25 @@ impl Decoder {
             Pmt::Any(a) => {
                 if let Some(frame) = a.downcast_ref::<Frame>() {
                     if let Some(dewhitened) = Self::decode(frame, mio).await {
+                        let mut annotated_payload: HashMap<String, Pmt> =
+                            HashMap::<String, Pmt>::from([(
+                                String::from("payload"),
+                                Pmt::Blob(dewhitened.clone()),
+                            )]);
+                        annotated_payload.extend(frame.annotations.clone());
+                        annotated_payload
+                            .insert(String::from("code_rate"), Pmt::Usize(frame.code_rate));
+                        annotated_payload.insert(String::from("has_crc"), Pmt::Bool(frame.has_crc));
+                        annotated_payload.insert(
+                            String::from("implicit_header"),
+                            Pmt::Bool(frame.implicit_header),
+                        );
                         mio.output_mut(0).post(Pmt::Blob(dewhitened)).await;
+                        mio.output_mut(1)
+                            .post(Pmt::MapStrPmt(annotated_payload))
+                            .await;
                     }
                     Pmt::Ok
-                } else {
-                    Pmt::InvalidValue
-                }
-            }
-            Pmt::MapStrPmt(mut annotated_frame) => {
-                if let Pmt::Any(a) = annotated_frame.get("payload").unwrap() {
-                    if let Some(frame) = a.downcast_ref::<Frame>() {
-                        if let Some(dewhitened) = Self::decode(frame, mio).await {
-                            let mut annotated_payload: HashMap<String, Pmt> = HashMap::new();
-                            annotated_payload.insert(
-                                "net_id_off".to_string(),
-                                annotated_frame.remove("net_id_off").unwrap(),
-                            );
-                            annotated_payload.insert(
-                                "one_symbol_off".to_string(),
-                                annotated_frame.remove("one_symbol_off").unwrap(),
-                            );
-                            annotated_payload.insert("payload".to_string(), Pmt::Blob(dewhitened));
-                            mio.output_mut(0)
-                                .post(Pmt::MapStrPmt(annotated_payload))
-                                .await;
-                        }
-                        Pmt::Ok
-                    } else {
-                        Pmt::InvalidValue
-                    }
                 } else {
                     Pmt::InvalidValue
                 }

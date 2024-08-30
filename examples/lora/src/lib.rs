@@ -1,4 +1,5 @@
 #![allow(clippy::new_ret_no_self)]
+
 pub mod decoder;
 pub use decoder::Decoder;
 pub mod deinterleaver;
@@ -20,6 +21,8 @@ pub use header_decoder::HeaderMode;
 pub mod meshtastic;
 pub mod modulator;
 pub use modulator::Modulator;
+pub mod packet_forwarder_client;
+pub use packet_forwarder_client::PacketForwarderClient;
 pub mod stream_adder;
 pub use stream_adder::StreamAdder;
 pub mod transmitter;

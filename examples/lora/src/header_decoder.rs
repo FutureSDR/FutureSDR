@@ -1,3 +1,6 @@
+use std::cmp::min;
+use std::collections::HashMap;
+
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;
@@ -13,8 +16,6 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::{debug, info};
-use std::cmp::min;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Frame {
@@ -22,6 +23,7 @@ pub struct Frame {
     pub implicit_header: bool,
     pub has_crc: bool,
     pub code_rate: usize,
+    pub annotations: HashMap<String, Pmt>,
 }
 
 impl Default for Frame {
@@ -31,6 +33,7 @@ impl Default for Frame {
             implicit_header: false,
             has_crc: false,
             code_rate: 1,
+            annotations: HashMap::new(),
         }
     }
 }
@@ -51,7 +54,6 @@ pub struct HeaderDecoder {
     left: usize,
     frame: Frame,
     ldro_mode: bool,
-    receive_statistics: Option<HashMap<String, Pmt>>,
 }
 
 impl HeaderDecoder {
@@ -68,7 +70,6 @@ impl HeaderDecoder {
                 left: 0,
                 frame: Frame::default(),
                 ldro_mode,
-                receive_statistics: None,
             },
         )
     }
@@ -129,7 +130,7 @@ impl Kernel for HeaderDecoder {
                 _ => None,
             })
             .collect();
-        if !tags.is_empty() {
+        let mut annotations = if !tags.is_empty() {
             if tags[0].0 != 0 {
                 nitem_to_consume = tags[0].0;
                 if self.left == 0 {
@@ -137,6 +138,7 @@ impl Kernel for HeaderDecoder {
                     io.call_again = true;
                     return Ok(());
                 }
+                None
             } else {
                 if tags.len() >= 2 {
                     nitem_to_consume = tags[1].0 - tags[0].0;
@@ -146,18 +148,17 @@ impl Kernel for HeaderDecoder {
                 } else {
                     panic!()
                 };
-                if let Some(Pmt::Bool(one_symbol_off)) = tags[0].1.get("one_symbol_off") {
-                    if let Some(Pmt::Isize(net_id_off)) = tags[0].1.get("net_id_off") {
-                        let mut receive_statistics: HashMap<String, Pmt> = HashMap::new();
-                        receive_statistics
-                            .insert("one_symbol_off".to_string(), Pmt::Bool(*one_symbol_off));
-                        receive_statistics
-                            .insert("net_id_off".to_string(), Pmt::Isize(*net_id_off));
-                        self.receive_statistics = Some(receive_statistics);
-                    }
+                if is_header {
+                    let mut tmp = tags[0].1.clone();
+                    tmp.remove("is_header");
+                    Some(tmp)
+                } else {
+                    Some(tags[0].1.clone())
                 }
             }
-        }
+        } else {
+            None
+        };
 
         if input.is_empty()
             || (is_header && input.len() < 5 && matches!(self.mode, HeaderMode::Explicit))
@@ -184,6 +185,7 @@ impl Kernel for HeaderDecoder {
                     implicit_header: true,
                     has_crc,
                     code_rate,
+                    annotations: annotations.unwrap_or(HashMap::<String, Pmt>::new()),
                 };
 
                 Self::publish_frame_info(
@@ -252,7 +254,6 @@ impl Kernel for HeaderDecoder {
                     head_err = true;
                 } else {
                     debug!("Header checksum valid!");
-                    // info!("Header checksum valid!");
                 }
 
                 Self::publish_frame_info(
@@ -271,6 +272,7 @@ impl Kernel for HeaderDecoder {
                         implicit_header: false,
                         has_crc,
                         code_rate,
+                        annotations: annotations.unwrap_or(HashMap::<String, Pmt>::new()),
                     };
 
                     self.left = HEADER_LEN + payload_len * 2 + if has_crc { 4 } else { 0 };
@@ -280,29 +282,21 @@ impl Kernel for HeaderDecoder {
                     return Ok(());
                 }
             }
+        } else if let Some(a) = annotations.take() {
+            self.frame.annotations.extend(a);
         }
 
         if self.left > 0 {
-            nitem_to_consume = std::cmp::min(nitem_to_consume, self.left);
+            nitem_to_consume = nitem_to_consume.min(self.left);
             self.frame
                 .nibbles
                 .extend_from_slice(&input[0..nitem_to_consume]);
             self.left -= nitem_to_consume;
 
             if self.left == 0 {
-                if let Some(mut receive_statistics) = self.receive_statistics.take() {
-                    receive_statistics.insert(
-                        "payload".to_string(),
-                        Pmt::Any(Box::new(std::mem::take(&mut self.frame))),
-                    );
-                    mio.output_mut(0)
-                        .post(Pmt::MapStrPmt(receive_statistics))
-                        .await;
-                } else {
-                    mio.output_mut(0)
-                        .post(Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
-                        .await;
-                }
+                mio.output_mut(0)
+                    .post(Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
+                    .await;
             }
             io.call_again = true;
             sio.input(0).consume(nitem_to_consume);

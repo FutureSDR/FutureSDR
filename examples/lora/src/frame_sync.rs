@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rustfft::{Fft, FftDirection, FftPlanner};
 
@@ -110,10 +111,10 @@ pub struct FrameSync {
     m_samples_per_symbol: usize, //< Number of samples received per lora symbols
     m_symb_numb: usize,          //<number of payload lora symbols
     m_received_head: bool, //< indicate that the header has be decoded and received by this block
-    // m_noise_est: f64,            //< estimate of the noise
-    in_down: Vec<Complex32>,     //< downsampled input
+    snr_est: f64,          //< estimate of the snr
+    in_down: Vec<Complex32>, //< downsampled input
     m_downchirp: Vec<Complex32>, //< Reference downchirp
-    m_upchirp: Vec<Complex32>,   //< Reference upchirp
+    m_upchirp: Vec<Complex32>, //< Reference upchirp
 
     frame_cnt: usize,       //< Number of frame received
     symbol_cnt: SyncState,  //< Number of symbols already received
@@ -139,7 +140,7 @@ pub struct FrameSync {
 
     m_cfo_frac: f64, //< fractional part of CFO
     // m_cfo_frac_bernier: f32, //< fractional part of CFO using Berniers algo
-    // m_cfo_int: i32,                               //< integer part of CFO
+    // m_cfo_int: isize,                //< integer part of CFO
     m_sto_frac: f32,                 //< fractional part of CFO
     sfo_hat: f32,                    //< estimated sampling frequency offset
     sfo_cum: f32,                    //< cumulation of the sfo
@@ -162,6 +163,8 @@ pub struct FrameSync {
     receive_statistics_one_symbol_off: bool,
     fft_forward_number_of_bins: Arc<dyn Fft<f32>>,
     fft_forward_two_times_number_of_bins: Arc<dyn Fft<f32>>,
+    startup_timestamp_nanos: u64,
+    processed_samples: u64,
 }
 
 impl FrameSync {
@@ -176,6 +179,7 @@ impl FrameSync {
         preamble_len: Option<usize>,
         net_id_caching_policy: Option<&str>,
         collect_receive_statistics: bool,
+        startup_timestamp: Option<SystemTime>,
     ) -> Block {
         let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(net_id_caching_policy.unwrap_or("header_crc_ok")) {
             Ok(tmp) => tmp,
@@ -229,6 +233,7 @@ impl FrameSync {
                 m_n_up_req: From::<usize>::from(preamble_len_tmp - 3), //< number of consecutive upchirps required to trigger a detection
                 up_symb_to_use: preamble_len_tmp - 4, //< number of upchirp symbols to use for CFO and STO frac estimation
 
+                // m_cfo_int: 0,    //< integer part of CFO
                 m_sto_frac: 0.0, //< fractional part of CFO
 
                 m_impl_head: impl_head, //< use implicit header mode
@@ -273,7 +278,7 @@ impl FrameSync {
                 // m_ldro: bool,                        //< use of low datarate optimisation mode  // local to frame info handler
                 m_symb_numb: 0,         //<number of payload lora symbols
                 m_received_head: false, //< indicate that the header has be decoded and received by this block
-                // m_noise_est: f64,            //< estimate of the noise  // local to noise est handler
+                snr_est: 0.0,           //< estimate of the snr
 
                 // bin_idx_new: i32, //< value of newly demodulated symbol  // local to work
                 additional_upchirps: 0, //< indicate the number of additional upchirps found in preamble (in addition to the minimum required to trigger a detection)
@@ -303,6 +308,12 @@ impl FrameSync {
                 fft_forward_number_of_bins: fft_detect,
                 fft_forward_two_times_number_of_bins: FftPlanner::new()
                     .plan_fft(2 * m_number_of_bins_tmp, FftDirection::Forward),
+                startup_timestamp_nanos: startup_timestamp
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos() as u64,
+                processed_samples: 0,
             },
         )
     }
@@ -561,7 +572,7 @@ impl FrameSync {
     //     return energy_chirp / self.m_number_of_bins as f32 / length_tmp as f32;
     // }
 
-    fn determine_snr(&self, samples: &[Complex32]) -> f32 {
+    fn determine_snr(&self, samples: &[Complex32]) -> f64 {
         // Multiply with ideal downchirp
         let mut dechirped = volk_32fc_x2_multiply_32fc(samples, &self.m_downchirp);
         // do the FFT
@@ -570,16 +581,16 @@ impl FrameSync {
         let fft_mag: Vec<f32> = dechirped.iter().map(|c| c.norm_sqr()).collect();
         let tot_en: f32 = fft_mag.iter().sum();
         if tot_en == 0. {
-            return f32::NAN;
+            return f64::NAN;
         }
         // Return argmax here
         let max_idx = argmax_f32(&fft_mag);
         let sig_en = fft_mag[max_idx];
         let noise_en = tot_en - sig_en;
         if noise_en == 0. {
-            return f32::INFINITY;
+            return f64::INFINITY;
         }
-        10.0 * (sig_en / noise_en).log10()
+        10.0 * (sig_en as f64 / noise_en as f64).log10()
     }
 
     fn cache_current_net_id(&mut self) {
@@ -949,13 +960,13 @@ impl FrameSync {
         // apply sfo correction
         corr_preamb = volk_32fc_x2_multiply_32fc(&corr_preamb, &sfo_corr_vect);
 
-        let mut snr_est = 0.0_f32;
+        self.snr_est = 0.0_f64;
         for i in 0..self.up_symb_to_use {
-            snr_est += self.determine_snr(
+            self.snr_est += self.determine_snr(
                 &corr_preamb[(i * self.m_number_of_bins)..((i + 1) * self.m_number_of_bins)],
             );
         }
-        snr_est /= self.up_symb_to_use as f32;
+        self.snr_est /= self.up_symb_to_use as f64;
 
         // update sto_frac to its value at the beginning of the net id
         self.m_sto_frac += self.sfo_hat * self.m_preamb_len as f32;
@@ -1140,7 +1151,7 @@ impl FrameSync {
                 );
             }
         }
-        info!("SNR: {}dB", snr_est);
+        info!("SNR: {}dB", self.snr_est);
         info!("Net-ID: [{}, {}]", self.net_id[0], self.net_id[1]);
         // net IDs syntactically correct and matching offset => frame detected, proceed with trying to decode the header
         self.m_received_head = false;
@@ -1172,12 +1183,33 @@ impl FrameSync {
             - FrameSync::my_roundf(self.m_sto_frac * self.m_os_factor as f32) as f32)
             / self.m_os_factor as f32;
 
+        if self.m_sf < 7 && !LEGACY_SF_5_6
+        //Semtech adds two null symbol in the beginning. Maybe for additional synchronization?
+        {
+            items_to_consume += 2 * self.m_samples_per_symbol as isize;
+        }
+
         let mut frame_info: HashMap<String, Pmt> = HashMap::new();
 
         frame_info.insert(String::from("is_header"), Pmt::Bool(true));
-        frame_info.insert(String::from("cfo_int"), Pmt::F32(m_cfo_int as f32));
+        frame_info.insert(String::from("cfo_int"), Pmt::Isize(m_cfo_int));
         frame_info.insert(String::from("cfo_frac"), Pmt::F64(self.m_cfo_frac));
         frame_info.insert(String::from("sf"), Pmt::Usize(self.m_sf));
+        frame_info.insert(
+            String::from("timestamp"),
+            Pmt::U64(
+                self.startup_timestamp_nanos
+                    + (self.processed_samples
+                        + items_to_consume as u64
+                        + if one_symbol_off {
+                            self.m_samples_per_symbol as u64
+                        } else {
+                            0
+                        })
+                        * 1_000_000_000
+                        / ((self.m_bw * self.m_os_factor) as u64),
+            ),
+        );
         let frame_info_pmt = Pmt::MapStrPmt(frame_info);
 
         debug!(
@@ -1198,11 +1230,6 @@ impl FrameSync {
         } else {
             self.transition_state(DecoderState::SfoCompensation, Some(SyncState::NetId1));
         };
-        if self.m_sf < 7 && !LEGACY_SF_5_6
-        //Semtech adds two null symbol in the beginning. Maybe for additional synchronization?
-        {
-            items_to_consume += 2 * self.m_samples_per_symbol as isize;
-        }
 
         (items_to_consume, items_to_output)
     }
@@ -1350,6 +1377,9 @@ impl FrameSync {
                     Pmt::Bool(self.receive_statistics_one_symbol_off),
                 );
             }
+            // frame_info.insert(String::from("cfo_int"), Pmt::Isize(self.m_cfo_int));
+            // frame_info.insert(String::from("cfo_frac"), Pmt::F64(self.m_cfo_frac));
+            frame_info.insert(String::from("snr"), Pmt::F64(self.snr_est));
             sio.output(0).add_tag(
                 0,
                 Tag::NamedAny(
@@ -1545,6 +1575,7 @@ impl Kernel for FrameSync {
                 but input buffer only holds {nitems_to_process}."
             );
             if items_to_consume > 0 {
+                self.processed_samples += items_to_consume as u64;
                 sio.input(0).consume(items_to_consume as usize);
             }
             if items_to_output > 0 {

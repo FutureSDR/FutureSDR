@@ -82,6 +82,7 @@ fn main() -> Result<()> {
         None,
         Some("header_crc_ok"),
         false,
+        None,
     );
     let fft_demod = FftDemod::new(SOFT_DECODING, spreading_factor.into());
     let gray_mapping = GrayMapping::new(SOFT_DECODING);

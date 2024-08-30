@@ -93,6 +93,7 @@ fn main() -> Result<()> {
         None,
         None,
         false,
+        None,
     );
     let fft_demod = FftDemod::new(args.soft_decoding, args.spreading_factor.into());
     let gray_mapping = GrayMapping::new(args.soft_decoding);

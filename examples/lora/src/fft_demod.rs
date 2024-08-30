@@ -352,8 +352,8 @@ impl Kernel for FftDemod {
                 // new frame beginning
                 {
                     // warn!("FftDemod: received new header tag.");
-                    let cfo_int = if let Pmt::F32(tmp) = tag.get("cfo_int").unwrap() {
-                        *tmp as isize
+                    let cfo_int = if let Pmt::Isize(tmp) = tag.get("cfo_int").unwrap() {
+                        *tmp
                     } else {
                         panic!()
                     };

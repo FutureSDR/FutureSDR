@@ -104,6 +104,11 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self.config.sample_rate = Some(s);
         self
     }
+    /// Start Time
+    pub fn start_time(mut self, s: i64) -> Self {
+        self.start_time = Some(s);
+        self
+    }
     /// Builder Seify block
     pub fn build(mut self) -> Result<Block, Error> {
         match self.dev.take() {
