@@ -8,9 +8,13 @@ license = "GPL-3.0-only"
 [workspace]
 
 [dependencies]
+aes = "0.8"
+base64 = "0.22"
 clap = { version = "4.5", features = ["derive"] }
+ctr = "0.9"
 futuredsp = { path = "../../crates/futuredsp" }
 futuresdr = { path = "../..", features = ["seify", "soapy"] }
+meshtastic = "0.1"
 num-traits = "0.2"
 rustfft = "6.2"
 scilib = "1.0"

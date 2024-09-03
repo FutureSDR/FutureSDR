@@ -17,6 +17,7 @@ pub mod header_decoder;
 pub use header_decoder::Frame;
 pub use header_decoder::HeaderDecoder;
 pub use header_decoder::HeaderMode;
+pub mod meshtastic;
 pub mod modulator;
 pub use modulator::Modulator;
 pub mod stream_adder;
