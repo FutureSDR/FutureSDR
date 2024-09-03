@@ -97,6 +97,7 @@ impl From<Channel> for f64 {
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum Bandwidth {
+    BW62,
     #[default]
     BW125,
     BW250,
@@ -106,6 +107,7 @@ pub enum Bandwidth {
 impl From<Bandwidth> for u32 {
     fn from(value: Bandwidth) -> Self {
         match value {
+            Bandwidth::BW62 => 62_500,
             Bandwidth::BW125 => 125_000,
             Bandwidth::BW250 => 250_000,
             Bandwidth::BW500 => 500_000,

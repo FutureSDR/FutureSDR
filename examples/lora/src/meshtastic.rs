@@ -3,12 +3,46 @@ use ctr::cipher::{KeyIvInit, StreamCipher};
 use futuresdr::tracing::info;
 use meshtastic::Message;
 
+use crate::utils::Bandwidth;
+use crate::utils::CodeRate;
+use crate::utils::SpreadingFactor;
+
 type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
 type Aes256Ctr64LE = ctr::Ctr64LE<aes::Aes256>;
 
 const DEFAULT_KEY: [u8; 16] = [
     0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59, 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01,
 ];
+
+#[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
+#[clap(rename_all = "SCREAMING_SNAKE_CASE")]
+#[allow(non_camel_case_types)]
+pub enum MeshtasticConfig {
+    ShortFast,
+    ShortSlow,
+    MediumFast,
+    MediumSlow,
+    #[default]
+    LongFast,
+    LongModerate,
+    LongSlow,
+    VeryLongSlow,
+}
+
+impl MeshtasticConfig {
+    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate) {
+        match self {
+            Self::ShortFast => (Bandwidth::BW250, SpreadingFactor::SF7, CodeRate::CR_4_5),
+            Self::ShortSlow => (Bandwidth::BW250, SpreadingFactor::SF8, CodeRate::CR_4_5),
+            Self::MediumFast => (Bandwidth::BW250, SpreadingFactor::SF9, CodeRate::CR_4_5),
+            Self::MediumSlow => (Bandwidth::BW250, SpreadingFactor::SF10, CodeRate::CR_4_5),
+            Self::LongFast => (Bandwidth::BW250, SpreadingFactor::SF11, CodeRate::CR_4_5),
+            Self::LongModerate => (Bandwidth::BW125, SpreadingFactor::SF11, CodeRate::CR_4_8),
+            Self::LongSlow => (Bandwidth::BW125, SpreadingFactor::SF12, CodeRate::CR_4_8),
+            Self::VeryLongSlow => (Bandwidth::BW62, SpreadingFactor::SF12, CodeRate::CR_4_8),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct MeshPacket {
