@@ -185,43 +185,26 @@ impl MeshtasticChannel {
             Key::Aes128(key) => {
                 let mut cipher = Aes128::new(&key.into(), &iv.into());
                 cipher.apply_keystream(&mut bytes);
-
-                if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
-                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32 {
-                        info!(
-                            "Channel {}: Message {:?}",
-                            self.name,
-                            String::from_utf8_lossy(&res.payload)
-                        );
-                        true
-                    } else {
-                        info!("Channel {}: Message {:?}", self.name, res);
-                        true
-                    }
-                } else {
-                    false
-                }
             }
             Key::Aes256(key) => {
                 let mut cipher = Aes256::new(&key.into(), &iv.into());
                 cipher.apply_keystream(&mut bytes);
-
-                if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
-                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32 {
-                        info!(
-                            "Channel {}: Message {:?}",
-                            self.name,
-                            String::from_utf8_lossy(&res.payload)
-                        );
-                        true
-                    } else {
-                        info!("Channel {}: Message {:?}", self.name, res);
-                        true
-                    }
-                } else {
-                    false
-                }
             }
+        }
+        if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
+            if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32 {
+                info!(
+                    "Channel {}: Message {:?}",
+                    self.name,
+                    String::from_utf8_lossy(&res.payload)
+                );
+                true
+            } else {
+                info!("Channel {}: Message {:?}", self.name, res);
+                true
+            }
+        } else {
+            false
         }
     }
 
@@ -252,32 +235,22 @@ impl MeshtasticChannel {
             Key::Aes128(key) => {
                 let mut cipher = Aes128::new(&key.into(), &iv.into());
                 cipher.apply_keystream(&mut bytes);
-
-                let mut out = vec![];
-                out.extend_from_slice(&dest.to_le_bytes());
-                out.extend_from_slice(&sender.to_le_bytes());
-                out.extend_from_slice(&packet_id.to_le_bytes());
-                out.push(0);
-                out.push(self.hash);
-                out.extend_from_slice(&[0; 2]);
-                out.extend_from_slice(&bytes);
-                out
             }
             Key::Aes256(key) => {
                 let mut cipher = Aes256::new(&key.into(), &iv.into());
                 cipher.apply_keystream(&mut bytes);
-
-                let mut out = vec![];
-                out.extend_from_slice(&dest.to_le_bytes());
-                out.extend_from_slice(&sender.to_le_bytes());
-                out.extend_from_slice(&packet_id.to_le_bytes());
-                out.push(0);
-                out.push(self.hash);
-                out.extend_from_slice(&[0; 2]);
-                out.extend_from_slice(&bytes);
-                out
             }
         }
+
+        let mut out = vec![];
+        out.extend_from_slice(&dest.to_le_bytes());
+        out.extend_from_slice(&sender.to_le_bytes());
+        out.extend_from_slice(&packet_id.to_le_bytes());
+        out.push(0);
+        out.push(self.hash);
+        out.extend_from_slice(&[0; 2]);
+        out.extend_from_slice(&bytes);
+        out
     }
 }
 
