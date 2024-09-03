@@ -207,8 +207,7 @@ impl MeshtasticChannel {
                 cipher.apply_keystream(&mut bytes);
 
                 if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
-                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32
-                    {
+                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32 {
                         info!(
                             "Channel {}: Message {:?}",
                             self.name,

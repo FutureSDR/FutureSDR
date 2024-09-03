@@ -81,7 +81,10 @@ fn main() -> Result<()> {
         let mut counter: u32 = 0;
         let channel = MeshtasticChannel::new("FOO", "AQ==");
         loop {
-            let payload = format!("hello world! {:03}", counter);
+            let payload = format!(
+                "config {:?}, hello world! {:03}",
+                args.meshtastic_config, counter
+            );
             let data = channel.encode(payload);
             handle
                 .call(transmitter, fg_tx_port, Pmt::Blob(data))
@@ -90,7 +93,7 @@ fn main() -> Result<()> {
             info!("sending frame");
             counter += 1;
             counter %= 100;
-            Timer::after(Duration::from_secs_f32(0.8)).await;
+            Timer::after(Duration::from_secs_f32(1.8)).await;
         }
     });
 
