@@ -30,16 +30,64 @@ pub enum MeshtasticConfig {
 }
 
 impl MeshtasticConfig {
-    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate) {
+    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, u32, bool) {
         match self {
-            Self::ShortFast => (Bandwidth::BW250, SpreadingFactor::SF7, CodeRate::CR_4_5),
-            Self::ShortSlow => (Bandwidth::BW250, SpreadingFactor::SF8, CodeRate::CR_4_5),
-            Self::MediumFast => (Bandwidth::BW250, SpreadingFactor::SF9, CodeRate::CR_4_5),
-            Self::MediumSlow => (Bandwidth::BW250, SpreadingFactor::SF10, CodeRate::CR_4_5),
-            Self::LongFast => (Bandwidth::BW250, SpreadingFactor::SF11, CodeRate::CR_4_5),
-            Self::LongModerate => (Bandwidth::BW125, SpreadingFactor::SF11, CodeRate::CR_4_8),
-            Self::LongSlow => (Bandwidth::BW125, SpreadingFactor::SF12, CodeRate::CR_4_8),
-            Self::VeryLongSlow => (Bandwidth::BW62, SpreadingFactor::SF12, CodeRate::CR_4_8),
+            Self::ShortFast => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF7,
+                CodeRate::CR_4_5,
+                869525000,
+                false,
+            ),
+            Self::ShortSlow => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF8,
+                CodeRate::CR_4_5,
+                869525000,
+                false,
+            ),
+            Self::MediumFast => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF9,
+                CodeRate::CR_4_5,
+                869525000,
+                false,
+            ),
+            Self::MediumSlow => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF10,
+                CodeRate::CR_4_5,
+                869525000,
+                false,
+            ),
+            Self::LongFast => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF11,
+                CodeRate::CR_4_5,
+                869525000,
+                false,
+            ),
+            Self::LongModerate => (
+                Bandwidth::BW125,
+                SpreadingFactor::SF11,
+                CodeRate::CR_4_8,
+                869587500,
+                true,
+            ),
+            Self::LongSlow => (
+                Bandwidth::BW125,
+                SpreadingFactor::SF12,
+                CodeRate::CR_4_8,
+                869587500,
+                true,
+            ),
+            Self::VeryLongSlow => (
+                Bandwidth::BW62,
+                SpreadingFactor::SF12,
+                CodeRate::CR_4_8,
+                869492500,
+                true,
+            ),
         }
     }
 }

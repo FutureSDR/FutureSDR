@@ -1,7 +1,9 @@
 use clap::Parser;
+use futuredsp::firdes;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::MessagePipe;
+use futuresdr::blocks::XlatingFirBuilder;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
 use futuresdr::macros::connect;
@@ -13,7 +15,7 @@ use futuresdr::tracing::info;
 
 use lora::meshtastic::MeshtasticChannels;
 use lora::meshtastic::MeshtasticConfig;
-use lora::utils::Channel;
+use lora::utils::Bandwidth;
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;
@@ -23,8 +25,9 @@ use lora::HammingDec;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 
-const SOFT_DECODING: bool = false;
+const SOFT_DECODING: bool = true;
 const IMPLICIT_HEADER: bool = false;
+const OVERSAMPLING: usize = 4;
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -38,39 +41,43 @@ struct Args {
     /// RX Gain
     #[clap(long, default_value_t = 50.0)]
     gain: f64,
-    /// RX Channel
-    #[clap(long, value_enum, default_value_t = Channel::EU868_Down)]
-    channel: Channel,
     /// Meshtastic LoRa Config
     #[clap(long, value_enum, default_value_t = MeshtasticConfig::LongFast)]
     meshtastic_config: MeshtasticConfig,
-    /// Oversampling Factor
-    #[clap(long, default_value_t = 4)]
-    oversampling: usize,
 }
 
 fn main() -> Result<()> {
     futuresdr::runtime::init();
     let args = Args::parse();
     info!("args {:?}", &args);
-    let (bandwidth, spreading_factor, _) = args.meshtastic_config.to_config();
-    println!("bw {:?}, sf {:?}", &bandwidth, &spreading_factor);
+    let (bandwidth, spreading_factor, _, freq, ldro) = args.meshtastic_config.to_config();
 
     let src = SourceBuilder::new()
-        .sample_rate(Into::<f64>::into(bandwidth) * args.oversampling as f64)
-        .frequency(args.channel.into())
+        .sample_rate(1e6)
+        .frequency(freq as f64)
         .gain(args.gain)
         .antenna(args.antenna)
         .args(args.args)?
         .build()?;
 
+    let decimation = match bandwidth {
+        Bandwidth::BW62 => 4,
+        Bandwidth::BW125 => 2,
+        Bandwidth::BW250 => 1,
+        _ => panic!("wrong bandwidth for Meshtastic"),
+    };
+    let cutoff = Into::<f64>::into(bandwidth) / 2.0 / 1e6;
+    let transition_bw = Into::<f64>::into(bandwidth) / 10.0 / 1e6;
+    let taps = firdes::kaiser::lowpass(cutoff, transition_bw, 0.05);
+    let decimation = XlatingFirBuilder::with_taps(taps, decimation, 0.0, 1e6);
+
     let frame_sync = FrameSync::new(
-        args.channel.into(),
+        freq,
         bandwidth.into(),
         spreading_factor.into(),
         IMPLICIT_HEADER,
         vec![vec![16, 88]],
-        args.oversampling,
+        OVERSAMPLING,
         None,
         Some("header_crc_ok"),
         false,
@@ -79,7 +86,7 @@ fn main() -> Result<()> {
     let gray_mapping = GrayMapping::new(SOFT_DECODING);
     let deinterleaver = Deinterleaver::new(SOFT_DECODING);
     let hamming_dec = HammingDec::new(SOFT_DECODING);
-    let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, false);
+    let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
     let decoder = Decoder::new();
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
@@ -87,8 +94,8 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     connect!(fg,
-        src [Circular::with_size((1 << 12) * 16 * args.oversampling)] frame_sync;
-        frame_sync [Circular::with_size((1 << 12) * 16 * args.oversampling)] fft_demod;
+        src > decimation [Circular::with_size((1 << 12) * 16 * OVERSAMPLING)] frame_sync;
+        frame_sync [Circular::with_size((1 << 12) * 16 * OVERSAMPLING)] fft_demod;
         fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
         header_decoder.frame_info | frame_sync.frame_info;
         header_decoder | decoder;
