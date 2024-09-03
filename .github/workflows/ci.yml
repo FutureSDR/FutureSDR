@@ -255,6 +255,9 @@ jobs:
       - name: Install alsalibs
         run: sudo apt-get -y install libasound2-dev
 
+      - name: Install libdbus-dev
+        run: sudo apt-get -y install libdbus-1-dev
+
       - name: Install LTTng
         run: sudo apt-get -y install liblttng-ust-dev
 
