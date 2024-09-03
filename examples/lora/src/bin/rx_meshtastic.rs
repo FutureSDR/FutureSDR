@@ -13,6 +13,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
 
+use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticChannels;
 use lora::meshtastic::MeshtasticConfig;
 use lora::utils::Bandwidth;
@@ -106,9 +107,12 @@ fn main() -> Result<()> {
     let (_fg, _handle) = rt.start_sync(fg);
     rt.block_on(async move {
         let mut chans = MeshtasticChannels::new();
-        chans.add_channel("BBL", "Y203SmFnT1J1SElqRVRqUg==");
-        chans.add_channel("FOO", "AQ==");
-        chans.add_channel("LALA", "aVJkN3FNQVp6WXFVcGV6Q0NWemxybWlHRFl5RVJkN0U=");
+        chans.add_channel(MeshtasticChannel::new("BBL", "Y203SmFnT1J1SElqRVRqUg=="));
+        chans.add_channel(MeshtasticChannel::new("FOO", "AQ=="));
+        chans.add_channel(MeshtasticChannel::new(
+            "LALA",
+            "aVJkN3FNQVp6WXFVcGV6Q0NWemxybWlHRFl5RVJkN0U=",
+        ));
         while let Some(x) = rx_frame.next().await {
             match x {
                 Pmt::Blob(data) => {

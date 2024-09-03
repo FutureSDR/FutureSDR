@@ -7,8 +7,8 @@ use crate::utils::Bandwidth;
 use crate::utils::CodeRate;
 use crate::utils::SpreadingFactor;
 
-type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
-type Aes256Ctr64LE = ctr::Ctr64LE<aes::Aes256>;
+type Aes128 = ctr::Ctr64BE<aes::Aes128>;
+type Aes256 = ctr::Ctr64BE<aes::Aes256>;
 
 const DEFAULT_KEY: [u8; 16] = [
     0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59, 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01,
@@ -93,7 +93,7 @@ impl MeshtasticConfig {
 }
 
 #[derive(Debug)]
-struct MeshPacket {
+pub struct MeshPacket {
     _dest: u32,
     sender: u32,
     packet_id: u32,
@@ -104,7 +104,7 @@ struct MeshPacket {
 }
 
 impl MeshPacket {
-    fn new(bytes: &[u8]) -> Self {
+    pub fn new(bytes: &[u8]) -> Self {
         Self {
             _dest: u32::from_le_bytes(bytes[0..4].try_into().unwrap()),
             sender: u32::from_le_bytes(bytes[4..8].try_into().unwrap()),
@@ -132,18 +132,14 @@ impl Key {
     }
 }
 
-pub struct MeshtasticChannels {
-    channels: Vec<(u8, String, Key)>,
+pub struct MeshtasticChannel {
+    key: Key,
+    hash: u8,
+    name: String,
 }
 
-impl MeshtasticChannels {
-    pub fn new() -> Self {
-        Self {
-            channels: vec![(8, "Primary".to_string(), Key::Aes128(DEFAULT_KEY))],
-        }
-    }
-
-    pub fn add_channel(&mut self, name: &str, key: &str) {
+impl MeshtasticChannel {
+    pub fn new(name: &str, key: &str) -> Self {
         let key = BASE64_STANDARD.decode(key).unwrap();
         let key = if key == [0x01] {
             Key::Aes128(DEFAULT_KEY)
@@ -163,7 +159,7 @@ impl MeshtasticChannels {
             (hash, name.to_string())
         };
 
-        self.channels.push((hash, name, key));
+        Self { key, hash, name }
     }
 
     fn hash(name: &str, key: &[u8]) -> u8 {
@@ -177,55 +173,136 @@ impl MeshtasticChannels {
         xor
     }
 
+    pub fn decode(&self, packet: &MeshPacket) -> bool {
+        info!("MeshPacket: {:?}", packet);
+        let mut iv = vec![];
+        iv.extend_from_slice(&(packet.packet_id as u64).to_le_bytes());
+        iv.extend_from_slice(&(packet.sender as u64).to_le_bytes());
+        let iv: [u8; 16] = iv.try_into().unwrap();
+
+        let mut bytes = packet.data.clone();
+        match self.key {
+            Key::Aes128(key) => {
+                let mut cipher = Aes128::new(&key.into(), &iv.into());
+                cipher.apply_keystream(&mut bytes);
+
+                if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
+                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32 {
+                        info!(
+                            "Channel {}: Message {:?}",
+                            self.name,
+                            String::from_utf8_lossy(&res.payload)
+                        );
+                        true
+                    } else {
+                        info!("Channel {}: Message {:?}", self.name, res);
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
+            Key::Aes256(key) => {
+                let mut cipher = Aes256::new(&key.into(), &iv.into());
+                cipher.apply_keystream(&mut bytes);
+
+                if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
+                    if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32
+                    {
+                        info!(
+                            "Channel {}: Message {:?}",
+                            self.name,
+                            String::from_utf8_lossy(&res.payload)
+                        );
+                        true
+                    } else {
+                        info!("Channel {}: Message {:?}", self.name, res);
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn encode(&self, data: String) -> Vec<u8> {
+        let packet_id = 0u32;
+        let dest = 0xffffffffu32;
+        let sender = 0x3a48290eu32;
+
+        let data = meshtastic::protobufs::Data {
+            portnum: 1,
+            payload: data.into_bytes(),
+            want_response: false,
+            dest: 0,
+            source: 0,
+            request_id: 0,
+            reply_id: 0,
+            emoji: 0,
+        };
+
+        let mut bytes = data.encode_to_vec();
+
+        let mut iv = vec![];
+        iv.extend_from_slice(&(packet_id as u64).to_le_bytes());
+        iv.extend_from_slice(&(sender as u64).to_le_bytes());
+        let iv: [u8; 16] = iv.try_into().unwrap();
+
+        match self.key {
+            Key::Aes128(key) => {
+                let mut cipher = Aes128::new(&key.into(), &iv.into());
+                cipher.apply_keystream(&mut bytes);
+
+                let mut out = vec![];
+                out.extend_from_slice(&dest.to_le_bytes());
+                out.extend_from_slice(&sender.to_le_bytes());
+                out.extend_from_slice(&packet_id.to_le_bytes());
+                out.push(0);
+                out.push(self.hash);
+                out.extend_from_slice(&[0; 2]);
+                out.extend_from_slice(&bytes);
+                out
+            }
+            Key::Aes256(key) => {
+                let mut cipher = Aes256::new(&key.into(), &iv.into());
+                cipher.apply_keystream(&mut bytes);
+
+                let mut out = vec![];
+                out.extend_from_slice(&dest.to_le_bytes());
+                out.extend_from_slice(&sender.to_le_bytes());
+                out.extend_from_slice(&packet_id.to_le_bytes());
+                out.push(0);
+                out.push(self.hash);
+                out.extend_from_slice(&[0; 2]);
+                out.extend_from_slice(&bytes);
+                out
+            }
+        }
+    }
+}
+
+pub struct MeshtasticChannels {
+    channels: Vec<MeshtasticChannel>,
+}
+
+impl MeshtasticChannels {
+    pub fn new() -> Self {
+        Self {
+            channels: vec![MeshtasticChannel::new("", "AQ==")],
+        }
+    }
+
+    pub fn add_channel(&mut self, chan: MeshtasticChannel) {
+        self.channels.push(chan);
+    }
+
     pub fn decode(&self, bytes: &[u8]) {
         let packet = MeshPacket::new(bytes);
 
         for chan in self.channels.iter() {
-            if packet.channel_hash == chan.0 {
-                let mut iv = vec![];
-                iv.extend_from_slice(&(packet.packet_id as u64).to_le_bytes());
-                iv.extend_from_slice(&(packet.sender as u64).to_le_bytes());
-                let iv: [u8; 16] = iv.try_into().unwrap();
-
-                let mut bytes = packet.data.clone();
-                match chan.2 {
-                    Key::Aes128(key) => {
-                        let mut cipher = Aes128Ctr64LE::new(&key.into(), &iv.into());
-                        cipher.apply_keystream(&mut bytes);
-
-                        if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
-                            if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32
-                            {
-                                info!(
-                                    "Channel {}: Message {:?}",
-                                    chan.1,
-                                    String::from_utf8_lossy(&res.payload)
-                                );
-                            } else {
-                                info!("Channel {}: Message {:?}", chan.1, res);
-                            }
-                            break;
-                        }
-                    }
-                    Key::Aes256(key) => {
-                        let mut cipher = Aes256Ctr64LE::new(&key.into(), &iv.into());
-                        cipher.apply_keystream(&mut bytes);
-
-                        if let Ok(res) = meshtastic::protobufs::Data::decode(&*bytes) {
-                            if res.portnum == meshtastic::protobufs::PortNum::TextMessageApp as i32
-                            {
-                                info!(
-                                    "Channel {}: Message {:?}",
-                                    chan.1,
-                                    String::from_utf8_lossy(&res.payload)
-                                );
-                            } else {
-                                info!("Channel {}: Message {:?}", chan.1, res);
-                            }
-                            break;
-                        }
-                    }
-                }
+            if packet.channel_hash == chan.hash && chan.decode(&packet) {
+                break;
             }
         }
     }
