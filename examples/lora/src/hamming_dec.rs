@@ -17,7 +17,7 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 
-use crate::utilities::*;
+use crate::utils::*;
 
 pub const CW_COUNT: usize = 16; // In LoRa, always "only" 16 possible codewords => compare with all and take argmax
 

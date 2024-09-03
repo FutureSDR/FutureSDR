@@ -1,9 +1,9 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::tracing::warn;
 
-use crate::utilities::build_upchirp;
-use crate::utilities::expand_sync_word;
-use crate::utilities::{build_ref_chirps, LEGACY_SF_5_6};
+use crate::utils::build_upchirp;
+use crate::utils::expand_sync_word;
+use crate::utils::{build_ref_chirps, LEGACY_SF_5_6};
 
 pub struct Modulator {
     spreading_factor: usize,

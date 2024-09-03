@@ -16,7 +16,7 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::warn;
 
-use crate::utilities::*;
+use crate::utils::*;
 
 pub struct Deinterleaver {
     sf: usize,           // Spreading factor

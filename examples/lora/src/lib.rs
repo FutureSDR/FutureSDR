@@ -24,4 +24,4 @@ pub mod stream_adder;
 pub use stream_adder::StreamAdder;
 pub mod transmitter;
 pub use transmitter::Transmitter;
-pub mod utilities;
+pub mod utils;

@@ -445,7 +445,7 @@ where
         .iter()
         .max_by(|(_, val_a), (_, val_b)| val_a.cmp(val_b))
         .map(|(k, _)| k)
-        .unwrap_or_else(|| panic!("lora::utilities::most_frequent was called on empty slice."))
+        .unwrap_or_else(|| panic!("lora::utils::most_frequent was called on empty slice."))
         .to_owned()
 }
 

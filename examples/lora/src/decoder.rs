@@ -13,7 +13,7 @@ use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::info;
 use std::collections::HashMap;
 
-use crate::utilities::*;
+use crate::utils::*;
 use crate::Frame;
 
 pub struct Decoder;

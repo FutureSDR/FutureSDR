@@ -12,9 +12,9 @@ use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
 
 use lora::meshtastic::MeshtasticChannels;
-use lora::utilities::Bandwidth;
-use lora::utilities::Channel;
-use lora::utilities::SpreadingFactor;
+use lora::utils::Bandwidth;
+use lora::utils::Channel;
+use lora::utils::SpreadingFactor;
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;

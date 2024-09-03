@@ -15,7 +15,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use crate::utilities::*;
+use crate::utils::*;
 
 pub struct GrayMapping {
     m_soft_decoding: bool, // Hard/Soft decoding

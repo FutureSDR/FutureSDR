@@ -9,10 +9,10 @@ use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
 use std::time::Duration;
 
-use lora::utilities::Bandwidth;
-use lora::utilities::Channel;
-use lora::utilities::CodeRate;
-use lora::utilities::SpreadingFactor;
+use lora::utils::Bandwidth;
+use lora::utils::Channel;
+use lora::utils::CodeRate;
+use lora::utils::SpreadingFactor;
 use lora::Transmitter;
 
 #[derive(Parser, Debug)]

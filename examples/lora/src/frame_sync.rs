@@ -23,7 +23,7 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::{debug, info, warn};
 
-use crate::utilities::*;
+use crate::utils::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum DecoderState {
