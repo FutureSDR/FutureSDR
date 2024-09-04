@@ -55,7 +55,7 @@ fn main() -> Result<()> {
 
     let src = SourceBuilder::new()
         .sample_rate(1e6)
-        .frequency(freq as f64)
+        .frequency(freq as f64 - 200e3)
         .gain(args.gain)
         .antenna(args.antenna)
         .args(args.args)?
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     let cutoff = Into::<f64>::into(bandwidth) / 2.0 / 1e6;
     let transition_bw = Into::<f64>::into(bandwidth) / 10.0 / 1e6;
     let taps = firdes::kaiser::lowpass(cutoff, transition_bw, 0.05);
-    let decimation = XlatingFirBuilder::with_taps(taps, decimation, 0.0, 1e6);
+    let decimation = XlatingFirBuilder::with_taps(taps, decimation, 200e3, 1e6);
 
     let frame_sync = FrameSync::new(
         freq,
