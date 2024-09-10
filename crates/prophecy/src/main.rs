@@ -300,5 +300,5 @@ pub fn Prophecy() -> impl IntoView {
 
 pub fn main() {
     console_error_panic_hook::set_once();
-    mount_to_body(|| view! { <FlowgraphCanvas /> })
+    mount_to_body(|| view! { <Prophecy /> })
 }
