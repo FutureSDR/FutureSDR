@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-use std::time::SystemTime;
-
 use clap::Parser;
-use rustfft::num_complex::Complex32;
-
 use futuredsp::firdes::remez;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
@@ -16,6 +11,10 @@ use futuresdr::macros::connect;
 use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::{Flowgraph, Pmt};
+use rustfft::num_complex::Complex32;
+use std::collections::HashMap;
+use std::time::SystemTime;
+
 use lora::Deinterleaver;
 use lora::FftDemod;
 use lora::FrameSync;
@@ -32,13 +31,13 @@ struct Args {
     #[clap(long)]
     antenna: Option<String>,
     /// Seify device args
-    #[clap(long)]
+    #[clap(short, long)]
     args: Option<String>,
     /// RX Gain
-    #[clap(long, default_value_t = 50.0)]
+    #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Socket Address of the Packet Forwarder Server, or None to simply print the frames to stdout
-    #[clap(long, default_value = None)]
+    #[clap(short, long)]
     forward_addr: Option<String>,
 }
 

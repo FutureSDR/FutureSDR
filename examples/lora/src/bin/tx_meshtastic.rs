@@ -1,13 +1,13 @@
 use clap::Parser;
 use futuresdr::anyhow::Result;
-use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
-use std::time::Duration;
+use std::io::BufRead;
+use std::io::Write;
 
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticConfig;
@@ -20,14 +20,20 @@ struct Args {
     #[clap(long)]
     antenna: Option<String>,
     /// Seify Device Args
-    #[clap(long)]
+    #[clap(short, long)]
     args: Option<String>,
     /// TX Gain
-    #[clap(long, default_value_t = 50.0)]
+    #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Meshtastic LoRa Config
-    #[clap(long, value_enum, default_value_t = MeshtasticConfig::LongFast)]
+    #[clap(short, long, value_enum)]
     meshtastic_config: MeshtasticConfig,
+    /// meshtastic channel name
+    #[clap(short, long)]
+    name: String,
+    /// meshtastic channel name
+    #[clap(short, long, default_value = "AQ==")]
+    key: String,
 }
 
 const HAS_CRC: bool = true;
@@ -75,27 +81,27 @@ fn main() -> Result<()> {
     connect!(fg, transmitter > sink);
 
     let rt = Runtime::new();
+    let (_fg, handle) = rt.start_sync(fg);
 
-    let (_fg, mut handle) = rt.start_sync(fg);
-    rt.block_on(async move {
-        let mut counter: u32 = 0;
-        let channel = MeshtasticChannel::new("FOO", "AQ==");
-        loop {
-            let payload = format!(
-                "config {:?}, hello world! {:03}",
-                args.meshtastic_config, counter
-            );
-            let data = channel.encode(payload);
+    let channel = MeshtasticChannel::new(&args.name, &args.key);
+    loop {
+        let msg = {
+            let i = std::io::stdin().lock();
+            let mut o = std::io::stdout().lock();
+            write!(o, "{}: ", &args.name)?;
+            o.flush()?;
+            let mut iterator = i.lines();
+            iterator.next().unwrap().unwrap()
+        };
+        let data = channel.encode(msg);
+        let mut handle = handle.clone();
+
+        rt.block_on(async move {
             handle
                 .call(transmitter, fg_tx_port, Pmt::Blob(data))
                 .await
                 .unwrap();
-            info!("sending frame");
-            counter += 1;
-            counter %= 100;
-            Timer::after(Duration::from_secs_f32(1.8)).await;
-        }
-    });
-
-    Ok(())
+            info!("sent frame");
+        });
+    }
 }

@@ -122,7 +122,10 @@ impl PacketForwarderClient {
                         Pmt::Usize(2) => CodingRate::_4_6,
                         Pmt::Usize(3) => CodingRate::_4_7,
                         Pmt::Usize(4) => CodingRate::_4_8,
-                        _ => panic!("invalid Coding Rate in received msg: {:?}", m.get("code_rate")),
+                        _ => panic!(
+                            "invalid Coding Rate in received msg: {:?}",
+                            m.get("code_rate")
+                        ),
                     };
                     let sf: SpreadingFactor = match m.get("sf").unwrap() {
                         Pmt::U32(5) => SpreadingFactor::SF5,

@@ -31,7 +31,6 @@ const IMPLICIT_HEADER: bool = false;
 const OVERSAMPLING: usize = 4;
 
 #[derive(Parser, Debug)]
-#[clap(version)]
 struct Args {
     /// RX Antenna
     #[clap(long)]
@@ -40,11 +39,14 @@ struct Args {
     #[clap(short, long)]
     args: Option<String>,
     /// RX Gain
-    #[clap(long, default_value_t = 50.0)]
+    #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Meshtastic LoRa Config
-    #[clap(long, value_enum, default_value_t = MeshtasticConfig::LongFast)]
+    #[clap(short, long, value_enum, default_value_t = MeshtasticConfig::LongFastEu)]
     meshtastic_config: MeshtasticConfig,
+    /// Meshtastic Channels (Format: <name>:<base64key>,<name>:<base64key>,..)
+    #[clap(short, long)]
+    channels: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -52,6 +54,16 @@ fn main() -> Result<()> {
     let args = Args::parse();
     info!("args {:?}", &args);
     let (bandwidth, spreading_factor, _, freq, ldro) = args.meshtastic_config.to_config();
+
+    let mut channels = vec![];
+    for chan in args.channels.unwrap_or(String::new()).split(",") {
+        let vals: Vec<&str> = chan.split(":").collect();
+        if vals.len() == 2 {
+            channels.push((vals[0].to_string(), vals[1].to_string()));
+        }
+    }
+
+    println!("channels: {:?}", channels);
 
     let src = SourceBuilder::new()
         .sample_rate(1e6)
@@ -108,12 +120,10 @@ fn main() -> Result<()> {
     let (_fg, _handle) = rt.start_sync(fg);
     rt.block_on(async move {
         let mut chans = MeshtasticChannels::new();
-        chans.add_channel(MeshtasticChannel::new("BBL", "Y203SmFnT1J1SElqRVRqUg=="));
-        chans.add_channel(MeshtasticChannel::new("FOO", "AQ=="));
-        chans.add_channel(MeshtasticChannel::new(
-            "LALA",
-            "aVJkN3FNQVp6WXFVcGV6Q0NWemxybWlHRFl5RVJkN0U=",
-        ));
+        chans.add_channel(MeshtasticChannel::new("", "AQ=="));
+        for c in channels {
+            chans.add_channel(MeshtasticChannel::new(&c.0, &c.1));
+        }
         while let Some(x) = rx_frame.next().await {
             match x {
                 Pmt::Blob(data) => {

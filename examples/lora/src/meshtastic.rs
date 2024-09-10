@@ -18,74 +18,138 @@ const DEFAULT_KEY: [u8; 16] = [
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum MeshtasticConfig {
-    ShortFast,
-    ShortSlow,
-    MediumFast,
-    MediumSlow,
+    ShortFastEu,
+    ShortSlowEu,
+    MediumFastEu,
+    MediumSlowEu,
     #[default]
-    LongFast,
-    LongModerate,
-    LongSlow,
-    VeryLongSlow,
+    LongFastEu,
+    LongModerateEu,
+    LongSlowEu,
+    VeryLongSlowEu,
+    ShortFastUs,
+    ShortSlowUs,
+    MediumFastUs,
+    MediumSlowUs,
+    LongFastUs,
+    LongModerateUs,
+    LongSlowUs,
+    VeryLongSlowUs,
 }
 
 impl MeshtasticConfig {
     pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, u32, bool) {
         match self {
-            Self::ShortFast => (
+            Self::ShortFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF7,
                 CodeRate::CR_4_5,
                 869525000,
                 false,
             ),
-            Self::ShortSlow => (
+            Self::ShortSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF8,
                 CodeRate::CR_4_5,
                 869525000,
                 false,
             ),
-            Self::MediumFast => (
+            Self::MediumFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF9,
                 CodeRate::CR_4_5,
                 869525000,
                 false,
             ),
-            Self::MediumSlow => (
+            Self::MediumSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF10,
                 CodeRate::CR_4_5,
                 869525000,
                 false,
             ),
-            Self::LongFast => (
+            Self::LongFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_5,
                 869525000,
                 false,
             ),
-            Self::LongModerate => (
+            Self::LongModerateEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_8,
                 869587500,
                 true,
             ),
-            Self::LongSlow => (
+            Self::LongSlowEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 869587500,
                 true,
             ),
-            Self::VeryLongSlow => (
+            Self::VeryLongSlowEu => (
                 Bandwidth::BW62,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 869492500,
+                true,
+            ),
+            Self::ShortFastUs => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF7,
+                CodeRate::CR_4_5,
+                906875000,
+                false,
+            ),
+            Self::ShortSlowUs => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF8,
+                CodeRate::CR_4_5,
+                906875000,
+                false,
+            ),
+            Self::MediumFastUs => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF9,
+                CodeRate::CR_4_5,
+                906875000,
+                false,
+            ),
+            Self::MediumSlowUs => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF10,
+                CodeRate::CR_4_5,
+                906875000,
+                false,
+            ),
+            Self::LongFastUs => (
+                Bandwidth::BW250,
+                SpreadingFactor::SF11,
+                CodeRate::CR_4_5,
+                906875000,
+                false,
+            ),
+            Self::LongModerateUs => (
+                Bandwidth::BW125,
+                SpreadingFactor::SF11,
+                CodeRate::CR_4_8,
+                904437500,
+                true,
+            ),
+            Self::LongSlowUs => (
+                Bandwidth::BW125,
+                SpreadingFactor::SF12,
+                CodeRate::CR_4_8,
+                904437500,
+                true,
+            ),
+            Self::VeryLongSlowUs => (
+                Bandwidth::BW62,
+                SpreadingFactor::SF12,
+                CodeRate::CR_4_8,
+                916218750,
                 true,
             ),
         }
@@ -132,6 +196,7 @@ impl Key {
     }
 }
 
+#[derive(Debug)]
 pub struct MeshtasticChannel {
     key: Key,
     hash: u8,
@@ -274,9 +339,10 @@ impl MeshtasticChannels {
 
         for chan in self.channels.iter() {
             if packet.channel_hash == chan.hash && chan.decode(&packet) {
-                break;
+                return;
             }
         }
+        self.channels[0].decode(&packet);
     }
 }
 
