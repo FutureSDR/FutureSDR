@@ -5,6 +5,7 @@ use axum::response::Redirect;
 use axum::routing::{any, get, get_service};
 use axum::Json;
 use axum::Router;
+use futures::channel::oneshot;
 use std::path;
 use std::thread::JoinHandle;
 use tokio::net::TcpListener;
@@ -97,7 +98,7 @@ async fn handler_id_post(
 }
 
 pub struct ControlPort {
-    thread: Option<JoinHandle<()>>,
+    thread: Option<(oneshot::Sender<()>, JoinHandle<()>)>,
     handle: RuntimeHandle,
 }
 
@@ -154,13 +155,15 @@ impl ControlPort {
             app = app.fallback_service(get_service(service));
         }
 
+        let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
+
         let handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap();
 
-            runtime.block_on(async move {
+            runtime.spawn(async move {
                 let addr = config::config().ctrlport_bind.unwrap();
                 if let Ok(listener) = TcpListener::bind(&addr).await {
                     debug!("Listening on {}", addr);
@@ -171,8 +174,21 @@ impl ControlPort {
                     warn!("CtrlPort address {} already in use", addr);
                 }
             });
+
+            runtime.block_on(async move {
+                let _ = rx_shutdown.await;
+            });
         });
 
-        self.thread = Some(handle);
+        self.thread = Some((tx_shutdown, handle));
+    }
+}
+
+impl Drop for ControlPort {
+    fn drop(&mut self) {
+        if let Some((tx, handle)) = self.thread.take() {
+            let _ = tx.send(());
+            let _ = handle.join();
+        }
     }
 }
