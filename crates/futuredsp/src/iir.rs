@@ -145,7 +145,7 @@ where
         }
 
         // Update the memory
-        for idx in 1..memory.len() {
+        for idx in (1..memory.len()).rev() {
             memory[idx] = memory[idx - 1];
         }
         if !memory.is_empty() {
