@@ -3,10 +3,11 @@ use std::collections::HashMap;
 
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::Block;
 use crate::runtime::BlockMessage;
+use crate::runtime::ConnectCtx;
 use crate::runtime::Error;
 use crate::runtime::PortId;
-use crate::runtime::{Block, ConnectCtx};
 use slab::Slab;
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
@@ -194,7 +195,7 @@ impl Topology {
 
         if sp.type_id() != dp.type_id() {
             return Err(Error::ConnectError(Box::new(ConnectCtx::new(
-                src, &src_port, sp, dst, &dst_port, dp,
+                src_block, src, &src_port, sp, dst_block, dst, &dst_port, dp,
             ))));
         }
 

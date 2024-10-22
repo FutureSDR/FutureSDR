@@ -260,31 +260,45 @@ impl From<PmtConversionError> for Error {
 }
 
 /// Container for information supporting `ConnectError`
-#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct ConnectCtx {
-    src_block: String,
-    src_port: String,
-    src_type: String,
-    dst_block: String,
-    dst_port: String,
-    dst_type: String,
+    /// Source block ID
+    pub src_block_id: usize,
+    /// Source block name
+    pub src_block_name: String,
+    /// Source block output port
+    pub src_port: String,
+    /// Source port item type
+    pub src_type: String,
+    /// Destination block ID
+    pub dst_block_id: usize,
+    /// Destination block name
+    pub dst_block_name: String,
+    /// Destination input port
+    pub dst_port: String,
+    /// Destination port item type
+    pub dst_type: String,
 }
 
 impl ConnectCtx {
+    #[allow(clippy::too_many_arguments)]
     fn new(
+        src_block_id: usize,
         src: &Block,
         src_port: &PortId,
         src_output: &StreamOutput,
+        dst_block_id: usize,
         dst: &Block,
         dst_port: &PortId,
         dst_input: &StreamInput,
     ) -> Self {
         Self {
-            src_block: src.instance_name().unwrap_or(src.type_name()).to_string(),
+            src_block_id,
+            src_block_name: src.instance_name().unwrap_or(src.type_name()).to_string(),
             src_port: src_port.to_string(),
             src_type: src_output.type_name().to_string(),
-            dst_block: dst.instance_name().unwrap_or(src.type_name()).to_string(),
+            dst_block_id,
+            dst_block_name: dst.instance_name().unwrap_or(src.type_name()).to_string(),
             dst_port: dst_port.to_string(),
             dst_type: dst_input.type_name().to_string(),
         }
@@ -296,10 +310,10 @@ impl Display for ConnectCtx {
         write!(
             f,
             "incompatible ports: {}.{}<{}> -> {}.{}<{}>",
-            self.src_block,
+            self.src_block_name,
             self.src_port,
             self.src_type,
-            self.dst_block,
+            self.dst_block_name,
             self.dst_port,
             self.dst_type
         )
