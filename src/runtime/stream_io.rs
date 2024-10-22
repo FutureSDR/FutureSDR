@@ -30,7 +30,7 @@ pub struct StreamInput {
     name: String,
     item_size: usize,
     type_id: TypeId,
-    pub(crate) type_name: &'static str,
+    type_name: &'static str,
     reader: Option<BufferReader>,
     current: Option<CurrentInput>,
     tags: Vec<ItemTag>,
@@ -55,9 +55,19 @@ impl StreamInput {
         self.item_size
     }
 
-    /// Get [`TypeId`] of items, handled by the port
-    pub fn type_id(&self) -> TypeId {
+    /// Get [`TypeId`] of items handled by the port
+    pub(crate) fn type_id(&self) -> TypeId {
         self.type_id
+    }
+
+    /// Get the diagnostic type name of items handled by the port.
+    ///
+    /// # Note
+    /// The value returned cannot be assumed to uniquely identify a type, and should only be
+    /// used for debugging and diagnostic purposes. See [`std::any::type_name`] for
+    /// further details, caveats, and restrictions.
+    pub(crate) fn type_name(&self) -> &'static str {
+        self.type_name
     }
 
     /// Get name of port
@@ -187,7 +197,7 @@ pub struct StreamOutput {
     name: String,
     item_size: usize,
     type_id: TypeId,
-    pub(crate) type_name: &'static str,
+    type_name: &'static str,
     writer: Option<BufferWriter>,
     tags: Vec<ItemTag>,
     offset: usize,
@@ -213,8 +223,18 @@ impl StreamOutput {
     }
 
     /// Get [`TypeId`] of items, handled by the port
-    pub fn type_id(&self) -> TypeId {
+    pub(crate) fn type_id(&self) -> TypeId {
         self.type_id
+    }
+
+    /// Get the diagnostic type name of items handled by the port.
+    ///
+    /// # Note
+    /// The value returned cannot be assumed to uniquely identify a type, and should only be
+    /// used for debugging and diagnostic purposes. See [`std::any::type_name`] for
+    /// further details, caveats, and restrictions.
+    pub(crate) fn type_name(&self) -> &'static str {
+        self.type_name
     }
 
     /// Get name of port

@@ -3,7 +3,7 @@ use futuresdr::runtime::{Error, Flowgraph};
 use num_complex::Complex;
 
 #[test]
-fn connect_type_error()  {
+fn connect_type_error() {
     let mut fg = Flowgraph::new();
     let fft = Fft::new(1024);
     let sink = NullSink::<[Complex<f32>; 1024]>::new();
@@ -16,12 +16,11 @@ fn connect_type_error()  {
 
     let error = result.unwrap_err();
     match error {
-        o @ Error::ConnectError{ .. } => {
+        o @ Error::ConnectError { .. } => {
             let msg = o.to_string();
             // Token test for type info.
             assert!(msg.contains("num_complex::Complex<f32>"));
-        },
-        _ => panic!("Expected ConnectError")
+        }
+        _ => panic!("Expected ConnectError"),
     };
-
 }
