@@ -18,6 +18,7 @@ fn connect_type_error() {
     match error {
         o @ Error::ConnectError { .. } => {
             let msg = o.to_string();
+            // println!("{}", msg);
             // Token test for type info.
             assert!(msg.contains("num_complex::Complex<f32>"));
         }
