@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::Block;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::{Block, ConnectCtx};
 use slab::Slab;
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
@@ -210,14 +210,9 @@ impl Topology {
         let dp = dst.stream_input(dst_port_id);
 
         if sp.type_id() != dp.type_id() {
-            return Err(Error::ConnectError {
-                src_block: src.instance_name().unwrap_or(src.type_name()).to_string(),
-                src_port: src_port.to_string(),
-                src_type: sp.type_name().to_string(),
-                dst_block: dst.instance_name().unwrap_or(src.type_name()).to_string(),
-                dst_port: dst_port.to_string(),
-                dst_type: dp.type_name().to_string(),
-            });
+            return Err(Error::ConnectError(Box::new(ConnectCtx::new(
+                src, &src_port, sp, dst, &dst_port, dp,
+            ))));
         }
 
         let buffer_entry = BufferBuilderEntry {
