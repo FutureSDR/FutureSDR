@@ -210,9 +210,14 @@ impl Topology {
         let dp = dst.stream_input(dst_port_id);
 
         if sp.type_id() != dp.type_id() {
-            return Err(Error::ConnectError(
-                src_block, src_port, dst_block, dst_port,
-            ));
+            return Err(Error::ConnectError {
+                src_block: src.instance_name().unwrap_or(src.type_name()).to_string(),
+                src_port: src_port.to_string(),
+                src_type: sp.type_name.to_string(),
+                dst_block: dst.instance_name().unwrap_or(src.type_name()).to_string(),
+                dst_port: dst_port.to_string(),
+                dst_type: dp.type_name.to_string(),
+            });
         }
 
         let buffer_entry = BufferBuilderEntry {
