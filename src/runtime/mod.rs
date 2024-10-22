@@ -218,8 +218,16 @@ pub enum Error {
     #[error("Block {0} does not have stream port ({1:?})")]
     InvalidStreamPort(usize, PortId),
     /// Connect Error
-    #[error("Connect Error {0}, {1:?} -> {2}, {3:?}")]
-    ConnectError(usize, PortId, usize, PortId),
+    #[error("Connect error, incompatible ports: {src_block}.{src_port}: {src_type} -> {dst_block}.{dst_port}: {dst_type}")]
+    #[allow(missing_docs)]
+    ConnectError {
+        src_block: String,
+        src_port: String,
+        src_type: String,
+        dst_block: String,
+        dst_port: String,
+        dst_type: String,
+    },
     /// Error in handler
     #[error("Error in handler")]
     HandlerError,
