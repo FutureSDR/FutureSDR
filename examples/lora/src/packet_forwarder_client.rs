@@ -10,7 +10,6 @@ use semtech_udp::{Bandwidth, CodingRate, DataRate, MacAddress, SpreadingFactor};
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
-use futuresdr::anyhow::Result;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::futures::SinkExt;

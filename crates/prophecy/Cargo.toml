@@ -14,19 +14,18 @@ futuresdr = { version = "0.0.37", path = "../../" }
 futuresdr-types = { version = "0.0.12", path = "../types/" }
 gloo-net = "0.6"
 gloo-timers = { version = "0.3", features = ["futures"] }
-indexmap = "2.4"
+indexmap = "2.6"
 js-sys = "0.3"
 leptos = { version = "0.6", features = ["csr", "nightly"] }
-leptos-use = "0.13"
 log = "0.4"
 num-complex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
-uuid = { version = "1.10", features = ["v4", "js"] }
+uuid = { version = "1.11", features = ["v4", "js"] }
 
 [dependencies.web-sys]
-version = "0.3"
+version = "=0.3.72"
 features = [
   'DomRect',
   'HtmlCanvasElement',

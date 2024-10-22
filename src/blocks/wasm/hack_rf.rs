@@ -296,7 +296,8 @@ impl HackRf {
             .device
             .as_ref()
             .unwrap()
-            .control_transfer_out_with_u8_array(&parameter, buf);
+            .control_transfer_out_with_u8_slice(&parameter, buf)
+            .unwrap();
 
         let _ = JsFuture::from(transfer)
             .await?

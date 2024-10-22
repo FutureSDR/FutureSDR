@@ -1,21 +1,10 @@
-use leptos::html::Div;
 use leptos::*;
-use leptos_use::core::Position;
-use leptos_use::*;
 
 #[component]
 /// Flowgraph Canvas (WIP)
 pub fn FlowgraphCanvas() -> impl IntoView {
-    let el = create_node_ref::<Div>();
-    let UseDraggableReturn { style, .. } = use_draggable_with_options(
-        el,
-        UseDraggableOptions::default().initial_value(Position { x: 40.0, y: 40.0 }),
-    );
     view! {
         <div class="bg-red-500" style="width=100%; height: 50vh" >
-            <div node_ref=el class="select-none cursor-move text-white bg-blue-500 p-5" style=move || format!("position: absolute; {}", style.get())>
-            foo
-            </div>
         </div>
     }
 }

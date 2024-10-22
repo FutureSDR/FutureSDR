@@ -13,6 +13,7 @@ mod isolated_scope {
         struct MsgThing;
 
         impl MsgThing {
+            #[allow(clippy::new_ret_no_self)]
             fn new() -> Block {
                 Block::new(
                     BlockMetaBuilder::new("MsgThing").build(),
