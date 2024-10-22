@@ -116,26 +116,9 @@ impl Topology {
 
     /// Adds a [Block] to the [Topology] returning the `id` of the [Block] in the [Topology].
     pub fn add_block(&mut self, mut block: Block) -> usize {
-        let (mut i, base_name, mut block_name) = if let Some(name) = block.instance_name() {
-            (-1, name.to_string(), name.to_string())
-        } else {
-            (
-                0,
-                block.type_name().to_string(),
-                format!("{}_0", block.type_name()),
-            )
-        };
-
-        // find a unique name
-        loop {
-            if self.block_id(&block_name).is_none() {
-                break;
-            }
-            i += 1;
-            block_name = format!("{base_name}_{i}");
-        }
-
-        block.set_instance_name(block_name);
+        let block_name = block.type_name();
+        let block_id = self.blocks.vacant_key();
+        block.set_instance_name(format!("{}-{}", block_name, block_id));
         self.blocks.insert(Some(block))
     }
 
