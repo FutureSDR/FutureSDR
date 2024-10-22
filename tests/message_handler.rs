@@ -5,7 +5,10 @@ mod isolated_scope {
     #[test]
     fn message_handler_compiles() {
         use futuresdr::macros::message_handler;
-        use futuresdr::runtime::{Block, BlockMetaBuilder, BlockMeta, Kernel, MessageIo, MessageIoBuilder, Pmt, StreamIoBuilder, WorkIo};
+        use futuresdr::runtime::{
+            Block, BlockMeta, BlockMetaBuilder, Kernel, MessageIo, MessageIoBuilder, Pmt,
+            StreamIoBuilder, WorkIo,
+        };
 
         struct MsgThing;
 
@@ -13,12 +16,11 @@ mod isolated_scope {
             fn new() -> Block {
                 Block::new(
                     BlockMetaBuilder::new("MsgThing").build(),
-                    StreamIoBuilder::new()
-                        .build(),
+                    StreamIoBuilder::new().build(),
                     MessageIoBuilder::new()
                         .add_input("in", Self::in_port)
                         .build(),
-                    Self
+                    Self,
                 )
             }
 
