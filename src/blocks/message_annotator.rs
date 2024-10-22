@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::anyhow::Result;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
