@@ -30,24 +30,31 @@ impl<K: Kernel + 'static> Mocker<K> {
     where
         T: Debug + Send + 'static,
     {
-        self.block
-            .sio
-            .input(id)
-            .set_reader(BufferReader::Host(Box::new(MockReader::new(
-                data,
-                Vec::new(),
-            ))));
+        self.input_with_tags(id, data, Vec::new());
     }
 
     /// Add input buffer with given data and tags
-    pub fn input_with_tags<T>(&mut self, id: usize, data: Vec<T>, tags: Vec<ItemTag>)
+    pub fn input_with_tags<T>(&mut self, id: usize, mut data: Vec<T>, mut tags: Vec<ItemTag>)
     where
         T: Debug + Send + 'static,
     {
-        self.block
-            .sio
-            .input(id)
-            .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
+        match self.block.sio.input(id).try_as::<MockReader<T>>() {
+            Some(r) => {
+                let len = r.data.len();
+                for t in tags.iter_mut() {
+                    t.index += len;
+                }
+
+                r.data.append(&mut data);
+                r.tags.append(&mut tags);
+            }
+            _ => {
+                self.block
+                    .sio
+                    .input(id)
+                    .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
+            }
+        }
     }
 
     /// Initialize output buffer with given size

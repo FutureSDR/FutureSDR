@@ -77,7 +77,7 @@ impl StreamInput {
 
     /// Try to cast buffer reader to specific type
     pub fn try_as<T: 'static>(&mut self) -> Option<&mut T> {
-        self.reader.as_mut().unwrap().try_as::<T>()
+        self.reader.as_mut().and_then(|r| r.try_as::<T>())
     }
 
     /// Consume `amount` samples from buffer
