@@ -41,6 +41,9 @@ extern crate futuresdr_macros;
 #[macro_use]
 pub extern crate tracing;
 
+#[cfg(feature = "gui")]
+pub mod gui;
+
 // re-exports
 pub use anyhow;
 #[cfg(not(target_arch = "wasm32"))]

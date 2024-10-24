@@ -1,0 +1,30 @@
+[package]
+name = "futuresdr-gui"
+version = "0.1.0"
+edition = "2021"
+default-run = "basic"
+
+[workspace]
+
+# Basic example using the default, "batteries included" interface
+[[bin]]
+name = "basic"
+path = "src/basic.rs"
+
+# A more complex example that manually handles the layout. Only works with `egui`.
+[[bin]]
+name = "detached"
+path = "src/detached.rs"
+
+[features]
+egui = ["futuresdr/egui"]
+textplots = ["futuresdr/textplots"]
+default = ["egui"]
+
+[dependencies]
+eframe = "0.27"
+env_logger = { version = "0.11", default-features = false, features = [
+    "auto-color",
+    "humantime",
+] }
+futuresdr = { path = "../..", features = ["seify", "soapy"] }
