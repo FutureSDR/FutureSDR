@@ -193,11 +193,11 @@ impl Spectrum {
 
             let (vertex_shader_source, fragment_shader_source) = (
                 r#"
-                attribute vec2 coordinates;
+                in vec2 coordinates;
                 uniform float u_nsamples;
                 uniform float u_min;
                 uniform float u_max;
-                varying float power;
+                out float power;
 
                 void main(void) {
                     float x = -1.0 + 2.0 * coordinates.x / u_nsamples;
@@ -208,7 +208,8 @@ impl Spectrum {
                 "#,
                 r#"
                 precision mediump float;
-                varying float power;
+                in float power;
+                out vec4 FragColor;
 
                 vec3 color_map(float t) {
                     const vec3 c0 = vec3(0.2777273272234177, 0.005407344544966578, 0.3340998053353061);
@@ -223,7 +224,7 @@ impl Spectrum {
                 }
 
                 void main(void) {
-                    gl_FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 0.9);
+                    FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 0.9);
                 }
 
 
