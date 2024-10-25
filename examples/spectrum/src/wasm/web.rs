@@ -13,7 +13,7 @@ use web_sys::HtmlInputElement;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::wasm::HackRf;
-use futuresdr::blocks::Fft;
+use futuresdr::blocks::{Fft, MovingAvg};
 use futuresdr::blocks::FftDirection;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
@@ -273,7 +273,7 @@ async fn run(
     let src = HackRf::new();
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let mag_sqr = crate::power_block();
-    let keep = crate::Keep1InN::<FFT_SIZE>::new(0.1, 3);
+    let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
     let snk = Sink::new(data);
 
     futuresdr::runtime::config::set("slab_reserved", 0);
