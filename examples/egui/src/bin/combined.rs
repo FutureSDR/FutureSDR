@@ -5,7 +5,7 @@ use eframe::egui_glow;
 use eframe::glow;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::blocks::Fft;
+use futuresdr::blocks::{Fft, MovingAvg};
 use futuresdr::blocks::FftDirection;
 use futuresdr::futures::channel::mpsc::channel;
 use futuresdr::futures::channel::mpsc::Receiver;
@@ -78,7 +78,7 @@ impl MyApp {
                 .build()?;
             let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
             let mag_sqr = futuresdr_egui::power_block();
-            let keep = futuresdr_egui::Keep1InN::<FFT_SIZE>::new(0.1, 3);
+            let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
             let snk = ChannelSink::new(tx_samples);
 
             connect!(fg, src > fft > mag_sqr > keep > snk);
