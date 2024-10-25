@@ -35,6 +35,7 @@
 //! | [ConsoleSink] | Log stream data with [log::info!]. | ✅ |
 //! | [Delay] | Delays samples. | ✅ |
 //! | [Head] | Copies only a given number of samples and stops. | ✅ |
+//! ! [MovingAvg] | Applies an exponential moving average over a window samples. | ✅ |
 //! | [NullSink] | Drops samples. | ✅ |
 //! | [NullSource] | Generates a stream of zeros. | ✅ |
 //! | [Selector] | Forward the input stream with a given index to the output stream with a given index. | ✅ |
@@ -58,8 +59,8 @@
 //! |---|---|---|---|
 //! | [struct@Copy] | Copy input samples to the output. | ✅ | |
 //! | [CopyRand] | Copy input samples to the output, forwarding only a randomly selected number of samples. | ❌ | |
-//! | lttng::NullSource | Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples. | ❌ | lttng |
-//! | lttng:NullSink | Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples. | ❌ | lttng |
+//! | [lttng::NullSource] | Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples. | ❌ | lttng |
+//! | [lttng:NullSink] | Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples. | ❌ | lttng |
 //!
 //! ## I/O
 //! | Block | Usage | WebAssembly? |
@@ -176,6 +177,8 @@ pub use message_sink::MessageSink;
 mod message_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub use message_source::{MessageSource, MessageSourceBuilder};
+mod moving_avg;
+pub use moving_avg::MovingAvg;
 mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
@@ -253,5 +256,6 @@ mod zynq;
 pub use zynq::Zynq;
 #[cfg(feature = "zynq")]
 mod zynq_sync;
+
 #[cfg(feature = "zynq")]
 pub use zynq_sync::ZynqSync;
