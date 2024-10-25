@@ -6,7 +6,6 @@ pub use vulkan::Vulkan;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-
 use futuresdr::blocks::Apply;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Block;
