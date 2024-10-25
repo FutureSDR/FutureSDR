@@ -57,7 +57,7 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
             "decay_factor must be in [0, 1]"
         );
         TypedBlock::new(
-            BlockMetaBuilder::new("WindowedDecay").build(),
+            BlockMetaBuilder::new("MovingAvg").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
