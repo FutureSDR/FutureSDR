@@ -88,7 +88,7 @@ impl<const WIDTH: usize> Kernel for MovingAvg<WIDTH> {
         let mut consumed = 0;
         let mut produced = 0;
 
-        while (consumed + 1) * WIDTH <= input.len() {
+        while (consumed + 1) * WIDTH <= input.len() && (produced + 1) * WIDTH <= output.len() {
             for i in 0..WIDTH {
                 let t = input[consumed * WIDTH + i];
                 if t.is_finite() {
@@ -97,16 +97,13 @@ impl<const WIDTH: usize> Kernel for MovingAvg<WIDTH> {
                     self.avg[i] *= 1.0 - self.decay_factor;
                 }
             }
+
             self.i += 1;
 
             if self.i == self.history_size {
-                if (produced + 1) * WIDTH <= output.len() {
-                    output[produced * WIDTH..(produced + 1) * WIDTH].clone_from_slice(&self.avg);
-                    self.i = 0;
-                    produced += 1;
-                } else {
-                    break;
-                }
+                output[produced * WIDTH..(produced + 1) * WIDTH].clone_from_slice(&self.avg);
+                self.i = 0;
+                produced += 1;
             }
 
             consumed += 1;
