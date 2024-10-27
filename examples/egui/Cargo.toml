@@ -5,18 +5,15 @@ edition = "2021"
 
 [workspace]
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [features]
 default = ["soapy"]
 aaronia_http = ["futuresdr/aaronia_http"]
 soapy = ["futuresdr/soapy"]
 
 [dependencies]
-eframe = "0.28"
+eframe = "0.29"
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
 tokio = { version = "1", features = ["full"] }
-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 

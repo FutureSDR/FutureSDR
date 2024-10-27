@@ -2,6 +2,7 @@
 
 use eframe::egui;
 use eframe::egui::mutex::Mutex;
+use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
 use futuresdr::runtime::Pmt;
@@ -112,7 +113,7 @@ impl eframe::App for MyApp {
                 if columns[0]
                     .add(
                         egui::Slider::new(&mut self.freq, 80..=200)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("MHz")
                             .text("frequency"),
                     )
@@ -123,7 +124,7 @@ impl eframe::App for MyApp {
                 if columns[1]
                     .add(
                         egui::Slider::new(&mut self.min, -50.0..=0.0)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("dB")
                             .text("min"),
                     )
@@ -134,7 +135,7 @@ impl eframe::App for MyApp {
                 if columns[2]
                     .add(
                         egui::Slider::new(&mut self.max, -20.0..=50.0)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("dB")
                             .text("max"),
                     )

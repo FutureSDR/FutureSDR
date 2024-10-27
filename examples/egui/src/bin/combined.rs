@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use eframe::egui;
 use eframe::egui::mutex::Mutex;
+use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::{Fft, MovingAvg};
+use futuresdr::blocks::MovingAvg;
 use futuresdr::futures::channel::mpsc::channel;
 use futuresdr::futures::channel::mpsc::Receiver;
 use futuresdr::futures::channel::mpsc::Sender;
@@ -114,7 +116,7 @@ impl eframe::App for MyApp {
                 if columns[0]
                     .add(
                         egui::Slider::new(&mut self.freq, 80..=200)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("MHz")
                             .text("frequency"),
                     )
@@ -125,7 +127,7 @@ impl eframe::App for MyApp {
                 if columns[1]
                     .add(
                         egui::Slider::new(&mut self.min, -50.0..=0.0)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("dB")
                             .text("min"),
                     )
@@ -136,7 +138,7 @@ impl eframe::App for MyApp {
                 if columns[2]
                     .add(
                         egui::Slider::new(&mut self.max, -20.0..=50.0)
-                            .clamp_to_range(false)
+                            .clamping(SliderClamping::Never)
                             .suffix("dB")
                             .text("max"),
                     )
