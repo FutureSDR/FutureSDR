@@ -42,8 +42,8 @@ impl Config {
             if let Some(ref a) = self.antenna {
                 dev.set_antenna(dir, *c, a)?;
             }
-            if let Some(_b) = self.bandwidth {
-                todo!()
+            if let Some(b) = self.bandwidth {
+                dev.set_bandwidth(dir, *c, b)?;
             }
             if let Some(f) = self.freq {
                 dev.set_frequency(dir, *c, f)?;

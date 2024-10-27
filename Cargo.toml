@@ -28,6 +28,7 @@ audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
 lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
 rtlsdr = ["seify/rtlsdr"]
+hackrf = ["seify/hackrfone"]
 seify = ["dep:seify"]
 soapy = ["seify/soapy"]
 tpb_scheduler = []
@@ -89,7 +90,7 @@ num_cpus = "1.16"
 once_cell = "1.19"
 rand = "0.8"
 rustfft = "6.2"
-seify = { version = "0.13", default-features = false, optional = true }
+seify = { version = "0.15", default-features = false, optional = true }
 slab = "0.4"
 spin = "0.9"
 serde = { version = "1.0", features = ["derive"] }
