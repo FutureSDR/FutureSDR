@@ -12,11 +12,10 @@ use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::{copy_tag_propagation, Flowgraph};
 
-use wlan::fft_tag_propagation;
 use wlan::parse_channel;
 use wlan::Decoder;
 use wlan::FrameEqualizer;
@@ -104,7 +103,7 @@ fn main() -> Result<()> {
     connect!(fg, sync_short > sync_long);
 
     let mut fft = Fft::new(64);
-    fft.set_tag_propagation(Box::new(fft_tag_propagation));
+    fft.set_tag_propagation(Box::new(copy_tag_propagation));
     let frame_equalizer = FrameEqualizer::new();
     let decoder = Decoder::new();
     let symbol_sink = WebsocketPmtSink::new(9002);
