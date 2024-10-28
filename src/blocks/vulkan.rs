@@ -19,9 +19,11 @@ use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
-use vulkano::sync::{self, GpuFuture};
+use vulkano::sync::GpuFuture;
+use vulkano::sync::{self};
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::Context;
+use crate::anyhow::Result;
 use crate::runtime::buffer::vulkan::Broker;
 use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::ReaderH2D;

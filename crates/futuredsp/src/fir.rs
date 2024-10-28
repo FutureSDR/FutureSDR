@@ -1,7 +1,9 @@
 //! FIR Filters
 use core::cmp::Ordering;
 #[cfg(not(RUSTC_IS_STABLE))]
-use core::intrinsics::{fadd_fast, fmul_fast};
+use core::intrinsics::fadd_fast;
+#[cfg(not(RUSTC_IS_STABLE))]
+use core::intrinsics::fmul_fast;
 use num_complex::Complex;
 use num_traits::Float;
 use num_traits::Zero;

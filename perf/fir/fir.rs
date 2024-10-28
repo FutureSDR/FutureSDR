@@ -2,7 +2,8 @@ use clap::Parser;
 use std::iter::repeat_with;
 use std::time;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;

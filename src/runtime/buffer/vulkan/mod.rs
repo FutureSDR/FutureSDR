@@ -2,13 +2,15 @@
 use std::sync::Arc;
 use vulkano::buffer::Subbuffer;
 use vulkano::device::physical::PhysicalDeviceType;
+use vulkano::device::Device;
+use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
-use vulkano::device::{Device, DeviceCreateInfo};
+use vulkano::instance::Instance;
 use vulkano::instance::InstanceCreateFlags;
-use vulkano::instance::{Instance, InstanceCreateInfo};
+use vulkano::instance::InstanceCreateInfo;
 use vulkano::VulkanLibrary;
 
 mod d2h;

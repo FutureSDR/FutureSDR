@@ -14,7 +14,8 @@ use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use hound::{SampleFormat, WavSpec};
+use hound::SampleFormat;
+use hound::WavSpec;
 use std::f32::consts::TAU;
 use std::path::Path;
 

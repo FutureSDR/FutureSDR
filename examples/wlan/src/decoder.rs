@@ -14,11 +14,12 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::warn;
 
+use crate::FrameParam;
 use crate::Mcs;
+use crate::ViterbiDecoder;
 use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 use crate::MAX_SYM;
-use crate::{FrameParam, ViterbiDecoder};
 
 pub struct Decoder {
     frame_complete: bool,

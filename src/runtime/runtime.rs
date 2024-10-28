@@ -2,7 +2,9 @@
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
-use futures::channel::mpsc::{channel, Receiver, Sender};
+use futures::channel::mpsc::channel;
+use futures::channel::mpsc::Receiver;
+use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::prelude::*;
 use futures::FutureExt;

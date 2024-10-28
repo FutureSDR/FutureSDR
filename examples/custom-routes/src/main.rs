@@ -2,7 +2,8 @@ use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time;
 
 use futuresdr::anyhow::Result;

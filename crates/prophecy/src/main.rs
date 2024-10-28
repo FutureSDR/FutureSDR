@@ -1,7 +1,8 @@
 #![allow(unused_imports)]
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
-use gloo_net::websocket::{futures::WebSocket, Message};
+use gloo_net::websocket::futures::WebSocket;
+use gloo_net::websocket::Message;
 use leptos::html::Input;
 use leptos::html::Span;
 use leptos::logging::*;

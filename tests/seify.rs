@@ -2,15 +2,17 @@
 //! by default.
 
 use float_cmp::assert_approx_eq;
-use futuresdr::{
-    anyhow::Result,
-    async_io::block_on,
-    blocks::{seify::*, Head, NullSink},
-    macros::connect,
-    num_complex::Complex,
-    runtime::{Flowgraph, Pmt, Runtime},
-    seify::Direction::*,
-};
+use futuresdr::anyhow::Result;
+use futuresdr::async_io::block_on;
+use futuresdr::blocks::seify::*;
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::macros::connect;
+use futuresdr::num_complex::Complex;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Runtime;
+use futuresdr::seify::Direction::*;
 use std::collections::HashMap;
 
 /// Test backwards compatible builder style

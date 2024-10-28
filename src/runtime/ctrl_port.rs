@@ -1,8 +1,12 @@
 //! Remote Control through REST API
-use axum::extract::{Path, State};
-use axum::http::{StatusCode, Uri};
+use axum::extract::Path;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::http::Uri;
 use axum::response::Redirect;
-use axum::routing::{any, get, get_service};
+use axum::routing::any;
+use axum::routing::get;
+use axum::routing::get_service;
 use axum::Json;
 use axum::Router;
 use futures::channel::oneshot;

@@ -1,4 +1,5 @@
-use crate::{get_le_bit, set_le_bit};
+use crate::get_le_bit;
+use crate::set_le_bit;
 
 struct Assert<const V: bool>;
 trait True {}

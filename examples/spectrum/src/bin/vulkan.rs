@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::Fft;
+use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::blocks::{Fft, MovingAvg};
 use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::Flowgraph;

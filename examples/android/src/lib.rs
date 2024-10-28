@@ -53,7 +53,8 @@ pub fn run_fg() -> Result<()> {
 #[cfg(target_os = "android")]
 mod android {
     use super::*;
-    use jni::objects::{JClass, JString};
+    use jni::objects::JClass;
+    use jni::objects::JString;
     use jni::JNIEnv;
 
     #[allow(non_snake_case)]

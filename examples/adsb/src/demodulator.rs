@@ -1,4 +1,6 @@
-use crate::{N_SAMPLES_PER_HALF_SYM, SYMBOL_ONE_TAPS, SYMBOL_ZERO_TAPS};
+use crate::N_SAMPLES_PER_HALF_SYM;
+use crate::SYMBOL_ONE_TAPS;
+use crate::SYMBOL_ZERO_TAPS;
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;

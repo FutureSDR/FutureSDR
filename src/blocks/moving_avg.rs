@@ -1,4 +1,6 @@
 use crate::anyhow::Result;
+use crate::runtime::Block;
+use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
@@ -7,7 +9,6 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
-use crate::runtime::{Block, BlockMeta};
 
 /// Reads chunks of size `WIDTH` and outputs an exponential moving average over a window of specified size.
 ///

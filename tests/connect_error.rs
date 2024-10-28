@@ -1,5 +1,7 @@
-use futuresdr::blocks::{Fft, NullSink};
-use futuresdr::runtime::{Error, Flowgraph};
+use futuresdr::blocks::Fft;
+use futuresdr::blocks::NullSink;
+use futuresdr::runtime::Error;
+use futuresdr::runtime::Flowgraph;
 use num_complex::Complex;
 
 #[test]

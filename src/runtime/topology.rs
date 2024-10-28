@@ -9,9 +9,11 @@ use crate::runtime::ConnectCtx;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use slab::Slab;
-use std::any::{Any, TypeId};
+use std::any::Any;
+use std::any::TypeId;
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
 
 pub trait BufferBuilderKey: Debug + Send + Sync {
     fn eq(&self, other: &dyn BufferBuilderKey) -> bool;

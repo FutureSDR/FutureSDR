@@ -2,7 +2,8 @@ use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use wgpu::BufferView;
 
 use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;

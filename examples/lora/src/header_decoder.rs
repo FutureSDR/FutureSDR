@@ -15,7 +15,8 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::{debug, info};
+use futuresdr::tracing::debug;
+use futuresdr::tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct Frame {

@@ -1,5 +1,6 @@
 use base64::prelude::*;
-use ctr::cipher::{KeyIvInit, StreamCipher};
+use ctr::cipher::KeyIvInit;
+use ctr::cipher::StreamCipher;
 use futuresdr::tracing::info;
 use meshtastic::Message;
 

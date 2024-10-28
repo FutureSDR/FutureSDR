@@ -14,7 +14,9 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::{debug, info, warn};
+use futuresdr::tracing::debug;
+use futuresdr::tracing::info;
+use futuresdr::tracing::warn;
 
 const MAX_FRAMES: usize = 128;
 const MAX_FRAME_SIZE: usize = 127;

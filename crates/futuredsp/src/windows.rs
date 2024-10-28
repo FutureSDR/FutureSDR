@@ -1,14 +1,16 @@
 //! A collection of window functions
 
 extern crate alloc;
-use core::{
-    iter::Sum,
-    ops::{Div, Mul, Sub},
-};
+use core::iter::Sum;
+use core::ops::Div;
+use core::ops::Mul;
+use core::ops::Sub;
 
 use crate::math::special_funs;
 use alloc::vec::Vec;
-use num_traits::{AsPrimitive, Float, One};
+use num_traits::AsPrimitive;
+use num_traits::Float;
+use num_traits::One;
 
 /// A rectangular window of a given length.
 ///

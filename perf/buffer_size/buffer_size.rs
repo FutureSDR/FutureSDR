@@ -1,7 +1,8 @@
 use clap::Parser;
 use std::time;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRand;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;

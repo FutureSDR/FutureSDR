@@ -1,11 +1,14 @@
-use async_executor::{Executor, Task};
-use futures::channel::mpsc::{channel, Sender};
+use async_executor::Executor;
+use async_executor::Task;
+use futures::channel::mpsc::channel;
+use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::future::Future;
 use once_cell::sync::Lazy;
 use slab::Slab;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 
 use crate::runtime::config;

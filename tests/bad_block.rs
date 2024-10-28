@@ -1,12 +1,24 @@
-use futuresdr::anyhow::{bail, Result};
+use futuresdr::anyhow::bail;
+use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
-use futuresdr::blocks::{Head, NullSink, NullSource, Throttle};
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
+use futuresdr::blocks::Throttle;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
-use futuresdr::runtime::{
-    Block, BlockMeta, BlockMetaBuilder, Error, Flowgraph, Kernel, MessageIo, MessageIoBuilder,
-    Runtime, StreamIo, StreamIoBuilder, WorkIo,
-};
+use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Error;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Runtime;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use std::cmp;
 use std::marker::PhantomData;

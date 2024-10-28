@@ -1,4 +1,6 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;

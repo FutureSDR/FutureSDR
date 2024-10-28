@@ -1,7 +1,8 @@
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::BufferFull;

@@ -1,6 +1,7 @@
 use dyn_clone::DynClone;
 use num_complex::Complex32;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;

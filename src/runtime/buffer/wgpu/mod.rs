@@ -8,7 +8,10 @@ pub use h2d::ReaderH2D;
 pub use h2d::WriterH2D;
 pub use h2d::H2D;
 
-use wgpu::{Adapter, Buffer, Device, Queue};
+use wgpu::Adapter;
+use wgpu::Buffer;
+use wgpu::Device;
+use wgpu::Queue;
 
 // ================== WGPU MESSAGE ============================
 /// Full input buffer

@@ -1,7 +1,9 @@
 //! Configuration Management
-use config::Value;
 #[cfg(not(target_arch = "wasm32"))]
-use config::{File, Source};
+use config::File;
+#[cfg(not(target_arch = "wasm32"))]
+use config::Source;
+use config::Value;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::net::SocketAddr;

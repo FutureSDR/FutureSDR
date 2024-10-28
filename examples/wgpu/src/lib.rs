@@ -1,6 +1,7 @@
 use std::iter::repeat_with;
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;

@@ -1,6 +1,7 @@
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
-use rand_distr::{Distribution, Normal};
+use rand_distr::Distribution;
+use rand_distr::Normal;
 use std::time::Duration;
 
 use futuresdr::anyhow::Result;
@@ -14,9 +15,10 @@ use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::buffer::circular::Circular;
+use futuresdr::runtime::copy_tag_propagation;
+use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use futuresdr::runtime::{copy_tag_propagation, Flowgraph};
 
 use wlan::Decoder;
 use wlan::Encoder;

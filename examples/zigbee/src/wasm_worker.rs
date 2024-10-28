@@ -14,7 +14,8 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::FlowgraphHandle;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use gloo_worker::{HandlerId, WorkerScope};
+use gloo_worker::HandlerId;
+use gloo_worker::WorkerScope;
 
 use crate::ClockRecoveryMm;
 use crate::Decoder;

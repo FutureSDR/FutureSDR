@@ -13,8 +13,9 @@ use web_sys::HtmlInputElement;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::wasm::HackRf;
+use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::{Fft, MovingAvg};
+use futuresdr::blocks::MovingAvg;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Block;

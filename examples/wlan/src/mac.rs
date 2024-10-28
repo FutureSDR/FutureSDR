@@ -13,7 +13,8 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::{debug, warn};
+use futuresdr::tracing::debug;
+use futuresdr::tracing::warn;
 
 pub struct Mac {
     current_frame: [u8; MAX_PSDU_SIZE],

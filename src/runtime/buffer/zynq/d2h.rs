@@ -2,7 +2,8 @@ use futures::channel::mpsc::Sender;
 use futures::SinkExt;
 use std::any::Any;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;

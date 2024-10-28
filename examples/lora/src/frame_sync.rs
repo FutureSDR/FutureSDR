@@ -2,9 +2,12 @@ use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use rustfft::{Fft, FftDirection, FftPlanner};
+use rustfft::Fft;
+use rustfft::FftDirection;
+use rustfft::FftPlanner;
 
 use futuresdr::anyhow::Result;
 use futuresdr::futures::channel::mpsc;
@@ -22,7 +25,9 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::{debug, info, warn};
+use futuresdr::tracing::debug;
+use futuresdr::tracing::info;
+use futuresdr::tracing::warn;
 
 use crate::utils::*;
 

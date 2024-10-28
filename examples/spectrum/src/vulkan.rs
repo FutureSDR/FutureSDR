@@ -12,9 +12,11 @@ use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
-use vulkano::sync::{self, GpuFuture};
+use vulkano::sync::GpuFuture;
+use vulkano::sync::{self};
 
-use futuresdr::anyhow::{Context, Result};
+use futuresdr::anyhow::Context;
+use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::BufferEmpty;

@@ -12,9 +12,10 @@ use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::copy_tag_propagation;
+use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
-use futuresdr::runtime::{copy_tag_propagation, Flowgraph};
 
 use wlan::parse_channel;
 use wlan::Decoder;

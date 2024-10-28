@@ -1,4 +1,5 @@
-use futures::channel::mpsc::{Receiver, Sender};
+use futures::channel::mpsc::Receiver;
+use futures::channel::mpsc::Sender;
 use futures::future::join_all;
 use futures::future::Either;
 use futures::FutureExt;
@@ -9,7 +10,8 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::Context;
+use crate::anyhow::Result;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;

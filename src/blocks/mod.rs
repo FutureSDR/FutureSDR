@@ -134,7 +134,8 @@ pub use console_sink::ConsoleSink;
 mod copy;
 pub use copy::Copy;
 mod copy_rand;
-pub use copy_rand::{CopyRand, CopyRandBuilder};
+pub use copy_rand::CopyRand;
+pub use copy_rand::CopyRandBuilder;
 mod delay;
 pub use delay::Delay;
 mod fft;
@@ -159,7 +160,8 @@ pub use fir::FirBuilder;
 mod head;
 pub use head::Head;
 mod iir;
-pub use iir::{Iir, IirBuilder};
+pub use iir::Iir;
+pub use iir::IirBuilder;
 #[cfg(feature = "lttng")]
 pub mod lttng;
 
@@ -176,7 +178,9 @@ pub use message_sink::MessageSink;
 #[cfg(not(target_arch = "wasm32"))]
 mod message_source;
 #[cfg(not(target_arch = "wasm32"))]
-pub use message_source::{MessageSource, MessageSourceBuilder};
+pub use message_source::MessageSource;
+#[cfg(not(target_arch = "wasm32"))]
+pub use message_source::MessageSourceBuilder;
 mod moving_avg;
 pub use moving_avg::MovingAvg;
 mod null_sink;
@@ -223,13 +227,16 @@ mod udp_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub use udp_source::UdpSource;
 mod vector_sink;
-pub use vector_sink::{VectorSink, VectorSinkBuilder};
+pub use vector_sink::VectorSink;
+pub use vector_sink::VectorSinkBuilder;
 mod vector_source;
 pub use vector_source::VectorSource;
 #[cfg(feature = "vulkan")]
 mod vulkan;
 #[cfg(feature = "vulkan")]
-pub use vulkan::{Vulkan, VulkanBuilder};
+pub use vulkan::Vulkan;
+#[cfg(feature = "vulkan")]
+pub use vulkan::VulkanBuilder;
 /// WASM-specfici blocks (target wasm32-unknown-unknown)
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -240,7 +247,11 @@ pub use websocket_pmt_sink::WebsocketPmtSink;
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket_sink;
 #[cfg(not(target_arch = "wasm32"))]
-pub use websocket_sink::{WebsocketSink, WebsocketSinkBuilder, WebsocketSinkMode};
+pub use websocket_sink::WebsocketSink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_sink::WebsocketSinkBuilder;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_sink::WebsocketSinkMode;
 pub mod xlating_fir;
 pub use xlating_fir::XlatingFir;
 pub use xlating_fir::XlatingFirBuilder;

@@ -1,6 +1,9 @@
 //! Transformation of Rust arrays to JS.
 // This Code is from maia-sdr
-use js_sys::{Float32Array, Object, Uint16Array, Uint8Array};
+use js_sys::Float32Array;
+use js_sys::Object;
+use js_sys::Uint16Array;
+use js_sys::Uint8Array;
 use std::ops::Deref;
 use web_sys::WebGl2RenderingContext;
 

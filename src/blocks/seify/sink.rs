@@ -5,7 +5,8 @@ use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
 
-use crate::anyhow::{Context, Result};
+use crate::anyhow::Context;
+use crate::anyhow::Result;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;

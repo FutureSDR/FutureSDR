@@ -12,7 +12,8 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::{info, warn};
+use futuresdr::tracing::info;
+use futuresdr::tracing::warn;
 use std::cmp::Ordering;
 use std::time::Duration;
 

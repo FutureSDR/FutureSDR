@@ -5,10 +5,11 @@ use std::env;
 
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
+use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::blocks::{Apply, MovingAvg};
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -62,7 +63,8 @@ pub fn run_fg() -> Result<()> {
 #[cfg(target_os = "android")]
 mod android {
     use super::*;
-    use jni::objects::{JClass, JString};
+    use jni::objects::JClass;
+    use jni::objects::JString;
     use jni::sys::jint;
     use jni::JNIEnv;
 

@@ -1,4 +1,5 @@
-use futuresdr::anyhow::{bail, Result};
+use futuresdr::anyhow::bail;
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSink;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::Block;

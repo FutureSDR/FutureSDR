@@ -1,5 +1,6 @@
 //! WASM Scheduler
-use futures::channel::mpsc::{channel, Sender};
+use futures::channel::mpsc::channel;
+use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::future::Future;
 use futures::task::Context;
