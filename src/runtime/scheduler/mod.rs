@@ -1,5 +1,10 @@
 //! Flowgraph Scheduler Trait and Implementations
 #[cfg(feature = "flow_scheduler")]
+mod cpu_pin;
+#[cfg(feature = "flow_scheduler")]
+pub use crate::runtime::scheduler::cpu_pin::CpuPinScheduler;
+
+#[cfg(feature = "flow_scheduler")]
 mod flow;
 #[cfg(feature = "flow_scheduler")]
 pub use crate::runtime::scheduler::flow::FlowScheduler;
