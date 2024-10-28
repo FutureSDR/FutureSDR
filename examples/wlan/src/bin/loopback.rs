@@ -14,11 +14,10 @@ use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::{copy_tag_propagation, Flowgraph};
 
-use wlan::fft_tag_propagation;
 use wlan::Decoder;
 use wlan::Encoder;
 use wlan::FrameEqualizer;
@@ -62,7 +61,7 @@ fn main() -> Result<()> {
         true,
         Some((1.0f32 / 52.0).sqrt()),
     );
-    fft.set_tag_propagation(Box::new(fft_tag_propagation));
+    fft.set_tag_propagation(Box::new(copy_tag_propagation));
     let fft = fg.add_block(fft);
     fg.connect_stream(mapper, "out", fft, "in")?;
     let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL));
@@ -120,7 +119,7 @@ fn main() -> Result<()> {
     fg.connect_stream(sync_short, "out", sync_long, "in")?;
 
     let mut fft = Fft::new(64);
-    fft.set_tag_propagation(Box::new(fft_tag_propagation));
+    fft.set_tag_propagation(Box::new(copy_tag_propagation));
     let fft = fg.add_block(fft);
     fg.connect_stream(sync_long, "out", fft, "in")?;
 

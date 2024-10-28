@@ -58,6 +58,7 @@ pub use stream_io::StreamInput;
 pub use stream_io::StreamIo;
 pub use stream_io::StreamIoBuilder;
 pub use stream_io::StreamOutput;
+pub use tag::copy_tag_propagation;
 pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
