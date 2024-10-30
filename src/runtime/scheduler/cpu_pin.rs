@@ -1,15 +1,21 @@
 use super::flow::FlowExecutor;
-use crate::runtime::{config, scheduler::Scheduler, BlockMessage, FlowgraphMessage, Topology};
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
+use crate::runtime::BlockMessage;
+use crate::runtime::FlowgraphMessage;
+use crate::runtime::Topology;
 use async_io::block_on;
 use async_lock::Barrier;
 use async_task::Task;
-use futures::channel::{
-    mpsc::{channel, Sender},
-    oneshot,
-};
+use futures::channel::mpsc::channel;
+use futures::channel::mpsc::Sender;
+use futures::channel::oneshot;
 use futures_lite::future::Future;
 use slab::Slab;
-use std::{collections::HashMap, fmt, sync::Arc, thread};
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+use std::thread;
 
 type CpuPins = HashMap<usize, usize>;
 
