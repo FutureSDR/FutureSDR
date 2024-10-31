@@ -135,6 +135,11 @@ pub trait BlockT: Send + Any {
     fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
     fn message_outputs(&self) -> &Vec<MessageOutput>;
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
+
+    #[cfg(feature = "gui")]
+    fn attach_gui_handle(&mut self, handle: Box<dyn crate::gui::GuiWidget + Send>);
+    #[cfg(feature = "gui")]
+    fn detach_gui_handle(&mut self) -> Option<Box<dyn crate::gui::GuiWidget + Send>>;
 }
 
 /// Typed Block
@@ -147,6 +152,9 @@ pub struct TypedBlock<T> {
     pub mio: MessageIo<T>,
     /// Kernel
     pub kernel: T,
+    #[cfg(feature = "gui")]
+    /// GUI widget handle
+    pub gui_handle: Option<Box<dyn crate::gui::GuiWidget + Send>>,
 }
 
 impl<T: Kernel + Send + 'static> TypedBlock<T> {
@@ -157,6 +165,8 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
             sio,
             mio,
             kernel,
+            #[cfg(feature = "gui")]
+            gui_handle: None,
         }
     }
 }
@@ -205,6 +215,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
             mut sio,
             mut mio,
             mut kernel,
+            ..
         }: TypedBlock<T>,
         block_id: usize,
         mut main_inbox: Sender<FlowgraphMessage>,
@@ -230,12 +241,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                             .send(FlowgraphMessage::BlockError {
                                 block_id,
                                 block: Block(Box::new(TypedBlockWrapper {
-                                    inner: Some(TypedBlock {
-                                        sio,
-                                        mio,
-                                        meta,
-                                        kernel,
-                                    }),
+                                    inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                                 })),
                             })
                             .await?;
@@ -328,12 +334,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                                     .send(FlowgraphMessage::BlockError {
                                         block_id,
                                         block: Block(Box::new(TypedBlockWrapper {
-                                            inner: Some(TypedBlock {
-                                                sio,
-                                                mio,
-                                                meta,
-                                                kernel,
-                                            }),
+                                            inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                                         })),
                                     })
                                     .await?;
@@ -364,12 +365,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                                     .send(FlowgraphMessage::BlockError {
                                         block_id,
                                         block: Block(Box::new(TypedBlockWrapper {
-                                            inner: Some(TypedBlock {
-                                                sio,
-                                                mio,
-                                                meta,
-                                                kernel,
-                                            }),
+                                            inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                                         })),
                                     })
                                     .await?;
@@ -401,12 +397,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                             .send(FlowgraphMessage::BlockDone {
                                 block_id,
                                 block: Block(Box::new(TypedBlockWrapper {
-                                    inner: Some(TypedBlock {
-                                        sio,
-                                        mio,
-                                        meta,
-                                        kernel,
-                                    }),
+                                    inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                                 })),
                             })
                             .await;
@@ -422,12 +413,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                             .send(FlowgraphMessage::BlockError {
                                 block_id,
                                 block: Block(Box::new(TypedBlockWrapper {
-                                    inner: Some(TypedBlock {
-                                        sio,
-                                        mio,
-                                        meta,
-                                        kernel,
-                                    }),
+                                    inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                                 })),
                             })
                             .await?;
@@ -471,12 +457,7 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                     .send(FlowgraphMessage::BlockError {
                         block_id,
                         block: Block(Box::new(TypedBlockWrapper {
-                            inner: Some(TypedBlock {
-                                sio,
-                                mio,
-                                meta,
-                                kernel,
-                            }),
+                            inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
                         })),
                     })
                     .await?;
@@ -586,6 +567,18 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlockWrapper<T> {
             .map(|i| i.mio.output_name_to_id(name))
             .unwrap()
     }
+
+    #[cfg(feature = "gui")]
+    fn attach_gui_handle(&mut self, handle: Box<dyn crate::gui::GuiWidget + Send>) {
+        if let Some(handle_ref) = self.inner.as_mut().map(|b| &mut b.gui_handle) {
+            let _ = handle_ref.replace(handle);
+        }
+    }
+
+    #[cfg(feature = "gui")]
+    fn detach_gui_handle(&mut self) -> Option<Box<dyn crate::gui::GuiWidget + Send>> {
+        self.inner.as_mut().and_then(|b| b.gui_handle.take())
+    }
 }
 
 /// Block
@@ -603,12 +596,7 @@ impl Block {
         kernel: T,
     ) -> Block {
         Self(Box::new(TypedBlockWrapper {
-            inner: Some(TypedBlock {
-                meta,
-                sio,
-                mio,
-                kernel,
-            }),
+            inner: Some(TypedBlock::new(meta, sio, mio, kernel)),
         }))
     }
     /// Create block by wrapping a [`TypedBlock`].
@@ -705,6 +693,18 @@ impl Block {
     /// Map message output port name to id
     pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
         self.0.message_output_name_to_id(name)
+    }
+
+    /// Attach a GUI handle to the block
+    #[cfg(feature = "gui")]
+    pub fn attach_gui_handle(&mut self, handle: Box<dyn crate::gui::GuiWidget + Send>) {
+        self.0.attach_gui_handle(handle);
+    }
+
+    /// Detach the block's GUI handle if present
+    #[cfg(feature = "gui")]
+    pub fn detach_gui_handle(&mut self) -> Option<Box<dyn crate::gui::GuiWidget + Send>> {
+        self.0.detach_gui_handle()
     }
 }
 
