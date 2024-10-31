@@ -228,11 +228,11 @@ impl Pmt {
 #[error("PMt conversion error")]
 pub struct PmtConversionError;
 
-impl TryInto<f64> for &Pmt {
+impl TryFrom<&Pmt> for f64 {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<f64, Self::Error> {
-        match self {
+    fn try_from(value: &Pmt) -> Result<f64, Self::Error> {
+        match value {
             Pmt::F32(f) => Ok(*f as f64),
             Pmt::F64(f) => Ok(*f),
             Pmt::U32(f) => Ok(*f as f64),
@@ -242,57 +242,57 @@ impl TryInto<f64> for &Pmt {
     }
 }
 
-impl TryInto<f64> for Pmt {
+impl TryFrom<Pmt> for f64 {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<f64, Self::Error> {
-        (&self).try_into()
+    fn try_from(value: Pmt) -> Result<f64, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl TryInto<usize> for &Pmt {
+impl TryFrom<&Pmt> for usize {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<usize, Self::Error> {
-        match self {
+    fn try_from(value: &Pmt) -> Result<usize, Self::Error> {
+        match value {
             Pmt::Usize(f) => Ok(*f),
             _ => Err(PmtConversionError),
         }
     }
 }
 
-impl TryInto<usize> for Pmt {
+impl TryFrom<Pmt> for usize {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<usize, Self::Error> {
-        (&self).try_into()
+    fn try_from(value: Pmt) -> Result<usize, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl TryInto<isize> for &Pmt {
+impl TryFrom<&Pmt> for isize {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<isize, Self::Error> {
-        match self {
+    fn try_from(value: &Pmt) -> Result<isize, Self::Error> {
+        match value {
             Pmt::Isize(f) => Ok(*f),
             _ => Err(PmtConversionError),
         }
     }
 }
 
-impl TryInto<isize> for Pmt {
+impl TryFrom<Pmt> for isize {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<isize, Self::Error> {
-        (&self).try_into()
+    fn try_from(value: Pmt) -> Result<isize, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl TryInto<u64> for &Pmt {
+impl TryFrom<&Pmt> for u64 {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<u64, Self::Error> {
-        match self {
+    fn try_from(value: &Pmt) -> Result<u64, Self::Error> {
+        match value {
             Pmt::U32(v) => Ok(*v as u64),
             Pmt::U64(v) => Ok(*v),
             Pmt::Usize(v) => Ok(*v as u64),
@@ -301,61 +301,61 @@ impl TryInto<u64> for &Pmt {
     }
 }
 
-impl TryInto<u64> for Pmt {
+impl TryFrom<Pmt> for u64 {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<u64, Self::Error> {
-        (&self).try_into()
+    fn try_from(value: Pmt) -> Result<u64, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl TryInto<bool> for &Pmt {
+impl TryFrom<&Pmt> for bool {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<bool, Self::Error> {
-        match self {
+    fn try_from(value: &Pmt) -> Result<bool, Self::Error> {
+        match value {
             Pmt::Bool(b) => Ok(*b),
             _ => Err(PmtConversionError),
         }
     }
 }
 
-impl TryInto<bool> for Pmt {
+impl TryFrom<Pmt> for bool {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<bool, Self::Error> {
-        (&self).try_into()
+    fn try_from(value: Pmt) -> Result<bool, Self::Error> {
+        (&value).try_into()
     }
 }
 
-impl TryInto<Vec<f32>> for Pmt {
+impl TryFrom<Pmt> for Vec<f32> {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<Vec<f32>, Self::Error> {
-        match self {
-            Pmt::VecF32(v) => Ok(v.clone()),
+    fn try_from(value: Pmt) -> Result<Vec<f32>, Self::Error> {
+        match value {
+            Pmt::VecF32(v) => Ok(v),
             _ => Err(PmtConversionError),
         }
     }
 }
 
-impl TryInto<Vec<Complex32>> for Pmt {
+impl TryFrom<Pmt> for Vec<Complex32> {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<Vec<Complex32>, Self::Error> {
-        match self {
-            Pmt::VecCF32(v) => Ok(v.clone()),
+    fn try_from(value: Pmt) -> Result<Vec<Complex32>, Self::Error> {
+        match value {
+            Pmt::VecCF32(v) => Ok(v),
             _ => Err(PmtConversionError),
         }
     }
 }
 
-impl TryInto<Vec<u64>> for Pmt {
+impl TryFrom<Pmt> for Vec<u64> {
     type Error = PmtConversionError;
 
-    fn try_into(self) -> Result<Vec<u64>, Self::Error> {
-        match self {
-            Pmt::VecU64(v) => Ok(v.clone()),
+    fn try_from(value: Pmt) -> Result<Vec<u64>, Self::Error> {
+        match value {
+            Pmt::VecU64(v) => Ok(v),
             _ => Err(PmtConversionError),
         }
     }
