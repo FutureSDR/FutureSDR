@@ -145,6 +145,7 @@ impl PartialEq for Pmt {
             (Pmt::F64(x), Pmt::F64(y)) => x == y,
             (Pmt::VecF32(x), Pmt::VecF32(y)) => x == y,
             (Pmt::VecU64(x), Pmt::VecU64(y)) => x == y,
+            (Pmt::VecCF32(x), Pmt::VecCF32(y)) => x == y,
             (Pmt::Blob(x), Pmt::Blob(y)) => x == y,
             (Pmt::VecPmt(x), Pmt::VecPmt(y)) => x == y,
             (Pmt::Finished, Pmt::Finished) => true,
@@ -227,15 +228,34 @@ impl Pmt {
 #[error("PMt conversion error")]
 pub struct PmtConversionError;
 
-impl TryInto<f64> for Pmt {
+impl TryInto<f64> for &Pmt {
     type Error = PmtConversionError;
 
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
-            Pmt::F32(f) => Ok(f as f64),
-            Pmt::F64(f) => Ok(f),
-            Pmt::U32(f) => Ok(f as f64),
-            Pmt::U64(f) => Ok(f as f64),
+            Pmt::F32(f) => Ok(*f as f64),
+            Pmt::F64(f) => Ok(*f),
+            Pmt::U32(f) => Ok(*f as f64),
+            Pmt::U64(f) => Ok(*f as f64),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryInto<f64> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<f64, Self::Error> {
+        (&self).try_into()
+    }
+}
+
+impl TryInto<usize> for &Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self {
+            Pmt::Usize(f) => Ok(*f),
             _ => Err(PmtConversionError),
         }
     }
@@ -245,8 +265,16 @@ impl TryInto<usize> for Pmt {
     type Error = PmtConversionError;
 
     fn try_into(self) -> Result<usize, Self::Error> {
+        (&self).try_into()
+    }
+}
+
+impl TryInto<isize> for &Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<isize, Self::Error> {
         match self {
-            Pmt::Usize(f) => Ok(f),
+            Pmt::Isize(f) => Ok(*f),
             _ => Err(PmtConversionError),
         }
     }
@@ -256,8 +284,18 @@ impl TryInto<isize> for Pmt {
     type Error = PmtConversionError;
 
     fn try_into(self) -> Result<isize, Self::Error> {
+        (&self).try_into()
+    }
+}
+
+impl TryInto<u64> for &Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
         match self {
-            Pmt::Isize(f) => Ok(f),
+            Pmt::U32(v) => Ok(*v as u64),
+            Pmt::U64(v) => Ok(*v),
+            Pmt::Usize(v) => Ok(*v as u64),
             _ => Err(PmtConversionError),
         }
     }
@@ -267,18 +305,131 @@ impl TryInto<u64> for Pmt {
     type Error = PmtConversionError;
 
     fn try_into(self) -> Result<u64, Self::Error> {
+        (&self).try_into()
+    }
+}
+
+impl TryInto<bool> for &Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<bool, Self::Error> {
         match self {
-            Pmt::U32(v) => Ok(v as u64),
-            Pmt::U64(v) => Ok(v),
-            Pmt::Usize(v) => Ok(v as u64),
+            Pmt::Bool(b) => Ok(*b),
             _ => Err(PmtConversionError),
         }
     }
 }
 
+impl TryInto<bool> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<bool, Self::Error> {
+        (&self).try_into()
+    }
+}
+
+impl TryInto<Vec<f32>> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<Vec<f32>, Self::Error> {
+        match self {
+            Pmt::VecF32(v) => Ok(v.clone()),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryInto<Vec<Complex32>> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<Vec<Complex32>, Self::Error> {
+        match self {
+            Pmt::VecCF32(v) => Ok(v.clone()),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryInto<Vec<u64>> for Pmt {
+    type Error = PmtConversionError;
+
+    fn try_into(self) -> Result<Vec<u64>, Self::Error> {
+        match self {
+            Pmt::VecU64(v) => Ok(v.clone()),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl From<()> for Pmt {
+    fn from(_: ()) -> Self {
+        Pmt::Null
+    }
+}
+
+impl From<bool> for Pmt {
+    fn from(b: bool) -> Self {
+        Pmt::Bool(b)
+    }
+}
+
+impl From<f32> for Pmt {
+    fn from(f: f32) -> Self {
+        Pmt::F32(f)
+    }
+}
+
+impl From<f64> for Pmt {
+    fn from(f: f64) -> Self {
+        Pmt::F64(f)
+    }
+}
+
+impl From<u32> for Pmt {
+    fn from(f: u32) -> Self {
+        Pmt::U32(f)
+    }
+}
+
+impl From<u64> for Pmt {
+    fn from(f: u64) -> Self {
+        Pmt::U64(f)
+    }
+}
+
+impl From<usize> for Pmt {
+    fn from(f: usize) -> Self {
+        Pmt::Usize(f)
+    }
+}
+
+impl From<isize> for Pmt {
+    fn from(f: isize) -> Self {
+        Pmt::Isize(f)
+    }
+}
+
+impl From<Vec<f32>> for Pmt {
+    fn from(v: Vec<f32>) -> Self {
+        Pmt::VecF32(v)
+    }
+}
+
+impl From<Vec<u64>> for Pmt {
+    fn from(v: Vec<u64>) -> Self {
+        Pmt::VecU64(v)
+    }
+}
+
+impl From<Vec<Complex32>> for Pmt {
+    fn from(v: Vec<Complex32>) -> Self {
+        Pmt::VecCF32(v)
+    }
+}
+
 /// PMT types that do not wrap values.
 ///
-/// Usefull for bindings to other languages that do not support Rust's broad enum features.
+/// Useful for bindings to other languages that do not support Rust's broad enum features.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq)]
 pub enum PmtKind {
@@ -436,6 +587,14 @@ mod test {
         let f3 = Pmt::F32(0.2);
         assert_eq!(f1, f2);
         assert_ne!(f1, f3);
+
+        let fv1 = Pmt::VecF32(vec![1.0, 2.0, 3.0]);
+        let fv2 = Pmt::VecF32(vec![1.0, 2.0, 3.0]);
+        assert_eq!(fv1, fv2);
+
+        let cfv1 = Pmt::VecCF32(vec![Complex32::new(1.0, 2.0), Complex32::new(3.0, 4.0)]);
+        let cfv2 = Pmt::VecCF32(vec![Complex32::new(1.0, 2.0), Complex32::new(3.0, 4.0)]);
+        assert_eq!(cfv1, cfv2);
     }
 
     #[test]
@@ -476,5 +635,60 @@ mod test {
         } else {
             panic!("Not a Pmt::MapStrPmt");
         }
+    }
+
+    #[test]
+    fn from_into() {
+        let e = 42usize;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::Usize(e));
+        assert_eq!((&p).try_into(), Ok(e));
+
+        let e = 42isize;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::Isize(e));
+        assert_eq!((&p).try_into(), Ok(e));
+
+        let e = 42u32;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::U32(e));
+        // Lossy conversion unsupported
+        // assert_eq!(p.try_into(), Ok(e));
+
+        let e = 42u64;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::U64(e));
+        assert_eq!((&p).try_into(), Ok(e));
+
+        let e = 42f64;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::F64(e));
+        assert_eq!(p.try_into(), Ok(e));
+
+        let e = 42f32;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::F32(e));
+        // Lossy conversion unsupported
+        //assert_eq!(p.try_into(), Ok(e));
+
+        let e = true;
+        let p = Pmt::from(e);
+        assert_eq!(p, Pmt::Bool(e));
+        assert_eq!((&p).try_into(), Ok(e));
+
+        let e = vec![1.0, 2.0, 3.0];
+        let p = Pmt::from(e.clone());
+        assert_eq!(p, Pmt::VecF32(e.clone()));
+        assert_eq!(p.try_into(), Ok(e));
+
+        let e = vec![1, 2, 3];
+        let p = Pmt::from(e.clone());
+        assert_eq!(p, Pmt::VecU64(e.clone()));
+        assert_eq!(p.try_into(), Ok(e));
+
+        let e = vec![Complex32::new(1.0, 2.0), Complex32::new(3.0, 4.0)];
+        let p = Pmt::from(e.clone());
+        assert_eq!(p, Pmt::VecCF32(e.clone()));
+        assert_eq!(p.try_into(), Ok(e));
     }
 }
