@@ -24,6 +24,21 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Seify Source block
+///
+/// # Ports
+///
+/// * Stream inputs: None
+/// * Stream outputs:
+///     - `"out"` (if single channel): `Complex32` I/Q samples
+///     - `"out1"`, `"out2"`, ... (if multiple channels): `Complex32` I/Q samples
+/// * Message inputs:
+///     - `"freq"`: `f32`, `f64`, `u32`, or `u64` (Hertz) center tuning frequency, or `Null` to query
+///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) gain setting, or `Null` to query
+///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
+///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
+///     - `"terminate"`: `Pmt::Ok` to terminate the block
+///     - `"config"`: (input ignored) returns the current `Config` for each channel as a `Pmt::VecPmt<Pmt::MapStrPmt>`
+/// * Message outputs: None
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
