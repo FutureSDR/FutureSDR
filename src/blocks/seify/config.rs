@@ -1,6 +1,7 @@
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction;
+use std::collections::HashMap;
 
 use crate::runtime::Error;
 use crate::runtime::Pmt;
@@ -31,6 +32,27 @@ impl Config {
         Pmt::Any(Box::new(self.clone()))
     }
 
+    /// Generate a [`Pmt`] that can be serialized
+    pub fn to_serializable_pmt(&self) -> Pmt {
+        let mut m = HashMap::new();
+        if let Some(antenna) = &self.antenna {
+            m.insert("antenna".to_string(), Pmt::String(antenna.clone()));
+        }
+        if let Some(bandwidth) = &self.bandwidth {
+            m.insert("bandwidth".to_string(), Pmt::F64(*bandwidth));
+        }
+        if let Some(freq) = &self.freq {
+            m.insert("freq".to_string(), Pmt::F64(*freq));
+        }
+        if let Some(gain) = &self.gain {
+            m.insert("gain".to_string(), Pmt::F64(*gain));
+        }
+        if let Some(sample_rate) = &self.sample_rate {
+            m.insert("sample_rate".to_string(), Pmt::F64(*sample_rate));
+        }
+        Pmt::MapStrPmt(m)
+    }
+
     /// Apply config to a device
     pub fn apply<D: DeviceTrait + Clone>(
         &self,
@@ -57,6 +79,22 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
+    pub fn from<D: DeviceTrait + Clone>(
+        dev: &Device<D>,
+        dir: Direction,
+        channel: usize,
+    ) -> Result<Self, Error> {
+        let inner = dev.impl_ref::<D>()?;
+        Ok(Config {
+            antenna: inner.antenna(dir, channel).ok(),
+            bandwidth: inner.bandwidth(dir, channel).ok(),
+            freq: inner.frequency(dir, channel).ok(),
+            gain: inner.gain(dir, channel).ok().flatten(),
+            sample_rate: inner.sample_rate(dir, channel).ok(),
+        })
     }
 }
 
