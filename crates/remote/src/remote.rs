@@ -95,12 +95,29 @@ impl Flowgraph {
             .collect()
     }
 
-    /// Get a specific [`Block`](Block) of the [`Flowgraph`].
+    /// Get a specific [`Block`](Block) of the [`Flowgraph`] by `id`.
+    ///
+    /// Returns `None` if `Block` is not found.
     pub fn block(&self, id: usize) -> Option<Block> {
+        self.find_block(|d| d.id == id)
+    }
+
+    /// Get a specific [`Block`](Block) of the [`Flowgraph`] by `instance_name`.
+    ///
+    /// Returns `None` if `Block` is not found.
+    pub fn block_named(&self, name: &str) -> Option<Block> {
+        self.find_block(|d| d.instance_name == name)
+    }
+
+    /// Find the first [`Block`](Block) of the [`Flowgraph`] matching the given predicate
+    /// on [`BlockDescription`].
+    ///
+    /// Returns `None` if no `BlockDescription` matches given predicate.
+    pub fn find_block(&self, pred: impl Fn(&BlockDescription) -> bool) -> Option<Block> {
         self.description
             .blocks
             .iter()
-            .find(|x| x.id == id)
+            .find(|d| pred(d))
             .map(|d| Block {
                 description: d.clone(),
                 client: self.client.clone(),
@@ -294,5 +311,47 @@ impl std::fmt::Display for Connection {
                 &self.dst_block.description.message_inputs[self.dst_port]
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Flowgraph;
+    use futuresdr_types::BlockDescription;
+    use futuresdr_types::FlowgraphDescription;
+
+    fn block(id: usize, name: &str) -> BlockDescription {
+        BlockDescription {
+            id,
+            type_name: "test_block".to_string(),
+            instance_name: name.to_string(),
+            stream_inputs: vec!["in".to_string()],
+            stream_outputs: vec!["out".to_string()],
+            message_inputs: vec!["command".to_string()],
+            message_outputs: vec!["message".to_string()],
+            blocking: false,
+        }
+    }
+
+    #[test]
+    fn find_block() {
+        let fg = Flowgraph {
+            id: 0,
+            description: FlowgraphDescription {
+                blocks: vec![block(0, "a"), block(1, "b")],
+                stream_edges: vec![(0, 0, 1, 0)],
+                message_edges: vec![(1, 0, 0, 0)],
+            },
+            client: reqwest::Client::new(),
+            url: "http://localhost".to_string(),
+        };
+
+        assert_eq!(
+            fg.block(0).map(|b| b.description.instance_name),
+            Some("a".to_string())
+        );
+        assert_eq!(fg.block_named("b").map(|b| b.description.id), Some(1));
+        assert!(fg.find_block(|d| d.type_name == "test_block").is_some());
+        assert!(fg.find_block(|d| d.type_name == "foo").is_none());
     }
 }
