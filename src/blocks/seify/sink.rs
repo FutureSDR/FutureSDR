@@ -1,6 +1,6 @@
 use seify::Device;
 use seify::DeviceTrait;
-use seify::Direction::{Rx, Tx};
+use seify::Direction::Tx;
 use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
@@ -27,6 +27,21 @@ use crate::runtime::WorkIo;
 use super::builder::BuilderType;
 
 /// Seify Sink block
+///
+/// # Ports
+///
+/// * Stream inputs:
+///     - `"in"` (if single channel): `Complex32` I/Q samples
+///     - `"in1"`, `"in2"`, ... (if multiple channels): `Complex32` I/Q samples
+/// * Stream outputs: None
+/// * Message inputs:
+///     - `"freq"`: `f32`, `f64`, `u32`, or `u64` (Hertz) set center tuning frequency, or `Null` to query
+///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) set gain, or `Null` to query
+///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
+///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
+///     - `"config"`: (input ignored) returns the current `Config` for each channel as a `Pmt::VecPmt<Pmt::MapStrPmt>`
+/// * Message outputs:
+///     - `"terminate_out"`: `Pmt::Ok` when stream has finished
 pub struct Sink<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
