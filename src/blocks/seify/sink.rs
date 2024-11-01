@@ -1,6 +1,6 @@
 use seify::Device;
 use seify::DeviceTrait;
-use seify::Direction::Tx;
+use seify::Direction::{Rx, Tx};
 use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
@@ -63,6 +63,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
                 .add_input("gain", Self::gain_handler)
                 .add_input("sample_rate", Self::sample_rate_handler)
                 .add_input("cmd", Self::cmd_handler)
+                .add_input("config", Self::get_config_handler)
                 .add_output("terminate_out")
                 .build(),
             Self {
@@ -145,6 +146,22 @@ impl<D: DeviceTrait + Clone> Sink<D> {
             };
         }
         Ok(Pmt::Ok)
+    }
+
+    #[message_handler]
+    fn get_config_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        _p: Pmt, // Input value is ignored
+    ) -> Result<Pmt> {
+        let mut configs = Vec::with_capacity(self.channels.len());
+        for c in &self.channels {
+            let config = Config::from(&self.dev, Tx, *c)?;
+            configs.push(config.to_serializable_pmt());
+        }
+        Ok(Pmt::VecPmt(configs))
     }
 }
 
