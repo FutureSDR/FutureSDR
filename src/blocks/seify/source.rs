@@ -37,7 +37,7 @@ use crate::runtime::WorkIo;
 ///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
 ///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
 ///     - `"terminate"`: `Pmt::Ok` to terminate the block
-///     - `"config"`: (input ignored) returns the current `Config` for each channel as a `Pmt::VecPmt<Pmt::MapStrPmt>`
+///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
@@ -189,14 +189,19 @@ impl<D: DeviceTrait + Clone> Source<D> {
         _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt, // Input value is ignored
+        channel: Pmt,
     ) -> Result<Pmt> {
-        let mut configs = Vec::with_capacity(self.channels.len());
-        for c in &self.channels {
-            let config = Config::from(&self.dev, Rx, *c)?;
-            configs.push(config.to_serializable_pmt());
+        let id = match channel {
+            Pmt::Null | Pmt::Ok => 0,
+            Pmt::U32(id) => id as usize,
+            Pmt::U64(id) => id as usize,
+            Pmt::Usize(id) => id,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if id >= self.channels.len() {
+            return Ok(Pmt::InvalidValue);
         }
-        Ok(Pmt::VecPmt(configs))
+        Ok(Config::from(&self.dev, Rx, id)?.to_serializable_pmt())
     }
 }
 

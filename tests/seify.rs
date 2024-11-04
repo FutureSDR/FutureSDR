@@ -1,3 +1,4 @@
+use anyhow::Context;
 use float_cmp::assert_approx_eq;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
@@ -162,13 +163,10 @@ fn config_cmd_map() -> Result<()> {
     let conf = block_on(fg_handle.callback(src, cfg_port_id, Pmt::Ok))?;
 
     match conf {
-        Pmt::VecPmt(v) => match v.as_slice() {
-            [Pmt::MapStrPmt(m), ..] => {
-                assert_eq!(m.get("freq").unwrap(), &Pmt::F64(102e6));
-                assert_eq!(m.get("sample_rate").unwrap(), &Pmt::F64(1e6));
-            }
-            o => panic!("unexpected pmt type {o:?}"),
-        },
+        Pmt::MapStrPmt(m) => {
+            assert_eq!(m.get("freq").unwrap(), &Pmt::F64(102e6));
+            assert_eq!(m.get("sample_rate").unwrap(), &Pmt::F64(1e6));
+        }
         o => panic!("unexpected pmt type {o:?}"),
     }
     Ok(())
