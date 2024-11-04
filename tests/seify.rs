@@ -208,7 +208,7 @@ fn capabilities_query() -> Result<()> {
     assert!(caps.bandwidth_range.is_some());
     assert!(caps.antennas.is_some());
     assert!(caps.supports_agc.is_some());
-    assert!(caps.frequency_range.clone().unwrap().items.len() > 0);
+    assert!(!caps.frequency_range.clone().unwrap().items.is_empty());
     matches!(
         caps.frequency_range.unwrap().items[0],
         RangeItem::Step(min, max, inc) if min > 30e6 && max < 8e9 && inc > 0.0

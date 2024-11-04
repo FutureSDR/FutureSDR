@@ -153,35 +153,32 @@ impl TryFrom<&Pmt> for Capabilities {
                 let bandwidth_range = m
                     .get("bandwidth_range")
                     .and_then(|v| Conv(v).try_into().ok());
-                let antennas = m
-                    .get("antennas")
-                    .map(|v| {
-                        if let Pmt::VecPmt(v) = v {
-                            Some(
-                                v.iter()
-                                    .map(|v| {
-                                        if let Pmt::String(s) = v {
-                                            Ok(s.to_string())
-                                        } else {
-                                            Err(Error::msg("unexpected pmt type"))
-                                        }
-                                    })
-                                    .collect::<Result<Vec<String>>>()
-                                    .ok()?,
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                    .flatten();
-                let gain_range = m
-                    .get("gain_range")
-                    .map(|v| Conv(v).try_into().ok())
-                    .flatten();
-                let supports_agc = m
-                    .get("supports_agc")
-                    .map(|v| if let Pmt::Bool(v) = v { Some(*v) } else { None })
-                    .flatten();
+                let antennas = m.get("antennas").and_then(|v| {
+                    if let Pmt::VecPmt(v) = v {
+                        Some(
+                            v.iter()
+                                .map(|v| {
+                                    if let Pmt::String(s) = v {
+                                        Ok(s.to_string())
+                                    } else {
+                                        Err(Error::msg("unexpected pmt type"))
+                                    }
+                                })
+                                .collect::<Result<Vec<String>>>()
+                                .ok()?,
+                        )
+                    } else {
+                        None
+                    }
+                });
+                let gain_range = m.get("gain_range").and_then(|v| Conv(v).try_into().ok());
+                let supports_agc = m.get("supports_agc").and_then(|v| {
+                    if let Pmt::Bool(v) = v {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                });
 
                 Ok(Capabilities {
                     frequency_range,

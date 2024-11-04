@@ -39,6 +39,7 @@ use crate::runtime::WorkIo;
 ///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
 ///     - `"terminate"`: `Pmt::Ok` to terminate the block
 ///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
+///     - `"capabilities"`: `u32`, `u64`, `usize` (channel id) returns the for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,

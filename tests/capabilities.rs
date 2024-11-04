@@ -1,7 +1,8 @@
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::seify::{Capabilities, SourceBuilder};
+use futuresdr::blocks::seify::Capabilities;
 use futuresdr_types::Pmt;
-use seify::{Range, RangeItem};
+use seify::Range;
+use seify::RangeItem;
 
 #[test]
 fn cap_pmt_serde() -> Result<()> {
@@ -27,9 +28,10 @@ fn cap_pmt_serde() -> Result<()> {
     };
 
     let pmt = Pmt::from(&capabilities);
-    let back: Capabilities = pmt.try_into()?;
+    let _back: Capabilities = pmt.try_into()?;
 
-    dbg!(back);
+    // TODO: enable after `Capabilities` is `PartialEq`
+    //assert_eq!(capabilities, back);
 
     Ok(())
 }

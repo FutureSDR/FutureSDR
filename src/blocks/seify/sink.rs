@@ -1,6 +1,6 @@
 use seify::Device;
 use seify::DeviceTrait;
-use seify::Direction::{Rx, Tx};
+use seify::Direction::Tx;
 use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
