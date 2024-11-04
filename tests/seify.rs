@@ -11,6 +11,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::seify::Direction::*;
+use seify::RangeItem;
 use std::collections::HashMap;
 
 /// Test backwards compatible builder style
@@ -134,12 +135,13 @@ fn config_cmd_map() -> Result<()> {
         .frequency(100e6)
         .gain(1.0)
         .build()?;
+
     let cmd_port_id = src
         .message_input_name_to_id("cmd")
         .context("command port")?;
     let cfg_port_id = src
         .message_input_name_to_id("config")
-        .context("command port")?;
+        .context("config port")?;
 
     let snk = NullSink::<Complex<f32>>::new();
 
@@ -169,5 +171,48 @@ fn config_cmd_map() -> Result<()> {
         }
         o => panic!("unexpected pmt type {o:?}"),
     }
+    Ok(())
+}
+
+/// Test querying SDR for capabilities.
+#[test]
+#[ignore] // Requires hardware
+fn capabilities_query() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let dev = seify::Device::from_args("soapy_driver=bladerf")?;
+
+    let src = SourceBuilder::new()
+        .device(dev.clone())
+        .sample_rate(1e6)
+        .frequency(100e6)
+        .build()?;
+
+    let cap_port_id = src
+        .message_input_name_to_id("capabilities")
+        .context("command port")?;
+
+    let snk = NullSink::<Complex<f32>>::new();
+
+    connect!(fg, src > snk);
+
+    let rt = Runtime::new();
+    let (_, mut fg_handle) = rt.start_sync(fg);
+
+    let caps: Capabilities =
+        block_on(async { fg_handle.callback(src, cap_port_id, Pmt::Ok).await })?.try_into()?;
+
+    assert!(caps.frequency_range.is_some());
+    assert!(caps.sample_rate_range.is_some());
+    assert!(caps.gain_range.is_some());
+    assert!(caps.bandwidth_range.is_some());
+    assert!(caps.antennas.is_some());
+    assert!(caps.supports_agc.is_some());
+    assert!(caps.frequency_range.clone().unwrap().items.len() > 0);
+    matches!(
+        caps.frequency_range.unwrap().items[0],
+        RangeItem::Step(min, max, inc) if min > 30e6 && max < 8e9 && inc > 0.0
+    );
+
     Ok(())
 }
