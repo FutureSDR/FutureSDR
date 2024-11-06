@@ -20,6 +20,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Seify Source block
@@ -31,7 +32,15 @@ pub struct Source<D: DeviceTrait + Clone> {
 }
 
 impl<D: DeviceTrait + Clone> Source<D> {
-    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+    pub fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+        Block::from_typed(Self::new_typed(dev, channels, start_time))
+    }
+
+    pub fn new_typed(
+        dev: Device<D>,
+        channels: Vec<usize>,
+        start_time: Option<i64>,
+    ) -> TypedBlock<Self> {
         assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
@@ -44,7 +53,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
             }
         }
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Source").blocking().build(),
             siob.build(),
             MessageIoBuilder::new()
