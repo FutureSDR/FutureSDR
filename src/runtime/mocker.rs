@@ -114,6 +114,16 @@ impl<K: Kernel + 'static> Mocker<K> {
             block_on: None,
         };
 
+        self.block
+            .kernel
+            .init(
+                &mut self.block.sio,
+                &mut self.block.mio,
+                &mut self.block.meta,
+            )
+            .await
+            .unwrap();
+
         loop {
             self.block
                 .kernel
@@ -132,6 +142,16 @@ impl<K: Kernel + 'static> Mocker<K> {
                 io.call_again = false;
             }
         }
+
+        self.block
+            .kernel
+            .deinit(
+                &mut self.block.sio,
+                &mut self.block.mio,
+                &mut self.block.meta,
+            )
+            .await
+            .unwrap();
     }
 }
 
