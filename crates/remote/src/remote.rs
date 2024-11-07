@@ -99,21 +99,21 @@ impl Flowgraph {
     ///
     /// Returns `None` if `Block` is not found.
     pub fn block(&self, id: usize) -> Option<Block> {
-        self.find_block(|d| d.id == id)
+        self.block_by(|d| d.id == id)
     }
 
     /// Get a specific [`Block`](Block) of the [`Flowgraph`] by `instance_name`.
     ///
     /// Returns `None` if `Block` is not found.
-    pub fn block_named(&self, name: &str) -> Option<Block> {
-        self.find_block(|d| d.instance_name == name)
+    pub fn block_by_name(&self, name: &str) -> Option<Block> {
+        self.block_by(|d| d.instance_name == name)
     }
 
     /// Find the first [`Block`](Block) of the [`Flowgraph`] matching the given predicate
     /// on [`BlockDescription`].
     ///
     /// Returns `None` if no `BlockDescription` matches given predicate.
-    pub fn find_block(&self, pred: impl Fn(&BlockDescription) -> bool) -> Option<Block> {
+    pub fn block_by(&self, pred: impl Fn(&BlockDescription) -> bool) -> Option<Block> {
         self.description
             .blocks
             .iter()
@@ -350,8 +350,8 @@ mod tests {
             fg.block(0).map(|b| b.description.instance_name),
             Some("a".to_string())
         );
-        assert_eq!(fg.block_named("b").map(|b| b.description.id), Some(1));
-        assert!(fg.find_block(|d| d.type_name == "test_block").is_some());
-        assert!(fg.find_block(|d| d.type_name == "foo").is_none());
+        assert_eq!(fg.block_by_name("b").map(|b| b.description.id), Some(1));
+        assert!(fg.block_by(|d| d.type_name == "test_block").is_some());
+        assert!(fg.block_by(|d| d.type_name == "foo").is_none());
     }
 }
