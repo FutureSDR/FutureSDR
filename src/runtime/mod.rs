@@ -221,6 +221,9 @@ pub enum Error {
     /// Stream port does not exist
     #[error("Block {0} does not have stream port ({1:?})")]
     InvalidStreamPort(usize, PortId),
+    /// Invalid Parameter
+    #[error("Invalid Parameter")]
+    InvalidParameter,
     /// Connect Error
     #[error("Connect error: {0}")]
     ConnectError(Box<ConnectCtx>),

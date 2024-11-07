@@ -708,6 +708,12 @@ impl Block {
     }
 }
 
+impl<T: Kernel + 'static> From<TypedBlock<T>> for Block {
+    fn from(value: TypedBlock<T>) -> Self {
+        Block::from_typed(value)
+    }
+}
+
 impl<T: Kernel + Send + 'static> fmt::Debug for TypedBlockWrapper<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AsyncBlock")

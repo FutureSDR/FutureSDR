@@ -32,11 +32,11 @@ pub struct Source<D: DeviceTrait + Clone> {
 }
 
 impl<D: DeviceTrait + Clone> Source<D> {
-    pub fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
-        Block::from_typed(Self::new_typed(dev, channels, start_time))
+    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+        Self::new_typed(dev, channels, start_time).into()
     }
 
-    pub fn new_typed(
+    pub(super) fn new_typed(
         dev: Device<D>,
         channels: Vec<usize>,
         start_time: Option<i64>,

@@ -21,6 +21,7 @@ use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::Tag;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 use super::builder::BuilderType;
@@ -35,6 +36,14 @@ pub struct Sink<D: DeviceTrait + Clone> {
 
 impl<D: DeviceTrait + Clone> Sink<D> {
     pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
+        Self::new_typed(dev, channels, start_time).into()
+    }
+
+    pub(super) fn new_typed(
+        dev: Device<D>,
+        channels: Vec<usize>,
+        start_time: Option<i64>,
+    ) -> TypedBlock<Self> {
         assert!(!channels.is_empty());
 
         let mut siob = StreamIoBuilder::new();
@@ -46,7 +55,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
                 siob = siob.add_input::<Complex32>(&format!("in{}", i + 1));
             }
         }
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Sink").blocking().build(),
             siob.build(),
             MessageIoBuilder::new()
