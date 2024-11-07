@@ -37,8 +37,10 @@ fn tags_through_mock() -> Result<()> {
 
     for (i, tag) in tags.iter().enumerate() {
         assert_eq!(out_tags[i].index, tag.index);
-        let Tag::Id(t) = &tag.tag else { unreachable!() };
-        assert!(matches!(out_tags[i].tag, Tag::Id(t)));
+        let Tag::Id(tag_id) = tag.tag else {
+            unreachable!()
+        };
+        assert!(matches!(out_tags[i].tag, Tag::Id(t) if t == tag_id));
     }
 
     Ok(())
