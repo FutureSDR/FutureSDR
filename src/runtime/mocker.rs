@@ -81,6 +81,25 @@ impl<K: Kernel + 'static> Mocker<K> {
         }
     }
 
+    /// Get the list of tags from the output buffer at `id`.
+    ///
+    /// Type parameter `T` should be the same as the type of the output buffer.
+    pub fn output_tags<T>(&mut self, id: usize) -> Vec<ItemTag>
+    where
+        T: Debug + Send + 'static,
+    {
+        let w = self.block.sio.output(id).writer_mut();
+        if let BufferWriter::Host(w) = w {
+            w.as_any()
+                .downcast_mut::<MockWriter<T>>()
+                .unwrap()
+                .tags()
+                .to_vec()
+        } else {
+            panic!("mocker: wrong output buffer (expected CPU, got Custom)");
+        }
+    }
+
     /// Run the mocker
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
@@ -165,17 +184,23 @@ impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
 #[derive(Debug)]
 struct MockWriter<T: Debug + Send + 'static> {
     data: Vec<T>,
+    tags: Vec<ItemTag>,
 }
 
 impl<T: Debug + Send + 'static> MockWriter<T> {
     pub fn new(size: usize) -> Self {
         MockWriter::<T> {
             data: Vec::with_capacity(size),
+            tags: Vec::new(),
         }
     }
 
     pub fn get(&mut self) -> Vec<T> {
         std::mem::take(&mut self.data)
+    }
+
+    pub fn tags(&self) -> &[ItemTag] {
+        &self.tags
     }
 }
 
@@ -192,10 +217,11 @@ impl<T: Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
         self
     }
 
-    fn produce(&mut self, amount: usize, _tags: Vec<ItemTag>) {
+    fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
         unsafe {
             self.data.set_len(self.data.len() + amount);
         }
+        self.tags.extend(tags);
     }
 
     fn bytes(&mut self) -> (*mut u8, usize) {
