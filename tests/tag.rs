@@ -26,9 +26,9 @@ fn tags_through_mock() -> Result<()> {
             tag: Tag::Id(555),
         },
     ];
-
+    mock.init_output::<f32>(0, input.len() * 2);
+    mock.input(0, input.clone());
     mock.input_with_tags(0, input, tags.clone());
-    mock.init_output::<f32>(0, 1024);
     mock.run();
 
     let out_tags = mock.output_tags::<f32>(0);
@@ -36,7 +36,7 @@ fn tags_through_mock() -> Result<()> {
     assert_eq!(out_tags.len(), 3);
 
     for (i, tag) in tags.iter().enumerate() {
-        assert_eq!(out_tags[i].index, tag.index);
+        assert_eq!(out_tags[i].index, tag.index + 1024);
         let Tag::Id(tag_id) = tag.tag else {
             unreachable!()
         };
