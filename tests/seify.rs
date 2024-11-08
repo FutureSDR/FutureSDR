@@ -1,6 +1,3 @@
-//! All tests are flagged as `#[ignore]`, `cargo test` should not be touching hardware
-//! by default.
-
 use float_cmp::assert_approx_eq;
 use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
@@ -21,11 +18,11 @@ use std::collections::HashMap;
 ///
 /// E.g. from examples/spectrum.
 #[test]
-#[ignore]
 fn builder_compat() -> Result<()> {
     futuresdr::runtime::init(); //For logging
     let mut fg = Flowgraph::new();
     let src = SourceBuilder::new()
+        .args("driver=dummy")?
         .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
@@ -43,11 +40,10 @@ fn builder_compat() -> Result<()> {
 
 /// Test basic builder style, w/ filter
 #[test]
-#[ignore]
 fn builder_compat_filter() -> Result<()> {
     let mut fg = Flowgraph::new();
     let src = SourceBuilder::new()
-        .args("soapy_driver=uhd")?
+        .args("driver=dummy")?
         .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
@@ -64,11 +60,10 @@ fn builder_compat_filter() -> Result<()> {
 }
 
 #[test]
-#[ignore]
 fn builder_config() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("soapy_driver=uhd")?;
+    let dev = seify::Device::from_args("driver=dummy")?;
     let src = SourceBuilder::new()
         .device(dev.clone())
         .channels(vec![0]) //testing, same as default
@@ -90,12 +85,11 @@ fn builder_config() -> Result<()> {
 
 /// Runtime configuration via the individual "freq" and "gain" ports
 #[test]
-#[ignore]
 fn config_freq_gain_ports() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("soapy_driver=uhd")?;
+    let dev = seify::Device::from_args("driver=dummy")?;
     let src = SourceBuilder::new()
         .device(dev.clone())
         .sample_rate(1e6)
@@ -128,11 +122,10 @@ fn config_freq_gain_ports() -> Result<()> {
 
 /// Runtime configuration via [`Pmt::MapStrPmt`] to "cmd" port
 #[test]
-#[ignore]
 fn config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=uhd")?;
+    let dev = seify::Device::from_args("driver=dummy")?;
 
     let src = SourceBuilder::new()
         .device(dev.clone())

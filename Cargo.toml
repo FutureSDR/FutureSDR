@@ -30,6 +30,7 @@ lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
 rtlsdr = ["seify/rtlsdr"]
 hackrf = ["seify/hackrfone"]
 seify = ["dep:seify"]
+seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
 tpb_scheduler = []
 vulkan = ["dep:vulkano", "dep:vulkano-shaders"]
@@ -71,7 +72,7 @@ required-features = ["tpb_scheduler"]
 
 [[test]]
 name = "seify"
-required-features = ["seify", "soapy"]
+required-features = ["seify_dummy"]
 
 [dependencies]
 anyhow = "1.0"
@@ -90,11 +91,11 @@ num_cpus = "1.16"
 once_cell = "1.19"
 rand = "0.8"
 rustfft = "6.2"
-seify = { version = "0.15", default-features = false, optional = true }
+seify = { version = "0.16", default-features = false, optional = true }
 slab = "0.4"
 spin = "0.9"
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
+thiserror = "2.0"
 tracing = { version = "0.1", features = ["log", "max_level_debug", "release_max_level_info"] }
 web-time = { version = "1.1" }
 wgpu = { version = "0.20", optional = true }
