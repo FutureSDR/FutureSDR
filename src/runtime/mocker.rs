@@ -238,10 +238,14 @@ impl<T: Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
     }
 
     fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
+        let curr_len = self.data.len();
         unsafe {
-            self.data.set_len(self.data.len() + amount);
+            self.data.set_len(curr_len + amount);
         }
-        self.tags.extend(tags);
+        self.tags.extend(tags.into_iter().map(|mut t| {
+            t.index += curr_len;
+            t
+        }));
     }
 
     fn bytes(&mut self) -> (*mut u8, usize) {
