@@ -170,12 +170,12 @@ impl Topology {
         let src_port_id = match src_port {
             PortId::Name(ref s) => src
                 .stream_output_name_to_id(s)
-                .ok_or(Error::InvalidStreamPort(src_block, src_port.clone()))?,
+                .ok_or(Error::InvalidStreamPort(src.into(), src_port.clone()))?,
             PortId::Index(i) => {
                 if i < src.stream_outputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidStreamPort(src_block, src_port));
+                    return Err(Error::InvalidStreamPort(src.into(), src_port));
                 }
             }
         };
@@ -184,12 +184,12 @@ impl Topology {
         let dst_port_id = match dst_port {
             PortId::Name(ref s) => dst
                 .stream_input_name_to_id(s)
-                .ok_or(Error::InvalidStreamPort(dst_block, dst_port.clone()))?,
+                .ok_or(Error::InvalidStreamPort(dst.into(), dst_port.clone()))?,
             PortId::Index(i) => {
                 if i < dst.stream_inputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidStreamPort(dst_block, dst_port));
+                    return Err(Error::InvalidStreamPort(dst.into(), dst_port));
                 }
             }
         };
@@ -238,24 +238,24 @@ impl Topology {
         let src_port_id = match src_port {
             PortId::Name(ref s) => src
                 .message_output_name_to_id(s)
-                .ok_or(Error::InvalidMessagePort(Some(src_block), src_port.clone()))?,
+                .ok_or(Error::InvalidMessagePort(src.into(), src_port.clone()))?,
             PortId::Index(i) => {
                 if i < src.message_outputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidMessagePort(Some(src_block), src_port.clone()));
+                    return Err(Error::InvalidMessagePort(src.into(), src_port.clone()));
                 }
             }
         };
         let dst_port_id = match dst_port {
             PortId::Name(ref s) => dst
                 .message_input_name_to_id(s)
-                .ok_or(Error::InvalidMessagePort(Some(dst_block), dst_port.clone()))?,
+                .ok_or(Error::InvalidMessagePort(dst.into(), dst_port.clone()))?,
             PortId::Index(i) => {
                 if i < dst.message_outputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidMessagePort(Some(dst_block), dst_port));
+                    return Err(Error::InvalidMessagePort(dst.into(), dst_port));
                 }
             }
         };

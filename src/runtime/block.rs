@@ -15,6 +15,7 @@ use crate::anyhow::Result;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MessageIo;
@@ -181,13 +182,19 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                 if i < mio.inputs().len() {
                     i
                 } else {
-                    return Err(Error::InvalidMessagePort(None, PortId::Index(i)));
+                    return Err(Error::InvalidMessagePort(
+                        BlockPortCtx::None,
+                        PortId::Index(i),
+                    ));
                 }
             }
             PortId::Name(n) => match mio.input_name_to_id(&n) {
                 Some(s) => s,
                 None => {
-                    return Err(Error::InvalidMessagePort(None, PortId::Name(n)));
+                    return Err(Error::InvalidMessagePort(
+                        BlockPortCtx::None,
+                        PortId::Name(n),
+                    ));
                 }
             },
         };
@@ -358,8 +365,10 @@ impl<T: Kernel + Send + 'static> TypedBlockWrapper<T> {
                                     "{}: Error in callback. Terminating.",
                                     meta.instance_name().unwrap(),
                                 );
-                                let _ = tx
-                                    .send(Err(Error::InvalidMessagePort(Some(block_id), port_id)));
+                                let _ = tx.send(Err(Error::InvalidMessagePort(
+                                    BlockPortCtx::Id(block_id),
+                                    port_id,
+                                )));
                                 main_inbox
                                     .send(FlowgraphMessage::BlockError {
                                         block_id,

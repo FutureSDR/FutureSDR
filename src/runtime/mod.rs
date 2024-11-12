@@ -5,6 +5,7 @@ use futures::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::result;
 use thiserror::Error;
 
@@ -216,11 +217,11 @@ pub enum Error {
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
     /// Message port does not exist
-    #[error("Block {0:?} does not have message port ({1:?})")]
-    InvalidMessagePort(Option<usize>, PortId),
+    #[error("Block '{0}' does not have message port '{1}'")]
+    InvalidMessagePort(BlockPortCtx, PortId),
     /// Stream port does not exist
-    #[error("Block {0} does not have stream port ({1:?})")]
-    InvalidStreamPort(usize, PortId),
+    #[error("Block '{0}' does not have stream port '{1}'")]
+    InvalidStreamPort(BlockPortCtx, PortId),
     /// Invalid Parameter
     #[error("Invalid Parameter")]
     InvalidParameter,
@@ -310,7 +311,7 @@ impl ConnectCtx {
 }
 
 impl Display for ConnectCtx {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
             "incompatible ports: {}.{}<{}> -> {}.{}<{}>",
@@ -321,5 +322,33 @@ impl Display for ConnectCtx {
             self.dst_port,
             self.dst_type
         )
+    }
+}
+
+/// Description of the [`Block`] under which an [`InvalidMessagePort`] or
+/// [`InvalidStreamPort`] error occurred.
+#[derive(Debug, Clone)]
+pub enum BlockPortCtx {
+    /// BlockId is not specified
+    None,
+    /// Block is identified by its ID in the [`Flowgraph`]
+    Id(usize),
+    /// Block is identified by its `type_name`
+    Name(String),
+}
+
+impl From<&Block> for BlockPortCtx {
+    fn from(value: &Block) -> Self {
+        BlockPortCtx::Name(value.type_name().into())
+    }
+}
+
+impl Display for BlockPortCtx {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            BlockPortCtx::None => write!(f, "<None>"),
+            BlockPortCtx::Id(id) => write!(f, "ID {id}"),
+            BlockPortCtx::Name(name) => write!(f, "{name}"),
+        }
     }
 }
