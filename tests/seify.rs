@@ -5,6 +5,7 @@ use futuresdr::async_io::block_on;
 use futuresdr::blocks::seify::*;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex;
 use futuresdr::runtime::Flowgraph;
@@ -121,9 +122,10 @@ fn config_freq_gain_ports() -> Result<()> {
     Ok(())
 }
 
-/// Runtime configuration via [`Pmt::MapStrPmt`] to "cmd" port and retrieval via "config" port
+/// Runtime configuration of [`Source`] via [`Pmt::MapStrPmt`] to `"cmd"` port
+/// and retrieval via `"config"` port
 #[test]
-fn config_cmd_map() -> Result<()> {
+fn src_config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let dev = seify::Device::from_args("driver=dummy")?;
@@ -161,6 +163,57 @@ fn config_cmd_map() -> Result<()> {
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
 
     let conf = block_on(fg_handle.callback(src, cfg_port_id, Pmt::Ok))?;
+
+    match conf {
+        Pmt::MapStrPmt(m) => {
+            assert_eq!(m.get("freq").unwrap(), &Pmt::F64(102e6));
+            assert_eq!(m.get("sample_rate").unwrap(), &Pmt::F64(1e6));
+        }
+        o => panic!("unexpected pmt type {o:?}"),
+    }
+    Ok(())
+}
+
+/// Runtime configuration of [`Sink`] via [`Pmt::MapStrPmt`] to `"cmd"` port
+/// and retrieval via `"config"` port
+#[test]
+fn sink_config_cmd_map() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let dev = seify::Device::from_args("driver=dummy")?;
+
+    let snk = SinkBuilder::new()
+        .device(dev.clone())
+        .sample_rate(1e6)
+        .frequency(100e6)
+        .gain(1.0)
+        .build()?;
+    let cmd_port_id = snk
+        .message_input_name_to_id("cmd")
+        .context("command port")?;
+    let cfg_port_id = snk
+        .message_input_name_to_id("config")
+        .context("command port")?;
+
+    let src = NullSource::<Complex<f32>>::new();
+
+    connect!(fg, src > snk);
+
+    let rt = Runtime::new();
+    let (_, mut fg_handle) = rt.start_sync(fg);
+
+    block_on(async {
+        let pmt = Pmt::MapStrPmt(HashMap::from([
+            ("freq".to_owned(), Pmt::F64(102e6)),
+            ("sample_rate".to_owned(), Pmt::F32(1e6)),
+        ]));
+        fg_handle.callback(snk, cmd_port_id, pmt).await.unwrap();
+    });
+
+    assert_approx_eq!(f64, dev.frequency(Tx, 0)?, 102e6, epsilon = 0.1);
+    assert_approx_eq!(f64, dev.sample_rate(Tx, 0)?, 1e6);
+
+    let conf = block_on(fg_handle.callback(snk, cfg_port_id, Pmt::Ok))?;
 
     match conf {
         Pmt::MapStrPmt(m) => {

@@ -39,7 +39,7 @@ use super::builder::BuilderType;
 ///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) set gain, or `Null` to query
 ///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
 ///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
-///     - `"config"`: (input ignored) returns the current `Config` for each channel as a `Pmt::VecPmt<Pmt::MapStrPmt>`
+///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs:
 ///     - `"terminate_out"`: `Pmt::Ok` when stream has finished
 pub struct Sink<D: DeviceTrait + Clone> {
@@ -169,14 +169,19 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         _io: &mut WorkIo,
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
-        _p: Pmt, // Input value is ignored
+        channel: Pmt,
     ) -> Result<Pmt> {
-        let mut configs = Vec::with_capacity(self.channels.len());
-        for c in &self.channels {
-            let config = Config::from(&self.dev, Tx, *c)?;
-            configs.push(config.to_serializable_pmt());
+        let id = match channel {
+            Pmt::Null | Pmt::Ok => 0,
+            Pmt::U32(id) => id as usize,
+            Pmt::U64(id) => id as usize,
+            Pmt::Usize(id) => id,
+            _ => return Ok(Pmt::InvalidValue),
+        };
+        if id >= self.channels.len() {
+            return Ok(Pmt::InvalidValue);
         }
-        Ok(Pmt::VecPmt(configs))
+        Ok(Config::from(&self.dev, Tx, id)?.to_serializable_pmt())
     }
 }
 
