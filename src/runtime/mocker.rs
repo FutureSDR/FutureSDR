@@ -40,7 +40,7 @@ impl<K: Kernel + 'static> Mocker<K> {
     {
         match self.block.sio.input(id).try_as::<MockReader<T>>() {
             Some(r) => {
-                let offset = r.data.len() - r.index;
+                let offset = r.data.len();
                 for t in tags.iter_mut() {
                     t.index += offset;
                 }
@@ -170,17 +170,12 @@ impl<K: Kernel + 'static> Mocker<K> {
 #[derive(Debug)]
 struct MockReader<T: Debug + Send + 'static> {
     data: Vec<T>,
-    index: usize,
     tags: Vec<ItemTag>,
 }
 
 impl<T: Debug + Send + 'static> MockReader<T> {
     pub fn new(data: Vec<T>, tags: Vec<ItemTag>) -> Self {
-        MockReader {
-            data,
-            index: 0,
-            tags,
-        }
+        MockReader { data, tags }
     }
 }
 
@@ -190,16 +185,14 @@ impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
         self
     }
     fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
-        unsafe {
-            (
-                self.data.as_ptr().add(self.index) as *const u8,
-                (self.data.len() - self.index) * std::mem::size_of::<T>(),
-                self.tags.clone(),
-            )
-        }
+        (
+            self.data.as_ptr() as *const u8,
+            self.data.len() * std::mem::size_of::<T>(),
+            self.tags.clone(),
+        )
     }
     fn consume(&mut self, amount: usize) {
-        self.index += amount;
+        self.data = self.data.split_off(amount);
         self.tags.retain(|x| x.index >= amount);
 
         for t in self.tags.iter_mut() {
