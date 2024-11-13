@@ -1,3 +1,4 @@
+use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSource;
@@ -10,13 +11,13 @@ use num_complex::Complex;
 use std::time::Duration;
 
 #[test]
-fn connect_type_error() {
+fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
     let fft = Fft::new(1024);
     let sink = NullSink::<[Complex<f32>; 1024]>::new();
 
-    let fft = fg.add_block(fft);
-    let sink = fg.add_block(sink);
+    let fft = fg.add_block(fft)?;
+    let sink = fg.add_block(sink)?;
 
     let result = fg.connect_stream(fft, "out", sink, "in");
     assert!(result.is_err());
@@ -30,15 +31,16 @@ fn connect_type_error() {
         }
         _ => panic!("Expected ConnectError"),
     };
+    Ok(())
 }
 
 #[test]
-fn message_invalid_in_port() {
+fn message_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add_block(source);
+    let source = fg.add_block(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add_block(sink)?;
 
     let result = fg.connect_message(source, "out", sink, "non_existent");
     assert!(result.is_err());
@@ -54,15 +56,16 @@ fn message_invalid_in_port() {
         }
         _ => panic!("Expected ConnectError"),
     };
+    Ok(())
 }
 
 #[test]
-fn message_invalid_out_port() {
+fn message_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add_block(source);
+    let source = fg.add_block(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add_block(sink)?;
 
     let result = fg.connect_message(source, "fictitious", sink, "in");
     assert!(result.is_err());
@@ -78,15 +81,16 @@ fn message_invalid_out_port() {
         }
         _ => panic!("Expected InvalidMessagePort"),
     };
+    Ok(())
 }
 
 #[test]
-fn stream_invalid_in_port() {
+fn stream_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add_block(source);
+    let source = fg.add_block(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add_block(sink)?;
 
     let result = fg.connect_stream(source, "out", sink, "non_existent");
     assert!(result.is_err());
@@ -102,15 +106,16 @@ fn stream_invalid_in_port() {
         }
         _ => panic!("Expected InvalidStreamPort"),
     };
+    Ok(())
 }
 
 #[test]
-fn stream_invalid_out_port() {
+fn stream_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add_block(source);
+    let source = fg.add_block(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add_block(sink)?;
 
     let result = fg.connect_stream(source, "fictitious", sink, "in");
     assert!(result.is_err());
@@ -126,4 +131,5 @@ fn stream_invalid_out_port() {
         }
         _ => panic!("Expected InvalidStreamPort"),
     };
+    Ok(())
 }

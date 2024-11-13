@@ -16,7 +16,7 @@ use futuresdr::runtime::WorkIo;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(CtrlPortDemo::new());
+    fg.add_block(CtrlPortDemo::new())?;
 
     Runtime::new().run(fg)?;
     Ok(())

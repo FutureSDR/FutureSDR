@@ -116,7 +116,7 @@ fn main() -> Result<()> {
         NUM_CHANNELS_PADDED,
         &channelizer_taps,
         1.0,
-    ));
+    ))?;
     for i in 0..NUM_CHANNELS_PADDED {
         fg.connect_stream(
             deinterleaver,
@@ -128,7 +128,7 @@ fn main() -> Result<()> {
     for n_out in 0..NUM_CHANNELS_PADDED {
         let n_chan = map_port(n_out);
         if n_chan.is_none() {
-            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new());
+            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new())?;
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
             fg.connect_stream(
                 channelizer,
@@ -154,7 +154,7 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|x| x as f32)
         .collect();
-        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5));
+        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5))?;
         fg.connect_stream(channelizer, format!("out{n_out}"), resampler, "in")?;
         let center_freq = CENTER_FREQS[n_chan] as f32;
         println!(
@@ -178,7 +178,7 @@ fn main() -> Result<()> {
                 None,
                 false,
                 Some(stream_start_time),
-            ));
+            ))?;
             fg.connect_stream_with_type(
                 resampler,
                 "out",
@@ -191,9 +191,9 @@ fn main() -> Result<()> {
             let deinterleaver = Deinterleaver::new(SOFT_DECODING);
             let hamming_dec = HammingDec::new(SOFT_DECODING);
             let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, sf >= 12);
-            let decoder = fg.add_block(Decoder::new());
-            let udp_data = fg.add_block(BlobToUdp::new("127.0.0.1:55555"));
-            let udp_rftap = fg.add_block(BlobToUdp::new("127.0.0.1:55556"));
+            let decoder = fg.add_block(Decoder::new())?;
+            let udp_data = fg.add_block(BlobToUdp::new("127.0.0.1:55555"))?;
+            let udp_rftap = fg.add_block(BlobToUdp::new("127.0.0.1:55556"))?;
 
             connect!(fg,
                 frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
@@ -217,7 +217,7 @@ fn main() -> Result<()> {
 
     if let Some(addr) = args.forward_addr {
         let packet_forwarder =
-            fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr));
+            fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr))?;
         for metadata_tagger in tagged_msg_out_ports {
             connect!(fg, metadata_tagger.out | packet_forwarder.in);
         }

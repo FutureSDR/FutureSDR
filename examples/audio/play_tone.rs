@@ -12,8 +12,8 @@ fn main() -> Result<()> {
         .build();
     let snk = AudioSink::new(48_000, 1);
 
-    let src = fg.add_block(src);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", snk, "in")?;
 

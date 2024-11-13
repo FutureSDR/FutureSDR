@@ -52,10 +52,10 @@ fn main() -> Result<()> {
     };
 
     let mut fg = Flowgraph::new();
-    let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]));
-    let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2));
+    let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]))?;
+    let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2))?;
     fg.connect_message(mac, "tx", encoder, "tx")?;
-    let mapper = fg.add_block(Mapper::new());
+    let mapper = fg.add_block(Mapper::new())?;
     fg.connect_stream(encoder, "out", mapper, "in")?;
     let mut fft = Fft::with_options(
         64,
@@ -64,9 +64,9 @@ fn main() -> Result<()> {
         Some((1.0f32 / 52.0).sqrt()),
     );
     fft.set_tag_propagation(Box::new(copy_tag_propagation));
-    let fft = fg.add_block(fft);
+    let fft = fg.add_block(fft)?;
     fg.connect_stream(mapper, "out", fft, "in")?;
-    let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL));
+    let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL))?;
     fg.connect_stream_with_type(
         fft,
         "out",
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
         let re = normal.sample(&mut rand::thread_rng());
         let imag = normal.sample(&mut rand::thread_rng());
         i + Complex32::new(re, imag)
-    }));
+    }))?;
     fg.connect_stream_with_type(
         prefix,
         "out",
@@ -94,51 +94,51 @@ fn main() -> Result<()> {
     // ========================================
     // Receiver
     // ========================================
-    let delay = fg.add_block(Delay::<Complex32>::new(16));
+    let delay = fg.add_block(Delay::<Complex32>::new(16))?;
     fg.connect_stream(src, "out", delay, "in")?;
 
-    let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
-    let float_avg = fg.add_block(MovingAverage::<f32>::new(64));
+    let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()))?;
+    let float_avg = fg.add_block(MovingAverage::<f32>::new(64))?;
     fg.connect_stream(src, "out", complex_to_mag_2, "in")?;
     fg.connect_stream(complex_to_mag_2, "out", float_avg, "in")?;
 
-    let mult_conj = fg.add_block(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()));
-    let complex_avg = fg.add_block(MovingAverage::<Complex32>::new(48));
+    let mult_conj = fg.add_block(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))?;
+    let complex_avg = fg.add_block(MovingAverage::<Complex32>::new(48))?;
     fg.connect_stream(src, "out", mult_conj, "in0")?;
     fg.connect_stream(delay, "out", mult_conj, "in1")?;
     fg.connect_stream(mult_conj, "out", complex_avg, "in")?;
 
-    let divide_mag = fg.add_block(Combine::new(|a: &Complex32, b: &f32| a.norm() / b));
+    let divide_mag = fg.add_block(Combine::new(|a: &Complex32, b: &f32| a.norm() / b))?;
     fg.connect_stream(complex_avg, "out", divide_mag, "in0")?;
     fg.connect_stream(float_avg, "out", divide_mag, "in1")?;
 
-    let sync_short = fg.add_block(SyncShort::new());
+    let sync_short = fg.add_block(SyncShort::new())?;
     fg.connect_stream(delay, "out", sync_short, "in_sig")?;
     fg.connect_stream(complex_avg, "out", sync_short, "in_abs")?;
     fg.connect_stream(divide_mag, "out", sync_short, "in_cor")?;
 
-    let sync_long = fg.add_block(SyncLong::new());
+    let sync_long = fg.add_block(SyncLong::new())?;
     fg.connect_stream(sync_short, "out", sync_long, "in")?;
 
     let mut fft = Fft::new(64);
     fft.set_tag_propagation(Box::new(copy_tag_propagation));
-    let fft = fg.add_block(fft);
+    let fft = fg.add_block(fft)?;
     fg.connect_stream(sync_long, "out", fft, "in")?;
 
-    let frame_equalizer = fg.add_block(FrameEqualizer::new());
+    let frame_equalizer = fg.add_block(FrameEqualizer::new())?;
     fg.connect_stream(fft, "out", frame_equalizer, "in")?;
 
-    let symbol_sink = fg.add_block(WebsocketPmtSink::new(9002));
-    let decoder = fg.add_block(Decoder::new());
+    let symbol_sink = fg.add_block(WebsocketPmtSink::new(9002))?;
+    let decoder = fg.add_block(Decoder::new())?;
     fg.connect_stream(frame_equalizer, "out", decoder, "in")?;
     fg.connect_message(frame_equalizer, "symbols", symbol_sink, "in")?;
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
-    let message_pipe = fg.add_block(MessagePipe::new(tx_frame));
+    let message_pipe = fg.add_block(MessagePipe::new(tx_frame))?;
     fg.connect_message(decoder, "rx_frames", message_pipe, "in")?;
-    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("127.0.0.1:55555"));
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("127.0.0.1:55555"))?;
     fg.connect_message(decoder, "rx_frames", blob_to_udp, "in")?;
-    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("127.0.0.1:55556"));
+    let blob_to_udp = fg.add_block(futuresdr::blocks::BlobToUdp::new("127.0.0.1:55556"))?;
     fg.connect_message(decoder, "rftap", blob_to_udp, "in")?;
 
     let rt = Runtime::new();

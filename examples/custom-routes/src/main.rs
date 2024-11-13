@@ -27,7 +27,7 @@ fn main() -> Result<()> {
             time::Duration::from_millis(100),
         )
         .build(),
-    );
+    )?;
 
     let state = WebState {
         rt: Arc::new(Mutex::new(None)),
@@ -72,7 +72,8 @@ async fn start_fg(State(ws): State<WebState>) {
         )
         .n_messages(50)
         .build(),
-    );
+    )
+    .unwrap();
     let rt_handle = ws.rt.lock().unwrap().as_ref().unwrap().clone();
     let mut fg_handle = rt_handle.start(fg).await.unwrap();
     dbg!(fg_handle.description().await.unwrap());

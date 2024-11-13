@@ -64,20 +64,20 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new());
-        let head = fg.add_block(Head::<f32>::new(samples as u64));
+        let src = fg.add_block(NullSource::<f32>::new())?;
+        let head = fg.add_block(Head::<f32>::new(samples as u64))?;
         connect(&mut fg, src, "out", head, "in", slab, buffer_size)?;
 
-        let mut last = fg.add_block(CopyRand::<f32>::new(1024));
+        let mut last = fg.add_block(CopyRand::<f32>::new(1024))?;
         connect(&mut fg, head, "out", last, "in", slab, buffer_size)?;
 
         for _ in 1..stages {
-            let block = fg.add_block(CopyRand::<f32>::new(1024));
+            let block = fg.add_block(CopyRand::<f32>::new(1024))?;
             connect(&mut fg, last, "out", block, "in", slab, buffer_size)?;
             last = block;
         }
 
-        let snk = fg.add_block(NullSink::<f32>::new());
+        let snk = fg.add_block(NullSink::<f32>::new())?;
         connect(&mut fg, last, "out", snk, "in", slab, buffer_size)?;
         snks.push(snk);
     }

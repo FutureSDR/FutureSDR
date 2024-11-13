@@ -90,11 +90,11 @@ fn main() -> Result<()> {
 
     let snk = AudioSink::new(audio_rate, 1);
 
-    let src = fg.add_block(src);
-    let freq_xlating = fg.add_block(freq_xlating);
-    let low_pass_filter = fg.add_block(low_pass_filter);
-    let weaver_ssb_decode = fg.add_block(weaver_ssb_decode);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let freq_xlating = fg.add_block(freq_xlating)?;
+    let low_pass_filter = fg.add_block(low_pass_filter)?;
+    let weaver_ssb_decode = fg.add_block(weaver_ssb_decode)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", freq_xlating, "in")?;
     fg.connect_stream(freq_xlating, "out", low_pass_filter, "in")?;

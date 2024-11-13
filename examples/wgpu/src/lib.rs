@@ -25,9 +25,9 @@ async fn run_inner() -> Result<()> {
     let mul = Wgpu::new(broker, 4096, 3, 4);
     let snk = VectorSink::<f32>::new(1024);
 
-    let src = fg.add_block(src);
-    let mul = fg.add_block(mul);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let mul = fg.add_block(mul)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream_with_type(src, "out", mul, "in", wgpu::H2D::new())?;
     fg.connect_stream_with_type(mul, "out", snk, "in", wgpu::D2H::new())?;

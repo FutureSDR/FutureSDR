@@ -23,9 +23,9 @@ fn main() -> Result<()> {
     let vulkan = VulkanBuilder::new(broker).build();
     let snk = VectorSinkBuilder::<f32>::new().build();
 
-    let src = fg.add_block(src);
-    let vulkan = fg.add_block(vulkan);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let vulkan = fg.add_block(vulkan)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream_with_type(src, "out", vulkan, "in", vulkan::H2D::new())?;
     fg.connect_stream_with_type(vulkan, "out", snk, "in", vulkan::D2H::new())?;

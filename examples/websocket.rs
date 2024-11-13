@@ -17,9 +17,9 @@ fn main() -> Result<()> {
     let throttle = Throttle::<u8>::new(100.0);
     let snk = WebsocketSinkBuilder::<u8>::new(9001).build();
 
-    let src = fg.add_block(src);
-    let throttle = fg.add_block(throttle);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let throttle = fg.add_block(throttle)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", throttle, "in")?;
     fg.connect_stream(throttle, "out", snk, "in")?;

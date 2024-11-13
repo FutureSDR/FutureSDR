@@ -249,6 +249,9 @@ pub enum Error {
     /// Seify Error
     #[error("Seify error ({0})")]
     SeifyError(String),
+    /// Duplicate block name
+    #[error("A Block with an instance name of '{0}' already exists")]
+    DuplicateBlockName(String),
 }
 
 #[cfg(feature = "seify")]

@@ -11,8 +11,8 @@ fn main() -> Result<()> {
     let inner = src.kernel::<FileSource>().unwrap();
     let snk = AudioSink::new(inner.sample_rate(), inner.channels());
 
-    let src = fg.add_block(src);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", snk, "in")?;
 

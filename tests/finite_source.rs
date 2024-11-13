@@ -10,9 +10,9 @@ use futuresdr::runtime::Runtime;
 fn finite_source_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(FiniteSource::new(|| Some(123u32)));
-    let head = fg.add_block(Head::<u32>::new(10));
-    let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build());
+    let src = fg.add_block(FiniteSource::new(|| Some(123u32)))?;
+    let head = fg.add_block(Head::<u32>::new(10))?;
+    let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build())?;
 
     fg.connect_stream(src, "out", head, "in")?;
     fg.connect_stream(head, "out", snk, "in")?;
@@ -35,8 +35,8 @@ fn finite_source_mut_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let mut v = vec![0u32, 1, 2, 3].into_iter();
-    let src = fg.add_block(FiniteSource::new(move || v.next()));
-    let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build());
+    let src = fg.add_block(FiniteSource::new(move || v.next()))?;
+    let snk = fg.add_block(VectorSinkBuilder::<u32>::new().build())?;
 
     fg.connect_stream(src, "out", snk, "in")?;
 

@@ -34,9 +34,9 @@ fn main() -> Result<()> {
     let broker = Arc::new(Broker::new());
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()));
-    let vulkan = fg.add_block(VulkanBuilder::new(broker).capacity(buffer_size).build());
-    let snk = fg.add_block(VectorSink::<f32>::new(samples));
+    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()))?;
+    let vulkan = fg.add_block(VulkanBuilder::new(broker).capacity(buffer_size).build())?;
+    let snk = fg.add_block(VectorSink::<f32>::new(samples))?;
 
     fg.connect_stream_with_type(src, "out", vulkan, "in", vulkan::H2D::new())?;
     fg.connect_stream_with_type(vulkan, "out", snk, "in", vulkan::D2H::new())?;

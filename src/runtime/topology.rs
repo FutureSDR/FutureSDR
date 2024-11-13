@@ -1,6 +1,7 @@
 use futures::channel::mpsc::Sender;
 use std::collections::HashMap;
 
+use crate::anyhow::Result;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
@@ -118,11 +119,18 @@ impl Topology {
     }
 
     /// Adds a [Block] to the [Topology] returning the `id` of the [Block] in the [Topology].
-    pub fn add_block(&mut self, mut block: Block) -> usize {
-        let block_name = block.type_name();
-        let block_id = self.blocks.vacant_key();
-        block.set_instance_name(format!("{}-{}", block_name, block_id));
-        self.blocks.insert(Some(block))
+    pub fn add_block(&mut self, mut block: Block) -> Result<usize> {
+        if let Some(name) = block.instance_name() {
+            if self.block_id(name).is_some() {
+                Err(Error::DuplicateBlockName(name.to_string()))?;
+            }
+        } else {
+            let block_name = block.type_name();
+            let block_id = self.blocks.vacant_key();
+            block.set_instance_name(format!("{}-{}", block_name, block_id));
+        }
+
+        Ok(self.blocks.insert(Some(block)))
     }
 
     /// Removes a [Block] and all edges connected to the [Block] from the [Topology].
@@ -266,7 +274,7 @@ impl Topology {
         Ok(())
     }
 
-    /// Validate flowgraph topology
+    /// Validate [Flowgraph](crate::runtime::Flowgraph) topology.
     ///
     /// Make sure that all stream ports are connected. Check if connections are valid, e.g., every
     /// stream input has exactly one connection.

@@ -40,9 +40,9 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let mac = fg.add_block(Mac::new());
-    let modulator = fg.add_block(modulator());
-    let iq_delay = fg.add_block(IqDelay::new());
+    let mac = fg.add_block(Mac::new())?;
+    let modulator = fg.add_block(modulator())?;
+    let iq_delay = fg.add_block(IqDelay::new())?;
 
     let snk = SinkBuilder::new()
         .frequency(args.freq)
@@ -52,7 +52,7 @@ fn main() -> Result<()> {
         .args(args.args)?
         .build()?;
 
-    let snk = fg.add_block(snk);
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(mac, "out", modulator, "in")?;
     fg.connect_stream(modulator, "out", iq_delay, "in")?;

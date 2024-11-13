@@ -16,19 +16,19 @@ use futuresdr::runtime::WorkIo;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
 
     let rt = Runtime::new();
     rt.start_sync(fg);
 
     let mut fg = Flowgraph::new();
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
-    fg.add_block(CtrlPortDemo::new());
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
+    fg.add_block(CtrlPortDemo::new())?;
 
     rt.run(fg)?;
 

@@ -30,7 +30,7 @@ use crate::runtime::WorkIo;
 ///
 /// let adder = fg.add_block(Combine::new(|a: &f32, b: &f32| {
 ///     a + b
-/// }));
+/// }))?;
 /// ```
 #[allow(clippy::type_complexity)]
 pub struct Combine<F, A, B, C>

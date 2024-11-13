@@ -17,7 +17,7 @@ fn create_fg() -> Flowgraph {
     let src = MessageSourceBuilder::new(Pmt::U32(123), Duration::from_millis(100))
         .n_messages(20)
         .build();
-    fg.add_block(src);
+    fg.add_block(src).unwrap();
     fg
 }
 
