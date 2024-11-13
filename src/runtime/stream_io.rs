@@ -97,14 +97,8 @@ impl StreamInput {
         self.tags.iter_mut().for_each(|x| x.index -= amount);
     }
 
-    /// Get buffer content as slice
-    pub fn slice<T>(&mut self) -> &'static [T] {
-        assert_eq!(self.type_id, TypeId::of::<T>());
-        self.slice_unchecked()
-    }
-
-    /// Get buffer content as slice without checking the type
-    pub fn slice_unchecked<T>(&mut self) -> &'static [T] {
+    /// Update current input record from reader
+    fn advance_input(&mut self) {
         if self.current.is_none() {
             let (ptr, len, tags) = self.reader.as_mut().unwrap().bytes();
             self.tags = tags;
@@ -116,7 +110,17 @@ impl StreamInput {
                 tags: self.tags.clone(),
             });
         }
+    }
 
+    /// Get buffer content as slice
+    pub fn slice<T>(&mut self) -> &'static [T] {
+        assert_eq!(self.type_id, TypeId::of::<T>());
+        self.slice_unchecked()
+    }
+
+    /// Get buffer content as slice without checking the type
+    pub fn slice_unchecked<T>(&mut self) -> &'static [T] {
+        self.advance_input();
         let c = self.current.as_ref().unwrap();
         if c.ptr.is_null() {
             &[]
@@ -145,6 +149,7 @@ impl StreamInput {
 
     /// Get [`ItemTags`](ItemTag) in buffer
     pub fn tags(&mut self) -> &mut Vec<ItemTag> {
+        self.advance_input();
         &mut self.tags
     }
 
