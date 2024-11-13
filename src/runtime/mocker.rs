@@ -40,9 +40,9 @@ impl<K: Kernel + 'static> Mocker<K> {
     {
         match self.block.sio.input(id).try_as::<MockReader<T>>() {
             Some(r) => {
-                let len = r.data.len();
+                let offset = r.data.len() - r.index;
                 for t in tags.iter_mut() {
-                    t.index += len;
+                    t.index += offset;
                 }
 
                 r.data.append(&mut data);
