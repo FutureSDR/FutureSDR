@@ -30,12 +30,17 @@ fn tags_through_mock() -> Result<()> {
     mock.init_output::<f32>(0, input.len() * 2);
     mock.input(0, input.clone());
     mock.run();
+
+    let (out_buffer, out_tags) = mock.output::<f32>(0);
+    assert_eq!(out_buffer.len(), 1024);
+    assert_eq!(out_tags.len(), 0);
+
     mock.input_with_tags(0, input, tags.clone());
     mock.run();
     mock.deinit();
 
-    let out_tags = mock.output_tags::<f32>(0);
-
+    let (out_buffer, out_tags) = mock.output::<f32>(0);
+    assert_eq!(out_buffer.len(), 2048);
     assert_eq!(out_tags.len(), 3);
 
     for (i, tag) in tags.iter().enumerate() {
@@ -45,6 +50,14 @@ fn tags_through_mock() -> Result<()> {
         };
         assert!(matches!(out_tags[i].tag, Tag::Id(t) if t == tag_id));
     }
+
+    let (out_buffer, out_tags) = mock.take_output::<f32>(0);
+    assert_eq!(out_buffer.len(), 2048);
+    assert_eq!(out_tags.len(), 3);
+
+    let (out_buffer, out_tags) = mock.output::<f32>(0);
+    assert_eq!(out_buffer.len(), 0);
+    assert_eq!(out_tags.len(), 0);
 
     Ok(())
 }
