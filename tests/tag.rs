@@ -26,11 +26,13 @@ fn tags_through_mock() -> Result<()> {
             tag: Tag::Id(555),
         },
     ];
+    mock.init();
     mock.init_output::<f32>(0, input.len() * 2);
     mock.input(0, input.clone());
     mock.run();
     mock.input_with_tags(0, input, tags.clone());
     mock.run();
+    mock.deinit();
 
     let out_tags = mock.output_tags::<f32>(0);
 

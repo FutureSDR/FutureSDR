@@ -100,10 +100,42 @@ impl<K: Kernel + 'static> Mocker<K> {
         }
     }
 
-    /// Run the mocker
+    /// Run the block wrapped by the mocker
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
         crate::async_io::block_on(self.run_async());
+    }
+
+    /// Init the block wrapped by the mocker
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn init(&mut self) {
+        crate::async_io::block_on(async {
+            self.block
+                .kernel
+                .init(
+                    &mut self.block.sio,
+                    &mut self.block.mio,
+                    &mut self.block.meta,
+                )
+                .await
+                .unwrap();
+        });
+    }
+
+    /// Deinit the block wrapped by the mocker
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn deinit(&mut self) {
+        crate::async_io::block_on(async {
+            self.block
+                .kernel
+                .deinit(
+                    &mut self.block.sio,
+                    &mut self.block.mio,
+                    &mut self.block.meta,
+                )
+                .await
+                .unwrap();
+        });
     }
 
     /// Run the mocker async
@@ -113,16 +145,6 @@ impl<K: Kernel + 'static> Mocker<K> {
             finished: false,
             block_on: None,
         };
-
-        self.block
-            .kernel
-            .init(
-                &mut self.block.sio,
-                &mut self.block.mio,
-                &mut self.block.meta,
-            )
-            .await
-            .unwrap();
 
         loop {
             self.block
@@ -142,16 +164,6 @@ impl<K: Kernel + 'static> Mocker<K> {
                 io.call_again = false;
             }
         }
-
-        self.block
-            .kernel
-            .deinit(
-                &mut self.block.sio,
-                &mut self.block.mio,
-                &mut self.block.meta,
-            )
-            .await
-            .unwrap();
     }
 }
 
