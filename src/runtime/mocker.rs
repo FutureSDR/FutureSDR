@@ -60,7 +60,7 @@ impl<K: Kernel + 'static> Mocker<K> {
     /// Initialize output buffer with given size
     pub fn init_output<T>(&mut self, id: usize, size: usize)
     where
-        T: Debug + Send + 'static,
+        T: Clone + Debug + Send + 'static,
     {
         self.block
             .sio
@@ -69,32 +69,26 @@ impl<K: Kernel + 'static> Mocker<K> {
     }
 
     /// Get data from output buffer
-    pub fn output<T>(&mut self, id: usize) -> Vec<T>
+    pub fn output<T>(&mut self, id: usize) -> (Vec<T>, Vec<ItemTag>)
     where
-        T: Debug + Send + 'static,
+        T: Clone + Debug + Send + 'static,
     {
         let w = self.block.sio.output(id).writer_mut();
         if let BufferWriter::Host(w) = w {
-            w.as_any().downcast_mut::<MockWriter<T>>().unwrap().get()
+            w.as_any().downcast_ref::<MockWriter<T>>().unwrap().get()
         } else {
             panic!("mocker: wrong output buffer (expected CPU, got Custom)");
         }
     }
 
-    /// Get the list of tags from the output buffer at `id`.
-    ///
-    /// Type parameter `T` should be the same as the type of the output buffer.
-    pub fn output_tags<T>(&mut self, id: usize) -> Vec<ItemTag>
+    /// Taking data from output buffer, freeing up the buffer
+    pub fn take_output<T>(&mut self, id: usize) -> (Vec<T>, Vec<ItemTag>)
     where
-        T: Debug + Send + 'static,
+        T: Clone + Debug + Send + 'static,
     {
         let w = self.block.sio.output(id).writer_mut();
         if let BufferWriter::Host(w) = w {
-            w.as_any()
-                .downcast_mut::<MockWriter<T>>()
-                .unwrap()
-                .tags()
-                .to_vec()
+            w.as_any().downcast_mut::<MockWriter<T>>().unwrap().take()
         } else {
             panic!("mocker: wrong output buffer (expected CPU, got Custom)");
         }
@@ -207,12 +201,12 @@ impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
 }
 
 #[derive(Debug)]
-struct MockWriter<T: Debug + Send + 'static> {
+struct MockWriter<T: Clone + Debug + Send + 'static> {
     data: Vec<T>,
     tags: Vec<ItemTag>,
 }
 
-impl<T: Debug + Send + 'static> MockWriter<T> {
+impl<T: Clone + Debug + Send + 'static> MockWriter<T> {
     pub fn new(size: usize) -> Self {
         MockWriter::<T> {
             data: Vec::with_capacity(size),
@@ -220,17 +214,20 @@ impl<T: Debug + Send + 'static> MockWriter<T> {
         }
     }
 
-    pub fn get(&mut self) -> Vec<T> {
-        std::mem::take(&mut self.data)
+    pub fn get(&self) -> (Vec<T>, Vec<ItemTag>) {
+        (self.data.clone(), self.tags.clone())
     }
 
-    pub fn tags(&self) -> &[ItemTag] {
-        &self.tags
+    pub fn take(&mut self) -> (Vec<T>, Vec<ItemTag>) {
+        let (data, tags) = self.get();
+        self.data.clear();
+        self.tags = Vec::new();
+        (data, tags)
     }
 }
 
 #[async_trait]
-impl<T: Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
+impl<T: Clone + Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
     fn add_reader(
         &mut self,
         _reader_inbox: Sender<BlockMessage>,
