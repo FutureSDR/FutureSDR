@@ -20,9 +20,9 @@ pub async fn run() -> Result<()> {
     let mul = Apply::new(|i: &f32| i * 12.0);
     let snk = VectorSinkBuilder::<f32>::new().build();
 
-    let src = fg.add_block(src);
-    let mul = fg.add_block(mul);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let mul = fg.add_block(mul)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", mul, "in")?;
     fg.connect_stream(mul, "out", snk, "in")?;

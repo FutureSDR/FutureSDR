@@ -26,10 +26,10 @@ pub fn run_fg() -> Result<()> {
     let vulkan = VulkanBuilder::new(broker).build();
     let snk = VectorSinkBuilder::<f32>::new().build();
 
-    let src = fg.add_block(src);
-    let copy = fg.add_block(copy);
-    let vulkan = fg.add_block(vulkan);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let copy = fg.add_block(copy)?;
+    let vulkan = fg.add_block(vulkan)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", copy, "in")?;
     fg.connect_stream_with_type(copy, "out", vulkan, "in", H2D::new())?;

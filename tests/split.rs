@@ -12,12 +12,12 @@ fn split_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let input = (0..10).map(|x| Complex::new(x, x + 1)).collect();
-    let src = fg.add_block(VectorSource::<Complex<i32>>::new(input));
+    let src = fg.add_block(VectorSource::<Complex<i32>>::new(input))?;
     let split = fg.add_block(Split::new(|a: &Complex<i32>| -> (i32, i32) {
         (a.re, a.im)
-    }));
-    let snk0 = fg.add_block(VectorSinkBuilder::<i32>::new().build());
-    let snk1 = fg.add_block(VectorSinkBuilder::<i32>::new().build());
+    }))?;
+    let snk0 = fg.add_block(VectorSinkBuilder::<i32>::new().build())?;
+    let snk1 = fg.add_block(VectorSinkBuilder::<i32>::new().build())?;
 
     fg.connect_stream(src, "out", split, "in")?;
     fg.connect_stream(split, "out0", snk0, "in")?;

@@ -17,10 +17,10 @@ fn flowgraph_tpb() -> Result<()> {
     let null_source = NullSource::<f32>::new();
     let vect_sink = VectorSinkBuilder::<f32>::new().build();
 
-    let copy = fg.add_block(copy);
-    let head = fg.add_block(head);
-    let null_source = fg.add_block(null_source);
-    let vect_sink = fg.add_block(vect_sink);
+    let copy = fg.add_block(copy)?;
+    let head = fg.add_block(head)?;
+    let null_source = fg.add_block(null_source)?;
+    let vect_sink = fg.add_block(vect_sink)?;
 
     fg.connect_stream(null_source, "out", head, "in")?;
     fg.connect_stream(head, "out", copy, "in")?;

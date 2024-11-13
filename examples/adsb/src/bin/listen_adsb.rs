@@ -63,8 +63,8 @@ fn main() -> Result<()> {
 
     let src = match args.file {
         Some(f) => {
-            let file_src_block = fg.add_block(FileSource::<Complex32>::new(f, false));
-            let throttle_block = fg.add_block(Throttle::<Complex32>::new(args.sample_rate));
+            let file_src_block = fg.add_block(FileSource::<Complex32>::new(f, false))?;
+            let throttle_block = fg.add_block(Throttle::<Complex32>::new(args.sample_rate))?;
             fg.connect_stream(file_src_block, "out", throttle_block, "in")?;
             throttle_block
         }
@@ -78,7 +78,7 @@ fn main() -> Result<()> {
                 .args(args.args)?
                 .build()?;
 
-            fg.add_block(src)
+            fg.add_block(src)?
         }
     };
 
@@ -97,20 +97,20 @@ fn main() -> Result<()> {
     }
     let interp_block = fg.add_block(FirBuilder::resampling::<Complex32, Complex32>(
         interp, decim,
-    ));
+    ))?;
     fg.connect_stream(src, "out", interp_block, "in")?;
 
-    let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()));
+    let complex_to_mag_2 = fg.add_block(Apply::new(|i: &Complex32| i.norm_sqr()))?;
     fg.connect_stream(interp_block, "out", complex_to_mag_2, "in")?;
 
-    let nf_est_block = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0f32 / 32.0; 32]));
+    let nf_est_block = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0f32 / 32.0; 32]))?;
     fg.connect_stream(complex_to_mag_2, "out", nf_est_block, "in")?;
 
     let preamble_taps: Vec<f32> = PreambleDetector::preamble_correlator_taps();
-    let preamble_corr_block = fg.add_block(FirBuilder::new::<f32, f32, _>(preamble_taps));
+    let preamble_corr_block = fg.add_block(FirBuilder::new::<f32, f32, _>(preamble_taps))?;
     fg.connect_stream(complex_to_mag_2, "out", preamble_corr_block, "in")?;
 
-    let preamble_detector = fg.add_block(PreambleDetector::new(args.preamble_threshold));
+    let preamble_detector = fg.add_block(PreambleDetector::new(args.preamble_threshold))?;
     fg.connect_stream(complex_to_mag_2, "out", preamble_detector, "in_samples")?;
     fg.connect_stream(nf_est_block, "out", preamble_detector, "in_nf")?;
     fg.connect_stream(
@@ -120,17 +120,17 @@ fn main() -> Result<()> {
         "in_preamble_corr",
     )?;
 
-    let adsb_demod = fg.add_block(Demodulator::new());
+    let adsb_demod = fg.add_block(Demodulator::new())?;
     fg.connect_stream(preamble_detector, "out", adsb_demod, "in")?;
 
-    let adsb_decoder = fg.add_block(Decoder::new(false));
+    let adsb_decoder = fg.add_block(Decoder::new(false))?;
     fg.connect_message(adsb_demod, "out", adsb_decoder, "in")?;
 
     let tracker = match args.lifetime {
         Some(s) => Tracker::with_pruning(Duration::from_secs(s)),
         None => Tracker::new(),
     };
-    let adsb_tracker = fg.add_block(tracker);
+    let adsb_tracker = fg.add_block(tracker)?;
     fg.connect_message(adsb_decoder, "out", adsb_tracker, "in")?;
 
     println!("Please open the map in the browser: http://127.0.0.1:1337/");

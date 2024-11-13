@@ -48,10 +48,10 @@ fn main() -> Result<()> {
 
     let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1);
 
-    let src = fg.add_block(src);
-    let resamp_block = fg.add_block(resamp_block);
-    let filter_block = fg.add_block(filter_block);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let resamp_block = fg.add_block(resamp_block)?;
+    let filter_block = fg.add_block(filter_block)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", resamp_block, "in")?;
     fg.connect_stream(resamp_block, "out", filter_block, "in")?;

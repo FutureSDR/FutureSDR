@@ -56,9 +56,9 @@ fn main() -> Result<()> {
     };
     let snk = VectorSinkBuilder::<u32>::new().init_capacity(items).build();
 
-    let src = fg.add_block(src);
-    let zynq = fg.add_block(zynq);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let zynq = fg.add_block(zynq)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream_with_type(src, "out", zynq, "in", H2D::with_size(max_bytes))?;
     fg.connect_stream_with_type(zynq, "out", snk, "in", D2H::new())?;

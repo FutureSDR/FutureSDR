@@ -39,7 +39,7 @@ struct Args {
     scheduler: Scheduler,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {args:?}");
 
@@ -59,6 +59,8 @@ fn main() {
             let _ = Runtime::with_scheduler(scheduler::FlowScheduler::new()).run(fg);
         }
     }
+
+    Ok(())
 }
 
 struct Panic {

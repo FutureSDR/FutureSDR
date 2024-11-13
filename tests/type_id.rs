@@ -7,8 +7,8 @@ use futuresdr::runtime::Flowgraph;
 fn type_id() {
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(NullSource::<f32>::new());
-    let snk = fg.add_block(NullSink::<u32>::new());
+    let src = fg.add_block(NullSource::<f32>::new()).unwrap();
+    let snk = fg.add_block(NullSink::<u32>::new()).unwrap();
 
     fg.connect_stream(src, "out", snk, "in").unwrap();
 }

@@ -41,7 +41,7 @@ impl Flowgraph {
     }
 
     /// Add [`Block`] to flowgraph
-    pub fn add_block(&mut self, block: Block) -> usize {
+    pub fn add_block(&mut self, block: Block) -> Result<usize> {
         self.topology.as_mut().unwrap().add_block(block)
     }
 

@@ -38,15 +38,15 @@ fn main() -> Result<()> {
         let mut snks = Vec::new();
 
         for _ in 0..pipes {
-            prev = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size));
+            prev = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size))?;
 
             for _ in 1..stages {
-                let block = fg.add_block(MessageCopy::new());
+                let block = fg.add_block(MessageCopy::new())?;
                 fg.connect_message(prev, "out", block, "in")?;
                 prev = block;
             }
 
-            let snk = fg.add_block(MessageSink::new());
+            let snk = fg.add_block(MessageSink::new())?;
             snks.push(snk);
             fg.connect_message(prev, "out", snk, "in")?;
         }

@@ -20,10 +20,10 @@ fn flowgraph() -> Result<()> {
     let null_source = NullSource::<f32>::new();
     let vect_sink = VectorSinkBuilder::<f32>::new().build();
 
-    let copy = fg.add_block(copy);
-    let head = fg.add_block(head);
-    let null_source = fg.add_block(null_source);
-    let vect_sink = fg.add_block(vect_sink);
+    let copy = fg.add_block(copy)?;
+    let head = fg.add_block(head)?;
+    let null_source = fg.add_block(null_source)?;
+    let vect_sink = fg.add_block(vect_sink)?;
 
     fg.connect_stream_with_type(null_source, "out", head, "in", Slab::new())?;
     fg.connect_stream_with_type(head, "out", copy, "in", Slab::new())?;
@@ -53,9 +53,9 @@ fn fg_rand_vec() -> Result<()> {
     let copy = Copy::<f32>::new();
     let snk = VectorSinkBuilder::<f32>::new().build();
 
-    let src = fg.add_block(src);
-    let copy = fg.add_block(copy);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let copy = fg.add_block(copy)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream_with_type(src, "out", copy, "in", Slab::new())?;
     fg.connect_stream_with_type(copy, "out", snk, "in", Slab::new())?;

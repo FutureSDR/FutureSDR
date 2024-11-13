@@ -112,16 +112,17 @@ pub async fn run_fg(msg: String) -> Result<()> {
     let msg: Vec<char> = msg.to_uppercase().chars().collect();
 
     let mut fg = Flowgraph::new();
-    let src = fg.add_block(VectorSource::<char>::new(msg));
-    let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1));
-    let morse = fg.add_block(ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(morse));
-    let switch_command = fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c));
+    let src = fg.add_block(VectorSource::<char>::new(msg))?;
+    let audio_snk = fg.add_block(AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1))?;
+    let morse = fg.add_block(ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(morse))?;
+    let switch_command =
+        fg.add_block(ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c))?;
     let sidetone_src = fg.add_block(
         SignalSourceBuilder::<f32>::sin(SIDETONE_FREQ, SAMPLE_RATE as f32)
             .amplitude(0.5)
             .build(),
-    );
-    let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }));
+    )?;
+    let switch_sidetone = fg.add_block(Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b }))?;
 
     fg.connect_stream(src, "out", morse, "in")?;
     fg.connect_stream(morse, "out", switch_command, "in")?;

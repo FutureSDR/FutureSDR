@@ -16,10 +16,10 @@ use futuresdr::runtime::Runtime;
 fn run_fg(n_samp: u64) -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let null_source = fg.add_block(NullSource::<f32>::new());
-    let head = fg.add_block(Head::<f32>::new(n_samp));
-    let copy = fg.add_block(Copy::<f32>::new());
-    let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build());
+    let null_source = fg.add_block(NullSource::<f32>::new())?;
+    let head = fg.add_block(Head::<f32>::new(n_samp))?;
+    let copy = fg.add_block(Copy::<f32>::new())?;
+    let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build())?;
 
     fg.connect_stream(null_source, "out", head, "in")?;
     fg.connect_stream(head, "out", copy, "in")?;
@@ -34,10 +34,10 @@ fn run_fg_timed(n_samp: u64, iters: u64) -> Result<Duration> {
     for _ in 0..iters {
         let mut fg = Flowgraph::new();
 
-        let null_source = fg.add_block(NullSource::<f32>::new());
-        let head = fg.add_block(Head::<f32>::new(n_samp));
-        let copy = fg.add_block(Copy::<f32>::new());
-        let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build());
+        let null_source = fg.add_block(NullSource::<f32>::new())?;
+        let head = fg.add_block(Head::<f32>::new(n_samp))?;
+        let copy = fg.add_block(Copy::<f32>::new())?;
+        let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build())?;
 
         fg.connect_stream(null_source, "out", head, "in")?;
         fg.connect_stream(head, "out", copy, "in")?;

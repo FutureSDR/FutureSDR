@@ -25,10 +25,10 @@ fn main() -> Result<()> {
     });
     let snk = AudioSink::new(48_000, 2);
 
-    let src = fg.add_block(src);
-    let resample = fg.add_block(resample);
-    let mono_to_stereo = fg.add_block(mono_to_stereo);
-    let snk = fg.add_block(snk);
+    let src = fg.add_block(src)?;
+    let resample = fg.add_block(resample)?;
+    let mono_to_stereo = fg.add_block(mono_to_stereo)?;
+    let snk = fg.add_block(snk)?;
 
     fg.connect_stream(src, "out", resample, "in")?;
     fg.connect_stream(resample, "out", mono_to_stereo, "in")?;

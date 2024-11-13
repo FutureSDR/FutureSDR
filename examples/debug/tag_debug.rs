@@ -25,10 +25,10 @@ fn main() -> Result<()> {
         .take(n_items)
         .collect();
 
-    let src = fg.add_block(VectorSource::new(dummy_signal));
+    let src = fg.add_block(VectorSource::new(dummy_signal))?;
     // Add a tag every 5 samples
-    let tagger = fg.add_block(PeriodicTagger::new(5));
-    let snk = fg.add_block(TagDebug::<f32>::new("PeriodicTaggerDebugger"));
+    let tagger = fg.add_block(PeriodicTagger::new(5))?;
+    let snk = fg.add_block(TagDebug::<f32>::new("PeriodicTaggerDebugger"))?;
 
     fg.connect_stream(src, "out", tagger, "in")?;
     fg.connect_stream(tagger, "out", snk, "in")?;
