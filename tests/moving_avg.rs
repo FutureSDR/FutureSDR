@@ -10,7 +10,7 @@ fn moving_avg_correct_output() {
     mocker.init_output::<f32>(0, 3);
     mocker.run();
 
-    assert_eq!(mocker.output::<f32>(0), vec![0.271, 0.542, 0.813]);
+    assert_eq!(mocker.output::<f32>(0).0, vec![0.271, 0.542, 0.813]);
 }
 
 #[test]
@@ -24,5 +24,5 @@ fn moving_avg_handles_non_finite_values() {
     mocker.init_output::<f32>(0, 3);
     mocker.run();
 
-    assert_eq!(mocker.output::<f32>(0), vec![0.271, 0.2, 0.813]);
+    assert_eq!(mocker.output::<f32>(0).0, vec![0.271, 0.2, 0.813]);
 }
