@@ -118,7 +118,7 @@ impl Topology {
     }
 
     /// Adds a [Block] to the [Topology] returning the `id` of the [Block] in the [Topology].
-    pub fn add_block(&mut self, mut block: Block) -> Result<usize, crate::runtime::Error> {
+    pub fn add_block(&mut self, mut block: Block) -> Result<usize, Error> {
         if let Some(name) = block.instance_name() {
             if self.block_id(name).is_some() {
                 return Err(Error::DuplicateBlockName(name.to_string()));

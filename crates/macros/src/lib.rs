@@ -163,19 +163,21 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     out.extend(quote! {
         use futuresdr::runtime::Block;
+        use futuresdr::runtime::Error;
         use futuresdr::runtime::Flowgraph;
+        use std::result::Result;
 
         struct FgOp;
         trait Add<T> {
-            fn add(fg: &mut Flowgraph, b: T) -> Result<usize>;
+            fn add(fg: &mut Flowgraph, b: T) -> Result<usize, Error>;
         }
         impl Add<usize> for FgOp {
-            fn add(_fg: &mut Flowgraph, b: usize) -> Result<usize> {
+            fn add(_fg: &mut Flowgraph, b: usize) -> Result<usize, Error> {
                 Ok(b)
             }
         }
         impl Add<Block> for FgOp {
-            fn add(fg: &mut Flowgraph, b: Block) -> Result<usize> {
+            fn add(fg: &mut Flowgraph, b: Block) -> Result<usize, Error> {
                 fg.add_block(b)
             }
         }
