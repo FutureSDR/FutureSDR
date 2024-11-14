@@ -1,7 +1,6 @@
 use futures::channel::mpsc::Sender;
 use std::collections::HashMap;
 
-use crate::anyhow::Result;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
@@ -119,10 +118,10 @@ impl Topology {
     }
 
     /// Adds a [Block] to the [Topology] returning the `id` of the [Block] in the [Topology].
-    pub fn add_block(&mut self, mut block: Block) -> Result<usize> {
+    pub fn add_block(&mut self, mut block: Block) -> Result<usize, crate::runtime::Error> {
         if let Some(name) = block.instance_name() {
             if self.block_id(name).is_some() {
-                Err(Error::DuplicateBlockName(name.to_string()))?;
+                return Err(Error::DuplicateBlockName(name.to_string()));
             }
         } else {
             let block_name = block.type_name();
