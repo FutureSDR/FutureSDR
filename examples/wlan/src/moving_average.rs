@@ -126,7 +126,7 @@ mod test {
         mocker.run();
         let output = mocker.output::<f32>(0);
 
-        assert_eq!(output, vec![0.0, 3.0]);
+        assert_eq!(output.0, vec![0.0, 3.0]);
     }
 
     #[test]
@@ -137,7 +137,7 @@ mod test {
         mocker.run();
         let output = mocker.output::<f32>(0);
 
-        assert_eq!(output, vec![0.0, 0.0]);
+        assert_eq!(output.0, vec![0.0, 0.0]);
     }
 
     #[test]
@@ -148,6 +148,6 @@ mod test {
         mocker.run();
         let output = mocker.output::<f32>(0);
 
-        assert_eq!(output, vec![0.0, 3.0, 5.0, 7.0]);
+        assert_eq!(output.0, vec![0.0, 3.0, 5.0, 7.0]);
     }
 }

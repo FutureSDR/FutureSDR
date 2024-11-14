@@ -17,7 +17,7 @@ fn multi_input_mock() {
     mocker.run();
     mocker.input(0, input[64..].to_vec());
     mocker.run();
-    let output = mocker.output::<u32>(0);
+    let (output, _) = mocker.output::<u32>(0);
 
     assert_eq!(input.len(), output.len());
     for (a, b) in input.iter().zip(output.iter()) {

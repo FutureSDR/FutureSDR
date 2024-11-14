@@ -15,7 +15,7 @@ fn main() {
     mocker.input(0, input.clone());
     mocker.init_output::<u32>(0, 64);
     mocker.run();
-    let output = mocker.output::<u32>(0);
+    let (output, _) = mocker.output::<u32>(0);
 
     assert_eq!(input.len(), output.len());
     for (a, b) in input.iter().zip(output.iter()) {
