@@ -85,7 +85,7 @@ impl Kernel for WebsocketPmtSink {
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(ref mut conn) = self.conn {
-            match self.pmts.pop_front() {
+            let msg = match self.pmts.pop_front() {
                 Some(Pmt::VecCF32(v)) => {
                     let v: Vec<u8> = v
                         .into_iter()
@@ -97,34 +97,73 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        let acc = Box::pin(self.listener.as_ref().context("no listener")?.accept());
-                        let send = conn.send(Message::Binary(v));
+                        Some(Message::Binary(v))
+                    } else {
+                        None
+                    }
+                }
+                Some(Pmt::VecF32(v)) => {
+                    let v: Vec<u8> = v
+                        .into_iter()
+                        .flat_map(|f| {
+                            let mut b = [0; 4];
+                            b.copy_from_slice(&f.to_le_bytes());
+                            b
+                        })
+                        .collect();
+                    if !v.is_empty() {
+                        Some(Message::Binary(v))
+                    } else {
+                        None
+                    }
+                }
+                Some(Pmt::VecU64(v)) => {
+                    let v: Vec<u8> = v
+                        .into_iter()
+                        .flat_map(|f| {
+                            let mut b = [0; 8];
+                            b.copy_from_slice(&f.to_le_bytes());
+                            b
+                        })
+                        .collect();
+                    if !v.is_empty() {
+                        Some(Message::Binary(v))
+                    } else {
+                        None
+                    }
+                }
+                Some(Pmt::Blob(b)) => Some(Message::Binary(b)),
+                Some(Pmt::String(s)) => Some(Message::Text(s)),
+                Some(p) => {
+                    warn!("WebsocketPmtSink: unsupported PMT type {:?}", p);
+                    None
+                }
+                None => None,
+            };
 
-                        match future::select(acc, send).await {
-                            Either::Left((a, _)) => {
-                                if let Ok((stream, _)) = a {
-                                    self.conn = Some(WsStream {
-                                        inner: async_tungstenite::accept_async(stream).await?,
-                                    });
-                                }
-                            }
-                            Either::Right((s, _)) => {
-                                if s.is_err() {
-                                    debug!("websocket: client disconnected");
-                                    self.conn = None;
-                                }
-                            }
+            if let Some(msg) = msg {
+                let acc = Box::pin(self.listener.as_ref().context("no listener")?.accept());
+                let send = conn.send(msg);
+
+                match future::select(acc, send).await {
+                    Either::Left((a, _)) => {
+                        if let Ok((stream, _)) = a {
+                            self.conn = Some(WsStream {
+                                inner: async_tungstenite::accept_async(stream).await?,
+                            });
                         }
-
-                        if !self.pmts.is_empty() {
-                            io.call_again = true;
+                    }
+                    Either::Right((s, _)) => {
+                        if s.is_err() {
+                            debug!("websocket: client disconnected");
+                            self.conn = None;
                         }
                     }
                 }
-                Some(p) => {
-                    warn!("WebsocketPmtSink: wrong PMT type {:?}", p);
-                }
-                _ => {}
+            }
+
+            if !self.pmts.is_empty() {
+                io.call_again = true;
             }
         } else if let Ok((stream, socket)) = self
             .listener
