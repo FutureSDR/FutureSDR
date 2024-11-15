@@ -207,7 +207,7 @@ pub enum BlockMessage {
 }
 
 /// FutureSDR Error
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
     /// Block does not exist
@@ -268,7 +268,7 @@ impl From<PmtConversionError> for Error {
 }
 
 /// Container for information supporting `ConnectError`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectCtx {
     /// Source block ID
     pub src_block_id: usize,
@@ -330,7 +330,7 @@ impl Display for ConnectCtx {
 
 /// Description of the [`Block`] under which an [`InvalidMessagePort`] or
 /// [`InvalidStreamPort`] error occurred.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockPortCtx {
     /// BlockId is not specified
     None,

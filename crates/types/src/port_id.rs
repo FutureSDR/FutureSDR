@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// Port Identifier
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PortId {
     /// Index
     Index(usize),

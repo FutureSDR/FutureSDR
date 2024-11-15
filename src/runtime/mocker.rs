@@ -1,14 +1,21 @@
+use futures::channel::mpsc::channel;
+use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
 use std::any::Any;
 use std::fmt::Debug;
 
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriterHost;
+use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
+use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
+use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
@@ -17,12 +24,28 @@ use crate::runtime::WorkIo;
 /// A harness to run a block without a runtime. Used for unit tests and benchmarking.
 pub struct Mocker<K> {
     block: TypedBlock<K>,
+    message_sinks: Vec<Receiver<BlockMessage>>,
+    messages: Vec<Vec<Pmt>>,
 }
 
 impl<K: Kernel + 'static> Mocker<K> {
     /// Create mocker
-    pub fn new(block: TypedBlock<K>) -> Self {
-        Mocker { block }
+    pub fn new(mut block: TypedBlock<K>) -> Self {
+        let mut messages = Vec::new();
+        let mut message_sinks = Vec::new();
+        let msg_len = config().queue_size;
+        for (n, p) in block.mio.outputs_mut().iter_mut().enumerate() {
+            messages.push(Vec::new());
+            let (tx, rx) = channel(msg_len);
+            message_sinks.push(rx);
+            p.connect(n, tx);
+        }
+
+        Mocker {
+            block,
+            message_sinks,
+            messages,
+        }
     }
 
     /// Add input buffer with given data
@@ -66,6 +89,31 @@ impl<K: Kernel + 'static> Mocker<K> {
             .sio
             .output(id)
             .init(BufferWriter::Host(Box::new(MockWriter::<T>::new(size))));
+    }
+
+    /// Post a PMT to a message handler of the block.
+    pub fn post(&mut self, id: PortId, p: Pmt) -> Result<Pmt, Error> {
+        let id = match id {
+            PortId::Name(ref n) => self
+                .block
+                .mio
+                .input_name_to_id(n)
+                .ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?,
+            PortId::Index(id) => id,
+        };
+
+        let mut io = WorkIo {
+            call_again: false,
+            finished: false,
+            block_on: None,
+        };
+
+        let TypedBlock {
+            meta, mio, kernel, ..
+        } = &mut self.block;
+        let h = mio.input(id).get_handler();
+        let f = (h)(kernel, &mut io, mio, meta, p);
+        async_io::block_on(f).or(Err(Error::HandlerError))
     }
 
     /// Get data from output buffer
@@ -132,6 +180,16 @@ impl<K: Kernel + 'static> Mocker<K> {
         });
     }
 
+    /// Get produced PMTs from output message ports.
+    pub fn messages(&self) -> Vec<Vec<Pmt>> {
+        self.messages.clone()
+    }
+
+    /// Take produced PMTs from output message ports.
+    pub fn take_messages(&mut self) -> Vec<Vec<Pmt>> {
+        std::mem::take(&mut self.messages)
+    }
+
     /// Run the mocker async
     pub async fn run_async(&mut self) {
         let mut io = WorkIo {
@@ -152,6 +210,18 @@ impl<K: Kernel + 'static> Mocker<K> {
                 .await
                 .unwrap();
             self.block.sio.commit();
+
+            for (n, r) in self.message_sinks.iter_mut().enumerate() {
+                while let Ok(Some(m)) = r.try_next() {
+                    match m {
+                        BlockMessage::Call { data, .. } => {
+                            self.messages[n].push(data);
+                        }
+                        _ => panic!("Mocked Block produced unexpected BlockMessage {:?}", m),
+                    }
+                }
+            }
+
             if !io.call_again {
                 break;
             } else {
