@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -116,7 +115,7 @@ mod test {
 
     #[test]
     fn mov_avg_one() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(2));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
         mocker.input(0, vec![1.0f32, 2.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();
@@ -127,7 +126,7 @@ mod test {
 
     #[test]
     fn mov_avg_no_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(3));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new(3));
         mocker.input(0, vec![1.0f32, 2.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();
@@ -138,7 +137,7 @@ mod test {
 
     #[test]
     fn mov_avg_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new_typed(2));
+        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
         mocker.input(0, vec![1.0f32, 2.0, 3.0, 4.0]);
         mocker.init_output::<f32>(0, 64);
         mocker.run();

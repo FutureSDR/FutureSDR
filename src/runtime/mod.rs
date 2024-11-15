@@ -32,6 +32,7 @@ mod logging;
 
 mod flowgraph;
 pub mod message_io;
+#[cfg(not(target_arch = "wasm32"))]
 mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
@@ -52,6 +53,7 @@ pub use message_io::MessageInput;
 pub use message_io::MessageIo;
 pub use message_io::MessageIoBuilder;
 pub use message_io::MessageOutput;
+#[cfg(not(target_arch = "wasm32"))]
 pub use mocker::Mocker;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;

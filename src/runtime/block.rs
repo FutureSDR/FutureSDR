@@ -160,6 +160,11 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
             kernel,
         }
     }
+
+    /// Set Instance name of Block.
+    pub fn set_instance_name(&mut self, name: impl Into<String>) {
+        self.meta.set_instance_name(name)
+    }
 }
 
 pub(crate) struct TypedBlockWrapper<T> {

@@ -348,6 +348,7 @@ impl StreamOutput {
     }
 
     /// Get a mutable reference to the buffer writer
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn writer_mut(&mut self) -> &mut BufferWriter {
         let w = self.writer.as_mut().unwrap();
         w

@@ -143,13 +143,11 @@ impl<K: Kernel + 'static> Mocker<K> {
     }
 
     /// Run the block wrapped by the mocker
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&mut self) {
         crate::async_io::block_on(self.run_async());
     }
 
     /// Init the block wrapped by the mocker
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn init(&mut self) {
         crate::async_io::block_on(async {
             self.block
@@ -165,7 +163,6 @@ impl<K: Kernel + 'static> Mocker<K> {
     }
 
     /// Deinit the block wrapped by the mocker
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn deinit(&mut self) {
         crate::async_io::block_on(async {
             self.block
