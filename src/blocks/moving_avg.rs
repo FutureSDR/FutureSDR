@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -25,22 +24,7 @@ pub struct MovingAvg<const WIDTH: usize> {
 }
 
 impl<const WIDTH: usize> MovingAvg<WIDTH> {
-    /// Instantiate moving average as a [`Block`].
-    ///
-    /// # Arguments
-    ///
-    /// * `decay_factor`: amount current value should contribute to the rolling average.
-    ///    Must be in `[0.0, 1.0]`.
-    /// * `history_size`: number of chunks to average over
-    ///
-    /// Typical parameter values might be `decay_factor=0.1` and `history_size=3`
-    /// # Panics
-    /// Function will panic if `decay_factor` is not in `[0.0, 1.0]`
-    pub fn new(decay_factor: f32, history_size: usize) -> Block {
-        Block::from_typed(Self::new_typed(decay_factor, history_size))
-    }
-
-    /// Instantiate moving average as a [`TypedBlock`].
+    /// Instantiate moving average.
     ///
     /// # Arguments
     ///
@@ -52,7 +36,7 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
     ///
     /// # Panics
     /// Function will panic if `decay_factor` is not in `[0.0, 1.0]`
-    pub fn new_typed(decay_factor: f32, history_size: usize) -> TypedBlock<Self> {
+    pub fn new(decay_factor: f32, history_size: usize) -> TypedBlock<Self> {
         assert!(
             (0.0..=1.0).contains(&decay_factor),
             "decay_factor must be in [0, 1]"

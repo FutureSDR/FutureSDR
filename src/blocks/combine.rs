@@ -24,13 +24,10 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Combine;
-/// use futuresdr::runtime::Flowgraph;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let adder = fg.add_block(Combine::new(|a: &f32, b: &f32| {
+/// let adder = Combine::new(|a: &f32, b: &f32| {
 ///     a + b
-/// }))?;
+/// });
 /// ```
 #[allow(clippy::type_complexity)]
 pub struct Combine<F, A, B, C>

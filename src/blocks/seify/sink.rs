@@ -10,7 +10,6 @@ use crate::anyhow::Result;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::ItemTag;
@@ -50,11 +49,7 @@ pub struct Sink<D: DeviceTrait + Clone> {
 }
 
 impl<D: DeviceTrait + Clone> Sink<D> {
-    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Block {
-        Self::new_typed(dev, channels, start_time).into()
-    }
-
-    pub(super) fn new_typed(
+    pub(super) fn new(
         dev: Device<D>,
         channels: Vec<usize>,
         start_time: Option<i64>,

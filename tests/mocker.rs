@@ -16,7 +16,7 @@ fn multi_input_mock() {
         .take(128)
         .collect();
 
-    let block = Apply::new_typed(|x: &u32| x + 1);
+    let block = Apply::new(|x: &u32| x + 1);
 
     let mut mocker = Mocker::new(block);
     mocker.input(0, input[..64].to_vec());
@@ -34,7 +34,7 @@ fn multi_input_mock() {
 
 #[test]
 fn tags_through_mock() -> Result<()> {
-    let mut noop = Apply::<_, f32, f32>::new_typed(|x| *x);
+    let mut noop = Apply::<_, f32, f32>::new(|x| *x);
     noop.sio.set_tag_propagation(Box::new(copy_tag_propagation));
 
     let mut mock = Mocker::new(noop);
@@ -91,7 +91,7 @@ fn tags_through_mock() -> Result<()> {
 
 #[test]
 fn mock_pmts() -> Result<()> {
-    let copy = MessageCopy::new_typed();
+    let copy = MessageCopy::new();
 
     let mut mock = Mocker::new(copy);
     mock.init();

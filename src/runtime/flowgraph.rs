@@ -39,8 +39,8 @@ impl Flowgraph {
     }
 
     /// Add [`Block`] to flowgraph
-    pub fn add_block(&mut self, block: Block) -> Result<usize, Error> {
-        self.topology.as_mut().unwrap().add_block(block)
+    pub fn add_block(&mut self, block: impl Into<Block>) -> Result<usize, Error> {
+        self.topology.as_mut().unwrap().add_block(block.into())
     }
 
     /// Make stream connection

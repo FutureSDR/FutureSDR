@@ -1,4 +1,3 @@
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -14,12 +13,7 @@ pub struct MessageCopy {}
 
 impl MessageCopy {
     /// Create MessageCopy block
-    pub fn new() -> Block {
-        Self::new_typed().into()
-    }
-
-    /// Create MessageCopy block
-    pub fn new_typed() -> TypedBlock<Self> {
+    pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
             BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),

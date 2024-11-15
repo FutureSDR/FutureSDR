@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -68,15 +67,7 @@ where
     ///
     /// ## Parameter
     /// - `f`: Function to apply on each sample
-    pub fn new(f: F) -> Block {
-        Block::from_typed(Self::new_typed(f))
-    }
-
-    /// Create typed [`Apply`] block
-    ///
-    /// ## Parameter
-    /// - `f`: Function to apply on each sample
-    pub fn new_typed(f: F) -> TypedBlock<Self> {
+    pub fn new(f: F) -> TypedBlock<Self> {
         TypedBlock::new(
             BlockMetaBuilder::new("Apply").build(),
             StreamIoBuilder::new()

@@ -19,11 +19,7 @@ pub struct MovingAverage {
 }
 
 impl MovingAverage {
-    pub fn new(len: usize) -> Block {
-        Block::from_typed(Self::new_typed(len))
-    }
-
-    pub fn new_typed(len: usize) -> TypedBlock<Self> {
+    pub fn new(len: usize) -> TypedBlock<Self> {
         assert!(len > 0);
         TypedBlock::new(
             BlockMetaBuilder::new("MovingAverage").build(),

@@ -3,7 +3,7 @@ use futuresdr::runtime::Mocker;
 
 #[test]
 fn moving_avg_correct_output() {
-    let block = MovingAvg::<3>::new_typed(0.1, 3);
+    let block = MovingAvg::<3>::new(0.1, 3);
     let mut mocker = Mocker::new(block);
 
     mocker.input::<f32>(0, vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
@@ -15,7 +15,7 @@ fn moving_avg_correct_output() {
 
 #[test]
 fn moving_avg_handles_non_finite_values() {
-    let block = MovingAvg::<3>::new_typed(0.1, 3);
+    let block = MovingAvg::<3>::new(0.1, 3);
     let mut mocker = Mocker::new(block);
     mocker.input::<f32>(
         0,

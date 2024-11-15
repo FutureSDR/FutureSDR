@@ -115,7 +115,7 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         match (self.dev.take(), self.builder_type) {
             (Some(dev), BuilderType::Source) => {
                 self.config.apply(&dev, &self.channels, Direction::Rx)?;
-                Ok(Source::new_typed(dev, self.channels, self.start_time))
+                Ok(Source::new(dev, self.channels, self.start_time))
             }
             _ => Err(Error::InvalidParameter),
         }
@@ -125,7 +125,7 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         match (self.dev.take(), self.builder_type) {
             (Some(dev), BuilderType::Sink) => {
                 self.config.apply(&dev, &self.channels, Direction::Tx)?;
-                Ok(Sink::new_typed(dev, self.channels, self.start_time))
+                Ok(Sink::new(dev, self.channels, self.start_time))
             }
             _ => Err(Error::InvalidParameter),
         }
@@ -136,11 +136,11 @@ impl<D: DeviceTrait + Clone> Builder<D> {
             Some(dev) => match self.builder_type {
                 BuilderType::Sink => {
                     self.config.apply(&dev, &self.channels, Direction::Tx)?;
-                    Ok(Sink::new(dev, self.channels, self.start_time))
+                    Ok(Sink::new(dev, self.channels, self.start_time).into())
                 }
                 BuilderType::Source => {
                     self.config.apply(&dev, &self.channels, Direction::Rx)?;
-                    Ok(Source::new(dev, self.channels, self.start_time))
+                    Ok(Source::new(dev, self.channels, self.start_time).into())
                 }
             },
             None => {
@@ -148,11 +148,11 @@ impl<D: DeviceTrait + Clone> Builder<D> {
                 match self.builder_type {
                     BuilderType::Sink => {
                         self.config.apply(&dev, &self.channels, Direction::Tx)?;
-                        Ok(Sink::new(dev, self.channels, self.start_time))
+                        Ok(Sink::new(dev, self.channels, self.start_time).into())
                     }
                     BuilderType::Source => {
                         self.config.apply(&dev, &self.channels, Direction::Rx)?;
-                        Ok(Source::new(dev, self.channels, self.start_time))
+                        Ok(Source::new(dev, self.channels, self.start_time).into())
                     }
                 }
             }

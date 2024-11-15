@@ -1,5 +1,11 @@
 use futures::channel::mpsc::Sender;
+use slab::Slab;
+use std::any::Any;
+use std::any::TypeId;
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferWriter;
@@ -8,12 +14,6 @@ use crate::runtime::BlockMessage;
 use crate::runtime::ConnectCtx;
 use crate::runtime::Error;
 use crate::runtime::PortId;
-use slab::Slab;
-use std::any::Any;
-use std::any::TypeId;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::hash::Hasher;
 
 pub trait BufferBuilderKey: Debug + Send + Sync {
     fn eq(&self, other: &dyn BufferBuilderKey) -> bool;

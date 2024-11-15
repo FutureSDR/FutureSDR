@@ -165,6 +165,8 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
         use futuresdr::runtime::Block;
         use futuresdr::runtime::Error;
         use futuresdr::runtime::Flowgraph;
+        use futuresdr::runtime::Kernel;
+        use futuresdr::runtime::TypedBlock;
         use std::result::Result;
 
         struct FgOp;
@@ -178,6 +180,11 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
         impl Add<Block> for FgOp {
             fn add(fg: &mut Flowgraph, b: Block) -> Result<usize, Error> {
+                fg.add_block(b)
+            }
+        }
+        impl<T: Kernel + 'static> Add<TypedBlock<T>> for FgOp {
+            fn add(fg: &mut Flowgraph, b: TypedBlock<T>) -> Result<usize, Error> {
                 fg.add_block(b)
             }
         }
