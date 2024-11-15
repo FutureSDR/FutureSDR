@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -7,6 +6,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Apply a function to split a stream.
@@ -31,8 +31,8 @@ where
     C: Send + 'static,
 {
     /// Create Split block
-    pub fn new(f: F) -> Block {
-        Block::new(
+    pub fn new(f: F) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Split").build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in")

@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -17,6 +16,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 fn partition_filter_taps(
@@ -60,7 +60,7 @@ pub struct PfbChannelizer {
 
 impl PfbChannelizer {
     /// Create Polyphase Channelizer.
-    pub fn new(nfilts: usize, taps: &[f32], oversample_rate: f32) -> Block {
+    pub fn new(nfilts: usize, taps: &[f32], oversample_rate: f32) -> TypedBlock<Self> {
         if oversample_rate == 0. || nfilts as f32 % oversample_rate != 0. {
             panic!("pfb_channelizer: oversample rate must be N/i for i in [1, N]");
         }
@@ -87,7 +87,7 @@ impl PfbChannelizer {
 
         let sio = create_sio_builder(nfilts);
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("PfbChannelizer").build(),
             sio.build(),
             MessageIoBuilder::new().build(),

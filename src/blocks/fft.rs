@@ -4,7 +4,6 @@ use std::cmp;
 use std::sync::Arc;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -13,6 +12,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Compute an FFT.
@@ -59,11 +59,11 @@ pub enum FftDirection {
 
 impl Fft {
     /// Create FFT block
-    pub fn new(len: usize) -> Block {
+    pub fn new(len: usize) -> TypedBlock<Self> {
         Self::with_direction(len, FftDirection::Forward)
     }
     /// Create FFT block with [`FftDirection`]
-    pub fn with_direction(len: usize, direction: FftDirection) -> Block {
+    pub fn with_direction(len: usize, direction: FftDirection) -> TypedBlock<Self> {
         Self::with_options(len, direction, false, None)
     }
     /// Create FFT block with options (direction, shift, normalization)
@@ -72,14 +72,14 @@ impl Fft {
         direction: FftDirection,
         fft_shift: bool,
         normalize: Option<f32>,
-    ) -> Block {
+    ) -> TypedBlock<Self> {
         let mut planner = FftPlanner::<f32>::new();
         let plan = match direction {
             FftDirection::Forward => planner.plan_fft_forward(len),
             FftDirection::Inverse => planner.plan_fft_inverse(len),
         };
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")

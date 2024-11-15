@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -7,6 +6,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 use std::marker::PhantomData;
 
@@ -29,8 +29,8 @@ impl<T: Copy + Send + 'static> CopyRand<T> {
     ///
     /// ## Parameter
     /// - `max_copy`: maximum number of samples to copy in one call of the `work()` function
-    pub fn new(max_copy: usize) -> Block {
-        Block::new(
+    pub fn new(max_copy: usize) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("CopyRand").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
@@ -104,7 +104,7 @@ impl<T: Copy + Send + 'static> CopyRandBuilder<T> {
     }
 
     /// Build [`CopyRand`] block
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<CopyRand<T>> {
         CopyRand::<T>::new(self.max_copy)
     }
 }

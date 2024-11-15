@@ -1,7 +1,6 @@
 use futures::AsyncReadExt;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -9,6 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from a file.
@@ -46,8 +46,8 @@ pub struct FileSource<T: Send + 'static> {
 
 impl<T: Send + 'static> FileSource<T> {
     /// Create FileSource block
-    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> Block {
-        Block::new(
+    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),

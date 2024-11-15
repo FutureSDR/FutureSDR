@@ -1,7 +1,6 @@
 use lttng_ust::import_tracepoints;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -9,6 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
@@ -23,8 +23,8 @@ pub struct NullSink<T: Send + 'static> {
 
 impl<T: Send + 'static> NullSink<T> {
     /// Create NullSink block
-    pub fn new(probe_granularity: u64) -> Block {
-        Block::new(
+    pub fn new(probe_granularity: u64) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("LTTngNullSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),

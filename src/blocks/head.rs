@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -7,6 +6,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Copies only a given number of samples and stops.
@@ -35,8 +35,8 @@ pub struct Head<T: Send + 'static> {
 }
 impl<T: Copy + Send + 'static> Head<T> {
     /// Create Head block
-    pub fn new(n_items: u64) -> Block {
-        Block::new(
+    pub fn new(n_items: u64) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Head").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")

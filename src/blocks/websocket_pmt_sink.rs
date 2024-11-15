@@ -17,7 +17,6 @@ use std::task::Poll;
 
 use crate::anyhow::Context as _;
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -26,6 +25,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push Samples from PMTs in a WebSocket.
@@ -38,8 +38,8 @@ pub struct WebsocketPmtSink {
 
 impl WebsocketPmtSink {
     /// Create WebsocketPmtSink block
-    pub fn new(port: u32) -> Block {
-        Block::new(
+    pub fn new(port: u32) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("WebsocketPmtSink").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::<Self>::new()

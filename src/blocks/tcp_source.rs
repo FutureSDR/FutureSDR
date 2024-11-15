@@ -4,7 +4,6 @@ use futures::AsyncReadExt;
 
 use crate::anyhow::Context;
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -12,6 +11,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from a TCP socket.
@@ -24,8 +24,8 @@ pub struct TcpSource<T: Send + 'static> {
 
 impl<T: Send + 'static> TcpSource<T> {
     /// Create TCP Source block
-    pub fn new(bind: impl Into<String>) -> Block {
-        Block::new(
+    pub fn new(bind: impl Into<String>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("TcpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),

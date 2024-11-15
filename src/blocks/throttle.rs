@@ -1,7 +1,6 @@
 use web_time::Instant;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -9,6 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Limit sample rate.
@@ -41,8 +41,8 @@ pub struct Throttle<T: Copy + Send + 'static> {
 
 impl<T: Copy + Send + 'static> Throttle<T> {
     /// Creates a new Throttle block which will throttle to the specified rate.
-    pub fn new(rate: f64) -> Block {
-        Block::new(
+    pub fn new(rate: f64) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Throttle").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")

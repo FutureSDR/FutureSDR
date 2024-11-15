@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -16,6 +15,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Polyphase Synthesizer.
@@ -29,7 +29,7 @@ pub struct PfbSynthesizer {
 
 impl PfbSynthesizer {
     /// Create Polyphase Synthesizer.
-    pub fn new(n_channels: usize, taps: &[f32]) -> Block {
+    pub fn new(n_channels: usize, taps: &[f32]) -> TypedBlock<Self> {
         let mut channelizer = PfbSynthesizer {
             fir_filters: vec![],
             taps_per_filter: 0,
@@ -52,7 +52,7 @@ impl PfbSynthesizer {
         }
         sio = sio.add_output::<Complex32>("out");
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("PfbSynthesizer").build(),
             sio.build(),
             MessageIoBuilder::new().build(),

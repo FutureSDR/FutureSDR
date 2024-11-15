@@ -2,7 +2,6 @@ use std::cmp;
 use std::ptr;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -10,6 +9,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Stream samples from vector.
@@ -20,8 +20,8 @@ pub struct VectorSource<T> {
 
 impl<T: Send + 'static> VectorSource<T> {
     /// Create VectorSource block
-    pub fn new(items: Vec<T>) -> Block {
-        Block::new(
+    pub fn new(items: Vec<T>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("VectorSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),

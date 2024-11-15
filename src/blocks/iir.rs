@@ -1,9 +1,9 @@
+#![allow(clippy::type_complexity)]
 use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -11,6 +11,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// IIR filter.
@@ -37,8 +38,8 @@ where
         StatefulFilter<InputType, OutputType, TapsType::TapType>,
 {
     /// Create IIR filter block
-    pub fn new(core: Core) -> Block {
-        Block::new(
+    pub fn new(core: Core) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Iir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
@@ -132,7 +133,10 @@ pub struct IirBuilder;
 
 impl IirBuilder {
     /// Create IIR filter builder
-    pub fn new<InputType, OutputType, TapsType>(a_taps: TapsType, b_taps: TapsType) -> Block
+    pub fn new<InputType, OutputType, TapsType>(
+        a_taps: TapsType,
+        b_taps: TapsType,
+    ) -> TypedBlock<Iir<InputType, OutputType, TapsType, IirFilter<InputType, OutputType, TapsType>>>
     where
         InputType: 'static + Send + Clone,
         OutputType: 'static + Send + Clone,

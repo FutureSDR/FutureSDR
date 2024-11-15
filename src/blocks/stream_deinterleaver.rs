@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::marker::PhantomData;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -10,6 +9,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Stream Deinterleaver
@@ -23,12 +23,12 @@ where
     T: Copy + Send + Sync + 'static,
 {
     /// Stream Deinterleaver
-    pub fn new(num_channels: usize) -> Block {
+    pub fn new(num_channels: usize) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new().add_input::<T>("in");
         for i in 0..num_channels {
             sio = sio.add_output::<T>(&format!("out{}", i));
         }
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("StreamDeinterleaver").build(),
             sio.build(),
             MessageIoBuilder::new().build(),

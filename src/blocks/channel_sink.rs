@@ -1,6 +1,5 @@
 use crate::anyhow::Result;
 use crate::futures::channel::mpsc::Sender;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -8,6 +7,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Get samples out of a Flowgraph into a channel.
@@ -35,8 +35,8 @@ pub struct ChannelSink<T: Send + 'static> {
 
 impl<T: Send + Clone + 'static> ChannelSink<T> {
     /// Create ChannelSink block
-    pub fn new(sender: Sender<Box<[T]>>) -> Block {
-        Block::new(
+    pub fn new(sender: Sender<Box<[T]>>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),

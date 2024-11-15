@@ -3,7 +3,6 @@ use std::time::Duration;
 use web_time::Instant;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -12,6 +11,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Output the same message periodically.
@@ -24,8 +24,8 @@ pub struct MessageSource {
 
 impl MessageSource {
     /// Create MessageSource block
-    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> Block {
-        Block::new(
+    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("MessageSource").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().add_output("out").build(),
@@ -135,7 +135,7 @@ impl MessageSourceBuilder {
         self
     }
     /// Build Message Source block
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<MessageSource> {
         MessageSource::new(self.message, self.duration, self.n_messages)
     }
 }

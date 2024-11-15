@@ -6,7 +6,6 @@ use futuredsp::Rotator;
 
 use crate::anyhow::Result;
 use crate::num_complex::Complex32;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -14,6 +13,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Frequency Xlating FIR filter.
@@ -24,7 +24,12 @@ pub struct XlatingFir {
 
 impl XlatingFir {
     /// Create Xlating FIR block
-    pub fn new(taps: Vec<f32>, decimation: usize, offset: f32, sample_rate: f32) -> Block {
+    pub fn new(
+        taps: Vec<f32>,
+        decimation: usize,
+        offset: f32,
+        sample_rate: f32,
+    ) -> TypedBlock<Self> {
         assert!(decimation != 0);
 
         let mut bpf_taps = Vec::new();
@@ -35,7 +40,7 @@ impl XlatingFir {
             );
         }
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
@@ -116,7 +121,7 @@ pub struct XlatingFirBuilder;
 
 impl XlatingFirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new(decimation: usize, offset: f32, sample_rate: f32) -> Block {
+    pub fn new(decimation: usize, offset: f32, sample_rate: f32) -> TypedBlock<XlatingFir> {
         assert!(decimation >= 2, "Xlating FIR: Decimation has to be >= 2");
         let transition_bw = 0.1;
         let cutoff = (0.5f64 - transition_bw - f64::EPSILON).min(1.0 / decimation as f64);
@@ -125,7 +130,12 @@ impl XlatingFirBuilder {
     }
 
     /// Create a decimating FIR filter with standard low-pass taps.
-    pub fn with_taps(taps: Vec<f32>, decimation: usize, offset: f32, sample_rate: f32) -> Block {
+    pub fn with_taps(
+        taps: Vec<f32>,
+        decimation: usize,
+        offset: f32,
+        sample_rate: f32,
+    ) -> TypedBlock<XlatingFir> {
         XlatingFir::new(taps, decimation, offset, sample_rate)
     }
 }

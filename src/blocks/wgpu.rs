@@ -17,7 +17,6 @@ use std::borrow::Cow;
 use crate::anyhow::Result;
 use crate::runtime::buffer::wgpu;
 use crate::runtime::buffer::BufferReaderCustom;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -25,6 +24,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Interface GPU w/ native API.
@@ -47,7 +47,7 @@ impl Wgpu {
         buffer_items: u64,
         n_input_buffers: usize,
         n_output_buffers: usize,
-    ) -> Block {
+    ) -> TypedBlock<Self> {
         let storage_buffer = broker.device.create_buffer(&BufferDescriptor {
             label: None,
             size: buffer_items * 4,
@@ -55,7 +55,7 @@ impl Wgpu {
             mapped_at_creation: false,
         });
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Wgpu").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")

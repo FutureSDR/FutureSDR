@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-
 use xilinx_dma::AxiDma;
 use xilinx_dma::DmaBuffer;
 
@@ -8,7 +7,6 @@ use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
 use crate::runtime::buffer::zynq::WriterD2H;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -16,6 +14,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Interface Zynq FPGA w/ AXI DMA (sync mode).
@@ -50,11 +49,11 @@ where
         dma_h2d: impl AsRef<str>,
         dma_d2h: impl AsRef<str>,
         dma_buffs: Vec<S>,
-    ) -> Result<Block> {
+    ) -> Result<TypedBlock<Self>> {
         assert!(dma_buffs.len() > 1);
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
 
-        Ok(Block::new(
+        Ok(TypedBlock::new(
             BlockMetaBuilder::new("ZynqSync").blocking().build(),
             StreamIoBuilder::new()
                 .add_input::<I>("in")

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -8,6 +7,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Forward messages.
@@ -18,8 +18,11 @@ pub struct MessageAnnotator {
 
 impl MessageAnnotator {
     /// Create MessageCopy block
-    pub fn new(annotation: HashMap<String, Pmt>, payload_field_name: Option<&str>) -> Block {
-        Block::new(
+    pub fn new(
+        annotation: HashMap<String, Pmt>,
+        payload_field_name: Option<&str>,
+    ) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()

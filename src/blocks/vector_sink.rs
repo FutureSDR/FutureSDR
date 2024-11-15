@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -9,6 +8,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Store received samples in vector.
@@ -18,8 +18,8 @@ pub struct VectorSink<T> {
 
 impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
     /// Create VectorSink block
-    pub fn new(capacity: usize) -> Block {
-        Block::new(
+    pub fn new(capacity: usize) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("VectorSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::<Self>::new().build(),
@@ -79,7 +79,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSinkBuilder<T> {
         self
     }
     /// Build VectorSink block
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<VectorSink<T>> {
         VectorSink::<T>::new(self.capacity)
     }
 }

@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use futuredsp::firdes;
 use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
@@ -10,7 +11,6 @@ use std::iter::Sum;
 use std::ops::Mul;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -18,6 +18,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// FIR filter.
@@ -42,8 +43,8 @@ where
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
 {
     /// Create FIR block
-    pub fn new(filter: Core) -> Block {
-        Block::new(
+    pub fn new(filter: Core) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
@@ -114,8 +115,8 @@ where
     Core: StatefulFilter<InputType, OutputType, TapType> + Send + 'static,
 {
     /// Create FIR block
-    pub fn new(filter: Core) -> Block {
-        Block::new(
+    pub fn new(filter: Core) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
@@ -204,7 +205,11 @@ pub struct FirBuilder;
 
 impl FirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new<InputType, OutputType, TapsType>(taps: TapsType) -> Block
+    pub fn new<InputType, OutputType, TapsType>(
+        taps: TapsType,
+    ) -> TypedBlock<
+        Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>,
+    >
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
@@ -217,7 +222,11 @@ impl FirBuilder {
     }
 
     /// Create a decimating FIR filter with standard low-pass taps.
-    pub fn decimating<InputType, OutputType, TapsType>(decim: usize) -> Block
+    pub fn decimating<InputType, OutputType, TapsType>(
+        decim: usize,
+    ) -> TypedBlock<
+        Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>,
+    >
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
@@ -232,7 +241,14 @@ impl FirBuilder {
     pub fn decimating_with_taps<InputType, OutputType, TapsType>(
         decim: usize,
         taps: TapsType,
-    ) -> Block
+    ) -> TypedBlock<
+        Fir<
+            InputType,
+            OutputType,
+            TapsType::TapType,
+            DecimatingFirFilter<InputType, OutputType, TapsType>,
+        >,
+    >
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
@@ -252,7 +268,12 @@ impl FirBuilder {
     /// Create a new rationally resampling FIR filter that changes the sampling
     /// rate by a factor `interp/decim`. The interpolation filter is constructed
     /// using default parameters.
-    pub fn resampling<InputType, OutputType>(interp: usize, decim: usize) -> Block
+    pub fn resampling<InputType, OutputType>(
+        interp: usize,
+        decim: usize,
+    ) -> TypedBlock<
+        Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>,
+    >
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
@@ -274,7 +295,14 @@ impl FirBuilder {
         interp: usize,
         decim: usize,
         taps: TapsType,
-    ) -> Block
+    ) -> TypedBlock<
+        Fir<
+            InputType,
+            OutputType,
+            TapsType::TapType,
+            PolyphaseResamplingFir<InputType, OutputType, TapsType>,
+        >,
+    >
     where
         InputType: 'static + Send,
         OutputType: 'static + Send,
@@ -291,7 +319,9 @@ impl FirBuilder {
         >::new(PolyphaseResamplingFir::new(interp, decim, taps))
     }
     /// Create a new MMSE Resampler.
-    pub fn mmse<SampleType>(ratio: f32) -> Block
+    pub fn mmse<SampleType>(
+        ratio: f32,
+    ) -> TypedBlock<StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>>
     where
         SampleType: Copy + Send + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
         MmseResampler<SampleType>: StatefulFilter<SampleType, SampleType, f32>,

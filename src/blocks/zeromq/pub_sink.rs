@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -7,6 +6,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
@@ -19,8 +19,8 @@ pub struct PubSink<T: Send + 'static> {
 
 impl<T: Send + 'static> PubSink<T> {
     /// Create PubSink
-    pub fn new(address: impl Into<String>, min_item: usize) -> Block {
-        Block::new(
+    pub fn new(address: impl Into<String>, min_item: usize) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),

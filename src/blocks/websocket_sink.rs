@@ -18,7 +18,6 @@ use std::task::Poll;
 
 use crate::anyhow::Context as _;
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -26,6 +25,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Operation mode for [WebsocketSink].
@@ -49,8 +49,8 @@ pub struct WebsocketSink<T> {
 
 impl<T: Send + Sync + 'static> WebsocketSink<T> {
     /// Create WebsocketSink block
-    pub fn new(port: u32, mode: WebsocketSinkMode) -> Block {
-        Block::new(
+    pub fn new(port: u32, mode: WebsocketSinkMode) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("WebsocketSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::<Self>::new().build(),
@@ -199,7 +199,7 @@ impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
     }
 
     /// Build WebsocketSink
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<WebsocketSink<T>> {
         WebsocketSink::<T>::new(self.port, self.mode)
     }
 }

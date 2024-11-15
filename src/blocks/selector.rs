@@ -4,7 +4,6 @@ use std::ptr;
 use std::str::FromStr;
 
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -13,6 +12,7 @@ use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Drop Policy for [`Selector`] block
@@ -84,7 +84,7 @@ where
     A: Send + 'static + Copy,
 {
     /// Create Selector block
-    pub fn new(drop_policy: DropPolicy) -> Block {
+    pub fn new(drop_policy: DropPolicy) -> TypedBlock<Self> {
         let mut stream_builder = StreamIoBuilder::new();
         for i in 0..N {
             stream_builder = stream_builder.add_input::<A>(format!("in{i}").as_str());
@@ -92,7 +92,7 @@ where
         for i in 0..M {
             stream_builder = stream_builder.add_output::<A>(format!("out{i}").as_str());
         }
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new(format!("Selector<{N}, {M}>")).build(),
             stream_builder.build(),
             MessageIoBuilder::<Self>::new()

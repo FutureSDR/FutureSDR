@@ -1,5 +1,4 @@
 use crate::anyhow::Result;
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -7,6 +6,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Drop samples, printing tags.
@@ -39,8 +39,8 @@ pub struct TagDebug<T: Send + 'static> {
 
 impl<T: Send + 'static> TagDebug<T> {
     /// Create Tag Debug block
-    pub fn new(name: impl Into<String>) -> Block {
-        Block::new(
+    pub fn new(name: impl Into<String>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("TagDebug").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),

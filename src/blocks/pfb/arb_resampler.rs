@@ -4,7 +4,6 @@ use futuredsp::FirFilter;
 use num_complex::Complex32;
 use std::cmp::min;
 
-use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -12,6 +11,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Polyphase Arbitrary Rate Resampler
@@ -94,7 +94,7 @@ impl PfbArbResampler {
 
     /// Create Arbitrary Rate Resampler.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(rate: f32, taps: &[f32], num_filters: usize) -> Block {
+    pub fn new(rate: f32, taps: &[f32], num_filters: usize) -> TypedBlock<Self> {
         let (filters, diff_filters) = Self::build_filterbank(taps, num_filters);
         let n_taps_per_filter = Self::taps_per_filter(taps.len(), num_filters);
 
@@ -103,7 +103,7 @@ impl PfbArbResampler {
 
         let starting_filter = (taps.len() / 2) % num_filters;
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("PfbArbResampler").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
