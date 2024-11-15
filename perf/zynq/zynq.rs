@@ -10,6 +10,7 @@ use futuresdr::blocks::Zynq;
 use futuresdr::blocks::ZynqSync;
 use futuresdr::runtime::buffer::zynq::D2H;
 use futuresdr::runtime::buffer::zynq::H2D;
+use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -41,18 +42,20 @@ fn main() -> Result<()> {
         .collect();
 
     let src = VectorSource::<u32>::new(orig.clone());
-    let zynq = if sync {
+    let zynq: Block = if sync {
         ZynqSync::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )?
+        .into()
     } else {
         Zynq::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )?
+        .into()
     };
     let snk = VectorSinkBuilder::<u32>::new().init_capacity(items).build();
 

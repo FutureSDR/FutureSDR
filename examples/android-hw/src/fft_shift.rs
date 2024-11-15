@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -10,6 +9,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 pub struct FftShift<T> {
@@ -18,8 +18,8 @@ pub struct FftShift<T> {
 
 impl<T: Copy + Send + 'static> FftShift<T> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> Block {
-        Block::new(
+    pub fn new() -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("FftShift").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")

@@ -9,6 +9,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
+use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 mod fxpt_phase;
@@ -35,8 +36,8 @@ where
     A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
 {
     /// Create SignalSource block
-    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> Block {
-        Block::new(
+    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("SignalSource").build(),
             StreamIoBuilder::new().add_output::<A>("out").build(),
             MessageIoBuilder::<Self>::new().build(),
@@ -160,13 +161,15 @@ impl SignalSourceBuilder<f32> {
                 nco,
                 self.amplitude,
                 self.offset,
-            ),
+            )
+            .into(),
             WaveForm::Sin => SignalSource::new(
                 |phase: FixedPointPhase| phase.sin(),
                 nco,
                 self.amplitude,
                 self.offset,
-            ),
+            )
+            .into(),
             WaveForm::Square => SignalSource::new(
                 |phase: FixedPointPhase| {
                     if phase.value < 0 {
@@ -178,7 +181,8 @@ impl SignalSourceBuilder<f32> {
                 nco,
                 self.amplitude,
                 self.offset,
-            ),
+            )
+            .into(),
         }
     }
 }
@@ -231,7 +235,8 @@ impl SignalSourceBuilder<Complex32> {
                 nco,
                 self.amplitude,
                 self.offset,
-            ),
+            )
+            .into(),
             WaveForm::Square => SignalSource::new(
                 |phase: FixedPointPhase| {
                     let t = phase.value >> 30;
@@ -246,7 +251,8 @@ impl SignalSourceBuilder<Complex32> {
                 nco,
                 self.amplitude,
                 self.offset,
-            ),
+            )
+            .into(),
         }
     }
 }

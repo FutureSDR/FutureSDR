@@ -5,7 +5,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::scheduler;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -15,6 +14,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -69,8 +69,8 @@ struct Panic {
 
 impl Panic {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(w: PanicWhere) -> Block {
-        Block::new(
+    pub fn new(w: PanicWhere) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Panic").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::<Self>::new().build(),

@@ -1,8 +1,3 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::time::Duration;
-use std::time::SystemTime;
-
 use chrono::prelude::DateTime;
 use chrono::prelude::Utc;
 use semtech_udp::client_runtime::Event;
@@ -17,6 +12,10 @@ use semtech_udp::CodingRate;
 use semtech_udp::DataRate;
 use semtech_udp::MacAddress;
 use semtech_udp::SpreadingFactor;
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::time::Duration;
+use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
@@ -26,7 +25,6 @@ use futuresdr::futures::SinkExt;
 use futuresdr::futures_lite::StreamExt;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -34,6 +32,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 /// Forward messages.
@@ -46,7 +45,7 @@ pub struct PacketForwarderClient {
 }
 
 impl PacketForwarderClient {
-    pub fn new(mac_addr: &str, server_addr: &str) -> Block {
+    pub fn new(mac_addr: &str, server_addr: &str) -> TypedBlock<Self> {
         let mac_address = MacAddress::from_str(mac_addr).unwrap();
         let (to_forwarder_sender, mut to_forwarder_receiver) = mpsc::channel::<Packet>(1);
         let host = SocketAddr::from_str(server_addr).unwrap();
@@ -96,8 +95,8 @@ impl PacketForwarderClient {
             });
         });
 
-        Block::new(
-            BlockMetaBuilder::new("MessageCopy").build(),
+        TypedBlock::new(
+            BlockMetaBuilder::new("PacketForwarder").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()
                 .add_input("in", Self::handler)

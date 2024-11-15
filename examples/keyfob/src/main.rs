@@ -8,6 +8,7 @@ use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
+use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -39,8 +40,8 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = match args.file {
-        Some(file) => FileSource::<Complex32>::new(file, false),
+    let src: Block = match args.file {
+        Some(file) => FileSource::<Complex32>::new(file, false).into(),
         None => {
             let mut src = SourceBuilder::new()
                 .sample_rate(args.sample_rate)

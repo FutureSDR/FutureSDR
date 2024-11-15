@@ -100,10 +100,14 @@ pub trait Kernel: Send {
 }
 
 #[async_trait]
+/// Block interface, implemented for [TypedBlock]s
 pub trait BlockT: Send + Any {
     // ##### BLOCK
+    /// Cast block to [std::any::Any].
     fn as_any(&self) -> &dyn Any;
+    /// Cast block to [std::any::Any] mutably.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Run the block.
     async fn run(
         &mut self,
         block_id: usize,
@@ -112,27 +116,43 @@ pub trait BlockT: Send + Any {
     ) -> Result<(), Error>;
 
     // ##### META
+    /// Get instance name (see [`BlockMeta::instance_name`])
     fn instance_name(&self) -> Option<&str>;
+    /// Set instance name (see [`BlockMeta::set_instance_name`])
     fn set_instance_name(&mut self, name: &str);
+    /// Get type name (see [`BlockMeta::type_name`])
     fn type_name(&self) -> &str;
+    /// Check whether this block is blocking.
+    ///
+    /// Blocking blocks will be spawned in a separate thread.
     fn is_blocking(&self) -> bool;
 
     // ##### STREAM IO
     #[allow(clippy::type_complexity)]
+    /// Set tag propagation function
     fn set_tag_propagation(
         &mut self,
         f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
     );
+    /// Get stream input ports
     fn stream_inputs(&self) -> &Vec<StreamInput>;
+    /// Get stream input port
     fn stream_input(&self, id: usize) -> &StreamInput;
+    /// Map stream input port name ot id
     fn stream_input_name_to_id(&self, name: &str) -> Option<usize>;
+    /// Get stream output ports
     fn stream_outputs(&self) -> &Vec<StreamOutput>;
+    /// Get stream output port
     fn stream_output(&self, id: usize) -> &StreamOutput;
+    /// Map stream output port name to id
     fn stream_output_name_to_id(&self, name: &str) -> Option<usize>;
 
     // ##### MESSAGE IO
+    /// Map message input port name to id
     fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
+    /// Get message output ports
     fn message_outputs(&self) -> &Vec<MessageOutput>;
+    /// Map message output port name to id
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 }
 
@@ -157,11 +177,6 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
             mio,
             kernel,
         }
-    }
-
-    /// Set instance name of block.
-    pub fn set_instance_name(&mut self, name: impl Into<String>) {
-        self.meta.set_instance_name(name)
     }
 
     async fn call_handler(

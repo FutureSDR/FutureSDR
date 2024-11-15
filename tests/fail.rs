@@ -2,7 +2,6 @@ use futuresdr::anyhow::bail;
 use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSink;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -12,14 +11,15 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 struct FailInit;
 
 impl FailInit {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> Block {
-        Block::new(
+    pub fn new() -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("FailInit").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().build(),
@@ -44,8 +44,8 @@ struct FailWork;
 
 impl FailWork {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> Block {
-        Block::new(
+    pub fn new() -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("FailWork").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().build(),
@@ -71,8 +71,8 @@ struct FailDeinit;
 
 impl FailDeinit {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> Block {
-        Block::new(
+    pub fn new() -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("FailDeinit").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new().build(),

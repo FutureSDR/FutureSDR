@@ -18,7 +18,6 @@ use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -30,6 +29,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 const FFT_SIZE: usize = 2048;
@@ -220,8 +220,8 @@ unsafe impl Send for Sink {}
 
 impl Sink {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(data: Vec<Rc<RefCell<Option<Vec<u8>>>>>) -> Block {
-        Block::new(
+    pub fn new(data: Vec<Rc<RefCell<Option<Vec<u8>>>>>) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Sink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
             MessageIoBuilder::new().build(),

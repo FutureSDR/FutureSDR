@@ -5,22 +5,23 @@ mod isolated_scope {
     #[test]
     fn message_handler_compiles() {
         use futuresdr::macros::message_handler;
-        use futuresdr::runtime::Block;
         use futuresdr::runtime::BlockMeta;
         use futuresdr::runtime::BlockMetaBuilder;
+        use futuresdr::runtime::BlockT;
         use futuresdr::runtime::Kernel;
         use futuresdr::runtime::MessageIo;
         use futuresdr::runtime::MessageIoBuilder;
         use futuresdr::runtime::Pmt;
         use futuresdr::runtime::StreamIoBuilder;
+        use futuresdr::runtime::TypedBlock;
         use futuresdr::runtime::WorkIo;
 
         struct MsgThing;
 
         impl MsgThing {
             #[allow(clippy::new_ret_no_self)]
-            fn new() -> Block {
-                Block::new(
+            fn new() -> TypedBlock<Self> {
+                TypedBlock::new(
                     BlockMetaBuilder::new("MsgThing").build(),
                     StreamIoBuilder::new().build(),
                     MessageIoBuilder::new()

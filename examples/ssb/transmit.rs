@@ -70,14 +70,13 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let source = FileSource::new(&cli.input);
-    let src_kernel = source.kernel::<FileSource>().unwrap();
     assert!(
-        src_kernel.channels() == 1,
+        source.kernel.channels() == 1,
         "Input audio must be mono but found {} channels",
-        src_kernel.channels()
+        source.kernel.channels()
     );
 
-    let audio_rate = src_kernel.sample_rate() as f64;
+    let audio_rate = source.kernel.sample_rate() as f64;
     let file_rate = cli.sample_rate;
 
     // Using a bandpass instead, can help to tame low frequencies bleeding

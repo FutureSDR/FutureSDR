@@ -2,7 +2,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::Integer;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -10,6 +9,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use std::collections::VecDeque;
 
@@ -1761,7 +1761,7 @@ impl SymbolSync {
         ted_gain: f32,
         max_deviation: f32,
         osps: usize,
-    ) -> Block {
+    ) -> TypedBlock<Self> {
         assert!(sps > 1.0);
         assert!(osps >= 1);
 
@@ -1804,7 +1804,7 @@ impl SymbolSync {
         s.interp.sync_reset(sps);
         // let filter_delay = (s.interp.ntaps() + 1) / 2;
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("SymbolSync").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")

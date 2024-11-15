@@ -2,7 +2,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -11,6 +10,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::info;
 use futuresdr::tracing::warn;
@@ -33,19 +33,19 @@ pub struct Tracker {
 impl Tracker {
     /// Creates a new tracker without pruning.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> Block {
+    pub fn new() -> TypedBlock<Self> {
         Tracker::new_with_optional_args(None)
     }
 
-    pub fn with_pruning(after: Duration) -> Block {
+    pub fn with_pruning(after: Duration) -> TypedBlock<Self> {
         Tracker::new_with_optional_args(Some(after))
     }
 
-    fn new_with_optional_args(prune_after: Option<Duration>) -> Block {
+    fn new_with_optional_args(prune_after: Option<Duration>) -> TypedBlock<Self> {
         let aircraft_register = AircraftRegister {
             register: HashMap::new(),
         };
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Tracker").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()

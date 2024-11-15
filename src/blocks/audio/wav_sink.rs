@@ -50,7 +50,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
         spec: hound::WavSpec,
     ) -> TypedBlock<Self> {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
-        TYpedBlock::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("WavSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),

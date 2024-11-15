@@ -4,7 +4,6 @@ use std::collections::VecDeque;
 
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -15,6 +14,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 use crate::utils::*;
@@ -47,7 +47,7 @@ pub struct HammingDec {
 }
 
 impl HammingDec {
-    pub fn new(soft_decoding: bool) -> Block {
+    pub fn new(soft_decoding: bool) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new();
         if soft_decoding {
             sio = sio.add_input::<[LLR; 8]>("in"); // In reality: cw_len = cr_app + 4  < 8
@@ -55,7 +55,7 @@ impl HammingDec {
             sio = sio.add_input::<u8>("in");
         }
         sio = sio.add_output::<u8>("out");
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("HammingDec").build(),
             sio.build(),
             MessageIoBuilder::new().add_output("out").build(),

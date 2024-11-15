@@ -2,7 +2,6 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::TagDebug;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -13,6 +12,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 fn main() -> Result<()> {
@@ -44,8 +44,8 @@ pub struct PeriodicTagger {
 
 impl PeriodicTagger {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(period: usize) -> Block {
-        Block::new(
+    pub fn new(period: usize) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("PeriodicTagger").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")

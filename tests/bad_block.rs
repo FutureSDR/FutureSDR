@@ -7,7 +7,6 @@ use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Error;
@@ -18,6 +17,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use std::cmp;
@@ -37,8 +37,8 @@ pub struct BadBlock<T> {
 }
 
 impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
-    pub fn to_block(self) -> Block {
-        Block::new(
+    pub fn to_block(self) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("BadBlock").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")

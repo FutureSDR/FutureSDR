@@ -93,7 +93,7 @@ impl<T: Send + 'static> SubSourceBuilder<T> {
     }
 
     /// Build ZMQ source
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<SubSource<T>> {
         SubSource::<T>::new(self.address)
     }
 }

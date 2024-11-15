@@ -108,7 +108,7 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
     }
 
     /// Build PubSink
-    pub fn build(self) -> Block {
+    pub fn build(self) -> TypedBlock<PubSink<T>> {
         PubSink::<T>::new(self.address, self.min_item)
     }
 }

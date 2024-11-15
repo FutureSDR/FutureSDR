@@ -23,7 +23,6 @@ use futuresdr::runtime::buffer::vulkan::BufferEmpty;
 use futuresdr::runtime::buffer::vulkan::ReaderH2D;
 use futuresdr::runtime::buffer::vulkan::WriterD2H;
 use futuresdr::runtime::buffer::BufferReaderCustom;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -31,6 +30,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 
@@ -67,13 +67,13 @@ pub struct Vulkan {
 }
 
 impl Vulkan {
-    pub fn new(broker: Arc<Broker>, capacity: u64) -> Block {
+    pub fn new(broker: Arc<Broker>, capacity: u64) -> TypedBlock<Self> {
         let memory_allocator = StandardMemoryAllocator::new_default(broker.device().clone());
         let descriptor_set_allocator = StandardDescriptorSetAllocator::new(broker.device().clone());
         let command_buffer_allocator =
             StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Vulkan").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")

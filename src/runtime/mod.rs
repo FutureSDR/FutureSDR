@@ -42,6 +42,7 @@ mod tag;
 mod topology;
 
 pub use block::Block;
+pub use block::BlockT;
 pub use block::Kernel;
 pub use block::TypedBlock;
 pub use block::WorkIo;

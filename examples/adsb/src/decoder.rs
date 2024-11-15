@@ -4,7 +4,6 @@ use futuresdr::anyhow::bail;
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -12,6 +11,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
@@ -45,8 +45,8 @@ pub struct Decoder {
 
 impl Decoder {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(forward_failed_crc: bool) -> Block {
-        Block::new(
+    pub fn new(forward_failed_crc: bool) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()

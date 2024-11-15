@@ -1,3 +1,6 @@
+use rustfft::Fft;
+use rustfft::FftDirection;
+use rustfft::FftPlanner;
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::str::FromStr;
@@ -5,16 +8,11 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use rustfft::Fft;
-use rustfft::FftDirection;
-use rustfft::FftPlanner;
-
 use futuresdr::anyhow::Result;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -24,6 +22,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
@@ -185,7 +184,7 @@ impl FrameSync {
         net_id_caching_policy: Option<&str>,
         collect_receive_statistics: bool,
         startup_timestamp: Option<SystemTime>,
-    ) -> Block {
+    ) -> TypedBlock<Self> {
         let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(net_id_caching_policy.unwrap_or("header_crc_ok")) {
             Ok(tmp) => tmp,
             Err(_) => panic!("Supplied invalid value for parameter net_id_caching_policy. Possible values: 'none', 'seen', 'header_crc_ok', 'payload_crc_ok'"),
@@ -208,7 +207,7 @@ impl FrameSync {
 
         let fft_detect = FftPlanner::new().plan_fft(m_number_of_bins_tmp, FftDirection::Forward);
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("FrameSync").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")

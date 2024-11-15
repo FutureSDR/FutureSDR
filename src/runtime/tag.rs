@@ -79,6 +79,7 @@ pub fn default_tag_propagation(_inputs: &mut [StreamInput], _outputs: &mut [Stre
 ///
 /// ```rust, no_run
 /// # use futuresdr::blocks::Fft;
+/// # use futuresdr::runtime::BlockT;
 /// # use futuresdr::runtime::copy_tag_propagation;
 /// let mut fft = Fft::new(1024);
 /// fft.set_tag_propagation(Box::new(copy_tag_propagation));

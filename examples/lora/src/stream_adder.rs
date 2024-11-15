@@ -1,6 +1,5 @@
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -8,6 +7,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use std::cmp::min;
 use std::marker::PhantomData;
@@ -22,13 +22,13 @@ impl<T> StreamAdder<T>
 where
     T: Copy + Send + Sync + Add<Output = T> + 'static,
 {
-    pub fn new(num_inputs: usize) -> Block {
+    pub fn new(num_inputs: usize) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new();
         for i in 0..num_inputs {
             sio = sio.add_input::<T>(&format!("in{}", i));
         }
         sio = sio.add_output::<T>("out");
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("StreamAdder").build(),
             sio.build(),
             MessageIoBuilder::new().build(),

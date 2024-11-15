@@ -4,7 +4,6 @@ use crate::MAX_PSDU_SIZE;
 
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -12,6 +11,7 @@ use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::warn;
@@ -22,7 +22,7 @@ pub struct Mac {
 }
 
 impl Mac {
-    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6]) -> Block {
+    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6]) -> TypedBlock<Self> {
         let mut current_frame = [0; MAX_PSDU_SIZE];
 
         // frame control
@@ -34,7 +34,7 @@ impl Mac {
         current_frame[10..16].copy_from_slice(&dst_mac);
         current_frame[16..22].copy_from_slice(&bss_mac);
 
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().build(),
             MessageIoBuilder::new()

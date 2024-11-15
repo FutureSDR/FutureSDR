@@ -1,6 +1,7 @@
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Source;
+use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -41,9 +42,9 @@ fn main() -> Result<()> {
         firdes::kaiser::bandpass::<f32>(lower_cutoff, higher_cutoff, transition_bw, max_ripple);
     println!("Filter has {} taps", filter_taps.len());
 
-    let filter_block = match enable_filter {
-        true => FirBuilder::new::<f32, f32, _>(filter_taps),
-        _ => FirBuilder::new::<f32, f32, _>([1.0_f32]),
+    let filter_block: Block = match enable_filter {
+        true => FirBuilder::new::<f32, f32, _>(filter_taps).into(),
+        _ => FirBuilder::new::<f32, f32, _>([1.0_f32]).into(),
     };
 
     let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1);

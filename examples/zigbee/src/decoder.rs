@@ -1,6 +1,5 @@
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -9,6 +8,7 @@ use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 const CHIP_MAPPING: [u32; 16] = [
@@ -56,8 +56,8 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn new(threshold: u32) -> Block {
-        Block::new(
+    pub fn new(threshold: u32) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
             MessageIoBuilder::<Self>::new().add_output("out").build(),

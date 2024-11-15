@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -13,6 +12,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::warn;
 
@@ -27,7 +27,7 @@ pub struct Deinterleaver {
 }
 
 impl Deinterleaver {
-    pub fn new(soft_decoding: bool) -> Block {
+    pub fn new(soft_decoding: bool) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new();
         if soft_decoding {
             sio = sio.add_input::<[LLR; MAX_SF]>("in");
@@ -36,7 +36,7 @@ impl Deinterleaver {
             sio = sio.add_input::<u16>("in");
             sio = sio.add_output::<u8>("out");
         }
-        Block::new(
+        TypedBlock::new(
             BlockMetaBuilder::new("Deinterleaver").build(),
             sio.build(),
             MessageIoBuilder::new().build(),

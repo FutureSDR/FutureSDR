@@ -336,5 +336,5 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
 }
 
 pub fn modulator() -> Block {
-    ApplyIntoIter::new(|i: &u8| make_nibble(i & 0x0F).chain(make_nibble(i >> 4)))
+    ApplyIntoIter::new(|i: &u8| make_nibble(i & 0x0F).chain(make_nibble(i >> 4))).into()
 }

@@ -13,12 +13,15 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = FileSource::new("rick.mp3");
-    let inner = src.kernel::<FileSource>().unwrap();
 
     // resample to 48kHz
-    let resample = FirBuilder::resampling::<f32, f32>(48_000, inner.sample_rate() as usize);
+    let resample = FirBuilder::resampling::<f32, f32>(48_000, src.kernel.sample_rate() as usize);
 
-    assert_eq!(inner.channels(), 1, "We expect mp3 to be single channel.");
+    assert_eq!(
+        src.kernel.channels(),
+        1,
+        "We expect mp3 to be single channel."
+    );
     let mono_to_stereo = ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
         d[0] = v[0] * GAIN_L;
         d[1] = v[0] * GAIN_R;

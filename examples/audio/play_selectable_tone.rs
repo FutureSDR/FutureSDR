@@ -5,6 +5,7 @@ use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Selector;
 use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
 use futuresdr::blocks::SignalSourceBuilder;
+use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;

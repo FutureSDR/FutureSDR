@@ -3,6 +3,7 @@ use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSource;
 use futuresdr::blocks::audio::FileSource;
 use futuresdr::macros::connect;
+use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
@@ -21,10 +22,10 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = if let Some(f) = args.file {
-        FileSource::new(&f)
+    let src: Block = if let Some(f) = args.file {
+        FileSource::new(&f).into()
     } else {
-        AudioSource::new(48000, 1)
+        AudioSource::new(48000, 1).into()
     };
 
     let snk = DecoderBlock::new();

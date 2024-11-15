@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
-use futuresdr::runtime::Block;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -14,6 +13,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
+use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
@@ -58,8 +58,8 @@ pub struct HeaderDecoder {
 }
 
 impl HeaderDecoder {
-    pub fn new(mode: HeaderMode, ldro_mode: bool) -> Block {
-        Block::new(
+    pub fn new(mode: HeaderMode, ldro_mode: bool) -> TypedBlock<Self> {
+        TypedBlock::new(
             BlockMetaBuilder::new("HeaderDecoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
             MessageIoBuilder::new()
