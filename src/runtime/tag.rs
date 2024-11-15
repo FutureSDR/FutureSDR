@@ -22,6 +22,9 @@ impl<T: Any + DynClone + Send + 'static> TagAny for T {
 }
 
 impl dyn TagAny {
+    pub fn is<T: TagAny>(&self) -> bool {
+        self.as_any().is::<T>()
+    }
     pub fn downcast_ref<T: TagAny>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
     }
