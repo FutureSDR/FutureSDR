@@ -558,7 +558,7 @@ pub fn message_handler(
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::anyhow::Result<Pmt>> + Send + 'a>> {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::runtime::Result<Pmt>> + Send + 'a>> {
             use crate::futures::FutureExt;
             Box::pin(async move {
                 #(#body)*
@@ -571,7 +571,7 @@ pub fn message_handler(
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::anyhow::Result<Pmt>> + 'a>> {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::runtime::Result<Pmt>> + 'a>> {
             use crate::futures::FutureExt;
             Box::pin(async move {
                 #(#body)*
@@ -648,7 +648,7 @@ pub fn message_handler_external(
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::anyhow::Result<Pmt>> + Send + 'a>> {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::runtime::Result<Pmt>> + Send + 'a>> {
             use futuresdr::futures::FutureExt;
             Box::pin(async move {
                 #(#body)*
@@ -661,7 +661,7 @@ pub fn message_handler_external(
             #mio: &'a mut MessageIo<Self>,
             #meta: &'a mut BlockMeta,
             #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::anyhow::Result<Pmt>> + 'a>> {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::runtime::Result<Pmt>> + 'a>> {
             use futuresdr::futures::FutureExt;
             Box::pin(async move {
                 #(#body)*

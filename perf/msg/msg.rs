@@ -1,13 +1,12 @@
+use anyhow::Result;
 use clap::Parser;
-use std::time;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageBurst;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use std::time;
 
 #[derive(Parser, Debug)]
 struct Args {

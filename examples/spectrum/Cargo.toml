@@ -23,6 +23,7 @@ vulkan = [ "futuresdr/vulkan", "vulkano", "vulkano-shaders"]
 wgpu = [ "futuresdr/wgpu" ]
 
 [dependencies]
+anyhow = "1.0"
 futuresdr = { path = "../.." }
 vulkano = { version = "0.34", optional = true }
 vulkano-shaders = { version = "0.34", optional = true }

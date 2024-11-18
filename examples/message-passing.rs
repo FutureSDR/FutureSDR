@@ -1,12 +1,11 @@
-use std::time;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use std::time;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

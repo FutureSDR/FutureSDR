@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;

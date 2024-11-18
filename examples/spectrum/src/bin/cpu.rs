@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;

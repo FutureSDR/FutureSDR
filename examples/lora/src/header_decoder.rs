@@ -1,7 +1,3 @@
-use std::cmp::min;
-use std::collections::HashMap;
-
-use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -10,6 +6,7 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
@@ -17,6 +14,8 @@ use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
+use std::cmp::min;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Frame {

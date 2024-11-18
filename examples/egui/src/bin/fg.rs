@@ -1,4 +1,3 @@
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
@@ -11,7 +10,7 @@ use futuresdr::runtime::Runtime;
 
 use futuresdr_egui::FFT_SIZE;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = SourceBuilder::new()

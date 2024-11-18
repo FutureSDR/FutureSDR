@@ -1,8 +1,4 @@
 use clap::Parser;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::StreamExt;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
@@ -10,12 +6,15 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
+use futuresdr::futures::channel::mpsc;
+use futuresdr::futures::StreamExt;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 
 use wlan::parse_channel;

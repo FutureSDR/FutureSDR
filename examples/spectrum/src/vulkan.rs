@@ -1,3 +1,21 @@
+use anyhow::Context;
+use futuresdr::macros::async_trait;
+use futuresdr::runtime::buffer::vulkan::Broker;
+use futuresdr::runtime::buffer::vulkan::BufferEmpty;
+use futuresdr::runtime::buffer::vulkan::ReaderH2D;
+use futuresdr::runtime::buffer::vulkan::WriterD2H;
+use futuresdr::runtime::buffer::BufferReaderCustom;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
+use futuresdr::runtime::WorkIo;
+use futuresdr::tracing::debug;
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::CpuAccessibleBuffer;
@@ -14,25 +32,6 @@ use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::{self};
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
-use futuresdr::macros::async_trait;
-use futuresdr::runtime::buffer::vulkan::Broker;
-use futuresdr::runtime::buffer::vulkan::BufferEmpty;
-use futuresdr::runtime::buffer::vulkan::ReaderH2D;
-use futuresdr::runtime::buffer::vulkan::WriterD2H;
-use futuresdr::runtime::buffer::BufferReaderCustom;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
 
 #[allow(clippy::needless_question_mark)]
 #[allow(deprecated)]

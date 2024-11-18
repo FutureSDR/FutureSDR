@@ -1,9 +1,6 @@
 mod fft_shift;
+use anyhow::Result;
 use fft_shift::FftShift;
-
-use std::env;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
@@ -14,6 +11,7 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
+use std::env;
 
 pub fn run_fg() -> Result<()> {
     futuresdr::runtime::init();

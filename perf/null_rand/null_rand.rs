@@ -1,8 +1,6 @@
+use anyhow::Context;
+use anyhow::Result;
 use clap::Parser;
-use std::time;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -12,6 +10,7 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::time;
 
 #[derive(Parser, Debug)]
 struct Args {

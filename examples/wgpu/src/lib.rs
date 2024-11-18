@@ -1,7 +1,5 @@
-use std::iter::repeat_with;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
+use anyhow::Context;
+use anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;
@@ -9,6 +7,7 @@ use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
+use std::iter::repeat_with;
 
 pub async fn run() {
     run_inner().await.unwrap()

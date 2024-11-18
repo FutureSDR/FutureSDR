@@ -1,8 +1,6 @@
+use anyhow::Result;
 use async_io::block_on;
 use async_io::Timer;
-use std::time::Duration;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::Scheduler;
@@ -11,6 +9,7 @@ use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use std::time::Duration;
 
 fn create_fg() -> Flowgraph {
     let mut fg = Flowgraph::new();

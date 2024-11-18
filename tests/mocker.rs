@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::runtime::copy_tag_propagation;

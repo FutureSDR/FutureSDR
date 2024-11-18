@@ -1,6 +1,3 @@
-use std::time;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::SignalSourceBuilder;
@@ -8,8 +5,9 @@ use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::time;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let sample_rate = 48_000.0;
     let freq = 4800.0;
     let items = 100_000_000;

@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSource;

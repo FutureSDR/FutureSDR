@@ -6,7 +6,6 @@ use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::result;
 use thiserror::Error;
 
 mod block;
@@ -75,6 +74,11 @@ pub use futuresdr_types::PortId;
 use buffer::BufferReader;
 use buffer::BufferWriter;
 
+/// Generic Result Type used for the [`Kernel`] trait.
+///
+/// At the moment, a type alias for [`anyhow::Result`].
+pub type Result<T, E = anyhow::Error> = anyhow::Result<T, E>;
+
 /// Initialize runtime
 ///
 /// This function does not have to be called. Once a [`Runtime`] is started,
@@ -117,7 +121,7 @@ pub enum FlowgraphMessage {
         /// Input data
         data: Pmt,
         /// Back channel for result
-        tx: oneshot::Sender<result::Result<(), Error>>,
+        tx: oneshot::Sender<Result<(), Error>>,
     },
     /// Call handler of block
     BlockCallback {
@@ -128,7 +132,7 @@ pub enum FlowgraphMessage {
         /// Input data
         data: Pmt,
         /// Back channel for result
-        tx: oneshot::Sender<result::Result<Pmt, Error>>,
+        tx: oneshot::Sender<Result<Pmt, Error>>,
     },
     /// Get [`FlowgraphDescription`]
     FlowgraphDescription {
@@ -140,7 +144,7 @@ pub enum FlowgraphMessage {
         /// Block Id
         block_id: usize,
         /// Back channel for result
-        tx: oneshot::Sender<result::Result<BlockDescription, Error>>,
+        tx: oneshot::Sender<Result<BlockDescription, Error>>,
     },
 }
 
@@ -205,7 +209,7 @@ pub enum BlockMessage {
         /// [`Pmt`] input data
         data: Pmt,
         /// Back channel for handler result
-        tx: oneshot::Sender<result::Result<Pmt, Error>>,
+        tx: oneshot::Sender<Result<Pmt, Error>>,
     },
 }
 

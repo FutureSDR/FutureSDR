@@ -1,4 +1,3 @@
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
@@ -15,13 +14,14 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = VectorSource::new(vec![0u32, 1, 2, 3]);

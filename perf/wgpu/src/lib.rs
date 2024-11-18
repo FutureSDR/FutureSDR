@@ -1,13 +1,12 @@
-use std::iter::repeat_with;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
+use anyhow::Context;
+use anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;
 use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
 
 #[cfg(not(target_arch = "wasm32"))]
 use futuresdr::runtime::scheduler::SmolScheduler;

@@ -40,9 +40,7 @@ enum GuiAction {
     SetFreq(u64),
 }
 
-async fn process_gui_actions(
-    mut rx: UnboundedReceiver<GuiAction>,
-) -> futuresdr::anyhow::Result<()> {
+async fn process_gui_actions(mut rx: UnboundedReceiver<GuiAction>) -> anyhow::Result<()> {
     let remote = Remote::new("http://127.0.0.1:1337");
     let fgs = remote.flowgraphs().await?;
     let sdr = &fgs[0].blocks()[0];

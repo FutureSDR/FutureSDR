@@ -1,7 +1,5 @@
-use std::iter::repeat_with;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
+use anyhow::Context;
+use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
@@ -9,6 +7,7 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
+use std::iter::repeat_with;
 
 pub async fn run() -> Result<()> {
     let n_items = 100_000;

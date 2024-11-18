@@ -1,9 +1,9 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod foo {
+    use anyhow::Result;
     use clap::Parser;
-    use futuresdr::anyhow::Result;
     use futuresdr::async_io::block_on;
 
     use cw::run_fg;
@@ -26,7 +26,7 @@ mod foo {
 
 #[cfg(target_arch = "wasm32")]
 mod foo {
-    use futuresdr::anyhow::Result;
+    use anyhow::Result;
     use leptos::html::Input;
     use leptos::*;
 

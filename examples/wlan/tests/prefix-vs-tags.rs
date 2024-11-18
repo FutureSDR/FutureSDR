@@ -1,4 +1,3 @@
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessageBurst;
@@ -9,6 +8,7 @@ use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 
 use wlan::Encoder;

@@ -15,14 +15,14 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::anyhow::Context as _;
-use crate::anyhow::Result;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Error;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
@@ -142,7 +142,12 @@ impl Kernel for WebsocketPmtSink {
             };
 
             if let Some(msg) = msg {
-                let acc = Box::pin(self.listener.as_ref().context("no listener")?.accept());
+                let acc = Box::pin(
+                    self.listener
+                        .as_ref()
+                        .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
+                        .accept(),
+                );
                 let send = conn.send(msg);
 
                 match future::select(acc, send).await {
@@ -168,7 +173,7 @@ impl Kernel for WebsocketPmtSink {
         } else if let Ok((stream, socket)) = self
             .listener
             .as_ref()
-            .context("no listener")?
+            .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
             .get_ref()
             .accept()
         {

@@ -1,3 +1,4 @@
+use futuredsp::firdes;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Source;
@@ -5,10 +6,7 @@ use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
-use futuredsp::firdes;
-use futuresdr::anyhow::Result;
-
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
     const SAMPLING_FREQ: u32 = 66_150;

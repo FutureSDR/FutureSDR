@@ -1,6 +1,4 @@
-use std::iter::repeat_with;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
@@ -10,6 +8,7 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
 
 #[test]
 fn flowgraph() -> Result<()> {

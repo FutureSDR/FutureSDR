@@ -1,8 +1,5 @@
+use anyhow::Result;
 use clap::Parser;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::StreamExt;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
@@ -10,6 +7,8 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::UdpSource;
 use futuresdr::blocks::WebsocketPmtSink;
+use futuresdr::futures::channel::mpsc;
+use futuresdr::futures::StreamExt;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::copy_tag_propagation;

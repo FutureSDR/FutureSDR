@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::zeromq::SubSourceBuilder;
 use futuresdr::blocks::FileSink;
 use futuresdr::runtime::Flowgraph;

@@ -1,5 +1,5 @@
 use androidhw::run_fg;
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 
 fn main() -> Result<()> {
     run_fg()?;

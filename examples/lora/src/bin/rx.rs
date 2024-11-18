@@ -1,7 +1,6 @@
+use anyhow::anyhow;
+use anyhow::Result;
 use clap::Parser;
-
-use futuresdr::anyhow::anyhow;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::macros::connect;

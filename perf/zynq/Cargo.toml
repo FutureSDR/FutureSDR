@@ -6,6 +6,7 @@ edition = "2021"
 [workspace]
 
 [dependencies]
+anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["zynq"] }
 rand = "0.8"

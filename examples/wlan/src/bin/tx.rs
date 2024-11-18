@@ -1,7 +1,4 @@
 use clap::Parser;
-use std::time::Duration;
-
-use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Fft;
@@ -11,7 +8,9 @@ use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
+use std::time::Duration;
 
 use wlan::parse_channel;
 use wlan::Encoder;

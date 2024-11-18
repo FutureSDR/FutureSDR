@@ -4,7 +4,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::WorkerGlobalScope;
 
-use crate::anyhow::Result;
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -12,6 +11,7 @@ use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;

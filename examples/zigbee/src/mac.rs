@@ -1,6 +1,3 @@
-use std::collections::VecDeque;
-
-use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
@@ -9,6 +6,7 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
@@ -17,6 +15,7 @@ use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
 use futuresdr::tracing::warn;
+use std::collections::VecDeque;
 
 const MAX_FRAMES: usize = 128;
 const MAX_FRAME_SIZE: usize = 127;

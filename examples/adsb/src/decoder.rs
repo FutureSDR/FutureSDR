@@ -1,7 +1,6 @@
 use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
-use futuresdr::anyhow::bail;
-use futuresdr::anyhow::Result;
+use anyhow::bail;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
@@ -10,6 +9,7 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;

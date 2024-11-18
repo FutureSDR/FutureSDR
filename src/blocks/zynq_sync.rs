@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use xilinx_dma::AxiDma;
 use xilinx_dma::DmaBuffer;
 
-use crate::anyhow::Result;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
@@ -12,6 +11,7 @@ use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;

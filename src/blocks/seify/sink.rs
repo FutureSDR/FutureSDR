@@ -5,18 +5,18 @@ use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
 
-use crate::anyhow::Context;
-use crate::anyhow::Result;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::Tag;
@@ -272,7 +272,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()
-            .context("no stream")?
+            .ok_or(Error::RuntimeError("Seify: no streamer".to_string()))?
             .activate_at(self.start_time)?;
 
         Ok(())
@@ -284,7 +284,10 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.streamer.as_mut().context("no stream")?.deactivate()?;
+        self.streamer
+            .as_mut()
+            .ok_or(Error::RuntimeError("Seify: no streamer".to_string()))?
+            .deactivate()?;
         Ok(())
     }
 }

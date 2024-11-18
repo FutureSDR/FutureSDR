@@ -9,6 +9,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+anyhow = "1.0"
 futuresdr = { path = "../..", features = ["wgpu"] }
 rand = "0.8"
 tracing = { version = "0.1", features = ["release_max_level_off"] }

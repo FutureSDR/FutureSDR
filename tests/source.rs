@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::Source;
 use futuresdr::blocks::VectorSink;

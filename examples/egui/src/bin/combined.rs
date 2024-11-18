@@ -1,10 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use anyhow::Result;
 use eframe::egui;
 use eframe::egui::mutex::Mutex;
 use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
@@ -46,7 +46,7 @@ enum GuiAction {
 async fn process_gui_actions(
     mut rx: Receiver<GuiAction>,
     mut handle: FlowgraphHandle,
-) -> futuresdr::anyhow::Result<()> {
+) -> anyhow::Result<()> {
     while let Some(m) = rx.next().await {
         match m {
             GuiAction::SetFreq(f) => {

@@ -1,11 +1,10 @@
-use std::iter::repeat_with;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Throttle;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

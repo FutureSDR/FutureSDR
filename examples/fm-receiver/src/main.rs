@@ -10,9 +10,8 @@
 //! **Watch out** though: Some frequencies (very high or very low) might be unsupported
 //! by your SDR and may cause a crash.
 
+use anyhow::Result;
 use clap::Parser;
-
-use futuresdr::anyhow::Result;
 use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::seify::SourceBuilder;

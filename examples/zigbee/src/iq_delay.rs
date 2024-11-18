@@ -1,6 +1,3 @@
-use std::collections::VecDeque;
-
-use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
@@ -9,11 +6,13 @@ use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
+use std::collections::VecDeque;
 
 #[derive(PartialEq, Eq)]
 enum State {

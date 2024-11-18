@@ -1,7 +1,5 @@
 use clap::Parser;
 use clap::ValueEnum;
-
-use futuresdr::anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::scheduler;
@@ -11,6 +9,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
