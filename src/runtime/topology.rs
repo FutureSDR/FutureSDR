@@ -1,3 +1,10 @@
+use crate::runtime::buffer::BufferBuilder;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::Block;
+use crate::runtime::BlockMessage;
+use crate::runtime::ConnectCtx;
+use crate::runtime::Error;
+use crate::runtime::PortId;
 use futures::channel::mpsc::Sender;
 use slab::Slab;
 use std::any::Any;
@@ -6,14 +13,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::hash::Hasher;
-
-use crate::runtime::buffer::BufferBuilder;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::Block;
-use crate::runtime::BlockMessage;
-use crate::runtime::ConnectCtx;
-use crate::runtime::Error;
-use crate::runtime::PortId;
 
 pub trait BufferBuilderKey: Debug + Send + Sync {
     fn eq(&self, other: &dyn BufferBuilderKey) -> bool;
@@ -95,6 +94,11 @@ impl Topology {
             stream_edges: HashMap::new(),
             message_edges: Vec::new(),
         }
+    }
+
+    /// Get an iterator over the blocks in this [`Topology`].
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.blocks.iter().filter_map(|(_, b)| b.as_ref())
     }
 
     /// Get Id of a block, given its name

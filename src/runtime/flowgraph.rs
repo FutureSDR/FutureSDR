@@ -1,10 +1,3 @@
-use futures::channel::mpsc::Sender;
-use futures::channel::oneshot;
-use futures::SinkExt;
-use std::cmp::PartialEq;
-use std::fmt::Debug;
-use std::hash::Hash;
-
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::buffer::circular::Circular;
 #[cfg(target_arch = "wasm32")]
@@ -21,11 +14,18 @@ use crate::runtime::Kernel;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Topology;
+use futures::channel::mpsc::Sender;
+use futures::channel::oneshot;
+use futures::SinkExt;
+use std::cmp::PartialEq;
+use std::fmt::Debug;
+use std::hash::Hash;
 
 /// The main component of any FutureSDR program.
 ///
 /// A [Flowgraph] is what drives the entire program. It is composed of a set of blocks and connections between them.
 /// There is at least one source and one sink in every Flowgraph.
+#[derive(Debug)]
 pub struct Flowgraph {
     pub(crate) topology: Option<Topology>,
 }
@@ -41,6 +41,15 @@ impl Flowgraph {
     /// Add [`Block`] to flowgraph
     pub fn add_block(&mut self, block: impl Into<Block>) -> Result<usize, Error> {
         self.topology.as_mut().unwrap().add_block(block.into())
+    }
+
+    /// Get an iterator over the blocks in this [`Flowgraph`].
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.topology
+            .as_ref()
+            .map(|t| t.blocks())
+            .into_iter()
+            .flatten()
     }
 
     /// Make stream connection

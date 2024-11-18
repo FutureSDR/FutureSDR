@@ -148,12 +148,28 @@ pub trait BlockT: Send + Any {
     fn stream_output_name_to_id(&self, name: &str) -> Option<usize>;
 
     // ##### MESSAGE IO
+    /// Get the names of the message input ports
+    fn message_input_names(&self) -> Vec<&str>;
     /// Map message input port name to id
     fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
     /// Get message output ports
     fn message_outputs(&self) -> &Vec<MessageOutput>;
     /// Map message output port name to id
     fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
+}
+
+impl fmt::Debug for dyn BlockT {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BlockT")
+            .field("type_name", &self.type_name())
+            .field("instance_name", &self.type_name())
+            .field("is_blocking", &self.is_blocking())
+            .field("stream_inputs", &self.stream_inputs())
+            .field("stream_outputs", &self.stream_outputs())
+            .field("message_inputs", &self.message_input_names())
+            .field("message_outputs", &self.message_outputs())
+            .finish()
+    }
 }
 
 /// Typed Block
@@ -492,6 +508,9 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
     }
 
     // ##### MESSAGE IO
+    fn message_input_names(&self) -> Vec<&str> {
+        self.mio.inputs().iter().map(|x| x.name()).collect()
+    }
     fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
         self.mio.input_name_to_id(name)
     }
@@ -644,13 +663,5 @@ impl Block {
 impl<T: Kernel + 'static> From<TypedBlock<T>> for Block {
     fn from(value: TypedBlock<T>) -> Self {
         Block::from_typed(value)
-    }
-}
-
-impl fmt::Debug for dyn BlockT {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlockT")
-            .field("type_name", &self.type_name().to_string())
-            .finish()
     }
 }

@@ -1,18 +1,17 @@
 use futuresdr::anyhow::Result;
-use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
+use futuresdr::blocks::{Copy, MessageCopy};
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr_macros::connect;
 
-#[test]
-fn flowgraph_flow() -> Result<()> {
+fn sample_fg() -> Result<(Flowgraph, usize)> {
     let mut fg = Flowgraph::new();
 
     let copy = Copy::<f32>::new();
@@ -29,6 +28,13 @@ fn flowgraph_flow() -> Result<()> {
     fg.connect_stream(head, "out", copy, "in")?;
     fg.connect_stream(copy, "out", vect_sink, "in")?;
 
+    Ok((fg, vect_sink))
+}
+
+#[test]
+fn flowgraph_flow() -> Result<()> {
+    let (mut fg, vect_sink) = sample_fg()?;
+
     fg = Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
 
     let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
@@ -43,8 +49,18 @@ fn flowgraph_flow() -> Result<()> {
 }
 
 #[test]
+fn enumerate_blocks() -> Result<()> {
+    let fg = Flowgraph::new();
+    let blocks = fg.blocks().collect::<Vec<_>>();
+    assert!(blocks.is_empty());
+    let (fg, _) = sample_fg()?;
+    let blocks = fg.blocks().collect::<Vec<_>>();
+    assert_eq!(blocks.len(), 4);
+    Ok(())
+}
+
+#[test]
 fn flowgraph_instance_name() -> Result<()> {
-    let rt = Runtime::new();
     let name = "my_special_name";
     let mut fg = Flowgraph::new();
 
@@ -52,9 +68,22 @@ fn flowgraph_instance_name() -> Result<()> {
     let sink = NullSink::<f32>::new();
     source.set_instance_name(name);
     connect!(fg, source > sink);
-    let (_th, mut fg) = rt.start_sync(fg);
 
-    let desc = rt.block_on(async move { fg.description().await })?;
-    assert_eq!(desc.blocks.first().unwrap().instance_name, name);
+    assert!(fg
+        .blocks()
+        .find(|b| b.instance_name() == Some(name))
+        .is_some());
+
+    Ok(())
+}
+
+#[test]
+fn flowgraph_debug() -> Result<()> {
+    let (fg, _) = sample_fg()?;
+
+    let dbg = format!("{:#?}", fg);
+    assert!(dbg.contains("is_blocking"), "{dbg}");
+    assert!(dbg.contains("type_name: \"Head\""), "{dbg}");
+
     Ok(())
 }
