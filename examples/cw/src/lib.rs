@@ -1,10 +1,10 @@
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use std::fmt;
 

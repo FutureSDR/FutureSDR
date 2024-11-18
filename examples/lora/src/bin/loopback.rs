@@ -1,6 +1,6 @@
+use anyhow::anyhow;
+use anyhow::Result;
 use clap::Parser;
-use futuresdr::anyhow::anyhow;
-use futuresdr::anyhow::Result;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::macros::connect;

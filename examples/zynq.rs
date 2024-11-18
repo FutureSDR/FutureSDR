@@ -1,6 +1,4 @@
-use rand::Rng;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
@@ -10,6 +8,7 @@ use futuresdr::runtime::buffer::zynq::D2H;
 use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use rand::Rng;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

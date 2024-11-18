@@ -1,9 +1,9 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod foo {
+    use anyhow::Result;
     use clap::Parser;
-    use futuresdr::anyhow::Result;
 
     #[derive(Parser, Debug)]
     struct Args {
@@ -32,7 +32,7 @@ mod foo {
 
 #[cfg(target_arch = "wasm32")]
 mod foo {
-    use futuresdr::anyhow::Result;
+    use anyhow::Result;
     use leptos::*;
 
     #[component]

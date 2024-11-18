@@ -1,8 +1,5 @@
+use anyhow::Result;
 use clap::Parser;
-use rand::Rng;
-use std::time::Instant;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
@@ -13,6 +10,8 @@ use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use rand::Rng;
+use std::time::Instant;
 
 #[derive(Parser, Debug)]
 struct Args {

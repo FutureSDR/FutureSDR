@@ -1,10 +1,9 @@
-use std::time;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FileSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::time;
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();

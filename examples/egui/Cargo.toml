@@ -11,6 +11,7 @@ aaronia_http = ["futuresdr/aaronia_http"]
 soapy = ["futuresdr/soapy"]
 
 [dependencies]
+anyhow ="1.0"
 eframe = "0.29"
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }

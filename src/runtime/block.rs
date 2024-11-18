@@ -20,6 +20,7 @@ use crate::runtime::MessageIo;
 use crate::runtime::MessageOutput;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::Result;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamOutput;
@@ -76,7 +77,7 @@ pub trait Kernel: Send {
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         Ok(())
     }
     /// Initialize kernel
@@ -85,7 +86,7 @@ pub trait Kernel: Send {
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         Ok(())
     }
     /// De-initialize kernel
@@ -94,7 +95,7 @@ pub trait Kernel: Send {
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -186,7 +187,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
         kernel: &mut T,
         id: PortId,
         p: Pmt,
-    ) -> std::result::Result<Pmt, Error> {
+    ) -> Result<Pmt, Error> {
         let id = match id {
             PortId::Index(i) => {
                 if i < mio.inputs().len() {

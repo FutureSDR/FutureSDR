@@ -1,9 +1,5 @@
+use anyhow::Result;
 use clap::Parser;
-use std::iter::repeat_with;
-use std::sync::Arc;
-use std::time;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
@@ -12,6 +8,9 @@ use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
+use std::sync::Arc;
+use std::time;
 
 #[derive(Parser, Debug)]
 struct Args {

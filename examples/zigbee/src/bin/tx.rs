@@ -1,13 +1,12 @@
+use anyhow::Result;
 use clap::Parser;
-use std::time::Duration;
-
-use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use std::time::Duration;
 
 use zigbee::modulator;
 use zigbee::parse_channel;

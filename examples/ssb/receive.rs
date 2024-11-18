@@ -1,6 +1,5 @@
+use anyhow::Result;
 use clap::Parser;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;

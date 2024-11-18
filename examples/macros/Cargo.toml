@@ -6,4 +6,5 @@ edition = "2021"
 [workspace]
 
 [dependencies]
+anyhow = "1.0"
 futuresdr = { path = "../.." }

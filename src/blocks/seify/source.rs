@@ -1,3 +1,4 @@
+use anyhow::Context;
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction::Rx;
@@ -5,8 +6,6 @@ use seify::GenericDevice;
 use seify::RxStreamer;
 use std::time::Duration;
 
-use crate::anyhow::Context;
-use crate::anyhow::Result;
 use crate::blocks::seify::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
@@ -17,6 +16,7 @@ use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;

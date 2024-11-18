@@ -1,17 +1,3 @@
-use prophecy::leptos::html::Span;
-use prophecy::leptos::wasm_bindgen::JsCast;
-use prophecy::leptos::*;
-use prophecy::FlowgraphMermaid;
-use prophecy::ListSelector;
-use prophecy::TimeSink;
-use prophecy::TimeSinkMode;
-use prophecy::Waterfall;
-use prophecy::WaterfallMode;
-use std::cell::RefCell;
-use std::rc::Rc;
-use web_sys::HtmlInputElement;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
@@ -26,11 +12,24 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::wasm_bindgen::JsCast;
+use prophecy::leptos::*;
+use prophecy::FlowgraphMermaid;
+use prophecy::ListSelector;
+use prophecy::TimeSink;
+use prophecy::TimeSinkMode;
+use prophecy::Waterfall;
+use prophecy::WaterfallMode;
+use std::cell::RefCell;
+use std::rc::Rc;
+use web_sys::HtmlInputElement;
 
 const FFT_SIZE: usize = 2048;
 

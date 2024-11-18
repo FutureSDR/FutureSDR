@@ -4,11 +4,11 @@ use futures::prelude::*;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::anyhow::Result;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::Result;
 use crate::runtime::WorkIo;
 
 #[cfg(not(target_arch = "wasm32"))]

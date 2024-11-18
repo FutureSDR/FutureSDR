@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -11,6 +9,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
+use std::marker::PhantomData;
 
 pub struct FftShift<T> {
     _p: PhantomData<T>,

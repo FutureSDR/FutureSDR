@@ -18,6 +18,7 @@ name = "tag_debug"
 path = "tag_debug.rs"
 
 [dependencies]
-futuresdr = { path = "../..", features = ['flow_scheduler', 'tpb_scheduler']}
+anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
+futuresdr = { path = "../..", features = ['flow_scheduler', 'tpb_scheduler']}
 

@@ -1,6 +1,6 @@
+use anyhow::Result;
 use clap::Parser;
 use futuredsp::firdes;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::XlatingFirBuilder;

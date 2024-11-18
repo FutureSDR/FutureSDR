@@ -1,8 +1,6 @@
+use anyhow::Context;
+use anyhow::Result;
 use clap::Parser;
-use std::time;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -13,6 +11,7 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::time;
 
 fn connect(
     fg: &mut Flowgraph,
@@ -21,7 +20,7 @@ fn connect(
     dst: usize,
     dst_port: &'static str,
     slab: bool,
-) -> std::result::Result<(), Error> {
+) -> Result<(), Error> {
     if slab {
         fg.connect_stream_with_type(src, src_port, dst, dst_port, Slab::new())
     } else {

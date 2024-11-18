@@ -1,6 +1,6 @@
 use anyhow::Context;
+use anyhow::Result;
 use float_cmp::assert_approx_eq;
-use futuresdr::anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::seify::*;
 use futuresdr::blocks::Head;

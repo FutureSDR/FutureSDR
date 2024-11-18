@@ -12,15 +12,15 @@
 //! ## Example
 //! An example flowgraph that forwards 123 zeros into a sink:
 //! ```
-//! use futuresdr::anyhow::Result;
 //! use futuresdr::blocks::Head;
 //! use futuresdr::blocks::NullSink;
 //! use futuresdr::blocks::NullSource;
 //! use futuresdr::macros::connect;
+//! use futuresdr::runtime::Error;
 //! use futuresdr::runtime::Flowgraph;
 //! use futuresdr::runtime::Runtime;
 //!
-//! fn main() -> Result<()> {
+//! fn main() -> Result<(), Error> {
 //!     let mut fg = Flowgraph::new();
 //!
 //!     let src = NullSource::<u8>::new();
@@ -42,7 +42,6 @@ extern crate futuresdr_macros;
 pub extern crate tracing;
 
 // re-exports
-pub use anyhow;
 #[cfg(not(target_arch = "wasm32"))]
 pub use async_io;
 #[cfg(not(target_arch = "wasm32"))]

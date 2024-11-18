@@ -1,5 +1,5 @@
-use futuresdr::anyhow::anyhow;
-use futuresdr::anyhow::Result;
+use anyhow::anyhow;
+use anyhow::Result;
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::VectorSink;

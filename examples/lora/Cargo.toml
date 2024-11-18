@@ -9,7 +9,9 @@ license = "GPL-3.0-only"
 
 [dependencies]
 aes = "0.8"
+anyhow = "1.0"
 base64 = "0.22"
+chrono = "0.4.38"
 clap = { version = "4.5", features = ["derive"] }
 ctr = "0.9"
 futuredsp = { path = "../../crates/futuredsp" }
@@ -19,7 +21,6 @@ num-traits = "0.2"
 rustfft = "6.2"
 scilib = "1.0"
 semtech-udp = { version = "0.11.0", features = ["client"] }
-triggered = "0.1.2"
-tokio = { version = "1.38.1", features = ["rt-multi-thread"] }
 structopt = "0.3.26"
-chrono = "0.4.38"
+tokio = { version = "1.38.1", features = ["rt-multi-thread"] }
+triggered = "0.1.2"

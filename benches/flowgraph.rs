@@ -1,17 +1,16 @@
+use anyhow::Result;
 use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Criterion;
-use std::time::Duration;
-use std::time::Instant;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::time::Duration;
+use std::time::Instant;
 
 fn run_fg(n_samp: u64) -> Result<()> {
     let mut fg = Flowgraph::new();

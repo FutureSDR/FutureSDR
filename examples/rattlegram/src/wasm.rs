@@ -1,4 +1,4 @@
-use futuresdr::anyhow::Result;
+use anyhow::Result;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::futures::channel::mpsc;

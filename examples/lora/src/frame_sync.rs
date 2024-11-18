@@ -1,14 +1,3 @@
-use rustfft::Fft;
-use rustfft::FftDirection;
-use rustfft::FftPlanner;
-use std::collections::HashMap;
-use std::f32::consts::PI;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
-
-use futuresdr::anyhow::Result;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
@@ -19,6 +8,7 @@ use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::Tag;
@@ -27,6 +17,15 @@ use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::info;
 use futuresdr::tracing::warn;
+use rustfft::Fft;
+use rustfft::FftDirection;
+use rustfft::FftPlanner;
+use std::collections::HashMap;
+use std::f32::consts::PI;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use crate::utils::*;
 
@@ -329,7 +328,7 @@ impl FrameSync {
         _mio: &'a mut MessageIo<Self>,
         _meta: &'a mut BlockMeta,
         _p: Pmt,
-    ) -> std::result::Result<Pmt> {
+    ) -> Result<Pmt> {
         io.call_again = true;
         Ok(Pmt::Null)
     }

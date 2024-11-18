@@ -13,6 +13,7 @@ name = "loopback"
 path = "src/loopback.rs"
 
 [dependencies]
+anyhow = "1.0"
 futuresdr = { path = "../..", features = ["wgpu"] }
 rand = "0.8"
 

@@ -1,4 +1,3 @@
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::TagDebug;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::async_trait;
@@ -8,6 +7,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageIo;
 use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -15,7 +15,7 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
     let n_items = 10000;

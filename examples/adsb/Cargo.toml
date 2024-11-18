@@ -17,6 +17,7 @@ soapy = ["futuresdr/soapy"]
 
 [dependencies]
 adsb_deku = "0.7"
+anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["seify"] }
 serde = { version = "1", features = ["derive"] }

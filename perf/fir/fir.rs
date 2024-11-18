@@ -1,9 +1,6 @@
+use anyhow::Context;
+use anyhow::Result;
 use clap::Parser;
-use std::iter::repeat_with;
-use std::time;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;
@@ -14,6 +11,8 @@ use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
+use std::time;
 
 #[derive(Parser, Debug)]
 struct Args {

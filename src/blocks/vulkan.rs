@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::sync::Arc;
 use vulkano::buffer::Buffer;
 use vulkano::buffer::BufferCreateInfo;
@@ -22,8 +23,6 @@ use vulkano::pipeline::PipelineShaderStageCreateInfo;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::{self};
 
-use crate::anyhow::Context;
-use crate::anyhow::Result;
 use crate::runtime::buffer::vulkan::Broker;
 use crate::runtime::buffer::vulkan::BufferEmpty;
 use crate::runtime::buffer::vulkan::ReaderH2D;
@@ -34,6 +33,7 @@ use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageIo;
 use crate::runtime::MessageIoBuilder;
+use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;

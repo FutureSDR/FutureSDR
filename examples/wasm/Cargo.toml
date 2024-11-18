@@ -9,6 +9,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+anyhow = "1.0"
 futuresdr = { path = "../.." }
 rand = "0.8"
 

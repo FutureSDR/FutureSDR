@@ -1,14 +1,13 @@
-use std::iter::repeat_with;
-use std::time;
-
-use futuresdr::anyhow::Context;
-use futuresdr::anyhow::Result;
+use anyhow::Context;
+use anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use std::iter::repeat_with;
+use std::time;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

@@ -1,17 +1,16 @@
+use anyhow::Result;
 use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time;
-
-use futuresdr::anyhow::Result;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::RuntimeHandle;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time;
 
 #[derive(Clone)]
 struct WebState {
