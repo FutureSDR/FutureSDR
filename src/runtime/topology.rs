@@ -78,7 +78,6 @@ impl Hash for BufferBuilderEntry {
 }
 
 /// The actual graph that backs a [Flowgraph](crate::runtime::Flowgraph).
-#[derive(Debug)]
 pub struct Topology {
     pub(crate) blocks: Slab<Option<Block>>,
     pub(crate) stream_edges: HashMap<(usize, usize, BufferBuilderEntry), Vec<(usize, usize)>>,
@@ -389,5 +388,25 @@ impl Topology {
 impl Default for Topology {
     fn default() -> Self {
         Topology::new()
+    }
+}
+
+impl Debug for Topology {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            // Long form
+            f.debug_struct("Topology")
+                .field("blocks", &self.blocks)
+                .field("stream_edges", &self.stream_edges)
+                .field("message_edges", &self.message_edges)
+                .finish()
+        } else {
+            // Short form
+            f.debug_struct("Topology")
+                .field("blocks", &self.blocks.len())
+                .field("stream_edges", &self.stream_edges.len())
+                .field("message_edges", &self.message_edges.len())
+                .finish()
+        }
     }
 }

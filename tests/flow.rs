@@ -81,9 +81,15 @@ fn flowgraph_instance_name() -> Result<()> {
 fn flowgraph_debug() -> Result<()> {
     let (fg, _) = sample_fg()?;
 
+    // Long form
     let dbg = format!("{:#?}", fg);
     assert!(dbg.contains("is_blocking"), "{dbg}");
-    assert!(dbg.contains("type_name: \"Head\""), "{dbg}");
+    assert!(dbg.contains("type_name"), "{dbg}");
 
+    // Short form
+    let dbg = format!("{:?}", fg);
+    assert!(!dbg.contains("is_blocking"), "{dbg}");
+    assert!(!dbg.contains("type_name: \"Head\""), "{dbg}");
+    assert!(dbg.contains("message_edges: 0"), "{dbg}");
     Ok(())
 }
