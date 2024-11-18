@@ -160,15 +160,23 @@ pub trait BlockT: Send + Any {
 
 impl fmt::Debug for dyn BlockT {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlockT")
-            .field("type_name", &self.type_name())
-            .field("instance_name", &self.type_name())
-            .field("is_blocking", &self.is_blocking())
-            .field("stream_inputs", &self.stream_inputs())
-            .field("stream_outputs", &self.stream_outputs())
-            .field("message_inputs", &self.message_input_names())
-            .field("message_outputs", &self.message_outputs())
-            .finish()
+        if f.alternate() {
+            // Long form.
+            f.debug_struct("BlockT")
+                .field("type_name", &self.type_name())
+                .field("instance_name", &self.instance_name())
+                .field("is_blocking", &self.is_blocking())
+                .field("stream_inputs", &self.stream_inputs())
+                .field("stream_outputs", &self.stream_outputs())
+                .field("message_inputs", &self.message_input_names())
+                .field("message_outputs", &self.message_outputs())
+                .finish()
+        } else {
+            // Short form
+            f.debug_tuple("BlockT")
+                .field(&self.instance_name().unwrap_or_else(|| self.type_name()))
+                .finish()
+        }
     }
 }
 

@@ -1,10 +1,10 @@
 use futuresdr::anyhow::Result;
+use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::blocks::{Copy, MessageCopy};
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
