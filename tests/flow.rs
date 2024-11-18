@@ -69,10 +69,7 @@ fn flowgraph_instance_name() -> Result<()> {
     source.set_instance_name(name);
     connect!(fg, source > sink);
 
-    assert!(fg
-        .blocks()
-        .find(|b| b.instance_name() == Some(name))
-        .is_some());
+    assert!(fg.blocks().any(|b| b.instance_name() == Some(name)));
 
     Ok(())
 }

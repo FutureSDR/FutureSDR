@@ -33,17 +33,17 @@ impl BlockMeta {
     }
 }
 
-/// Block metadata buidler
+/// Block metadata builder
 pub struct BlockMetaBuilder {
-    name: String,
+    type_name: String,
     blocking: bool,
 }
 
 impl BlockMetaBuilder {
     /// Create builder
-    pub fn new(name: impl Into<String>) -> BlockMetaBuilder {
+    pub fn new(type_name: impl Into<String>) -> BlockMetaBuilder {
         BlockMetaBuilder {
-            name: name.into(),
+            type_name: type_name.into(),
             blocking: false,
         }
     }
@@ -57,6 +57,6 @@ impl BlockMetaBuilder {
     }
     /// Build block metadata
     pub fn build(self) -> BlockMeta {
-        BlockMeta::new(self.name, self.blocking)
+        BlockMeta::new(self.type_name, self.blocking)
     }
 }
