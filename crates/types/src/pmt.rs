@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
+use std::ops::Range;
 use thiserror::Error;
 
 /// PMT Any trait
@@ -79,6 +80,8 @@ pub enum Pmt {
     F32(f32),
     /// F64, 64-bit float
     F64(f64),
+    /// Range of 64-bit floats
+    Range(Range<f64>),
     /// Vector of 32-bit complex floats.
     VecCF32(Vec<Complex32>),
     /// Vector of 32-bit floats.
@@ -117,6 +120,7 @@ impl fmt::Display for Pmt {
             Pmt::U64(v) => write!(f, "{}", v),
             Pmt::F32(v) => write!(f, "{}", v),
             Pmt::F64(v) => write!(f, "{}", v),
+            Pmt::Range(v) => write!(f, "{:?}", v),
             Pmt::VecCF32(v) => write!(f, "{:?}", v),
             Pmt::VecF32(v) => write!(f, "{:?}", v),
             Pmt::VecU64(v) => write!(f, "{:?}", v),
@@ -143,6 +147,7 @@ impl PartialEq for Pmt {
             (Pmt::U64(x), Pmt::U64(y)) => x == y,
             (Pmt::F32(x), Pmt::F32(y)) => x == y,
             (Pmt::F64(x), Pmt::F64(y)) => x == y,
+            (Pmt::Range(x), Pmt::Range(y)) => x == y,
             (Pmt::VecF32(x), Pmt::VecF32(y)) => x == y,
             (Pmt::VecU64(x), Pmt::VecU64(y)) => x == y,
             (Pmt::VecCF32(x), Pmt::VecCF32(y)) => x == y,
@@ -350,6 +355,28 @@ impl TryFrom<Pmt> for Vec<Complex32> {
     }
 }
 
+impl TryFrom<Pmt> for Range<f64> {
+    type Error = PmtConversionError;
+
+    fn try_from(value: Pmt) -> Result<Range<f64>, Self::Error> {
+        match value {
+            Pmt::Range(r) => Ok(r),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
+impl TryFrom<&Pmt> for Range<f64> {
+    type Error = PmtConversionError;
+
+    fn try_from(value: &Pmt) -> Result<Range<f64>, Self::Error> {
+        match value {
+            Pmt::Range(r) => Ok(r.clone()),
+            _ => Err(PmtConversionError),
+        }
+    }
+}
+
 impl TryFrom<Pmt> for Vec<u64> {
     type Error = PmtConversionError;
 
@@ -421,6 +448,12 @@ impl From<Vec<u64>> for Pmt {
     }
 }
 
+impl From<Range<f64>> for Pmt {
+    fn from(r: Range<f64>) -> Self {
+        Pmt::Range(r)
+    }
+}
+
 impl From<Vec<Complex32>> for Pmt {
     fn from(v: Vec<Complex32>) -> Self {
         Pmt::VecCF32(v)
@@ -455,6 +488,8 @@ pub enum PmtKind {
     F32,
     /// F64
     F64,
+    /// Range
+    Range,
     /// VecCF32
     VecCF32,
     /// VecF32
@@ -487,6 +522,7 @@ impl fmt::Display for PmtKind {
             PmtKind::U64 => write!(f, "U64"),
             PmtKind::F32 => write!(f, "F32"),
             PmtKind::F64 => write!(f, "F64"),
+            PmtKind::Range => write!(f, "Range"),
             PmtKind::VecCF32 => write!(f, "VecCF32"),
             PmtKind::VecF32 => write!(f, "VecF32"),
             PmtKind::VecU64 => write!(f, "VecU64"),
@@ -515,6 +551,7 @@ impl std::str::FromStr for PmtKind {
             "U64" => return Ok(PmtKind::U64),
             "F32" => return Ok(PmtKind::F32),
             "F64" => return Ok(PmtKind::F64),
+            "Range" => return Ok(PmtKind::Range),
             "VecF32" => return Ok(PmtKind::VecF32),
             "VecU64" => return Ok(PmtKind::VecU64),
             "Blob" => return Ok(PmtKind::Blob),
@@ -675,6 +712,11 @@ mod test {
         let p = Pmt::from(e);
         assert_eq!(p, Pmt::Bool(e));
         assert_eq!((&p).try_into(), Ok(e));
+
+        let e = 34f64..42f64;
+        let p = Pmt::from(e.clone());
+        assert_eq!(p, Pmt::Range(e.clone()));
+        assert_eq!(p.try_into(), Ok(e));
 
         let e = vec![1.0, 2.0, 3.0];
         let p = Pmt::from(e.clone());
