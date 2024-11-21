@@ -162,7 +162,7 @@ pub use head::Head;
 mod iir;
 pub use iir::Iir;
 pub use iir::IirBuilder;
-#[cfg(feature = "lttng")]
+#[cfg(all(feature = "lttng", target_os = "linux"))]
 pub mod lttng;
 
 mod message_annotator;
