@@ -70,6 +70,7 @@ pub use topology::Topology;
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::FlowgraphDescription;
 pub use futuresdr_types::Pmt;
+pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
 
 use buffer::BufferReader;
