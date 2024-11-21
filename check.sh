@@ -8,53 +8,55 @@ SCRIPTPATH=`dirname $SCRIPT`
 export RUSTFLAGS='--cfg=web_sys_unstable_apis'
 cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
 
+CARGO_FMT="cargo +nightly fmt"
+
 ###########################################################
 # FMT
 ###########################################################
-cd ${SCRIPTPATH} && cargo fmt --check
-cd ${SCRIPTPATH}/crates/futuredsp && cargo fmt --check
-cd ${SCRIPTPATH}/crates/macros && cargo fmt --check
-cd ${SCRIPTPATH}/crates/prophecy && cargo fmt --check
-cd ${SCRIPTPATH}/crates/remote && cargo fmt --check
-cd ${SCRIPTPATH}/crates/types && cargo fmt --check
+cd ${SCRIPTPATH} && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/crates/futuredsp && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/crates/macros && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/crates/prophecy && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/crates/remote && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/crates/types && ${CARGO_FMT} --check
 
 # perf
-cd ${SCRIPTPATH}/perf/buffer_rand && cargo fmt --check
-cd ${SCRIPTPATH}/perf/buffer_size && cargo fmt --check
-cd ${SCRIPTPATH}/perf/fir && cargo fmt --check
-cd ${SCRIPTPATH}/perf/fir_latency && cargo fmt --check
-cd ${SCRIPTPATH}/perf/msg && cargo fmt --check
-cd ${SCRIPTPATH}/perf/null_rand && cargo fmt --check
-cd ${SCRIPTPATH}/perf/null_rand_latency && cargo fmt --check
-cd ${SCRIPTPATH}/perf/vulkan && cargo fmt --check
-cd ${SCRIPTPATH}/perf/wgpu && cargo fmt --check
-cd ${SCRIPTPATH}/perf/zynq && cargo fmt --check
+cd ${SCRIPTPATH}/perf/buffer_rand && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/buffer_size && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/fir && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/fir_latency && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/msg && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/null_rand && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/null_rand_latency && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/vulkan && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/wgpu && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
 # examples
-cd ${SCRIPTPATH}/examples/adsb && cargo fmt --check
-cd ${SCRIPTPATH}/examples/android && cargo fmt --check
-cd ${SCRIPTPATH}/examples/android-hw && cargo fmt --check
-cd ${SCRIPTPATH}/examples/audio && cargo fmt --check
-cd ${SCRIPTPATH}/examples/custom-routes && cargo fmt --check
-cd ${SCRIPTPATH}/examples/cw && cargo fmt --check
-cd ${SCRIPTPATH}/examples/debug && cargo fmt --check
-cd ${SCRIPTPATH}/examples/egui && cargo fmt --check
-cd ${SCRIPTPATH}/examples/file-trx && cargo fmt --check
-cd ${SCRIPTPATH}/examples/firdes && cargo fmt --check
-cd ${SCRIPTPATH}/examples/fm-receiver && cargo fmt --check
-cd ${SCRIPTPATH}/examples/keyfob && cargo fmt --check
-cd ${SCRIPTPATH}/examples/logging && cargo fmt --check
-cd ${SCRIPTPATH}/examples/lora && cargo fmt --check
-cd ${SCRIPTPATH}/examples/m17 && cargo fmt --check
-cd ${SCRIPTPATH}/examples/macros && cargo fmt --check
-cd ${SCRIPTPATH}/examples/rattlegram && cargo fmt --check
-cd ${SCRIPTPATH}/examples/spectrum && cargo fmt --check
-cd ${SCRIPTPATH}/examples/ssb && cargo fmt --check
-cd ${SCRIPTPATH}/examples/wasm && cargo fmt --check
-cd ${SCRIPTPATH}/examples/wgpu && cargo fmt --check
-cd ${SCRIPTPATH}/examples/wlan && cargo fmt --check
-cd ${SCRIPTPATH}/examples/zeromq && cargo fmt --check
-cd ${SCRIPTPATH}/examples/zigbee && cargo fmt --check
+cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/android && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/android-hw && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/audio && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/custom-routes && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/cw && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/debug && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/egui && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/file-trx && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/firdes && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/fm-receiver && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/keyfob && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/logging && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/lora && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/m17 && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/macros && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/rattlegram && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/spectrum && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/ssb && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/wasm && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/wgpu && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/wlan && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/zeromq && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/zigbee && ${CARGO_FMT} --check
 
 ###########################################################
 # CLIPPY
