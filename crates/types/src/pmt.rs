@@ -103,6 +103,33 @@ pub enum Pmt {
     Any(Box<dyn PmtAny>),
 }
 
+impl Pmt {
+    /// Get the PMT variant kind without associated data.
+    pub fn kind(&self) -> PmtKind {
+        match self {
+            Pmt::Ok => PmtKind::Ok,
+            Pmt::InvalidValue => PmtKind::InvalidValue,
+            Pmt::Null => PmtKind::Null,
+            Pmt::String(_) => PmtKind::String,
+            Pmt::Bool(_) => PmtKind::Bool,
+            Pmt::Usize(_) => PmtKind::Usize,
+            Pmt::Isize(_) => PmtKind::Isize,
+            Pmt::U32(_) => PmtKind::U32,
+            Pmt::U64(_) => PmtKind::U64,
+            Pmt::F32(_) => PmtKind::F32,
+            Pmt::F64(_) => PmtKind::F64,
+            Pmt::VecCF32(_) => PmtKind::VecCF32,
+            Pmt::VecF32(_) => PmtKind::VecF32,
+            Pmt::VecU64(_) => PmtKind::VecU64,
+            Pmt::Blob(_) => PmtKind::Blob,
+            Pmt::VecPmt(_) => PmtKind::VecPmt,
+            Pmt::Finished => PmtKind::Finished,
+            Pmt::MapStrPmt(_) => PmtKind::MapStrPmt,
+            Pmt::Any(_) => PmtKind::Any,
+        }
+    }
+}
+
 impl fmt::Display for Pmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -431,7 +458,7 @@ impl From<Vec<Complex32>> for Pmt {
 ///
 /// Useful for bindings to other languages that do not support Rust's broad enum features.
 #[non_exhaustive]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PmtKind {
     /// Ok
     Ok,
@@ -471,6 +498,18 @@ pub enum PmtKind {
     MapStrPmt,
     /// Any
     Any,
+}
+
+impl From<Pmt> for PmtKind {
+    fn from(value: Pmt) -> Self {
+        value.kind()
+    }
+}
+
+impl From<&Pmt> for PmtKind {
+    fn from(value: &Pmt) -> Self {
+        value.kind()
+    }
 }
 
 impl fmt::Display for PmtKind {
@@ -690,5 +729,28 @@ mod test {
         let p = Pmt::from(e.clone());
         assert_eq!(p, Pmt::VecCF32(e.clone()));
         assert_eq!(p.try_into(), Ok(e));
+    }
+
+    #[test]
+    fn pmt_kind() {
+        let p = Pmt::U32(42);
+        assert_eq!(PmtKind::U32, p.kind());
+        assert_eq!(PmtKind::U32, p.into());
+
+        let p = Pmt::F64(42.0);
+        assert_eq!(PmtKind::F64, p.kind());
+        assert_eq!(PmtKind::F64, p.into());
+
+        let p = Pmt::VecF32(vec![]);
+        assert_eq!(PmtKind::VecF32, p.kind());
+        assert_eq!(PmtKind::VecF32, p.into());
+
+        let p = Pmt::VecU64(vec![]);
+        assert_eq!(PmtKind::VecU64, p.kind());
+        assert_eq!(PmtKind::VecU64, (&p).into());
+
+        let p = Pmt::VecCF32(vec![]);
+        assert_eq!(PmtKind::VecCF32, p.kind());
+        assert_eq!(PmtKind::VecCF32, (&p).into());
     }
 }
