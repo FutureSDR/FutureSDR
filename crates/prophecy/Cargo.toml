@@ -27,14 +27,18 @@ uuid = { version = "1.11", features = ["v4", "js"] }
 [dependencies.web-sys]
 version = "=0.3.72"
 features = [
-  'DomRect',
-  'HtmlCanvasElement',
-  'ImageData',
-  'WebGlBuffer',
-  'WebGlProgram',
-  'WebGlRenderingContext',
-  'WebGl2RenderingContext',
-  'WebGlShader',
-  'WebGlTexture',
-  'WebGlUniformLocation',
+    'DomRect',
+    'HtmlCanvasElement',
+    'ImageData',
+    'WebGlBuffer',
+    'WebGlProgram',
+    'WebGlRenderingContext',
+    'WebGl2RenderingContext',
+    'WebGlShader',
+    'WebGlTexture',
+    'WebGlUniformLocation',
 ]
+
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(wasm_bindgen_unstable_test_coverage)'] }
