@@ -104,6 +104,12 @@ impl Default for Runtime<'_, SmolScheduler> {
     }
 }
 
+impl<S> Drop for Runtime<'_, S> {
+    fn drop(&mut self) {
+        debug!("Runtime dropped");
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 impl Runtime<'_, WasmScheduler> {
     /// Create Runtime
@@ -324,7 +330,7 @@ impl RuntimeHandle {
     }
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers
-    pub fn add_flowgraph(&self, handle: FlowgraphHandle) -> usize {
+    fn add_flowgraph(&self, handle: FlowgraphHandle) -> usize {
         let mut v = self.flowgraphs.lock().unwrap();
         v.insert(handle)
     }

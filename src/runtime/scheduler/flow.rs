@@ -52,8 +52,12 @@ impl fmt::Debug for FlowSchedulerInner {
 impl Drop for FlowSchedulerInner {
     fn drop(&mut self) {
         for i in self.workers.drain(..) {
-            i.1.send(()).unwrap();
-            i.0.join().unwrap();
+            if i.1.send(()).is_err() {
+                warn!("Worker task already terminated.");
+            }
+            if std::thread::current().id() != i.0.thread().id() && i.0.join().is_err() {
+                warn!("Worker thread already terminated.");
+            }
         }
     }
 }
@@ -85,7 +89,6 @@ impl FlowScheduler {
                             b.wait().await;
                             receiver.await
                         }))
-                        .unwrap();
                     }));
                     if result.is_err() {
                         eprintln!("flow worker panicked {result:?}");

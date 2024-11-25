@@ -43,8 +43,12 @@ impl fmt::Debug for SmolSchedulerInner {
 impl Drop for SmolSchedulerInner {
     fn drop(&mut self) {
         for i in self.workers.drain(..) {
-            i.1.send(()).unwrap();
-            i.0.join().unwrap();
+            if i.1.send(()).is_err() {
+                warn!("Worker task already terminated.");
+            }
+            if std::thread::current().id() != i.0.thread().id() && i.0.join().is_err() {
+                warn!("Worker thread already terminated.");
+            }
         }
     }
 }
@@ -81,7 +85,7 @@ impl SmolScheduler {
                         core_affinity::set_for_current(c);
                     }
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        async_io::block_on(e.run(receiver)).unwrap();
+                        async_io::block_on(e.run(receiver))
                     }));
                     if result.is_err() {
                         eprintln!("smol worker panicked {result:?}");
