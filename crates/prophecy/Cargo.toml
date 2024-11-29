@@ -39,6 +39,3 @@ features = [
     'WebGlUniformLocation',
 ]
 
-
-[lints.rust]
-unexpected_cfgs = { level = "allow", check-cfg = ['cfg(wasm_bindgen_unstable_test_coverage)'] }
