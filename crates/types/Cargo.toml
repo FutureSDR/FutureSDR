@@ -10,9 +10,15 @@ description = "Polymorphic Types for an Experimental Async SDR Runtime for Heter
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
+[features]
+default = []
+# Provides support for converting seify types into Pmt variants.
+seify = ["dep:seify"]
+
 [dependencies]
 dyn-clone = "1.0"
 num-complex = { version = "0.4", features = ["serde"] }
+seify = { version = "0.16", default-features = false, optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
