@@ -13,4 +13,7 @@ pub use pmt::PmtConversionError;
 pub use pmt::PmtKind;
 
 mod port_id;
+#[cfg(feature = "seify")]
+mod seify;
+
 pub use port_id::PortId;

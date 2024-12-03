@@ -252,7 +252,7 @@ impl Pmt {
 ///
 /// This error is returned, if conversion to/from PMTs fail.
 #[derive(Debug, Clone, Error, PartialEq)]
-#[error("PMt conversion error")]
+#[error("PMT conversion error")]
 pub struct PmtConversionError;
 
 impl TryFrom<&Pmt> for f64 {
