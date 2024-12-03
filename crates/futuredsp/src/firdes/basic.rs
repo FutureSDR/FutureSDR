@@ -163,7 +163,7 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
     for n in 0..num_taps {
         let t = (n as f64 - (num_taps - 1) as f64 / 2.0) / sps as f64;
         let tap = match t {
-            t if t == 0.0 => {
+            0.0 => {
                 ((1.0 - roll_off) + (4.0 * roll_off / core::f64::consts::PI)) / (sps as f64).sqrt()
             }
             t if (t.abs() - (4.0 * roll_off).recip()).abs() < 1e-5 => {
