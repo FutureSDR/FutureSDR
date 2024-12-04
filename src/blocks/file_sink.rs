@@ -101,8 +101,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(self.file_name.clone())
-            .unwrap();
+            .open(&self.file_name)?;
 
         self.file = Some(file.into());
         Ok(())
@@ -114,7 +113,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.file.as_mut().unwrap().sync_all().await.unwrap();
+        self.file.as_mut().unwrap().sync_all().await?;
         Ok(())
     }
 }
