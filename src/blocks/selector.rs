@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::cmp;
 use std::fmt;
 use std::ptr;
@@ -108,6 +109,16 @@ where
         )
     }
 
+    fn pmt_to_index(p: &Pmt) -> Result<Option<usize>> {
+        match p {
+            Pmt::U32(v) => Ok(Some(*v as usize % N)),
+            Pmt::U64(v) => Ok(Some(*v as usize % N)),
+            Pmt::Usize(v) => Ok(Some(*v % N)),
+            Pmt::Finished | Pmt::Ok => Ok(None),
+            o => Err(anyhow!("Invalid index specification: {:?}", o)),
+        }
+    }
+
     #[message_handler]
     async fn input_index(
         &mut self,
@@ -116,10 +127,8 @@ where
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        match p {
-            Pmt::U32(v) => self.input_index = (v as usize) % N,
-            Pmt::U64(v) => self.input_index = (v as usize) % N,
-            _ => todo!(),
+        if let Some(i) = Self::pmt_to_index(&p)? {
+            self.input_index = i;
         }
         Ok(Pmt::U32(self.input_index as u32))
     }
@@ -132,10 +141,8 @@ where
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        match p {
-            Pmt::U32(v) => self.output_index = (v as usize) % M,
-            Pmt::U64(v) => self.output_index = (v as usize) % M,
-            _ => todo!(),
+        if let Some(i) = Self::pmt_to_index(&p)? {
+            self.output_index = i;
         }
         Ok(Pmt::U32(self.output_index as u32))
     }

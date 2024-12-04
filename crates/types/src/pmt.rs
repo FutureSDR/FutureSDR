@@ -71,7 +71,7 @@ pub enum Pmt {
     Usize(usize),
     /// Isize
     Isize(isize),
-    /// U32, 32-bit unsiged integer
+    /// U32, 32-bit unsigned integer
     U32(u32),
     /// U64, 64-bit unsigned integer
     U64(u64),
