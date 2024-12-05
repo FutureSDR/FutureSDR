@@ -237,8 +237,8 @@ pub enum Error {
     #[error("Connect error: {0}")]
     ConnectError(Box<ConnectCtx>),
     /// Error in handler
-    #[error("Error in handler")]
-    HandlerError,
+    #[error("Error in message handler: {0}")]
+    HandlerError(String),
     /// Block is already terminated
     #[error("Block already terminated")]
     BlockTerminated,
@@ -260,6 +260,9 @@ pub enum Error {
     /// Duplicate block name
     #[error("A Block with an instance name of '{0}' already exists")]
     DuplicateBlockName(String),
+    /// Error returned from a Receiver when the corresponding Sender is dropped
+    #[error(transparent)]
+    ChannelCanceled(#[from] oneshot::Canceled),
 }
 
 #[cfg(feature = "seify")]
