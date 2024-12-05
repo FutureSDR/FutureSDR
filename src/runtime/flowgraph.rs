@@ -157,7 +157,7 @@ impl FlowgraphHandle {
             })
             .await
             .or(Err(Error::InvalidBlock(block_id)))?;
-        rx.await.or(Err(Error::HandlerError))?
+        rx.await?
     }
 
     /// Call message handler
@@ -177,7 +177,7 @@ impl FlowgraphHandle {
             })
             .await
             .map_err(|_| Error::InvalidBlock(block_id))?;
-        rx.await.map_err(|_| Error::HandlerError)?
+        rx.await?
     }
 
     /// Get [`FlowgraphDescription`]

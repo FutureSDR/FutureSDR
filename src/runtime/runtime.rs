@@ -534,9 +534,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                         .await
                         .is_ok()
                     {
-                        match block_rx.await {
-                            Ok(Ok(p)) => tx.send(Ok(p)).ok(),
-                            _ => tx.send(Err(Error::HandlerError)).ok(),
+                        match block_rx.await? {
+                            Ok(p) => tx.send(Ok(p)).ok(),
+                            Err(e) => tx.send(Err(Error::HandlerError(e.to_string()))).ok(),
                         };
                     } else {
                         let _ = tx.send(Err(Error::BlockTerminated));

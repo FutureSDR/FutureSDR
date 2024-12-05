@@ -214,7 +214,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
         }
         let h = mio.input(id).get_handler();
         let f = (h)(kernel, io, mio, meta, p);
-        f.await.or(Err(Error::HandlerError))
+        f.await.map_err(|e| Error::HandlerError(e.to_string()))
     }
 
     async fn run_impl(
@@ -326,12 +326,12 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                                     meta.instance_name().unwrap(),
                                 );
                             }
-                            Err(Error::HandlerError) => {
+                            Err(e @ Error::HandlerError(..)) => {
                                 error!(
-                                    "{}: BlockMessage::Call -> HandlerError. Terminating.",
+                                    "{}: BlockMessage::Call -> {e}. Terminating.",
                                     meta.instance_name().unwrap(),
                                 );
-                                return Err(Error::HandlerError);
+                                return Err(e);
                             }
                             _ => {}
                         }
@@ -347,16 +347,16 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                         )
                         .await
                         {
-                            Err(Error::HandlerError) => {
+                            Err(e @ Error::HandlerError(..)) => {
                                 error!(
-                                    "{}: Error in callback. Terminating.",
+                                    "{}: BlockMessage::Callback -> {e}. Terminating.",
                                     meta.instance_name().unwrap(),
                                 );
                                 let _ = tx.send(Err(Error::InvalidMessagePort(
                                     BlockPortCtx::Id(block_id),
                                     port_id,
                                 )));
-                                return Err(Error::HandlerError);
+                                return Err(e);
                             }
                             res => {
                                 let _ = tx.send(res);

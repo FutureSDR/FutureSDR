@@ -113,7 +113,7 @@ impl<K: Kernel + 'static> Mocker<K> {
         } = &mut self.block;
         let h = mio.input(id).get_handler();
         let f = (h)(kernel, &mut io, mio, meta, p);
-        async_io::block_on(f).or(Err(Error::HandlerError))
+        async_io::block_on(f).map_err(|e| Error::HandlerError(e.to_string()))
     }
 
     /// Get data from output buffer
