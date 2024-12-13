@@ -15,6 +15,8 @@ pub trait PmtAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
     /// Cast to mutable [`Any`](std::any::Any)
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Consume `self`, converting to a `Box<dyn Any>`
+    fn to_any(self: Box<Self>) -> Box<dyn Any>;
 }
 dyn_clone::clone_trait_object!(PmtAny);
 
@@ -23,6 +25,9 @@ impl<T: Any + DynClone + Send + Sync + 'static> PmtAny for T {
         self
     }
     fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn to_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }
@@ -34,6 +39,12 @@ impl fmt::Debug for Box<dyn PmtAny> {
 }
 
 impl dyn PmtAny {
+    /// Determine if this `PmtAny` has the given concrete type.
+    ///
+    /// A value of `true` implies `downcast_ref`, `downcast_mut` and `take` will return `Some`.
+    pub fn is<T: PmtAny>(&self) -> bool {
+        self.as_any().is::<T>()
+    }
     /// Try to cast the [`Pmt::Any`] to the given type.
     pub fn downcast_ref<T: PmtAny>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
@@ -41,6 +52,10 @@ impl dyn PmtAny {
     /// Try to cast the [`Pmt::Any`] to the given type mutably.
     pub fn downcast_mut<T: PmtAny>(&mut self) -> Option<&mut T> {
         (*self).as_any_mut().downcast_mut::<T>()
+    }
+    /// Consuming `self`, try to take ownership of the value as the given type.
+    pub fn take<T: PmtAny>(self: Box<Self>) -> Option<Box<T>> {
+        self.to_any().downcast::<T>().ok()
     }
 }
 
@@ -752,5 +767,16 @@ mod test {
         let p = Pmt::VecCF32(vec![]);
         assert_eq!(PmtKind::VecCF32, p.kind());
         assert_eq!(PmtKind::VecCF32, (&p).into());
+    }
+
+    #[test]
+    fn take_any() {
+        let p = Pmt::Any(Box::new(vec![1u8]));
+
+        let Pmt::Any(p_any) = p else { unreachable!() };
+        assert!(p_any.is::<Vec<u8>>());
+
+        let v = p_any.take::<Vec<u8>>().unwrap();
+        assert_eq!(v[0], 1u8)
     }
 }
