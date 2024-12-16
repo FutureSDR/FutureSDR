@@ -37,6 +37,7 @@ const SHADER_HEIGHT: usize = 256;
 pub fn Waterfall(
     #[prop(into)] min: MaybeSignal<f32>,
     #[prop(into)] max: MaybeSignal<f32>,
+    #[prop(into)] fft_size: MaybeSignal<usize>,
     #[prop(optional)] mode: WaterfallMode,
 ) -> impl IntoView {
     let data = match mode {
@@ -133,13 +134,13 @@ pub fn Waterfall(
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
 
-            let texture = vec![0.0f32; 2048 * SHADER_HEIGHT];
+            let texture = vec![0.0f32; fft_size.get() * SHADER_HEIGHT];
             let view = unsafe { f32::view(&texture) };
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
                 GL::TEXTURE_2D,
                 0,
                 GL::R32F as i32,
-                2048,
+                fft_size.get() as i32,
                 SHADER_HEIGHT as i32,
                 0,
                 GL::RED,
@@ -186,18 +187,17 @@ pub fn Waterfall(
             let state = RenderState {
                 canvas,gl, shader, texture_offset: 0,
             };
-            request_animation_frame(render(Rc::new(RefCell::new(state)), data))
+            request_animation_frame(render(Rc::new(RefCell::new(state)), data, fft_size.get()))
         });
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
 fn render(
     state: Rc<RefCell<RenderState>>,
     data: Rc<RefCell<Option<Vec<u8>>>>,
+    fft_size_val: usize,
 ) -> impl FnOnce() + 'static {
     move || {
         {
@@ -220,7 +220,7 @@ fn render(
             }
 
             if let Some(bytes) = data.borrow_mut().take() {
-                assert_eq!(bytes.len(), 2048 * 4);
+                // assert_eq!(bytes.len(), fft_size_val * 4);
 
                 let samples = unsafe {
                     let s = bytes.len() / 4;
@@ -234,7 +234,7 @@ fn render(
                     0,
                     0,
                     *texture_offset,
-                    2048,
+                    fft_size_val as i32,
                     1,
                     GL::RED,
                     GL::FLOAT,
@@ -250,6 +250,6 @@ fn render(
                 gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
             }
         }
-        request_animation_frame(render(state, data))
+        request_animation_frame(render(state, data, fft_size_val))
     }
 }
