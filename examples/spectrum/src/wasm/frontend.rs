@@ -72,7 +72,6 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let (min, set_min) = create_signal(-40.0f32);
     let (max, set_max) = create_signal(20.0f32);
     let (fft_size, _set_fft_size) = create_signal(2048_usize);
-    
 
     let min_label = create_node_ref::<Span>();
     let max_label = create_node_ref::<Span>();
