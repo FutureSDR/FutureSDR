@@ -48,6 +48,7 @@
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
 //! | [MessageAnnotator] | Wrap every message in a DictStrPmt and add fixed additional fields, to facilitate multiplexing w/o losing the source association | ✅ |
+//! | [MessageApply] | Apply a function to each message, emitting the result as a new message. | ✅ |
 //! | [MessageBurst] | Output a given number of messages in one burst and terminate. | ✅ |
 //! | [MessageCopy] | Forward messages. | ✅ |
 //! | [MessagePipe] | Push received messages into a channel. | ✅ |
@@ -167,6 +168,8 @@ pub mod lttng;
 
 mod message_annotator;
 pub use message_annotator::MessageAnnotator;
+mod message_apply;
+pub use message_apply::MessageApply;
 mod message_burst;
 pub use message_burst::MessageBurst;
 mod message_copy;
