@@ -116,6 +116,7 @@ pub fn Waterfall(
                     gl_FragColor = vec4(color_map(clamp(power, 0.0, 1.0)), 1.0);
                 }
             ";
+
             let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
             gl.shader_source(&frag_shader, frag_code);
             gl.compile_shader(&frag_shader);
@@ -133,40 +134,20 @@ pub fn Waterfall(
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
             gl.tex_parameteri(GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
 
-            let texture = vec![0.0f32; 2048 * SHADER_HEIGHT];
-            let view = unsafe { f32::view(&texture) };
-            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                GL::TEXTURE_2D,
-                0,
-                GL::R32F as i32,
-                2048,
-                SHADER_HEIGHT as i32,
-                0,
-                GL::RED,
-                GL::FLOAT,
-                &view,
-                0,
-            ).unwrap();
+            let fft_size = 1024_usize;
+            initialize_texture(&gl, fft_size);
 
             let vertexes = [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            let view = unsafe {f32::view(&vertexes)};
-            gl.buffer_data_with_array_buffer_view(
-                GL::ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            let view = unsafe { f32::view(&vertexes) };
+            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let indices = [0, 1, 2, 0, 2, 3];
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
             let view = unsafe { u16::view(&indices) };
-            gl.buffer_data_with_array_buffer_view(
-                GL::ELEMENT_ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            gl.buffer_data_with_array_buffer_view(GL::ELEMENT_ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let loc = gl.get_attrib_location(&shader, "gTexCoord0") as u32;
             gl.enable_vertex_attrib_array(loc);
@@ -184,22 +165,25 @@ pub fn Waterfall(
             }
 
             let state = RenderState {
-                canvas,gl, shader, texture_offset: 0,
+                canvas,
+                gl,
+                shader,
+                texture_offset: 0,
             };
-            request_animation_frame(render(Rc::new(RefCell::new(state)), data))
+            request_animation_frame(render(Rc::new(RefCell::new(state)), data, fft_size))
         });
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
 fn render(
     state: Rc<RefCell<RenderState>>,
     data: Rc<RefCell<Option<Vec<u8>>>>,
+    last_fft_size: usize,
 ) -> impl FnOnce() + 'static {
     move || {
+        let mut fft_size_val = last_fft_size;
         {
             let RenderState {
                 canvas,
@@ -220,10 +204,15 @@ fn render(
             }
 
             if let Some(bytes) = data.borrow_mut().take() {
-                assert_eq!(bytes.len(), 2048 * 4);
+                // assert_eq!(bytes.len(), fft_size_val * 4);
+                fft_size_val = bytes.len() / 4;
+                // 
+                if fft_size_val != last_fft_size {
+                    initialize_texture(gl, fft_size_val);
+                }
 
                 let samples = unsafe {
-                    let s = bytes.len() / 4;
+                    let s = fft_size_val;
                     let p = bytes.as_ptr();
                     std::slice::from_raw_parts(p as *const f32, s)
                 };
@@ -234,7 +223,7 @@ fn render(
                     0,
                     0,
                     *texture_offset,
-                    2048,
+                    fft_size_val as i32,
                     1,
                     GL::RED,
                     GL::FLOAT,
@@ -250,6 +239,23 @@ fn render(
                 gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
             }
         }
-        request_animation_frame(render(state, data))
+        request_animation_frame(render(state, data, fft_size_val))
     }
+}
+
+fn initialize_texture(gl: &GL, fft_size: usize) {
+    let texture = vec![0.0f32; fft_size * SHADER_HEIGHT];
+    let view = unsafe { f32::view(&texture) };
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
+        GL::TEXTURE_2D,
+        0,
+        GL::R32F as i32,
+        fft_size as i32,
+        SHADER_HEIGHT as i32,
+        0,
+        GL::RED,
+        GL::FLOAT,
+        &view,
+        0,
+    ).unwrap();
 }
