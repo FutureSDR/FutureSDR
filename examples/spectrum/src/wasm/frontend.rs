@@ -71,7 +71,6 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
 
     let (min, set_min) = create_signal(-40.0f32);
     let (max, set_max) = create_signal(20.0f32);
-    let (fft_size, _set_fft_size) = create_signal(2048_usize);
 
     let min_label = create_node_ref::<Span>();
     let max_label = create_node_ref::<Span>();
@@ -158,7 +157,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
             <TimeSink min=min max=max mode=TimeSinkMode::Data(time_data) />
         </div>
         <div class="m-4 border-2 rounded-md border-slate-500" style="height: 400px; max-height: 40vh">
-            <Waterfall min=min max=max fft_size=fft_size mode=WaterfallMode::Data(waterfall_data) />
+            <Waterfall min=min max=max mode=WaterfallMode::Data(waterfall_data) />
         </div>
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
