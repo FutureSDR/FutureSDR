@@ -206,7 +206,6 @@ fn render(
             if let Some(bytes) = data.borrow_mut().take() {
                 // assert_eq!(bytes.len(), fft_size_val * 4);
                 fft_size_val = bytes.len() / 4;
-                // 
                 if fft_size_val != last_fft_size {
                     initialize_texture(gl, fft_size_val);
                 }
