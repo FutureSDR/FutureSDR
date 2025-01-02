@@ -58,7 +58,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<F, A> Kernel for Source<F, A>
 where
     F: FnMut() -> A + Send + 'static,

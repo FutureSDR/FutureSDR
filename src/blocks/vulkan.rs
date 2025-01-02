@@ -113,7 +113,6 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for Vulkan {
     async fn init(
         &mut self,

@@ -62,7 +62,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<InputType, OutputType, TapType, Core> Kernel for Fir<InputType, OutputType, TapType, Core>
 where
     InputType: 'static + Send,
@@ -134,7 +133,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<InputType, OutputType, TapType, Core> Kernel
     for StatefulFir<InputType, OutputType, TapType, Core>
 where

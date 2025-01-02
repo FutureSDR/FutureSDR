@@ -77,7 +77,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<F, A, B, const N: usize, const M: usize> Kernel for ApplyNM<F, A, B, N, M>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,

@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -32,7 +31,6 @@ impl MovingAverage {
     }
 }
 
-#[async_trait]
 impl Kernel for MovingAverage {
     async fn work(
         &mut self,

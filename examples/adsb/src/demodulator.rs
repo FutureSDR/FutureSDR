@@ -1,7 +1,6 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
 use crate::SYMBOL_ONE_TAPS;
 use crate::SYMBOL_ZERO_TAPS;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -38,7 +37,6 @@ impl Demodulator {
     }
 }
 
-#[async_trait]
 impl Kernel for Demodulator {
     async fn work(
         &mut self,

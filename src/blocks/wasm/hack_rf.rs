@@ -468,7 +468,7 @@ impl HackRf {
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for HackRf {
     async fn init(
         &mut self,

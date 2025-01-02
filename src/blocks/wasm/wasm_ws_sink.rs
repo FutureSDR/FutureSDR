@@ -85,7 +85,6 @@ impl<T: Send + Sync + 'static> WasmWsSink<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + Sync + 'static> Kernel for WasmWsSink<T> {
     async fn work(
         &mut self,

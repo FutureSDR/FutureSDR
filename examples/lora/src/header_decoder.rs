@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -95,7 +94,6 @@ impl HeaderDecoder {
     }
 }
 
-#[async_trait]
 impl Kernel for HeaderDecoder {
     async fn work(
         &mut self,

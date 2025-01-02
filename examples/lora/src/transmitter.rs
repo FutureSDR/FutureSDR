@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
@@ -92,7 +91,6 @@ impl Transmitter {
     }
 }
 
-#[async_trait]
 impl Kernel for Transmitter {
     async fn work(
         &mut self,

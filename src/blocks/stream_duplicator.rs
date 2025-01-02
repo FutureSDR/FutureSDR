@@ -40,7 +40,7 @@ where
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl<T: Copy + Send + Sync + 'static> Kernel for StreamDuplicator<T> {
     async fn work(
         &mut self,

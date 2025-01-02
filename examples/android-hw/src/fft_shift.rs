@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -30,7 +29,6 @@ impl<T: Copy + Send + 'static> FftShift<T> {
     }
 }
 
-#[async_trait]
 impl<T: Copy + Send + 'static> Kernel for FftShift<T> {
     async fn work(
         &mut self,

@@ -72,5 +72,4 @@ impl MessageAnnotator {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for MessageAnnotator {}

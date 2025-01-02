@@ -66,5 +66,4 @@ impl CtrlPortDemo {
     }
 }
 
-#[async_trait]
 impl Kernel for CtrlPortDemo {}

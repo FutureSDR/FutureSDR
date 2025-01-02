@@ -54,7 +54,6 @@ impl MessageSink {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for MessageSink {
     async fn deinit(
         &mut self,

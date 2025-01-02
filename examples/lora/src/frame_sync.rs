@@ -1,5 +1,4 @@
 use futuresdr::futures::channel::mpsc;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
@@ -1526,7 +1525,6 @@ impl FrameSync {
     }
 }
 
-#[async_trait]
 impl Kernel for FrameSync {
     async fn work(
         &mut self,

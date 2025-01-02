@@ -43,7 +43,6 @@ impl<T: Send + 'static> NullSink<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for NullSink<T> {
     async fn init(
         &mut self,

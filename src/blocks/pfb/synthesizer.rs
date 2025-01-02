@@ -75,7 +75,7 @@ impl PfbSynthesizer {
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for PfbSynthesizer {
     async fn work(
         &mut self,

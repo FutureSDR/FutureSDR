@@ -32,7 +32,6 @@ impl<T: core::marker::Copy + Send + 'static> Copy<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: core::marker::Copy + Send + 'static> Kernel for Copy<T> {
     async fn work(
         &mut self,

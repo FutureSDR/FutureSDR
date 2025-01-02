@@ -57,7 +57,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<F, A> Kernel for Sink<F, A>
 where
     F: FnMut(&A) + Send + 'static,

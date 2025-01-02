@@ -4,7 +4,6 @@ use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
@@ -85,7 +84,6 @@ impl Dummy {
     }
 }
 
-#[async_trait]
 impl Kernel for Dummy {
     async fn work(
         &mut self,
@@ -113,7 +111,6 @@ impl Strange {
     }
 }
 
-#[async_trait]
 impl Kernel for Strange {
     async fn work(
         &mut self,
@@ -167,7 +164,6 @@ impl Handler {
     }
 }
 
-#[async_trait]
 impl Kernel for Handler {
     async fn work(
         &mut self,

@@ -46,7 +46,6 @@ impl<T: Send + Clone + 'static> ChannelSink<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + Clone + 'static> Kernel for ChannelSink<T> {
     async fn work(
         &mut self,

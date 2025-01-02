@@ -1,5 +1,4 @@
 use anyhow::Context;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::BufferEmpty;
 use futuresdr::runtime::buffer::vulkan::ReaderH2D;
@@ -103,7 +102,6 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for Vulkan {
     async fn init(
         &mut self,

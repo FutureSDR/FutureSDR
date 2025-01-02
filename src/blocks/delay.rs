@@ -108,7 +108,6 @@ impl<T: Copy + Send + 'static> Delay<T> {
     }
 }
 
-#[async_trait]
 impl<T: Copy + Send + 'static> Kernel for Delay<T> {
     async fn work(
         &mut self,

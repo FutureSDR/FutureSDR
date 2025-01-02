@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -45,7 +44,6 @@ impl SyncShort {
     }
 }
 
-#[async_trait]
 impl Kernel for SyncShort {
     async fn work(
         &mut self,

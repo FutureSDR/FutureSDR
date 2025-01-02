@@ -57,7 +57,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<InputType, OutputType, TapsType, Core> Kernel for Iir<InputType, OutputType, TapsType, Core>
 where
     InputType: 'static + Send,

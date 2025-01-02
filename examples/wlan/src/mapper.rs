@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -130,7 +129,6 @@ impl Mapper {
     }
 }
 
-#[async_trait]
 impl Kernel for Mapper {
     async fn work(
         &mut self,

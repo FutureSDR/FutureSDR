@@ -1,7 +1,6 @@
 use anyhow::bail;
 use anyhow::Result;
 use futuresdr::blocks::MessageSink;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -28,7 +27,6 @@ impl FailInit {
     }
 }
 
-#[async_trait]
 impl Kernel for FailInit {
     async fn init(
         &mut self,
@@ -54,7 +52,6 @@ impl FailWork {
     }
 }
 
-#[async_trait]
 impl Kernel for FailWork {
     async fn work(
         &mut self,
@@ -81,7 +78,6 @@ impl FailDeinit {
     }
 }
 
-#[async_trait]
 impl Kernel for FailDeinit {
     async fn work(
         &mut self,

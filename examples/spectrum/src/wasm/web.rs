@@ -2,7 +2,6 @@ use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -229,7 +228,6 @@ impl Sink {
     }
 }
 
-#[async_trait]
 impl Kernel for Sink {
     async fn work(
         &mut self,

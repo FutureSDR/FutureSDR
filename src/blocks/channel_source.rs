@@ -52,7 +52,6 @@ impl<T: Send + 'static> ChannelSource<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for ChannelSource<T> {
     async fn work(
         &mut self,

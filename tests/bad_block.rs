@@ -5,7 +5,6 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -51,7 +50,6 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
     async fn work(
         &mut self,

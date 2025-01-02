@@ -41,7 +41,6 @@ impl<T: Send + 'static> TcpSink<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for TcpSink<T> {
     async fn work(
         &mut self,

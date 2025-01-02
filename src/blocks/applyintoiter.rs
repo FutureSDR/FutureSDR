@@ -52,7 +52,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<F, A, B> Kernel for ApplyIntoIter<F, A, B>
 where
     F: FnMut(&A) -> B + Send + 'static,

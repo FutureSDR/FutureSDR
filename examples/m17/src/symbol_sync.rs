@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::Integer;
 use futuresdr::runtime::BlockMeta;
@@ -1883,7 +1882,6 @@ impl SymbolSync {
     }
 }
 
-#[async_trait]
 impl Kernel for SymbolSync {
     async fn work(
         &mut self,

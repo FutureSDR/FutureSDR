@@ -64,7 +64,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<A, B> Kernel for Filter<A, B>
 where
     A: 'static,

@@ -68,35 +68,70 @@ impl fmt::Debug for WorkIo {
 /// Kernal
 ///
 /// Central trait to implement a block
-#[async_trait]
+#[cfg(not(target_arch = "wasm32"))]
 pub trait Kernel: Send {
     /// Processes stream data
-    async fn work(
+    fn work(
         &mut self,
         _io: &mut WorkIo,
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
     }
     /// Initialize kernel
-    async fn init(
+    fn init(
         &mut self,
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
     }
     /// De-initialize kernel
-    async fn deinit(
+    fn deinit(
         &mut self,
         _s: &mut StreamIo,
         _m: &mut MessageIo<Self>,
         _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
+    }
+}
+
+/// Kernal
+///
+/// Central trait to implement a block
+#[cfg(target_arch = "wasm32")]
+pub trait Kernel: Send {
+    /// Processes stream data
+    fn work(
+        &mut self,
+        _io: &mut WorkIo,
+        _s: &mut StreamIo,
+        _m: &mut MessageIo<Self>,
+        _b: &mut BlockMeta,
+    ) -> impl Future<Output = Result<()>> {
+        async { Ok(()) }
+    }
+    /// Initialize kernel
+    fn init(
+        &mut self,
+        _s: &mut StreamIo,
+        _m: &mut MessageIo<Self>,
+        _b: &mut BlockMeta,
+    ) -> impl Future<Output = Result<()>> {
+        async { Ok(()) }
+    }
+    /// De-initialize kernel
+    fn deinit(
+        &mut self,
+        _s: &mut StreamIo,
+        _m: &mut MessageIo<Self>,
+        _b: &mut BlockMeta,
+    ) -> impl Future<Output = Result<()>> {
+        async { Ok(()) }
     }
 }
 

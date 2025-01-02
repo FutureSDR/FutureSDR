@@ -75,7 +75,6 @@ impl WebsocketPmtSink {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for WebsocketPmtSink {
     async fn work(
         &mut self,

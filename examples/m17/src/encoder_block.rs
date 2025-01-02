@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -37,7 +36,6 @@ impl EncoderBlock {
     }
 }
 
-#[async_trait]
 impl Kernel for EncoderBlock {
     async fn work(
         &mut self,

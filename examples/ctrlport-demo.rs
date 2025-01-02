@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -53,5 +52,4 @@ impl CtrlPortDemo {
     }
 }
 
-#[async_trait]
 impl Kernel for CtrlPortDemo {}

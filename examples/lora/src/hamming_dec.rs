@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -69,7 +68,6 @@ impl HammingDec {
     }
 }
 
-#[async_trait]
 impl Kernel for HammingDec {
     async fn work(
         &mut self,

@@ -181,7 +181,6 @@ impl<D: DeviceTrait + Clone> Sink<D> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
     async fn work(
         &mut self,

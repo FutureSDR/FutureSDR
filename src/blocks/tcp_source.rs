@@ -40,7 +40,6 @@ impl<T: Send + 'static> TcpSource<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for TcpSource<T> {
     async fn work(
         &mut self,

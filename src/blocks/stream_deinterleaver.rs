@@ -41,7 +41,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Copy + Send + Sync + 'static> Kernel for StreamDeinterleaver<T> {
     async fn work(
         &mut self,

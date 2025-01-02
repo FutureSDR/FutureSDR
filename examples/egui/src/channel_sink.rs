@@ -1,5 +1,4 @@
 use futuresdr::futures::channel::mpsc::Sender;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -29,7 +28,6 @@ impl ChannelSink {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for ChannelSink {
     async fn work(
         &mut self,

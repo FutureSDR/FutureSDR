@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -58,7 +57,6 @@ fn slice(i: f32) -> f32 {
     }
 }
 
-#[async_trait]
 impl Kernel for ClockRecoveryMm {
     async fn work(
         &mut self,

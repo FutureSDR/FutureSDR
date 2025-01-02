@@ -33,7 +33,6 @@ impl<T: Send + 'static> SubSource<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for SubSource<T> {
     async fn work(
         &mut self,

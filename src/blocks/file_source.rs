@@ -62,7 +62,6 @@ impl<T: Send + 'static> FileSource<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for FileSource<T> {
     async fn work(
         &mut self,

@@ -83,7 +83,6 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<I, O> Kernel for Zynq<I, O>
 where
     I: Send + 'static,

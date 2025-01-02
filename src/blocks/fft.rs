@@ -132,7 +132,6 @@ impl Fft {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for Fft {
     async fn work(
         &mut self,

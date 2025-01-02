@@ -43,5 +43,4 @@ impl MessagePipe {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for MessagePipe {}

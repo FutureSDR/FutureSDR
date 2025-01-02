@@ -86,7 +86,6 @@ fn i(sio: &mut StreamIo, id: usize) -> &mut wgpu::ReaderH2D {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for Wgpu {
     async fn init(
         &mut self,

@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -43,7 +42,6 @@ impl GrayMapping {
     }
 }
 
-#[async_trait]
 impl Kernel for GrayMapping {
     async fn work(
         &mut self,

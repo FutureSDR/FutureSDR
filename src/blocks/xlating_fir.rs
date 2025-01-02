@@ -58,7 +58,6 @@ impl XlatingFir {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for XlatingFir {
     async fn work(
         &mut self,
@@ -72,7 +71,7 @@ impl Kernel for XlatingFir {
 
         let (consumed, produced, status) = self.filter.filter(i, o);
 
-        let _ = self.rotator.rotate_inplace(&mut o[0..produced]);
+        self.rotator.rotate_inplace(&mut o[0..produced]);
 
         sio.input(0).consume(consumed);
         sio.output(0).produce(produced);

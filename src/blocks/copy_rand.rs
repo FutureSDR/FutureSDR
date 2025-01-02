@@ -46,7 +46,6 @@ impl<T: Copy + Send + 'static> CopyRand<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Copy + Send + 'static> Kernel for CopyRand<T> {
     async fn work(
         &mut self,

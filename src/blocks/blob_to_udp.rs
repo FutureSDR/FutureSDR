@@ -77,7 +77,6 @@ impl BlobToUdp {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for BlobToUdp {
     async fn init(
         &mut self,

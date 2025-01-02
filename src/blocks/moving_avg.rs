@@ -58,7 +58,6 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
     }
 }
 
-#[async_trait]
 impl<const WIDTH: usize> Kernel for MovingAvg<WIDTH> {
     async fn work(
         &mut self,

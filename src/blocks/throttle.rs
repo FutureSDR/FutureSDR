@@ -60,7 +60,6 @@ impl<T: Copy + Send + 'static> Throttle<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
     async fn work(
         &mut self,

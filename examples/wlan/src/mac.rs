@@ -2,7 +2,6 @@ use crate::Mcs;
 use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;
 
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -124,5 +123,4 @@ impl Mac {
     }
 }
 
-#[async_trait]
 impl Kernel for Mac {}

@@ -96,7 +96,7 @@ impl PfbChannelizer {
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for PfbChannelizer {
     async fn work(
         &mut self,

@@ -35,7 +35,6 @@ impl<T: Send + 'static> PubSink<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for PubSink<T> {
     async fn work(
         &mut self,

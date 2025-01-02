@@ -1,6 +1,5 @@
 use clap::Parser;
 use clap::ValueEnum;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::scheduler;
 use futuresdr::runtime::BlockMeta;
@@ -78,7 +77,6 @@ impl Panic {
     }
 }
 
-#[async_trait]
 impl Kernel for Panic {
     async fn init(
         &mut self,

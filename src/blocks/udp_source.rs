@@ -38,7 +38,6 @@ impl<T: Send + 'static> UdpSource<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Send + 'static> Kernel for UdpSource<T> {
     async fn work(
         &mut self,

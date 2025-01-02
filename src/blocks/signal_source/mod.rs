@@ -52,7 +52,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<F, A> Kernel for SignalSource<F, A>
 where
     F: FnMut(FixedPointPhase) -> A + Send + 'static,

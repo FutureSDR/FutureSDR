@@ -1,5 +1,4 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -55,7 +54,6 @@ impl PreambleDetector {
     }
 }
 
-#[async_trait]
 impl Kernel for PreambleDetector {
     async fn work(
         &mut self,

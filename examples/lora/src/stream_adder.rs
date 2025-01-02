@@ -1,4 +1,3 @@
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -40,7 +39,6 @@ where
     }
 }
 
-#[async_trait]
 impl<T: Copy + Send + Sync + Add<Output = T> + 'static> Kernel for StreamAdder<T> {
     async fn work(
         &mut self,

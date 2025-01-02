@@ -23,7 +23,6 @@ use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures_lite::StreamExt;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -243,5 +242,4 @@ impl PacketForwarderClient {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for PacketForwarderClient {}

@@ -52,7 +52,6 @@ impl<T: Copy + Send + 'static> Head<T> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<T: Copy + Send + 'static> Kernel for Head<T> {
     async fn work(
         &mut self,

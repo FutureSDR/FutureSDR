@@ -126,7 +126,7 @@ impl PfbArbResampler {
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for PfbArbResampler {
     async fn work(
         &mut self,

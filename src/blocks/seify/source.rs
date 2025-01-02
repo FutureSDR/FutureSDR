@@ -201,7 +201,6 @@ impl<D: DeviceTrait + Clone> Source<D> {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<D: DeviceTrait + Clone> Kernel for Source<D> {
     async fn work(
         &mut self,

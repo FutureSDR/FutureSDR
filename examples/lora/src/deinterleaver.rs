@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use futuresdr::macros::async_trait;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
@@ -51,7 +50,6 @@ impl Deinterleaver {
     }
 }
 
-#[async_trait]
 impl Kernel for Deinterleaver {
     async fn work(
         &mut self,

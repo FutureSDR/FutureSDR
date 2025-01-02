@@ -1,4 +1,5 @@
 #![allow(clippy::new_ret_no_self)]
+#![allow(clippy::precedence)]
 
 pub mod decoder;
 pub use decoder::Decoder;

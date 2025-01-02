@@ -149,7 +149,6 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl<A, const N: usize, const M: usize> Kernel for Selector<A, N, M>
 where
     A: Send + 'static + Copy,

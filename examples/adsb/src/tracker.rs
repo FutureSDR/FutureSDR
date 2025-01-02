@@ -1,5 +1,4 @@
 use futuresdr::async_io::Timer;
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -277,7 +276,6 @@ impl Tracker {
     }
 }
 
-#[async_trait]
 impl Kernel for Tracker {
     async fn work(
         &mut self,

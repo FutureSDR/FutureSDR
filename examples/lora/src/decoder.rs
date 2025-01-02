@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -176,5 +175,4 @@ impl Decoder {
     }
 }
 
-#[async_trait]
 impl Kernel for Decoder {}
