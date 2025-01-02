@@ -129,18 +129,12 @@ impl Scheduler for CpuPinScheduler {
             if block.is_blocking() {
                 let main = main_channel.clone();
                 debug!("spawing block on executor");
-
-                if let Some(&c) = self.inner.cpu_pins.get(&id) {
-                    self.inner
-                        .executor
-                        .spawn_executor(
-                            blocking::unblock(move || block_on(block.run(id, main, receiver))),
-                            c,
-                        )
-                        .detach();
-                } else {
-                    panic!("foo");
-                }
+                self.inner
+                    .executor
+                    .spawn(blocking::unblock(move || {
+                        block_on(block.run(id, main, receiver))
+                    }))
+                    .detach();
             } else if let Some(&c) = self.inner.cpu_pins.get(&id) {
                 self.inner
                     .executor
