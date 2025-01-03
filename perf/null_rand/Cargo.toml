@@ -14,3 +14,10 @@ tracing = { version = "0.1", features = ["release_max_level_off"] }
 [[bin]]
 name = "null_rand"
 path = "null_rand.rs"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
+panic = "abort"
