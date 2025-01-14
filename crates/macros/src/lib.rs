@@ -523,66 +523,6 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
     }
 }
 
-/// Avoid boilerplate when creating message handlers.
-///
-/// For technical reasons the `message_handler` macro for use inside and outside the
-/// main crate need to be different. For the user this does not matter, since this
-/// version gets re-exported as `futuresdr::macros::message_handler`.
-///
-/// See [`macro@message_handler_external`] for a more information on how to use the macro.
-#[proc_macro_attribute]
-pub fn message_handler(
-    _attr: proc_macro::TokenStream,
-    fun: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let handler: syn::ItemFn = syn::parse(fun).unwrap();
-    let mut out = TokenStream::new();
-
-    let name = handler.sig.ident;
-    let io = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
-    let mio = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
-    let meta = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
-    let pmt = get_parameter_ident(&handler.sig.inputs[4]).unwrap();
-    let body = handler.block.stmts;
-
-    // println!("name {}", name);
-    // println!("mio {}", mio);
-    // println!("meta {}", meta);
-    // println!("pmt {}", pmt);
-
-    out.extend(quote! {
-        #[cfg(not(target_arch = "wasm32"))]
-        fn #name<'a>(
-            &'a mut self,
-            #io: &'a mut WorkIo,
-            #mio: &'a mut MessageIo<Self>,
-            #meta: &'a mut BlockMeta,
-            #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::runtime::Result<Pmt>> + Send + 'a>> {
-            use crate::futures::FutureExt;
-            Box::pin(async move {
-                #(#body)*
-            })
-        }
-        #[cfg(target_arch = "wasm32")]
-        fn #name<'a>(
-            &'a mut self,
-            #io: &'a mut WorkIo,
-            #mio: &'a mut MessageIo<Self>,
-            #meta: &'a mut BlockMeta,
-            #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::runtime::Result<Pmt>> + 'a>> {
-            use crate::futures::FutureExt;
-            Box::pin(async move {
-                #(#body)*
-            })
-        }
-    });
-
-    // println!("out: {}", out);
-    out.into()
-}
-
 //=========================================================================
 // MESSAGE_HANDLER
 //=========================================================================
@@ -621,7 +561,7 @@ pub fn message_handler(
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn message_handler_external(
+pub fn message_handler(
     _attr: proc_macro::TokenStream,
     fun: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
@@ -689,25 +629,6 @@ fn get_parameter_ident(arg: &syn::FnArg) -> Option<syn::Ident> {
 /// Custom version of async_trait that uses non-send futures for WASM.
 #[proc_macro_attribute]
 pub fn async_trait(
-    _attr: proc_macro::TokenStream,
-    fun: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let fun: proc_macro2::TokenStream = fun.into();
-    quote!(
-        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-        #fun
-    )
-    .into()
-}
-
-//=========================================================================
-// ASYNC_TRAIT_EXTERNAL
-//=========================================================================
-
-/// Custom version of async_trait that uses non-send futures for WASM.
-#[proc_macro_attribute]
-pub fn async_trait_external(
     _attr: proc_macro::TokenStream,
     fun: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {

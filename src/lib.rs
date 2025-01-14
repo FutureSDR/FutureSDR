@@ -35,6 +35,9 @@
 //! }
 //! ```
 
+// make the futuresdr crate available in the library to allow referencing it as
+// futuresdr internally, which simpilifies proc macros.
+extern crate self as futuresdr;
 #[macro_use]
 extern crate futuresdr_macros;
 /// Logging macro
@@ -62,7 +65,7 @@ pub mod macros {
     #[doc(hidden)]
     pub use async_trait::async_trait as async_trait_orig;
 
-    pub use futuresdr_macros::async_trait_external as async_trait;
+    pub use futuresdr_macros::async_trait;
     pub use futuresdr_macros::connect;
-    pub use futuresdr_macros::message_handler_external as message_handler;
+    pub use futuresdr_macros::message_handler;
 }
