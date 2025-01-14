@@ -83,7 +83,7 @@ dyn-clone = "1.0"
 futures = "0.3"
 futures-lite = "2.3"
 futuredsp = { path = "crates/futuredsp", version = "0.0.6" }
-futuresdr-macros = { path = "crates/macros", version = "0.0.6" }
+futuresdr-macros = { path = "crates/macros", version = "0.0.7" }
 futuresdr-types = { path = "crates/types", version = "0.0.12" }
 num-complex = "0.4"
 num-integer = "0.1"
