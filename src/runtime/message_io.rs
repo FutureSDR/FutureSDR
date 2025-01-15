@@ -13,7 +13,7 @@ use crate::runtime::WorkIo;
 
 /// Message Related Traits that are implemented by the block macro.
 pub trait MessageAccepter {
-    /// Forward to typed message handlers of kernel.
+    /// Call message handlers of the kernel.
     fn call_handler(
         &mut self,
         _io: &mut WorkIo,

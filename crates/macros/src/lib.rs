@@ -8,6 +8,9 @@ use proc_macro2::TokenTree;
 use quote::quote;
 use quote::quote_spanned;
 use std::iter::Peekable;
+use syn::parse_macro_input;
+use syn::DeriveInput;
+use syn::Meta;
 
 //=========================================================================
 // CONNECT
@@ -524,102 +527,85 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 }
 
 //=========================================================================
-// MESSAGE_HANDLER
+// BLOCK MACRO
 //=========================================================================
+#[proc_macro_derive(Block, attributes(message_handlers))]
+pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    // Parse the input as a DeriveInput
+    let input = parse_macro_input!(input as DeriveInput);
+    let struct_name = &input.ident;
+    let generics = &input.generics;
+    let where_clause = &input.generics.where_clause;
 
-/// Avoid boilerplate when creating message handlers.
-///
-/// Assume a block with a message handler that refers to a block function
-/// `Self::my_handler`.
-///
-/// ```ignore
-/// pub fn new() -> Block {
-///     Block::new(
-///         BlockMetaBuilder::new("MyBlock").build(),
-///         StreamIoBuilder::new().build(),
-///         MessageIoBuilder::new()
-///             .add_input("handler", Self::my_handler)
-///             .build(),
-///         Self,
-///     )
-/// }
-/// ```
-///
-/// The underlying machinery of the handler implementation is rather involved.
-/// With the `message_handler` macro, it can be simplified to:
-///
-/// ```ignore
-/// #[message_handler]
-/// async fn my_handler(
-///     &mut self,
-///     _io: &mut WorkIo,
-///     _mio: &mut MessageIo<Self>,
-///     _meta: &mut BlockMeta,
-///     _p: Pmt,
-/// ) -> Result<Pmt> {
-///     Ok(Pmt::Null)
-/// }
-/// ```
-#[proc_macro_attribute]
-pub fn message_handler(
-    _attr: proc_macro::TokenStream,
-    fun: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let handler: syn::ItemFn = syn::parse(fun).unwrap();
-    let mut out = TokenStream::new();
+    // Placeholder for handler names
+    let mut handlers: Vec<Ident> = Vec::new();
 
-    let name = handler.sig.ident;
-    let io = get_parameter_ident(&handler.sig.inputs[1]).unwrap();
-    let mio = get_parameter_ident(&handler.sig.inputs[2]).unwrap();
-    let meta = get_parameter_ident(&handler.sig.inputs[3]).unwrap();
-    let pmt = get_parameter_ident(&handler.sig.inputs[4]).unwrap();
-    let body = handler.block.stmts;
-
-    // println!("name {}", name);
-    // println!("mio {}", mio);
-    // println!("meta {}", meta);
-    // println!("pmt {}", pmt);
-
-    out.extend(quote! {
-        #[cfg(not(target_arch = "wasm32"))]
-        fn #name<'a>(
-            &'a mut self,
-            #io: &'a mut WorkIo,
-            #mio: &'a mut MessageIo<Self>,
-            #meta: &'a mut BlockMeta,
-            #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::runtime::Result<Pmt>> + Send + 'a>> {
-            use futuresdr::futures::FutureExt;
-            Box::pin(async move {
-                #(#body)*
-            })
+    // Search for the `handlers` attribute
+    for attr in &input.attrs {
+        if attr.path().is_ident("message_handlers") {
+            println!("META: {:?}", attr.meta);
+            // Parse the attribute as a meta item
+            if let Meta::List(meta_list) = &attr.meta {
+                println!("METALIST: {:?}", meta_list);
+                println!("TOKENS: {:?}", meta_list.tokens);
+                for t in meta_list.tokens.clone() {
+                    println!("TOKEN: {:?}", t);
+                    if let TokenTree::Ident(i) = t {
+                        handlers.push(i);
+                    }
+                }
+            }
         }
-        #[cfg(target_arch = "wasm32")]
-        fn #name<'a>(
-            &'a mut self,
-            #io: &'a mut WorkIo,
-            #mio: &'a mut MessageIo<Self>,
-            #meta: &'a mut BlockMeta,
-            #pmt: Pmt,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = futuresdr::runtime::Result<Pmt>> + 'a>> {
-            use futuresdr::futures::FutureExt;
-            Box::pin(async move {
-                #(#body)*
-            })
+    }
+
+    println!("HANDLERS: {:?}", handlers);
+
+    // Generate match arms for the handle method
+    let handler_matches = handlers.iter().enumerate().map(|(index, handler)| {
+        quote! {
+            #index => self.#handler(p).await,
         }
     });
 
-    // println!("out: {}", out);
-    out.into()
-}
-
-fn get_parameter_ident(arg: &syn::FnArg) -> Option<syn::Ident> {
-    if let syn::FnArg::Typed(syn::PatType { pat, .. }) = arg {
-        if let syn::Pat::Ident(ref i) = **pat {
-            return Some(i.ident.clone());
+    // Generate handler names as strings
+    let handler_names = handlers.iter().map(|handler| {
+        quote! {
+            "#handler"
         }
-    }
-    None
+    });
+
+    println!("foo {:?}", generics);
+
+    // Generate the Block implementation
+    let expanded = quote! {
+        impl #generics ::futuresdr::runtime::MessageAccepter for #struct_name #generics
+            #where_clause
+        {
+            async fn call_handler(
+                &mut self,
+                io: &mut ::futuresdr::runtime::WorkIo,
+                mio: &mut ::futuresdr::runtime::MessageOutputs,
+                meta: &mut ::futuresdr::runtime::BlockMeta,
+                _id: ::futuresdr::runtime::PortId,
+                p: ::futuresdr::runtime::Pmt) ->
+                    ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {
+                        self.msg_handler(io, mio, meta, p).await.unwrap();
+                        todo!()
+                    // match port {
+                    //     #(#handler_matches)*
+                    //     _ => Pmt {},
+                    // }
+            }
+            fn input_names() -> Vec<String> {
+                todo!()
+                // vec![#(#handler_names),*]
+            }
+        }
+
+    };
+
+    println!("{}", expanded);
+    proc_macro::TokenStream::from(expanded)
 }
 
 //=========================================================================

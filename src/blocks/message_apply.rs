@@ -1,19 +1,21 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Error;
 use crate::runtime::Kernel;
-use crate::runtime::MessageAccepter;
 use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
-use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
-pub struct MessageApply<F> {
+#[derive(Block)]
+#[message_handlers(msg_handler)]
+pub struct MessageApply<F>
+where
+    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static,
+{
     callback: F,
 }
 
@@ -50,28 +52,6 @@ where
             mio.output_mut(0).post(r).await;
         }
         Ok(Pmt::Ok)
-    }
-}
-
-impl<F> MessageAccepter for MessageApply<F>
-where
-    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static,
-{
-    async fn call_handler(
-        &mut self,
-        io: &mut WorkIo,
-        mio: &mut MessageOutputs,
-        meta: &mut BlockMeta,
-        _id: PortId,
-        p: Pmt,
-    ) -> Result<Pmt, Error> {
-        self.msg_handler(io, mio, meta, p)
-            .await
-            .map_err(|e| Error::HandlerError(e.to_string()))
-    }
-
-    fn input_names() -> Vec<String> {
-        vec!["in".to_string()]
     }
 }
 
@@ -112,4 +92,7 @@ where
 //     f.await.map_err(|e| Error::HandlerError(e.to_string()))
 // }
 
-impl<F: Send> Kernel for MessageApply<F> {}
+impl<F> Kernel for MessageApply<F> where
+    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static
+{
+}
