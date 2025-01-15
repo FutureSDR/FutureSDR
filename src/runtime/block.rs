@@ -16,10 +16,9 @@ use crate::runtime::BlockMeta;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::MessageIo;
+use crate::runtime::MessageAccepter;
+use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutput;
-use crate::runtime::Pmt;
-use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
@@ -75,7 +74,7 @@ pub trait Kernel: Send {
         &mut self,
         _io: &mut WorkIo,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
@@ -84,7 +83,7 @@ pub trait Kernel: Send {
     fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
@@ -93,7 +92,7 @@ pub trait Kernel: Send {
     fn deinit(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
@@ -110,7 +109,7 @@ pub trait Kernel: Send {
         &mut self,
         _io: &mut WorkIo,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
@@ -119,7 +118,7 @@ pub trait Kernel: Send {
     fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
@@ -128,7 +127,7 @@ pub trait Kernel: Send {
     fn deinit(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
@@ -199,57 +198,20 @@ pub struct TypedBlock<T> {
     /// Stream IO
     pub sio: StreamIo,
     /// Message IO
-    pub mio: MessageIo<T>,
+    pub mio: MessageOutputs,
     /// Kernel
     pub kernel: T,
 }
 
-impl<T: Kernel + Send + 'static> TypedBlock<T> {
+impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
     /// Create Typed Block
-    pub fn new(meta: BlockMeta, sio: StreamIo, mio: MessageIo<T>, kernel: T) -> Self {
+    pub fn new(meta: BlockMeta, sio: StreamIo, mio: MessageOutputs, kernel: T) -> Self {
         Self {
             meta,
             sio,
             mio,
             kernel,
         }
-    }
-
-    async fn call_handler(
-        io: &mut WorkIo,
-        mio: &mut MessageIo<T>,
-        meta: &mut BlockMeta,
-        kernel: &mut T,
-        id: PortId,
-        p: Pmt,
-    ) -> Result<Pmt, Error> {
-        let id = match id {
-            PortId::Index(i) => {
-                if i < mio.inputs().len() {
-                    i
-                } else {
-                    return Err(Error::InvalidMessagePort(
-                        BlockPortCtx::None,
-                        PortId::Index(i),
-                    ));
-                }
-            }
-            PortId::Name(n) => match mio.input_name_to_id(&n) {
-                Some(s) => s,
-                None => {
-                    return Err(Error::InvalidMessagePort(
-                        BlockPortCtx::None,
-                        PortId::Name(n),
-                    ));
-                }
-            },
-        };
-        if matches!(p, Pmt::Finished) {
-            mio.input_mut(id).finish();
-        }
-        let h = mio.input(id).get_handler();
-        let f = (h)(kernel, io, mio, meta, p);
-        f.await.map_err(|e| Error::HandlerError(e.to_string()))
     }
 
     async fn run_impl(
@@ -329,7 +291,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                             sio.inputs().iter().map(|x| x.name().to_string()).collect();
                         let stream_outputs: Vec<String> =
                             sio.outputs().iter().map(|x| x.name().to_string()).collect();
-                        let message_inputs: Vec<String> = mio.input_names();
+                        let message_inputs: Vec<String> = T::input_names();
                         let message_outputs: Vec<String> =
                             mio.outputs().iter().map(|x| x.name().to_string()).collect();
 
@@ -352,7 +314,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                         work_io.finished = true;
                     }
                     Some(Some(BlockMessage::Call { port_id, data })) => {
-                        match Self::call_handler(&mut work_io, mio, meta, kernel, port_id, data)
+                        match kernel.call_handler(&mut work_io, mio, meta, port_id, data)
                             .await
                         {
                             Err(Error::InvalidMessagePort(_, port_id)) => {
@@ -372,11 +334,10 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                         }
                     }
                     Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
-                        match Self::call_handler(
+                        match kernel.call_handler(
                             &mut work_io,
                             mio,
                             meta,
-                            kernel,
                             port_id.clone(),
                             data,
                         )
@@ -468,7 +429,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
 }
 
 #[async_trait]
-impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
+impl<T: MessageAccepter + Kernel + Send + 'static> BlockT for TypedBlock<T> {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
         self
@@ -529,7 +490,7 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
 
     // ##### MESSAGE IO
     fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.mio.input_name_to_id(name)
+        T::input_name_to_id(name)
     }
     fn message_outputs(&self) -> &Vec<MessageOutput> {
         self.mio.outputs()
@@ -547,10 +508,10 @@ pub struct Block(pub(crate) Box<dyn BlockT>);
 
 impl Block {
     /// Create Block
-    pub fn new<T: Kernel + Send + 'static>(
+    pub fn new<T: MessageAccepter + Kernel + Send + 'static>(
         meta: BlockMeta,
         sio: StreamIo,
-        mio: MessageIo<T>,
+        mio: MessageOutputs,
         kernel: T,
     ) -> Block {
         Self(Box::new(TypedBlock {
@@ -561,7 +522,7 @@ impl Block {
         }))
     }
     /// Create block by wrapping a [`TypedBlock`].
-    pub fn from_typed<T: Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
+    pub fn from_typed<T: MessageAccepter + Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
         Self(Box::new(b))
     }
     /// Try to cast to a given kernel type
@@ -677,7 +638,7 @@ impl Block {
     }
 }
 
-impl<T: Kernel + 'static> From<TypedBlock<T>> for Block {
+impl<T: MessageAccepter + Kernel + 'static> From<TypedBlock<T>> for Block {
     fn from(value: TypedBlock<T>) -> Self {
         Block::from_typed(value)
     }

@@ -1,9 +1,12 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
+use crate::runtime::Error;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageAccepter;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -21,18 +24,15 @@ impl MessageSink {
         TypedBlock::new(
             BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::in_port)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             MessageSink { n_received: 0 },
         )
     }
 
-    #[message_handler]
     async fn in_port(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -53,12 +53,31 @@ impl MessageSink {
     }
 }
 
+impl MessageAccepter for MessageSink {
+    async fn call_handler(
+        &mut self,
+        io: &mut WorkIo,
+        mio: &mut MessageOutputs,
+        meta: &mut BlockMeta,
+        _id: PortId,
+        p: Pmt,
+    ) -> Result<Pmt, Error> {
+        self.in_port(io, mio, meta, p)
+            .await
+            .map_err(|e| Error::HandlerError(e.to_string()))
+    }
+
+    fn input_names() -> Vec<String> {
+        vec!["in".to_string()]
+    }
+}
+
 #[doc(hidden)]
 impl Kernel for MessageSink {
     async fn deinit(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         debug!("n_received: {}", self.n_received);

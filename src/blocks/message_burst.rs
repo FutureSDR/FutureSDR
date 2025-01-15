@@ -1,8 +1,9 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
+use crate::runtime::MessageAccepter;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -22,7 +23,7 @@ impl MessageBurst {
         TypedBlock::new(
             BlockMetaBuilder::new("MessageBurst").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().add_output("out").build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             MessageBurst {
                 message,
                 n_messages,
@@ -31,13 +32,15 @@ impl MessageBurst {
     }
 }
 
+impl MessageAccepter for MessageBurst { }
+
 #[doc(hidden)]
 impl Kernel for MessageBurst {
     async fn work(
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         for _ in 0..self.n_messages {

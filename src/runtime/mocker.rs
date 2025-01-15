@@ -8,12 +8,12 @@ use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
+use crate::runtime::MessageAccepter;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::TypedBlock;
@@ -28,7 +28,7 @@ pub struct Mocker<K> {
     messages: Vec<Vec<Pmt>>,
 }
 
-impl<K: Kernel + 'static> Mocker<K> {
+impl<K: MessageAccepter + Kernel + 'static> Mocker<K> {
     /// Create mocker
     pub fn new(mut block: TypedBlock<K>) -> Self {
         let mut messages = Vec::new();
@@ -93,15 +93,6 @@ impl<K: Kernel + 'static> Mocker<K> {
 
     /// Post a PMT to a message handler of the block.
     pub fn post(&mut self, id: PortId, p: Pmt) -> Result<Pmt, Error> {
-        let id = match id {
-            PortId::Name(ref n) => self
-                .block
-                .mio
-                .input_name_to_id(n)
-                .ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?,
-            PortId::Index(id) => id,
-        };
-
         let mut io = WorkIo {
             call_again: false,
             finished: false,
@@ -111,9 +102,8 @@ impl<K: Kernel + 'static> Mocker<K> {
         let TypedBlock {
             meta, mio, kernel, ..
         } = &mut self.block;
-        let h = mio.input(id).get_handler();
-        let f = (h)(kernel, &mut io, mio, meta, p);
-        async_io::block_on(f).map_err(|e| Error::HandlerError(e.to_string()))
+        async_io::block_on(kernel.call_handler(&mut io, mio, meta, id, p))
+            .map_err(|e| Error::HandlerError(e.to_string()))
     }
 
     /// Get data from output buffer

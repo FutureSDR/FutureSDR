@@ -1,94 +1,40 @@
 //! Message/Event/RPC-based Ports
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
-use std::pin::Pin;
-use std::sync::Arc;
 
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::WorkIo;
 
-#[cfg(not(target_arch = "wasm32"))]
-type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>;
-#[cfg(target_arch = "wasm32")]
-type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + 'a>>;
-
-/// Message input port
-pub struct MessageInput<T: ?Sized> {
-    name: String,
-    finished: bool,
-    #[allow(clippy::type_complexity)]
-    handler: Arc<
-        dyn for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync,
-    >,
-}
-
-impl<T: Send + ?Sized> MessageInput<T> {
-    /// Create message input port
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        name: &str,
-        handler: Arc<
-            dyn for<'a> Fn(
-                    &'a mut T,
-                    &'a mut WorkIo,
-                    &'a mut MessageIo<T>,
-                    &'a mut BlockMeta,
-                    Pmt,
-                ) -> HandlerFuture<'a>
-                + Send
-                + Sync,
-        >,
-    ) -> MessageInput<T> {
-        MessageInput {
-            name: name.to_string(),
-            finished: false,
-            handler,
-        }
+/// Message Related Traits that are implemented by the block macro.
+pub trait MessageAccepter {
+    /// Forward to typed message handlers of kernel.
+    fn call_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        id: PortId,
+        _p: Pmt,
+    ) -> impl Future<Output = Result<Pmt, Error>> + Send {
+        async { Err(Error::InvalidMessagePort(BlockPortCtx::None, id)) }
     }
-
-    /// Get a copy of the handler function
-    #[allow(clippy::type_complexity)]
-    pub fn get_handler(
-        &self,
-    ) -> Arc<
-        dyn for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync,
-    > {
-        self.handler.clone()
+    /// Input Message Handler Names.
+    fn input_names() -> Vec<String> {
+        vec![]
     }
-
-    /// Get name of port
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Mark port as finished
-    pub fn finish(&mut self) {
-        self.finished = true;
-    }
-
-    /// Check, if port is marked finished
-    pub fn finished(&self) -> bool {
-        self.finished
+    /// Map the name of the port to its id.
+    fn input_name_to_id(name: &str) -> Option<usize> {
+        Self::input_names()
+            .iter()
+            .enumerate()
+            .find(|item| item.1 == name)
+            .map(|(i, _)| i)
     }
 }
 
@@ -144,43 +90,13 @@ impl MessageOutput {
 }
 
 /// Message IO
-pub struct MessageIo<T: ?Sized> {
-    inputs: Vec<MessageInput<T>>,
+pub struct MessageOutputs {
     outputs: Vec<MessageOutput>,
 }
 
-impl<T: Send + ?Sized> MessageIo<T> {
-    fn new(inputs: Vec<MessageInput<T>>, outputs: Vec<MessageOutput>) -> Self {
-        MessageIo { inputs, outputs }
-    }
-
-    /// Get input port Id, given its name
-    pub fn input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.inputs
-            .iter()
-            .enumerate()
-            .find(|item| item.1.name() == name)
-            .map(|(i, _)| i)
-    }
-
-    /// Get input port
-    pub fn input(&self, id: usize) -> &MessageInput<T> {
-        &self.inputs[id]
-    }
-
-    /// Get input port mutable
-    pub fn input_mut(&mut self, id: usize) -> &mut MessageInput<T> {
-        &mut self.inputs[id]
-    }
-
-    /// Get all input port
-    pub fn inputs(&self) -> &Vec<MessageInput<T>> {
-        &self.inputs
-    }
-
-    /// Get input port names
-    pub fn input_names(&self) -> Vec<String> {
-        self.inputs.iter().map(|x| x.name().to_string()).collect()
+impl MessageOutputs {
+    fn new(outputs: Vec<MessageOutput>) -> Self {
+        MessageOutputs { outputs }
     }
 
     /// Get all outputs
@@ -219,57 +135,32 @@ impl<T: Send + ?Sized> MessageIo<T> {
 }
 
 /// Message IO builder
-pub struct MessageIoBuilder<T> {
-    inputs: Vec<MessageInput<T>>,
+pub struct MessageOutputsBuilder {
     outputs: Vec<MessageOutput>,
 }
 
-impl<T: Send> MessageIoBuilder<T> {
+impl MessageOutputsBuilder {
     /// Create Message IO builder
-    pub fn new() -> MessageIoBuilder<T> {
-        MessageIoBuilder {
-            inputs: Vec::new(),
+    pub fn new() -> MessageOutputsBuilder {
+        MessageOutputsBuilder {
             outputs: Vec::new(),
         }
     }
 
-    /// Add input port
-    ///
-    /// Use the [`message_handler`](crate::message_handler) macro to define the handler
-    /// function
-    #[must_use]
-    pub fn add_input(
-        mut self,
-        name: &str,
-        c: impl for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync
-            + 'static,
-    ) -> MessageIoBuilder<T> {
-        self.inputs.push(MessageInput::new(name, Arc::new(c)));
-        self
-    }
-
     /// Add output port
     #[must_use]
-    pub fn add_output(mut self, name: &str) -> MessageIoBuilder<T> {
+    pub fn add_output(mut self, name: &str) -> MessageOutputsBuilder {
         self.outputs.push(MessageOutput::new(name));
         self
     }
 
     /// Build Message IO
-    pub fn build(self) -> MessageIo<T> {
-        MessageIo::new(self.inputs, self.outputs)
+    pub fn build(self) -> MessageOutputs {
+        MessageOutputs::new(self.outputs)
     }
 }
 
-impl<T: Send> Default for MessageIoBuilder<T> {
+impl Default for MessageOutputsBuilder {
     fn default() -> Self {
         Self::new()
     }
