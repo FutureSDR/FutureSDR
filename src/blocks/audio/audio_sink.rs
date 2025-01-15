@@ -22,6 +22,7 @@ use crate::runtime::WorkIo;
 
 /// Audio Sink.
 #[allow(clippy::type_complexity)]
+#[derive(Block)]
 pub struct AudioSink {
     sample_rate: u32,
     channels: u16,

@@ -48,6 +48,7 @@ pub enum HeaderMode {
 
 const HEADER_LEN: usize = 5; // size of the header in nibbles
 
+#[derive(futuresdr::Block)]
 pub struct HeaderDecoder {
     mode: HeaderMode,
     left: usize,
@@ -74,7 +75,7 @@ impl HeaderDecoder {
     }
 
     async fn publish_frame_info(
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         cr: usize,
         pay_len: usize,
         crc: bool,
@@ -99,7 +100,7 @@ impl Kernel for HeaderDecoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<u8>();

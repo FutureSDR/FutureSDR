@@ -39,7 +39,7 @@ use crate::runtime::WorkIo;
 ///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
 #[derive(Block)]
-#[message_handler(freq, gain, sample_rate, cmd, terminate, config)]
+#[message_handlers(freq, gain, sample_rate, cmd, terminate, config)]
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -68,8 +68,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         TypedBlock::new(
             BlockMetaBuilder::new("Source").blocking().build(),
             siob.build(),
-            MessageOutputsBuilder::new()
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Source {
                 channels,
                 dev,
@@ -149,7 +148,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    fn sample_rate(
+    async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -169,7 +168,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    fn config(
+    async fn config(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,

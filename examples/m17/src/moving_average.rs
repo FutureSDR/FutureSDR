@@ -11,6 +11,7 @@ use futuresdr::runtime::WorkIo;
 
 const MAX_ITER: usize = 4000;
 
+#[derive(futuresdr::Block)]
 pub struct MovingAverage {
     len: usize,
     pad: usize,
@@ -36,7 +37,7 @@ impl Kernel for MovingAverage {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();

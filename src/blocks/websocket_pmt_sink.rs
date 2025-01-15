@@ -44,7 +44,7 @@ impl WebsocketPmtSink {
         TypedBlock::new(
             BlockMetaBuilder::new("WebsocketPmtSink").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new() .build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 port,
                 listener: None,

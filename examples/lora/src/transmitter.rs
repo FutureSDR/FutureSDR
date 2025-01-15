@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::macros::message_handler;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -17,6 +16,8 @@ use std::collections::VecDeque;
 use crate::Encoder;
 use crate::Modulator;
 
+#[derive(futuresdr::Block)]
+#[message_handlers(msg)]
 pub struct Transmitter {
     frames: VecDeque<Vec<u8>>,
     current_frame: Vec<Complex32>,
@@ -44,9 +45,7 @@ impl Transmitter {
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new()
-                .add_input("msg", Self::msg_handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Transmitter {
                 frames: VecDeque::new(),
                 current_frame: Vec::new(),
@@ -70,11 +69,10 @@ impl Transmitter {
         )
     }
 
-    #[message_handler]
-    fn msg_handler(
+    async fn msg(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -96,7 +94,7 @@ impl Kernel for Transmitter {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<Complex32>();

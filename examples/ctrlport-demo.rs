@@ -1,9 +1,7 @@
 use anyhow::Result;
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
@@ -21,6 +19,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(futuresdr::Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct CtrlPortDemo {
     counter: u64,
 }
@@ -31,19 +32,15 @@ impl CtrlPortDemo {
         TypedBlock::new(
             BlockMetaBuilder::new("CtrlPortDemo").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_output("out")
-                .add_input("in", Self::handler)
-                .build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             Self { counter: 5 },
         )
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -51,5 +48,3 @@ impl CtrlPortDemo {
         Ok(Pmt::U64(self.counter - 1))
     }
 }
-
-impl Kernel for CtrlPortDemo {}

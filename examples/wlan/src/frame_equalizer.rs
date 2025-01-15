@@ -89,6 +89,7 @@ enum State {
     Skip,
 }
 
+#[derive(futuresdr::Block)]
 pub struct FrameEqualizer {
     equalizer: Equalizer,
     state: State,
@@ -181,7 +182,7 @@ impl Kernel for FrameEqualizer {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<Complex32>();

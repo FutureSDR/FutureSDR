@@ -12,6 +12,7 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
+#[derive(futuresdr::Block)]
 pub struct Prefix {
     pad_front: usize,
     pad_tail: usize,
@@ -39,7 +40,7 @@ impl Kernel for Prefix {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<Complex32>();

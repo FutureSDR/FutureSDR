@@ -11,6 +11,7 @@ use futuresdr::runtime::Tag;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
+#[derive(futuresdr::Block)]
 pub struct PreambleDetector {
     detection_threshold: f32,
 }
@@ -59,7 +60,7 @@ impl Kernel for PreambleDetector {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let samples = sio.input(0).slice::<f32>();

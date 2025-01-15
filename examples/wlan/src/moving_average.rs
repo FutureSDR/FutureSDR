@@ -35,6 +35,7 @@ impl MovingAverageType for f32 {
     }
 }
 
+#[derive(futuresdr::Block)]
 pub struct MovingAverage<T: MovingAverageType + Send + 'static> {
     len: usize,
     pad: usize,
@@ -65,7 +66,7 @@ impl<T: MovingAverageType + Send + 'static> Kernel for MovingAverage<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<T>();

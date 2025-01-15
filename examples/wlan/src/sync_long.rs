@@ -21,6 +21,7 @@ enum State {
     Copy(usize, f32),
 }
 
+#[derive(futuresdr::Block)]
 pub struct SyncLong {
     cor: [Complex32; SEARCH_WINDOW],
     cor_index: Vec<(usize, f32)>,
@@ -81,7 +82,7 @@ impl Kernel for SyncLong {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<Complex32>();

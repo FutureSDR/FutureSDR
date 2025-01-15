@@ -16,6 +16,7 @@ enum State {
     Down(usize),
 }
 
+#[derive(futuresdr::Block)]
 pub struct Decoder {
     state: State,
     n_read: usize,
@@ -28,7 +29,7 @@ impl Decoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageOutputsBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 state: State::Down(0),
                 n_read: 0,
@@ -63,7 +64,7 @@ impl Kernel for Decoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let inbuf = sio.input(0).slice::<u8>();

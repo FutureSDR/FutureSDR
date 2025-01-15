@@ -24,6 +24,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// WASM Websocket Sink
+#[derive(Block)]
 pub struct WasmWsSink<T> {
     data_sender: channel::mpsc::Sender<Vec<u8>>,
     data_storage: Vec<u8>,
@@ -72,7 +73,7 @@ impl<T: Send + Sync + 'static> WasmWsSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("WasmWsSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             WasmWsSink {
                 data_sender: sender,
                 data_storage: Vec::new(),

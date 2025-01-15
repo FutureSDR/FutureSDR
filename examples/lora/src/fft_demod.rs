@@ -37,6 +37,7 @@ pub fn bessel_I0(x: f64) -> f64 {
     sum
 }
 
+#[derive(futuresdr::Block)]
 pub struct FftDemod {
     m_sf: usize,                 //< Spreading factor
     m_cr: usize,                 //< Coding rate
@@ -285,7 +286,7 @@ impl Kernel for FftDemod {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<Complex32>();

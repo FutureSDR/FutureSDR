@@ -17,6 +17,7 @@ use futuresdr::tracing::warn;
 
 use crate::utils::*;
 
+#[derive(futuresdr::Block)]
 pub struct Deinterleaver {
     sf: usize,           // Spreading factor
     cr: usize,           // Coding rate
@@ -39,7 +40,7 @@ impl Deinterleaver {
             BlockMetaBuilder::new("Deinterleaver").build(),
             sio.build(),
             MessageOutputsBuilder::new().build(),
-            Deinterleaver {
+            Self {
                 soft_decoding,
                 sf: 0,
                 cr: 0,
@@ -55,7 +56,7 @@ impl Kernel for Deinterleaver {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut n_input = if self.soft_decoding {

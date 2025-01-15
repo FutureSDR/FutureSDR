@@ -12,6 +12,7 @@ use futuresdr::runtime::WorkIo;
 use crate::Encoder;
 use crate::LinkSetupFrame;
 
+#[derive(futuresdr::Block)]
 pub struct EncoderBlock {
     syms: Vec<f32>,
     offset: usize,
@@ -41,7 +42,7 @@ impl Kernel for EncoderBlock {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<u8>();

@@ -17,6 +17,7 @@ use std::collections::VecDeque;
 
 use crate::utils::*;
 
+#[derive(futuresdr::Block)]
 pub struct GrayMapping {
     m_soft_decoding: bool, // Hard/Soft decoding
 }
@@ -35,7 +36,7 @@ impl GrayMapping {
             BlockMetaBuilder::new("GrayMapping").build(),
             sio.build(),
             MessageOutputsBuilder::new().build(),
-            GrayMapping {
+            Self {
                 m_soft_decoding: soft_decoding,
             },
         )
@@ -47,7 +48,7 @@ impl Kernel for GrayMapping {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_input = if self.m_soft_decoding {

@@ -17,8 +17,8 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MessageAccepter;
-use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutput;
+use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
@@ -314,7 +314,8 @@ impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
                         work_io.finished = true;
                     }
                     Some(Some(BlockMessage::Call { port_id, data })) => {
-                        match kernel.call_handler(&mut work_io, mio, meta, port_id, data)
+                        match kernel
+                            .call_handler(&mut work_io, mio, meta, port_id, data)
                             .await
                         {
                             Err(Error::InvalidMessagePort(_, port_id)) => {
@@ -334,14 +335,9 @@ impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
                         }
                     }
                     Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
-                        match kernel.call_handler(
-                            &mut work_io,
-                            mio,
-                            meta,
-                            port_id.clone(),
-                            data,
-                        )
-                        .await
+                        match kernel
+                            .call_handler(&mut work_io, mio, meta, port_id.clone(), data)
+                            .await
                         {
                             Err(e @ Error::HandlerError(..)) => {
                                 error!(

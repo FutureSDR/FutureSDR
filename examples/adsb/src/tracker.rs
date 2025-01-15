@@ -1,5 +1,4 @@
 use futuresdr::async_io::Timer;
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -22,6 +21,8 @@ use crate::*;
 /// The duration considered to be recent when decoding CPR frames
 const ADSB_TIME_RECENT: Duration = Duration::new(10, 0);
 
+#[derive(futuresdr::Block)]
+#[message_handlers(r#in, ctrl_port)]
 pub struct Tracker {
     /// When to prune aircraft from the register.
     prune_after: Option<Duration>,
@@ -47,10 +48,7 @@ impl Tracker {
         TypedBlock::new(
             BlockMetaBuilder::new("Tracker").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_input("in", Self::packet_received)
-                .add_input("ctrl_port", Self::handle_ctrl_port)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 prune_after,
                 aircraft_register,
@@ -59,11 +57,10 @@ impl Tracker {
     }
 
     /// This function handles control port messages.
-    #[message_handler]
-    async fn handle_ctrl_port(
+    async fn ctrl_port(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -85,11 +82,10 @@ impl Tracker {
     }
 
     /// This function handles received packets passed to the block.
-    #[message_handler]
-    async fn packet_received(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -281,7 +277,7 @@ impl Kernel for Tracker {
         &mut self,
         _io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Set up pruning timer.

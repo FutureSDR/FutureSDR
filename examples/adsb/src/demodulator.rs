@@ -21,6 +21,7 @@ pub struct DemodPacket {
     pub bits: Vec<u8>,
 }
 
+#[derive(futuresdr::Block)]
 pub struct Demodulator {
     n_received: u64,
 }
@@ -42,7 +43,7 @@ impl Kernel for Demodulator {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let samples = sio.input(0).slice::<f32>();

@@ -22,6 +22,7 @@ enum State {
     Copy(usize, f32, bool),
 }
 
+#[derive(futuresdr::Block)]
 pub struct SyncShort {
     state: State,
 }
@@ -49,7 +50,7 @@ impl Kernel for SyncShort {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let in_sig = sio.input(0).slice::<Complex32>();

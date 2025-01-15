@@ -22,6 +22,7 @@ enum State {
 
 const PADDING: usize = 40000;
 
+#[derive(futuresdr::Block)]
 pub struct IqDelay {
     state: State,
     buf: VecDeque<f32>,
@@ -49,7 +50,7 @@ impl Kernel for IqDelay {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<Complex32>();

@@ -15,6 +15,7 @@ use crate::runtime::WorkIo;
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples.
+#[derive(Block)]
 pub struct NullSource<T: Send + 'static> {
     probe_granularity: u64,
     id: Option<u64>,
@@ -29,7 +30,7 @@ impl<T: Send + 'static> NullSource<T> {
             BlockMetaBuilder::new("LTTngNullSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageOutputsBuilder::new().build(),
-            NullSource::<T> {
+            Self {
                 probe_granularity,
                 id: None,
                 n_produced: 0,

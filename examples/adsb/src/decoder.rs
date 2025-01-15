@@ -1,10 +1,8 @@
 use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
 use anyhow::bail;
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
@@ -36,6 +34,9 @@ pub struct AdsbPacket {
     pub decoder_metadata: DecoderMetaData,
 }
 
+#[derive(futuresdr::Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct Decoder {
     forward_failed_crc: bool,
     n_crc_ok: u64,
@@ -48,10 +49,7 @@ impl Decoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_input("in", Self::packet_received)
-                .add_output("out")
-                .build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             Self {
                 forward_failed_crc,
                 n_crc_ok: 0,
@@ -109,11 +107,10 @@ impl Decoder {
         }
     }
 
-    #[message_handler]
-    async fn packet_received(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -158,5 +155,3 @@ impl Decoder {
         Ok(Pmt::Ok)
     }
 }
-
-impl Kernel for Decoder {}

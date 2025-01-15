@@ -38,6 +38,7 @@ const CW_LUT_CR5: [u8; CW_COUNT] = [
     0, 24, 40, 48, 72, 80, 96, 120, 136, 144, 160, 184, 192, 216, 232, 240,
 ]; // Different for cr = 4/5
 
+#[derive(futuresdr::Block)]
 pub struct HammingDec {
     m_cr: usize,           // Transmission coding rate
     is_header: bool,       // Indicate that it is the first block
@@ -58,7 +59,7 @@ impl HammingDec {
             BlockMetaBuilder::new("HammingDec").build(),
             sio.build(),
             MessageOutputsBuilder::new().add_output("out").build(),
-            HammingDec {
+            Self {
                 m_soft_decoding: soft_decoding,
                 is_header: false,
                 m_cr: 1,
@@ -73,7 +74,7 @@ impl Kernel for HammingDec {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_input = if self.m_soft_decoding {

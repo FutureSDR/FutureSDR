@@ -10,7 +10,8 @@ use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use std::marker::PhantomData;
 
-pub struct FftShift<T> {
+#[derive(futuresdr::Block)]
+pub struct FftShift<T: Send> {
     _p: PhantomData<T>,
 }
 
@@ -34,7 +35,7 @@ impl<T: Copy + Send + 'static> Kernel for FftShift<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<T>();

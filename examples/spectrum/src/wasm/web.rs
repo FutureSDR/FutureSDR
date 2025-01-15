@@ -210,6 +210,7 @@ pub fn web() {
     mount_to_body(|| view! { <Gui /> })
 }
 
+#[derive(futuresdr::Block)]
 pub struct Sink {
     data: Vec<Rc<RefCell<Option<Vec<u8>>>>>,
 }
@@ -233,7 +234,7 @@ impl Kernel for Sink {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();

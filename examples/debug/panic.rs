@@ -61,6 +61,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(futuresdr::Block)]
 struct Panic {
     w: PanicWhere,
 }
@@ -71,7 +72,7 @@ impl Panic {
         TypedBlock::new(
             BlockMetaBuilder::new("Panic").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self { w },
         )
     }
@@ -81,7 +82,7 @@ impl Kernel for Panic {
     async fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Init) {
@@ -93,7 +94,7 @@ impl Kernel for Panic {
         &mut self,
         io: &mut WorkIo,
         _s: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Work) {
@@ -106,7 +107,7 @@ impl Kernel for Panic {
     async fn deinit(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Deinit) {

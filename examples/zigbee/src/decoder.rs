@@ -47,6 +47,7 @@ enum State {
     },
 }
 
+#[derive(futuresdr::Block)]
 pub struct Decoder {
     chip_count: u32,
     shift_reg: u32,
@@ -59,7 +60,7 @@ impl Decoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::<Self>::new().add_output("out").build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             Self {
                 threshold,
                 state: State::Search,
@@ -81,7 +82,7 @@ impl Kernel for Decoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let inbuf = sio.input(0).slice::<f32>();

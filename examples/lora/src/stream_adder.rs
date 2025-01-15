@@ -12,7 +12,8 @@ use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Add;
 
-pub struct StreamAdder<T> {
+#[derive(futuresdr::Block)]
+pub struct StreamAdder<T: Send> {
     num_in: usize,
     phantom: PhantomData<T>,
 }
@@ -31,7 +32,7 @@ where
             BlockMetaBuilder::new("StreamAdder").build(),
             sio.build(),
             MessageOutputsBuilder::new().build(),
-            StreamAdder::<T> {
+            Self {
                 num_in: num_inputs,
                 phantom: PhantomData,
             },
@@ -44,7 +45,7 @@ impl<T: Copy + Send + Sync + Add<Output = T> + 'static> Kernel for StreamAdder<T
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out: &mut [T] = sio.output(0).slice::<T>();

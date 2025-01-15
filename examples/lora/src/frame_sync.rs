@@ -1,5 +1,4 @@
 use futuresdr::futures::channel::mpsc;
-use futuresdr::macros::message_handler;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
@@ -93,6 +92,8 @@ impl FromStr for NetIdCachingPolicy {
 const ADDITIONAL_SAMPLES_FOR_NET_ID_RESYNCHING: usize = 4; // might need to consider os_factor
 const MAX_UNKNOWN_NET_ID_OFFSET: usize = 1;
 
+#[derive(futuresdr::Block)]
+#[message_handlers(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
 pub struct FrameSync {
     m_state: DecoderState, //< Current state of the synchronization
     m_center_freq: u32,    //< RF center frequency
@@ -212,11 +213,6 @@ impl FrameSync {
                 .add_output::<Complex32>("out")
                 .build(),
             MessageOutputsBuilder::new()
-                .add_input("bandwidth", Self::bandwidth_handler)
-                .add_input("center_freq", Self::center_freq_handler)
-                .add_input("frame_info", Self::frame_info_handler)
-                .add_input("payload_crc_result", Self::payload_crc_result_handler)
-                .add_input("poke", Self::poke_handler)
                 .add_output("net_id_caching")
                 .add_output("frame_detected")
                 .add_output("detection_failed")
@@ -320,24 +316,22 @@ impl FrameSync {
         )
     }
 
-    #[message_handler]
-    pub fn poke_handler<'a>(
-        &'a mut self,
-        io: &'a mut WorkIo,
-        _mio: &'a mut MessageOutputs<Self>,
-        _meta: &'a mut BlockMeta,
+    async fn poke(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         io.call_again = true;
         Ok(Pmt::Null)
     }
 
-    #[message_handler]
-    pub fn bandwidth_handler<'a>(
-        &'a mut self,
-        _io: &'a mut WorkIo,
-        _mio: &'a mut MessageOutputs<Self>,
-        _meta: &'a mut BlockMeta,
+    async fn bandwidth(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::Usize(new_bw) = p {
@@ -349,12 +343,11 @@ impl FrameSync {
         Ok(Pmt::Null)
     }
 
-    #[message_handler]
-    pub fn center_freq_handler<'a>(
-        &'a mut self,
-        _io: &'a mut WorkIo,
-        _mio: &'a mut MessageOutputs<Self>,
-        _meta: &'a mut BlockMeta,
+    async fn center_freq(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::Usize(new_center_freq) = p {
@@ -606,11 +599,10 @@ impl FrameSync {
         self.known_valid_net_ids_reverse[self.net_id[1] as usize][self.net_id[0] as usize] = true;
     }
 
-    #[message_handler]
-    fn payload_crc_result_handler(
+    async fn payload_crc_result(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -633,11 +625,10 @@ impl FrameSync {
         Ok(Pmt::Null)
     }
 
-    #[message_handler]
-    fn frame_info_handler(
+    async fn frame_info(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1530,7 +1521,7 @@ impl Kernel for FrameSync {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<Complex32>();

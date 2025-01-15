@@ -20,6 +20,7 @@ use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 use crate::MAX_SYM;
 
+#[derive(futuresdr::Block)]
 pub struct Decoder {
     frame_complete: bool,
     frame_param: FrameParam,
@@ -130,7 +131,7 @@ impl Kernel for Decoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<u8>();

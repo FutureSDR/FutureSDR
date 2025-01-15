@@ -35,6 +35,7 @@ use crate::runtime::WorkIo;
 /// let snk = fg.add_block(WavSink::<f32>::new(path, spec));
 /// Runtime::new().run(fg);
 /// ```
+#[derive(Block)]
 pub struct WavSink<T>
 where
     T: Send + 'static + hound::Sample + Copy,
@@ -54,7 +55,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
             BlockMetaBuilder::new("WavSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageOutputsBuilder::new().build(),
-            WavSink::<T> {
+            Self {
                 writer,
                 _type: std::marker::PhantomData,
             },

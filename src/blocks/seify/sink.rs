@@ -41,6 +41,8 @@ use super::builder::BuilderType;
 ///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs:
 ///     - `"terminate_out"`: `Pmt::Ok` when stream has finished
+#[derive(Block)]
+#[message_handlers(freq, gain, sample_rate, cmd, config)]
 pub struct Sink<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -69,11 +71,6 @@ impl<D: DeviceTrait + Clone> Sink<D> {
             BlockMetaBuilder::new("Sink").blocking().build(),
             siob.build(),
             MessageOutputsBuilder::new()
-                .add_input("freq", Self::freq_handler)
-                .add_input("gain", Self::gain_handler)
-                .add_input("sample_rate", Self::sample_rate_handler)
-                .add_input("cmd", Self::cmd_handler)
-                .add_input("config", Self::get_config_handler)
                 .add_output("terminate_out")
                 .build(),
             Self {
@@ -85,8 +82,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         )
     }
 
-    #[message_handler]
-    fn cmd_handler(
+    async fn cmd(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -98,8 +94,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn freq_handler(
+    async fn freq(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -118,8 +113,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn gain_handler(
+    async fn gain(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -138,8 +132,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn sample_rate_handler(
+    async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -158,8 +151,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn get_config_handler(
+    async fn config(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,

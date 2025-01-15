@@ -21,6 +21,7 @@ use futures::StreamExt;
 
 /// Audio Source.
 #[allow(clippy::type_complexity)]
+#[derive(Block)]
 pub struct AudioSource {
     sample_rate: u32,
     channels: u16,

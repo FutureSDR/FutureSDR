@@ -17,6 +17,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read an audio file and output its samples.
+#[derive(Block)]
 pub struct FileSource {
     src: Buffered<SamplesConverter<Decoder<BufReader<File>>, f32>>,
 }

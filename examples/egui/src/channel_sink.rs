@@ -12,6 +12,7 @@ use futuresdr::runtime::WorkIo;
 
 use crate::FFT_SIZE;
 
+#[derive(futuresdr::Block)]
 pub struct ChannelSink {
     tx: Sender<Box<[f32; FFT_SIZE]>>,
 }
@@ -21,7 +22,7 @@ impl ChannelSink {
         TypedBlock::new(
             BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self { tx },
         )
     }
@@ -33,7 +34,7 @@ impl Kernel for ChannelSink {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

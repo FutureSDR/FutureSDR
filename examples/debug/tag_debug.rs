@@ -37,6 +37,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(futuresdr::Block)]
 pub struct PeriodicTagger {
     period: usize,
 }
@@ -61,7 +62,7 @@ impl Kernel for PeriodicTagger {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

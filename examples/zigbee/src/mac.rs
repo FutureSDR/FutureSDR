@@ -1,4 +1,3 @@
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -23,6 +22,8 @@ const DESTINATION_PAN: u16 = 0x1aaa;
 const DESTINATION_ADDRESS: u16 = 0xffff;
 const SOURCE_ADDRESS: u16 = 0x3344;
 
+#[derive(futuresdr::Block)]
+#[message_handlers(rx, tx, stats)]
 pub struct Mac {
     tx_frames: VecDeque<Vec<u8>>,
     current_frame: [u8; 256],
@@ -55,9 +56,6 @@ impl Mac {
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
             MessageOutputsBuilder::new()
-                .add_input("rx", Self::received)
-                .add_input("tx", Self::transmit)
-                .add_input("stats", Self::stats)
                 .add_output("rxed")
                 .add_output("rftap")
                 .build(),
@@ -98,11 +96,10 @@ impl Mac {
         Self::calc_crc(data) == 0
     }
 
-    #[message_handler]
-    async fn received(
+    async fn rx(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -147,11 +144,10 @@ impl Mac {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    async fn transmit(
+    async fn tx(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -182,11 +178,10 @@ impl Mac {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
     async fn stats(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -199,7 +194,7 @@ impl Kernel for Mac {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

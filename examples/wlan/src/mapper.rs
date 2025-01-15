@@ -16,6 +16,7 @@ use crate::FrameParam;
 use crate::Modulation;
 use crate::POLARITY;
 
+#[derive(futuresdr::Block)]
 pub struct Mapper {
     signal: [u8; 24],
     signal_encoded: [u8; 48],
@@ -134,7 +135,7 @@ impl Kernel for Mapper {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<u8>();

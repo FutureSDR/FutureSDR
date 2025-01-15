@@ -103,6 +103,8 @@ impl From<JsValue> for Error {
 }
 
 /// WASM-native HackRf Source
+#[derive(Block)]
+#[message_handlers(freq, vga, lna, amp, sample_rate)]
 pub struct HackRf {
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
@@ -119,13 +121,7 @@ impl HackRf {
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::<Self>::new()
-                .add_input("freq", Self::freq_handler)
-                .add_input("vga", Self::vga_handler)
-                .add_input("lna", Self::lna_handler)
-                .add_input("amp", Self::amp_handler)
-                .add_input("sample_rate", Self::sample_rate_handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 buffer: [0; TRANSFER_SIZE],
                 offset: TRANSFER_SIZE,
@@ -134,8 +130,7 @@ impl HackRf {
         )
     }
 
-    #[message_handler]
-    fn freq_handler(
+    async fn freq(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -156,8 +151,7 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn lna_handler(
+    async fn lna(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -178,8 +172,7 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn vga_handler(
+    async fn vga(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -200,8 +193,7 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn amp_handler(
+    async fn amp(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -219,8 +211,7 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn sample_rate_handler(
+    async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,

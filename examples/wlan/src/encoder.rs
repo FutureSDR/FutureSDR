@@ -1,4 +1,3 @@
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
@@ -22,6 +21,8 @@ use crate::MAX_PSDU_SIZE;
 /// Maximum number of frames to queue for transmission
 const MAX_FRAMES: usize = 1000;
 
+#[derive(futuresdr::Block)]
+#[message_handlers(tx)]
 pub struct Encoder {
     tx_frames: VecDeque<(Vec<u8>, Mcs)>,
     default_mcs: Mcs,
@@ -42,10 +43,8 @@ impl Encoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Encoder").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageOutputsBuilder::new()
-                .add_input("tx", Self::transmit)
-                .build(),
-            Encoder {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 tx_frames: VecDeque::new(),
                 default_mcs,
                 current_len: 0,
@@ -62,11 +61,10 @@ impl Encoder {
         )
     }
 
-    #[message_handler]
-    async fn transmit(
+    async fn tx(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -237,7 +235,7 @@ impl Kernel for Encoder {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageOutputs<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

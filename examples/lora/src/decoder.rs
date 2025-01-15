@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
@@ -15,6 +14,9 @@ use futuresdr::tracing::info;
 use crate::utils::*;
 use crate::Frame;
 
+#[derive(futuresdr::Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct Decoder;
 
 impl Decoder {
@@ -23,13 +25,12 @@ impl Decoder {
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().build(),
             MessageOutputsBuilder::new()
-                .add_input("in", Self::handler)
                 .add_output("out")
                 .add_output("out_annotated")
                 .add_output("rftap")
                 .add_output("crc_check")
                 .build(),
-            Decoder,
+            Self,
         )
     }
 
@@ -49,7 +50,7 @@ impl Decoder {
         crc
     }
 
-    async fn decode(frame: &Frame, mio: &mut MessageOutputs<Self>) -> Option<Vec<u8>> {
+    async fn decode(frame: &Frame, mio: &mut MessageOutputs) -> Option<Vec<u8>> {
         let mut dewhitened: Vec<u8> = vec![];
         let start = if frame.implicit_header { 0 } else { 5 };
         let end = if frame.has_crc {
@@ -130,11 +131,10 @@ impl Decoder {
         }
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         pmt: Pmt,
     ) -> Result<Pmt> {
@@ -174,5 +174,3 @@ impl Decoder {
         Ok(ret)
     }
 }
-
-impl Kernel for Decoder {}

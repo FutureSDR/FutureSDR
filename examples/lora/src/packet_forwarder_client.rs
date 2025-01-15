@@ -23,18 +23,20 @@ use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures_lite::StreamExt;
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
 /// Forward messages.
+#[derive(futuresdr::Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct PacketForwarderClient {
     mac_addr: MacAddress,
     shutdown_trigger: Trigger,
@@ -97,9 +99,7 @@ impl PacketForwarderClient {
         TypedBlock::new(
             BlockMetaBuilder::new("PacketForwarder").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_input("in", Self::handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             PacketForwarderClient {
                 mac_addr: mac_address,
                 shutdown_trigger: shutdown_trigger_tmp,
@@ -109,11 +109,10 @@ impl PacketForwarderClient {
         )
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -240,6 +239,3 @@ impl PacketForwarderClient {
         Ok(Pmt::Ok)
     }
 }
-
-#[doc(hidden)]
-impl Kernel for PacketForwarderClient {}

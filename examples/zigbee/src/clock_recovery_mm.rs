@@ -9,6 +9,7 @@ use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 
+#[derive(futuresdr::Block)]
 pub struct ClockRecoveryMm {
     omega: f32,
     omega_mid: f32,
@@ -34,7 +35,7 @@ impl ClockRecoveryMm {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 omega,
                 omega_mid: omega,
@@ -62,7 +63,7 @@ impl Kernel for ClockRecoveryMm {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

@@ -4,18 +4,20 @@ mod isolated_scope {
     /// Regression test for https://github.com/FutureSDR/FutureSDR/issues/149
     #[test]
     fn message_handler_compiles() {
-        use futuresdr::macros::message_handler;
         use futuresdr::runtime::BlockMeta;
         use futuresdr::runtime::BlockMetaBuilder;
         use futuresdr::runtime::BlockT;
-        use futuresdr::runtime::Kernel;
-        use futuresdr::runtime::MessageIo;
-        use futuresdr::runtime::MessageIoBuilder;
+        use futuresdr::runtime::MessageOutputs;
+        use futuresdr::runtime::MessageOutputsBuilder;
         use futuresdr::runtime::Pmt;
+        use futuresdr::runtime::Result;
         use futuresdr::runtime::StreamIoBuilder;
         use futuresdr::runtime::TypedBlock;
         use futuresdr::runtime::WorkIo;
 
+        #[derive(futuresdr::Block)]
+        #[message_handlers(r#in)]
+        #[null_kernel]
         struct MsgThing;
 
         impl MsgThing {
@@ -24,26 +26,21 @@ mod isolated_scope {
                 TypedBlock::new(
                     BlockMetaBuilder::new("MsgThing").build(),
                     StreamIoBuilder::new().build(),
-                    MessageIoBuilder::new()
-                        .add_input("in", Self::in_port)
-                        .build(),
+                    MessageOutputsBuilder::new().build(),
                     Self,
                 )
             }
 
-            #[message_handler]
-            async fn in_port(
+            async fn r#in(
                 &mut self,
                 _io: &mut WorkIo,
-                _mio: &mut MessageIo<Self>,
+                _mio: &mut MessageOutputs,
                 _meta: &mut BlockMeta,
                 _p: Pmt,
             ) -> Result<Pmt> {
                 Ok(Pmt::Ok)
             }
         }
-
-        impl Kernel for MsgThing {}
 
         // Main test is that the above compiles without futuresdr::anyhow::Result being imported in scope.
         let b = MsgThing::new();

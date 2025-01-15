@@ -5,7 +5,6 @@ use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::connect;
-use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -70,6 +69,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(futuresdr::Block)]
 pub struct Dummy;
 
 impl Dummy {
@@ -89,7 +89,7 @@ impl Kernel for Dummy {
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;
@@ -97,6 +97,7 @@ impl Kernel for Dummy {
     }
 }
 
+#[derive(futuresdr::Block)]
 pub struct Strange;
 
 impl Strange {
@@ -116,7 +117,7 @@ impl Kernel for Strange {
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;
@@ -124,6 +125,8 @@ impl Kernel for Strange {
     }
 }
 
+#[derive(futuresdr::Block)]
+#[message_handlers(handler, other)]
 pub struct Handler;
 
 impl Handler {
@@ -132,19 +135,15 @@ impl Handler {
         TypedBlock::new(
             BlockMetaBuilder::new("Handler").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_input("handler", Self::my_handler)
-                .add_input("other", Self::my_other_handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Self,
         )
     }
 
-    #[message_handler]
-    async fn my_handler(
+    async fn handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -152,11 +151,10 @@ impl Handler {
         Ok(Pmt::Null)
     }
 
-    #[message_handler]
-    async fn my_other_handler(
+    async fn other(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -169,7 +167,7 @@ impl Kernel for Handler {
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;

@@ -24,6 +24,7 @@ use crate::OrderedStatisticsDecoder;
 use crate::PolarDecoder;
 use crate::Xorshift32;
 
+#[derive(futuresdr::Block)]
 pub struct DecoderBlock {
     decoder: Box<Decoder>,
 }
@@ -46,7 +47,7 @@ impl Kernel for DecoderBlock {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageOutputs<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();
