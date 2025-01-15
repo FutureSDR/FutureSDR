@@ -38,6 +38,8 @@ use crate::runtime::WorkIo;
 ///     - `"terminate"`: `Pmt::Ok` to terminate the block
 ///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
+#[derive(Block)]
+#[message_handler(freq, gain, sample_rate, cmd, terminate, config)]
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -67,12 +69,6 @@ impl<D: DeviceTrait + Clone> Source<D> {
             BlockMetaBuilder::new("Source").blocking().build(),
             siob.build(),
             MessageOutputsBuilder::new()
-                .add_input("freq", Self::freq_handler)
-                .add_input("gain", Self::gain_handler)
-                .add_input("sample_rate", Self::sample_rate_handler)
-                .add_input("cmd", Self::cmd_handler)
-                .add_input("terminate", Self::terminate_handler)
-                .add_input("config", Self::get_config_handler)
                 .build(),
             Source {
                 channels,
@@ -83,8 +79,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         )
     }
 
-    #[message_handler]
-    fn terminate_handler(
+    async fn terminate(
         &mut self,
         io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -102,8 +97,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn cmd_handler(
+    async fn cmd(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -115,8 +109,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn freq_handler(
+    async fn freq(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -136,8 +129,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn gain_handler(
+    async fn gain(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -157,8 +149,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn sample_rate_handler(
+    fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -178,8 +169,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         Ok(Pmt::Ok)
     }
 
-    #[message_handler]
-    fn get_config_handler(
+    fn config(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,

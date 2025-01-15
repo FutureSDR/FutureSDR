@@ -4,8 +4,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIoBuilder;
@@ -31,7 +31,7 @@ impl CtrlPortDemo {
         TypedBlock::new(
             BlockMetaBuilder::new("CtrlPortDemo").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_output("out")
                 .add_input("in", Self::handler)
                 .build(),
@@ -43,7 +43,7 @@ impl CtrlPortDemo {
     async fn handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {

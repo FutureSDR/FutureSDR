@@ -26,6 +26,7 @@ use crate::runtime::WorkIo;
 /// # Stream Outputs
 ///
 /// `out`: Zynq custom buffer
+#[derive(Block)]
 pub struct ZynqSync<I, O>
 where
     I: Send + 'static,
@@ -59,8 +60,8 @@ where
                 .add_input::<I>("in")
                 .add_output::<O>("out")
                 .build(),
-            MessageOutputsBuilder::<ZynqSync<I, O>>::new().build(),
-            ZynqSync {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 dma_h2d: AxiDma::new(dma_h2d.as_ref())?,
                 dma_d2h: AxiDma::new(dma_d2h.as_ref())?,
                 dma_buffs,

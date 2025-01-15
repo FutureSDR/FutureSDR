@@ -4,8 +4,8 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -44,7 +44,7 @@ impl Transmitter {
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("msg", Self::msg_handler)
                 .build(),
             Transmitter {
@@ -74,7 +74,7 @@ impl Transmitter {
     fn msg_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -96,7 +96,7 @@ impl Kernel for Transmitter {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<Complex32>();

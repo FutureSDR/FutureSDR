@@ -2,8 +2,8 @@ use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -21,7 +21,7 @@ impl ChannelSink {
         TypedBlock::new(
             BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::<Self>::new().build(),
             Self { tx },
         )
     }
@@ -33,7 +33,7 @@ impl Kernel for ChannelSink {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

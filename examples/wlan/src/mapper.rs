@@ -3,8 +3,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -33,7 +33,7 @@ impl Mapper {
                 .add_input::<u8>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Mapper {
                 signal: [0; 24],
                 signal_encoded: [0; 48],
@@ -134,7 +134,7 @@ impl Kernel for Mapper {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<u8>();

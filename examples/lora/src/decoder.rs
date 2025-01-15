@@ -4,8 +4,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
@@ -22,7 +22,7 @@ impl Decoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("in", Self::handler)
                 .add_output("out")
                 .add_output("out_annotated")
@@ -49,7 +49,7 @@ impl Decoder {
         crc
     }
 
-    async fn decode(frame: &Frame, mio: &mut MessageIo<Self>) -> Option<Vec<u8>> {
+    async fn decode(frame: &Frame, mio: &mut MessageOutputs<Self>) -> Option<Vec<u8>> {
         let mut dewhitened: Vec<u8> = vec![];
         let start = if frame.implicit_header { 0 } else { 5 };
         let end = if frame.has_crc {
@@ -134,7 +134,7 @@ impl Decoder {
     async fn handler(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         pmt: Pmt,
     ) -> Result<Pmt> {

@@ -3,8 +3,8 @@ use futuresdr::num_integer::Integer;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -1809,7 +1809,7 @@ impl SymbolSync {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             s,
         )
     }
@@ -1887,7 +1887,7 @@ impl Kernel for SymbolSync {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();

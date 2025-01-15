@@ -27,8 +27,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
@@ -97,7 +97,7 @@ impl PacketForwarderClient {
         TypedBlock::new(
             BlockMetaBuilder::new("PacketForwarder").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("in", Self::handler)
                 .build(),
             PacketForwarderClient {
@@ -113,7 +113,7 @@ impl PacketForwarderClient {
     async fn handler(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {

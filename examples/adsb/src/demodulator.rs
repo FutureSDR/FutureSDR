@@ -4,8 +4,8 @@ use crate::SYMBOL_ZERO_TAPS;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -31,7 +31,7 @@ impl Demodulator {
         TypedBlock::new(
             BlockMetaBuilder::new("Demodulator").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().add_output("out").build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             Self { n_received: 0 },
         )
     }
@@ -42,7 +42,7 @@ impl Kernel for Demodulator {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let samples = sio.input(0).slice::<f32>();

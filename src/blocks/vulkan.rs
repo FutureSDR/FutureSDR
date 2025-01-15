@@ -61,6 +61,7 @@ void main() {
 }
 
 /// Interface GPU with Vulkan.
+#[derive(Block)]
 pub struct Vulkan {
     broker: Arc<Broker>,
     capacity: u64,
@@ -88,8 +89,8 @@ impl Vulkan {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::<Vulkan>::new().build(),
-            Vulkan {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 broker,
                 pipeline: None,
                 layout: None,

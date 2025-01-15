@@ -2,8 +2,8 @@ use anyhow::Result;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
@@ -23,7 +23,7 @@ impl<T: Copy + Send + 'static> FftShift<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self { _p: PhantomData },
         )
     }
@@ -34,7 +34,7 @@ impl<T: Copy + Send + 'static> Kernel for FftShift<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<T>();

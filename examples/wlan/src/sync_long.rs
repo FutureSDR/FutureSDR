@@ -3,8 +3,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -35,7 +35,7 @@ impl SyncLong {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 cor: [Complex32::new(0.0, 0.0); SEARCH_WINDOW],
                 cor_index: Vec::with_capacity(SEARCH_WINDOW),
@@ -81,7 +81,7 @@ impl Kernel for SyncLong {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<Complex32>();

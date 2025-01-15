@@ -3,8 +3,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -108,7 +108,7 @@ impl FrameEqualizer {
                 .add_input::<Complex32>("in")
                 .add_output::<u8>("out")
                 .build(),
-            MessageIoBuilder::new().add_output("symbols").build(),
+            MessageOutputsBuilder::new().add_output("symbols").build(),
             Self {
                 equalizer: Equalizer::new(),
                 state: State::Skip,
@@ -181,7 +181,7 @@ impl Kernel for FrameEqualizer {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut input = sio.input(0).slice::<Complex32>();

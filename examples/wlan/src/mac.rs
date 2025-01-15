@@ -6,8 +6,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
@@ -36,7 +36,7 @@ impl Mac {
         TypedBlock::new(
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("tx", Self::transmit)
                 .add_output("tx")
                 .build(),
@@ -51,7 +51,7 @@ impl Mac {
     async fn transmit(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {

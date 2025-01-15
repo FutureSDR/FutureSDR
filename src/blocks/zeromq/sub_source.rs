@@ -10,6 +10,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
+#[derive(Block)]
 pub struct SubSource<T: Send + 'static> {
     address: String,
     receiver: Option<zmq::Socket>,
@@ -23,7 +24,7 @@ impl<T: Send + 'static> SubSource<T> {
             BlockMetaBuilder::new("SubSource").blocking().build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageOutputsBuilder::new().build(),
-            SubSource {
+            Self {
                 address: address.into(),
                 receiver: None,
                 _type: std::marker::PhantomData::<T>,

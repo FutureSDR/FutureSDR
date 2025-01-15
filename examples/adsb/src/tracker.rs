@@ -3,8 +3,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -47,7 +47,7 @@ impl Tracker {
         TypedBlock::new(
             BlockMetaBuilder::new("Tracker").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("in", Self::packet_received)
                 .add_input("ctrl_port", Self::handle_ctrl_port)
                 .build(),
@@ -63,7 +63,7 @@ impl Tracker {
     async fn handle_ctrl_port(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -89,7 +89,7 @@ impl Tracker {
     async fn packet_received(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -281,7 +281,7 @@ impl Kernel for Tracker {
         &mut self,
         _io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Set up pruning timer.

@@ -2,8 +2,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -54,7 +54,7 @@ impl Mac {
         TypedBlock::new(
             BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("rx", Self::received)
                 .add_input("tx", Self::transmit)
                 .add_input("stats", Self::stats)
@@ -102,7 +102,7 @@ impl Mac {
     async fn received(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -151,7 +151,7 @@ impl Mac {
     async fn transmit(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -186,7 +186,7 @@ impl Mac {
     async fn stats(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -199,7 +199,7 @@ impl Kernel for Mac {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

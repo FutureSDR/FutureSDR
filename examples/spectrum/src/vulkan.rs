@@ -7,8 +7,8 @@ use futuresdr::runtime::buffer::BufferReaderCustom;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -77,7 +77,7 @@ impl Vulkan {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::<Vulkan>::new().build(),
+            MessageOutputsBuilder::<Vulkan>::new().build(),
             Vulkan {
                 broker,
                 pipeline: None,
@@ -106,7 +106,7 @@ impl Kernel for Vulkan {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = i(sio, 0);
@@ -154,7 +154,7 @@ impl Kernel for Vulkan {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         for m in o(sio, 0).buffers().into_iter() {

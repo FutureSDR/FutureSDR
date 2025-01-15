@@ -28,6 +28,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Interface GPU w/ native API.
+#[derive(Block)]
 pub struct Wgpu {
     broker: wgpu::Broker,
     buffer_items: u64,
@@ -61,8 +62,8 @@ impl Wgpu {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::<Wgpu>::new().build(),
-            Wgpu {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 broker,
                 buffer_items,
                 pipeline: None,

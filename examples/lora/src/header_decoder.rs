@@ -2,8 +2,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -60,7 +60,7 @@ impl HeaderDecoder {
         TypedBlock::new(
             BlockMetaBuilder::new("HeaderDecoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_output("out")
                 .add_output("frame_info")
                 .build(),
@@ -74,7 +74,7 @@ impl HeaderDecoder {
     }
 
     async fn publish_frame_info(
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         cr: usize,
         pay_len: usize,
         crc: bool,
@@ -99,7 +99,7 @@ impl Kernel for HeaderDecoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<u8>();

@@ -1,8 +1,8 @@
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -30,7 +30,7 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new("StreamAdder").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             StreamAdder::<T> {
                 num_in: num_inputs,
                 phantom: PhantomData,
@@ -44,7 +44,7 @@ impl<T: Copy + Send + Sync + Add<Output = T> + 'static> Kernel for StreamAdder<T
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out: &mut [T] = sio.output(0).slice::<T>();

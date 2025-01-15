@@ -10,6 +10,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
+#[derive(Block)]
 pub struct PubSink<T: Send + 'static> {
     address: String,
     publisher: Option<zmq::Socket>,
@@ -24,7 +25,7 @@ impl<T: Send + 'static> PubSink<T> {
             BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageOutputsBuilder::new().build(),
-            PubSink {
+            Self {
                 address: address.into(),
                 publisher: None,
                 _type: std::marker::PhantomData::<T>,

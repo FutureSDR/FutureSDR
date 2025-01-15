@@ -2,8 +2,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -34,7 +34,7 @@ impl GrayMapping {
         TypedBlock::new(
             BlockMetaBuilder::new("GrayMapping").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             GrayMapping {
                 m_soft_decoding: soft_decoding,
             },
@@ -47,7 +47,7 @@ impl Kernel for GrayMapping {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_input = if self.m_soft_decoding {

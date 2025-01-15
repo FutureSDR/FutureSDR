@@ -6,8 +6,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
@@ -71,7 +71,7 @@ impl Panic {
         TypedBlock::new(
             BlockMetaBuilder::new("Panic").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::<Self>::new().build(),
             Self { w },
         )
     }
@@ -81,7 +81,7 @@ impl Kernel for Panic {
     async fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Init) {
@@ -93,7 +93,7 @@ impl Kernel for Panic {
         &mut self,
         io: &mut WorkIo,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Work) {
@@ -106,7 +106,7 @@ impl Kernel for Panic {
     async fn deinit(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if matches!(self.w, PanicWhere::Deinit) {

@@ -4,8 +4,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
@@ -50,7 +50,7 @@ impl PeriodicTagger {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self { period },
         )
     }
@@ -61,7 +61,7 @@ impl Kernel for PeriodicTagger {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

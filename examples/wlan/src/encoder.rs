@@ -2,8 +2,8 @@ use futuresdr::macros::message_handler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -42,7 +42,7 @@ impl Encoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Encoder").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("tx", Self::transmit)
                 .build(),
             Encoder {
@@ -66,7 +66,7 @@ impl Encoder {
     async fn transmit(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -237,7 +237,7 @@ impl Kernel for Encoder {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

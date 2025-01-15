@@ -6,8 +6,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -57,7 +57,7 @@ impl HammingDec {
         TypedBlock::new(
             BlockMetaBuilder::new("HammingDec").build(),
             sio.build(),
-            MessageIoBuilder::new().add_output("out").build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             HammingDec {
                 m_soft_decoding: soft_decoding,
                 is_header: false,
@@ -73,7 +73,7 @@ impl Kernel for HammingDec {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_input = if self.m_soft_decoding {

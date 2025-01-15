@@ -4,8 +4,8 @@ use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -38,7 +38,7 @@ impl Deinterleaver {
         TypedBlock::new(
             BlockMetaBuilder::new("Deinterleaver").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Deinterleaver {
                 soft_decoding,
                 sf: 0,
@@ -55,7 +55,7 @@ impl Kernel for Deinterleaver {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut n_input = if self.soft_decoding {

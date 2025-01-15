@@ -1,8 +1,8 @@
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -59,7 +59,7 @@ impl Decoder {
         TypedBlock::new(
             BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::<Self>::new().add_output("out").build(),
+            MessageOutputsBuilder::<Self>::new().add_output("out").build(),
             Self {
                 threshold,
                 state: State::Search,
@@ -81,7 +81,7 @@ impl Kernel for Decoder {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let inbuf = sio.input(0).slice::<f32>();

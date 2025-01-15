@@ -4,8 +4,8 @@ use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -211,7 +211,7 @@ impl FrameSync {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("bandwidth", Self::bandwidth_handler)
                 .add_input("center_freq", Self::center_freq_handler)
                 .add_input("frame_info", Self::frame_info_handler)
@@ -324,7 +324,7 @@ impl FrameSync {
     pub fn poke_handler<'a>(
         &'a mut self,
         io: &'a mut WorkIo,
-        _mio: &'a mut MessageIo<Self>,
+        _mio: &'a mut MessageOutputs<Self>,
         _meta: &'a mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -336,7 +336,7 @@ impl FrameSync {
     pub fn bandwidth_handler<'a>(
         &'a mut self,
         _io: &'a mut WorkIo,
-        _mio: &'a mut MessageIo<Self>,
+        _mio: &'a mut MessageOutputs<Self>,
         _meta: &'a mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -353,7 +353,7 @@ impl FrameSync {
     pub fn center_freq_handler<'a>(
         &'a mut self,
         _io: &'a mut WorkIo,
-        _mio: &'a mut MessageIo<Self>,
+        _mio: &'a mut MessageOutputs<Self>,
         _meta: &'a mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -610,7 +610,7 @@ impl FrameSync {
     fn payload_crc_result_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -637,7 +637,7 @@ impl FrameSync {
     fn frame_info_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1530,7 +1530,7 @@ impl Kernel for FrameSync {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs<Self>,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<Complex32>();
