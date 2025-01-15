@@ -14,14 +14,14 @@ use crate::runtime::WorkIo;
 #[message_handlers(msg_handler)]
 pub struct MessageApply<F>
 where
-    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static,
+    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static,
 {
     callback: F,
 }
 
 impl<F> MessageApply<F>
 where
-    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static,
+    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static,
 {
     /// Apply a function to each incoming message.
     ///
@@ -55,44 +55,7 @@ where
     }
 }
 
-// async fn call_handler(
-//     io: &mut WorkIo,
-//     mio: &mut MessageIo<T>,
-//     meta: &mut BlockMeta,
-//     kernel: &mut T,
-//     id: PortId,
-//     p: Pmt,
-// ) -> Result<Pmt, Error> {
-//     let id = match id {
-//         PortId::Index(i) => {
-//             if i < mio.inputs().len() {
-//                 i
-//             } else {
-//                 return Err(Error::InvalidMessagePort(
-//                     BlockPortCtx::None,
-//                     PortId::Index(i),
-//                 ));
-//             }
-//         }
-//         PortId::Name(n) => match mio.input_name_to_id(&n) {
-//             Some(s) => s,
-//             None => {
-//                 return Err(Error::InvalidMessagePort(
-//                     BlockPortCtx::None,
-//                     PortId::Name(n),
-//                 ));
-//             }
-//         },
-//     };
-//     if matches!(p, Pmt::Finished) {
-//         mio.input_mut(id).finish();
-//     }
-//     let h = mio.input(id).get_handler();
-//     let f = (h)(kernel, io, mio, meta, p);
-//     f.await.map_err(|e| Error::HandlerError(e.to_string()))
-// }
-
 impl<F> Kernel for MessageApply<F> where
-    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static
+    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static
 {
 }

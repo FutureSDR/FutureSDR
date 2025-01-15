@@ -537,19 +537,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let generics = &input.generics;
     let where_clause = &input.generics.where_clause;
 
-    // Placeholder for handler names
     let mut handlers: Vec<Ident> = Vec::new();
 
     // Search for the `handlers` attribute
     for attr in &input.attrs {
         if attr.path().is_ident("message_handlers") {
-            println!("META: {:?}", attr.meta);
-            // Parse the attribute as a meta item
             if let Meta::List(meta_list) = &attr.meta {
-                println!("METALIST: {:?}", meta_list);
-                println!("TOKENS: {:?}", meta_list.tokens);
                 for t in meta_list.tokens.clone() {
-                    println!("TOKEN: {:?}", t);
                     if let TokenTree::Ident(i) = t {
                         handlers.push(i);
                     }
@@ -558,53 +552,63 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    println!("HANDLERS: {:?}", handlers);
-
     // Generate match arms for the handle method
     let handler_matches = handlers.iter().enumerate().map(|(index, handler)| {
         quote! {
-            #index => self.#handler(p).await,
+            PortId::Index(#index)  => self.#handler(io, mio, meta, p).await,
+            PortId::Name(ref s) if s.as_str() == stringify!(#handler)  => self.#handler(io, mio, meta, p).await,
         }
     });
 
     // Generate handler names as strings
     let handler_names = handlers.iter().map(|handler| {
+        let handler = handler.to_string();
+        let handler = if let Some(stripped) = handler.strip_prefix("r#") {
+            stripped.to_string()
+        } else {
+            handler
+        };
         quote! {
-            "#handler"
+            #handler.to_string()
         }
     });
 
-    println!("foo {:?}", generics);
-
-    // Generate the Block implementation
+    // Generate the MessageAccepter implementation
     let expanded = quote! {
         impl #generics ::futuresdr::runtime::MessageAccepter for #struct_name #generics
             #where_clause
         {
+            #[allow(unreachable_code)]
             async fn call_handler(
                 &mut self,
                 io: &mut ::futuresdr::runtime::WorkIo,
                 mio: &mut ::futuresdr::runtime::MessageOutputs,
                 meta: &mut ::futuresdr::runtime::BlockMeta,
-                _id: ::futuresdr::runtime::PortId,
+                id: ::futuresdr::runtime::PortId,
                 p: ::futuresdr::runtime::Pmt) ->
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {
-                        self.msg_handler(io, mio, meta, p).await.unwrap();
-                        todo!()
-                    // match port {
-                    //     #(#handler_matches)*
-                    //     _ => Pmt {},
-                    // }
+                        use ::futuresdr::runtime::BlockPortCtx;
+                        use ::futuresdr::runtime::Error;
+                        use ::futuresdr::runtime::Pmt;
+                        use ::futuresdr::runtime::PortId;
+                        use ::futuresdr::runtime::Result;
+                        let ret: Result<Pmt> = match &id {
+                                #(#handler_matches)*
+                                _ => return Err(Error::InvalidMessagePort(
+                                    BlockPortCtx::None,
+                                    id)),
+                        };
+
+                        ret.map_err(|e| Error::HandlerError(e.to_string()))
             }
             fn input_names() -> Vec<String> {
-                todo!()
-                // vec![#(#handler_names),*]
+                vec![#(#handler_names),*]
             }
         }
 
     };
 
-    println!("{}", expanded);
+    // println!("{}", expanded);
     proc_macro::TokenStream::from(expanded)
 }
 

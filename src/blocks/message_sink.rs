@@ -1,12 +1,9 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Error;
 use crate::runtime::Kernel;
-use crate::runtime::MessageAccepter;
 use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
-use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -14,6 +11,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Black hole for messages.
+#[derive(Block)]
+#[message_handlers(r#in)]
 pub struct MessageSink {
     n_received: u64,
 }
@@ -29,7 +28,7 @@ impl MessageSink {
         )
     }
 
-    async fn in_port(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
         _mio: &mut MessageOutputs,
@@ -50,25 +49,6 @@ impl MessageSink {
     /// Get number of received message.
     pub fn received(&self) -> u64 {
         self.n_received
-    }
-}
-
-impl MessageAccepter for MessageSink {
-    async fn call_handler(
-        &mut self,
-        io: &mut WorkIo,
-        mio: &mut MessageOutputs,
-        meta: &mut BlockMeta,
-        _id: PortId,
-        p: Pmt,
-    ) -> Result<Pmt, Error> {
-        self.in_port(io, mio, meta, p)
-            .await
-            .map_err(|e| Error::HandlerError(e.to_string()))
-    }
-
-    fn input_names() -> Vec<String> {
-        vec!["in".to_string()]
     }
 }
 
