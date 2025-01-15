@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -10,6 +10,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Copy input samples to the output.
+#[derive(Block)]
 pub struct Copy<T: core::marker::Copy + Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }
@@ -23,8 +24,8 @@ impl<T: core::marker::Copy + Send + 'static> Copy<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Copy::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 _type: std::marker::PhantomData,
             },
         )
@@ -37,7 +38,7 @@ impl<T: core::marker::Copy + Send + 'static> Kernel for Copy<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

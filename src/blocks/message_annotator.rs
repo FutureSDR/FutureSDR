@@ -2,15 +2,18 @@ use std::collections::HashMap;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
+use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Forward messages.
+#[derive(Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct MessageAnnotator {
     annotation_prototype: HashMap<String, Pmt>,
     payload_field_name: Option<String>,
@@ -25,10 +28,7 @@ impl MessageAnnotator {
         TypedBlock::new(
             BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_output("out")
-                .add_input("in", Self::handler)
-                .build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             MessageAnnotator {
                 annotation_prototype: annotation,
                 payload_field_name: payload_field_name.map(String::from),
@@ -36,11 +36,10 @@ impl MessageAnnotator {
         )
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -70,6 +69,3 @@ impl MessageAnnotator {
         Ok(Pmt::Ok)
     }
 }
-
-#[doc(hidden)]
-impl Kernel for MessageAnnotator {}

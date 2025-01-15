@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -12,7 +12,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Store received samples in vector.
-pub struct VectorSink<T> {
+#[derive(Block)]
+pub struct VectorSink<T: Send> {
     items: Vec<T>,
 }
 
@@ -22,8 +23,8 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("VectorSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            VectorSink {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 items: Vec::<T>::with_capacity(capacity),
             },
         )
@@ -40,7 +41,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

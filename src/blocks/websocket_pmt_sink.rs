@@ -19,8 +19,8 @@ use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Error;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -29,6 +29,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push Samples from PMTs in a WebSocket.
+#[derive(Block)]
+#[message_handlers(r#in)]
 pub struct WebsocketPmtSink {
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
@@ -42,10 +44,8 @@ impl WebsocketPmtSink {
         TypedBlock::new(
             BlockMetaBuilder::new("WebsocketPmtSink").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::<Self>::new()
-                .add_input("in", Self::handler)
-                .build(),
-            WebsocketPmtSink {
+            MessageOutputsBuilder::new() .build(),
+            Self {
                 port,
                 listener: None,
                 conn: None,
@@ -54,11 +54,10 @@ impl WebsocketPmtSink {
         )
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -80,7 +79,7 @@ impl Kernel for WebsocketPmtSink {
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(ref mut conn) = self.conn {
@@ -194,7 +193,7 @@ impl Kernel for WebsocketPmtSink {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(

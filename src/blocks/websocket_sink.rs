@@ -20,8 +20,8 @@ use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Error;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -39,7 +39,8 @@ pub enum WebsocketSinkMode {
 }
 
 /// Push samples in a WebSocket.
-pub struct WebsocketSink<T> {
+#[derive(Block)]
+pub struct WebsocketSink<T: Send> {
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
     conn: Option<WsStream>,
@@ -53,8 +54,8 @@ impl<T: Send + Sync + 'static> WebsocketSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("WebsocketSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            WebsocketSink {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 port,
                 listener: None,
                 conn: None,
@@ -71,7 +72,7 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice_unchecked::<u8>();
@@ -168,7 +169,7 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(

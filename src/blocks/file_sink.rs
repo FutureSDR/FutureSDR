@@ -5,8 +5,8 @@ use std::fs::OpenOptions;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -38,6 +38,7 @@ use crate::runtime::WorkIo;
 ///
 /// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
 /// ```
+#[derive(Block)]
 pub struct FileSink<T: Send + 'static> {
     file_name: String,
     file: Option<File>,
@@ -50,8 +51,8 @@ impl<T: Send + 'static> FileSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("FileSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            FileSink::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 file_name: file_name.into(),
                 file: None,
                 _type: std::marker::PhantomData,
@@ -66,7 +67,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice_unchecked::<u8>();
@@ -93,7 +94,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let file = OpenOptions::new()
@@ -109,7 +110,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
     async fn deinit(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.file.as_mut().unwrap().sync_all().await?;

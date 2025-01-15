@@ -19,8 +19,8 @@ use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -61,7 +61,7 @@ impl Wgpu {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::<Wgpu>::new().build(),
+            MessageOutputsBuilder::<Wgpu>::new().build(),
             Wgpu {
                 broker,
                 buffer_items,
@@ -90,7 +90,7 @@ impl Kernel for Wgpu {
     async fn init(
         &mut self,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         for _ in 0..self.n_output_buffers {
@@ -138,7 +138,7 @@ impl Kernel for Wgpu {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         for m in o(sio, 0).buffers().into_iter() {

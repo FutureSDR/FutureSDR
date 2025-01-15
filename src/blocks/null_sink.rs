@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,6 +29,7 @@ use crate::runtime::WorkIo;
 ///
 /// let sink = fg.add_block(NullSink::<Complex<f32>>::new());
 /// ```
+#[derive(Block)]
 pub struct NullSink<T: Send + 'static> {
     n_received: usize,
     _type: std::marker::PhantomData<T>,
@@ -40,8 +41,8 @@ impl<T: Send + 'static> NullSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("NullSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            NullSink::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 n_received: 0,
                 _type: std::marker::PhantomData,
             },
@@ -59,7 +60,7 @@ impl<T: Send + 'static> Kernel for NullSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice_unchecked::<u8>();

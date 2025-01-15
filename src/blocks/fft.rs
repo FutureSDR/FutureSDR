@@ -6,8 +6,8 @@ use std::sync::Arc;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -40,6 +40,8 @@ use crate::runtime::WorkIo;
 ///
 /// let fft = fg.add_block(Fft::new(2048));
 /// ```
+#[derive(Block)]
+#[message_handlers(fft_size)]
 pub struct Fft {
     len: usize,
     fft_shift: bool,
@@ -85,10 +87,8 @@ impl Fft {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::<Fft>::new()
-                .add_input("fft_size", Self::fft_size_handler)
-                .build(),
-            Fft {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 len,
                 plan,
                 direction,
@@ -100,11 +100,10 @@ impl Fft {
     }
 
     /// Handle incoming messages to change FFT size
-    #[message_handler]
-    fn fft_size_handler(
+    async fn fft_size(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -137,7 +136,7 @@ impl Kernel for Fft {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = unsafe { sio.input(0).slice_mut::<Complex32>() };

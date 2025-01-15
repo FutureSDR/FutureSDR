@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -13,7 +13,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Stream Duplicator
-pub struct StreamDuplicator<T> {
+#[derive(Block)]
+pub struct StreamDuplicator<T: Send> {
     num_out: usize,
     phantom: PhantomData<T>,
 }
@@ -31,8 +32,8 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new("StreamDuplicator").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
-            StreamDuplicator::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 num_out: num_outputs,
                 phantom: PhantomData,
             },
@@ -46,7 +47,7 @@ impl<T: Copy + Send + Sync + 'static> Kernel for StreamDuplicator<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<T>();

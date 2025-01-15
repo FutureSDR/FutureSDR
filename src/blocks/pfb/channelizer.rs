@@ -11,8 +11,8 @@ use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -46,6 +46,7 @@ fn create_sio_builder(n_filters: usize) -> StreamIoBuilder {
 }
 
 /// Polyphase Channelizer
+#[derive(Block)]
 pub struct PfbChannelizer {
     fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
     taps_per_filter: usize,
@@ -90,7 +91,7 @@ impl PfbChannelizer {
         TypedBlock::new(
             BlockMetaBuilder::new("PfbChannelizer").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             channelizer,
         )
     }
@@ -102,7 +103,7 @@ impl Kernel for PfbChannelizer {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_items_available = sio

@@ -4,8 +4,8 @@ use async_net::UdpSocket;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -13,6 +13,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from a UDP socket.
+#[derive(Block)]
 pub struct UdpSource<T: Send + 'static> {
     bind: String,
     max_packet_bytes: usize,
@@ -26,8 +27,8 @@ impl<T: Send + 'static> UdpSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("UdpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            UdpSource {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 bind: bind.into(),
                 max_packet_bytes,
                 socket: None,
@@ -43,7 +44,7 @@ impl<T: Send + 'static> Kernel for UdpSource<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice_unchecked::<u8>();
@@ -74,7 +75,7 @@ impl<T: Send + 'static> Kernel for UdpSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.socket = Some(UdpSocket::bind(self.bind.clone()).await?);

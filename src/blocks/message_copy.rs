@@ -1,17 +1,17 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Error;
-use crate::runtime::Kernel;
-use crate::runtime::MessageAccepter;
 use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
-use crate::runtime::PortId;
+use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Forward messages.
+#[derive(Block)]
+#[message_handlers(r#in)]
+#[null_kernel]
 pub struct MessageCopy {}
 
 impl MessageCopy {
@@ -25,13 +25,13 @@ impl MessageCopy {
         )
     }
 
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
         mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
-    ) -> Result<Pmt, Error> {
+    ) -> Result<Pmt> {
         match p {
             Pmt::Finished => {
                 io.finished = true;
@@ -43,25 +43,3 @@ impl MessageCopy {
         Ok(Pmt::Ok)
     }
 }
-
-impl MessageAccepter for MessageCopy {
-    async fn call_handler(
-        &mut self,
-        io: &mut WorkIo,
-        mio: &mut MessageOutputs,
-        meta: &mut BlockMeta,
-        _id: PortId,
-        p: Pmt,
-    ) -> Result<Pmt, Error> {
-        self.handler(io, mio, meta, p)
-            .await
-            .map_err(|e| Error::HandlerError(e.to_string()))
-    }
-
-    fn input_names() -> Vec<String> {
-        vec!["in".to_string()]
-    }
-}
-
-#[doc(hidden)]
-impl Kernel for MessageCopy {}

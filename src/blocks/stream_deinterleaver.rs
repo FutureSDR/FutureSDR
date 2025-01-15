@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -13,7 +13,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Stream Deinterleaver
-pub struct StreamDeinterleaver<T> {
+#[derive(Block)]
+pub struct StreamDeinterleaver<T: Send> {
     num_channels: usize,
     phantom: PhantomData<T>,
 }
@@ -31,7 +32,7 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new("StreamDeinterleaver").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 num_channels,
                 phantom: PhantomData,
@@ -46,7 +47,7 @@ impl<T: Copy + Send + Sync + 'static> Kernel for StreamDeinterleaver<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<T>();

@@ -1,6 +1,5 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
@@ -12,6 +11,7 @@ use crate::runtime::WorkIo;
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
 #[derive(Block)]
 #[message_handlers(msg_handler)]
+#[null_kernel]
 pub struct MessageApply<F>
 where
     F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static,
@@ -53,9 +53,4 @@ where
         }
         Ok(Pmt::Ok)
     }
-}
-
-impl<F> Kernel for MessageApply<F> where
-    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static
-{
 }

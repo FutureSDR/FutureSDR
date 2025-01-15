@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -10,6 +10,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Log stream data with [log::info!].
+#[derive(Block)]
 pub struct ConsoleSink<T: Send + 'static + std::fmt::Debug> {
     sep: String,
     _type: std::marker::PhantomData<T>,
@@ -24,8 +25,8 @@ impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("ConsoleSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            ConsoleSink::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 sep: sep.into(),
                 _type: std::marker::PhantomData,
             },
@@ -39,7 +40,7 @@ impl<T: Send + 'static + std::fmt::Debug> Kernel for ConsoleSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

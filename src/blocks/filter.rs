@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -36,6 +36,7 @@ use crate::runtime::WorkIo;
 /// }));
 /// ```
 #[allow(clippy::type_complexity)]
+#[derive(Block)]
 pub struct Filter<A, B>
 where
     A: 'static,
@@ -57,8 +58,8 @@ where
                 .add_input::<A>("in")
                 .add_output::<B>("out")
                 .build(),
-            MessageIoBuilder::<Filter<A, B>>::new().build(),
-            Filter { f: Box::new(f) },
+            MessageOutputsBuilder::new().build(),
+            Self { f: Box::new(f) },
         )
     }
 }
@@ -73,7 +74,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<A>();

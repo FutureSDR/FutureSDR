@@ -9,8 +9,8 @@ use crate::runtime::buffer::zynq::WriterD2H;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -59,7 +59,7 @@ where
                 .add_input::<I>("in")
                 .add_output::<O>("out")
                 .build(),
-            MessageIoBuilder::<Zynq<I, O>>::new().build(),
+            MessageOutputsBuilder::<Zynq<I, O>>::new().build(),
             Zynq {
                 dma_h2d: AxiDmaAsync::new(dma_h2d.as_ref())?,
                 dma_d2h: AxiDmaAsync::new(dma_d2h.as_ref())?,
@@ -91,7 +91,7 @@ where
     async fn init(
         &mut self,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let len = self.dma_buffs.len();
@@ -119,7 +119,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.output_buffers.extend(o(sio, 0).buffers());

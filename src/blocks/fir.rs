@@ -13,8 +13,8 @@ use std::ops::Mul;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -22,12 +22,13 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// FIR filter.
+#[derive(Block)]
 pub struct Fir<InputType, OutputType, TapType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Core: Filter<InputType, OutputType, TapType>,
+    Core: Filter<InputType, OutputType, TapType> + Send,
 {
     filter: Core,
     _input_type: std::marker::PhantomData<InputType>,
@@ -50,7 +51,7 @@ where
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 filter,
                 _input_type: std::marker::PhantomData,
@@ -73,7 +74,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<InputType>();
@@ -93,12 +94,13 @@ where
 }
 
 /// Stateful FIR filter.
+#[derive(Block)]
 pub struct StatefulFir<InputType, OutputType, TapType, Core>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
-    Core: StatefulFilter<InputType, OutputType, TapType>,
+    Core: StatefulFilter<InputType, OutputType, TapType> + Send,
 {
     filter: Core,
     _input_type: std::marker::PhantomData<InputType>,
@@ -121,7 +123,7 @@ where
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 filter,
                 _input_type: std::marker::PhantomData,
@@ -145,7 +147,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<InputType>();

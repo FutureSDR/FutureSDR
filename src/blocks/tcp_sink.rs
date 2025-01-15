@@ -7,8 +7,8 @@ use futures::AsyncWriteExt;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -16,6 +16,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push samples into a TCP socket.
+#[derive(Block)]
 pub struct TcpSink<T: Send + 'static> {
     port: u32,
     listener: Option<TcpListener>,
@@ -29,8 +30,8 @@ impl<T: Send + 'static> TcpSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("TcpSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            TcpSink {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 port,
                 listener: None,
                 socket: None,
@@ -46,7 +47,7 @@ impl<T: Send + 'static> Kernel for TcpSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if self.socket.is_none() {
@@ -89,7 +90,7 @@ impl<T: Send + 'static> Kernel for TcpSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(TcpListener::bind(format!("127.0.0.1:{}", self.port)).await?);

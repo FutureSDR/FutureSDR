@@ -10,8 +10,8 @@ use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -19,6 +19,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Polyphase Synthesizer.
+#[derive(Block)]
 pub struct PfbSynthesizer {
     fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
     taps_per_filter: usize,
@@ -55,7 +56,7 @@ impl PfbSynthesizer {
         TypedBlock::new(
             BlockMetaBuilder::new("PfbSynthesizer").build(),
             sio.build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             channelizer,
         )
     }
@@ -81,7 +82,7 @@ impl Kernel for PfbSynthesizer {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let n_items_available = sio

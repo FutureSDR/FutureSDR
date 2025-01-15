@@ -15,8 +15,8 @@ use wasm_bindgen_futures::spawn_local;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -72,7 +72,7 @@ impl<T: Send + Sync + 'static> WasmWsSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("WasmWsSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::<Self>::new().build(),
             WasmWsSink {
                 data_sender: sender,
                 data_storage: Vec::new(),
@@ -90,7 +90,7 @@ impl<T: Send + Sync + 'static> Kernel for WasmWsSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Check whether an error has occurred in the websocket task before this call to `work`.

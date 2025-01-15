@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -16,6 +16,7 @@ use crate::runtime::WorkIo;
 /// smooth over FFTs.
 ///
 /// [egui]: https://github.com/FutureSDR/FutureSDR/blob/main/examples/egui/src/bin/combined.rs
+#[derive(Block)]
 pub struct MovingAvg<const WIDTH: usize> {
     decay_factor: f32,
     history_size: usize,
@@ -47,7 +48,7 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 decay_factor,
                 history_size,
@@ -63,7 +64,7 @@ impl<const WIDTH: usize> Kernel for MovingAvg<WIDTH> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<f32>();

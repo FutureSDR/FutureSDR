@@ -8,8 +8,8 @@ use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -119,7 +119,7 @@ impl HackRf {
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new()
+            MessageOutputsBuilder::<Self>::new()
                 .add_input("freq", Self::freq_handler)
                 .add_input("vga", Self::vga_handler)
                 .add_input("lna", Self::lna_handler)
@@ -138,7 +138,7 @@ impl HackRf {
     fn freq_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -160,7 +160,7 @@ impl HackRf {
     fn lna_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -182,7 +182,7 @@ impl HackRf {
     fn vga_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -204,7 +204,7 @@ impl HackRf {
     fn amp_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -223,7 +223,7 @@ impl HackRf {
     fn sample_rate_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -473,7 +473,7 @@ impl Kernel for HackRf {
     async fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let usb = {
@@ -549,7 +549,7 @@ impl Kernel for HackRf {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<Complex32>();

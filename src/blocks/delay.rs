@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -37,6 +37,8 @@ enum State {
 ///
 /// let sink = fg.add_block(Delay::<Complex<f32>>::new(42));
 /// ```
+#[derive(Block)]
+#[message_handlers(new_value)]
 pub struct Delay<T: Copy + Send + 'static> {
     state: State,
     _type: std::marker::PhantomData<T>,
@@ -57,9 +59,7 @@ impl<T: Copy + Send + 'static> Delay<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::new()
-                .add_input("new_value", Self::new_value_handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 state,
                 _type: std::marker::PhantomData,
@@ -67,12 +67,11 @@ impl<T: Copy + Send + 'static> Delay<T> {
         )
     }
 
-    #[message_handler]
-    pub fn new_value_handler<'a>(
-        &'a mut self,
-        _io: &'a mut WorkIo,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    async fn new_value(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::MapStrPmt(new_value) = p {
@@ -113,7 +112,7 @@ impl<T: Copy + Send + 'static> Kernel for Delay<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

@@ -3,8 +3,8 @@ use futures::AsyncReadExt;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -37,6 +37,7 @@ use crate::runtime::WorkIo;
 /// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32", false));
 /// ```
 #[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
+#[derive(Block)]
 pub struct FileSource<T: Send + 'static> {
     file_name: String,
     file: Option<async_fs::File>,
@@ -50,8 +51,8 @@ impl<T: Send + 'static> FileSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            FileSource::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 file_name: file_name.into(),
                 file: None,
                 repeat,
@@ -67,7 +68,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice_unchecked::<u8>();
@@ -103,7 +104,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());

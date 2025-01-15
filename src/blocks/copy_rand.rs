@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -19,6 +19,7 @@ use std::marker::PhantomData;
 ///
 /// ## Output Stream
 /// - `out`: Output, same as input
+#[derive(Block)]
 pub struct CopyRand<T: Send + 'static> {
     max_copy: usize,
     _type: PhantomData<T>,
@@ -36,8 +37,8 @@ impl<T: Copy + Send + 'static> CopyRand<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            CopyRand::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 max_copy,
                 _type: PhantomData,
             },
@@ -51,7 +52,7 @@ impl<T: Copy + Send + 'static> Kernel for CopyRand<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

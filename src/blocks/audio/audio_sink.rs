@@ -12,8 +12,8 @@ use futures::SinkExt;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -46,7 +46,7 @@ impl AudioSink {
         TypedBlock::new(
             BlockMetaBuilder::new("AudioSink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             AudioSink {
                 sample_rate,
                 channels,
@@ -100,7 +100,7 @@ impl Kernel for AudioSink {
     async fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let host = cpal::default_host();
@@ -171,7 +171,7 @@ impl Kernel for AudioSink {
     async fn deinit(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
@@ -185,7 +185,7 @@ impl Kernel for AudioSink {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<f32>();

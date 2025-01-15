@@ -13,8 +13,8 @@ use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -66,7 +66,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         TypedBlock::new(
             BlockMetaBuilder::new("Source").blocking().build(),
             siob.build(),
-            MessageIoBuilder::new()
+            MessageOutputsBuilder::new()
                 .add_input("freq", Self::freq_handler)
                 .add_input("gain", Self::gain_handler)
                 .add_input("sample_rate", Self::sample_rate_handler)
@@ -87,7 +87,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn terminate_handler(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -106,7 +106,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn cmd_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -119,7 +119,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn freq_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -140,7 +140,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn gain_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -161,7 +161,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn sample_rate_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -182,7 +182,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
     fn get_config_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         channel: Pmt,
     ) -> Result<Pmt> {
@@ -206,7 +206,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let outs = sio.outputs_mut();
@@ -242,7 +242,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.streamer = Some(self.dev.rx_streamer(&self.channels)?);
@@ -257,7 +257,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
     async fn deinit(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.streamer.as_mut().context("no stream")?.deactivate()?;

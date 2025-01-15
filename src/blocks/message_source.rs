@@ -5,8 +5,8 @@ use web_time::Instant;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -15,6 +15,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Output the same message periodically.
+#[derive(Block)]
 pub struct MessageSource {
     message: Pmt,
     interval: Duration,
@@ -28,7 +29,7 @@ impl MessageSource {
         TypedBlock::new(
             BlockMetaBuilder::new("MessageSource").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().add_output("out").build(),
+            MessageOutputsBuilder::new().add_output("out").build(),
             MessageSource {
                 message,
                 interval,
@@ -49,7 +50,7 @@ impl Kernel for MessageSource {
         &mut self,
         io: &mut WorkIo,
         _sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
@@ -75,7 +76,7 @@ impl Kernel for MessageSource {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         self.t_last = Instant::now();

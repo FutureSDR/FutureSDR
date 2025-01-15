@@ -8,8 +8,8 @@ use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -17,6 +17,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Frequency Xlating FIR filter.
+#[derive(Block)]
 pub struct XlatingFir {
     filter: DecimatingFirFilter<Complex32, Complex32, Vec<Complex32>>,
     rotator: Rotator,
@@ -46,7 +47,7 @@ impl XlatingFir {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 filter: DecimatingFirFilter::new(decimation, bpf_taps),
                 rotator: Rotator::new(
@@ -63,7 +64,7 @@ impl Kernel for XlatingFir {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<Complex32>();

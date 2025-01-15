@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -22,7 +22,7 @@ impl<T: Send + 'static> SubSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("SubSource").blocking().build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             SubSource {
                 address: address.into(),
                 receiver: None,
@@ -38,7 +38,7 @@ impl<T: Send + 'static> Kernel for SubSource<T> {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice_unchecked::<u8>();
@@ -54,7 +54,7 @@ impl<T: Send + 'static> Kernel for SubSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         debug!("SubSource Init");

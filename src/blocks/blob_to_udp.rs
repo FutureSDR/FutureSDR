@@ -5,8 +5,8 @@ use std::net::ToSocketAddrs;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -15,6 +15,8 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
+#[derive(Block)]
+#[message_handlers(r#in)]
 pub struct BlobToUdp {
     socket: Option<UdpSocket>,
     remote: SocketAddr,
@@ -32,9 +34,7 @@ impl BlobToUdp {
         TypedBlock::new(
             BlockMetaBuilder::new("BlobToUdp").build(),
             StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::handler)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             BlobToUdp {
                 socket: None,
                 remote: remote
@@ -47,11 +47,10 @@ impl BlobToUdp {
         )
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -81,7 +80,7 @@ impl Kernel for BlobToUdp {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let socket = UdpSocket::bind("127.0.0.1:0").await?;

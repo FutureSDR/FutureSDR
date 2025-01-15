@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,6 +29,7 @@ use crate::runtime::WorkIo;
 ///
 /// let source = fg.add_block(NullSource::<Complex<f32>>::new());
 /// ```
+#[derive(Block)]
 pub struct NullSource<T: Send + 'static> {
     _type: std::marker::PhantomData<T>,
 }
@@ -39,7 +40,7 @@ impl<T: Send + 'static> NullSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("NullSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             NullSource::<T> {
                 _type: std::marker::PhantomData,
             },
@@ -53,7 +54,7 @@ impl<T: Send + 'static> Kernel for NullSource<T> {
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice_unchecked::<u8>();

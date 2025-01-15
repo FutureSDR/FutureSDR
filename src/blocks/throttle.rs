@@ -3,8 +3,8 @@ use web_time::Instant;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -31,6 +31,7 @@ use crate::runtime::WorkIo;
 ///
 /// let throttle = fg.add_block(Throttle::<Complex<f32>>::new(1_000_000.0));
 /// ```
+#[derive(Block)]
 #[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct Throttle<T: Copy + Send + 'static> {
     rate: f64,
@@ -48,8 +49,8 @@ impl<T: Copy + Send + 'static> Throttle<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Throttle::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 rate,
                 t_init: Instant::now(),
                 n_items: 0,
@@ -65,7 +66,7 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();
@@ -105,7 +106,7 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.t_init = Instant::now();

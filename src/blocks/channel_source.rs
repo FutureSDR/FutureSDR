@@ -4,8 +4,8 @@ use crate::futures::StreamExt;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -31,6 +31,7 @@ use crate::runtime::WorkIo;
 /// // start flowgraph
 /// tx.try_send(vec![0, 1, 2].into_boxed_slice());
 /// ```
+#[derive(Block)]
 pub struct ChannelSource<T: Send + 'static> {
     receiver: Receiver<Box<[T]>>,
     current: Option<(Box<[T]>, usize)>,
@@ -42,8 +43,8 @@ impl<T: Send + 'static> ChannelSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("ChannelSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            ChannelSource::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 receiver,
                 current: None,
             },
@@ -57,7 +58,7 @@ impl<T: Send + 'static> Kernel for ChannelSource<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<T>();

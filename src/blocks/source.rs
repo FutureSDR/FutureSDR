@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,6 +29,7 @@ use crate::runtime::WorkIo;
 /// // Generate zeroes
 /// let source = fg.add_block(Source::new(|| { 0.0f32 }));
 /// ```
+#[derive(Block)]
 pub struct Source<F, A>
 where
     F: FnMut() -> A + Send + 'static,
@@ -48,8 +49,8 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new("Source").build(),
             StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Source {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 f,
                 _p: std::marker::PhantomData,
             },
@@ -67,7 +68,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<A>();

@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -41,6 +41,7 @@ use crate::runtime::WorkIo;
 /// // Additionally, the closure can change the type of the sample
 /// ```
 #[allow(clippy::type_complexity)]
+#[derive(Block)]
 pub struct ApplyNM<F, A, B, const N: usize, const M: usize>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
@@ -66,8 +67,8 @@ where
                 .add_input::<A>("in")
                 .add_output::<B>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            ApplyNM {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 f,
                 _p1: std::marker::PhantomData,
                 _p2: std::marker::PhantomData,
@@ -87,7 +88,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<A>();

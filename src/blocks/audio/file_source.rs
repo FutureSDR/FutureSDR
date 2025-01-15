@@ -8,8 +8,8 @@ use std::io::BufReader;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -30,7 +30,7 @@ impl FileSource {
         TypedBlock::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<f32>("out").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             FileSource {
                 src: source.convert_samples().buffered(),
             },
@@ -52,7 +52,7 @@ impl Kernel for FileSource {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = sio.output(0).slice::<f32>();

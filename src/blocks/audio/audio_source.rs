@@ -9,8 +9,8 @@ use cpal::StreamConfig;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -40,7 +40,7 @@ impl AudioSource {
         TypedBlock::new(
             BlockMetaBuilder::new("AudioSource").build(),
             StreamIoBuilder::new().add_output::<f32>("out").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             AudioSource {
                 sample_rate,
                 channels,
@@ -57,7 +57,7 @@ impl Kernel for AudioSource {
     async fn init(
         &mut self,
         _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let host = cpal::default_host();
@@ -97,7 +97,7 @@ impl Kernel for AudioSource {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some((buff, mut full)) = self.buff.take() {

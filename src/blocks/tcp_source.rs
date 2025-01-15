@@ -6,8 +6,8 @@ use futures::AsyncReadExt;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -15,6 +15,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from a TCP socket.
+#[derive(Block)]
 pub struct TcpSource<T: Send + 'static> {
     bind: String,
     listener: Option<TcpListener>,
@@ -28,8 +29,8 @@ impl<T: Send + 'static> TcpSource<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("TcpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            TcpSource {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 bind: bind.into(),
                 listener: None,
                 socket: None,
@@ -45,7 +46,7 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if self.socket.is_none() {
@@ -87,7 +88,7 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.listener = Some(TcpListener::bind(self.bind.clone()).await?);

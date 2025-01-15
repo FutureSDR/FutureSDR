@@ -6,8 +6,8 @@ use std::cmp::min;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -15,6 +15,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Polyphase Arbitrary Rate Resampler
+#[derive(Block)]
 pub struct PfbArbResampler {
     rate: f32,
     /* The number of filters is specified by the user as the
@@ -109,7 +110,7 @@ impl PfbArbResampler {
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             PfbArbResampler {
                 rate,
                 num_filters,
@@ -132,7 +133,7 @@ impl Kernel for PfbArbResampler {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = sio.input(0).slice::<Complex32>();

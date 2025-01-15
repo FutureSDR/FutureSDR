@@ -10,6 +10,7 @@ use quote::quote_spanned;
 use std::iter::Peekable;
 use syn::parse_macro_input;
 use syn::DeriveInput;
+use syn::GenericParam;
 use syn::Meta;
 
 //=========================================================================
@@ -529,7 +530,7 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 //=========================================================================
 // BLOCK MACRO
 //=========================================================================
-#[proc_macro_derive(Block, attributes(message_handlers))]
+#[proc_macro_derive(Block, attributes(message_handlers, null_kernel))]
 pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the input as a DeriveInput
     let input = parse_macro_input!(input as DeriveInput);
@@ -538,6 +539,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let where_clause = &input.generics.where_clause;
 
     let mut handlers: Vec<Ident> = Vec::new();
+    let mut kernel = quote! {};
 
     // Search for the `handlers` attribute
     for attr in &input.attrs {
@@ -549,8 +551,36 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     }
                 }
             }
+        } else if attr.path().is_ident("null_kernel") {
+            kernel = quote! {
+                impl #generics ::futuresdr::runtime::Kernel for #struct_name #generics
+                    #where_clause { }
+
+            }
         }
     }
+
+    let unconstraint_params = generics.params.iter().map(|param| match param {
+        GenericParam::Type(ty) => {
+            let ident = &ty.ident;
+            quote! { #ident }
+        }
+        GenericParam::Lifetime(lt) => {
+            let lifetime = &lt.lifetime;
+            quote! { #lifetime }
+        }
+        GenericParam::Const(c) => {
+            let ident = &c.ident;
+            quote! { #ident }
+        }
+    });
+
+    // Surround the parameters with angle brackets if they exist
+    let unconstraint_generics = if generics.params.is_empty() {
+        quote! {}
+    } else {
+        quote! { <#(#unconstraint_params),*> }
+    };
 
     // Generate match arms for the handle method
     let handler_matches = handlers.iter().enumerate().map(|(index, handler)| {
@@ -569,13 +599,14 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             handler
         };
         quote! {
+            #[doc(hidden)]
             #handler.to_string()
         }
     });
 
     // Generate the MessageAccepter implementation
     let expanded = quote! {
-        impl #generics ::futuresdr::runtime::MessageAccepter for #struct_name #generics
+        impl #generics ::futuresdr::runtime::MessageAccepter for #struct_name #unconstraint_generics
             #where_clause
         {
             #[allow(unreachable_code)]
@@ -606,6 +637,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
 
+        #kernel
     };
 
     // println!("{}", expanded);

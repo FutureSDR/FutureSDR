@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -10,6 +10,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Apply a function to split a stream.
+#[derive(Block)]
 pub struct Split<F, A, B, C>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
@@ -39,8 +40,8 @@ where
                 .add_output::<B>("out0")
                 .add_output::<C>("out1")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Split {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 f,
                 _p1: std::marker::PhantomData,
                 _p2: std::marker::PhantomData,
@@ -62,7 +63,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i0 = sio.input(0).slice::<A>();

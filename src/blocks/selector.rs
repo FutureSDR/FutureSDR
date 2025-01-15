@@ -7,8 +7,8 @@ use std::str::FromStr;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -70,6 +70,8 @@ impl fmt::Display for DropPolicy {
 
 /// Forward the input stream with a given index to the output stream with a
 /// given index.
+#[derive(Block)]
+#[message_handlers(input_index, output_index)]
 pub struct Selector<A, const N: usize, const M: usize>
 where
     A: Send + 'static + Copy,
@@ -96,10 +98,7 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new(format!("Selector<{N}, {M}>")).build(),
             stream_builder.build(),
-            MessageIoBuilder::<Self>::new()
-                .add_input("input_index", Self::input_index)
-                .add_input("output_index", Self::output_index)
-                .build(),
+            MessageOutputsBuilder::new().build(),
             Selector {
                 input_index: 0,
                 output_index: 0,
@@ -119,11 +118,10 @@ where
         }
     }
 
-    #[message_handler]
     async fn input_index(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -133,11 +131,10 @@ where
         Ok(Pmt::U32(self.input_index as u32))
     }
 
-    #[message_handler]
     async fn output_index(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -157,7 +154,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(self.input_index).slice_unchecked::<u8>();

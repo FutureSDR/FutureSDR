@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,6 +29,7 @@ use crate::runtime::WorkIo;
 ///
 /// let head = fg.add_block(Head::<Complex<f32>>::new(1_000_000));
 /// ```
+#[derive(Block)]
 pub struct Head<T: Send + 'static> {
     n_items: u64,
     _type: std::marker::PhantomData<T>,
@@ -42,8 +43,8 @@ impl<T: Copy + Send + 'static> Head<T> {
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageIoBuilder::new().build(),
-            Head::<T> {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 n_items,
                 _type: std::marker::PhantomData,
             },
@@ -57,7 +58,7 @@ impl<T: Copy + Send + 'static> Kernel for Head<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();

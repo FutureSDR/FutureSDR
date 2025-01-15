@@ -2,8 +2,8 @@ use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -11,6 +11,7 @@ use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Apply a function on each input sample to create an iterator and output its values.
+#[derive(Block)]
 pub struct ApplyIntoIter<F, A, B>
 where
     F: FnMut(&A) -> B + Send + 'static,
@@ -41,7 +42,7 @@ where
                 .add_input::<A>("in")
                 .add_output::<B::Item>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             ApplyIntoIter {
                 f,
                 _p: std::marker::PhantomData,
@@ -64,7 +65,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<A>();

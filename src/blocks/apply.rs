@@ -1,8 +1,8 @@
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -46,6 +46,7 @@ use crate::runtime::WorkIo;
 ///     }
 /// }));
 /// ```
+#[derive(Block)]
 pub struct Apply<F, A, B>
 where
     F: FnMut(&A) -> B + Send + 'static,
@@ -74,7 +75,7 @@ where
                 .add_input::<A>("in")
                 .add_output::<B>("out")
                 .build(),
-            MessageIoBuilder::<Self>::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self {
                 f,
                 _p1: std::marker::PhantomData,
@@ -95,7 +96,7 @@ where
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<A>();

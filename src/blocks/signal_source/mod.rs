@@ -4,8 +4,8 @@ use crate::runtime::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -19,6 +19,7 @@ mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
 /// Signal Source block
+#[derive(Block)]
 pub struct SignalSource<F, A>
 where
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
@@ -40,8 +41,8 @@ where
         TypedBlock::new(
             BlockMetaBuilder::new("SignalSource").build(),
             StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            SignalSource {
+            MessageOutputsBuilder::new().build(),
+            Self {
                 nco,
                 phase_to_amplitude,
                 amplitude,
@@ -61,7 +62,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = sio.output(0).slice::<A>();

@@ -2,8 +2,8 @@ use crate::futures::channel::mpsc::Sender;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
+use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,6 +29,7 @@ use crate::runtime::WorkIo;
 /// let cs = fg.add_block(ChannelSink::<u32>::new(tx));
 /// // start flowgraph
 /// ```
+#[derive(Block)]
 pub struct ChannelSink<T: Send + 'static> {
     sender: Sender<Box<[T]>>,
 }
@@ -39,7 +40,7 @@ impl<T: Send + Clone + 'static> ChannelSink<T> {
         TypedBlock::new(
             BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
+            MessageOutputsBuilder::new().build(),
             Self { sender },
         )
     }
@@ -51,7 +52,7 @@ impl<T: Send + Clone + 'static> Kernel for ChannelSink<T> {
         &mut self,
         io: &mut WorkIo,
         sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = sio.input(0).slice::<T>();
