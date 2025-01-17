@@ -119,6 +119,7 @@ impl MessageOutput {
 }
 
 /// Message IO
+#[derive(Debug)]
 pub struct MessageOutputs {
     outputs: Vec<MessageOutput>,
 }
@@ -164,6 +165,7 @@ impl MessageOutputs {
 }
 
 /// Message IO builder
+#[derive(Default, Debug)]
 pub struct MessageOutputsBuilder {
     outputs: Vec<MessageOutput>,
 }
@@ -186,11 +188,5 @@ impl MessageOutputsBuilder {
     /// Build Message IO
     pub fn build(self) -> MessageOutputs {
         MessageOutputs::new(self.outputs)
-    }
-}
-
-impl Default for MessageOutputsBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
