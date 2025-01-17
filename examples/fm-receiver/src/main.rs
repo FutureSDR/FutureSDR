@@ -94,11 +94,6 @@ fn main() -> Result<()> {
         .gain(args.gain)
         .build()?;
 
-    // Store the `freq` port ID for later use
-    let freq_port_id = src
-        .message_input_name_to_id("freq")
-        .expect("No freq port found!");
-
     // Downsample before demodulation
     let interp = (audio_rate * audio_mult) as usize;
     let decim = sample_rate as usize;
@@ -156,11 +151,7 @@ fn main() -> Result<()> {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_freq) = input.parse::<f64>() {
             println!("Setting frequency to {input}");
-            async_io::block_on(handle.call(
-                src,
-                freq_port_id,
-                Pmt::F64(new_freq * 1e6 + freq_offset),
-            ))?;
+            async_io::block_on(handle.call(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
         } else {
             println!("Input not parsable: {input}");
         }

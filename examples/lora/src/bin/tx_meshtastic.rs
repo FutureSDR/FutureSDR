@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::macros::connect;
-use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -75,9 +74,6 @@ fn main() -> Result<()> {
         PREAMBLE_LEN,
         PAD,
     );
-    let fg_tx_port = transmitter
-        .message_input_name_to_id("msg")
-        .expect("No message_in port found!");
 
     connect!(fg, transmitter > sink);
 
@@ -99,7 +95,7 @@ fn main() -> Result<()> {
 
         rt.block_on(async move {
             handle
-                .call(transmitter, fg_tx_port, Pmt::Blob(data))
+                .call(transmitter, "msg", Pmt::Blob(data))
                 .await
                 .unwrap();
             info!("sent frame");

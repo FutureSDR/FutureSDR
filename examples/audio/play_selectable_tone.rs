@@ -5,7 +5,6 @@ use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Selector;
 use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
 use futuresdr::blocks::SignalSourceBuilder;
-use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -30,10 +29,6 @@ fn main() -> Result<()> {
         .amplitude(0.3)
         .build();
     let selector = Selector::<f32, 2, 1>::new(args.drop_policy);
-    // Store the `input_index` port ID for later use
-    let input_index_port_id = selector
-        .message_input_name_to_id("input_index")
-        .expect("No input_index port found!");
     let snk = AudioSink::new(48_000, 1);
 
     let src0 = fg.add_block(src0)?;
@@ -66,7 +61,7 @@ fn main() -> Result<()> {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_index) = input.parse::<u32>() {
             println!("Setting source index to {input}");
-            async_io::block_on(handle.call(selector, input_index_port_id, Pmt::U32(new_index)))?;
+            async_io::block_on(handle.call(selector, "input_index", Pmt::U32(new_index)))?;
         } else {
             println!("Input not parsable: {input}");
         }

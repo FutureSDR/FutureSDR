@@ -3,7 +3,6 @@ use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::macros::connect;
-use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -79,9 +78,6 @@ fn main() -> Result<()> {
         PREAMBLE_LEN,
         PAD,
     );
-    let fg_tx_port = transmitter
-        .message_input_name_to_id("msg")
-        .expect("No message_in port found!");
 
     connect!(fg, transmitter > sink);
 
@@ -93,7 +89,7 @@ fn main() -> Result<()> {
         loop {
             let payload = format!("hello world! {:02}", counter).to_string();
             handle
-                .call(transmitter, fg_tx_port, Pmt::String(payload))
+                .call(transmitter, "msg", Pmt::String(payload))
                 .await
                 .unwrap();
             info!("sending frame");

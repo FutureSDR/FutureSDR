@@ -1,4 +1,3 @@
-use anyhow::Context;
 use anyhow::Result;
 use float_cmp::assert_approx_eq;
 use futuresdr::async_io::block_on;
@@ -136,12 +135,6 @@ fn src_config_cmd_map() -> Result<()> {
         .frequency(100e6)
         .gain(1.0)
         .build()?;
-    let cmd_port_id = src
-        .message_input_name_to_id("cmd")
-        .context("command port")?;
-    let cfg_port_id = src
-        .message_input_name_to_id("config")
-        .context("command port")?;
 
     let snk = NullSink::<Complex<f32>>::new();
 
@@ -156,13 +149,13 @@ fn src_config_cmd_map() -> Result<()> {
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),
         ]));
-        fg_handle.callback(src, cmd_port_id, pmt).await.unwrap();
+        fg_handle.callback(src, "cmd", pmt).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
 
-    let conf = block_on(fg_handle.callback(src, cfg_port_id, Pmt::Ok))?;
+    let conf = block_on(fg_handle.callback(src, "config", Pmt::Ok))?;
 
     match conf {
         Pmt::MapStrPmt(m) => {
@@ -188,12 +181,6 @@ fn sink_config_cmd_map() -> Result<()> {
         .frequency(100e6)
         .gain(1.0)
         .build()?;
-    let cmd_port_id = snk
-        .message_input_name_to_id("cmd")
-        .context("command port")?;
-    let cfg_port_id = snk
-        .message_input_name_to_id("config")
-        .context("command port")?;
 
     let src = NullSource::<Complex<f32>>::new();
 
@@ -207,13 +194,13 @@ fn sink_config_cmd_map() -> Result<()> {
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),
         ]));
-        fg_handle.callback(snk, cmd_port_id, pmt).await.unwrap();
+        fg_handle.callback(snk, "cmd", pmt).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Tx, 0)?, 102e6, epsilon = 0.1);
     assert_approx_eq!(f64, dev.sample_rate(Tx, 0)?, 1e6);
 
-    let conf = block_on(fg_handle.callback(snk, cfg_port_id, Pmt::Ok))?;
+    let conf = block_on(fg_handle.callback(snk, "config", Pmt::Ok))?;
 
     match conf {
         Pmt::MapStrPmt(m) => {

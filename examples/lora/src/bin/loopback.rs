@@ -1,11 +1,9 @@
-use anyhow::anyhow;
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::macros::connect;
 use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -77,9 +75,6 @@ fn main() -> Result<()> {
         PREAMBLE_LEN,
         PAD,
     );
-    let fg_tx_port = transmitter.message_input_name_to_id("msg").ok_or(anyhow!(
-        "Message handler `msg` of whitening block not found"
-    ))?;
 
     // ==============================================================
     // RX
@@ -123,7 +118,7 @@ fn main() -> Result<()> {
         loop {
             let payload = format!("hello world! {:02}", counter).to_string();
             handle
-                .call(transmitter, fg_tx_port, Pmt::String(payload))
+                .call(transmitter, "msg", Pmt::String(payload))
                 .await
                 .unwrap();
             info!("sending frame");
