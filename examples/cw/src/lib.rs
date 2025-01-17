@@ -99,10 +99,10 @@ impl IntoIterator for CWAlphabet {
                 .take(3 * DOT_LENGTH)
                 .chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
             CWAlphabet::LetterSpace => std::iter::repeat(0.0)
-                .take(3 * DOT_LENGTH)
+                .take(2 * DOT_LENGTH)
                 .chain(std::iter::repeat(0.0).take(0)),
             CWAlphabet::WordSpace => std::iter::repeat(0.0)
-                .take((5 - 2) * DOT_LENGTH)
+                .take(4 * DOT_LENGTH)
                 .chain(std::iter::repeat(0.0).take(0)),
         }
     }
