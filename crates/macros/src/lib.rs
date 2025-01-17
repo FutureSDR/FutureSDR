@@ -533,22 +533,44 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 //=========================================================================
 #[proc_macro_derive(Block, attributes(message_handlers, null_kernel))]
 pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // Parse the input as a DeriveInput
     let input = parse_macro_input!(input as DeriveInput);
     let struct_name = &input.ident;
     let generics = &input.generics;
     let where_clause = &input.generics.where_clause;
 
     let mut handlers: Vec<Ident> = Vec::new();
+    let mut handler_names: Vec<String> = Vec::new();
     let mut kernel = quote! {};
 
     // Search for the `handlers` attribute
     for attr in &input.attrs {
         if attr.path().is_ident("message_handlers") {
-            if let Meta::List(meta_list) = &attr.meta {
-                for t in meta_list.tokens.clone() {
-                    if let TokenTree::Ident(i) = t {
-                        handlers.push(i);
+            let nested = attr
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
+                )
+                .unwrap();
+            for m in nested {
+                match m {
+                    Meta::NameValue(m) => {
+                        handlers.push(m.path.get_ident().unwrap().clone());
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(s),
+                            ..
+                        }) = m.value
+                        {
+                            handler_names.push(s.value());
+                        } else {
+                            panic!("message handlers have to be an identifier or identifier = \"port name\"");
+                        }
+                    }
+                    Meta::Path(p) => {
+                        let p = p.get_ident().unwrap();
+                        handlers.push(p.clone());
+                        handler_names.push(p.to_string());
+                    }
+                    _ => {
+                        panic!("message handlers have to be a list of name-values or paths")
                     }
                 }
             }
@@ -560,6 +582,18 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     }
+
+    // Generate handler names as strings
+    let handler_names = handler_names.into_iter().map(|handler| {
+        let handler = if let Some(stripped) = handler.strip_prefix("r#") {
+            stripped.to_string()
+        } else {
+            handler
+        };
+        quote! {
+            #handler
+        }
+    });
 
     let unconstraint_params = generics.params.iter().map(|param| match param {
         GenericParam::Type(ty) => {
@@ -584,24 +618,10 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     // Generate match arms for the handle method
-    let handler_matches = handlers.iter().enumerate().map(|(index, handler)| {
+    let handler_matches = handlers.iter().zip(handler_names.clone()).enumerate().map(|(index, (handler, handler_name))| {
         quote! {
             PortId::Index(#index)  => self.#handler(io, mio, meta, p).await,
-            PortId::Name(ref s) if s.as_str() == stringify!(#handler)  => self.#handler(io, mio, meta, p).await,
-        }
-    });
-
-    // Generate handler names as strings
-    let handler_names = handlers.iter().map(|handler| {
-        let handler = handler.to_string();
-        let handler = if let Some(stripped) = handler.strip_prefix("r#") {
-            stripped.to_string()
-        } else {
-            handler
-        };
-        quote! {
-            #[doc(hidden)]
-            #handler.to_string()
+            PortId::Name(ref s) if s.as_str() == #handler_name  => self.#handler(io, mio, meta, p).await,
         }
     });
 
@@ -634,15 +654,22 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         ret.map_err(|e| Error::HandlerError(e.to_string()))
             }
             fn input_names() -> Vec<String> {
-                vec![#(#handler_names),*]
+                vec![#(#handler_names.to_string()),*]
             }
         }
 
         #kernel
     };
 
-    // println!("{}", expanded);
+    // println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
+}
+
+// https://stackoverflow.com/a/74360109
+#[allow(dead_code)]
+fn pretty_print(ts: &proc_macro2::TokenStream) -> String {
+    let file = syn::parse_file(&ts.to_string()).unwrap();
+    prettyplease::unparse(&file)
 }
 
 //=========================================================================
