@@ -9,7 +9,6 @@ edition = "2021"
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features=["soapy", "audio"] }
-hound = "3.5"
 
 [[bin]]
 name = "receive"

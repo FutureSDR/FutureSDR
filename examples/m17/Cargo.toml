@@ -10,4 +10,3 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 codec2 = "0.3"
 futuresdr = { path = "../..", features = ["audio", "seify", "soapy"] }
-hound = "3.5"

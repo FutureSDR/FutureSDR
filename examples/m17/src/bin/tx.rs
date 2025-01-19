@@ -7,6 +7,7 @@ use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FiniteSource;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::hound;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;

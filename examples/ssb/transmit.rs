@@ -10,12 +10,12 @@ use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Split;
 use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows::hamming;
+use futuresdr::hound::SampleFormat;
+use futuresdr::hound::WavSpec;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use hound::SampleFormat;
-use hound::WavSpec;
 use std::f32::consts::TAU;
 use std::path::Path;
 
