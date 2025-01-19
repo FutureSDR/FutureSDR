@@ -21,7 +21,7 @@ num-complex = { version = "0.4", features = ["serde"] }
 seify = { version = "0.16", default-features = false, optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 [dev-dependencies]
-flexbuffers = "2.0"
+flexbuffers = "24.0"
