@@ -8,10 +8,8 @@ use std::sync::Arc;
 
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -53,12 +51,7 @@ impl PfbSynthesizer {
         }
         sio = sio.add_output::<Complex32>("out");
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("PfbSynthesizer").build(),
-            sio.build(),
-            MessageOutputsBuilder::new().build(),
-            channelizer,
-        )
+        TypedBlock::new(sio.build(), channelizer)
     }
 
     fn set_taps(&mut self, taps: &[f32]) {

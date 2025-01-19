@@ -1,9 +1,7 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -46,12 +44,10 @@ impl<T: MovingAverageType + Send + 'static> MovingAverage<T> {
     pub fn new(len: usize) -> TypedBlock<Self> {
         assert!(len > 0);
         TypedBlock::new(
-            BlockMetaBuilder::new("MovingAverage").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 len,
                 pad: len - 1,

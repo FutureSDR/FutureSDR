@@ -6,11 +6,9 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
@@ -75,12 +73,7 @@ pub struct Dummy;
 impl Dummy {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Dummy").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
-            Self,
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
 }
 
@@ -104,9 +97,7 @@ impl Strange {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Strange").build(),
             StreamIoBuilder::new().add_output::<u8>("foo bar").build(),
-            MessageOutputsBuilder::new().build(),
             Self,
         )
     }
@@ -126,18 +117,13 @@ impl Kernel for Strange {
 }
 
 #[derive(futuresdr::Block)]
-#[message_handlers(handler, other)]
+#[message_inputs(handler, other)]
 pub struct Handler;
 
 impl Handler {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Handler").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
-            Self,
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
 
     async fn handler(

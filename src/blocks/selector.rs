@@ -5,10 +5,8 @@ use std::ptr;
 use std::str::FromStr;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -71,7 +69,7 @@ impl fmt::Display for DropPolicy {
 /// Forward the input stream with a given index to the output stream with a
 /// given index.
 #[derive(Block)]
-#[message_handlers(input_index, output_index)]
+#[message_inputs(input_index, output_index)]
 pub struct Selector<A, const N: usize, const M: usize>
 where
     A: Send + 'static + Copy,
@@ -96,9 +94,7 @@ where
             stream_builder = stream_builder.add_output::<A>(format!("out{i}").as_str());
         }
         TypedBlock::new(
-            BlockMetaBuilder::new(format!("Selector<{N}, {M}>")).build(),
             stream_builder.build(),
-            MessageOutputsBuilder::new().build(),
             Selector {
                 input_index: 0,
                 output_index: 0,

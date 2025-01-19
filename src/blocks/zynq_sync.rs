@@ -7,10 +7,8 @@ use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::ReaderH2D;
 use crate::runtime::buffer::zynq::WriterD2H;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -27,6 +25,7 @@ use crate::runtime::WorkIo;
 ///
 /// `out`: Zynq custom buffer
 #[derive(Block)]
+#[blocking]
 pub struct ZynqSync<I, O>
 where
     I: Send + 'static,
@@ -55,12 +54,10 @@ where
         let dma_buffs = dma_buffs.into_iter().map(Into::into).collect();
 
         Ok(TypedBlock::new(
-            BlockMetaBuilder::new("ZynqSync").blocking().build(),
             StreamIoBuilder::new()
                 .add_input::<I>("in")
                 .add_output::<O>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 dma_h2d: AxiDma::new(dma_h2d.as_ref())?,
                 dma_d2h: AxiDma::new(dma_d2h.as_ref())?,

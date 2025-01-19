@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -23,9 +21,7 @@ impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
     /// - `sep`: Separator between items
     pub fn new(sep: impl Into<String>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("ConsoleSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 sep: sep.into(),
                 _type: std::marker::PhantomData,

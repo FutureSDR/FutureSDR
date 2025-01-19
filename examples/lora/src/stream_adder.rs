@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -29,9 +27,7 @@ where
         }
         sio = sio.add_output::<T>("out");
         TypedBlock::new(
-            BlockMetaBuilder::new("StreamAdder").build(),
             sio.build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 num_in: num_inputs,
                 phantom: PhantomData,

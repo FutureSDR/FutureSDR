@@ -2,10 +2,8 @@ use std::cmp;
 use std::ptr;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -23,9 +21,7 @@ impl<T: Send + 'static> VectorSource<T> {
     /// Create VectorSource block
     pub fn new(items: Vec<T>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("VectorSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             VectorSource { items, n_copied: 0 },
         )
     }

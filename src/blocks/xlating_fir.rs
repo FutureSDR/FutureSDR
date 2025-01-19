@@ -6,10 +6,8 @@ use futuredsp::Rotator;
 
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -42,12 +40,10 @@ impl XlatingFir {
         }
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 filter: DecimatingFirFilter::new(decimation, bpf_taps),
                 rotator: Rotator::new(

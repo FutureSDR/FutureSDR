@@ -1,9 +1,7 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -40,14 +38,12 @@ impl PreambleDetector {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(detection_threshold: f32) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("PreambleDetector").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in_samples")
                 .add_input::<f32>("in_nf")
                 .add_input::<f32>("in_preamble_corr")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 detection_threshold,
             },

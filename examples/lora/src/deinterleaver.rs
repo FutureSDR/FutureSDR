@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -37,9 +35,7 @@ impl Deinterleaver {
             sio = sio.add_output::<u8>("out");
         }
         TypedBlock::new(
-            BlockMetaBuilder::new("Deinterleaver").build(),
             sio.build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 soft_decoding,
                 sf: 0,

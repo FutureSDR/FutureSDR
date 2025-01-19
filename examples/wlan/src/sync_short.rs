@@ -1,9 +1,7 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -30,14 +28,12 @@ pub struct SyncShort {
 impl SyncShort {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("SyncShort").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in_sig")
                 .add_input::<Complex32>("in_abs")
                 .add_input::<f32>("in_cor")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 state: State::Search,
             },

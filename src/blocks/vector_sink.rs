@@ -1,10 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -21,9 +19,7 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
     /// Create VectorSink block
     pub fn new(capacity: usize) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("VectorSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 items: Vec::<T>::with_capacity(capacity),
             },

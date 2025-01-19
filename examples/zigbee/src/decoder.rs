@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -48,6 +46,7 @@ enum State {
 }
 
 #[derive(futuresdr::Block)]
+#[message_outputs(out)]
 pub struct Decoder {
     chip_count: u32,
     shift_reg: u32,
@@ -58,9 +57,7 @@ pub struct Decoder {
 impl Decoder {
     pub fn new(threshold: u32) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             Self {
                 threshold,
                 state: State::Search,

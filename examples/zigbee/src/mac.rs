@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -23,7 +21,8 @@ const DESTINATION_ADDRESS: u16 = 0xffff;
 const SOURCE_ADDRESS: u16 = 0x3344;
 
 #[derive(futuresdr::Block)]
-#[message_handlers(rx, tx, stats)]
+#[message_inputs(rx, tx, stats)]
+#[message_outputs(rxed, rftap)]
 pub struct Mac {
     tx_frames: VecDeque<Vec<u8>>,
     current_frame: [u8; 256],
@@ -53,12 +52,7 @@ impl Mac {
         b[13] = SOURCE_ADDRESS.to_le_bytes()[1];
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageOutputsBuilder::new()
-                .add_output("rxed")
-                .add_output("rftap")
-                .build(),
             Mac {
                 tx_frames: VecDeque::new(),
                 current_frame: b,

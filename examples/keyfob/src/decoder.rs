@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -27,9 +25,7 @@ pub struct Decoder {
 impl Decoder {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 state: State::Down(0),
                 n_read: 0,

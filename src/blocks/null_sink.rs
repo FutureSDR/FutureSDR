@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -39,9 +37,7 @@ impl<T: Send + 'static> NullSink<T> {
     /// Create NullSink block
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("NullSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 n_received: 0,
                 _type: std::marker::PhantomData,

@@ -24,9 +24,7 @@ use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures_lite::StreamExt;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
@@ -35,7 +33,7 @@ use futuresdr::runtime::WorkIo;
 
 /// Forward messages.
 #[derive(futuresdr::Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
 #[null_kernel]
 pub struct PacketForwarderClient {
     mac_addr: MacAddress,
@@ -97,9 +95,7 @@ impl PacketForwarderClient {
         });
 
         TypedBlock::new(
-            BlockMetaBuilder::new("PacketForwarder").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
             PacketForwarderClient {
                 mac_addr: mac_address,
                 shutdown_trigger: shutdown_trigger_tmp,

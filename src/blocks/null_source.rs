@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -38,9 +36,7 @@ impl<T: Send + 'static> NullSource<T> {
     /// Create Null Source block
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("NullSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             NullSource::<T> {
                 _type: std::marker::PhantomData,
             },

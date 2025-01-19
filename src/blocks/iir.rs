@@ -4,10 +4,8 @@ use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -41,12 +39,10 @@ where
     /// Create IIR filter block
     pub fn new(core: Core) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Iir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 core,
                 _input_type: std::marker::PhantomData,

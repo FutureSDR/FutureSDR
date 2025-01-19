@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -38,12 +36,10 @@ impl<T: Copy + Send + 'static> Head<T> {
     /// Create Head block
     pub fn new(n_items: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Head").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 n_items,
                 _type: std::marker::PhantomData,

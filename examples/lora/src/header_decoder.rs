@@ -1,9 +1,7 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -49,6 +47,7 @@ pub enum HeaderMode {
 const HEADER_LEN: usize = 5; // size of the header in nibbles
 
 #[derive(futuresdr::Block)]
+#[message_outputs(out, frame_info)]
 pub struct HeaderDecoder {
     mode: HeaderMode,
     left: usize,
@@ -59,12 +58,7 @@ pub struct HeaderDecoder {
 impl HeaderDecoder {
     pub fn new(mode: HeaderMode, ldro_mode: bool) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("HeaderDecoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageOutputsBuilder::new()
-                .add_output("out")
-                .add_output("frame_info")
-                .build(),
             HeaderDecoder {
                 mode,
                 left: 0,

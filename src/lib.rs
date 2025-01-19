@@ -52,7 +52,7 @@ pub use async_net;
 pub use futuredsp;
 pub use futures;
 pub use futures_lite;
-#[cfg(feature = "audio")]
+#[cfg(all(feature = "audio", not(target_arch = "wasm32")))]
 pub use hound;
 pub use num_complex;
 pub use num_integer;

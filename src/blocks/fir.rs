@@ -11,10 +11,8 @@ use std::iter::Sum;
 use std::ops::Mul;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -46,12 +44,10 @@ where
     /// Create FIR block
     pub fn new(filter: Core) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 filter,
                 _input_type: std::marker::PhantomData,
@@ -118,12 +114,10 @@ where
     /// Create FIR block
     pub fn new(filter: Core) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Fir").build(),
             StreamIoBuilder::new()
                 .add_input::<InputType>("in")
                 .add_output::<OutputType>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 filter,
                 _input_type: std::marker::PhantomData,

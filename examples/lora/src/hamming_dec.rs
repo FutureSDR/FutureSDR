@@ -3,11 +3,9 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -39,6 +37,7 @@ const CW_LUT_CR5: [u8; CW_COUNT] = [
 ]; // Different for cr = 4/5
 
 #[derive(futuresdr::Block)]
+#[message_outputs(out)]
 pub struct HammingDec {
     m_cr: usize,           // Transmission coding rate
     is_header: bool,       // Indicate that it is the first block
@@ -56,9 +55,7 @@ impl HammingDec {
         }
         sio = sio.add_output::<u8>("out");
         TypedBlock::new(
-            BlockMetaBuilder::new("HammingDec").build(),
             sio.build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             Self {
                 m_soft_decoding: soft_decoding,
                 is_header: false,

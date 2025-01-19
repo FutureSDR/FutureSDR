@@ -2,10 +2,8 @@ use anyhow::Context;
 use async_net::UdpSocket;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -25,9 +23,7 @@ impl<T: Send + 'static> UdpSource<T> {
     /// Create UDP Source block
     pub fn new(bind: impl Into<String>, max_packet_bytes: usize) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("UdpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 bind: bind.into(),
                 max_packet_bytes,

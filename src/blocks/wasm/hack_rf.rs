@@ -6,10 +6,8 @@ use web_sys::WorkerGlobalScope;
 
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -104,7 +102,7 @@ impl From<JsValue> for Error {
 
 /// WASM-native HackRf Source
 #[derive(Block)]
-#[message_handlers(freq, vga, lna, amp, sample_rate)]
+#[message_inputs(freq, vga, lna, amp, sample_rate)]
 pub struct HackRf {
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
@@ -117,11 +115,9 @@ impl HackRf {
     /// Create HackRf Source
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("HackRf").build(),
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 buffer: [0; TRANSFER_SIZE],
                 offset: TRANSFER_SIZE,

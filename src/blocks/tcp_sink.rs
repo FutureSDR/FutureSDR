@@ -5,10 +5,8 @@ use async_net::TcpStream;
 use futures::AsyncWriteExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -28,9 +26,7 @@ impl<T: Send + 'static> TcpSink<T> {
     /// Create TCP Sink block
     pub fn new(port: u32) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("TcpSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 port,
                 listener: None,

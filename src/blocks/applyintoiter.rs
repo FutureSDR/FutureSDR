@@ -1,9 +1,7 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -37,12 +35,10 @@ where
     /// - `f`: Function to create an interator from an input sample
     pub fn new(f: F) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("ApplyIntoIter").build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in")
                 .add_output::<B::Item>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             ApplyIntoIter {
                 f,
                 _p: std::marker::PhantomData,

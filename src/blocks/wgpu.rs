@@ -17,10 +17,8 @@ use std::borrow::Cow;
 use crate::runtime::buffer::wgpu;
 use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -57,12 +55,10 @@ impl Wgpu {
         });
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Wgpu").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 broker,
                 buffer_items,

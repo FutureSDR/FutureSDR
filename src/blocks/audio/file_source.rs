@@ -6,10 +6,8 @@ use std::fs::File;
 use std::io::BufReader;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -29,9 +27,7 @@ impl FileSource {
         let source = Decoder::new(file).unwrap();
 
         TypedBlock::new(
-            BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<f32>("out").build(),
-            MessageOutputsBuilder::new().build(),
             FileSource {
                 src: source.convert_samples().buffered(),
             },

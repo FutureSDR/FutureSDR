@@ -13,10 +13,8 @@ use std::sync::RwLock;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -71,9 +69,7 @@ impl<T: Send + Sync + 'static> WasmWsSink<T> {
         });
 
         TypedBlock::new(
-            BlockMetaBuilder::new("WasmWsSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             WasmWsSink {
                 data_sender: sender,
                 data_storage: Vec::new(),

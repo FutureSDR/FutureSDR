@@ -2,10 +2,8 @@
 use crate::num_complex::Complex32;
 use crate::runtime::Block;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -39,9 +37,7 @@ where
     /// Create SignalSource block
     pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("SignalSource").build(),
             StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 nco,
                 phase_to_amplitude,

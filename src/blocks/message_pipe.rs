@@ -2,9 +2,7 @@ use futures::channel::mpsc;
 use futures::SinkExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
@@ -13,7 +11,7 @@ use crate::runtime::WorkIo;
 
 /// Push received messages into a channel.
 #[derive(Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
 #[null_kernel]
 pub struct MessagePipe {
     sender: mpsc::Sender<Pmt>,
@@ -22,12 +20,7 @@ pub struct MessagePipe {
 impl MessagePipe {
     /// Create MessagePipe block
     pub fn new(sender: mpsc::Sender<Pmt>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("MessagePipe").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
-            MessagePipe { sender },
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), MessagePipe { sender })
     }
 
     async fn r#in(

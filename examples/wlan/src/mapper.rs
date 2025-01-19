@@ -1,10 +1,8 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -29,12 +27,10 @@ pub struct Mapper {
 impl Mapper {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Mapper").build(),
             StreamIoBuilder::new()
                 .add_input::<u8>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Mapper {
                 signal: [0; 24],
                 signal_encoded: [0; 48],

@@ -3,10 +3,8 @@ use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -49,9 +47,7 @@ impl<T: Send + 'static> FileSink<T> {
     /// Create FileSink block
     pub fn new<S: Into<String>>(file_name: S) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("FileSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 file_name: file_name.into(),
                 file: None,

@@ -2,10 +2,8 @@ use std::cmp::min;
 use std::marker::PhantomData;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -30,9 +28,7 @@ where
             sio = sio.add_output::<T>(&format!("out{}", i));
         }
         TypedBlock::new(
-            BlockMetaBuilder::new("StreamDeinterleaver").build(),
             sio.build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 num_channels,
                 phantom: PhantomData,

@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -43,12 +41,10 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
             "decay_factor must be in [0, 1]"
         );
         TypedBlock::new(
-            BlockMetaBuilder::new("MovingAvg").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 decay_factor,
                 history_size,

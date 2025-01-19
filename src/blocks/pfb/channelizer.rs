@@ -9,10 +9,8 @@ use std::sync::Arc;
 
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -88,12 +86,7 @@ impl PfbChannelizer {
 
         let sio = create_sio_builder(nfilts);
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("PfbChannelizer").build(),
-            sio.build(),
-            MessageOutputsBuilder::new().build(),
-            channelizer,
-        )
+        TypedBlock::new(sio.build(), channelizer)
     }
 }
 

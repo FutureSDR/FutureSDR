@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -22,12 +20,10 @@ pub struct EncoderBlock {
 impl EncoderBlock {
     pub fn new(lsf: LinkSetupFrame) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("M17Encoder").build(),
             StreamIoBuilder::new()
                 .add_input::<u8>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 syms: Vec::new(),
                 offset: 0,

@@ -10,10 +10,8 @@ use futures::channel::oneshot;
 use futures::SinkExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -45,9 +43,7 @@ impl AudioSink {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("AudioSink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::new().build(),
             AudioSink {
                 sample_rate,
                 channels,

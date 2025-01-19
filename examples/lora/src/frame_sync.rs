@@ -1,10 +1,8 @@
 use futuresdr::futures::channel::mpsc;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -93,7 +91,8 @@ const ADDITIONAL_SAMPLES_FOR_NET_ID_RESYNCHING: usize = 4; // might need to cons
 const MAX_UNKNOWN_NET_ID_OFFSET: usize = 1;
 
 #[derive(futuresdr::Block)]
-#[message_handlers(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
+#[message_inputs(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
+#[message_outputs(net_id_caching, frame_detected, detection_failed)]
 pub struct FrameSync {
     m_state: DecoderState, //< Current state of the synchronization
     m_center_freq: u32,    //< RF center frequency
@@ -207,15 +206,9 @@ impl FrameSync {
         let fft_detect = FftPlanner::new().plan_fft(m_number_of_bins_tmp, FftDirection::Forward);
 
         TypedBlock::new(
-            BlockMetaBuilder::new("FrameSync").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
-                .build(),
-            MessageOutputsBuilder::new()
-                .add_output("net_id_caching")
-                .add_output("frame_detected")
-                .add_output("detection_failed")
                 .build(),
             FrameSync {
                 m_state: DecoderState::Detect, //< Current state of the synchronization

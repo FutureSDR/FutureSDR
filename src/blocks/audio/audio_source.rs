@@ -7,10 +7,8 @@ use cpal::Stream;
 use cpal::StreamConfig;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -39,9 +37,7 @@ impl AudioSource {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("AudioSource").build(),
             StreamIoBuilder::new().add_output::<f32>("out").build(),
-            MessageOutputsBuilder::new().build(),
             AudioSource {
                 sample_rate,
                 channels,

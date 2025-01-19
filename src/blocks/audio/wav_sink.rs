@@ -1,10 +1,8 @@
 use std::path;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -52,9 +50,7 @@ impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
     ) -> TypedBlock<Self> {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
         TypedBlock::new(
-            BlockMetaBuilder::new("WavSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 writer,
                 _type: std::marker::PhantomData,

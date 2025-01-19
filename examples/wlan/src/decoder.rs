@@ -1,9 +1,7 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -21,6 +19,7 @@ use crate::MAX_PSDU_SIZE;
 use crate::MAX_SYM;
 
 #[derive(futuresdr::Block)]
+#[message_outputs(rx_frames, rftap)]
 pub struct Decoder {
     frame_complete: bool,
     frame_param: FrameParam,
@@ -36,12 +35,7 @@ pub struct Decoder {
 impl Decoder {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageOutputsBuilder::new()
-                .add_output("rx_frames")
-                .add_output("rftap")
-                .build(),
             Self {
                 frame_complete: true,
                 frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),

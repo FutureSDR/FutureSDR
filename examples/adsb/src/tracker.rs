@@ -1,9 +1,7 @@
 use futuresdr::async_io::Timer;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -22,7 +20,7 @@ use crate::*;
 const ADSB_TIME_RECENT: Duration = Duration::new(10, 0);
 
 #[derive(futuresdr::Block)]
-#[message_handlers(r#in, ctrl_port)]
+#[message_inputs(r#in, ctrl_port)]
 pub struct Tracker {
     /// When to prune aircraft from the register.
     prune_after: Option<Duration>,
@@ -46,9 +44,7 @@ impl Tracker {
             register: HashMap::new(),
         };
         TypedBlock::new(
-            BlockMetaBuilder::new("Tracker").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 prune_after,
                 aircraft_register,

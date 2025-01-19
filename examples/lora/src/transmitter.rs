@@ -1,10 +1,8 @@
 use anyhow::Result;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -17,7 +15,7 @@ use crate::Encoder;
 use crate::Modulator;
 
 #[derive(futuresdr::Block)]
-#[message_handlers(msg)]
+#[message_inputs(msg)]
 pub struct Transmitter {
     frames: VecDeque<Vec<u8>>,
     current_frame: Vec<Complex32>,
@@ -41,11 +39,9 @@ impl Transmitter {
         pad: usize,
     ) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Transmitter").build(),
             StreamIoBuilder::new()
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Transmitter {
                 frames: VecDeque::new(),
                 current_frame: Vec::new(),

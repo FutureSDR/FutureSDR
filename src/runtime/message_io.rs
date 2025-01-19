@@ -3,69 +3,8 @@ use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockPortCtx;
-use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
-
-/// Message Related Traits that are implemented by the block macro.
-#[cfg(not(target_arch = "wasm32"))]
-pub trait MessageAccepter {
-    /// Call message handlers of the kernel.
-    fn call_handler(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        id: PortId,
-        _p: Pmt,
-    ) -> impl Future<Output = Result<Pmt, Error>> + Send {
-        async { Err(Error::InvalidMessagePort(BlockPortCtx::None, id)) }
-    }
-    /// Input Message Handler Names.
-    fn input_names() -> Vec<String> {
-        vec![]
-    }
-    /// Map the name of the port to its id.
-    fn input_name_to_id(name: &str) -> Option<usize> {
-        Self::input_names()
-            .iter()
-            .enumerate()
-            .find(|item| item.1 == name)
-            .map(|(i, _)| i)
-    }
-}
-
-/// Message Related Traits that are implemented by the block macro.
-#[cfg(target_arch = "wasm32")]
-pub trait MessageAccepter {
-    /// Call message handlers of the kernel.
-    fn call_handler(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        id: PortId,
-        _p: Pmt,
-    ) -> impl Future<Output = Result<Pmt, Error>> {
-        async { Err(Error::InvalidMessagePort(BlockPortCtx::None, id)) }
-    }
-    /// Input Message Handler Names.
-    fn input_names() -> Vec<String> {
-        vec![]
-    }
-    /// Map the name of the port to its id.
-    fn input_name_to_id(name: &str) -> Option<usize> {
-        Self::input_names()
-            .iter()
-            .enumerate()
-            .find(|item| item.1 == name)
-            .map(|(i, _)| i)
-    }
-}
 
 /// Message output port
 #[derive(Debug)]
@@ -125,7 +64,9 @@ pub struct MessageOutputs {
 }
 
 impl MessageOutputs {
-    fn new(outputs: Vec<MessageOutput>) -> Self {
+    /// Create message outputs with given names
+    pub fn new(outputs: Vec<String>) -> Self {
+        let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
         MessageOutputs { outputs }
     }
 
@@ -161,32 +102,5 @@ impl MessageOutputs {
     /// Post data to connected downstream ports
     pub async fn post(&mut self, id: usize, p: Pmt) {
         self.output_mut(id).post(p).await;
-    }
-}
-
-/// Message IO builder
-#[derive(Default, Debug)]
-pub struct MessageOutputsBuilder {
-    outputs: Vec<MessageOutput>,
-}
-
-impl MessageOutputsBuilder {
-    /// Create Message IO builder
-    pub fn new() -> MessageOutputsBuilder {
-        MessageOutputsBuilder {
-            outputs: Vec::new(),
-        }
-    }
-
-    /// Add output port
-    #[must_use]
-    pub fn add_output(mut self, name: &str) -> MessageOutputsBuilder {
-        self.outputs.push(MessageOutput::new(name));
-        self
-    }
-
-    /// Build Message IO
-    pub fn build(self) -> MessageOutputs {
-        MessageOutputs::new(self.outputs)
     }
 }

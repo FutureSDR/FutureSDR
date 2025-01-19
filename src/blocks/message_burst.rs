@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -12,6 +10,7 @@ use crate::runtime::WorkIo;
 
 /// Output a given number of messages in one burst and terminate.
 #[derive(Block)]
+#[message_outputs(out)]
 pub struct MessageBurst {
     message: Pmt,
     n_messages: u64,
@@ -21,9 +20,7 @@ impl MessageBurst {
     /// Create MessageBurst block
     pub fn new(message: Pmt, n_messages: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("MessageBurst").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             MessageBurst {
                 message,
                 n_messages,

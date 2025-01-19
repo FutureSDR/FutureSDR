@@ -5,10 +5,8 @@ use futuresdr::runtime::buffer::vulkan::ReaderH2D;
 use futuresdr::runtime::buffer::vulkan::WriterD2H;
 use futuresdr::runtime::buffer::BufferReaderCustom;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -72,12 +70,10 @@ impl Vulkan {
             StandardCommandBufferAllocator::new(broker.device().clone(), Default::default());
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Vulkan").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::<Vulkan>::new().build(),
             Vulkan {
                 broker,
                 pipeline: None,

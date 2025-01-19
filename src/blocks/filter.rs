@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -53,12 +51,10 @@ where
     /// Create Filter block
     pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Filter").build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in")
                 .add_output::<B>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self { f: Box::new(f) },
         )
     }

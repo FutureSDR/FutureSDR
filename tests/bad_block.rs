@@ -7,12 +7,10 @@ use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -38,12 +36,10 @@ pub struct BadBlock<T: Send> {
 impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("BadBlock").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 work_fail: None,
                 drop_fail: None,

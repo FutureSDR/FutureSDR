@@ -4,10 +4,8 @@ use async_net::TcpStream;
 use futures::AsyncReadExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -27,9 +25,7 @@ impl<T: Send + 'static> TcpSource<T> {
     /// Create TCP Source block
     pub fn new(bind: impl Into<String>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("TcpSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 bind: bind.into(),
                 listener: None,

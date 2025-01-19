@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -22,9 +20,7 @@ impl<T: Send + 'static> PubSink<T> {
     /// Create PubSink
     pub fn new(address: impl Into<String>, min_item: usize) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("PubSink").blocking().build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 address: address.into(),
                 publisher: None,

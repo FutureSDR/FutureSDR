@@ -1,10 +1,8 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -90,6 +88,7 @@ enum State {
 }
 
 #[derive(futuresdr::Block)]
+#[message_outputs(symbols)]
 pub struct FrameEqualizer {
     equalizer: Equalizer,
     state: State,
@@ -104,12 +103,10 @@ pub struct FrameEqualizer {
 impl FrameEqualizer {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("FrameEqualizer").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<u8>("out")
                 .build(),
-            MessageOutputsBuilder::new().add_output("symbols").build(),
             Self {
                 equalizer: Equalizer::new(),
                 state: State::Skip,

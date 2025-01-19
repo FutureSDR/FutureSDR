@@ -170,7 +170,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
         use futuresdr::runtime::Error;
         use futuresdr::runtime::Flowgraph;
         use futuresdr::runtime::Kernel;
-        use futuresdr::runtime::MessageAccepter;
+        use futuresdr::runtime::KernelInterface;
         use futuresdr::runtime::TypedBlock;
         use std::result::Result;
 
@@ -188,7 +188,7 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 fg.add_block(b)
             }
         }
-        impl<T: MessageAccepter + Kernel + 'static> Add<TypedBlock<T>> for FgOp {
+        impl<T: KernelInterface + Kernel + 'static> Add<TypedBlock<T>> for FgOp {
             fn add(fg: &mut Flowgraph, b: TypedBlock<T>) -> Result<usize, Error> {
                 fg.add_block(b)
             }
@@ -531,20 +531,26 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
 //=========================================================================
 // BLOCK MACRO
 //=========================================================================
-#[proc_macro_derive(Block, attributes(message_handlers, null_kernel))]
+#[proc_macro_derive(
+    Block,
+    attributes(message_inputs, message_outputs, blocking, type_name, null_kernel)
+)]
 pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let struct_name = &input.ident;
     let generics = &input.generics;
     let where_clause = &input.generics.where_clause;
 
-    let mut handlers: Vec<Ident> = Vec::new();
-    let mut handler_names: Vec<String> = Vec::new();
+    let mut inputs: Vec<Ident> = Vec::new();
+    let mut input_names: Vec<String> = Vec::new();
+    let mut output_names: Vec<String> = Vec::new();
     let mut kernel = quote! {};
+    let mut blocking = quote! { false };
+    let mut type_name = struct_name.to_string();
 
     // Search for the `handlers` attribute
     for attr in &input.attrs {
-        if attr.path().is_ident("message_handlers") {
+        if attr.path().is_ident("message_inputs") {
             let nested = attr
                 .parse_args_with(
                     syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
@@ -553,38 +559,69 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             for m in nested {
                 match m {
                     Meta::NameValue(m) => {
-                        handlers.push(m.path.get_ident().unwrap().clone());
+                        inputs.push(m.path.get_ident().unwrap().clone());
                         if let syn::Expr::Lit(syn::ExprLit {
                             lit: syn::Lit::Str(s),
                             ..
                         }) = m.value
                         {
-                            handler_names.push(s.value());
+                            input_names.push(s.value());
                         } else {
                             panic!("message handlers have to be an identifier or identifier = \"port name\"");
                         }
                     }
                     Meta::Path(p) => {
                         let p = p.get_ident().unwrap();
-                        handlers.push(p.clone());
-                        handler_names.push(p.to_string());
+                        inputs.push(p.clone());
+                        input_names.push(p.to_string());
                     }
                     _ => {
-                        panic!("message handlers have to be a list of name-values or paths")
+                        panic!("message inputs has to be a list of name-values or paths")
+                    }
+                }
+            }
+        } else if attr.path().is_ident("message_outputs") {
+            let nested = attr
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
+                )
+                .unwrap();
+            for m in nested {
+                match m {
+                    Meta::Path(p) => {
+                        let p = p.get_ident().unwrap();
+                        output_names.push(p.to_string());
+                    }
+                    _ => {
+                        panic!("message outputs has to be a list of paths")
                     }
                 }
             }
         } else if attr.path().is_ident("null_kernel") {
             kernel = quote! {
+                #[doc(hidden)]
                 impl #generics ::futuresdr::runtime::Kernel for #struct_name #generics
                     #where_clause { }
 
+            }
+        } else if attr.path().is_ident("blocking") {
+            blocking = quote! { true }
+        } else if attr.path().is_ident("type_name") {
+            let nested = attr
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
+                )
+                .unwrap();
+            if let Some(Meta::Path(p)) = nested.get(0) {
+                type_name = p.get_ident().unwrap().to_string();
+            } else {
+                panic!("type_name attribute should be in the form type_name(foo)");
             }
         }
     }
 
     // Generate handler names as strings
-    let handler_names = handler_names.into_iter().map(|handler| {
+    let input_names = input_names.into_iter().map(|handler| {
         let handler = if let Some(stripped) = handler.strip_prefix("r#") {
             stripped.to_string()
         } else {
@@ -618,16 +655,16 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     // Generate match arms for the handle method
-    let handler_matches = handlers.iter().zip(handler_names.clone()).enumerate().map(|(index, (handler, handler_name))| {
+    let handler_matches = inputs.iter().zip(input_names.clone()).enumerate().map(|(index, (handler, handler_name))| {
         quote! {
             PortId::Index(#index)  => self.#handler(io, mio, meta, p).await,
             PortId::Name(ref s) if s.as_str() == #handler_name  => self.#handler(io, mio, meta, p).await,
         }
     });
 
-    // Generate the MessageAccepter implementation
+    // Generate the KernelInterface implementation
     let expanded = quote! {
-        impl #generics ::futuresdr::runtime::MessageAccepter for #struct_name #unconstraint_generics
+        impl #generics ::futuresdr::runtime::KernelInterface for #struct_name #unconstraint_generics
             #where_clause
         {
             #[allow(unreachable_code)]
@@ -653,14 +690,25 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                         ret.map_err(|e| Error::HandlerError(e.to_string()))
             }
-            fn input_names() -> Vec<String> {
-                vec![#(#handler_names.to_string()),*]
+            fn message_input_names() -> &'static[&'static str] {
+                static MESSAGE_INPUTS: &[&str] = &[#(#input_names),*];
+                MESSAGE_INPUTS
+            }
+            fn message_output_names() -> &'static[&'static str] {
+                static MESSAGE_OUTPUTS: &[&str] = &[#(#output_names),*];
+                MESSAGE_OUTPUTS
+            }
+            fn is_blocking() -> bool {
+                #blocking
+            }
+            fn type_name() -> &'static str {
+                static TYPE_NAME: &str = #type_name;
+                TYPE_NAME
             }
         }
 
         #kernel
     };
-
     // println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
 }

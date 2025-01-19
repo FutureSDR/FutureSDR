@@ -1,11 +1,9 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_complex::Complex64;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -89,12 +87,7 @@ impl FftDemod {
         } else {
             sio = sio.add_output::<u16>("out")
         }
-        TypedBlock::new(
-            BlockMetaBuilder::new("FftDemod").build(),
-            sio.build(),
-            MessageOutputsBuilder::new().build(),
-            fs,
-        )
+        TypedBlock::new(sio.build(), fs)
     }
 
     /// Set spreading factor and init vector sizes accordingly

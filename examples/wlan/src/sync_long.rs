@@ -1,10 +1,8 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -31,12 +29,10 @@ pub struct SyncLong {
 impl SyncLong {
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("SyncLong").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 cor: [Complex32::new(0.0, 0.0); SEARCH_WINDOW],
                 cor_index: Vec::with_capacity(SEARCH_WINDOW),

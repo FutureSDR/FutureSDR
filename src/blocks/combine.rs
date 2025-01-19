@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -57,13 +55,11 @@ where
     /// - `f`: Function `(&A, &B) -> C` used to combine samples
     pub fn new(f: F) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Combine").build(),
             StreamIoBuilder::new()
                 .add_input::<A>("in0")
                 .add_input::<B>("in1")
                 .add_output::<C>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 f,
                 _p1: std::marker::PhantomData,

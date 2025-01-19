@@ -3,11 +3,9 @@ use clap::ValueEnum;
 use futuresdr::macros::connect;
 use futuresdr::runtime::scheduler;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::StreamIo;
@@ -69,12 +67,7 @@ struct Panic {
 impl Panic {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(w: PanicWhere) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Panic").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
-            Self { w },
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), Self { w })
     }
 }
 

@@ -1,10 +1,8 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::Integer;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -1805,12 +1803,10 @@ impl SymbolSync {
         // let filter_delay = (s.interp.ntaps() + 1) / 2;
 
         TypedBlock::new(
-            BlockMetaBuilder::new("SymbolSync").build(),
             StreamIoBuilder::new()
                 .add_input::<f32>("in")
                 .add_output::<f32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             s,
         )
     }

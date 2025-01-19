@@ -2,9 +2,7 @@ use crate::DemodPacket;
 use adsb_deku::deku::DekuContainerRead;
 use anyhow::bail;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
@@ -35,7 +33,8 @@ pub struct AdsbPacket {
 }
 
 #[derive(futuresdr::Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
+#[message_outputs(out)]
 #[null_kernel]
 pub struct Decoder {
     forward_failed_crc: bool,
@@ -47,9 +46,7 @@ impl Decoder {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(forward_failed_crc: bool) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             Self {
                 forward_failed_crc,
                 n_crc_ok: 0,

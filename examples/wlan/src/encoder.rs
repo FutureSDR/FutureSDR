@@ -1,8 +1,6 @@
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -22,7 +20,7 @@ use crate::MAX_PSDU_SIZE;
 const MAX_FRAMES: usize = 1000;
 
 #[derive(futuresdr::Block)]
-#[message_handlers(tx)]
+#[message_inputs(tx)]
 pub struct Encoder {
     tx_frames: VecDeque<(Vec<u8>, Mcs)>,
     default_mcs: Mcs,
@@ -41,9 +39,7 @@ pub struct Encoder {
 impl Encoder {
     pub fn new(default_mcs: Mcs) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Encoder").build(),
             StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 tx_frames: VecDeque::new(),
                 default_mcs,

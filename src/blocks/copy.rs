@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -19,12 +17,10 @@ impl<T: core::marker::Copy + Send + 'static> Copy<T> {
     /// Create [`struct@Copy`] block
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Copy").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 _type: std::marker::PhantomData,
             },

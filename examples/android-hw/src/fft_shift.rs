@@ -1,9 +1,7 @@
 use anyhow::Result;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
@@ -19,12 +17,10 @@ impl<T: Copy + Send + 'static> FftShift<T> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("FftShift").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self { _p: PhantomData },
         )
     }

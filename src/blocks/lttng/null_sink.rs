@@ -1,10 +1,8 @@
 use lttng_ust::import_tracepoints;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -26,9 +24,7 @@ impl<T: Send + 'static> NullSink<T> {
     /// Create NullSink block
     pub fn new(probe_granularity: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("LTTngNullSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             NullSink::<T> {
                 n_received: 0,
                 probe_granularity,

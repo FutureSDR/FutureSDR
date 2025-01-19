@@ -43,16 +43,14 @@ mod topology;
 pub use block::Block;
 pub use block::BlockT;
 pub use block::Kernel;
+pub use block::KernelInterface;
 pub use block::TypedBlock;
 pub use block::WorkIo;
 pub use block_meta::BlockMeta;
-pub use block_meta::BlockMetaBuilder;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
-pub use message_io::MessageAccepter;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
-pub use message_io::MessageOutputsBuilder;
 #[cfg(not(target_arch = "wasm32"))]
 pub use mocker::Mocker;
 pub use runtime::Runtime;

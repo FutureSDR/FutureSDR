@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -12,7 +10,7 @@ use crate::runtime::WorkIo;
 
 /// Black hole for messages.
 #[derive(Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
 pub struct MessageSink {
     n_received: u64,
 }
@@ -21,9 +19,7 @@ impl MessageSink {
     /// Create MessageSink block
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("MessageSink").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
             MessageSink { n_received: 0 },
         )
     }

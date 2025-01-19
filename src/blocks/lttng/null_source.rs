@@ -2,10 +2,8 @@ use lttng_ust::import_tracepoints;
 use std::ptr;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -27,9 +25,7 @@ impl<T: Send + 'static> NullSource<T> {
     /// Create NullSource block
     pub fn new(probe_granularity: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("LTTngNullSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 probe_granularity,
                 id: None,

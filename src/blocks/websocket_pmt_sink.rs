@@ -16,11 +16,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Error;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -30,7 +28,7 @@ use crate::runtime::WorkIo;
 
 /// Push Samples from PMTs in a WebSocket.
 #[derive(Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
 pub struct WebsocketPmtSink {
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
@@ -42,9 +40,7 @@ impl WebsocketPmtSink {
     /// Create WebsocketPmtSink block
     pub fn new(port: u32) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("WebsocketPmtSink").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 port,
                 listener: None,

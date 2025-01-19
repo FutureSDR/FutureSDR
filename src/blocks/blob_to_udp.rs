@@ -3,10 +3,8 @@ use async_net::UdpSocket;
 use std::net::ToSocketAddrs;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -16,7 +14,7 @@ use crate::runtime::WorkIo;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
 #[derive(Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
 pub struct BlobToUdp {
     socket: Option<UdpSocket>,
     remote: SocketAddr,
@@ -32,9 +30,7 @@ impl BlobToUdp {
         S: AsRef<str>,
     {
         TypedBlock::new(
-            BlockMetaBuilder::new("BlobToUdp").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().build(),
             BlobToUdp {
                 socket: None,
                 remote: remote

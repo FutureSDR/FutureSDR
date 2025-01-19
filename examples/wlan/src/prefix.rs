@@ -1,10 +1,8 @@
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
@@ -21,12 +19,10 @@ pub struct Prefix {
 impl Prefix {
     pub fn new(pad_front: usize, pad_tail: usize) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Prefix").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Prefix {
                 pad_front,
                 pad_tail,

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
@@ -15,23 +13,14 @@ use crate::utils::*;
 use crate::Frame;
 
 #[derive(futuresdr::Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
+#[message_outputs(out, out_annotated, rftap, crc_check)]
 #[null_kernel]
 pub struct Decoder;
 
 impl Decoder {
     pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new()
-                .add_output("out")
-                .add_output("out_annotated")
-                .add_output("rftap")
-                .add_output("crc_check")
-                .build(),
-            Self,
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
 
     fn crc16(data: &[u8]) -> u16 {

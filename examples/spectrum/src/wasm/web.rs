@@ -4,12 +4,10 @@ use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::FlowgraphHandle;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
@@ -221,9 +219,7 @@ impl Sink {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(data: Vec<Rc<RefCell<Option<Vec<u8>>>>>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Sink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self { data },
         )
     }

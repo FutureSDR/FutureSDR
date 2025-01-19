@@ -1,10 +1,8 @@
 use futures::AsyncReadExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -49,9 +47,7 @@ impl<T: Send + 'static> FileSource<T> {
     /// Create FileSource block
     pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 file_name: file_name.into(),
                 file: None,

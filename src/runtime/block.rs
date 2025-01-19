@@ -16,9 +16,10 @@ use crate::runtime::BlockMeta;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::MessageAccepter;
 use crate::runtime::MessageOutput;
 use crate::runtime::MessageOutputs;
+use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::StreamInput;
 use crate::runtime::StreamIo;
@@ -134,6 +135,50 @@ pub trait Kernel: Send {
     }
 }
 
+/// Interface to the Kernel, implemented by the block macro.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait KernelInterface {
+    /// Call message handlers of the kernel.
+    fn call_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        id: PortId,
+        _p: Pmt,
+    ) -> impl Future<Output = Result<Pmt, Error>> + Send;
+    /// Input Message Handler Names.
+    fn message_input_names() -> &'static [&'static str];
+    /// Output Message Handler Names.
+    fn message_output_names() -> &'static [&'static str];
+    /// If true, the block is run in a spearate thread
+    fn is_blocking() -> bool;
+    /// Name of the block
+    fn type_name() -> &'static str;
+}
+
+/// Interface to the Kernel, implemented by the block macro.
+#[cfg(target_arch = "wasm32")]
+pub trait KernelInterface {
+    /// Call message handlers of the kernel.
+    fn call_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        id: PortId,
+        _p: Pmt,
+    ) -> impl Future<Output = Result<Pmt, Error>>;
+    /// Input Message Handler Names.
+    fn message_input_names() -> &'static [&'static str];
+    /// Output Message Handler Names.
+    fn message_output_names() -> &'static [&'static str];
+    /// If true, the block is run in a spearate thread
+    fn is_blocking() -> bool;
+    /// Name of the block
+    fn type_name() -> &'static str;
+}
+
 #[async_trait]
 /// Block interface, implemented for [TypedBlock]s
 pub trait BlockT: Send + Any {
@@ -203,13 +248,18 @@ pub struct TypedBlock<T> {
     pub kernel: T,
 }
 
-impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
+impl<T: KernelInterface + Kernel + Send + 'static> TypedBlock<T> {
     /// Create Typed Block
-    pub fn new(meta: BlockMeta, sio: StreamIo, mio: MessageOutputs, kernel: T) -> Self {
+    pub fn new(sio: StreamIo, kernel: T) -> Self {
         Self {
-            meta,
+            meta: BlockMeta::new(),
             sio,
-            mio,
+            mio: MessageOutputs::new(
+                T::message_output_names()
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect(),
+            ),
             kernel,
         }
     }
@@ -291,19 +341,22 @@ impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
                             sio.inputs().iter().map(|x| x.name().to_string()).collect();
                         let stream_outputs: Vec<String> =
                             sio.outputs().iter().map(|x| x.name().to_string()).collect();
-                        let message_inputs: Vec<String> = T::input_names();
+                        let message_inputs: Vec<String> = T::message_input_names()
+                            .iter()
+                            .map(|x| x.to_string())
+                            .collect();
                         let message_outputs: Vec<String> =
                             mio.outputs().iter().map(|x| x.name().to_string()).collect();
 
                         let description = BlockDescription {
                             id: block_id,
-                            type_name: meta.type_name().to_string(),
+                            type_name: T::type_name().to_string(),
                             instance_name: meta.instance_name().unwrap().to_string(),
                             stream_inputs,
                             stream_outputs,
                             message_inputs,
                             message_outputs,
-                            blocking: meta.is_blocking(),
+                            blocking: T::is_blocking(),
                         };
                         tx.send(description).unwrap();
                     }
@@ -425,7 +478,7 @@ impl<T: MessageAccepter + Kernel + Send + 'static> TypedBlock<T> {
 }
 
 #[async_trait]
-impl<T: MessageAccepter + Kernel + Send + 'static> BlockT for TypedBlock<T> {
+impl<T: KernelInterface + Kernel + Send + 'static> BlockT for TypedBlock<T> {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
         self
@@ -442,10 +495,10 @@ impl<T: MessageAccepter + Kernel + Send + 'static> BlockT for TypedBlock<T> {
         self.meta.set_instance_name(name)
     }
     fn type_name(&self) -> &str {
-        self.meta.type_name()
+        T::type_name()
     }
     fn is_blocking(&self) -> bool {
-        self.meta.is_blocking()
+        T::is_blocking()
     }
 
     // ##### KERNEL
@@ -486,13 +539,21 @@ impl<T: MessageAccepter + Kernel + Send + 'static> BlockT for TypedBlock<T> {
 
     // ##### MESSAGE IO
     fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
-        T::input_name_to_id(name)
+        T::message_input_names()
+            .iter()
+            .enumerate()
+            .find(|item| *item.1 == name)
+            .map(|(i, _)| i)
     }
     fn message_outputs(&self) -> &Vec<MessageOutput> {
         self.mio.outputs()
     }
     fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.mio.output_name_to_id(name)
+        T::message_output_names()
+            .iter()
+            .enumerate()
+            .find(|item| *item.1 == name)
+            .map(|(i, _)| i)
     }
 }
 
@@ -504,7 +565,7 @@ pub struct Block(pub(crate) Box<dyn BlockT>);
 
 impl Block {
     /// Create Block
-    pub fn new<T: MessageAccepter + Kernel + Send + 'static>(
+    pub fn new<T: KernelInterface + Kernel + Send + 'static>(
         meta: BlockMeta,
         sio: StreamIo,
         mio: MessageOutputs,
@@ -518,7 +579,7 @@ impl Block {
         }))
     }
     /// Create block by wrapping a [`TypedBlock`].
-    pub fn from_typed<T: MessageAccepter + Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
+    pub fn from_typed<T: KernelInterface + Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
         Self(Box::new(b))
     }
     /// Try to cast to a given kernel type
@@ -634,7 +695,7 @@ impl Block {
     }
 }
 
-impl<T: MessageAccepter + Kernel + 'static> From<TypedBlock<T>> for Block {
+impl<T: KernelInterface + Kernel + 'static> From<TypedBlock<T>> for Block {
     fn from(value: TypedBlock<T>) -> Self {
         Block::from_typed(value)
     }

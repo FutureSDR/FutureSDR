@@ -1,7 +1,5 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
@@ -10,7 +8,8 @@ use crate::runtime::WorkIo;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
 #[derive(Block)]
-#[message_handlers(msg_handler)]
+#[message_inputs(msg_handler)]
+#[message_outputs(out)]
 #[null_kernel]
 pub struct MessageApply<F>
 where
@@ -32,12 +31,7 @@ where
     /// * `callback`: Function to apply to each incoming message, filtering `None` values.
     ///
     pub fn new(callback: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("MessageApply").build(),
-            StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
-            Self { callback },
-        )
+        TypedBlock::new(StreamIoBuilder::new().build(), Self { callback })
     }
 
     async fn msg_handler(

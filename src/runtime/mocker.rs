@@ -13,7 +13,7 @@ use crate::runtime::BufferWriter;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
-use crate::runtime::MessageAccepter;
+use crate::runtime::KernelInterface;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::TypedBlock;
@@ -28,7 +28,7 @@ pub struct Mocker<K> {
     messages: Vec<Vec<Pmt>>,
 }
 
-impl<K: MessageAccepter + Kernel + 'static> Mocker<K> {
+impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// Create mocker
     pub fn new(mut block: TypedBlock<K>) -> Self {
         let mut messages = Vec::new();

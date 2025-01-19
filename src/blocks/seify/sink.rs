@@ -9,12 +9,10 @@ use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -42,7 +40,10 @@ use super::builder::BuilderType;
 /// * Message outputs:
 ///     - `"terminate_out"`: `Pmt::Ok` when stream has finished
 #[derive(Block)]
-#[message_handlers(freq, gain, sample_rate, cmd, config)]
+#[blocking]
+#[message_inputs(freq, gain, sample_rate, cmd, config)]
+#[message_outputs(terminate_out)]
+#[type_name(SeifySink)]
 pub struct Sink<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -68,11 +69,7 @@ impl<D: DeviceTrait + Clone> Sink<D> {
             }
         }
         TypedBlock::new(
-            BlockMetaBuilder::new("Sink").blocking().build(),
             siob.build(),
-            MessageOutputsBuilder::new()
-                .add_output("terminate_out")
-                .build(),
             Self {
                 channels,
                 dev,

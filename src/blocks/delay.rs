@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -38,7 +36,7 @@ enum State {
 /// let sink = fg.add_block(Delay::<Complex<f32>>::new(42));
 /// ```
 #[derive(Block)]
-#[message_handlers(new_value)]
+#[message_inputs(new_value)]
 pub struct Delay<T: Copy + Send + 'static> {
     state: State,
     _type: std::marker::PhantomData<T>,
@@ -54,12 +52,10 @@ impl<T: Copy + Send + 'static> Delay<T> {
         };
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Delay").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 state,
                 _type: std::marker::PhantomData,

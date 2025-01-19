@@ -1,9 +1,7 @@
 use crate::futures::channel::mpsc::Sender;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -38,9 +36,7 @@ impl<T: Send + Clone + 'static> ChannelSink<T> {
     /// Create ChannelSink block
     pub fn new(sender: Sender<Box<[T]>>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("ChannelSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             Self { sender },
         )
     }

@@ -2,10 +2,8 @@ use crate::N_SAMPLES_PER_HALF_SYM;
 use crate::SYMBOL_ONE_TAPS;
 use crate::SYMBOL_ZERO_TAPS;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIo;
@@ -22,6 +20,7 @@ pub struct DemodPacket {
 }
 
 #[derive(futuresdr::Block)]
+#[message_outputs(out)]
 pub struct Demodulator {
     n_received: u64,
 }
@@ -30,9 +29,7 @@ impl Demodulator {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Demodulator").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             Self { n_received: 0 },
         )
     }

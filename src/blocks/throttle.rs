@@ -1,10 +1,8 @@
 use web_time::Instant;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -44,12 +42,10 @@ impl<T: Copy + Send + 'static> Throttle<T> {
     /// Creates a new Throttle block which will throttle to the specified rate.
     pub fn new(rate: f64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("Throttle").build(),
             StreamIoBuilder::new()
                 .add_input::<T>("in")
                 .add_output::<T>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 rate,
                 t_init: Instant::now(),

@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -28,9 +26,7 @@ where
     /// Create FiniteSource block
     pub fn new(f: F) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("FiniteSource").build(),
             StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 f,
                 _p: std::marker::PhantomData,

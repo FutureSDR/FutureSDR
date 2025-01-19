@@ -4,10 +4,8 @@ use std::cmp;
 use std::sync::Arc;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -41,7 +39,7 @@ use crate::runtime::WorkIo;
 /// let fft = fg.add_block(Fft::new(2048));
 /// ```
 #[derive(Block)]
-#[message_handlers(fft_size)]
+#[message_inputs(fft_size)]
 pub struct Fft {
     len: usize,
     fft_shift: bool,
@@ -82,12 +80,10 @@ impl Fft {
         };
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Fft").build(),
             StreamIoBuilder::new()
                 .add_input::<Complex32>("in")
                 .add_output::<Complex32>("out")
                 .build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 len,
                 plan,

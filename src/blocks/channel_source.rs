@@ -2,10 +2,8 @@ use crate::futures::channel::mpsc::Receiver;
 use crate::futures::StreamExt;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -41,9 +39,7 @@ impl<T: Send + 'static> ChannelSource<T> {
     /// Create ChannelSource block
     pub fn new(receiver: Receiver<Box<[T]>>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("ChannelSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageOutputsBuilder::new().build(),
             Self {
                 receiver,
                 current: None,

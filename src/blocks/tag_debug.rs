@@ -1,8 +1,6 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
@@ -42,9 +40,7 @@ impl<T: Send + 'static> TagDebug<T> {
     /// Create Tag Debug block
     pub fn new(name: impl Into<String>) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("TagDebug").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageOutputsBuilder::new().build(),
             TagDebug::<T> {
                 _type: std::marker::PhantomData,
                 name: name.into(),

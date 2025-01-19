@@ -1,12 +1,6 @@
-use crate::Mcs;
-use crate::MAX_PAYLOAD_SIZE;
-use crate::MAX_PSDU_SIZE;
-
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::MessageOutputsBuilder;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::StreamIoBuilder;
@@ -15,8 +9,13 @@ use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::debug;
 use futuresdr::tracing::warn;
 
+use crate::Mcs;
+use crate::MAX_PAYLOAD_SIZE;
+use crate::MAX_PSDU_SIZE;
+
 #[derive(futuresdr::Block)]
-#[message_handlers(tx)]
+#[message_inputs(tx)]
+#[message_outputs(tx)]
 pub struct Mac {
     current_frame: [u8; MAX_PSDU_SIZE],
     sequence_number: u16,
@@ -36,9 +35,7 @@ impl Mac {
         current_frame[16..22].copy_from_slice(&bss_mac);
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Mac").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().add_output("tx").build(),
             Mac {
                 current_frame,
                 sequence_number: 0,

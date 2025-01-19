@@ -11,10 +11,8 @@ use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIo;
@@ -39,7 +37,9 @@ use crate::runtime::WorkIo;
 ///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
 #[derive(Block)]
-#[message_handlers(freq, gain, sample_rate, cmd, terminate, config)]
+#[blocking]
+#[message_inputs(freq, gain, sample_rate, cmd, terminate, config)]
+#[type_name(SeifySource)]
 pub struct Source<D: DeviceTrait + Clone> {
     channels: Vec<usize>,
     dev: Device<D>,
@@ -66,9 +66,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         }
 
         TypedBlock::new(
-            BlockMetaBuilder::new("Source").blocking().build(),
             siob.build(),
-            MessageOutputsBuilder::new().build(),
             Source {
                 channels,
                 dev,

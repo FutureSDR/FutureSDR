@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::MessageOutputs;
-use crate::runtime::MessageOutputsBuilder;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 use crate::runtime::StreamIoBuilder;
@@ -12,7 +10,8 @@ use crate::runtime::WorkIo;
 
 /// Forward messages.
 #[derive(Block)]
-#[message_handlers(r#in)]
+#[message_inputs(r#in)]
+#[message_outputs(out)]
 #[null_kernel]
 pub struct MessageAnnotator {
     annotation_prototype: HashMap<String, Pmt>,
@@ -26,9 +25,7 @@ impl MessageAnnotator {
         payload_field_name: Option<&str>,
     ) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("MessageCopy").build(),
             StreamIoBuilder::new().build(),
-            MessageOutputsBuilder::new().add_output("out").build(),
             MessageAnnotator {
                 annotation_prototype: annotation,
                 payload_field_name: payload_field_name.map(String::from),
