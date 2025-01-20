@@ -5,5 +5,6 @@ pub fn main() {}
 pub fn main() {
     use gloo_worker::Registrable;
     console_error_panic_hook::set_once();
+    leptos::task::Executor::init_wasm_bindgen().unwrap();
     zigbee::wasm_worker::Worker::registrar().register();
 }

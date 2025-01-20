@@ -6,7 +6,8 @@ use futuresdr_types::Pmt;
 use futuresdr_types::PortId;
 use gloo_net::http::Request;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 
 use crate::Error;
 
@@ -14,7 +15,7 @@ pub fn get_flowgraph_handle(
     rt: RuntimeHandle,
     flowgraph_id: usize,
 ) -> Result<ReadSignal<Option<FlowgraphHandle>>, Error> {
-    let (fg_handle, set_fg_handle) = create_signal(None);
+    let (fg_handle, set_fg_handle) = signal(None);
 
     spawn_local(async move {
         match rt.get_flowgraph(flowgraph_id).await {
@@ -27,14 +28,14 @@ pub fn get_flowgraph_handle(
 }
 
 pub fn call_periodically(
-    fg: MaybeSignal<Option<FlowgraphHandle>>,
+    fg: Signal<Option<FlowgraphHandle>>,
     interval: Duration,
     block_id: usize,
     handler: impl Into<PortId>,
     pmt: Pmt,
 ) {
     let handler = handler.into().clone();
-    create_effect(move |started: Option<bool>| {
+    Effect::new(move |started: Option<bool>| {
         let pmt = pmt.clone();
         let handler = handler.clone();
         match fg.get() {
@@ -63,15 +64,15 @@ pub fn call_periodically(
 }
 
 pub fn poll_periodically(
-    fg: MaybeSignal<Option<FlowgraphHandle>>,
+    fg: Signal<Option<FlowgraphHandle>>,
     interval: Duration,
     block_id: usize,
     handler: impl Into<PortId>,
     pmt: Pmt,
 ) -> ReadSignal<Pmt> {
-    let (res, set_res) = create_signal(Pmt::Null);
+    let (res, set_res) = signal(Pmt::Null);
     let handler = handler.into().clone();
-    create_effect(move |started: Option<bool>| {
+    Effect::new(move |started: Option<bool>| {
         let pmt = pmt.clone();
         let handler = handler.clone();
         match fg.get() {

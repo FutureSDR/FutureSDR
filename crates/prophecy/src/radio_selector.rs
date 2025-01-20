@@ -2,7 +2,8 @@ use futuresdr_types::Pmt;
 use futuresdr_types::PortId;
 use indexmap::IndexMap;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 use uuid::Uuid;
 
 use crate::FlowgraphHandle;
@@ -35,7 +36,7 @@ pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
                         let p = p.clone();
                         let mut fg_handle = fg_handle.clone();
                         let handler = handler.clone();
-                        leptos::spawn_local(async move {
+                        spawn_local(async move {
                             log!(
                                 "sending block {} handler {:?} pmt {:?}",
                                 block_id,

@@ -2,8 +2,16 @@ use futuresdr::tracing::info;
 use gloo_worker::Spawnable;
 use gloo_worker::WorkerBridge;
 use leptos::html::Select;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::task::Executor;
+use leptos::wasm_bindgen;
+use leptos::web_sys;
+use serde::ser::SerializeTuple;
+use serde::ser::Serializer;
 use std::collections::VecDeque;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
 use crate::wasm_worker::Frame;
 use crate::wasm_worker::Worker;
@@ -11,24 +19,26 @@ use crate::wasm_worker::WorkerMessage;
 
 pub fn wasm_main() {
     console_error_panic_hook::set_once();
+    futuresdr::runtime::init();
+    Executor::init_wasm_bindgen().unwrap();
     mount_to_body(|| view! { <Gui /> })
 }
 
 #[component]
 /// Main GUI
 fn Gui() -> impl IntoView {
-    let (n_frames, set_n_frames) = create_signal(-1);
-    let (frames, set_frames) = create_signal(VecDeque::new());
-    let (handle, set_handle) = create_signal(None);
-    create_effect(move |_| {
+    let (n_frames, set_n_frames) = signal(-1);
+    let (frames, set_frames) = signal(VecDeque::new());
+    let (handle, set_handle) = signal_local(None);
+    Effect::new(move |_| {
         _ = frames();
         set_n_frames.update(|n| *n += 1);
     });
     let start = move |_| {
-        if handle.get_untracked().is_some() {
+        if handle.read_untracked().is_some() {
             info!("already running");
         } else {
-            leptos::spawn_local(run_fg(set_handle, set_frames));
+            spawn_local(run_fg(set_handle, set_frames));
         }
     };
     view! {
@@ -45,15 +55,17 @@ fn Gui() -> impl IntoView {
 }
 
 #[component]
-fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl IntoView {
+fn Channel(
+    handle: ReadSignal<Option<&'static WorkerBridge<Worker>>, LocalStorage>,
+) -> impl IntoView {
     let _ = handle;
-    let select_ref = create_node_ref::<Select>();
+    let select_ref = NodeRef::<Select>::new();
     let change = move |_| {
         let select = select_ref.get().unwrap();
         info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
-        leptos::spawn_local(async move {
-            if let Some(h) = handle.get_untracked() {
+        spawn_local(async move {
+            if let Some(ref h) = *handle.read_untracked() {
                 h.send(WorkerMessage::Freq(freq));
             }
         });
@@ -84,13 +96,8 @@ fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl In
     }
 }
 
-use serde::ser::SerializeTuple;
-use serde::ser::Serializer;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-
 async fn run_fg(
-    set_handle: WriteSignal<Option<&WorkerBridge<Worker>>>,
+    set_handle: WriteSignal<Option<&'static WorkerBridge<Worker>>, LocalStorage>,
     set_frames: WriteSignal<VecDeque<Frame>>,
 ) {
     let window = web_sys::window().expect("No global 'window' exists!");

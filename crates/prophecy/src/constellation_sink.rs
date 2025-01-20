@@ -3,15 +3,17 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Canvas;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::wasm_bindgen::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::WebGlProgram;
 use web_sys::WebGlRenderingContext as GL;
 
 struct RenderState {
-    canvas: HtmlElement<Canvas>,
+    canvas: HtmlCanvasElement,
     gl: GL,
     shader: WebGlProgram,
     vertex_len: i32,
@@ -20,7 +22,7 @@ struct RenderState {
 #[component]
 /// Constellation Sink
 pub fn ConstellationSink(
-    #[prop(into)] width: MaybeSignal<f32>,
+    #[prop(into)] width: Signal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
     let data = Rc::new(RefCell::new(None));
@@ -42,9 +44,9 @@ pub fn ConstellationSink(
         });
     }
 
-    let canvas_ref = create_node_ref::<Canvas>();
-    canvas_ref.on_load(move |canvas_ref| {
-        let _ = canvas_ref.on_mount(move |canvas| {
+    let canvas_ref = NodeRef::<Canvas>::new();
+    Effect::new(move || {
+        if let Some(canvas) = canvas_ref.get() {
             let gl: GL = canvas
                 .get_context("webgl")
                 .unwrap()
@@ -86,14 +88,8 @@ pub fn ConstellationSink(
             gl.link_program(&shader);
             gl.use_program(Some(&shader));
 
-            {
-                let gl = gl.clone();
-                let shader = shader.clone();
-                create_render_effect(move |_| {
-                    let u_min = gl.get_uniform_location(&shader, "u_width");
-                    gl.uniform1f(u_min.as_ref(), width());
-                });
-            }
+            let u_min = gl.get_uniform_location(&shader, "u_width");
+            gl.uniform1f(u_min.as_ref(), width());
 
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
@@ -104,8 +100,8 @@ pub fn ConstellationSink(
                 shader,
                 vertex_len: 0,
             }));
-            request_animation_frame(render(state, data))
-        });
+            request_animation_frame(render(state, data.clone()))
+        }
     });
 
     view! {

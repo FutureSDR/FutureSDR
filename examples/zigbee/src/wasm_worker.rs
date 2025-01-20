@@ -16,6 +16,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;
+use leptos::task::spawn_local;
 
 use crate::ClockRecoveryMm;
 use crate::Decoder;
@@ -44,6 +45,7 @@ impl gloo_worker::Worker for Worker {
     type Output = Frame;
 
     fn create(_scope: &WorkerScope<Self>) -> Self {
+        futuresdr::runtime::init();
         Self {
             started: false,
             handle: Handle::None,
@@ -62,7 +64,7 @@ impl gloo_worker::Worker for Worker {
                 let (mut set_handler, get_handle) = mpsc::channel::<FlowgraphHandle>(1);
                 self.handle = Handle::Receiver(get_handle);
                 let scope = scope.clone();
-                leptos::spawn_local(async move {
+                spawn_local(async move {
                     async move {
                         let mut fg = Flowgraph::new();
 
@@ -108,12 +110,14 @@ impl gloo_worker::Worker for Worker {
                         let (_task, handle) = rt.start(fg).await;
                         set_handler.send(handle).await.unwrap();
 
+                        futuresdr::tracing::info!("waiting for frames");
                         while let Some(x) = rx_frame.next().await {
                             match x {
                                 Pmt::Blob(data) => scope.respond(id, Frame::new(data)),
-                                _ => break,
+                                e => futuresdr::tracing::info!("rx_frame broke {:?}", e),
                             }
                         }
+                        futuresdr::tracing::info!("waiting for frames");
                         Result::<()>::Ok(())
                     }
                     .await
@@ -125,14 +129,14 @@ impl gloo_worker::Worker for Worker {
                 Handle::Receiver(ref mut r) => {
                     if let Ok(Some(mut h)) = r.try_next() {
                         self.handle = Handle::Flowgraph(h.clone());
-                        leptos::spawn_local(async move {
+                        spawn_local(async move {
                             h.call(0, "freq", Pmt::U64(f)).await.unwrap();
                         });
                     }
                 }
                 Handle::Flowgraph(h) => {
                     let mut h = h.clone();
-                    leptos::spawn_local(async move {
+                    spawn_local(async move {
                         h.call(0, "freq", Pmt::U64(f)).await.unwrap();
                     });
                 }

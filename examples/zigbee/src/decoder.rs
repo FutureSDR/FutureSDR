@@ -172,6 +172,7 @@ impl Kernel for Decoder {
         }
 
         sio.input(0).consume(i);
+        futuresdr::tracing::info!("decoder conumed {}", i);
 
         Ok(())
     }

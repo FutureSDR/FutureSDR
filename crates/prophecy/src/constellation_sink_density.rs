@@ -3,11 +3,13 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Canvas;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::wasm_bindgen::prelude::*;
 use num_complex::Complex32;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::WebGl2RenderingContext as GL;
 
 use crate::ArrayView;
@@ -15,9 +17,9 @@ use crate::ArrayView;
 pub const BINS: usize = 128;
 
 struct RenderState {
-    canvas: HtmlElement<Canvas>,
+    canvas: HtmlCanvasElement,
     gl: GL,
-    width: MaybeSignal<f32>,
+    width: Signal<f32>,
     texture: [f32; BINS * BINS],
 }
 
@@ -26,7 +28,7 @@ struct RenderState {
 ///
 /// See WLAN receiver for an example.
 pub fn ConstellationSinkDensity(
-    #[prop(into)] width: MaybeSignal<f32>,
+    #[prop(into)] width: Signal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
     let data = Rc::new(RefCell::new(None));
@@ -48,14 +50,14 @@ pub fn ConstellationSinkDensity(
         });
     }
 
-    let canvas_ref = create_node_ref::<Canvas>();
-    canvas_ref.on_load(move |canvas_ref| {
-        let _ = canvas_ref.on_mount(move |canvas| {
+    let canvas_ref = NodeRef::<Canvas>::new();
+    Effect::new(move || {
+        if let Some(canvas) = canvas_ref.get() {
             let context_options = js_sys::Object::new();
             js_sys::Reflect::set(
                 &context_options,
                 &"premultipliedAlpha".into(),
-                &wasm_bindgen::JsValue::FALSE,
+                &JsValue::FALSE,
             ).expect("Cannot create context options");
 
             let gl: GL = canvas
@@ -163,8 +165,8 @@ pub fn ConstellationSinkDensity(
             let state = Rc::new(RefCell::new(RenderState {
                 canvas, gl, texture, width,
             }));
-            request_animation_frame(render(state, data))
-        });
+            request_animation_frame(render(state, data.clone()))
+        }
     });
 
     view! {

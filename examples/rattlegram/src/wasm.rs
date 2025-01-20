@@ -8,9 +8,11 @@ use futuresdr::runtime::Runtime;
 use futuresdr::tracing::warn;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html::Input;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::wasm_bindgen;
+use leptos::wasm_bindgen::prelude::*;
 use std::collections::VecDeque;
-use wasm_bindgen::prelude::*;
 
 use crate::wasm_decoder::DecoderMessage;
 use crate::Encoder;
@@ -30,16 +32,16 @@ const ENTER_KEY: u32 = 13;
 #[component]
 /// Main GUI
 fn Gui() -> impl IntoView {
-    let (tx, set_tx) = create_signal(None);
-    let (messages, set_messages) = create_signal(VecDeque::new());
+    let (tx, set_tx) = signal(None);
+    let (messages, set_messages) = signal(VecDeque::new());
 
-    let input_payload_ref = create_node_ref::<Input>();
-    let input_callsign_ref = create_node_ref::<Input>();
+    let input_payload_ref = NodeRef::<Input>::new();
+    let input_callsign_ref = NodeRef::<Input>::new();
 
     let mut started = false;
     let mut send = move || {
         if !started {
-            leptos::spawn_local(run_fg(set_tx));
+            spawn_local(run_fg(set_tx));
             started = true;
         }
         let call_sign = input_callsign_ref.get().unwrap().value();
@@ -60,7 +62,7 @@ fn Gui() -> impl IntoView {
 
         let mut e = Encoder::new();
         let sig = e.encode(payload.as_bytes(), call_sign.as_bytes(), 1500, 5, false);
-        leptos::spawn_local(async move {
+        spawn_local(async move {
             while tx.get_untracked().is_none() {
                 TimeoutFuture::new(100).await;
             }
@@ -89,7 +91,7 @@ fn Gui() -> impl IntoView {
             <br/>
             <button on:click=move |_| { send()} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"TX Message"</button>
             <hr />
-            <button on:click=move |_| { if !rx_started { leptos::spawn_local(async move { start_rx(set_messages).await; })} rx_started = true } class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"Start RX"</button>
+            <button on:click=move |_| { if !rx_started { spawn_local(async move { start_rx(set_messages).await; })} rx_started = true } class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"Start RX"</button>
             <br/>
             <ul class="list-disc p-4">
             {move || messages().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}

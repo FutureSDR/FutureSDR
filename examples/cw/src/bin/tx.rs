@@ -28,17 +28,19 @@ mod foo {
 mod foo {
     use anyhow::Result;
     use leptos::html::Input;
-    use leptos::*;
+    use leptos::prelude::*;
+    use leptos::task::spawn_local;
+    use leptos::web_sys;
 
     const ENTER_KEY: u32 = 13;
 
     #[component]
     fn Gui() -> impl IntoView {
-        let input_ref = create_node_ref::<Input>();
+        let input_ref = NodeRef::<Input>::new();
         let tx_cw = move || {
-            let input = input_ref().unwrap();
+            let input = input_ref.get().unwrap();
             let v = input.value();
-            leptos::spawn_local(async move { cw::run_fg(v).await.unwrap() });
+            spawn_local(async move { cw::run_fg(v).await.unwrap() });
         };
 
         let on_input = move |ev: web_sys::KeyboardEvent| {
@@ -58,6 +60,7 @@ mod foo {
 
     pub fn main() -> Result<()> {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        leptos::task::Executor::init_wasm_bindgen().unwrap();
         mount_to_body(|| view! { <Gui /> });
         Ok(())
     }

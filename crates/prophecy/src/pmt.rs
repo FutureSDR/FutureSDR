@@ -2,12 +2,12 @@ use futuresdr_types::Pmt;
 use futuresdr_types::PmtKind;
 use leptos::html::Input;
 use leptos::html::Select;
-use leptos::*;
+use leptos::prelude::*;
 
 #[component]
 /// Reactive textual representation of PMT.
 pub fn Pmt(
-    #[prop(into)] pmt: MaybeSignal<Pmt>,
+    #[prop(into)] pmt: Signal<Pmt>,
     #[prop(into, optional)] span_class: String,
 ) -> impl IntoView {
     let class = {
@@ -54,8 +54,8 @@ pub fn PmtInput(
     #[prop(into, optional)] button_class: String,
     #[prop(into, optional, default = "Submit".to_string())] button_text: String,
 ) -> impl IntoView {
-    let (error, set_error) = create_signal(false);
-    let classes = create_memo(move |_| {
+    let (error, set_error) = signal(false);
+    let classes = Memo::new(move |_| {
         if error() {
             format!("{} {}", input_class, error_class)
         } else {
@@ -63,9 +63,9 @@ pub fn PmtInput(
         }
     });
 
-    let input_ref = create_node_ref::<Input>();
+    let input_ref = NodeRef::<Input>::new();
     let parse_pmt = move || {
-        let input = input_ref().unwrap();
+        let input = input_ref.get().unwrap();
         let v = input.value();
         if let Ok(p) = v.parse::<Pmt>() {
             set_pmt(p);
@@ -123,8 +123,8 @@ pub fn PmtInputList(
     #[prop(into, optional)] select_class: String,
     #[prop(into, optional, default = "Submit".to_string())] button_text: String,
 ) -> impl IntoView {
-    let (error, set_error) = create_signal(false);
-    let classes = create_memo(move |_| {
+    let (error, set_error) = signal(false);
+    let classes = Memo::new(move |_| {
         if error() {
             format!("{} {}", input_class, error_class)
         } else {
@@ -132,12 +132,12 @@ pub fn PmtInputList(
         }
     });
 
-    let input_ref = create_node_ref::<Input>();
-    let select_ref = create_node_ref::<Select>();
+    let input_ref = NodeRef::<Input>::new();
+    let select_ref = NodeRef::<Select>::new();
 
     let parse_pmt = move || {
-        let v = input_ref().unwrap().value();
-        let t = select_ref().unwrap().value();
+        let v = input_ref.get().unwrap().value();
+        let t = select_ref.get().unwrap().value();
         let t = t.parse::<PmtKind>().unwrap();
         let pmt = match t {
             PmtKind::Ok => Some(Pmt::Ok),

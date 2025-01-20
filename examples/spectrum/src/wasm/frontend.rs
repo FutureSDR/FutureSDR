@@ -2,10 +2,12 @@ use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
 use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
-use leptos::html::Span;
-use leptos::logging::*;
-use leptos::wasm_bindgen::JsCast;
-use leptos::*;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::logging::*;
+use prophecy::leptos::prelude::*;
+use prophecy::leptos::task::spawn_local;
+use prophecy::leptos::wasm_bindgen::JsCast;
+use prophecy::leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::RadioSelector;
@@ -14,32 +16,26 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
-use std::cell::RefCell;
-use std::rc::Rc;
-use web_sys::HtmlInputElement;
 
 #[component]
 /// Spectrum Widget
 pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let rt_url = window().location().origin().unwrap();
     let rt_handle = RuntimeHandle::from_url(rt_url);
-    let fg_desc = create_local_resource(
-        || (),
-        move |_| {
-            let rt_handle = rt_handle.clone();
-            async move {
-                if let Ok(mut fg) = rt_handle.get_flowgraph(0).await {
-                    if let Ok(desc) = fg.description().await {
-                        return Some(desc);
-                    }
+    let fg_desc = LocalResource::new(move || {
+        let rt_handle = rt_handle.clone();
+        async move {
+            if let Ok(mut fg) = rt_handle.get_flowgraph(0).await {
+                if let Ok(desc) = fg.description().await {
+                    return Some(desc);
                 }
-                None
             }
-        },
-    );
+            None
+        }
+    });
 
-    let time_data = Rc::new(RefCell::new(None));
-    let waterfall_data = Rc::new(RefCell::new(None));
+    let (time_data, set_time_data) = signal(vec![]);
+    let (waterfall_data, set_waterfall_data) = signal(vec![]);
     let ws_url = {
         let proto = window().location().protocol().unwrap();
         let host = window().location().hostname().unwrap();
@@ -50,15 +46,13 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         }
     };
     {
-        let time_data = time_data.clone();
-        let waterfall_data = waterfall_data.clone();
         spawn_local(async move {
             let mut ws = WebSocket::open(&ws_url).unwrap();
             while let Some(msg) = ws.next().await {
                 match msg {
                     Ok(Message::Bytes(b)) => {
-                        *time_data.borrow_mut() = Some(b.clone());
-                        *waterfall_data.borrow_mut() = Some(b);
+                        set_time_data(b.clone());
+                        set_waterfall_data(b);
                     }
                     _ => {
                         log!("Spectrum WebSocket {:?}", msg);
@@ -69,15 +63,15 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         });
     }
 
-    let (min, set_min) = create_signal(-40.0f32);
-    let (max, set_max) = create_signal(20.0f32);
+    let (min, set_min) = signal(-40.0f32);
+    let (max, set_max) = signal(20.0f32);
 
-    let min_label = create_node_ref::<Span>();
-    let max_label = create_node_ref::<Span>();
-    let freq_label = create_node_ref::<Span>();
-    let gain_label = create_node_ref::<Span>();
+    let min_label = NodeRef::<Span>::new();
+    let max_label = NodeRef::<Span>::new();
+    let freq_label = NodeRef::<Span>::new();
+    let gain_label = NodeRef::<Span>::new();
 
-    let (ctrl, set_ctrl) = create_signal(true);
+    let (ctrl, set_ctrl) = signal(true);
     let ctrl_click = move |_| {
         set_ctrl(!ctrl());
     };
@@ -161,12 +155,15 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         </div>
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
-                match fg_desc.get() {
-                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_view(),
-                    _ => view! {}.into_view(),
+                if let Some(wrapped) = fg_desc.get() {
+                    if let Some(desc) = wrapped.take() {
+                        return view! {  <FlowgraphMermaid fg=desc /> }.into_any()
+                    }
                 }
-            }}
+                view! {}.into_any()
+            } }
         </div>
+        "foo"
     }
 }
 
@@ -176,35 +173,33 @@ pub fn Gui() -> impl IntoView {
     let rt_url = window().location().origin().unwrap();
     let rt_handle = RuntimeHandle::from_url(rt_url);
 
-    let fg_handle = create_local_resource(
-        || (),
-        move |_| {
-            let rt_handle = rt_handle.clone();
-            async move {
-                if let Ok(fg) = rt_handle.get_flowgraph(0).await {
-                    Some(fg)
-                } else {
-                    None
-                }
+    let fg_handle = LocalResource::new(move || {
+        let rt_handle = rt_handle.clone();
+        async move {
+            if let Ok(fg) = rt_handle.get_flowgraph(0).await {
+                Some(fg)
+            } else {
+                None
             }
-        },
-    );
+        }
+    });
 
     view! {
         <h1 class="m-4 text-xl text-white"> FutureSDR Spectrum</h1>
         {move || {
-             match fg_handle.get() {
-                 Some(Some(handle)) => view! {
-                     <Spectrum fg_handle=handle /> }.into_view(),
-                 _ => view! {
-                     <div>"Connecting"</div>
-                 }.into_view(),
-             }
+                     if let Some(wrapper) = fg_handle.get() {
+                         if let Some(handle) = wrapper.take() {
+                             return view! { <Spectrum fg_handle=handle /> }.into_any()
+                         }
+                     }
+                     view! { <div>"Connecting"</div> }.into_any()
         }}
     }
 }
 
 pub fn frontend() {
     console_error_panic_hook::set_once();
+    futuresdr::runtime::init();
+    leptos::task::Executor::init_wasm_bindgen().unwrap();
     mount_to_body(|| view! { <Gui /> })
 }

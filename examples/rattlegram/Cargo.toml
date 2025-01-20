@@ -22,7 +22,7 @@ clap = { version = "4", features = ["derive"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 gloo-timers = { version = "0.3", features = ["futures"] }
-leptos = { version = "0.6", features = ["csr", "nightly"] }
+leptos = { version = "0.7", features = ["csr", "nightly"] }
 wasm-bindgen-futures = "0.4"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]

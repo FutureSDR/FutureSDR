@@ -130,23 +130,23 @@ impl PacketForwarderClient {
                         ),
                     };
                     let sf: SpreadingFactor = match m.get("sf").unwrap() {
-                        Pmt::U32(5) => SpreadingFactor::SF5,
-                        Pmt::U32(6) => SpreadingFactor::SF6,
-                        Pmt::U32(7) => SpreadingFactor::SF7,
-                        Pmt::U32(8) => SpreadingFactor::SF8,
-                        Pmt::U32(9) => SpreadingFactor::SF9,
-                        Pmt::U32(10) => SpreadingFactor::SF10,
-                        Pmt::U32(11) => SpreadingFactor::SF11,
-                        Pmt::U32(12) => SpreadingFactor::SF12,
+                        Pmt::U32(5) => SpreadingFactor::_5,
+                        Pmt::U32(6) => SpreadingFactor::_6,
+                        Pmt::U32(7) => SpreadingFactor::_7,
+                        Pmt::U32(8) => SpreadingFactor::_8,
+                        Pmt::U32(9) => SpreadingFactor::_9,
+                        Pmt::U32(10) => SpreadingFactor::_10,
+                        Pmt::U32(11) => SpreadingFactor::_11,
+                        Pmt::U32(12) => SpreadingFactor::_12,
                         _ => panic!(
                             "invalid Spreading Factor in received msg: {:?}",
                             m.get("sf")
                         ),
                     };
                     let bw: Bandwidth = match m.get("bw").unwrap() {
-                        Pmt::U32(125) => Bandwidth::BW125,
-                        Pmt::U32(250) => Bandwidth::BW250,
-                        Pmt::U32(500) => Bandwidth::BW500,
+                        Pmt::U32(125) => Bandwidth::_125KHz,
+                        Pmt::U32(250) => Bandwidth::_250KHz,
+                        Pmt::U32(500) => Bandwidth::_500KHz,
                         _ => panic!("invalid Bandwidth in received msg: {:?}", m.get("bw")),
                     };
                     let freq: f64 = match m.get("freq").unwrap() {
@@ -160,7 +160,7 @@ impl PacketForwarderClient {
                     };
                     let mut cfo: f32 = 0.0;
                     if let Some(Pmt::Isize(cfo_int)) = m.get("cfo_int") {
-                        cfo += *cfo_int as f32 * (bw.to_hz() as f32 / (1 << sf.to_u8()) as f32);
+                        cfo += *cfo_int as f32 * (bw.hz() as f32 / (1 << sf.factor()) as f32);
                     }
                     if let Some(Pmt::F64(cfo_frac)) = m.get("cfo_frac") {
                         cfo += *cfo_frac as f32;
@@ -207,7 +207,7 @@ impl PacketForwarderClient {
                     let rxpk = RxPk::V2(RxPkV2 {
                         aesk: 0,
                         brd: 0,
-                        codr,
+                        codr: Some(codr),
                         data: payload.clone(),
                         datr: DataRate::new(sf, bw),
                         freq,
