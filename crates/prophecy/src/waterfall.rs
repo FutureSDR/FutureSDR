@@ -169,7 +169,7 @@ pub fn Waterfall(
                 shader,
                 texture_offset: 0,
             };
-            request_animation_frame(render(Rc::new(RefCell::new(state)), data.clone(), fft_size))
+            request_animation_frame(render(Rc::new(RefCell::new(state)), data, fft_size))
         }
     });
 
@@ -204,7 +204,6 @@ fn render(
 
             let bytes = &*data.read_untracked();
             if !bytes.is_empty() {
-
                 fft_size_val = bytes.len() / 4;
                 if fft_size_val != last_fft_size {
                     initialize_texture(gl, fft_size_val);

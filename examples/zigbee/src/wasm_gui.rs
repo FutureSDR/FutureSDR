@@ -65,7 +65,7 @@ fn Channel(
         info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
         spawn_local(async move {
-            if let Some(ref h) = *handle.read_untracked() {
+            if let Some(h) = *handle.read_untracked() {
                 h.send(WorkerMessage::Freq(freq));
             }
         });

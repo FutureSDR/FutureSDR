@@ -160,7 +160,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                         return view! {  <FlowgraphMermaid fg=desc /> }.into_any()
                     }
                 }
-                view! {}.into_any()
+                ().into_any()
             } }
         </div>
         "foo"

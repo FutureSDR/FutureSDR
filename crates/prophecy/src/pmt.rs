@@ -11,7 +11,6 @@ pub fn Pmt(
     #[prop(into, optional)] span_class: String,
 ) -> impl IntoView {
     let class = {
-        let pmt = pmt.clone();
         move || {
             let c = match pmt() {
                 Pmt::Ok => "pmt-ok",

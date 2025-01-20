@@ -58,7 +58,8 @@ pub fn ConstellationSinkDensity(
                 &context_options,
                 &"premultipliedAlpha".into(),
                 &JsValue::FALSE,
-            ).expect("Cannot create context options");
+            )
+            .expect("Cannot create context options");
 
             let gl: GL = canvas
                 .get_context_with_context_options("webgl2", &context_options)
@@ -141,29 +142,24 @@ pub fn ConstellationSinkDensity(
             let vertexes = [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            let view = unsafe {f32::view(&vertexes)};
-            gl.buffer_data_with_array_buffer_view(
-                GL::ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            let view = unsafe { f32::view(&vertexes) };
+            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let indices = [0, 1, 2, 0, 2, 3];
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
             let view = unsafe { u16::view(&indices) };
-            gl.buffer_data_with_array_buffer_view(
-                GL::ELEMENT_ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            gl.buffer_data_with_array_buffer_view(GL::ELEMENT_ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let loc = gl.get_attrib_location(&shader, "texCoord") as u32;
             gl.enable_vertex_attrib_array(loc);
             gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, texture, width,
+                canvas,
+                gl,
+                texture,
+                width,
             }));
             request_animation_frame(render(state, data.clone()))
         }

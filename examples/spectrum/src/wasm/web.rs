@@ -156,7 +156,7 @@ pub fn Spectrum(
         </div>
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
-                fg_desc.get().map(|x| x.take().unwrap()).map(|x| view! { <FlowgraphMermaid fg=x /> }.into_any()).unwrap_or(view! {}.into_any());
+                fg_desc.get().map(|x| x.take().unwrap()).map(|x| view! { <FlowgraphMermaid fg=x /> }.into_any()).unwrap_or(().into_any());
             }}
         </div>
     }
@@ -177,7 +177,7 @@ pub fn Gui() -> impl IntoView {
                  Some(handle) => {
                      let handle = prophecy::FlowgraphHandle::from_handle(handle);
                      view! {
-                         <Spectrum handle=handle time_data=time_data.clone() waterfall_data=waterfall_data.clone() /> }.into_any()
+                         <Spectrum handle=handle time_data=time_data waterfall_data=waterfall_data /> }.into_any()
                  },
                  _ => view! {
                      <div class="m-4 space-y-4 text-white">
@@ -212,10 +212,16 @@ unsafe impl Send for Sink {}
 
 impl Sink {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(time_data: WriteSignal<Vec<u8>>, waterfall_data: WriteSignal<Vec<u8>>) -> TypedBlock<Self> {
+    pub fn new(
+        time_data: WriteSignal<Vec<u8>>,
+        waterfall_data: WriteSignal<Vec<u8>>,
+    ) -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().add_input::<f32>("in").build(),
-            Self { time_data, waterfall_data },
+            Self {
+                time_data,
+                waterfall_data,
+            },
         )
     }
 }
