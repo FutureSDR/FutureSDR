@@ -30,39 +30,38 @@ mod logging;
 mod logging;
 
 mod flowgraph;
+mod kernel;
 pub mod message_io;
 #[cfg(not(target_arch = "wasm32"))]
 mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
-pub mod stream_io;
 mod tag;
 mod topology;
+mod work_io;
 
 pub use block::Block;
 pub use block::BlockT;
-pub use block::Kernel;
-pub use block::KernelInterface;
 pub use block::TypedBlock;
-pub use block::WorkIo;
 pub use block_meta::BlockMeta;
+pub use buffer::StreamInputs;
+pub use buffer::StreamOutputs;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::FlowgraphHandle;
+pub use kernel::Kernel;
+pub use kernel::KernelInterface;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
 #[cfg(not(target_arch = "wasm32"))]
 pub use mocker::Mocker;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
-pub use stream_io::StreamInput;
-pub use stream_io::StreamIo;
-pub use stream_io::StreamIoBuilder;
-pub use stream_io::StreamOutput;
 pub use tag::copy_tag_propagation;
 pub use tag::ItemTag;
 pub use tag::Tag;
 pub use topology::Topology;
+pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::FlowgraphDescription;
@@ -160,20 +159,6 @@ pub enum BlockMessage {
     BlockDescription {
         /// Channel for return value
         tx: oneshot::Sender<BlockDescription>,
-    },
-    /// Initialize [`StreamOutput`]
-    StreamOutputInit {
-        /// Stream output ID
-        src_port: usize,
-        /// [`BufferWriter`]
-        writer: BufferWriter,
-    },
-    /// Initialize [`StreamInput`]
-    StreamInputInit {
-        /// Stream input Id
-        dst_port: usize,
-        /// [`BufferReader`]
-        reader: BufferReader,
     },
     /// Stream input port is done
     StreamInputDone {

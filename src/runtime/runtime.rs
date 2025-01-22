@@ -375,35 +375,35 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         debug_assert!(!v.is_empty());
 
         let src_inbox = inboxes[*src].as_ref().unwrap().clone();
-        let mut writer = buffer_builder.build(src_inbox, *src_port);
+        let mut _writer = buffer_builder.build(src_inbox, *src_port);
 
-        for (dst, dst_port) in v.iter() {
-            let dst_inbox = inboxes[*dst].as_ref().unwrap().clone();
+        for (_dst, _dst_port) in v.iter() {
+            // let dst_inbox = inboxes[*dst].as_ref().unwrap().clone();
 
-            inboxes[*dst]
-                .as_mut()
-                .unwrap()
-                .send(BlockMessage::StreamInputInit {
-                    dst_port: *dst_port,
-                    reader: writer.add_reader(dst_inbox, *dst_port),
-                })
-                .await
-                .or(Err(Error::RuntimeError(
-                    "Could not connect stream input".to_string(),
-                )))?;
+            // inboxes[*dst]
+            //     .as_mut()
+            //     .unwrap()
+            //     .send(BlockMessage::StreamInputInit {
+            //         dst_port: *dst_port,
+            //         reader: writer.add_reader(dst_inbox, *dst_port),
+            //     })
+            //     .await
+            //     .or(Err(Error::RuntimeError(
+            //         "Could not connect stream input".to_string(),
+            //     )))?;
         }
 
-        inboxes[*src]
-            .as_mut()
-            .unwrap()
-            .send(BlockMessage::StreamOutputInit {
-                src_port: *src_port,
-                writer,
-            })
-            .await
-            .or(Err(Error::RuntimeError(
-                "Could not connect stream output".to_string(),
-            )))?;
+        // inboxes[*src]
+        //     .as_mut()
+        //     .unwrap()
+        //     .send(BlockMessage::StreamOutputInit {
+        //         src_port: *src_port,
+        //         writer,
+        //     })
+        //     .await
+        //     .or(Err(Error::RuntimeError(
+        //         "Could not connect stream output".to_string(),
+        //     )))?;
     }
 
     debug!("connect message io");
