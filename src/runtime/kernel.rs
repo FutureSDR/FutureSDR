@@ -7,20 +7,16 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
-use futuresdr::runtime::StreamInputs;
-use futuresdr::runtime::StreamOutputs;
 
 /// Kernal
 ///
 /// Central trait to implement a block
 #[cfg(not(target_arch = "wasm32"))]
-pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
+pub trait Kernel: Send {
     /// Processes stream data
     fn work(
         &mut self,
         _io: &mut WorkIo,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
@@ -29,8 +25,6 @@ pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
     /// Initialize kernel
     fn init(
         &mut self,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
@@ -39,8 +33,6 @@ pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
     /// De-initialize kernel
     fn deinit(
         &mut self,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + Send {
@@ -52,13 +44,11 @@ pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
 ///
 /// Central trait to implement a block
 #[cfg(target_arch = "wasm32")]
-pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
+pub trait Kernel: Send {
     /// Processes stream data
     fn work(
         &mut self,
         _io: &mut WorkIo,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {
@@ -67,8 +57,6 @@ pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
     /// Initialize kernel
     fn init(
         &mut self,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {
@@ -77,8 +65,6 @@ pub trait Kernel<I: StreamInputs, O: StreamOutputs>: Send {
     /// De-initialize kernel
     fn deinit(
         &mut self,
-        _s: &mut I,
-        _o: &mut O,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> {

@@ -359,56 +359,16 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     initialized: oneshot::Sender<Result<(), Error>>,
 ) -> Result<Flowgraph, Error> {
     debug!("in run_flowgraph");
-    let mut topology = fg.topology.take().ok_or(Error::RuntimeError(
-        "Flowgraph has no topology set".to_string(),
-    ))?;
-    if let Err(e) = topology.validate() {
+    if let Err(e) = fg.validate() {
         initialized.send(Err(e.clone())).unwrap();
         return Err(e);
     }
 
-    let mut inboxes = scheduler.run_topology(&mut topology, &main_channel);
-
-    debug!("connect stream io");
-    // connect stream IO
-    for ((src, src_port, buffer_builder), v) in topology.stream_edges.iter() {
-        debug_assert!(!v.is_empty());
-
-        let src_inbox = inboxes[*src].as_ref().unwrap().clone();
-        let mut _writer = buffer_builder.build(src_inbox, *src_port);
-
-        for (_dst, _dst_port) in v.iter() {
-            // let dst_inbox = inboxes[*dst].as_ref().unwrap().clone();
-
-            // inboxes[*dst]
-            //     .as_mut()
-            //     .unwrap()
-            //     .send(BlockMessage::StreamInputInit {
-            //         dst_port: *dst_port,
-            //         reader: writer.add_reader(dst_inbox, *dst_port),
-            //     })
-            //     .await
-            //     .or(Err(Error::RuntimeError(
-            //         "Could not connect stream input".to_string(),
-            //     )))?;
-        }
-
-        // inboxes[*src]
-        //     .as_mut()
-        //     .unwrap()
-        //     .send(BlockMessage::StreamOutputInit {
-        //         src_port: *src_port,
-        //         writer,
-        //     })
-        //     .await
-        //     .or(Err(Error::RuntimeError(
-        //         "Could not connect stream output".to_string(),
-        //     )))?;
-    }
+    let mut inboxes = scheduler.run_flowgraph(&mut fg, &main_channel);
 
     debug!("connect message io");
     // connect message IO
-    for (src, src_port, dst, dst_port) in topology.message_edges.iter() {
+    for (src, src_port, dst, dst_port) in fg.message_edges.iter() {
         let dst_box = inboxes[*dst].as_ref().unwrap().clone();
         inboxes[*src]
             .as_mut()
@@ -625,7 +585,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         }
     }
 
-    fg.topology = Some(topology);
     if block_error {
         return Err(Error::RuntimeError("A block raised an error".to_string()));
     }

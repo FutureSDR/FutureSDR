@@ -30,6 +30,7 @@ mod logging;
 mod logging;
 
 mod flowgraph;
+mod flowgraph_handle;
 mod kernel;
 pub mod message_io;
 #[cfg(not(target_arch = "wasm32"))]
@@ -38,17 +39,13 @@ mod mocker;
 mod runtime;
 pub mod scheduler;
 mod tag;
-mod topology;
 mod work_io;
 
 pub use block::Block;
-pub use block::BlockT;
-pub use block::TypedBlock;
+pub use block::WrappedKernel;
 pub use block_meta::BlockMeta;
-pub use buffer::StreamInputs;
-pub use buffer::StreamOutputs;
 pub use flowgraph::Flowgraph;
-pub use flowgraph::FlowgraphHandle;
+pub use flowgraph_handle::FlowgraphHandle;
 pub use kernel::Kernel;
 pub use kernel::KernelInterface;
 pub use message_io::MessageOutput;
@@ -57,13 +54,12 @@ pub use message_io::MessageOutputs;
 pub use mocker::Mocker;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
-pub use tag::copy_tag_propagation;
 pub use tag::ItemTag;
 pub use tag::Tag;
-pub use topology::Topology;
 pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
+pub use futuresdr_types::BlockId;
 pub use futuresdr_types::FlowgraphDescription;
 pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
@@ -334,8 +330,8 @@ pub enum BlockPortCtx {
     Name(String),
 }
 
-impl From<&Block> for BlockPortCtx {
-    fn from(value: &Block) -> Self {
+impl From<&dyn Block> for BlockPortCtx {
+    fn from(value: &dyn Block) -> Self {
         BlockPortCtx::Name(value.type_name().into())
     }
 }

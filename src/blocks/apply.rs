@@ -2,8 +2,6 @@ use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
@@ -91,7 +89,6 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
