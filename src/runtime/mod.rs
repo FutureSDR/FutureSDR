@@ -92,24 +92,18 @@ pub enum FlowgraphMessage {
     Terminate,
     /// Initialize
     Initialized,
-    /// Block is done
+    /// Block is Done
     BlockDone {
-        /// Block Id
-        block_id: usize,
-        /// Block
-        block: Block,
+        block_id: BlockId,
     },
-    /// Block encountered an error
+    /// Block Error
     BlockError {
-        /// BlockId
-        block_id: usize,
-        /// Block
-        block: Block,
+        block_id: BlockId,
     },
     /// Call handler of block (ignoring result)
     BlockCall {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Message handler Id
         port_id: PortId,
         /// Input data
@@ -120,7 +114,7 @@ pub enum FlowgraphMessage {
     /// Call handler of block
     BlockCallback {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Message handler Id
         port_id: PortId,
         /// Input data
@@ -136,7 +130,7 @@ pub enum FlowgraphMessage {
     /// Get [`BlockDescription`]
     BlockDescription {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Back channel for result
         tx: oneshot::Sender<Result<BlockDescription, Error>>,
     },
@@ -199,7 +193,7 @@ pub enum BlockMessage {
 pub enum Error {
     /// Block does not exist
     #[error("Block {0} does not exist")]
-    InvalidBlock(usize),
+    InvalidBlock(BlockId),
     /// Flowgraph does not exist or terminated
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
@@ -212,9 +206,6 @@ pub enum Error {
     /// Invalid Parameter
     #[error("Invalid Parameter")]
     InvalidParameter,
-    /// Connect Error
-    #[error("Connect error: {0}")]
-    ConnectError(Box<ConnectCtx>),
     /// Error in handler
     #[error("Error in message handler: {0}")]
     HandlerError(String),
@@ -254,67 +245,6 @@ impl From<seify::Error> for Error {
 impl From<PmtConversionError> for Error {
     fn from(_value: PmtConversionError) -> Self {
         Error::PmtConversionError
-    }
-}
-
-/// Container for information supporting `ConnectError`
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConnectCtx {
-    /// Source block ID
-    pub src_block_id: usize,
-    /// Source block name
-    pub src_block_name: String,
-    /// Source block output port
-    pub src_port: String,
-    /// Source port item type
-    pub src_type: String,
-    /// Destination block ID
-    pub dst_block_id: usize,
-    /// Destination block name
-    pub dst_block_name: String,
-    /// Destination input port
-    pub dst_port: String,
-    /// Destination port item type
-    pub dst_type: String,
-}
-
-impl ConnectCtx {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        src_block_id: usize,
-        src: &Block,
-        src_port: &PortId,
-        src_output: &StreamOutput,
-        dst_block_id: usize,
-        dst: &Block,
-        dst_port: &PortId,
-        dst_input: &StreamInput,
-    ) -> Self {
-        Self {
-            src_block_id,
-            src_block_name: src.instance_name().unwrap_or(src.type_name()).to_string(),
-            src_port: src_port.to_string(),
-            src_type: src_output.type_name().to_string(),
-            dst_block_id,
-            dst_block_name: dst.instance_name().unwrap_or(src.type_name()).to_string(),
-            dst_port: dst_port.to_string(),
-            dst_type: dst_input.type_name().to_string(),
-        }
-    }
-}
-
-impl Display for ConnectCtx {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "incompatible ports: {}.{}<{}> -> {}.{}<{}>",
-            self.src_block_name,
-            self.src_port,
-            self.src_type,
-            self.dst_block_name,
-            self.dst_port,
-            self.dst_type
-        )
     }
 }
 

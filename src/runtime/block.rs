@@ -5,7 +5,6 @@ use futures::future::Either;
 use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
-use futuresdr_types::BlockId;
 use std::any::Any;
 use std::fmt;
 use std::ops::Deref;
@@ -14,12 +13,12 @@ use std::ops::DerefMut;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockMeta;
+use crate::runtime::BlockId;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Kernel;
 use crate::runtime::KernelInterface;
-use crate::runtime::MessageOutput;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
 use crate::runtime::WorkIo;
@@ -39,6 +38,10 @@ pub trait Block: Send + Any {
         &mut self,
         main_inbox: Sender<FlowgraphMessage>,
     ) -> Result<(), Error>;
+    /// Get the inbox of the block
+    fn inbox(&self) -> Sender<BlockMessage>;
+    /// Get the ID of the block
+    fn id(&self) -> BlockId;
 
     // ##### META
     /// Get instance name (see [`BlockMeta::instance_name`])
@@ -54,17 +57,15 @@ pub trait Block: Send + Any {
 
     // ##### STREAM IO
     /// Map stream input port name ot id
-    fn stream_input_names(&self) -> Vec<String>;
+    fn stream_inputs(&self) -> Vec<String>;
     /// Map stream input port name ot id
-    fn stream_output_names(&self) -> Vec<String>;
+    fn stream_outputs(&self) -> Vec<String>;
 
     // ##### MESSAGE IO
-    /// Map message input port name to id
-    fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
+    /// Get message input ports
+    fn message_inputs(&self) -> &Vec<String>;
     /// Get message output ports
-    fn message_outputs(&self) -> &Vec<MessageOutput>;
-    /// Map message output port name to id
-    fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
+    fn message_outputs(&self) -> &Vec<String>;
 }
 
 impl fmt::Debug for dyn Block {
@@ -328,6 +329,12 @@ impl<K: KernelInterface + Kernel + Send + 'static>
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+    fn inbox(&self) -> Sender<BlockMessage> {
+        self.inbox_tx.clone()
+    }
+    fn id(&self) -> BlockId {
+        self.block_id
+    }
 
     // ##### META
     fn instance_name(&self) -> Option<&str> {
@@ -352,23 +359,6 @@ impl<K: KernelInterface + Kernel + Send + 'static>
     }
 
     // ##### MESSAGE IO
-    fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
-        K::message_input_names()
-            .iter()
-            .enumerate()
-            .find(|item| *item.1 == name)
-            .map(|(i, _)| i)
-    }
-    fn message_outputs(&self) -> &Vec<MessageOutput> {
-        self.mio.outputs()
-    }
-    fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
-        K::message_output_names()
-            .iter()
-            .enumerate()
-            .find(|item| *item.1 == name)
-            .map(|(i, _)| i)
-    }
 }
 
 impl<K: Kernel> Deref for WrappedKernel<K> {

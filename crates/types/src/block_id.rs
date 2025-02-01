@@ -1,7 +1,9 @@
+use serde::Deserialize;
+use serde::Serialize;
 use std::fmt;
 
 /// Port Identifier
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockId(pub usize);
 
 impl From<usize> for BlockId {
