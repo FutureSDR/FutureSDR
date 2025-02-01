@@ -83,6 +83,12 @@ impl MessageOutputs {
            dst_port.clone(), dst_block_inbox);
         Ok(())
     }
+    /// Tell all downstream message receivers that we are done.
+    pub async fn notify_finished(&mut self) {
+        for o in self.outputs.iter_mut() {
+            o.notify_finished().await;
+        }
+    }
     /// Get output port Id, given its name
     fn output_mut(&self, port: &PortId) -> Option<&mut MessageOutput> {
         self.outputs

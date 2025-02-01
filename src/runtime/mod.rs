@@ -153,21 +153,12 @@ pub enum BlockMessage {
     /// Stream input port is done
     StreamInputDone {
         /// Stream input Id
-        input_id: usize,
+        input_id: PortId,
     },
     /// Stream output port is done
     StreamOutputDone {
         /// Stream output Id
-        output_id: usize,
-    },
-    /// Connect message output
-    MessageOutputConnect {
-        /// Message output port Id
-        src_port: usize,
-        /// Destination input port Id
-        dst_port: usize,
-        /// Destination block inbox
-        dst_inbox: mpsc::Sender<BlockMessage>,
+        output_id: PortId,
     },
     /// Call handler (return value is ignored)
     Call {

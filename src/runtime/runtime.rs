@@ -352,7 +352,7 @@ impl RuntimeHandle {
 }
 
 pub(crate) async fn run_flowgraph<S: Scheduler>(
-    mut fg: Flowgraph,
+    fg: Flowgraph,
     scheduler: S,
     mut main_channel: Sender<FlowgraphMessage>,
     mut main_rx: Receiver<FlowgraphMessage>,
@@ -364,7 +364,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         return Err(e);
     }
 
-    let inboxes: Vec<Sender<BlockMessage>> = fg.blocks.iter().map(|b| b.lock().unwrap().inbox()).collect();
+    let mut inboxes: Vec<Sender<BlockMessage>> = fg.blocks.iter().map(|b| b.lock().unwrap().inbox()).collect();
     let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.lock().unwrap().id()).collect();
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
@@ -389,7 +389,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         let m = main_rx.next().await.unwrap();
         match m {
             FlowgraphMessage::Initialized => i -= 1,
-            FlowgraphMessage::BlockError { block_id } => {
+            FlowgraphMessage::BlockError { .. } => {
                 i -= 1;
                 active_blocks -= 1;
                 block_error = true;
@@ -488,7 +488,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             FlowgraphMessage::BlockDone { .. } => {
                 active_blocks -= 1;
             }
-            FlowgraphMessage::BlockError { block_id } => {
+            FlowgraphMessage::BlockError { .. } => {
                 block_error = true;
                 active_blocks -= 1;
                 let _ = main_channel.send(FlowgraphMessage::Terminate).await;
@@ -517,7 +517,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             }
             FlowgraphMessage::FlowgraphDescription { tx } => {
                 let mut blocks = Vec::new();
-                for id in ids {
+                for id in ids.iter() {
                     let (b_tx, rx) = oneshot::channel::<BlockDescription>();
                     if let Some(inbox) = inboxes.get_mut(id.0) {
                         if inbox

@@ -23,7 +23,7 @@ pub struct FlowgraphDescription {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockDescription {
     /// Id
-    pub id: usize,
+    pub id: BlockId,
     /// Type name
     pub type_name: String,
     /// Instance name

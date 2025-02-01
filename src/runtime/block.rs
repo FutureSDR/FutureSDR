@@ -1,6 +1,3 @@
-use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::Sender;
-use futures::future::join_all;
 use futures::future::Either;
 use futures::FutureExt;
 use futures::SinkExt;
@@ -10,20 +7,21 @@ use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::runtime::BlockDescription;
-use crate::runtime::BlockMessage;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
-use crate::runtime::Error;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::Kernel;
-use crate::runtime::KernelInterface;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
-use crate::runtime::config;
-use crate::channel::mpsc;
+use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::BlockDescription;
+use futuresdr::runtime::BlockMessage;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockId;
+use futuresdr::runtime::BlockPortCtx;
+use futuresdr::runtime::Error;
+use futuresdr::runtime::FlowgraphMessage;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::KernelInterface;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::Result;
+use futuresdr::runtime::WorkIo;
+use futuresdr::runtime::config;
+use futuresdr::channel::mpsc;
 
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
@@ -54,18 +52,6 @@ pub trait Block: Send + Any {
     ///
     /// Blocking blocks will be spawned in a separate thread.
     fn is_blocking(&self) -> bool;
-
-    // ##### STREAM IO
-    /// Map stream input port name ot id
-    fn stream_inputs(&self) -> Vec<String>;
-    /// Map stream input port name ot id
-    fn stream_outputs(&self) -> Vec<String>;
-
-    // ##### MESSAGE IO
-    /// Get message input ports
-    fn message_inputs(&self) -> &Vec<String>;
-    /// Get message output ports
-    fn message_outputs(&self) -> &Vec<String>;
 }
 
 impl fmt::Debug for dyn Block {
@@ -114,15 +100,12 @@ impl<K: KernelInterface + Kernel + Send + 'static>
 
     async fn run_impl(
         &mut self,
-        block_id: usize,
         mut main_inbox: Sender<FlowgraphMessage>,
-        mut inbox: Receiver<BlockMessage>,
     ) -> Result<(), Error> {
         let WrappedKernel {
             meta,
             mio,
             kernel,
-            id,
             inbox,
             ..
         } = self;
@@ -156,13 +139,6 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                     }
                     break;
                 }
-                BlockMessage::MessageOutputConnect {
-                    src_port,
-                    dst_port,
-                    dst_inbox,
-                } => {
-                    mio.output_mut(src_port).connect(dst_port, dst_inbox);
-                }
                 t => warn!(
                     "{} unhandled message during init {:?}",
                     meta.instance_name().unwrap(),
@@ -181,17 +157,13 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                 match inbox.next().now_or_never() {
                     Some(Some(BlockMessage::Notify)) => {}
                     Some(Some(BlockMessage::BlockDescription { tx })) => {
-                        let stream_inputs: Vec<String> = self.stream_input_names();
-                        let stream_outputs: Vec<String> = self.stream_output_names();
-                        let message_inputs: Vec<String> = K::message_input_names()
-                            .iter()
-                            .map(|x| x.to_string())
-                            .collect();
-                        let message_outputs: Vec<String> =
-                            mio.outputs().iter().map(|x| x.name().to_string()).collect();
+                        let stream_inputs = K::stream_inputs().iter().map(|n| n.to_string()).collect();
+                        let stream_outputs = K::stream_outputs().iter().map(|n| n.to_string()).collect();
+                        let message_inputs = K::message_inputs().iter().map(|n| n.to_string()).collect();
+                        let message_outputs = K::message_outputs().iter().map(|n| n.to_string()).collect();
 
                         let description = BlockDescription {
-                            id: block_id,
+                            id: self.id,
                             type_name: K::type_name().to_string(),
                             instance_name: meta.instance_name().unwrap().to_string(),
                             stream_inputs,
@@ -203,7 +175,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                         tx.send(description).unwrap();
                     }
                     Some(Some(BlockMessage::StreamInputDone { input_id })) => {
-                        inputs.finish(input_id)?;
+                        kernel.stream_input_finish(input_id)?;
                     }
                     Some(Some(BlockMessage::StreamOutputDone { .. })) => {
                         work_io.finished = true;
@@ -240,7 +212,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                                     meta.instance_name().unwrap(),
                                 );
                                 let _ = tx.send(Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::Id(block_id),
+                                    BlockPortCtx::Id(self.id.0),
                                     port_id,
                                 )));
                                 return Err(e);
@@ -261,9 +233,8 @@ impl<K: KernelInterface + Kernel + Send + 'static>
             // ================== shutdown
             if work_io.finished {
                 debug!("{} terminating ", meta.instance_name().unwrap());
-                inputs.notify_finished();
-                outputs.notify_finished();
-                join_all(mio.outputs_mut().iter_mut().map(|o| o.notify_finished())).await;
+                kernel.stream_ports_notify_finished().await;
+                mio.notify_finished().await;
 
                 match kernel.deinit(mio, meta).await {
                     Ok(_) => {
@@ -320,7 +291,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
 
 #[async_trait]
 impl<K: KernelInterface + Kernel + Send + 'static>
-    Block for TypedBlock<K>
+    Block for WrappedKernel<K>
 {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
@@ -357,8 +328,6 @@ impl<K: KernelInterface + Kernel + Send + 'static>
     ) -> Result<(), Error> {
         self.run_impl(main_inbox).await
     }
-
-    // ##### MESSAGE IO
 }
 
 impl<K: Kernel> Deref for WrappedKernel<K> {
