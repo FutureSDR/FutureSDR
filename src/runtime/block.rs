@@ -76,8 +76,9 @@ pub struct WrappedKernel<K: Kernel> {
 
 impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
     /// Create Typed Block
-    pub fn new(kernel: K, id: BlockId) -> Self {
+    pub fn new(mut kernel: K, id: BlockId) -> Self {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
+        kernel.stream_ports_init(id, tx.clone());
         Self {
             meta: BlockMeta::new(),
             mio: MessageOutputs::new(

@@ -12,8 +12,8 @@ use std::thread;
 
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::FlowgraphMessage;
 use crate::runtime::Block;
+use crate::runtime::FlowgraphMessage;
 
 static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
@@ -111,13 +111,26 @@ impl Scheduler for SmolScheduler {
     ) {
         // spawn block executors
         for block in blocks.iter() {
-            let mut block = block.lock().unwrap();
-            if block.is_blocking() {
-                self.spawn_blocking(block.run(main_channel.clone()))
-                    .detach();
+            let blocking = block.lock().unwrap().is_blocking();
+            if blocking {
+                self.spawn_blocking({
+                    let block = block.clone();
+                    let main_channel = main_channel.clone();
+                    async move {
+                        let mut block = block.lock().unwrap();
+                        block.run(main_channel).await;
+                    }
+                })
+                .detach();
             } else {
-                self.spawn(block.run(main_channel.clone()))
-                    .detach();
+                self.spawn({
+                    let block = block.clone();
+                    let main_channel = main_channel.clone();
+                    async move {
+                        let mut block = block.lock().unwrap();
+                        block.run(main_channel).await;
+                    }})
+                .detach();
             }
         }
     }
