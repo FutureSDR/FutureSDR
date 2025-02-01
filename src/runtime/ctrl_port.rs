@@ -18,6 +18,7 @@ use tower_http::services::ServeDir;
 
 use crate::runtime::config;
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockId;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -51,7 +52,7 @@ async fn flowgraph_description(
 }
 
 async fn block_description(
-    Path((fg, blk)): Path<(usize, usize)>,
+    Path((fg, blk)): Path<(usize, BlockId)>,
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
     let fg = rt.get_flowgraph(fg);
@@ -65,14 +66,10 @@ async fn block_description(
 }
 
 async fn handler_id(
-    Path((fg, blk, handler)): Path<(usize, usize, String)>,
+    Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(fg);
-    let handler = match handler.parse::<usize>() {
-        Ok(i) => PortId::Index(i),
-        Err(_) => PortId::Name(handler),
-    };
     if let Some(mut fg) = fg {
         if let Ok(ret) = fg.callback(blk, handler, Pmt::Null).await {
             return Ok(Json::from(ret));
@@ -83,15 +80,11 @@ async fn handler_id(
 }
 
 async fn handler_id_post(
-    Path((fg, blk, handler)): Path<(usize, usize, String)>,
+    Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
     State(rt): State<RuntimeHandle>,
     Json(pmt): Json<Pmt>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(fg);
-    let handler = match handler.parse::<usize>() {
-        Ok(i) => PortId::Index(i),
-        Err(_) => PortId::Name(handler),
-    };
     if let Some(mut fg) = fg {
         if let Ok(ret) = fg.callback(blk, handler, pmt).await {
             return Ok(Json::from(ret));
