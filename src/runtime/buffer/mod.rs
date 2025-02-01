@@ -39,10 +39,13 @@ pub trait BufferWriter: Default {
 }
 pub trait CpuBufferReader: BufferReader + Send {
     type Item;
-    fn consume(&mut self);
+    fn consume(&mut self, n: usize);
+    fn slice(&mut self) -> &[Self::Item];
+    fn finished(&self) -> bool;
 }
 pub trait CpuBufferWriter: BufferWriter + Send {
     type Item;
-    fn produce(&mut self);
+    fn produce(&mut self, n: usize);
+    fn slice(&mut self) -> &mut [Self::Item];
 }
 

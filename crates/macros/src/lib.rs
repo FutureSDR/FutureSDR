@@ -744,11 +744,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 STREAM_OUTPUTS
             }
 
-    fn stream_input_finish(&mut self, port_id: PortId) -> Result<(), Error> {
+    fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
         Ok(())
     }
-    fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()> + Send {
-        async {}
+        fn stream_ports_notify_finished(&mut self) -> impl std::future::Future<Output = ()> + Send {
+        async {
+
+        }
     }
             fn message_inputs() -> &'static[&'static str] {
                 static MESSAGE_INPUTS: &[&str] = &[#(#message_input_names),*];

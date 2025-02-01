@@ -74,5 +74,6 @@ pub mod macros {
 
     pub use futuresdr_macros::async_trait;
     pub use futuresdr_macros::connect;
+    pub use futuresdr_macros::Block;
 }
 pub use futuresdr_macros::Block;

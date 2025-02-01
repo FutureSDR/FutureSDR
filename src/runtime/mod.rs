@@ -1,6 +1,4 @@
 //! ## SDR Runtime
-
-use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;

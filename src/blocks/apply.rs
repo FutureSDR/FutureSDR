@@ -1,8 +1,10 @@
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuBufferWriter;
+use crate::macros::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Apply a function to each sample.
@@ -43,48 +45,50 @@ use crate::runtime::WorkIo;
 /// }));
 /// ```
 #[derive(Block)]
-pub struct Apply<F, A, B>
+pub struct Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     f: F,
-    _p1: std::marker::PhantomData<A>,
-    _p2: std::marker::PhantomData<B>,
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
 }
 
-impl<F, A, B> Apply<F, A, B>
+impl<F, A, B, IN, OUT> Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     /// Create [`Apply`] block
     ///
     /// ## Parameter
     /// - `f`: Function to apply on each sample
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<A>("in")
-                .add_output::<B>("out")
-                .build(),
+    pub fn new(f: F) -> Self {
             Self {
                 f,
-                _p1: std::marker::PhantomData,
-                _p2: std::marker::PhantomData,
-            },
-        )
+                input: IN::default(),
+                output: OUT::default(),
+            }
     }
 }
 
 #[doc(hidden)]
-impl<F, A, B> Kernel for Apply<F, A, B>
+impl<F, A, B, IN, OUT> Kernel for Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     async fn work(
         &mut self,
@@ -92,20 +96,21 @@ where
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<A>();
-        let o = sio.output(0).slice::<B>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
 
-        let m = std::cmp::min(i.len(), o.len());
+        let m = std::cmp::min(i_len, o.len());
         if m > 0 {
             for (v, r) in i.iter().zip(o.iter_mut()) {
                 *r = (self.f)(v);
             }
 
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        if self.input.finished() && m == i_len {
             io.finished = true;
         }
 
