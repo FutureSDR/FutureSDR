@@ -1,4 +1,3 @@
-use slab::Slab;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
@@ -29,16 +28,16 @@ impl<K: Kernel> BlockRef<K> {
 /// A [Flowgraph] is what drives the entire program. It is composed of a set of blocks and connections between them.
 /// There is at least one source and one sink in every Flowgraph.
 pub struct Flowgraph {
-    blocks: Slab<Arc<Mutex<dyn Block>>>,
-    stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
-    message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    pub(crate) blocks: Vec<Arc<Mutex<dyn Block>>>,
+    pub(crate) stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    pub(crate) message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
 impl Flowgraph {
     /// Creates a new [Flowgraph].
     pub fn new() -> Flowgraph {
         Flowgraph {
-            blocks: Slab::new(),
+            blocks: Vec::new(),
             stream_edges: vec![],
             message_edges: vec![],
         }
@@ -46,18 +45,20 @@ impl Flowgraph {
 
     /// Add [`Block`] to flowgraph
     pub fn add_block<K: Kernel + KernelInterface>(&mut self, block: K) -> BlockRef<K> {
-        let b = WrappedKernel::new(block);
+        let block_id = self.blocks.len();
+        let b = WrappedKernel::new(block, block_id);
         let block_name = b.type_name();
-        let block_id = self.blocks.vacant_key();
         b.set_instance_name(format!("{}-{}", block_name, block_id));
         let b = Arc::new(Mutex::new(b));
-        self.blocks.insert(b.clone());
+        self.blocks.push(b.clone());
         BlockRef {
             id: block_id.into(),
             block: b,
         }
     }
 
+    /// Make stream connection
+    /// TODO: can we assert through types that the block was added to the flowgraph
     fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
         self.stream_edges.push((
             src_port.block_id(),
@@ -67,26 +68,20 @@ impl Flowgraph {
         ));
         src_port.connect(dst_port);
     }
-    /// Make stream connection
-    pub fn connect_stream(
-        &mut self,
-        src_block: BlockId,
-        src_port: impl Into<PortId>,
-        dst_block: BlockId,
-        dst_port: impl Into<PortId>,
-    ) {
-        self.stream_edges
-            .push((src_block, src_port.into(), dst_block, dst_port.into()));
-    }
 
     /// Make message connection
-    pub fn connect_message(
+    pub fn connect_message<K1: Kernel, K2: Kernel>(
         &mut self,
-        src_block: usize,
+        src_block: BlockRef<K1>,
         src_port: impl Into<PortId>,
-        dst_block: usize,
+        dst_block: BlockRef<K2>,
         dst_port: impl Into<PortId>,
     ) {
+        let dst_box = dst_block.get().inbox_tx.clone();
+        let src_port = src_port.into();
+        let dst_port = dst_port.into();
+
+        src_block.get().mio.connect(src_port, dst_box, dst_port);
         self.message_edges
             .push((src_block, src_port.into(), dst_block, dst_port.into()));
     }

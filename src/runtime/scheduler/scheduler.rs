@@ -1,11 +1,11 @@
 use futures::channel::mpsc::Sender;
 use futures::future::Future;
-use slab::Slab;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::runtime::scheduler::Task;
-use crate::runtime::BlockMessage;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 
 /// Scheduler trait
 ///
@@ -14,11 +14,11 @@ use crate::runtime::Topology;
 pub trait Scheduler: Clone + Send + 'static {
     /// Run a whole [`Flowgraph`](crate::runtime::Flowgraph) on the
     /// [`Runtime`](crate::runtime::Runtime)
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>>;
+    );
 
     /// Spawn a task
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static)

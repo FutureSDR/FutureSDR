@@ -1,6 +1,5 @@
 use async_executor::Executor;
 use async_executor::Task;
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::future::Future;
@@ -13,9 +12,8 @@ use std::thread;
 
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
+use crate::runtime::Block;
 
 static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
@@ -106,35 +104,22 @@ impl SmolScheduler {
 }
 
 impl Scheduler for SmolScheduler {
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
+    ) {
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
-
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender);
-
+        for block in blocks.iter() {
+            let mut block = block.lock().unwrap();
             if block.is_blocking() {
-                self.spawn_blocking(block.run(id, main_channel.clone(), receiver))
+                self.spawn_blocking(block.run(main_channel.clone()))
                     .detach();
             } else {
-                self.spawn(block.run(id, main_channel.clone(), receiver))
+                self.spawn(block.run(main_channel.clone()))
                     .detach();
             }
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(

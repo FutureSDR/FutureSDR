@@ -2,7 +2,7 @@ use std::fmt;
 
 /// Port Identifier
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockId(usize);
+pub struct BlockId(pub usize);
 
 impl From<usize> for BlockId {
     fn from(item: usize) -> Self {

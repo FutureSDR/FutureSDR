@@ -5,8 +5,11 @@ use futures::future::Either;
 use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
+use futuresdr_types::BlockId;
 use std::any::Any;
 use std::fmt;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
@@ -19,9 +22,9 @@ use crate::runtime::KernelInterface;
 use crate::runtime::MessageOutput;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamInputs;
-use crate::runtime::StreamOutputs;
 use crate::runtime::WorkIo;
+use crate::runtime::config;
+use crate::channel::mpsc;
 
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
@@ -34,9 +37,7 @@ pub trait Block: Send + Any {
     /// Run the block.
     async fn run(
         &mut self,
-        block_id: usize,
         main_inbox: Sender<FlowgraphMessage>,
-        inbox: Receiver<BlockMessage>,
     ) -> Result<(), Error>;
 
     // ##### META
@@ -81,13 +82,20 @@ pub struct WrappedKernel<K: Kernel> {
     pub mio: MessageOutputs,
     /// Kernel
     pub kernel: K,
+    /// Block ID
+    pub id: BlockId,
+    /// Inbox for Actor Model
+    pub inbox: mpsc::Receiver<BlockMessage>,
+    /// Sending-side of Inbox
+    pub inbox_tx: mpsc::Sender<BlockMessage>,
 }
 
 impl<K: KernelInterface + Kernel + Send + 'static>
     WrappedKernel<K>
 {
     /// Create Typed Block
-    pub fn new(kernel: K) -> Self {
+    pub fn new(kernel: K, id: BlockId) -> Self {
+        let (tx, rx) = mpsc::channel(config::config().queue_size);
         Self {
             meta: BlockMeta::new(),
             mio: MessageOutputs::new(
@@ -97,6 +105,9 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                     .collect(),
             ),
             kernel,
+            id,
+            inbox: rx,
+            inbox_tx: tx,
         }
     }
 
@@ -110,6 +121,9 @@ impl<K: KernelInterface + Kernel + Send + 'static>
             meta,
             mio,
             kernel,
+            id,
+            inbox,
+            ..
         } = self;
 
         // init work io
@@ -332,25 +346,9 @@ impl<K: KernelInterface + Kernel + Send + 'static>
     // ##### KERNEL
     async fn run(
         &mut self,
-        block_id: usize,
         main_inbox: Sender<FlowgraphMessage>,
-        inbox: Receiver<BlockMessage>,
     ) -> Result<(), Error> {
-        self.run_impl(block_id, main_inbox, inbox).await
-    }
-
-    // ##### STREAM IO
-    fn set_tag_propagation(
-        &mut self,
-        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
-    ) {
-        todo!()
-    }
-    fn stream_input_name_to_id(&self, _name: &str) -> Option<usize> {
-        todo!()
-    }
-    fn stream_output_name_to_id(&self, _name: &str) -> Option<usize> {
-        todo!()
+        self.run_impl(main_inbox).await
     }
 
     // ##### MESSAGE IO

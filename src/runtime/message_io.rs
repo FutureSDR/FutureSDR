@@ -1,8 +1,10 @@
 //! Message/Event/RPC-based Ports
-use futures::channel::mpsc::Sender;
-use futures::prelude::*;
+use futuresdr::channel::mpsc::Sender;
+use futures::SinkExt;
 
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 
@@ -10,7 +12,7 @@ use crate::runtime::PortId;
 #[derive(Debug)]
 pub struct MessageOutput {
     name: String,
-    handlers: Vec<(usize, Sender<BlockMessage>)>,
+    handlers: Vec<(PortId, Sender<BlockMessage>)>,
 }
 
 impl MessageOutput {
@@ -28,7 +30,7 @@ impl MessageOutput {
     }
 
     /// Connect port to downstream message input
-    pub fn connect(&mut self, port: usize, sender: Sender<BlockMessage>) {
+    pub fn connect(&mut self, port: PortId, sender: Sender<BlockMessage>) {
         self.handlers.push((port, sender));
     }
 
@@ -37,7 +39,7 @@ impl MessageOutput {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
-                    port_id: PortId::Index(*port_id),
+                    port_id: port_id.clone(),
                     data: Pmt::Finished,
                 })
                 .await;
@@ -49,7 +51,7 @@ impl MessageOutput {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
-                    port_id: PortId::Index(*port_id),
+                    port_id: port_id.clone(),
                     data: p.clone(),
                 })
                 .await;
@@ -57,7 +59,7 @@ impl MessageOutput {
     }
 }
 
-/// Message IO
+/// Message Outputs
 #[derive(Debug)]
 pub struct MessageOutputs {
     outputs: Vec<MessageOutput>,
@@ -69,38 +71,22 @@ impl MessageOutputs {
         let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
         MessageOutputs { outputs }
     }
-
-    /// Get all outputs
-    pub fn outputs(&self) -> &Vec<MessageOutput> {
-        &self.outputs
+    /// Post data to connected downstream ports
+    pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
+        let id = id.into();
+        self.output_mut(&id).ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?.post(p).await;
+        Ok(())
     }
-
-    /// Get all outputs mutable
-    pub fn outputs_mut(&mut self) -> &mut Vec<MessageOutput> {
-        &mut self.outputs
+    /// Connect Message Output Port
+    pub async fn connect(&mut self, src_port: &PortId, dst_block_inbox: Sender<BlockMessage>, dst_port: &PortId) -> Result<(), Error> {
+        self.output_mut(src_port).ok_or_else(||Error::InvalidMessagePort(BlockPortCtx::None, src_port.clone()))?.connect(
+           dst_port.clone(), dst_block_inbox);
+        Ok(())
     }
-
-    /// Get output port
-    pub fn output(&self, id: usize) -> &MessageOutput {
-        &self.outputs[id]
-    }
-
-    /// Get output port mutable
-    pub fn output_mut(&mut self, id: usize) -> &mut MessageOutput {
-        &mut self.outputs[id]
-    }
-
     /// Get output port Id, given its name
-    pub fn output_name_to_id(&self, name: &str) -> Option<usize> {
+    fn output_mut(&self, port: &PortId) -> Option<&mut MessageOutput> {
         self.outputs
             .iter()
-            .enumerate()
-            .find(|item| item.1.name() == name)
-            .map(|(i, _)| i)
-    }
-
-    /// Post data to connected downstream ports
-    pub async fn post(&mut self, id: usize, p: Pmt) {
-        self.output_mut(id).post(p).await;
+            .find(|item| item.name() == port.into())
     }
 }

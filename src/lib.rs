@@ -62,6 +62,11 @@ pub use seify;
 pub mod blocks;
 pub mod runtime;
 
+pub mod channel {
+    pub use futures::channel::mpsc;
+    pub use futures::channel::oneshot;
+}
+
 /// Macros
 pub mod macros {
     #[doc(hidden)]

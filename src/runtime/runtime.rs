@@ -364,23 +364,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         return Err(e);
     }
 
-    let mut inboxes = scheduler.run_flowgraph(&mut fg, &main_channel);
-
-    debug!("connect message io");
-    // connect message IO
-    for (src, src_port, dst, dst_port) in fg.message_edges.iter() {
-        let dst_box = inboxes[*dst].as_ref().unwrap().clone();
-        inboxes[*src]
-            .as_mut()
-            .unwrap()
-            .send(BlockMessage::MessageOutputConnect {
-                src_port: *src_port,
-                dst_port: *dst_port,
-                dst_inbox: dst_box,
-            })
-            .await
-            .unwrap();
-    }
+    scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
     debug!("init blocks");
     // init blocks

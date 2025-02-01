@@ -2,7 +2,7 @@ use std::fmt;
 
 /// Port Identifier
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PortId(String);
+pub struct PortId(pub String);
 
 impl From<&str> for PortId {
     fn from(item: &str) -> Self {
