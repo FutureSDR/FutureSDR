@@ -1,19 +1,17 @@
-use futures::channel::mpsc::Sender;
 use futures::prelude::*;
-use std::any::Any;
 use std::fmt;
 use vmcircbuffer::generic;
 
-use crate::runtime::buffer::BufferBuilder;
+use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::BufferWriterHost;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::config;
+use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
-
-// everything is measured in items, e.g., offsets, capacity, space available
+use crate::runtime::PortId;
 
 struct MyNotifier {
     sender: Sender<BlockMessage>,
@@ -54,206 +52,174 @@ impl generic::Metadata for MyMetadata {
     }
 }
 
-/// Circular builder
-#[derive(Clone, Debug, PartialEq, Hash)]
-pub struct Circular {
-    min_bytes: usize,
+/// Circular writer
+#[derive(Debug)]
+pub struct Writer<D> {
+    min_bytes: Option<usize>,
+    min_items: Option<usize>,
+    inbox: Option<Sender<BlockMessage>>,
+    block_id: Option<BlockId>,
+    port_id: Option<PortId>,
+    writer: Option<generic::Writer<D, MyNotifier, MyMetadata>>,
+    readers: Vec<(PortId, Sender<BlockMessage>)>,
+    finished: bool,
 }
 
-impl Eq for Circular {}
-
-impl Circular {
-    /// Create Circular builder
-    pub fn new() -> Circular {
-        Circular {
-            min_bytes: config::config().buffer_size,
+impl<D> Writer<D> {
+    fn new() -> Self {
+        Self {
+            min_bytes: None,
+            min_items: None,
+            inbox: None,
+            block_id: None,
+            port_id: None,
+            writer: None,
+            readers: vec![],
+            finished: false,
         }
     }
-    /// Create Circular builder with minimum size
-    pub fn with_size(min_bytes: usize) -> Circular {
-        Circular { min_bytes }
-    }
 }
 
-impl Default for Circular {
+impl<D> Default for Writer<D> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BufferBuilder for Circular {
-    fn build(
-        &self,
-        item_size: usize,
-        writer_inbox: Sender<BlockMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        BufferWriter::Host(Box::new(Writer::new(
-            item_size,
-            self.min_bytes,
-            writer_inbox,
-            writer_output_id,
-        )))
+impl<D> BufferWriter for Writer<D> {
+    type Reader = Reader<D>;
+
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
     }
-}
+    fn connect(&mut self, dest: &mut Self::Reader) {
+        // let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
+        // let mut buffer_size = page_size;
+        //
+        // let item_size = std::mem::size_of::<D>();
+        // while (buffer_size < min_bytes) || (buffer_size % item_size != 0) {
+        //     buffer_size += page_size;
+        // }
+        //
+        // WriterInner {
+        //     writer: generic::Circular::with_capacity(buffer_size).unwrap(),
+        //     readers: Vec::new(),
+        //     inbox,
+        //     output_id,
+        //     finished: false,
+        // }
+        todo!()
+    }
 
-/// Circular writer
-pub struct Writer {
-    writer: generic::Writer<u8, MyNotifier, MyMetadata>,
-    readers: Vec<(Sender<BlockMessage>, usize)>,
-    item_size: usize,
-    inbox: Sender<BlockMessage>,
-    output_id: usize,
-    finished: bool,
-}
-
-impl Writer {
-    /// Create Circular writer
-    pub fn new(
-        item_size: usize,
-        min_bytes: usize,
-        inbox: Sender<BlockMessage>,
-        output_id: usize,
-    ) -> Writer {
-        let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
-        let mut buffer_size = page_size;
-
-        while (buffer_size < min_bytes) || (buffer_size % item_size != 0) {
-            buffer_size += page_size;
-        }
-
-        Writer {
-            writer: generic::Circular::with_capacity(buffer_size).unwrap(),
-            readers: Vec::new(),
-            item_size,
-            inbox,
-            output_id,
-            finished: false,
+    async fn notify_finished(&mut self) {
+        for i in self.readers.iter_mut() {
+            let _ =
+                i.1.send(BlockMessage::StreamInputDone {
+                    input_id: i.0.clone(),
+                })
+                .await;
         }
     }
 }
 
-impl fmt::Debug for Writer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("circular::Writer")
-            .field("item_size", &self.item_size)
-            .field("output_id", &self.output_id)
-            .field("finished", &self.finished)
-            .finish()
-    }
-}
+impl<D> CpuBufferWriter for Writer<D> {
+    type Item = D;
+    // fn add_reader(&mut self, inbox: Sender<BlockMessage>, input_id: usize) -> BufferReader {
+    //     let writer_notifier = MyNotifier {
+    //         sender: self.inbox.clone(),
+    //     };
+    //
+    //     let reader_notifier = MyNotifier {
+    //         sender: inbox.clone(),
+    //     };
+    //
+    //     let reader = self.writer.add_reader(reader_notifier, writer_notifier);
+    //
+    //     self.readers.push((inbox, input_id));
+    //
+    //     BufferReader::Host(Box::new(Reader {
+    //         reader,
+    //         item_size: self.item_size,
+    //         finished: false,
+    //         writer_inbox: self.inbox.clone(),
+    //         writer_output_id: self.output_id,
+    //     }))
+    // }
 
-#[async_trait]
-impl BufferWriterHost for Writer {
-    fn add_reader(&mut self, inbox: Sender<BlockMessage>, input_id: usize) -> BufferReader {
-        let writer_notifier = MyNotifier {
-            sender: self.inbox.clone(),
-        };
-
-        let reader_notifier = MyNotifier {
-            sender: inbox.clone(),
-        };
-
-        let reader = self.writer.add_reader(reader_notifier, writer_notifier);
-
-        self.readers.push((inbox, input_id));
-
-        BufferReader::Host(Box::new(Reader {
-            reader,
-            item_size: self.item_size,
-            finished: false,
-            writer_inbox: self.inbox.clone(),
-            writer_output_id: self.output_id,
-        }))
+    fn produce(&mut self, items: usize) {
+        self.writer.produce(items * self.item_size, vec![]);
     }
 
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn produce(&mut self, items: usize, mut tags: Vec<ItemTag>) {
+    fn produce_with_tags(&mut self, items: usize, mut tags: Vec<ItemTag>) {
         for t in tags.iter_mut() {
             t.index *= self.item_size;
         }
         self.writer.produce(items * self.item_size, tags);
     }
 
-    fn bytes(&mut self) -> (*mut u8, usize) {
-        let s = self.writer.slice(false);
-        (s.as_mut_ptr(), s.len())
+    fn slice(&mut self) -> &mut [Self::Item] {
+        self.inner().as_mut().unwrap().writer.slice(false)
     }
+}
 
+impl<D> fmt::Debug for Writer<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("circular::Writer")
+            .field("items", &D::type_name())
+            .field("output_id", &self.output_id)
+            .field("finished", &self.finished)
+            .finish()
+    }
+}
+
+/// Circular Reader
+#[derive(Default)]
+pub struct Reader<D> {
+    reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
+    finished: bool,
+    writer_inbox: Option<Sender<BlockMessage>>,
+    writer_output_id: Option<PortId>,
+}
+
+impl<D> BufferReader for Reader<D> {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {}
     async fn notify_finished(&mut self) {
-        if self.finished {
-            return;
-        }
-
-        for i in self.readers.iter_mut() {
-            let _ =
-                i.0.send(BlockMessage::StreamInputDone { input_id: i.1 })
-                    .await;
-        }
+        let _ = self
+            .writer_inbox
+            .send(BlockMessage::StreamOutputDone {
+                output_id: self.writer_output_id.clone(),
+            })
+            .await;
     }
 
     fn finish(&mut self) {
         self.finished = true;
     }
 
-    fn finished(&self) -> bool {
+    fn finished(&mut self) {
         self.finished
     }
 }
 
-/// Circular reader
-pub struct Reader {
-    reader: generic::Reader<u8, MyNotifier, MyMetadata>,
-    item_size: usize,
-    finished: bool,
-    writer_inbox: Sender<BlockMessage>,
-    writer_output_id: usize,
-}
+impl<D> CpuBufferReader for Reader<D> {
+    type Item = D;
 
-#[async_trait]
-impl BufferReaderHost for Reader {
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+    fn slice(&mut self) -> &[Self::Item] {
+        self.slice_with_tags().0
     }
 
-    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], Vec<ItemTag>) {
         if let Some((s, mut tags)) = self.reader.slice(false) {
-            for t in tags.iter_mut() {
-                t.index /= self.item_size;
-            }
-            (s.as_ptr(), s.len(), tags)
+            (s, tags)
         } else {
-            (std::ptr::null(), 0, Vec::new())
+            (&[], Vec::new())
         }
     }
 
     fn consume(&mut self, amount: usize) {
         self.reader.consume(amount * self.item_size);
-    }
-
-    async fn notify_finished(&mut self) {
-        if self.finished {
-            return;
-        }
-
-        let _ = self
-            .writer_inbox
-            .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output_id,
-            })
-            .await;
-        // note: maybe we need to drop the reader here
-    }
-
-    fn finish(&mut self) {
-        self.finished = true;
-    }
-
-    fn finished(&self) -> bool {
-        self.finished
     }
 }
 

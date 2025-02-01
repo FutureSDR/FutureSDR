@@ -7,11 +7,13 @@ use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::config;
 use futuresdr::runtime::BlockDescription;
+use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockPortCtx;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::FlowgraphMessage;
@@ -20,8 +22,6 @@ use futuresdr::runtime::KernelInterface;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
-use futuresdr::runtime::config;
-use futuresdr::channel::mpsc;
 
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
@@ -32,10 +32,7 @@ pub trait Block: Send + Any {
     /// Cast block to [std::any::Any] mutably.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Run the block.
-    async fn run(
-        &mut self,
-        main_inbox: Sender<FlowgraphMessage>,
-    ) -> Result<(), Error>;
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>;
     /// Get the inbox of the block
     fn inbox(&self) -> Sender<BlockMessage>;
     /// Get the ID of the block
@@ -77,9 +74,7 @@ pub struct WrappedKernel<K: Kernel> {
     pub inbox_tx: mpsc::Sender<BlockMessage>,
 }
 
-impl<K: KernelInterface + Kernel + Send + 'static>
-    WrappedKernel<K>
-{
+impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
     /// Create Typed Block
     pub fn new(kernel: K, id: BlockId) -> Self {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
@@ -98,10 +93,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
         }
     }
 
-    async fn run_impl(
-        &mut self,
-        mut main_inbox: Sender<FlowgraphMessage>,
-    ) -> Result<(), Error> {
+    async fn run_impl(&mut self, mut main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
         let WrappedKernel {
             meta,
             mio,
@@ -157,10 +149,14 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                 match inbox.next().now_or_never() {
                     Some(Some(BlockMessage::Notify)) => {}
                     Some(Some(BlockMessage::BlockDescription { tx })) => {
-                        let stream_inputs = K::stream_inputs().iter().map(|n| n.to_string()).collect();
-                        let stream_outputs = K::stream_outputs().iter().map(|n| n.to_string()).collect();
-                        let message_inputs = K::message_inputs().iter().map(|n| n.to_string()).collect();
-                        let message_outputs = K::message_outputs().iter().map(|n| n.to_string()).collect();
+                        let stream_inputs =
+                            K::stream_inputs().iter().map(|n| n.to_string()).collect();
+                        let stream_outputs =
+                            K::stream_outputs().iter().map(|n| n.to_string()).collect();
+                        let message_inputs =
+                            K::message_inputs().iter().map(|n| n.to_string()).collect();
+                        let message_outputs =
+                            K::message_outputs().iter().map(|n| n.to_string()).collect();
 
                         let description = BlockDescription {
                             id: self.id,
@@ -282,7 +278,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
                 return Err(Error::RuntimeError(e.to_string()));
             }
 
-            futures_lite::future::yield_now().await;
+            futuresdr::runtime::futures::yield_now().await;
         }
 
         Ok(())
@@ -290,9 +286,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
 }
 
 #[async_trait]
-impl<K: KernelInterface + Kernel + Send + 'static>
-    Block for WrappedKernel<K>
-{
+impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
     // ##### Block
     fn as_any(&self) -> &dyn Any {
         self
@@ -322,10 +316,7 @@ impl<K: KernelInterface + Kernel + Send + 'static>
     }
 
     // ##### KERNEL
-    async fn run(
-        &mut self,
-        main_inbox: Sender<FlowgraphMessage>,
-    ) -> Result<(), Error> {
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
         self.run_impl(main_inbox).await
     }
 }
@@ -342,4 +333,3 @@ impl<K: Kernel> DerefMut for WrappedKernel<K> {
         &mut self.kernel
     }
 }
-

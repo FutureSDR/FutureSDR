@@ -10,10 +10,10 @@ use async_task::Task;
 use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
-use futures_lite::future::Future;
 use slab::Slab;
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::sync::Arc;
 use std::thread;
 

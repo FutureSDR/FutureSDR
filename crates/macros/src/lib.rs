@@ -723,6 +723,27 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
+    let stream_ports_init = stream_input_names.iter().chain(stream_output_names.iter()).map(|n| {
+        let n_ident = Ident::new(n, Span::call_site());
+        quote! {
+            self.#n_ident.init(block_id, PortId(#n), inbox.clone());
+        }
+    });
+
+    let notify_stream_ports = stream_input_names.iter().chain(stream_output_names.iter()).map(|n| {
+        let n = Ident::new(n, Span::call_site());
+        quote! {
+            self.#n.notify_finished().await;
+        }
+    });
+
+    let stream_input_finish_mathes = stream_input_names.iter().map(|n| {
+        let n_ident = Ident::new(n, Span::call_site());
+        quote! {
+            PortId(#n) => self.#n_ident.finish(),
+        }
+    });
+
     // Generate the KernelInterface implementation
     let expanded = quote! {
         impl #generics ::futuresdr::runtime::KernelInterface for #struct_name #unconstraint_generics
@@ -744,14 +765,27 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 STREAM_OUTPUTS
             }
 
-    fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
-        Ok(())
-    }
-        fn stream_ports_notify_finished(&mut self) -> impl std::future::Future<Output = ()> + Send {
-        async {
+            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inbox: ::futuresdr::channel::mpsc::Sender<::futuresdr::runtime::BlockMessage>) {
+                use ::futuresdr::runtime::PortId;
+                #(#stream_ports_init)*
+            }
 
-        }
-    }
+            fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
+                use ::futuresdr::runtime::Error;
+                use ::futuresdr::runtime::PortId;
+                use ::futuresdr::runtime::BlockPortCtx;
+                match &port_id {
+                    #(#stream_input_finish_mathes)*
+                    _ => return Err(Error::InvalidMessagePort(BlockPortCtx::None, port_id)),
+                }
+                Ok(())
+            }
+
+            fn stream_ports_notify_finished(&mut self) -> impl std::future::Future<Output = ()> + Send {
+                async {
+                    #(#notify_stream_ports)*
+                }
+            }
             fn message_inputs() -> &'static[&'static str] {
                 static MESSAGE_INPUTS: &[&str] = &[#(#message_input_names),*];
                 MESSAGE_INPUTS
@@ -787,7 +821,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         #kernel
     };
-    // println!("{}", pretty_print(&expanded));
+    println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
 }
 

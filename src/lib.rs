@@ -51,7 +51,6 @@ pub use async_io;
 pub use async_net;
 pub use futuredsp;
 pub use futures;
-pub use futures_lite;
 #[cfg(all(feature = "audio", not(target_arch = "wasm32")))]
 pub use hound;
 pub use num_complex;
@@ -72,8 +71,7 @@ pub mod macros {
     #[doc(hidden)]
     pub use async_trait::async_trait as async_trait_orig;
 
+    pub use futuresdr_macros::Block;
     pub use futuresdr_macros::async_trait;
     pub use futuresdr_macros::connect;
-    pub use futuresdr_macros::Block;
 }
-pub use futuresdr_macros::Block;

@@ -1,5 +1,5 @@
 //! ## SDR Runtime
-use futures::channel::oneshot;
+use futuresdr::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
@@ -31,8 +31,8 @@ mod flowgraph;
 mod flowgraph_handle;
 mod kernel;
 pub mod message_io;
-#[cfg(not(target_arch = "wasm32"))]
-mod mocker;
+// #[cfg(not(target_arch = "wasm32"))]
+// mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
@@ -48,8 +48,8 @@ pub use kernel::Kernel;
 pub use kernel::KernelInterface;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
-#[cfg(not(target_arch = "wasm32"))]
-pub use mocker::Mocker;
+// #[cfg(not(target_arch = "wasm32"))]
+// pub use mocker::Mocker;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 pub use tag::ItemTag;
@@ -91,13 +91,9 @@ pub enum FlowgraphMessage {
     /// Initialize
     Initialized,
     /// Block is Done
-    BlockDone {
-        block_id: BlockId,
-    },
+    BlockDone { block_id: BlockId },
     /// Block Error
-    BlockError {
-        block_id: BlockId,
-    },
+    BlockError { block_id: BlockId },
     /// Call handler of block (ignoring result)
     BlockCall {
         /// Block Id
@@ -261,6 +257,41 @@ impl Display for BlockPortCtx {
             BlockPortCtx::None => write!(f, "<None>"),
             BlockPortCtx::Id(id) => write!(f, "ID {id}"),
             BlockPortCtx::Name(name) => write!(f, "{name}"),
+        }
+    }
+}
+
+mod futures {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::task::Context;
+    use std::task::Poll;
+
+    /// Wakes the current task and returns [`Poll::Pending`] once.
+    ///
+    /// This function is useful when we want to cooperatively give time to the task scheduler. It is
+    /// generally a good idea to yield inside loops because that way we make sure long-running tasks
+    /// don't prevent other tasks from running.
+    pub fn yield_now() -> YieldNow {
+        YieldNow(false)
+    }
+
+    /// Future for the [`yield_now()`] function.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct YieldNow(bool);
+
+    impl Future for YieldNow {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            if !self.0 {
+                self.0 = true;
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            } else {
+                Poll::Ready(())
+            }
         }
     }
 }

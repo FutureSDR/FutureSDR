@@ -5,7 +5,7 @@ use futures::channel::oneshot;
 use futures::future::Future;
 use futures::task::Context;
 use futures::task::Poll;
-use futures_lite::FutureExt;
+use futures::FutureExt;
 use slab::Slab;
 use std::pin::Pin;
 

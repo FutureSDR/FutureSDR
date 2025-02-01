@@ -4,8 +4,8 @@ use futures::channel::mpsc::Sender;
 use std::any::Any;
 use std::fmt::Debug;
 
-use crate::runtime::buffer::BufferReaderHost;
-use crate::runtime::buffer::BufferWriterHost;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::BufferReader;
@@ -16,21 +16,21 @@ use crate::runtime::Kernel;
 use crate::runtime::KernelInterface;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use crate::runtime::WrappedKernel;
 
 /// Mocker for a block
 ///
 /// A harness to run a block without a runtime. Used for unit tests and benchmarking.
 pub struct Mocker<K> {
-    block: TypedBlock<K>,
+    block: WrappedKernel<K>,
     message_sinks: Vec<Receiver<BlockMessage>>,
     messages: Vec<Vec<Pmt>>,
 }
 
 impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// Create mocker
-    pub fn new(mut block: TypedBlock<K>) -> Self {
+    pub fn new(mut kernel: K) -> Self {
         let mut messages = Vec::new();
         let mut message_sinks = Vec::new();
         let msg_len = config().queue_size;

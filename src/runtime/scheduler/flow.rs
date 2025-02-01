@@ -6,9 +6,9 @@ use concurrent_queue::ConcurrentQueue;
 use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
-use futures_lite::future::Future;
-use futures_lite::future::FutureExt;
-use futures_lite::future::{self};
+use futures::Future;
+use futures::FutureExt;
+use futures::{self};
 use slab::Slab;
 use std::fmt;
 use std::panic::RefUnwindSafe;
@@ -192,29 +192,6 @@ impl Default for FlowScheduler {
 }
 
 /// An async executor.
-///
-/// # Examples
-///
-/// A multi-threaded executor:
-///
-/// ```
-/// use async_channel::unbounded;
-/// use async_executor::Executor;
-/// use easy_parallel::Parallel;
-/// use futures_lite::future;
-///
-/// let ex = Executor::new();
-/// let (signal, shutdown) = unbounded::<()>();
-///
-/// Parallel::new()
-///     // Run four executor threads.
-///     .each(0..4, |_| future::block_on(ex.run(shutdown.recv())))
-///     // Run the main future on the current thread.
-///     .finish(|| future::block_on(async {
-///         println!("Hello world!");
-///         drop(signal);
-///     }));
-/// ```
 pub struct FlowExecutor {
     /// The executor state.
     state: once_cell::sync::OnceCell<Arc<State>>,
@@ -309,20 +286,6 @@ impl FlowExecutor {
     }
 
     /// Runs the executor until the given future completes.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use async_executor::Executor;
-    /// use futures_lite::future;
-    ///
-    /// let ex = Executor::new();
-    ///
-    /// let task = ex.spawn(async { 1 + 2 });
-    /// let res = future::block_on(ex.run(async { task.await * 2 }));
-    ///
-    /// assert_eq!(res, 6);
-    /// ```
     pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
         let runner = Runner::new(self.state());
 

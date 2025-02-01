@@ -1,5 +1,8 @@
 use std::future::Future;
 
+use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::BlockId;
+use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::MessageOutputs;
@@ -83,9 +86,13 @@ pub trait KernelInterface {
     fn stream_inputs() -> &'static [&'static str];
     /// Output Stream Ports.
     fn stream_outputs() -> &'static [&'static str];
+    /// Initialize Stream Ports
+    ///
+    /// This sets required variables but does not connect.
+    fn stream_ports_init(&mut self, block_id: BlockId, inbox: Sender<BlockMessage>);
     /// Mark stream input as finished
     fn stream_input_finish(&mut self, port_id: PortId) -> Result<(), Error>;
-    /// Mark stream input as finished
+    /// Tell adjacent blocks that we are done
     fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()> + Send;
     /// Input Message Handler Names.
     fn message_inputs() -> &'static [&'static str];

@@ -22,7 +22,7 @@ use triggered::Trigger;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::channel::mpsc::Sender;
 use futuresdr::futures::SinkExt;
-use futuresdr::futures_lite::StreamExt;
+use futuresdr::futures::StreamExt;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::Pmt;
