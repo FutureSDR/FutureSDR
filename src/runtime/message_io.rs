@@ -1,6 +1,6 @@
 //! Message/Event/RPC-based Ports
-use futuresdr::channel::mpsc::Sender;
 use futures::SinkExt;
+use futuresdr::channel::mpsc::Sender;
 
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
@@ -74,13 +74,22 @@ impl MessageOutputs {
     /// Post data to connected downstream ports
     pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
         let id = id.into();
-        self.output_mut(&id).ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?.post(p).await;
+        self.output_mut(&id)
+            .ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?
+            .post(p)
+            .await;
         Ok(())
     }
     /// Connect Message Output Port
-    pub async fn connect(&mut self, src_port: &PortId, dst_block_inbox: Sender<BlockMessage>, dst_port: &PortId) -> Result<(), Error> {
-        self.output_mut(src_port).ok_or_else(||Error::InvalidMessagePort(BlockPortCtx::None, src_port.clone()))?.connect(
-           dst_port.clone(), dst_block_inbox);
+    pub async fn connect(
+        &mut self,
+        src_port: &PortId,
+        dst_block_inbox: Sender<BlockMessage>,
+        dst_port: &PortId,
+    ) -> Result<(), Error> {
+        self.output_mut(src_port)
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::None, src_port.clone()))?
+            .connect(dst_port.clone(), dst_block_inbox);
         Ok(())
     }
     /// Tell all downstream message receivers that we are done.
@@ -90,9 +99,7 @@ impl MessageOutputs {
         }
     }
     /// Get output port Id, given its name
-    fn output_mut(&self, port: &PortId) -> Option<&mut MessageOutput> {
-        self.outputs
-            .iter()
-            .find(|item| item.name() == port.into())
+    fn output_mut(&mut self, port: &PortId) -> Option<&mut MessageOutput> {
+        self.outputs.iter_mut().find(|item| item.name() == port.0)
     }
 }

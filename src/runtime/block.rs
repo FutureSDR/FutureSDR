@@ -81,7 +81,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
         Self {
             meta: BlockMeta::new(),
             mio: MessageOutputs::new(
-                K::message_output_names()
+                K::message_outputs()
                     .iter()
                     .map(|x| x.to_string())
                     .collect(),
@@ -298,7 +298,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
         self.inbox_tx.clone()
     }
     fn id(&self) -> BlockId {
-        self.block_id
+        self.id
     }
 
     // ##### META

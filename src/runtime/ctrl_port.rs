@@ -19,6 +19,7 @@ use tower_http::services::ServeDir;
 use crate::runtime::config;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
+use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -34,7 +35,7 @@ macro_rules! relative {
     };
 }
 
-async fn flowgraphs(State(rt): State<RuntimeHandle>) -> Json<Vec<usize>> {
+async fn flowgraphs(State(rt): State<RuntimeHandle>) -> Json<Vec<FlowgraphId>> {
     Json::from(rt.get_flowgraphs())
 }
 

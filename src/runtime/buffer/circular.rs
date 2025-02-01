@@ -7,7 +7,6 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::config;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
@@ -53,8 +52,7 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-#[derive(Debug)]
-pub struct Writer<D> {
+pub struct Writer<D: Default + Send + Sync> {
     min_bytes: Option<usize>,
     min_items: Option<usize>,
     inbox: Option<Sender<BlockMessage>>,
@@ -65,7 +63,7 @@ pub struct Writer<D> {
     finished: bool,
 }
 
-impl<D> Writer<D> {
+impl<D: Default + Send + Sync> Writer<D> {
     fn new() -> Self {
         Self {
             min_bytes: None,
@@ -80,13 +78,13 @@ impl<D> Writer<D> {
     }
 }
 
-impl<D> Default for Writer<D> {
+impl<D: Default + Send + Sync> Default for Writer<D> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D> BufferWriter for Writer<D> {
+impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
@@ -94,7 +92,7 @@ impl<D> BufferWriter for Writer<D> {
         self.port_id = Some(port_id);
         self.inbox = Some(inbox);
     }
-    fn connect(&mut self, dest: &mut Self::Reader) {
+    fn connect(&mut self, _dest: &mut Self::Reader) {
         // let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
         // let mut buffer_size = page_size;
         //
@@ -112,7 +110,6 @@ impl<D> BufferWriter for Writer<D> {
         // }
         todo!()
     }
-
     async fn notify_finished(&mut self) {
         for i in self.readers.iter_mut() {
             let _ =
@@ -122,9 +119,16 @@ impl<D> BufferWriter for Writer<D> {
                 .await;
         }
     }
+    fn block_id(&self) -> BlockId {
+        self.block_id.unwrap()
+    }
+
+    fn port_id(&self) -> PortId {
+        self.port_id.as_ref().unwrap().clone()
+    }
 }
 
-impl<D> CpuBufferWriter for Writer<D> {
+impl<D: Default + Send + Sync> CpuBufferWriter for Writer<D> {
     type Item = D;
     // fn add_reader(&mut self, inbox: Sender<BlockMessage>, input_id: usize) -> BufferReader {
     //     let writer_notifier = MyNotifier {
@@ -149,26 +153,22 @@ impl<D> CpuBufferWriter for Writer<D> {
     // }
 
     fn produce(&mut self, items: usize) {
-        self.writer.produce(items * self.item_size, vec![]);
+        self.writer.as_mut().unwrap().produce(items, vec![]);
     }
 
-    fn produce_with_tags(&mut self, items: usize, mut tags: Vec<ItemTag>) {
-        for t in tags.iter_mut() {
-            t.index *= self.item_size;
-        }
-        self.writer.produce(items * self.item_size, tags);
+    fn produce_with_tags(&mut self, items: usize, tags: Vec<ItemTag>) {
+        self.writer.as_mut().unwrap().produce(items, tags);
     }
 
     fn slice(&mut self) -> &mut [Self::Item] {
-        self.inner().as_mut().unwrap().writer.slice(false)
+        self.writer.as_mut().unwrap().slice(false)
     }
 }
 
-impl<D> fmt::Debug for Writer<D> {
+impl<D: Default + Send + Sync> fmt::Debug for Writer<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
-            .field("items", &D::type_name())
-            .field("output_id", &self.output_id)
+            .field("output_id", &self.port_id)
             .field("finished", &self.finished)
             .finish()
     }
@@ -176,20 +176,29 @@ impl<D> fmt::Debug for Writer<D> {
 
 /// Circular Reader
 #[derive(Default)]
-pub struct Reader<D> {
+pub struct Reader<D: Default + Send + Sync> {
     reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
     finished: bool,
     writer_inbox: Option<Sender<BlockMessage>>,
     writer_output_id: Option<PortId>,
+    block_id: Option<BlockId>,
+    port_id: Option<PortId>,
+    inbox: Option<Sender<BlockMessage>>,
 }
 
-impl<D> BufferReader for Reader<D> {
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {}
+impl<D: Default + Send + Sync> BufferReader for Reader<D> {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
+    }
     async fn notify_finished(&mut self) {
         let _ = self
             .writer_inbox
+            .as_mut()
+            .unwrap()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output_id.clone(),
+                output_id: self.writer_output_id.as_ref().unwrap().clone(),
             })
             .await;
     }
@@ -198,12 +207,19 @@ impl<D> BufferReader for Reader<D> {
         self.finished = true;
     }
 
-    fn finished(&mut self) {
+    fn finished(&mut self) -> bool {
         self.finished
+    }
+    fn block_id(&self) -> BlockId {
+        self.block_id.unwrap()
+    }
+
+    fn port_id(&self) -> PortId {
+        self.port_id.as_ref().unwrap().clone()
     }
 }
 
-impl<D> CpuBufferReader for Reader<D> {
+impl<D: Default + Send + Sync> CpuBufferReader for Reader<D> {
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {
@@ -211,7 +227,7 @@ impl<D> CpuBufferReader for Reader<D> {
     }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], Vec<ItemTag>) {
-        if let Some((s, mut tags)) = self.reader.slice(false) {
+        if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
             (s, tags)
         } else {
             (&[], Vec::new())
@@ -219,14 +235,13 @@ impl<D> CpuBufferReader for Reader<D> {
     }
 
     fn consume(&mut self, amount: usize) {
-        self.reader.consume(amount * self.item_size);
+        self.reader.as_mut().unwrap().consume(amount);
     }
 }
 
-impl fmt::Debug for Reader {
+impl<D: Default + Send + Sync> fmt::Debug for Reader<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")
-            .field("item_size", &self.item_size)
             .field("writer_output_id", &self.writer_output_id)
             .field("finished", &self.finished)
             .finish()

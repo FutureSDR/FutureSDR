@@ -726,7 +726,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let stream_ports_init = stream_input_names.iter().chain(stream_output_names.iter()).map(|n| {
         let n_ident = Ident::new(n, Span::call_site());
         quote! {
-            self.#n_ident.init(block_id, PortId(#n), inbox.clone());
+            self.#n_ident.init(block_id, PortId(#n.to_string()), inbox.clone());
         }
     });
 
@@ -737,10 +737,10 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
-    let stream_input_finish_mathes = stream_input_names.iter().map(|n| {
+    let stream_input_finish_matches = stream_input_names.iter().map(|n| {
         let n_ident = Ident::new(n, Span::call_site());
         quote! {
-            PortId(#n) => self.#n_ident.finish(),
+            #n => self.#n_ident.finish(),
         }
     });
 
@@ -774,8 +774,8 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::PortId;
                 use ::futuresdr::runtime::BlockPortCtx;
-                match &port_id {
-                    #(#stream_input_finish_mathes)*
+                match port_id.0.as_str() {
+                    #(#stream_input_finish_matches)*
                     _ => return Err(Error::InvalidMessagePort(BlockPortCtx::None, port_id)),
                 }
                 Ok(())
@@ -821,7 +821,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         #kernel
     };
-    println!("{}", pretty_print(&expanded));
+    // println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
 }
 

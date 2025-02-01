@@ -4,6 +4,7 @@ use std::sync::MutexGuard;
 
 use crate::runtime::Block;
 use crate::runtime::BlockId;
+use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
 use crate::runtime::Error;
 use crate::runtime::Kernel;
@@ -44,11 +45,11 @@ impl Flowgraph {
     }
 
     /// Add [`Block`] to flowgraph
-    pub fn add_block<K: Kernel + KernelInterface>(&mut self, block: K) -> BlockRef<K> {
-        let block_id = self.blocks.len();
-        let b = WrappedKernel::new(block, block_id);
+    pub fn add_block<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
+        let block_id = BlockId(self.blocks.len());
+        let mut b = WrappedKernel::new(block, block_id);
         let block_name = b.type_name();
-        b.set_instance_name(format!("{}-{}", block_name, block_id));
+        b.set_instance_name(&format!("{}-{}", block_name, block_id));
         let b = Arc::new(Mutex::new(b));
         self.blocks.push(b.clone());
         BlockRef {
@@ -58,7 +59,6 @@ impl Flowgraph {
     }
 
     /// Make stream connection
-    /// TODO: can we assert through types that the block was added to the flowgraph
     fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
         self.stream_edges.push((
             src_port.block_id(),
@@ -81,9 +81,9 @@ impl Flowgraph {
         let src_port = src_port.into();
         let dst_port = dst_port.into();
 
-        src_block.get().mio.connect(src_port, dst_box, dst_port);
+        src_block.get().mio.connect(&src_port, dst_box, &dst_port);
         self.message_edges
-            .push((src_block, src_port.into(), dst_block, dst_port.into()));
+            .push((src_block.id, src_port.into(), dst_block.id, dst_port.into()));
     }
 
     pub fn validate(&self) -> Result<(), Error> {

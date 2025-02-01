@@ -17,7 +17,6 @@ use std::task::Poll;
 
 use crate::runtime;
 use crate::runtime::config;
-use crate::runtime::BlockId;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::scheduler::SmolScheduler;
@@ -25,12 +24,14 @@ use crate::runtime::scheduler::Task;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
 use crate::runtime::Error;
 use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
+use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 
@@ -330,9 +331,11 @@ impl RuntimeHandle {
     }
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers
-    fn add_flowgraph(&self, handle: FlowgraphHandle) -> usize {
+    fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
         let mut v = self.flowgraphs.lock().unwrap();
-        v.push(handle)
+        let l = v.len();
+        v.push(handle);
+        FlowgraphId(l)
     }
 
     /// Get handle to a running flowgraph
@@ -341,12 +344,13 @@ impl RuntimeHandle {
     }
 
     /// Get list of flowgraph IDs
-    pub fn get_flowgraphs(&self) -> Vec<usize> {
+    pub fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
             .lock()
             .unwrap()
             .iter()
-            .map(|x| x.0)
+            .enumerate()
+            .map(|x| FlowgraphId(x.0))
             .collect()
     }
 }
@@ -364,7 +368,11 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         return Err(e);
     }
 
-    let mut inboxes: Vec<Sender<BlockMessage>> = fg.blocks.iter().map(|b| b.lock().unwrap().inbox()).collect();
+    let mut inboxes: Vec<Sender<BlockMessage>> = fg
+        .blocks
+        .iter()
+        .map(|b| b.lock().unwrap().inbox())
+        .collect();
     let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.lock().unwrap().id()).collect();
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
@@ -523,7 +531,8 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                         if inbox
                             .send(BlockMessage::BlockDescription { tx: b_tx })
                             .await
-                            .is_ok() {
+                            .is_ok()
+                        {
                             blocks.push(rx.await.unwrap());
                         }
                     }
@@ -543,9 +552,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 if !terminated {
                     for inbox in inboxes.iter_mut() {
                         if inbox.send(BlockMessage::Terminate).await.is_err() {
-                            debug!(
-                                "runtime tried to terminate block that was already terminated"
-                            );
+                            debug!("runtime tried to terminate block that was already terminated");
                         }
                     }
                     terminated = true;
