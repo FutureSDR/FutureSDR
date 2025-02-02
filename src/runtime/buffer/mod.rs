@@ -28,34 +28,75 @@ use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
 
+/// The most generic buffer reader
+///
+/// This is the core trait that every buffer reader has to implements.
+/// It is what the runtime needs to make things work.
 pub trait BufferReader: Default {
+    /// Initialize buffer
+    ///
+    /// This sets the own block ID, Port ID, and message receiver so that it can
+    /// be communicated the the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>);
     /// notify upstream that we are done
     fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
-    /// our upstream is done
+    /// The upstream is done
+    ///
+    /// The Block will usually process the remaining samples and shut down.
     fn finish(&mut self);
-    /// is our upstream is done
+    /// Did the upstream already mark this buffer as done.
     fn finished(&mut self) -> bool;
+    /// Own Block ID
     fn block_id(&self) -> BlockId;
+    /// Own Port ID
     fn port_id(&self) -> PortId;
 }
+
+/// The most generic buffer writer
+///
+/// This is the core trait that every buffer writer has to implements.
+/// It is what the runtime needs to make things work.
 pub trait BufferWriter: Default {
+    /// The corresponding reader.
     type Reader: BufferReader;
+    /// Initialize buffer
+    ///
+    /// This sets the own block ID, Port ID, and message receiver so that it can
+    /// be communicated the the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>);
+    /// Connect the writer to (another) reader.
     fn connect(&mut self, dest: &mut Self::Reader);
+    /// Notify downstream blocks that we are done.
     fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
+    /// Own Block ID
     fn block_id(&self) -> BlockId;
+    /// Own Port ID
     fn port_id(&self) -> PortId;
 }
+
+/// A generic CPU buffer reader (out-of-place)
 pub trait CpuBufferReader: BufferReader + Send {
+    /// Buffer Items
     type Item;
+    /// Consume Items
     fn consume(&mut self, n: usize);
+    /// Get available samples.
     fn slice(&mut self) -> &[Self::Item];
+    /// Get available samples and tags.
     fn slice_with_tags(&mut self) -> (&[Self::Item], Vec<ItemTag>);
 }
+/// A generic CPU buffer writer (out-of-place)
+///
+/// Current upstream implemenations are a circular buffer with douple mapping
+/// and the SLAB buffer
 pub trait CpuBufferWriter: BufferWriter + Send {
+    /// Buffer Items
     type Item;
+    /// samples produced
     fn produce(&mut self, n: usize);
+    /// samples and tags produced
     fn produce_with_tags(&mut self, n: usize, tags: Vec<ItemTag>);
+    /// Available buffer space
     fn slice(&mut self) -> &mut [Self::Item];
 }
+

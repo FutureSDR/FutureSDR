@@ -1,7 +1,7 @@
+use async_lock::Mutex;
 use futures::channel::mpsc::Sender;
 use futures::future::Future;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use crate::runtime::scheduler::Task;
 use crate::runtime::Block;

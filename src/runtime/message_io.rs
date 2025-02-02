@@ -81,7 +81,7 @@ impl MessageOutputs {
         Ok(())
     }
     /// Connect Message Output Port
-    pub async fn connect(
+    pub fn connect(
         &mut self,
         src_port: &PortId,
         dst_block_inbox: Sender<BlockMessage>,

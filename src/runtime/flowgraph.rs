@@ -1,6 +1,6 @@
+use async_lock::Mutex;
+use async_lock::MutexGuard;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::MutexGuard;
 
 use crate::runtime::Block;
 use crate::runtime::BlockId;
@@ -20,7 +20,7 @@ pub struct BlockRef<K: Kernel> {
 impl<K: Kernel> BlockRef<K> {
     /// Get mutable, typed handle to [WrappedKernel].
     fn get(&self) -> MutexGuard<WrappedKernel<K>> {
-        self.block.lock().unwrap()
+        self.block.try_lock().unwrap()
     }
 }
 
@@ -53,13 +53,13 @@ impl Flowgraph {
         let b = Arc::new(Mutex::new(b));
         self.blocks.push(b.clone());
         BlockRef {
-            id: block_id.into(),
+            id: block_id,
             block: b,
         }
     }
 
     /// Make stream connection
-    fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
+    pub fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
         self.stream_edges.push((
             src_port.block_id(),
             src_port.port_id(),
@@ -76,16 +76,19 @@ impl Flowgraph {
         src_port: impl Into<PortId>,
         dst_block: BlockRef<K2>,
         dst_port: impl Into<PortId>,
-    ) {
+    ) -> Result<(), Error> {
         let dst_box = dst_block.get().inbox_tx.clone();
         let src_port = src_port.into();
         let dst_port = dst_port.into();
 
-        src_block.get().mio.connect(&src_port, dst_box, &dst_port);
+        src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
         self.message_edges
-            .push((src_block.id, src_port.into(), dst_block.id, dst_port.into()));
+            .push((src_block.id, src_port, dst_block.id, dst_port));
+        Ok(())
     }
-
+    /// Validate flowgraph
+    ///
+    /// Checks mainly that all stream ports are connected.
     pub fn validate(&self) -> Result<(), Error> {
         Ok(())
     }

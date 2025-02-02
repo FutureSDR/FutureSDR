@@ -106,30 +106,25 @@ impl SmolScheduler {
 impl Scheduler for SmolScheduler {
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<Mutex<dyn Block>>>,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
     ) {
         // spawn block executors
         for block in blocks.iter() {
-            let blocking = block.lock().unwrap().is_blocking();
+            let block = Arc::clone(block);
+            let main_channel = main_channel.clone();
+            let blocking = block.lock_blocking().is_blocking();
             if blocking {
-                self.spawn_blocking({
-                    let block = block.clone();
-                    let main_channel = main_channel.clone();
-                    async move {
-                        let mut block = block.lock().unwrap();
-                        block.run(main_channel).await;
-                    }
+                self.spawn_blocking(async move {
+                    let mut block = block.lock_blocking();
+                    let _ = block.run(main_channel).await;
                 })
                 .detach();
             } else {
-                self.spawn({
-                    let block = block.clone();
-                    let main_channel = main_channel.clone();
-                    async move {
-                        let mut block = block.lock().unwrap();
-                        block.run(main_channel).await;
-                    }})
+                self.spawn(async move {
+                    let mut block = block.lock_blocking();
+                    let _ = block.run(main_channel).await;
+                })
                 .detach();
             }
         }

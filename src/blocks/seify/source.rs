@@ -86,7 +86,7 @@ impl<D: DeviceTrait + Clone> Source<D> {
         match &p {
             Pmt::Ok => {
                 // allow some time for the RX streamer to receive any samples sent right before the sink terminated
-                async_std::task::sleep(Duration::from_secs_f32(0.5)).await;
+                async_io::Timer::after(Duration::from_secs_f32(0.5)).await;
                 io.finished = true
             }
             _ => return Ok(Pmt::InvalidValue),

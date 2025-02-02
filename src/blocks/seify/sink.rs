@@ -243,7 +243,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
                     .map(|c| self.dev.sample_rate(Tx, *c).unwrap())
                     .fold(f64::INFINITY, |a, b| a.min(b)) as f32;
             let termination_delay = consumed as f32 / smallest_sample_rate;
-            async_std::task::sleep(Duration::from_secs_f32(termination_delay + 0.5)).await;
+            async_io::Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
             // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup
             mio.output_mut(0).post(Pmt::Ok).await;
         }

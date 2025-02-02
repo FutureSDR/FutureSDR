@@ -53,8 +53,8 @@ impl generic::Metadata for MyMetadata {
 
 /// Circular writer
 pub struct Writer<D: Default + Send + Sync> {
-    min_bytes: Option<usize>,
-    min_items: Option<usize>,
+    _min_bytes: Option<usize>,
+    _min_items: Option<usize>,
     inbox: Option<Sender<BlockMessage>>,
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
@@ -66,8 +66,8 @@ pub struct Writer<D: Default + Send + Sync> {
 impl<D: Default + Send + Sync> Writer<D> {
     fn new() -> Self {
         Self {
-            min_bytes: None,
-            min_items: None,
+            _min_bytes: None,
+            _min_items: None,
             inbox: None,
             block_id: None,
             port_id: None,

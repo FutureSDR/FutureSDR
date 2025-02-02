@@ -60,7 +60,9 @@ pub use seify;
 
 pub mod blocks;
 pub mod runtime;
-
+/// FutureSDR Async Channels
+///
+/// At the moment this uses the channels from the `futures` crate.
 pub mod channel {
     pub use futures::channel::mpsc;
     pub use futures::channel::oneshot;

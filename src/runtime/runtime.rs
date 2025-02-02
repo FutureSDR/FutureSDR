@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use async_io::block_on;
+use async_lock::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
 use futures::channel::mpsc::channel;
@@ -11,7 +12,6 @@ use futures::FutureExt;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::task;
 use std::task::Poll;
 
@@ -226,7 +226,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         ));
         rx.await.expect("run_flowgraph crashed").unwrap();
         let handle = FlowgraphHandle::new(fg_inbox);
-        self.flowgraphs.lock().unwrap().push(handle.clone());
+        self.flowgraphs.lock_blocking().push(handle.clone());
         (TaskHandle::new(task), handle)
     }
 
@@ -332,7 +332,7 @@ impl RuntimeHandle {
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers
     fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
-        let mut v = self.flowgraphs.lock().unwrap();
+        let mut v = self.flowgraphs.lock_blocking();
         let l = v.len();
         v.push(handle);
         FlowgraphId(l)
@@ -340,14 +340,13 @@ impl RuntimeHandle {
 
     /// Get handle to a running flowgraph
     pub fn get_flowgraph(&self, id: usize) -> Option<FlowgraphHandle> {
-        self.flowgraphs.lock().unwrap().get(id).cloned()
+        self.flowgraphs.lock_blocking().get(id).cloned()
     }
 
     /// Get list of flowgraph IDs
     pub fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
-            .lock()
-            .unwrap()
+            .lock_blocking()
             .iter()
             .enumerate()
             .map(|x| FlowgraphId(x.0))
@@ -371,9 +370,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     let mut inboxes: Vec<Sender<BlockMessage>> = fg
         .blocks
         .iter()
-        .map(|b| b.lock().unwrap().inbox())
+        .map(|b| b.lock_blocking().inbox())
         .collect();
-    let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.lock().unwrap().id()).collect();
+    let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.lock_blocking().id()).collect();
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
     debug!("init blocks");

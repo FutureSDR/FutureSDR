@@ -92,9 +92,14 @@ pub enum FlowgraphMessage {
     /// Initialize
     Initialized,
     /// Block is Done
-    BlockDone { block_id: BlockId },
+    BlockDone {
+        /// The Block that is done.
+        block_id: BlockId },
     /// Block Error
-    BlockError { block_id: BlockId },
+    BlockError { 
+        /// The Block that ran into an error.
+        block_id: BlockId
+    },
     /// Call handler of block (ignoring result)
     BlockCall {
         /// Block Id
