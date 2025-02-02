@@ -1,6 +1,6 @@
+use crate::macros::Block;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
-use crate::macros::Block;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
@@ -73,11 +73,11 @@ where
     /// ## Parameter
     /// - `f`: Function to apply on each sample
     pub fn new(f: F) -> Self {
-            Self {
-                f,
-                input: IN::default(),
-                output: OUT::default(),
-            }
+        Self {
+            f,
+            input: IN::default(),
+            output: OUT::default(),
+        }
     }
 }
 

@@ -41,4 +41,3 @@ impl fmt::Debug for WorkIo {
             .finish()
     }
 }
-

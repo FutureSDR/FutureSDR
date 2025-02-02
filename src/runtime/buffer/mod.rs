@@ -99,4 +99,3 @@ pub trait CpuBufferWriter: BufferWriter + Send {
     /// Available buffer space
     fn slice(&mut self) -> &mut [Self::Item];
 }
-

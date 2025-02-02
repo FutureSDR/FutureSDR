@@ -531,18 +531,13 @@ fn next_connection(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Con
     }
 }
 
-
 /// Check for  `#[input]` attribute
 fn has_input_attr(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("input")
-    })
+    attrs.iter().any(|attr| attr.path().is_ident("input"))
 }
 /// Check for  `#[output]` attribute
 fn has_output_attr(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("output")
-    })
+    attrs.iter().any(|attr| attr.path().is_ident("output"))
 }
 
 //=========================================================================
@@ -550,7 +545,15 @@ fn has_output_attr(attrs: &[Attribute]) -> bool {
 //=========================================================================
 #[proc_macro_derive(
     Block,
-    attributes(input, output, message_inputs, message_outputs, blocking, type_name, null_kernel)
+    attributes(
+        input,
+        output,
+        message_inputs,
+        message_outputs,
+        blocking,
+        type_name,
+        null_kernel
+    )
 )]
 pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -569,12 +572,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let struct_data = match input.data {
         Data::Struct(data) => data,
         _ => {
-            return syn::Error::new_spanned(
-                input.ident,
-                "Block can only be derived for structs",
-            )
-            .to_compile_error()
-            .into();
+            return syn::Error::new_spanned(input.ident, "Block can only be derived for structs")
+                .to_compile_error()
+                .into();
         }
     };
 
@@ -590,7 +590,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     None
                 }
             })
-        .collect(),
+            .collect(),
         Fields::Unnamed(_) | Fields::Unit => Vec::new(),
     };
     // Collect stream outputs
@@ -605,7 +605,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     None
                 }
             })
-        .collect(),
+            .collect(),
         Fields::Unnamed(_) | Fields::Unit => Vec::new(),
     };
 
@@ -723,19 +723,25 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
-    let stream_ports_init = stream_input_names.iter().chain(stream_output_names.iter()).map(|n| {
-        let n_ident = Ident::new(n, Span::call_site());
-        quote! {
-            self.#n_ident.init(block_id, PortId(#n.to_string()), inbox.clone());
-        }
-    });
+    let stream_ports_init = stream_input_names
+        .iter()
+        .chain(stream_output_names.iter())
+        .map(|n| {
+            let n_ident = Ident::new(n, Span::call_site());
+            quote! {
+                self.#n_ident.init(block_id, PortId(#n.to_string()), inbox.clone());
+            }
+        });
 
-    let notify_stream_ports = stream_input_names.iter().chain(stream_output_names.iter()).map(|n| {
-        let n = Ident::new(n, Span::call_site());
-        quote! {
-            self.#n.notify_finished().await;
-        }
-    });
+    let notify_stream_ports = stream_input_names
+        .iter()
+        .chain(stream_output_names.iter())
+        .map(|n| {
+            let n = Ident::new(n, Span::call_site());
+            quote! {
+                self.#n.notify_finished().await;
+            }
+        });
 
     let stream_input_finish_matches = stream_input_names.iter().map(|n| {
         let n_ident = Ident::new(n, Span::call_site());

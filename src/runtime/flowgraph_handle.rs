@@ -81,7 +81,10 @@ impl FlowgraphHandle {
     }
 
     /// Get [`BlockDescription`]
-    pub async fn block_description(&mut self, block_id: BlockId) -> Result<BlockDescription, Error> {
+    pub async fn block_description(
+        &mut self,
+        block_id: BlockId,
+    ) -> Result<BlockDescription, Error> {
         let (tx, rx) = oneshot::channel::<Result<BlockDescription, Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockDescription { block_id, tx })

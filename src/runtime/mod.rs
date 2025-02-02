@@ -58,8 +58,8 @@ pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;
-pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::FlowgraphDescription;
+pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
@@ -94,11 +94,12 @@ pub enum FlowgraphMessage {
     /// Block is Done
     BlockDone {
         /// The Block that is done.
-        block_id: BlockId },
+        block_id: BlockId,
+    },
     /// Block Error
-    BlockError { 
+    BlockError {
         /// The Block that ran into an error.
-        block_id: BlockId
+        block_id: BlockId,
     },
     /// Call handler of block (ignoring result)
     BlockCall {
