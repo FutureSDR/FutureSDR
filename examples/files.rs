@@ -15,10 +15,10 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(FileSource::<u32>::new(&args[1], false))?;
-    let snk = fg.add_block(FileSink::<f32>::new(&args[2]))?;
+    let src = fg.add_block(FileSource::<u8>::new(&args[1], false));
+    let snk = fg.add_block(FileSink::<u8>::new(&args[2]));
 
-    fg.connect_stream(src, "out", snk, "in")?;
+    fg.connect_stream(src.get().output(), snk.get().input());
 
     let now = time::Instant::now();
     Runtime::new().run(fg)?;

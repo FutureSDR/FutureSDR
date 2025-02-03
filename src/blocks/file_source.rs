@@ -1,12 +1,11 @@
 use futures::AsyncReadExt;
 
+use crate::runtime::buffer::circular;
+use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Read samples from a file.
@@ -34,48 +33,46 @@ use crate::runtime::WorkIo;
 /// // Loads 8-byte samples from the file
 /// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32", false));
 /// ```
-#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 #[derive(Block)]
-pub struct FileSource<T: Send + 'static> {
+pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {
     file_name: String,
     file: Option<async_fs::File>,
     repeat: bool,
-    _type: std::marker::PhantomData<T>,
+    #[output]
+    output: O,
 }
 
-impl<T: Send + 'static> FileSource<T> {
+impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> FileSource<T, O> {
     /// Create FileSource block
-    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            Self {
-                file_name: file_name.into(),
-                file: None,
-                repeat,
-                _type: std::marker::PhantomData,
-            },
-        )
+    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> Self {
+        Self {
+            file_name: file_name.into(),
+            file: None,
+            repeat,
+            output: O::default(),
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static> Kernel for FileSource<T> {
+impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice_unchecked::<u8>();
+        let out = self.output.slice();
+
+        let out_bytes = unsafe {
+            std::slice::from_raw_parts_mut(out.as_ptr() as *mut u8, std::mem::size_of_val(out))
+        };
+
         let item_size = std::mem::size_of::<T>();
-
-        debug_assert_eq!(out.len() % item_size, 0);
-
         let mut i = 0;
 
         while i < out.len() {
-            match self.file.as_mut().unwrap().read(&mut out[i..]).await {
+            match self.file.as_mut().unwrap().read(&mut out_bytes[i..]).await {
                 Ok(0) => {
                     if self.repeat {
                         self.file =
@@ -92,17 +89,12 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
             }
         }
 
-        sio.output(0).produce(i / item_size);
+        self.output.produce(i / item_size);
 
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
         Ok(())
     }

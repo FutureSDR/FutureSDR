@@ -109,7 +109,6 @@ impl Kernel for MessageSource {
 ///     .build()
 /// );
 /// ```
-#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct MessageSourceBuilder {
     message: Pmt,
     duration: Duration,

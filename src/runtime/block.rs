@@ -32,7 +32,7 @@ pub trait Block: Send + Any {
     /// Cast block to [std::any::Any] mutably.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Run the block.
-    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>;
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
     /// Get the inbox of the block
     fn inbox(&self) -> Sender<BlockMessage>;
     /// Get the ID of the block
@@ -312,8 +312,29 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
     }
 
     // ##### KERNEL
-    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
-        self.run_impl(main_inbox).await
+    async fn run(&mut self, mut main_inbox: Sender<FlowgraphMessage>) {
+        match self.run_impl(main_inbox.clone()).await {
+            Ok(_) => {
+                let _ = main_inbox
+                    .send(FlowgraphMessage::BlockDone {
+                        block_id: self.id(),
+                    })
+                    .await;
+                return
+            }
+            Err(e) => {
+                let instance_name = self
+                    .instance_name()
+                    .unwrap_or("<broken instance name>")
+                    .to_string();
+                error!("{}: Error in Block.run() {:?}", instance_name, e);
+                let _ = main_inbox
+                    .send(FlowgraphMessage::BlockError {
+                        block_id: self.id(),
+                    })
+                    .await;
+            }
+        }
     }
 }
 

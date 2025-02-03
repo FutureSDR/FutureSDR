@@ -143,14 +143,14 @@ pub use apply::Apply;
 // pub use fft::Fft;
 // pub use fft::FftDirection;
 //
-// #[cfg(not(target_arch = "wasm32"))]
-// mod file_sink;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use file_sink::FileSink;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod file_source;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use file_source::FileSource;
+#[cfg(not(target_arch = "wasm32"))]
+mod file_sink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use file_sink::FileSink;
+#[cfg(not(target_arch = "wasm32"))]
+mod file_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub use file_source::FileSource;
 // mod filter;
 // pub use filter::Filter;
 // mod finite_source;

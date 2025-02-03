@@ -19,7 +19,7 @@ pub struct BlockRef<K: Kernel> {
 }
 impl<K: Kernel> BlockRef<K> {
     /// Get mutable, typed handle to [WrappedKernel].
-    fn get(&self) -> MutexGuard<WrappedKernel<K>> {
+    pub fn get(&self) -> MutexGuard<WrappedKernel<K>> {
         self.block.try_lock().unwrap()
     }
 }
@@ -49,7 +49,7 @@ impl Flowgraph {
         let block_id = BlockId(self.blocks.len());
         let mut b = WrappedKernel::new(block, block_id);
         let block_name = b.type_name();
-        b.set_instance_name(&format!("{}-{}", block_name, block_id));
+        b.set_instance_name(&format!("{}-{}", block_name, block_id.0));
         let b = Arc::new(Mutex::new(b));
         self.blocks.push(b.clone());
         BlockRef {

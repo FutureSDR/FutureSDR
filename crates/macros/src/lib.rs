@@ -569,6 +569,21 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut blocking = quote! { false };
     let mut type_name = struct_name.to_string();
 
+    // remove defaults from generics
+    let mut generics = generics.clone();
+    for param in &mut generics.params {
+        match param {
+            GenericParam::Type(type_param) => {
+                type_param.default = None;
+            }
+            GenericParam::Const(const_param) => {
+                const_param.default = None;
+            }
+            GenericParam::Lifetime(_) => {
+            }
+        }
+    }
+
     // Parse Struct
     let struct_data = match input.data {
         Data::Struct(data) => data,
@@ -596,14 +611,17 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             .unzip(),
         Fields::Unnamed(_) | Fields::Unit => (Vec::new(), Vec::new()),
     };
-    let port_getter_fns = port_idents.iter().zip(port_types.iter()).map(|(ident, ty)| {
-        quote! {
-            /// Getter for stream port.
-            pub fn #ident(&mut self) -> &mut #ty {
-                &mut self.#ident
+    let port_getter_fns = port_idents
+        .iter()
+        .zip(port_types.iter())
+        .map(|(ident, ty)| {
+            quote! {
+                /// Getter for stream port.
+                pub fn #ident(&mut self) -> &mut #ty {
+                    &mut self.#ident
+                }
             }
-        }
-    });
+        });
 
     // Collect stream inputs
     let stream_input_names: Vec<String> = match struct_data.fields {
@@ -743,12 +761,15 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     // Generate match arms for the handle method
-    let handler_matches = message_inputs.iter().zip(message_input_names.clone()).enumerate().map(|(index, (handler, handler_name))| {
-        quote! {
-            PortId::Index(#index)  => self.#handler(io, mio, meta, p).await,
-            PortId::Name(ref s) if s.as_str() == #handler_name  => self.#handler(io, mio, meta, p).await,
-        }
-    });
+    let handler_matches =
+        message_inputs
+            .iter()
+            .zip(message_input_names.clone())
+            .map(|(handler, handler_name)| {
+                quote! {
+                    #handler_name  => self.#handler(io, mio, meta, p).await,
+                }
+            });
 
     let stream_ports_init = stream_input_names
         .iter()
@@ -818,13 +839,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     #(#stream_input_finish_matches)*
                     _ => return Err(Error::InvalidMessagePort(BlockPortCtx::None, port_id)),
                 }
+                #[allow(unreachable_code)]
                 Ok(())
             }
 
-            fn stream_ports_notify_finished(&mut self) -> impl std::future::Future<Output = ()> + Send {
-                async {
-                    #(#notify_stream_ports)*
-                }
+            async fn stream_ports_notify_finished(&mut self) {
+                #(#notify_stream_ports)*
             }
             fn message_inputs() -> &'static[&'static str] {
                 static MESSAGE_INPUTS: &[&str] = &[#(#message_input_names),*];
@@ -834,7 +854,6 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 static MESSAGE_OUTPUTS: &[&str] = &[#(#message_output_names),*];
                 MESSAGE_OUTPUTS
             }
-            #[allow(unreachable_code)]
             async fn call_handler(
                 &mut self,
                 io: &mut ::futuresdr::runtime::WorkIo,
@@ -848,13 +867,14 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         use ::futuresdr::runtime::Pmt;
                         use ::futuresdr::runtime::PortId;
                         use ::futuresdr::runtime::Result;
-                        let ret: Result<Pmt> = match &id {
+                        let ret: Result<Pmt> = match id.0.as_str() {
                                 #(#handler_matches)*
                                 _ => return Err(Error::InvalidMessagePort(
                                     BlockPortCtx::None,
                                     id)),
                         };
 
+                        #[allow(unreachable_code)]
                         ret.map_err(|e| Error::HandlerError(e.to_string()))
             }
         }

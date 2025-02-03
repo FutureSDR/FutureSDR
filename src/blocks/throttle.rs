@@ -30,7 +30,6 @@ use crate::runtime::WorkIo;
 /// let throttle = fg.add_block(Throttle::<Complex<f32>>::new(1_000_000.0));
 /// ```
 #[derive(Block)]
-#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct Throttle<T: Copy + Send + 'static> {
     rate: f64,
     t_init: Instant,
