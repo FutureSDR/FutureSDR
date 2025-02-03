@@ -15,6 +15,7 @@ use syn::DeriveInput;
 use syn::Fields;
 use syn::GenericParam;
 use syn::Meta;
+use syn::Type;
 
 //=========================================================================
 // CONNECT
@@ -578,6 +579,32 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
+    // Collect the names and types of fields that have the #[input] or #[output] attribute
+    let (port_idents, port_types): (Vec<Ident>, Vec<Type>) = match struct_data.fields {
+        Fields::Named(ref fields_named) => fields_named
+            .named
+            .iter()
+            .filter_map(|field| {
+                if has_input_attr(&field.attrs) || has_output_attr(&field.attrs) {
+                    let ident = field.ident.clone().unwrap();
+                    let ty = field.ty.clone();
+                    Some((ident, ty))
+                } else {
+                    None
+                }
+            })
+            .unzip(),
+        Fields::Unnamed(_) | Fields::Unit => (Vec::new(), Vec::new()),
+    };
+    let port_getter_fns = port_idents.iter().zip(port_types.iter()).map(|(ident, ty)| {
+        quote! {
+            /// Getter for stream port.
+            pub fn #ident(&mut self) -> &mut #ty {
+                &mut self.#ident
+            }
+        }
+    });
+
     // Collect stream inputs
     let stream_input_names: Vec<String> = match struct_data.fields {
         Fields::Named(ref fields_named) => fields_named
@@ -752,6 +779,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     // Generate the KernelInterface implementation
     let expanded = quote! {
+
+        impl #generics #struct_name #unconstraint_generics
+            #where_clause
+        {
+            #(#port_getter_fns)*
+        }
+
         impl #generics ::futuresdr::runtime::KernelInterface for #struct_name #unconstraint_generics
             #where_clause
         {
