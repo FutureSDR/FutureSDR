@@ -27,6 +27,7 @@ use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::Tag;
 
 /// The most generic buffer reader
 ///
@@ -82,8 +83,8 @@ pub trait CpuBufferReader: BufferReader + Send {
     fn consume(&mut self, n: usize);
     /// Get available samples.
     fn slice(&mut self) -> &[Self::Item];
-    /// Get available samples and tags.
-    fn slice_with_tags(&mut self) -> (&[Self::Item], Vec<ItemTag>);
+    /// Get tags
+    fn tags(&self) -> &Vec<ItemTag>;
 }
 /// A generic CPU buffer writer (out-of-place)
 ///
@@ -92,10 +93,10 @@ pub trait CpuBufferReader: BufferReader + Send {
 pub trait CpuBufferWriter: BufferWriter + Send {
     /// Buffer Items
     type Item;
-    /// samples produced
-    fn produce(&mut self, n: usize);
-    /// samples and tags produced
-    fn produce_with_tags(&mut self, n: usize, tags: Vec<ItemTag>);
     /// Available buffer space
     fn slice(&mut self) -> &mut [Self::Item];
+    /// samples produced
+    fn produce(&mut self, n: usize);
+    /// Add a tag
+    fn add_tag(&mut self, index: usize, tag: Tag);
 }

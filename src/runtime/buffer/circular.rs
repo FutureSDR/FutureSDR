@@ -53,27 +53,29 @@ impl generic::Metadata for MyMetadata {
 
 /// Circular writer
 pub struct Writer<D: Default + Send + Sync> {
-    _min_bytes: Option<usize>,
-    _min_items: Option<usize>,
+    min_bytes: usize,
+    min_items: usize,
     inbox: Option<Sender<BlockMessage>>,
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
     writer: Option<generic::Writer<D, MyNotifier, MyMetadata>>,
     readers: Vec<(PortId, Sender<BlockMessage>)>,
     finished: bool,
+    tags: Vec<ItemTag>,
 }
 
 impl<D: Default + Send + Sync> Writer<D> {
     fn new() -> Self {
         Self {
-            _min_bytes: None,
-            _min_items: None,
+            min_bytes: 0,
+            min_items: 0,
             inbox: None,
             block_id: None,
             port_id: None,
             writer: None,
             readers: vec![],
             finished: false,
+            tags: vec![],
         }
     }
 }
@@ -92,23 +94,45 @@ impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
         self.port_id = Some(port_id);
         self.inbox = Some(inbox);
     }
-    fn connect(&mut self, _dest: &mut Self::Reader) {
-        // let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
-        // let mut buffer_size = page_size;
-        //
-        // let item_size = std::mem::size_of::<D>();
-        // while (buffer_size < min_bytes) || (buffer_size % item_size != 0) {
-        //     buffer_size += page_size;
-        // }
-        //
-        // WriterInner {
-        //     writer: generic::Circular::with_capacity(buffer_size).unwrap(),
-        //     readers: Vec::new(),
-        //     inbox,
-        //     output_id,
-        //     finished: false,
-        // }
-        todo!()
+
+    fn connect(&mut self, dest: &mut Self::Reader) {
+        if self.writer.is_none() {
+            let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
+            let mut buffer_size = page_size;
+
+            let item_size = std::mem::size_of::<D>();
+            while (buffer_size < self.min_bytes)
+                || (buffer_size < self.min_items * item_size)
+                || (buffer_size % item_size != 0)
+            {
+                buffer_size += page_size;
+            }
+
+            self.writer = Some(generic::Circular::with_capacity(buffer_size).unwrap());
+        }
+
+        let writer_notifier = MyNotifier {
+            sender: self.inbox.as_ref().unwrap().clone(),
+        };
+
+        let reader_notifier = MyNotifier {
+            sender: dest.inbox.as_ref().unwrap().clone(),
+        };
+
+        let reader = self
+            .writer
+            .as_mut()
+            .unwrap()
+            .add_reader(reader_notifier, writer_notifier);
+
+        self.readers.push((
+            dest.port_id.as_ref().unwrap().clone(),
+            dest.inbox.as_ref().unwrap().clone(),
+        ));
+
+        dest.reader = Some(reader);
+        dest.writer_output_id = self.port_id.clone();
+        dest.writer_inbox = self.inbox.clone();
     }
     async fn notify_finished(&mut self) {
         for i in self.readers.iter_mut() {
@@ -122,7 +146,6 @@ impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
     fn block_id(&self) -> BlockId {
         self.block_id.unwrap()
     }
-
     fn port_id(&self) -> PortId {
         self.port_id.as_ref().unwrap().clone()
     }
@@ -130,38 +153,18 @@ impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
 
 impl<D: Default + Send + Sync> CpuBufferWriter for Writer<D> {
     type Item = D;
-    // fn add_reader(&mut self, inbox: Sender<BlockMessage>, input_id: usize) -> BufferReader {
-    //     let writer_notifier = MyNotifier {
-    //         sender: self.inbox.clone(),
-    //     };
-    //
-    //     let reader_notifier = MyNotifier {
-    //         sender: inbox.clone(),
-    //     };
-    //
-    //     let reader = self.writer.add_reader(reader_notifier, writer_notifier);
-    //
-    //     self.readers.push((inbox, input_id));
-    //
-    //     BufferReader::Host(Box::new(Reader {
-    //         reader,
-    //         item_size: self.item_size,
-    //         finished: false,
-    //         writer_inbox: self.inbox.clone(),
-    //         writer_output_id: self.output_id,
-    //     }))
-    // }
 
     fn produce(&mut self, items: usize) {
-        self.writer.as_mut().unwrap().produce(items, vec![]);
+        self.writer
+            .as_mut()
+            .unwrap()
+            .produce(items, std::mem::take(&mut self.tags));
     }
-
-    fn produce_with_tags(&mut self, items: usize, tags: Vec<ItemTag>) {
-        self.writer.as_mut().unwrap().produce(items, tags);
-    }
-
     fn slice(&mut self) -> &mut [Self::Item] {
         self.writer.as_mut().unwrap().slice(false)
+    }
+    fn add_tag(&mut self, index: usize, tag: crate::runtime::Tag) {
+        self.tags.push(ItemTag { index, tag });
     }
 }
 
@@ -184,6 +187,7 @@ pub struct Reader<D: Default + Send + Sync> {
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
     inbox: Option<Sender<BlockMessage>>,
+    tags: Vec<ItemTag>,
 }
 
 impl<D: Default + Send + Sync> BufferReader for Reader<D> {
@@ -202,18 +206,15 @@ impl<D: Default + Send + Sync> BufferReader for Reader<D> {
             })
             .await;
     }
-
     fn finish(&mut self) {
         self.finished = true;
     }
-
     fn finished(&mut self) -> bool {
         self.finished
     }
     fn block_id(&self) -> BlockId {
         self.block_id.unwrap()
     }
-
     fn port_id(&self) -> PortId {
         self.port_id.as_ref().unwrap().clone()
     }
@@ -223,19 +224,19 @@ impl<D: Default + Send + Sync> CpuBufferReader for Reader<D> {
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {
-        self.slice_with_tags().0
-    }
-
-    fn slice_with_tags(&mut self) -> (&[Self::Item], Vec<ItemTag>) {
         if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
-            (s, tags)
+            self.tags = tags;
+            s
         } else {
-            (&[], Vec::new())
+            debug_assert!(self.tags.is_empty());
+            &[]
         }
     }
-
     fn consume(&mut self, amount: usize) {
         self.reader.as_mut().unwrap().consume(amount);
+    }
+    fn tags(&self) -> &Vec<ItemTag> {
+        &self.tags
     }
 }
 
