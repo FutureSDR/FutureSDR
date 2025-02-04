@@ -47,16 +47,16 @@ where
 {
     /// Create Head block
     pub fn new(n_items: u64) -> Self {
-            Self {
-                n_items,
-                input: I::default(),
-                output: O::default(),
-            }
+        Self {
+            n_items,
+            input: I::default(),
+            output: O::default(),
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T, I, O> Kernel for Head<T, I, O> 
+impl<T, I, O> Kernel for Head<T, I, O>
 where
     T: Copy + Send + 'static,
     I: CpuBufferReader<Item = T>,

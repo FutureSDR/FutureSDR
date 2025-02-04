@@ -9,10 +9,10 @@ use std::future::Future;
 use std::sync::Arc;
 use std::thread;
 
-use crate::runtime::scheduler::flow::FlowExecutor;
 use crate::runtime::config;
-use crate::runtime::Block;
+use crate::runtime::scheduler::flow::FlowExecutor;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
 
 type CpuPins = HashMap<usize, usize>;
@@ -127,10 +127,13 @@ impl Scheduler for CpuPinScheduler {
             } else if let Some(&c) = self.inner.cpu_pins.get(&id.0) {
                 self.inner
                     .executor
-                    .spawn_executor(async move {
-                        let mut block = block.lock().await;
-                        block.run(main_channel).await;
-                    }, c)
+                    .spawn_executor(
+                        async move {
+                            let mut block = block.lock().await;
+                            block.run(main_channel).await;
+                        },
+                        c,
+                    )
                     .detach();
             } else {
                 self.inner

@@ -8,23 +8,23 @@ use crate::runtime::WorkIo;
 
 /// Store received samples in vector.
 #[derive(Block)]
-pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T>=circular::Reader<T>> {
+pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
     items: Vec<T>,
     #[input]
     input: I,
 }
 
-impl<T, I> VectorSink<T, I> 
+impl<T, I> VectorSink<T, I>
 where
-T: Clone + std::fmt::Debug + Send + Sync + 'static,
-I: CpuBufferReader<Item = T>
+    T: Clone + std::fmt::Debug + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
 {
     /// Create VectorSink block
     pub fn new(capacity: usize) -> Self {
-            Self {
-                items: Vec::<T>::with_capacity(capacity),
-                input: I::default(),
-            }
+        Self {
+            items: Vec::<T>::with_capacity(capacity),
+            input: I::default(),
+        }
     }
     /// Get received items
     pub fn items(&self) -> &Vec<T> {
@@ -33,10 +33,10 @@ I: CpuBufferReader<Item = T>
 }
 
 #[doc(hidden)]
-impl<T, I> Kernel for VectorSink<T, I> 
+impl<T, I> Kernel for VectorSink<T, I>
 where
-T: Clone + std::fmt::Debug + Send + Sync + 'static,
-I: CpuBufferReader<Item = T>
+    T: Clone + std::fmt::Debug + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
 {
     async fn work(
         &mut self,
@@ -58,4 +58,3 @@ I: CpuBufferReader<Item = T>
         Ok(())
     }
 }
-

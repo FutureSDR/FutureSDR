@@ -34,16 +34,16 @@ pub struct NullSink<T: Send + 'static, I: CpuBufferReader<Item = T> = circular::
 }
 
 impl<T, I> NullSink<T, I>
-where 
+where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,
 {
     /// Create NullSink block
     pub fn new() -> Self {
-            Self {
-                n_received: 0,
-                input: I::default(),
-            }
+        Self {
+            n_received: 0,
+            input: I::default(),
+        }
     }
     /// Get number of received samples
     pub fn n_received(&self) -> usize {
@@ -52,7 +52,7 @@ where
 }
 
 impl<T, I> Default for NullSink<T, I>
-where 
+where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,
 {
@@ -63,7 +63,7 @@ where
 
 #[doc(hidden)]
 impl<T, I> Kernel for NullSink<T, I>
-where 
+where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,
 {

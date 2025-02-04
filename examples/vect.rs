@@ -1,8 +1,8 @@
 use anyhow::Result;
 use futuresdr::blocks::Copy;
-use futuresdr::runtime::BlockRef;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
+use futuresdr::runtime::BlockRef;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use std::iter::repeat_with;
@@ -17,9 +17,7 @@ fn main() -> Result<()> {
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
     let src = fg.add_block(VectorSource::<f32>::new(orig.clone()));
-    let snk = fg.add_block(
-        VectorSink::<f32>::new(n_items)
-    );
+    let snk = fg.add_block(VectorSink::<f32>::new(n_items));
 
     let mut prev: Option<BlockRef<Copy<f32>>> = None;
     for i in 0..n_copy {

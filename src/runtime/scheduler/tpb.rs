@@ -85,20 +85,20 @@ impl TpbScheduler {
 
 impl Scheduler for TpbScheduler {
     fn run_flowgraph(
-            &self,
-            blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
-            main_channel: &Sender<FlowgraphMessage>) {
-
+        &self,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
+        main_channel: &Sender<FlowgraphMessage>,
+    ) {
         // spawn block executors
         for block in blocks.iter() {
             let block = Arc::clone(block);
             let main_channel = main_channel.clone();
 
             self.spawn_blocking(async move {
-                    let mut block = block.lock_blocking();
+                let mut block = block.lock_blocking();
                 block.run(main_channel.clone()).await;
             })
-                .detach();
+            .detach();
         }
     }
 

@@ -19,21 +19,25 @@ pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = circular::Writer
 }
 
 impl<T, O> VectorSource<T, O>
-where 
-T: Send + 'static,
-O: CpuBufferWriter<Item = T>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
 {
     /// Create VectorSource block
     pub fn new(items: Vec<T>) -> Self {
-            Self { items, n_copied: 0, output: O::default()}
+        Self {
+            items,
+            n_copied: 0,
+            output: O::default(),
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T, O> Kernel for VectorSource<T, O> 
-where 
-T: Send + 'static,
-O: CpuBufferWriter<Item = T>
+impl<T, O> Kernel for VectorSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
 {
     async fn work(
         &mut self,

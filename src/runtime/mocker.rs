@@ -6,10 +6,10 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
@@ -55,7 +55,10 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             messages.push(Vec::new());
             let (tx, rx) = channel(msg_len);
             message_sinks.push(rx);
-            block.mio.connect(&PortId(n.to_string()), tx, &PortId("input".to_string())).unwrap();
+            block
+                .mio
+                .connect(&PortId(n.to_string()), tx, &PortId("input".to_string()))
+                .unwrap();
         }
 
         Mocker {
@@ -72,7 +75,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             finished: false,
             block_on: None,
         };
-    
+
         let WrappedKernel {
             meta, mio, kernel, ..
         } = &mut self.block;
@@ -90,10 +93,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         crate::async_io::block_on(async {
             self.block
                 .kernel
-                .init(
-                    &mut self.block.mio,
-                    &mut self.block.meta,
-                )
+                .init(&mut self.block.mio, &mut self.block.meta)
                 .await
                 .unwrap();
         });
@@ -104,10 +104,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         crate::async_io::block_on(async {
             self.block
                 .kernel
-                .deinit(
-                    &mut self.block.mio,
-                    &mut self.block.meta,
-                )
+                .deinit(&mut self.block.mio, &mut self.block.meta)
                 .await
                 .unwrap();
         });
@@ -134,11 +131,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         loop {
             self.block
                 .kernel
-                .work(
-                    &mut io,
-                    &mut self.block.mio,
-                    &mut self.block.meta,
-                )
+                .work(&mut io, &mut self.block.mio, &mut self.block.meta)
                 .await
                 .unwrap();
 
@@ -179,7 +172,7 @@ impl<T: Debug + Send + 'static> Reader<T> {
     {
         self.set_with_tags(data, Vec::new());
     }
-    
+
     /// Add input buffer with given data and tags
     pub fn set_with_tags(&mut self, data: Vec<T>, tags: Vec<ItemTag>)
     where
@@ -206,8 +199,8 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
         self.block_id = block_id;
         self.port_id = port_id;
     }
-    async fn notify_finished(&mut self) { }
-    fn finish(&mut self) { }
+    async fn notify_finished(&mut self) {}
+    fn finish(&mut self) {}
     fn finished(&mut self) -> bool {
         true
     }
@@ -225,7 +218,7 @@ impl<T: Debug + Send + 'static> CpuBufferReader for Reader<T> {
     fn consume(&mut self, n: usize) {
         self.data = self.data.split_off(n);
         self.tags.retain(|x| x.index >= n);
-    
+
         for t in self.tags.iter_mut() {
             t.index -= n;
         }
@@ -246,7 +239,6 @@ pub struct Writer<T: Clone + Debug + Send + 'static> {
     block_id: BlockId,
     port_id: PortId,
 }
-
 
 impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
     fn default() -> Self {
@@ -270,7 +262,10 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
     }
     /// Take the data from the buffer
     pub fn take(&mut self) -> (Vec<T>, Vec<ItemTag>) {
-        (std::mem::take(&mut self.data), std::mem::take(&mut self.tags))
+        (
+            std::mem::take(&mut self.data),
+            std::mem::take(&mut self.tags),
+        )
     }
 }
 
@@ -282,9 +277,9 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
         self.port_id = port_id;
     }
 
-    fn connect(&mut self, _dest: &mut Self::Reader) { }
+    fn connect(&mut self, _dest: &mut Self::Reader) {}
 
-    async fn notify_finished(&mut self) { }
+    async fn notify_finished(&mut self) {}
 
     fn block_id(&self) -> BlockId {
         self.block_id
@@ -301,7 +296,8 @@ impl<T: Clone + Debug + Send + 'static> CpuBufferWriter for Writer<T> {
     fn slice(&mut self) -> &mut [Self::Item] {
         unsafe {
             std::slice::from_raw_parts_mut(
-self.data.as_mut_ptr().add(self.data.len()), self.data.capacity() - self.data.len()
+                self.data.as_mut_ptr().add(self.data.len()),
+                self.data.capacity() - self.data.len(),
             )
         }
     }
@@ -314,6 +310,9 @@ self.data.as_mut_ptr().add(self.data.len()), self.data.capacity() - self.data.le
     }
 
     fn add_tag(&mut self, index: usize, tag: super::Tag) {
-        self.tags.push(ItemTag { index: self.data.len() + index, tag });
+        self.tags.push(ItemTag {
+            index: self.data.len() + index,
+            tag,
+        });
     }
 }

@@ -20,7 +20,7 @@ use crate::runtime::WorkIo;
 /// - `out`: Output, same as input
 #[derive(Block)]
 pub struct CopyRand<
-T: Send + 'static,
+    T: Send + 'static,
     I: CpuBufferReader<Item = T> = circular::Reader<T>,
     O: CpuBufferWriter<Item = T> = circular::Writer<T>,
 > {
@@ -42,11 +42,11 @@ where
     /// ## Parameter
     /// - `max_copy`: maximum number of samples to copy in one call of the `work()` function
     pub fn new(max_copy: usize) -> Self {
-            Self {
-                max_copy,
-                input: I::default(),
-                output: O::default(),
-            }
+        Self {
+            max_copy,
+            input: I::default(),
+            output: O::default(),
+        }
     }
 }
 
@@ -56,7 +56,7 @@ where
     T: Copy + Send + 'static,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
-    {
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -83,4 +83,3 @@ where
         Ok(())
     }
 }
-
