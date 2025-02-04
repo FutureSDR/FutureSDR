@@ -91,7 +91,7 @@ fn tags_through_mock() -> Result<()> {
 
 #[test]
 fn mock_pmts() -> Result<()> {
-    let copy = MessageCopy::new();
+    let copy = MessageCopy;
 
     let mut mock = Mocker::new(copy);
     mock.init();

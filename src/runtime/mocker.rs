@@ -1,15 +1,17 @@
 use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
-use std::any::Any;
+use futuresdr_types::BlockId;
 use std::fmt::Debug;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
-use crate::runtime::BufferReader;
-use crate::runtime::BufferWriter;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
@@ -22,23 +24,38 @@ use crate::runtime::WrappedKernel;
 /// Mocker for a block
 ///
 /// A harness to run a block without a runtime. Used for unit tests and benchmarking.
-pub struct Mocker<K> {
+pub struct Mocker<K: Kernel> {
     block: WrappedKernel<K>,
     message_sinks: Vec<Receiver<BlockMessage>>,
     messages: Vec<Vec<Pmt>>,
 }
 
+impl<K: KernelInterface + Kernel + 'static> Deref for Mocker<K> {
+    type Target = WrappedKernel<K>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.block
+    }
+}
+impl<K: KernelInterface + Kernel + 'static> DerefMut for Mocker<K> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.block
+    }
+}
+
 impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// Create mocker
-    pub fn new(mut kernel: K) -> Self {
+    pub fn new(kernel: K) -> Self {
+        let mut block = WrappedKernel::new(kernel, BlockId(0));
         let mut messages = Vec::new();
         let mut message_sinks = Vec::new();
         let msg_len = config().queue_size;
-        for (n, p) in block.mio.outputs_mut().iter_mut().enumerate() {
+
+        for n in K::message_outputs() {
             messages.push(Vec::new());
             let (tx, rx) = channel(msg_len);
             message_sinks.push(rx);
-            p.connect(n, tx);
+            block.mio.connect(&PortId(n.to_string()), tx, &PortId("input".to_string())).unwrap();
         }
 
         Mocker {
@@ -48,49 +65,6 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         }
     }
 
-    /// Add input buffer with given data
-    pub fn input<T>(&mut self, id: usize, data: Vec<T>)
-    where
-        T: Debug + Send + 'static,
-    {
-        self.input_with_tags(id, data, Vec::new());
-    }
-
-    /// Add input buffer with given data and tags
-    pub fn input_with_tags<T>(&mut self, id: usize, mut data: Vec<T>, mut tags: Vec<ItemTag>)
-    where
-        T: Debug + Send + 'static,
-    {
-        match self.block.sio.input(id).try_as::<MockReader<T>>() {
-            Some(r) => {
-                let offset = r.data.len();
-                for t in tags.iter_mut() {
-                    t.index += offset;
-                }
-
-                r.data.append(&mut data);
-                r.tags.append(&mut tags);
-            }
-            _ => {
-                self.block
-                    .sio
-                    .input(id)
-                    .set_reader(BufferReader::Host(Box::new(MockReader::new(data, tags))));
-            }
-        }
-    }
-
-    /// Initialize output buffer with given size
-    pub fn init_output<T>(&mut self, id: usize, size: usize)
-    where
-        T: Clone + Debug + Send + 'static,
-    {
-        self.block
-            .sio
-            .output(id)
-            .init(BufferWriter::Host(Box::new(MockWriter::<T>::new(size))));
-    }
-
     /// Post a PMT to a message handler of the block.
     pub fn post(&mut self, id: PortId, p: Pmt) -> Result<Pmt, Error> {
         let mut io = WorkIo {
@@ -98,38 +72,12 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             finished: false,
             block_on: None,
         };
-
-        let TypedBlock {
+    
+        let WrappedKernel {
             meta, mio, kernel, ..
         } = &mut self.block;
         async_io::block_on(kernel.call_handler(&mut io, mio, meta, id, p))
             .map_err(|e| Error::HandlerError(e.to_string()))
-    }
-
-    /// Get data from output buffer
-    pub fn output<T>(&mut self, id: usize) -> (Vec<T>, Vec<ItemTag>)
-    where
-        T: Clone + Debug + Send + 'static,
-    {
-        let w = self.block.sio.output(id).writer_mut();
-        if let BufferWriter::Host(w) = w {
-            w.as_any().downcast_ref::<MockWriter<T>>().unwrap().get()
-        } else {
-            panic!("mocker: wrong output buffer (expected CPU, got Custom)");
-        }
-    }
-
-    /// Taking data from output buffer, freeing up the buffer
-    pub fn take_output<T>(&mut self, id: usize) -> (Vec<T>, Vec<ItemTag>)
-    where
-        T: Clone + Debug + Send + 'static,
-    {
-        let w = self.block.sio.output(id).writer_mut();
-        if let BufferWriter::Host(w) = w {
-            w.as_any().downcast_mut::<MockWriter<T>>().unwrap().take()
-        } else {
-            panic!("mocker: wrong output buffer (expected CPU, got Custom)");
-        }
     }
 
     /// Run the block wrapped by the mocker
@@ -143,7 +91,6 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             self.block
                 .kernel
                 .init(
-                    &mut self.block.sio,
                     &mut self.block.mio,
                     &mut self.block.meta,
                 )
@@ -158,7 +105,6 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             self.block
                 .kernel
                 .deinit(
-                    &mut self.block.sio,
                     &mut self.block.mio,
                     &mut self.block.meta,
                 )
@@ -190,13 +136,11 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
                 .kernel
                 .work(
                     &mut io,
-                    &mut self.block.sio,
                     &mut self.block.mio,
                     &mut self.block.meta,
                 )
                 .await
                 .unwrap();
-            self.block.sio.commit();
 
             for (n, r) in self.message_sinks.iter_mut().enumerate() {
                 while let Ok(Some(m)) = r.try_next() {
@@ -219,106 +163,157 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
 }
 
 #[derive(Debug)]
-struct MockReader<T: Debug + Send + 'static> {
+/// Buffer reader for Mocker
+pub struct Reader<T: Debug + Send + 'static> {
     data: Vec<T>,
     tags: Vec<ItemTag>,
+    block_id: BlockId,
+    port_id: PortId,
 }
 
-impl<T: Debug + Send + 'static> MockReader<T> {
-    pub fn new(data: Vec<T>, tags: Vec<ItemTag>) -> Self {
-        MockReader { data, tags }
+impl<T: Debug + Send + 'static> Reader<T> {
+    /// Add input buffer with given data
+    pub fn set(&mut self, data: Vec<T>)
+    where
+        T: Debug + Send + 'static,
+    {
+        self.set_with_tags(data, Vec::new());
+    }
+    
+    /// Add input buffer with given data and tags
+    pub fn set_with_tags(&mut self, data: Vec<T>, tags: Vec<ItemTag>)
+    where
+        T: Debug + Send + 'static,
+    {
+        self.data = data;
+        self.tags = tags;
     }
 }
 
-#[async_trait]
-impl<T: Debug + Send + 'static> BufferReaderHost for MockReader<T> {
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
-        (
-            self.data.as_ptr() as *const u8,
-            self.data.len() * std::mem::size_of::<T>(),
-            self.tags.clone(),
-        )
-    }
-    fn consume(&mut self, amount: usize) {
-        self.data = self.data.split_off(amount);
-        self.tags.retain(|x| x.index >= amount);
-
-        for t in self.tags.iter_mut() {
-            t.index -= amount;
+impl<T: Debug + Send + 'static> Default for Reader<T> {
+    fn default() -> Self {
+        Self {
+            data: vec![],
+            tags: vec![],
+            block_id: BlockId(0),
+            port_id: PortId("input".to_string()),
         }
     }
-    async fn notify_finished(&mut self) {}
-    fn finish(&mut self) {}
-    fn finished(&self) -> bool {
+}
+
+impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: Sender<BlockMessage>) {
+        self.block_id = block_id;
+        self.port_id = port_id;
+    }
+    async fn notify_finished(&mut self) { }
+    fn finish(&mut self) { }
+    fn finished(&mut self) -> bool {
         true
+    }
+    fn block_id(&self) -> BlockId {
+        self.block_id
+    }
+    fn port_id(&self) -> PortId {
+        self.port_id.clone()
+    }
+}
+
+impl<T: Debug + Send + 'static> CpuBufferReader for Reader<T> {
+    type Item = T;
+
+    fn consume(&mut self, n: usize) {
+        self.data = self.data.split_off(n);
+        self.tags.retain(|x| x.index >= n);
+    
+        for t in self.tags.iter_mut() {
+            t.index -= n;
+        }
+    }
+    fn slice(&mut self) -> &[Self::Item] {
+        self.data.as_slice()
+    }
+    fn tags(&self) -> &Vec<ItemTag> {
+        &self.tags
     }
 }
 
 #[derive(Debug)]
-struct MockWriter<T: Clone + Debug + Send + 'static> {
+/// Stream buffer reader for Mocker
+pub struct Writer<T: Clone + Debug + Send + 'static> {
     data: Vec<T>,
     tags: Vec<ItemTag>,
+    block_id: BlockId,
+    port_id: PortId,
 }
 
-impl<T: Clone + Debug + Send + 'static> MockWriter<T> {
-    pub fn new(size: usize) -> Self {
-        MockWriter::<T> {
-            data: Vec::with_capacity(size),
-            tags: Vec::new(),
+
+impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
+    fn default() -> Self {
+        Self {
+            data: vec![],
+            tags: vec![],
+            block_id: BlockId(0),
+            port_id: PortId("output".to_string()),
         }
     }
+}
 
+impl<T: Clone + Debug + Send + 'static> Writer<T> {
+    /// Reserve space in the output buffer
+    pub fn reserve(&mut self, n: usize) {
+        self.data = Vec::with_capacity(n);
+    }
+    /// Get the data from the buffer (clone)
     pub fn get(&self) -> (Vec<T>, Vec<ItemTag>) {
         (self.data.clone(), self.tags.clone())
     }
-
+    /// Take the data from the buffer
     pub fn take(&mut self) -> (Vec<T>, Vec<ItemTag>) {
-        let (data, tags) = self.get();
-        self.data.clear();
-        self.tags = Vec::new();
-        (data, tags)
+        (std::mem::take(&mut self.data), std::mem::take(&mut self.tags))
     }
 }
 
-#[async_trait]
-impl<T: Clone + Debug + Send + 'static> BufferWriterHost for MockWriter<T> {
-    fn add_reader(
-        &mut self,
-        _reader_inbox: Sender<BlockMessage>,
-        _reader_input_id: usize,
-    ) -> BufferReader {
-        unimplemented!();
-    }
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
+    type Reader = Reader<T>;
+
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: Sender<BlockMessage>) {
+        self.block_id = block_id;
+        self.port_id = port_id;
     }
 
-    fn produce(&mut self, amount: usize, tags: Vec<ItemTag>) {
-        let curr_len = self.data.len();
-        unsafe {
-            self.data.set_len(curr_len + amount);
-        }
-        self.tags.extend(tags.into_iter().map(|mut t| {
-            t.index += curr_len;
-            t
-        }));
+    fn connect(&mut self, _dest: &mut Self::Reader) { }
+
+    async fn notify_finished(&mut self) { }
+
+    fn block_id(&self) -> BlockId {
+        self.block_id
     }
 
-    fn bytes(&mut self) -> (*mut u8, usize) {
+    fn port_id(&self) -> PortId {
+        self.port_id.clone()
+    }
+}
+
+impl<T: Clone + Debug + Send + 'static> CpuBufferWriter for Writer<T> {
+    type Item = T;
+
+    fn slice(&mut self) -> &mut [Self::Item] {
         unsafe {
-            (
-                self.data.as_mut_ptr().add(self.data.len()) as *mut u8,
-                (self.data.capacity() - self.data.len()) * std::mem::size_of::<T>(),
+            std::slice::from_raw_parts_mut(
+self.data.as_mut_ptr().add(self.data.len()), self.data.capacity() - self.data.len()
             )
         }
     }
 
-    async fn notify_finished(&mut self) {}
-    fn finish(&mut self) {}
-    fn finished(&self) -> bool {
-        false
+    fn produce(&mut self, n: usize) {
+        let curr_len = self.data.len();
+        unsafe {
+            self.data.set_len(curr_len + n);
+        }
+    }
+
+    fn add_tag(&mut self, index: usize, tag: super::Tag) {
+        self.tags.push(ItemTag { index: self.data.len() + index, tag });
     }
 }

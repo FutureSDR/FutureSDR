@@ -31,8 +31,9 @@ mod flowgraph;
 mod flowgraph_handle;
 mod kernel;
 pub mod message_io;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod mocker;
+#[cfg(not(target_arch = "wasm32"))]
+/// Mocker for unit testing and benchmarking
+pub mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
@@ -48,8 +49,6 @@ pub use kernel::Kernel;
 pub use kernel::KernelInterface;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use mocker::Mocker;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 pub use tag::ItemTag;
