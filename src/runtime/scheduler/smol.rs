@@ -116,14 +116,14 @@ impl Scheduler for SmolScheduler {
             let blocking = block.lock_blocking().is_blocking();
             if blocking {
                 self.spawn_blocking(async move {
-                    let mut block = block.lock_blocking();
-                    let _ = block.run(main_channel).await;
+                    let mut block = block.lock().await;
+                    block.run(main_channel).await;
                 })
                 .detach();
             } else {
                 self.spawn(async move {
-                    let mut block = block.lock_blocking();
-                    let _ = block.run(main_channel).await;
+                    let mut block = block.lock().await;
+                    block.run(main_channel).await;
                 })
                 .detach();
             }

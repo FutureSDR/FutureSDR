@@ -1,10 +1,9 @@
+use crate::runtime::buffer::circular;
+use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Drop samples.
@@ -28,21 +27,23 @@ use crate::runtime::WorkIo;
 /// let sink = fg.add_block(NullSink::<Complex<f32>>::new());
 /// ```
 #[derive(Block)]
-pub struct NullSink<T: Send + 'static> {
+pub struct NullSink<T: Send + 'static, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
     n_received: usize,
-    _type: std::marker::PhantomData<T>,
+    #[input]
+    input: I,
 }
 
-impl<T: Send + 'static> NullSink<T> {
+impl<T, I> NullSink<T, I>
+where 
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create NullSink block
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<T>("in").build(),
+    pub fn new() -> Self {
             Self {
                 n_received: 0,
-                _type: std::marker::PhantomData,
-            },
-        )
+                input: I::default(),
+            }
     }
     /// Get number of received samples
     pub fn n_received(&self) -> usize {
@@ -50,24 +51,35 @@ impl<T: Send + 'static> NullSink<T> {
     }
 }
 
+impl<T, I> Default for NullSink<T, I>
+where 
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[doc(hidden)]
-impl<T: Send + 'static> Kernel for NullSink<T> {
+impl<T, I> Kernel for NullSink<T, I>
+where 
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
-
-        let n = i.len() / std::mem::size_of::<T>();
+        let n = self.input().slice().len();
         if n > 0 {
             self.n_received += n;
-            sio.input(0).consume(n);
+            self.input().consume(n);
         }
 
-        if sio.input(0).finished() {
+        if self.input().finished() {
             io.finished = true;
         }
 

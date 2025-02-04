@@ -1,21 +1,19 @@
-use super::flow::FlowExecutor;
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
-use crate::runtime::BlockMessage;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 use async_io::block_on;
 use async_lock::Barrier;
 use async_task::Task;
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
-use slab::Slab;
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 use std::thread;
+
+use crate::runtime::scheduler::flow::FlowExecutor;
+use crate::runtime::config;
+use crate::runtime::Block;
+use crate::runtime::scheduler::Scheduler;
+use crate::runtime::FlowgraphMessage;
 
 type CpuPins = HashMap<usize, usize>;
 
@@ -103,52 +101,47 @@ impl CpuPinScheduler {
 }
 
 impl Scheduler for CpuPinScheduler {
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
-        let _n_blocks = topology.blocks.len();
-        let _n_cores = self.inner.workers.len();
-
+    ) {
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
+        for block in blocks.iter() {
+            let block = Arc::clone(block);
+            let id = block.lock_blocking().id();
+            let main_channel = main_channel.clone();
+            let blocking = block.lock_blocking().is_blocking();
             // println!("{}: {}", id, block.instance_name().unwrap());
 
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender.clone());
-
-            if block.is_blocking() {
-                let main = main_channel.clone();
-                debug!("spawing block on executor");
+            if blocking {
                 self.inner
                     .executor
                     .spawn(blocking::unblock(move || {
-                        block_on(block.run(id, main, receiver))
+                        block_on(async move {
+                            let mut block = block.lock().await;
+                            block.run(main_channel).await;
+                        })
                     }))
                     .detach();
-            } else if let Some(&c) = self.inner.cpu_pins.get(&id) {
+            } else if let Some(&c) = self.inner.cpu_pins.get(&id.0) {
                 self.inner
                     .executor
-                    .spawn_executor(block.run(id, main_channel.clone(), receiver), c)
+                    .spawn_executor(async move {
+                        let mut block = block.lock().await;
+                        block.run(main_channel).await;
+                    }, c)
                     .detach();
             } else {
                 self.inner
                     .executor
-                    .spawn(block.run(id, main_channel.clone(), receiver))
+                    .spawn(async move {
+                        let mut block = block.lock().await;
+                        block.run(main_channel.clone()).await;
+                    })
                     .detach();
             }
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(

@@ -28,8 +28,8 @@ fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 t = d.loc[('gr')].reset_index()
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\,Radio')
 
-t = d.loc[('fs', 'smol1')].reset_index();
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-1')
+# t = d.loc[('fs', 'smol1')].reset_index();
+# ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-1')
 
 t = d.loc[('fs', 'smoln')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')

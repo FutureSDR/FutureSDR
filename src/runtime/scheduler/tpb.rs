@@ -1,6 +1,5 @@
 use async_executor::Executor;
 use async_executor::Task;
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::future::Future;
@@ -13,9 +12,8 @@ use std::thread;
 
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::BlockMessage;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 
 static TPB: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 
@@ -86,32 +84,22 @@ impl TpbScheduler {
 }
 
 impl Scheduler for TpbScheduler {
-    fn run_topology(
-        &self,
-        topology: &mut Topology,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
-        assert!(topology.blocks.len() < 490); // default upper-limit of thread pool size of unblock crate is 500
+    fn run_flowgraph(
+            &self,
+            blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
+            main_channel: &Sender<FlowgraphMessage>) {
 
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
+        for block in blocks.iter() {
+            let block = Arc::clone(block);
+            let main_channel = main_channel.clone();
 
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender);
-
-            self.spawn_blocking(block.run(id, main_channel.clone(), receiver))
+            self.spawn_blocking(async move {
+                    let mut block = block.lock_blocking();
+                block.run(main_channel.clone()).await;
+            })
                 .detach();
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(

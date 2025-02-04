@@ -3,12 +3,10 @@ use async_lock::Barrier;
 use async_task::Runnable;
 use async_task::Task;
 use concurrent_queue::ConcurrentQueue;
-use futures::channel::mpsc::channel;
-use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
+use futures::future;
 use futures::Future;
-use futures::FutureExt;
-use futures::{self};
+use futures_lite::future::FutureExt;
 use slab::Slab;
 use std::fmt;
 use std::panic::RefUnwindSafe;
@@ -23,11 +21,11 @@ use std::task::Poll;
 use std::task::Waker;
 use std::thread;
 
+use crate::channel::mpsc::Sender;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::BlockMessage;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 
 /// Flow scheduler
 ///
@@ -121,51 +119,49 @@ impl FlowScheduler {
 }
 
 impl Scheduler for FlowScheduler {
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
-        let n_blocks = topology.blocks.len();
+    ) {
+        let n_blocks = blocks.len();
         let n_cores = self.inner.workers.len();
 
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
+        for block in blocks.iter() {
+            let block = Arc::clone(block);
+            let id = block.lock_blocking().id();
+            let main_channel = main_channel.clone();
+            let blocking = block.lock_blocking().is_blocking();
             // println!("{}: {}", id, block.instance_name().unwrap());
 
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender.clone());
-
-            if block.is_blocking() {
-                let main = main_channel.clone();
+            if blocking {
                 debug!("spawing block on executor");
                 self.inner
                     .executor
                     .spawn_executor(
-                        blocking::unblock(move || block_on(block.run(id, main, receiver))),
-                        FlowScheduler::map_block(id, n_blocks, n_cores),
+                        blocking::unblock(move || {
+                            block_on(async move {
+                                let mut block = block.lock().await;
+                                block.run(main_channel).await;
+                            })
+                        }),
+                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
                     )
                     .detach();
             } else {
                 self.inner
                     .executor
                     .spawn_executor(
-                        block.run(id, main_channel.clone(), receiver),
-                        FlowScheduler::map_block(id, n_blocks, n_cores),
+                        async move {
+                            let mut block = block.lock_blocking();
+                            block.run(main_channel).await;
+                        },
+                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
                     )
                     .detach();
             }
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(
