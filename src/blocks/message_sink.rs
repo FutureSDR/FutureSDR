@@ -3,9 +3,6 @@ use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Black hole for messages.
@@ -17,11 +14,8 @@ pub struct MessageSink {
 
 impl MessageSink {
     /// Create MessageSink block
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            MessageSink { n_received: 0 },
-        )
+    pub fn new() -> Self {
+        Self { n_received: 0 }
     }
 
     async fn r#in(
@@ -48,14 +42,15 @@ impl MessageSink {
     }
 }
 
+impl Default for MessageSink {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[doc(hidden)]
 impl Kernel for MessageSink {
-    async fn deinit(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _mio: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         debug!("n_received: {}", self.n_received);
         Ok(())
     }

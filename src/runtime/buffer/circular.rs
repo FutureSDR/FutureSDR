@@ -52,7 +52,7 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-pub struct Writer<D: Default + Send + Sync> {
+pub struct Writer<D: Send + Sync> {
     min_bytes: usize,
     min_items: usize,
     inbox: Option<Sender<BlockMessage>>,
@@ -64,7 +64,7 @@ pub struct Writer<D: Default + Send + Sync> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Default + Send + Sync> Writer<D> {
+impl<D: Send + Sync> Writer<D> {
     fn new() -> Self {
         Self {
             min_bytes: 0,
@@ -80,13 +80,13 @@ impl<D: Default + Send + Sync> Writer<D> {
     }
 }
 
-impl<D: Default + Send + Sync> Default for Writer<D> {
+impl<D: Send + Sync> Default for Writer<D> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
+impl<D: Send + Sync> BufferWriter for Writer<D> {
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
@@ -151,7 +151,7 @@ impl<D: Default + Send + Sync> BufferWriter for Writer<D> {
     }
 }
 
-impl<D: Default + Send + Sync> CpuBufferWriter for Writer<D> {
+impl<D: Send + Sync> CpuBufferWriter for Writer<D> {
     type Item = D;
 
     fn produce(&mut self, items: usize) {
@@ -168,7 +168,7 @@ impl<D: Default + Send + Sync> CpuBufferWriter for Writer<D> {
     }
 }
 
-impl<D: Default + Send + Sync> fmt::Debug for Writer<D> {
+impl<D: Send + Sync> fmt::Debug for Writer<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
             .field("output_id", &self.port_id)
@@ -178,8 +178,7 @@ impl<D: Default + Send + Sync> fmt::Debug for Writer<D> {
 }
 
 /// Circular Reader
-#[derive(Default)]
-pub struct Reader<D: Default + Send + Sync> {
+pub struct Reader<D: Send + Sync> {
     reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
     finished: bool,
     writer_inbox: Option<Sender<BlockMessage>>,
@@ -190,7 +189,22 @@ pub struct Reader<D: Default + Send + Sync> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Default + Send + Sync> BufferReader for Reader<D> {
+impl<D: Send + Sync> Default for Reader<D> {
+    fn default() -> Self {
+        Self {
+            reader: None,
+            finished: false,
+            writer_inbox: None,
+            writer_output_id: None,
+            block_id: None,
+            port_id: None,
+            inbox: None,
+            tags: vec![],
+        }
+    }
+}
+
+impl<D: Send + Sync> BufferReader for Reader<D> {
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
         self.block_id = Some(block_id);
         self.port_id = Some(port_id);
@@ -220,7 +234,7 @@ impl<D: Default + Send + Sync> BufferReader for Reader<D> {
     }
 }
 
-impl<D: Default + Send + Sync> CpuBufferReader for Reader<D> {
+impl<D: Send + Sync> CpuBufferReader for Reader<D> {
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {
@@ -240,7 +254,7 @@ impl<D: Default + Send + Sync> CpuBufferReader for Reader<D> {
     }
 }
 
-impl<D: Default + Send + Sync> fmt::Debug for Reader<D> {
+impl<D: Send + Sync> fmt::Debug for Reader<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")
             .field("writer_output_id", &self.writer_output_id)

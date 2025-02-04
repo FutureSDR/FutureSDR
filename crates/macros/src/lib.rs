@@ -579,8 +579,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             GenericParam::Const(const_param) => {
                 const_param.default = None;
             }
-            GenericParam::Lifetime(_) => {
-            }
+            GenericParam::Lifetime(_) => {}
         }
     }
 

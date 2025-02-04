@@ -132,8 +132,8 @@ pub use apply::Apply;
 // pub use combine::Combine;
 // mod console_sink;
 // pub use console_sink::ConsoleSink;
-// mod copy;
-// pub use copy::Copy;
+mod copy;
+pub use copy::Copy;
 // mod copy_rand;
 // pub use copy_rand::CopyRand;
 // pub use copy_rand::CopyRandBuilder;
@@ -165,25 +165,25 @@ pub use file_source::FileSource;
 // pub use iir::IirBuilder;
 // #[cfg(all(feature = "lttng", target_os = "linux"))]
 // pub mod lttng;
-//
-// mod message_annotator;
-// pub use message_annotator::MessageAnnotator;
-// mod message_apply;
-// pub use message_apply::MessageApply;
-// mod message_burst;
-// pub use message_burst::MessageBurst;
-// mod message_copy;
-// pub use message_copy::MessageCopy;
-// mod message_pipe;
-// pub use message_pipe::MessagePipe;
-// mod message_sink;
-// pub use message_sink::MessageSink;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod message_source;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use message_source::MessageSource;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use message_source::MessageSourceBuilder;
+
+mod message_annotator;
+pub use message_annotator::MessageAnnotator;
+mod message_apply;
+pub use message_apply::MessageApply;
+mod message_burst;
+pub use message_burst::MessageBurst;
+mod message_copy;
+pub use message_copy::MessageCopy;
+mod message_pipe;
+pub use message_pipe::MessagePipe;
+mod message_sink;
+pub use message_sink::MessageSink;
+#[cfg(not(target_arch = "wasm32"))]
+mod message_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub use message_source::MessageSource;
+#[cfg(not(target_arch = "wasm32"))]
+pub use message_source::MessageSourceBuilder;
 // mod moving_avg;
 // pub use moving_avg::MovingAvg;
 // mod null_sink;

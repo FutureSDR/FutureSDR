@@ -72,9 +72,9 @@ impl Flowgraph {
     /// Make message connection
     pub fn connect_message<K1: Kernel, K2: Kernel>(
         &mut self,
-        src_block: BlockRef<K1>,
+        src_block: &BlockRef<K1>,
         src_port: impl Into<PortId>,
-        dst_block: BlockRef<K2>,
+        dst_block: &BlockRef<K2>,
         dst_port: impl Into<PortId>,
     ) -> Result<(), Error> {
         let dst_box = dst_block.get().inbox_tx.clone();

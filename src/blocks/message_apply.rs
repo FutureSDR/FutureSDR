@@ -2,8 +2,6 @@ use crate::runtime::BlockMeta;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
@@ -30,8 +28,8 @@ where
     ///
     /// * `callback`: Function to apply to each incoming message, filtering `None` values.
     ///
-    pub fn new(callback: F) -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self { callback })
+    pub fn new(callback: F) -> Self {
+        Self { callback }
     }
 
     async fn msg_handler(
@@ -43,7 +41,7 @@ where
     ) -> Result<Pmt> {
         let r = (self.callback)(p)?;
         if let Some(r) = r {
-            mio.output_mut(0).post(r).await;
+            mio.post("out", r).await?;
         }
         Ok(Pmt::Ok)
     }

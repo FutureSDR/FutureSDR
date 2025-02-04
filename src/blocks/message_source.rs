@@ -7,9 +7,6 @@ use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Output the same message periodically.
@@ -24,16 +21,13 @@ pub struct MessageSource {
 
 impl MessageSource {
     /// Create MessageSource block
-    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            MessageSource {
-                message,
-                interval,
-                t_last: Instant::now(),
-                n_messages,
-            },
-        )
+    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> Self {
+        Self {
+            message,
+            interval,
+            t_last: Instant::now(),
+            n_messages,
+        }
     }
 
     async fn sleep(dur: Duration) {
@@ -46,14 +40,13 @@ impl Kernel for MessageSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
         mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
 
         if now >= self.t_last + self.interval {
-            mio.post(0, self.message.clone()).await;
+            mio.post("out", self.message.clone()).await?;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
                 *n -= 1;
@@ -70,12 +63,7 @@ impl Kernel for MessageSource {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())
     }
@@ -131,7 +119,7 @@ impl MessageSourceBuilder {
         self
     }
     /// Build Message Source block
-    pub fn build(self) -> TypedBlock<MessageSource> {
+    pub fn build(self) -> MessageSource {
         MessageSource::new(self.message, self.duration, self.n_messages)
     }
 }

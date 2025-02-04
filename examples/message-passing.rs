@@ -16,15 +16,15 @@ fn main() -> Result<()> {
     )
     .n_messages(20)
     .build();
-    let msg_copy = MessageCopy::new();
+    let msg_copy = MessageCopy;
     let msg_sink = MessageSink::new();
 
-    let msg_copy = fg.add_block(msg_copy)?;
-    let msg_source = fg.add_block(msg_source)?;
-    let msg_sink = fg.add_block(msg_sink)?;
+    let msg_copy = fg.add_block(msg_copy);
+    let msg_source = fg.add_block(msg_source);
+    let msg_sink = fg.add_block(msg_sink);
 
-    fg.connect_message(msg_source, "out", msg_copy, "in")?;
-    fg.connect_message(msg_copy, "out", msg_sink, "in")?;
+    fg.connect_message(&msg_source, "out", &msg_copy, "in")?;
+    fg.connect_message(&msg_copy, "out", &msg_sink, "in")?;
 
     let now = time::Instant::now();
     Runtime::new().run(fg)?;

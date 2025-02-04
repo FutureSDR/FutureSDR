@@ -320,7 +320,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
                         block_id: self.id(),
                     })
                     .await;
-                return
+                return;
             }
             Err(e) => {
                 let instance_name = self

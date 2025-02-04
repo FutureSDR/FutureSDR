@@ -2,8 +2,6 @@ use crate::runtime::BlockMeta;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Forward messages.
@@ -11,12 +9,12 @@ use crate::runtime::WorkIo;
 #[message_inputs(r#in)]
 #[message_outputs(out)]
 #[null_kernel]
-pub struct MessageCopy {}
+pub struct MessageCopy;
 
 impl MessageCopy {
     /// Create MessageCopy block
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), MessageCopy {})
+    pub fn new() -> Self {
+        Self
     }
 
     async fn r#in(
@@ -31,9 +29,15 @@ impl MessageCopy {
                 io.finished = true;
             }
             p => {
-                mio.post(0, p).await;
+                mio.post("out", p).await?;
             }
         }
         Ok(Pmt::Ok)
+    }
+}
+
+impl Default for MessageCopy {
+    fn default() -> Self {
+        Self::new()
     }
 }
