@@ -1,42 +1,47 @@
 use std::cmp;
 use std::ptr;
 
+use crate::runtime::buffer::circular;
+use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Stream samples from vector.
 #[derive(Block)]
-pub struct VectorSource<T: Send> {
+pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {
     items: Vec<T>,
     n_copied: usize,
+    #[output]
+    output: O,
 }
 
-impl<T: Send + 'static> VectorSource<T> {
+impl<T, O> VectorSource<T, O>
+where 
+T: Send + 'static,
+O: CpuBufferWriter<Item = T>
+{
     /// Create VectorSource block
-    pub fn new(items: Vec<T>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            VectorSource { items, n_copied: 0 },
-        )
+    pub fn new(items: Vec<T>) -> Self {
+            Self { items, n_copied: 0, output: O::default()}
     }
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static> Kernel for VectorSource<T> {
+impl<T, O> Kernel for VectorSource<T, O> 
+where 
+T: Send + 'static,
+O: CpuBufferWriter<Item = T>
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<T>();
+        let out = self.output.slice();
 
         let n = cmp::min(out.len(), self.items.len() - self.n_copied);
 
@@ -53,7 +58,7 @@ impl<T: Send + 'static> Kernel for VectorSource<T> {
                 io.finished = true;
             }
 
-            sio.output(0).produce(n);
+            self.output.produce(n);
         }
 
         Ok(())

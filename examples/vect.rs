@@ -1,8 +1,7 @@
-use anyhow::Context;
 use anyhow::Result;
 use futuresdr::blocks::Copy;
+use futuresdr::runtime::BlockRef;
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -17,34 +16,30 @@ fn main() -> Result<()> {
 
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(n_items).collect();
 
-    let src = fg.add_block(VectorSource::new(orig.clone()))?;
+    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()));
     let snk = fg.add_block(
-        VectorSinkBuilder::<f32>::new()
-            .init_capacity(n_items)
-            .build(),
-    )?;
+        VectorSink::<f32>::new(n_items)
+    );
 
-    let mut prev = 0;
+    let mut prev: Option<BlockRef<Copy<f32>>> = None;
     for i in 0..n_copy {
-        let t = fg.add_block(Copy::<f32>::new())?;
+        let t = fg.add_block(Copy::<f32>::new());
 
-        if i == 0 {
-            fg.connect_stream(src, "out", t, "in")?;
+        if let Some(p) = prev {
+            fg.connect_stream(p.get().output(), t.get().input());
         } else {
-            fg.connect_stream(prev, "out", t, "in")?;
+            fg.connect_stream(src.get().output(), t.get().input());
         }
-        prev = t;
+        prev = Some(t);
     }
 
-    fg.connect_stream(prev, "out", snk, "in")?;
+    fg.connect_stream(prev.unwrap().get().output(), snk.get().input());
 
     let now = time::Instant::now();
-    fg = Runtime::new().run(fg)?;
+    Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
 
-    let snk = fg
-        .kernel::<VectorSink<f32>>(snk)
-        .context("block not found")?;
+    let snk = snk.get();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

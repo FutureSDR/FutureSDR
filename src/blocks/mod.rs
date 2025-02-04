@@ -228,11 +228,10 @@ pub use null_source::NullSource;
 // mod udp_source;
 // #[cfg(not(target_arch = "wasm32"))]
 // pub use udp_source::UdpSource;
-// mod vector_sink;
-// pub use vector_sink::VectorSink;
-// pub use vector_sink::VectorSinkBuilder;
-// mod vector_source;
-// pub use vector_source::VectorSource;
+mod vector_sink;
+pub use vector_sink::VectorSink;
+mod vector_source;
+pub use vector_source::VectorSource;
 // #[cfg(feature = "vulkan")]
 // mod vulkan;
 // #[cfg(feature = "vulkan")]

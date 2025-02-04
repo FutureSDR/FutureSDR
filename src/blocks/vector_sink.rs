@@ -1,29 +1,30 @@
-use std::marker::PhantomData;
-
+use crate::runtime::buffer::circular;
+use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::BlockMeta;
 use crate::runtime::Kernel;
 use crate::runtime::MessageOutputs;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Store received samples in vector.
 #[derive(Block)]
-pub struct VectorSink<T: Send> {
+pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T>=circular::Reader<T>> {
     items: Vec<T>,
+    #[input]
+    input: I,
 }
 
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
+impl<T, I> VectorSink<T, I> 
+where
+T: Clone + std::fmt::Debug + Send + Sync + 'static,
+I: CpuBufferReader<Item = T>
+{
     /// Create VectorSink block
-    pub fn new(capacity: usize) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<T>("in").build(),
+    pub fn new(capacity: usize) -> Self {
             Self {
                 items: Vec::<T>::with_capacity(capacity),
-            },
-        )
+                input: I::default(),
+            }
     }
     /// Get received items
     pub fn items(&self) -> &Vec<T> {
@@ -32,21 +33,25 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSink<T> {
 }
 
 #[doc(hidden)]
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T> {
+impl<T, I> Kernel for VectorSink<T, I> 
+where
+T: Clone + std::fmt::Debug + Send + Sync + 'static,
+I: CpuBufferReader<Item = T>
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
+        let i = self.input.slice();
+        let i_len = i.len();
 
         self.items.extend_from_slice(i);
 
-        sio.input(0).consume(i.len());
+        self.input.consume(i_len);
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
@@ -54,34 +59,3 @@ impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Kernel for VectorSink<T
     }
 }
 
-/// Build a [VectorSink].
-pub struct VectorSinkBuilder<T> {
-    capacity: usize,
-    _foo: PhantomData<T>,
-}
-
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> VectorSinkBuilder<T> {
-    /// Create VectorSink builder
-    pub fn new() -> VectorSinkBuilder<T> {
-        VectorSinkBuilder {
-            capacity: 8192,
-            _foo: PhantomData,
-        }
-    }
-    /// Set initial capacity
-    #[must_use]
-    pub fn init_capacity(mut self, n: usize) -> VectorSinkBuilder<T> {
-        self.capacity = n;
-        self
-    }
-    /// Build VectorSink block
-    pub fn build(self) -> TypedBlock<VectorSink<T>> {
-        VectorSink::<T>::new(self.capacity)
-    }
-}
-
-impl<T: Clone + std::fmt::Debug + Send + Sync + 'static> Default for VectorSinkBuilder<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
