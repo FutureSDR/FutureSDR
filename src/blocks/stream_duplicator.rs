@@ -11,7 +11,7 @@ pub struct StreamDuplicator<
 > {
     #[input]
     input: I,
-    // #[outputs]
+    #[output]
     outputs: [O; N],
 }
 
@@ -77,3 +77,4 @@ where
         Ok(())
     }
 }
+

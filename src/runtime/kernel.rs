@@ -83,9 +83,9 @@ pub trait KernelInterface {
     /// Name of the block
     fn type_name() -> &'static str;
     /// Input Stream Ports
-    fn stream_inputs() -> &'static [&'static str];
+    fn stream_inputs(&self) -> Vec<String>;
     /// Output Stream Ports.
-    fn stream_outputs() -> &'static [&'static str];
+    fn stream_outputs(&self) -> Vec<String>;
     /// Initialize Stream Ports
     ///
     /// This sets required variables but does not connect.

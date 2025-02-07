@@ -15,6 +15,7 @@ use syn::DeriveInput;
 use syn::Fields;
 use syn::GenericParam;
 use syn::Meta;
+use syn::PathArguments;
 use syn::Type;
 
 //=========================================================================
@@ -540,6 +541,19 @@ fn has_input_attr(attrs: &[Attribute]) -> bool {
 fn has_output_attr(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|attr| attr.path().is_ident("output"))
 }
+/// Check if parameter is a Vec
+fn is_vec(type_path: &syn::TypePath) -> bool {
+    if type_path.path.segments.len() != 1 {
+        return false;
+    }
+
+    let segment = &type_path.path.segments[0];
+    if segment.ident != "Vec" {
+        return false;
+    }
+
+    matches!(segment.arguments, PathArguments::AngleBracketed(_))
+}
 
 //=========================================================================
 // BLOCK MACRO
@@ -591,6 +605,134 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 .to_compile_error()
                 .into();
         }
+    };
+
+    let my_input_names = match struct_data.fields {
+        Fields::Named(ref fields) => {
+            let field_expressions = fields
+                .named
+                .iter()
+                .filter_map(|field| {
+                    // Check if field has #[input] attribute
+                    if !field.attrs.iter().any(|attr| attr.path().is_ident("input")) {
+                        return None;
+                    }
+
+                    let field_name = field.ident.as_ref().unwrap();
+                    let field_name_str = field_name.to_string();
+
+                    match &field.ty {
+                        // Handle Vec<T>
+                        Type::Path(type_path) if is_vec(type_path) => {
+                            let code = quote! {
+                                for i in 0..self.#field_name.len() {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle arrays [T; N]
+                        Type::Array(array) => {
+                            let len = &array.len;
+                            let code = quote! {
+                                for i in 0..#len {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle tuples (T1, T2, ...)
+                        Type::Tuple(tuple) => {
+                            let len = tuple.elems.len();
+                            let code = quote! {
+                                for i in 0..#len {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle normal types
+                        _ => {
+                            let code = quote! {
+                                names.push(#field_name_str.to_string());
+                            };
+                            Some(code)
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            quote! {
+                let mut names = Vec::new();
+                #(#field_expressions)*
+                names
+            }
+        }
+        _ => quote! { Vec::new() },
+    };
+
+    let my_output_names = match struct_data.fields {
+        Fields::Named(ref fields) => {
+            let field_expressions = fields
+                .named
+                .iter()
+                .filter_map(|field| {
+                    // Check if field has #[input] attribute
+                    if !field.attrs.iter().any(|attr| attr.path().is_ident("output")) {
+                        return None;
+                    }
+
+                    let field_name = field.ident.as_ref().unwrap();
+                    let field_name_str = field_name.to_string();
+
+                    match &field.ty {
+                        // Handle Vec<T>
+                        Type::Path(type_path) if is_vec(type_path) => {
+                            let code = quote! {
+                                for i in 0..self.#field_name.len() {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle arrays [T; N]
+                        Type::Array(array) => {
+                            let len = &array.len;
+                            let code = quote! {
+                                for i in 0..#len {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle tuples (T1, T2, ...)
+                        Type::Tuple(tuple) => {
+                            let len = tuple.elems.len();
+                            let code = quote! {
+                                for i in 0..#len {
+                                    names.push(format!("{}{}", #field_name_str, i));
+                                }
+                            };
+                            Some(code)
+                        }
+                        // Handle normal types
+                        _ => {
+                            let code = quote! {
+                                names.push(#field_name_str.to_string());
+                            };
+                            Some(code)
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            quote! {
+                let mut names = Vec::new();
+                #(#field_expressions)*
+                names
+            }
+        }
+        _ => quote! { Vec::new() },
     };
 
     // Collect the names and types of fields that have the #[input] or #[output] attribute
@@ -816,13 +958,11 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 static TYPE_NAME: &str = #type_name;
                 TYPE_NAME
             }
-            fn stream_inputs() -> &'static[&'static str] {
-                static STREAM_INPUTS: &[&str] = &[#(#stream_input_names),*];
-                STREAM_INPUTS
+            fn stream_inputs(&self) -> Vec<String> {
+                #my_input_names
             }
-            fn stream_outputs() -> &'static[&'static str] {
-                static STREAM_OUTPUTS: &[&str] = &[#(#stream_output_names),*];
-                STREAM_OUTPUTS
+            fn stream_outputs(&self) -> Vec<String> {
+                #my_output_names
             }
 
             fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inbox: ::futuresdr::channel::mpsc::Sender<::futuresdr::runtime::BlockMessage>) {
@@ -832,7 +972,6 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
-                use ::futuresdr::runtime::PortId;
                 use ::futuresdr::runtime::BlockPortCtx;
                 match port_id.0.as_str() {
                     #(#stream_input_finish_matches)*
@@ -880,7 +1019,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         #kernel
     };
-    // println!("{}", pretty_print(&expanded));
+    println!("{}", pretty_print(&expanded));
     proc_macro::TokenStream::from(expanded)
 }
 

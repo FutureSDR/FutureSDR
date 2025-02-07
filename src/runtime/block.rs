@@ -145,10 +145,8 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                 match inbox.next().now_or_never() {
                     Some(Some(BlockMessage::Notify)) => {}
                     Some(Some(BlockMessage::BlockDescription { tx })) => {
-                        let stream_inputs =
-                            K::stream_inputs().iter().map(|n| n.to_string()).collect();
-                        let stream_outputs =
-                            K::stream_outputs().iter().map(|n| n.to_string()).collect();
+                        let stream_inputs = kernel.stream_inputs();
+                        let stream_outputs = kernel.stream_outputs();
                         let message_inputs =
                             K::message_inputs().iter().map(|n| n.to_string()).collect();
                         let message_outputs =
