@@ -210,8 +210,8 @@ pub use null_source::NullSource;
 // pub use split::Split;
 // mod stream_deinterleaver;
 // pub use stream_deinterleaver::StreamDeinterleaver;
-// mod stream_duplicator;
-// pub use stream_duplicator::StreamDuplicator;
+mod stream_duplicator;
+pub use stream_duplicator::StreamDuplicator;
 // mod tag_debug;
 // pub use tag_debug::TagDebug;
 // #[cfg(not(target_arch = "wasm32"))]

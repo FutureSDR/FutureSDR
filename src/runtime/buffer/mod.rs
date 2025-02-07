@@ -98,10 +98,7 @@ impl<'a> Tags<'a> {
     ///
     /// Should only be constructed in buffer implementations.
     pub fn new(tags: &'a mut Vec<ItemTag>, offset: usize) -> Self {
-        Self {
-            tags,
-            offset
-        }
+        Self { tags, offset }
     }
     /// Used in work to add a tag to the output
     pub fn add_tag(&mut self, index: usize, tag: Tag) {
