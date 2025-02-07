@@ -1,20 +1,11 @@
 use futuredsp::prelude::*;
 use futuredsp::FirFilter;
+use futuresdr::prelude::*;
 use rustfft::Fft;
 use rustfft::FftDirection;
 use rustfft::FftPlanner;
 use std::cmp::min;
 use std::sync::Arc;
-
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 /// Polyphase Synthesizer.
 #[derive(Block)]
@@ -74,7 +65,6 @@ impl Kernel for PfbSynthesizer {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {

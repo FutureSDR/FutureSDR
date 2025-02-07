@@ -79,12 +79,37 @@ pub trait BufferWriter: Default {
 pub trait CpuBufferReader: BufferReader + Send {
     /// Buffer Items
     type Item;
-    /// Consume Items
-    fn consume(&mut self, n: usize);
     /// Get available samples.
     fn slice(&mut self) -> &[Self::Item];
-    /// Get tags
-    fn tags(&self) -> &Vec<ItemTag>;
+    /// Get available samples and tags.
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
+    /// Consume Items
+    fn consume(&mut self, n: usize);
+}
+
+/// Output Tags
+pub struct Tags<'a> {
+    tags: &'a mut Vec<ItemTag>,
+    offset: usize,
+}
+
+impl<'a> Tags<'a> {
+    /// Create Output Tags structure
+    ///
+    /// Should only be constructed in buffer implementations.
+    pub fn new(tags: &'a mut Vec<ItemTag>, offset: usize) -> Self {
+        Self {
+            tags,
+            offset
+        }
+    }
+    /// Used in work to add a tag to the output
+    pub fn add_tag(&mut self, index: usize, tag: Tag) {
+        self.tags.push(ItemTag {
+            index: self.offset + index,
+            tag,
+        });
+    }
 }
 /// A generic CPU buffer writer (out-of-place)
 ///
@@ -95,8 +120,8 @@ pub trait CpuBufferWriter: BufferWriter + Send {
     type Item;
     /// Available buffer space
     fn slice(&mut self) -> &mut [Self::Item];
+    /// Available buffer space and tags.
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags);
     /// samples produced
     fn produce(&mut self, n: usize);
-    /// Add a tag
-    fn add_tag(&mut self, index: usize, tag: Tag);
 }

@@ -7,6 +7,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::Tags;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
@@ -163,8 +164,9 @@ impl<D: Send + Sync> CpuBufferWriter for Writer<D> {
     fn slice(&mut self) -> &mut [Self::Item] {
         self.writer.as_mut().unwrap().slice(false)
     }
-    fn add_tag(&mut self, index: usize, tag: crate::runtime::Tag) {
-        self.tags.push(ItemTag { index, tag });
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+        let s = self.writer.as_mut().unwrap().slice(false);
+        (s, Tags::new(&mut self.tags, 0))
     }
 }
 
@@ -246,11 +248,17 @@ impl<D: Send + Sync> CpuBufferReader for Reader<D> {
             &[]
         }
     }
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+        if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
+            self.tags = tags;
+            (s, &self.tags)
+        } else {
+            debug_assert!(self.tags.is_empty());
+            (&[], &self.tags)
+        }
+    }
     fn consume(&mut self, amount: usize) {
         self.reader.as_mut().unwrap().consume(amount);
-    }
-    fn tags(&self) -> &Vec<ItemTag> {
-        &self.tags
     }
 }
 

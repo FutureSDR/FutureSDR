@@ -115,10 +115,10 @@
 
 mod apply;
 pub use apply::Apply;
-// mod applyintoiter;
-// pub use applyintoiter::ApplyIntoIter;
-// mod applynm;
-// pub use applynm::ApplyNM;
+mod applyintoiter;
+pub use applyintoiter::ApplyIntoIter;
+mod applynm;
+pub use applynm::ApplyNM;
 // pub mod audio;
 // #[cfg(not(target_arch = "wasm32"))]
 // mod blob_to_udp;

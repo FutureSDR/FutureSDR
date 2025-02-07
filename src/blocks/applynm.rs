@@ -1,11 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 /// Apply a function to each N input samples, producing M output samples.
 ///
@@ -40,55 +33,64 @@ use crate::runtime::WorkIo;
 /// ```
 #[allow(clippy::type_complexity)]
 #[derive(Block)]
-pub struct ApplyNM<F, A, B, const N: usize, const M: usize>
-where
+pub struct ApplyNM<
+    F,
+    A,
+    B,
+    const N: usize,
+    const M: usize,
+    I = circular::Reader<A>,
+    O = circular::Writer<B>,
+> where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O: CpuBufferWriter<Item = B>,
 {
     f: F,
-    _p1: std::marker::PhantomData<A>,
-    _p2: std::marker::PhantomData<B>,
+    #[input]
+    input: I,
+    #[output]
+    output: O,
 }
 
-impl<F, A, B, const N: usize, const M: usize> ApplyNM<F, A, B, N, M>
+impl<F, A, B, const N: usize, const M: usize, I, O> ApplyNM<F, A, B, N, M, I, O>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O: CpuBufferWriter<Item = B>,
 {
     /// Create [`ApplyNM`] block
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<A>("in")
-                .add_output::<B>("out")
-                .build(),
-            Self {
-                f,
-                _p1: std::marker::PhantomData,
-                _p2: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            f,
+            input: I::default(),
+            output: O::default(),
+        }
     }
 }
 
 #[doc(hidden)]
-impl<F, A, B, const N: usize, const M: usize> Kernel for ApplyNM<F, A, B, N, M>
+impl<F, A, B, const N: usize, const M: usize, I, O> Kernel for ApplyNM<F, A, B, N, M, I, O>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O: CpuBufferWriter<Item = B>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<A>();
-        let o = sio.output(0).slice::<B>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
 
         // See https://www.nickwilcox.com/blog/autovec/ for a discussion
         // on auto-vectorization of these types of functions.
@@ -98,11 +100,11 @@ where
                 (self.f)(v, r);
             }
 
-            sio.input(0).consume(N * m);
-            sio.output(0).produce(M * m);
+            self.input.consume(N * m);
+            self.output.produce(M * m);
         }
 
-        if sio.input(0).finished() && (i.len() - N * m) < N {
+        if self.input.finished() && (i_len - N * m) < N {
             io.finished = true;
         }
 

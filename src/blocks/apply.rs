@@ -1,11 +1,4 @@
-use crate::macros::Block;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 /// Apply a function to each sample.
 ///

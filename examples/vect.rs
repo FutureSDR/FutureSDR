@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     let snk = fg.add_block(VectorSink::<f32>::new(n_items));
 
     let mut prev: Option<BlockRef<Copy<f32>>> = None;
-    for i in 0..n_copy {
+    for _i in 0..n_copy {
         let t = fg.add_block(Copy::<f32>::new());
 
         if let Some(p) = prev {

@@ -75,3 +75,29 @@ pub mod macros {
     pub use futuresdr_macros::connect;
     pub use futuresdr_macros::Block;
 }
+
+/// Prelude with common structs and traits
+pub mod prelude {
+    pub use ::futuresdr::channel::mpsc;
+    pub use ::futuresdr::channel::oneshot;
+    pub use ::futuresdr::macros::async_trait;
+    pub use ::futuresdr::macros::connect;
+    pub use ::futuresdr::macros::Block;
+    pub use ::futuresdr::runtime::buffer::circular;
+    pub use ::futuresdr::runtime::buffer::BufferReader;
+    pub use ::futuresdr::runtime::buffer::BufferWriter;
+    pub use ::futuresdr::runtime::buffer::CpuBufferReader;
+    pub use ::futuresdr::runtime::buffer::CpuBufferWriter;
+    pub use ::futuresdr::runtime::BlockMeta;
+    pub use ::futuresdr::runtime::Error;
+    pub use ::futuresdr::runtime::Flowgraph;
+    pub use ::futuresdr::runtime::FlowgraphHandle;
+    pub use ::futuresdr::runtime::ItemTag;
+    pub use ::futuresdr::runtime::Kernel;
+    pub use ::futuresdr::runtime::MessageOutputs;
+    pub use ::futuresdr::runtime::Result;
+    pub use ::futuresdr::runtime::Runtime;
+    pub use ::futuresdr::runtime::RuntimeHandle;
+    pub use ::futuresdr::runtime::WorkIo;
+    pub use ::num_complex::*;
+}

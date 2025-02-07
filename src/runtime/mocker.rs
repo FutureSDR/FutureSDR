@@ -10,6 +10,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
@@ -226,8 +227,8 @@ impl<T: Debug + Send + 'static> CpuBufferReader for Reader<T> {
     fn slice(&mut self) -> &[Self::Item] {
         self.data.as_slice()
     }
-    fn tags(&self) -> &Vec<ItemTag> {
-        &self.tags
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+        (&self.data.as_slice(), &self.tags)
     }
 }
 
@@ -301,18 +302,19 @@ impl<T: Clone + Debug + Send + 'static> CpuBufferWriter for Writer<T> {
             )
         }
     }
-
     fn produce(&mut self, n: usize) {
         let curr_len = self.data.len();
         unsafe {
             self.data.set_len(curr_len + n);
         }
     }
-
-    fn add_tag(&mut self, index: usize, tag: super::Tag) {
-        self.tags.push(ItemTag {
-            index: self.data.len() + index,
-            tag,
-        });
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+        let s = unsafe {
+            std::slice::from_raw_parts_mut(
+                self.data.as_mut_ptr().add(self.data.len()),
+                self.data.capacity() - self.data.len(),
+            )
+        };
+        (s, Tags::new(&mut self.tags, self.data.len()))
     }
 }
