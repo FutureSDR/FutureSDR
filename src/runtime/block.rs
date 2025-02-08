@@ -98,6 +98,8 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             ..
         } = self;
 
+        kernel.stream_ports_validate()?;
+
         // init work io
         let mut work_io = WorkIo {
             call_again: false,

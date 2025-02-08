@@ -25,6 +25,7 @@ use std::future::Future;
 use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
+use futuresdr::runtime::Error;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Tag;
@@ -39,6 +40,8 @@ pub trait BufferReader: Default {
     /// This sets the own block ID, Port ID, and message receiver so that it can
     /// be communicated the the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>);
+    /// Check if connected
+    fn validate(&self) -> Result<(), Error>;
     /// notify upstream that we are done
     fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
     /// The upstream is done
@@ -65,6 +68,8 @@ pub trait BufferWriter: Default {
     /// This sets the own block ID, Port ID, and message receiver so that it can
     /// be communicated the the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>);
+    /// Check if connected
+    fn validate(&self) -> Result<(), Error>;
     /// Connect the writer to (another) reader.
     fn connect(&mut self, dest: &mut Self::Reader);
     /// Notify downstream blocks that we are done.

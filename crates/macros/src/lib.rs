@@ -597,6 +597,28 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
+    let unconstraint_params = generics.params.iter().map(|param| match param {
+        GenericParam::Type(ty) => {
+            let ident = &ty.ident;
+            quote! { #ident }
+        }
+        GenericParam::Lifetime(lt) => {
+            let lifetime = &lt.lifetime;
+            quote! { #lifetime }
+        }
+        GenericParam::Const(c) => {
+            let ident = &c.ident;
+            quote! { #ident }
+        }
+    });
+
+    // Surround the parameters with angle brackets if they exist
+    let unconstraint_generics = if generics.params.is_empty() {
+        quote! {}
+    } else {
+        quote! { <#(#unconstraint_params),*> }
+    };
+
     // Parse Struct
     let struct_data = match input.data {
         Data::Struct(data) => data,
@@ -634,6 +656,11 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
                                 }
                             };
+                            let validate_code = quote! {
+                                for i in 0..self.#field_name.len() {
+                                    self.#field_name[i].validate()?;
+                                }
+                            };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     self.#field_name[i].notify_finished().await;
@@ -647,7 +674,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     }
                                 }
                             };
-                            Some((name_code, init_code, notify_code, finish_code))
+                            Some((name_code, init_code, validate_code, notify_code, finish_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
@@ -662,6 +689,11 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
                                 }
                             };
+                            let validate_code = quote! {
+                                for i in 0..#len {
+                                    self.#field_name[i].validate()?;
+                                }
+                            };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     self.#field_name[i].notify_finished().await;
@@ -675,7 +707,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     }
                                 }
                             };
-                            Some((name_code, init_code, notify_code, finish_code))
+                            Some((name_code, init_code, validate_code, notify_code, finish_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
@@ -693,6 +725,15 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             });
                             let init_code = quote! {
                                 #(#init_code)*
+                            };
+                            let validate_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                                let index = syn::Index::from(i);
+                                quote! {
+                                    self.#field_name.#index.validate()?;
+                                }
+                            });
+                            let validate_code = quote! {
+                                #(#validate_code)*
                             };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -716,7 +757,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 #(#finish_code)*
                             };
                             println!("{}", finish_code);
-                            Some((name_code, init_code, notify_code, finish_code))
+                            Some((name_code, init_code, validate_code, notify_code, finish_code))
                         }
                         // Handle normal types
                         _ => {
@@ -725,6 +766,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let init_code = quote! {
                                 self.#field_name.init(block_id, PortId(#field_name_str.to_string()), inbox.clone());
+                            };
+                            let validate_code = quote! {
+                                self.#field_name.validate()?;
                             };
                             let notify_code = quote! {
                                 self.#field_name.notify_finished().await;
@@ -735,7 +779,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     return Ok(());
                                 }
                             };
-                            Some((name_code, init_code, notify_code, finish_code))
+                            Some((name_code, init_code, validate_code, notify_code, finish_code))
                         }
                     }
                 })
@@ -746,8 +790,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let stream_inputs_names = stream_inputs.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
     let stream_inputs_init = stream_inputs.iter().map(|x| x.1.clone()).collect::<Vec<_>>();
-    let stream_inputs_notify = stream_inputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
-    let stream_inputs_finish = stream_inputs.iter().map(|x| x.3.clone()).collect::<Vec<_>>();
+    let stream_inputs_validate = stream_inputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
+    let stream_inputs_notify = stream_inputs.iter().map(|x| x.3.clone()).collect::<Vec<_>>();
+    let stream_inputs_finish = stream_inputs.iter().map(|x| x.4.clone()).collect::<Vec<_>>();
 
     let stream_outputs = match struct_data.fields {
         Fields::Named(ref fields) => {
@@ -776,12 +821,17 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
                                 }
                             };
+                            let validate_code = quote! {
+                                for i in 0..self.#field_name.len() {
+                                    self.#field_name[i].validate()?;
+                                }
+                            };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     self.#field_name[i].notify_finished().await;
                                 }
                             };
-                            Some((name_code, init_code, notify_code))
+                            Some((name_code, init_code, validate_code, notify_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
@@ -796,12 +846,17 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                     self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
                                 }
                             };
+                            let validate_code = quote! {
+                                for i in 0..#len {
+                                    self.#field_name[i].validate()?;
+                                }
+                            };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     self.#field_name[i].notify_finished().await;
                                 }
                             };
-                            Some((name_code, init_code, notify_code))
+                            Some((name_code, init_code, validate_code, notify_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
@@ -820,6 +875,15 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let init_code = quote! {
                                 #(#init_code)*
                             };
+                            let validate_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                                let index = syn::Index::from(i);
+                                quote! {
+                                    self.#field_name.#index.validate()?;
+                                }
+                            });
+                            let validate_code = quote! {
+                                #(#validate_code)*
+                            };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
@@ -829,7 +893,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let notify_code = quote! {
                                 #(#notify_code)*
                             };
-                            Some((name_code, init_code, notify_code))
+                            Some((name_code, init_code, validate_code, notify_code))
                         }
                         // Handle normal types
                         _ => {
@@ -839,10 +903,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let init_code = quote! {
                                 self.#field_name.init(block_id, PortId(#field_name_str.to_string()), inbox.clone());
                             };
+                            let validate_code = quote! {
+                                self.#field_name.validate()?;
+                            };
                             let notify_code = quote! {
                                 self.#field_name.notify_finished().await;
                             };
-                            Some((name_code, init_code, notify_code))
+                            Some((name_code, init_code, validate_code, notify_code))
                         }
                     }
                 })
@@ -853,7 +920,8 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let stream_outputs_names = stream_outputs.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
     let stream_outputs_init = stream_outputs.iter().map(|x| x.1.clone()).collect::<Vec<_>>();
-    let stream_outputs_notify = stream_outputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
+    let stream_outputs_validate = stream_outputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
+    let stream_outputs_notify = stream_outputs.iter().map(|x| x.3.clone()).collect::<Vec<_>>();
 
     // Collect the names and types of fields that have the #[input] or #[output] attribute
     let (port_idents, port_types): (Vec<Ident>, Vec<Type>) = match struct_data.fields {
@@ -884,38 +952,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         });
 
-    // Collect stream inputs
-    // let stream_input_names: Vec<String> = match struct_data.fields {
-    //     Fields::Named(ref fields_named) => fields_named
-    //         .named
-    //         .iter()
-    //         .filter_map(|field| {
-    //             if has_input_attr(&field.attrs) {
-    //                 Some(field.ident.as_ref().unwrap().to_string())
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect(),
-    //     Fields::Unnamed(_) | Fields::Unit => Vec::new(),
-    // };
-    // Collect stream outputs
-    // let stream_output_names: Vec<String> = match struct_data.fields {
-    //     Fields::Named(ref fields_named) => fields_named
-    //         .named
-    //         .iter()
-    //         .filter_map(|field| {
-    //             if has_output_attr(&field.attrs) {
-    //                 Some(field.ident.as_ref().unwrap().to_string())
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect(),
-    //     Fields::Unnamed(_) | Fields::Unit => Vec::new(),
-    // };
-
-    // Search for the `handlers` attribute
+    // Search for struct attributes
     for attr in &input.attrs {
         if attr.path().is_ident("message_inputs") {
             let nested = attr
@@ -999,28 +1036,6 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
-    let unconstraint_params = generics.params.iter().map(|param| match param {
-        GenericParam::Type(ty) => {
-            let ident = &ty.ident;
-            quote! { #ident }
-        }
-        GenericParam::Lifetime(lt) => {
-            let lifetime = &lt.lifetime;
-            quote! { #lifetime }
-        }
-        GenericParam::Const(c) => {
-            let ident = &c.ident;
-            quote! { #ident }
-        }
-    });
-
-    // Surround the parameters with angle brackets if they exist
-    let unconstraint_generics = if generics.params.is_empty() {
-        quote! {}
-    } else {
-        quote! { <#(#unconstraint_params),*> }
-    };
-
     // Generate match arms for the handle method
     let handler_matches =
         message_inputs
@@ -1031,33 +1046,6 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     #handler_name  => self.#handler(io, mio, meta, p).await,
                 }
             });
-
-    // let stream_ports_init = stream_input_names
-    //     .iter()
-    //     .chain(stream_output_names.iter())
-    //     .map(|n| {
-    //         let n_ident = Ident::new(n, Span::call_site());
-    //         quote! {
-    //             self.#n_ident.init(block_id, PortId(#n.to_string()), inbox.clone());
-    //         }
-    //     });
-    //
-    // let notify_stream_ports = stream_input_names
-    //     .iter()
-    //     .chain(stream_output_names.iter())
-    //     .map(|n| {
-    //         let n = Ident::new(n, Span::call_site());
-    //         quote! {
-    //             self.#n.notify_finished().await;
-    //         }
-    //     });
-    //
-    // let stream_input_finish_matches = stream_input_names.iter().map(|n| {
-    //     let n_ident = Ident::new(n, Span::call_site());
-    //     quote! {
-    //         #n => self.#n_ident.finish(),
-    //     }
-    // });
 
     let expanded = quote! {
 
@@ -1092,6 +1080,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 use ::futuresdr::runtime::PortId;
                 #(#stream_inputs_init)*
                 #(#stream_outputs_init)*
+            }
+
+            fn stream_ports_validate(&self) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
+                use ::futuresdr::runtime::PortId;
+                #(#stream_inputs_validate)*
+                #(#stream_outputs_validate)*
+                Ok(())
             }
 
             fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {

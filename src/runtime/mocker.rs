@@ -200,6 +200,9 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
         self.block_id = block_id;
         self.port_id = port_id;
     }
+    fn validate(&self) -> Result<(), Error> {
+        Ok(())
+    }
     async fn notify_finished(&mut self) {}
     fn finish(&mut self) {}
     fn finished(&mut self) -> bool {
@@ -277,7 +280,9 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
         self.block_id = block_id;
         self.port_id = port_id;
     }
-
+    fn validate(&self) -> Result<(), Error> {
+        Ok(())
+    }
     fn connect(&mut self, _dest: &mut Self::Reader) {}
 
     async fn notify_finished(&mut self) {}

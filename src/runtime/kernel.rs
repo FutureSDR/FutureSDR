@@ -90,6 +90,8 @@ pub trait KernelInterface {
     ///
     /// This sets required variables but does not connect.
     fn stream_ports_init(&mut self, block_id: BlockId, inbox: Sender<BlockMessage>);
+    /// This sets required variables but does not connect.
+    fn stream_ports_validate(&self) -> Result<(), Error>;
     /// Mark stream input as finished
     fn stream_input_finish(&mut self, port_id: PortId) -> Result<(), Error>;
     /// Tell adjacent blocks that we are done
