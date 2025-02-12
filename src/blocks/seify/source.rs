@@ -1,11 +1,3 @@
-use anyhow::Context;
-use seify::Device;
-use seify::DeviceTrait;
-use seify::Direction::Rx;
-use seify::GenericDevice;
-use seify::RxStreamer;
-use std::time::Duration;
-
 use crate::blocks::seify::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
@@ -21,6 +13,13 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use anyhow::Context;
+use seify::Device;
+use seify::DeviceTrait;
+use seify::Direction::Rx;
+use seify::GenericDevice;
+use seify::RxStreamer;
+use std::time::Duration;
 
 /// Seify Source block
 ///
@@ -43,6 +42,7 @@ pub struct Source<D: DeviceTrait + Clone> {
     dev: Device<D>,
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
+    overflows: u64,
 }
 
 impl<D: DeviceTrait + Clone> Source<D> {
@@ -73,14 +73,21 @@ impl<D: DeviceTrait + Clone> Source<D> {
                 .add_input("cmd", Self::cmd_handler)
                 .add_input("terminate", Self::terminate_handler)
                 .add_input("config", Self::get_config_handler)
+                .add_input("overflows", Self::overflows_handler)
                 .build(),
             Source {
                 channels,
                 dev,
-                start_time,
                 streamer: None,
+                start_time,
+                overflows: 0,
             },
         )
+    }
+
+    /// Count of [`seify::Error::Overflow`] occurrences
+    pub fn overflows(&self) -> u64 {
+        self.overflows
     }
 
     #[message_handler]
@@ -198,6 +205,17 @@ impl<D: DeviceTrait + Clone> Source<D> {
         }
         Ok(Config::from(&self.dev, Rx, id)?.to_serializable_pmt())
     }
+
+    #[message_handler]
+    fn overflows_handler(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageIo<Self>,
+        _meta: &mut BlockMeta,
+        _in: Pmt,
+    ) -> Result<Pmt> {
+        Ok(Pmt::U64(self.overflows))
+    }
 }
 
 #[doc(hidden)]
@@ -228,6 +246,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
                 }
             }
             Err(seify::Error::Overflow) => {
+                self.overflows += 1;
                 warn!("Seify Source Overflow");
             }
             Err(e) => {
