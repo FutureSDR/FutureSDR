@@ -29,7 +29,7 @@ impl<const WIDTH: usize> MovingAvg<WIDTH> {
     /// # Arguments
     ///
     /// * `decay_factor`: amount current value should contribute to the rolling average.
-    ///    Must be in `[0.0, 1.0]`.
+    ///   Must be in `[0.0, 1.0]`.
     /// * `history_size`: number of chunks to average over
     ///
     /// Typical parameter values might be `decay_factor=0.1` and `history_size=3`
