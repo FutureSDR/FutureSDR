@@ -264,6 +264,8 @@ mod wgpu;
 pub use self::wgpu::Wgpu;
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
+#[cfg(feature = "zenoh")]
+pub mod zenoh;
 #[cfg(feature = "zynq")]
 mod zynq;
 #[cfg(feature = "zynq")]

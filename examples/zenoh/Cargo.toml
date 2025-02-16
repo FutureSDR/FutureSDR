@@ -1,0 +1,18 @@
+[package]
+name = "zenoh"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+futuresdr = { path = "../..", features = ["zenoh"] }
+
+[[bin]]
+name = "zenoh-receiver"
+path = "zenoh_receiver.rs"
+
+[[bin]]
+name = "zenoh-sender"
+path = "zenoh_sender.rs"
