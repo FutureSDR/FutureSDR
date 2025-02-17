@@ -43,22 +43,25 @@ impl<T: Send + 'static> PubSink<T> {
 impl<T: Send + 'static> Kernel for PubSink<T> {
     async fn work(
         &mut self,
-        io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        work_io: &mut WorkIo,
+        stream_io: &mut StreamIo,
+        _message_io: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
+        let input = stream_io.input(0).slice::<T>();
 
-        let n = i.len();
-        if n > 0 && n > self.min_item {
-            let i = sio.input(0).slice_unchecked::<u8>();
-            self.publisher.as_mut().unwrap().put(i).await.unwrap();
-            sio.input(0).consume(n);
+        let input_len = input.len();
+
+        if input_len > 0 && input_len > self.min_item {
+            let input = stream_io.input(0).slice_unchecked::<u8>();
+
+            self.publisher.as_mut().unwrap().put(input).await.unwrap();
+
+            stream_io.input(0).consume(input_len);
         }
 
-        if sio.input(0).finished() {
-            io.finished = true;
+        if stream_io.input(0).finished() {
+            work_io.finished = true;
         }
 
         Ok(())
@@ -66,8 +69,8 @@ impl<T: Send + 'static> Kernel for PubSink<T> {
 
     async fn init(
         &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _stream_io: &mut StreamIo,
+        _message_io: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         debug!("PubSink init");
@@ -111,7 +114,7 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
         self
     }
 
-    /// Publisher key expression
+    /// Zenoh key expression
     #[must_use]
     pub fn key_expression(mut self, key_expression: &str) -> PubSinkBuilder<T> {
         self.key_expression = key_expression.to_string();

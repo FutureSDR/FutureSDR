@@ -5,17 +5,14 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 
 fn main() -> Result<()> {
-    let mut fg = Flowgraph::new();
+    let mut flowgraph = Flowgraph::new();
 
-    let zenoh_src = fg.add_block(
-        SubSourceBuilder::<u8>::new()
-            .build(),
-    )?;
-    let snk = fg.add_block(FileSink::<u8>::new("/tmp/zenoh-log.bin"))?;
+    let sub_source = flowgraph.add_block(SubSourceBuilder::<u8>::new().build())?;
+    let file_sink = flowgraph.add_block(FileSink::<u8>::new("/tmp/zenoh-log.bin"))?;
 
-    fg.connect_stream(zenoh_src, "out", snk, "in")?;
+    flowgraph.connect_stream(sub_source, "out", file_sink, "in")?;
 
-    Runtime::new().run(fg)?;
+    Runtime::new().run(flowgraph)?;
 
     Ok(())
 }

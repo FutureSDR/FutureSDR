@@ -41,23 +41,23 @@ impl<T: Send + 'static> SubSource<T> {
 impl<T: Send + 'static> Kernel for SubSource<T> {
     async fn work(
         &mut self,
-        _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _work_io: &mut WorkIo,
+        stream_io: &mut StreamIo,
+        _message_io: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice_unchecked::<u8>();
+        let output = stream_io.output(0).slice_unchecked::<u8>();
 
         if let Ok(sample) = self.subscriber.as_mut().unwrap().recv_async().await {
             let payload = sample.payload().to_bytes();
 
-            let len = std::cmp::min(o.len(), payload.as_ref().len());
+            let output_len = std::cmp::min(output.len(), payload.as_ref().len());
 
-            o[..len].copy_from_slice(&payload.as_ref()[..len]);
+            output[..output_len].copy_from_slice(&payload.as_ref()[..output_len]);
 
-            debug!("SubSource received {}", len);
+            debug!("SubSource received {}", output_len);
 
-            sio.output(0).produce(len);
+            stream_io.output(0).produce(output_len);
         }
 
         Ok(())
@@ -65,8 +65,8 @@ impl<T: Send + 'static> Kernel for SubSource<T> {
 
     async fn init(
         &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _stream_io: &mut StreamIo,
+        _message_io: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         debug!("SubSource init");
