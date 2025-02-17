@@ -36,13 +36,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         let fg_handle = fg_handle.clone();
         move |_| {
             let mut fg_handle = fg_handle.clone();
-            async move {
-                if let Ok(desc) = fg_handle.description().await {
-                    Some(desc)
-                } else {
-                    None
-                }
-            }
+            async move { fg_handle.description().await.ok() }
         }
     });
 

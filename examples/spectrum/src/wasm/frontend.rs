@@ -180,13 +180,7 @@ pub fn Gui() -> impl IntoView {
         || (),
         move |_| {
             let rt_handle = rt_handle.clone();
-            async move {
-                if let Ok(fg) = rt_handle.get_flowgraph(0).await {
-                    Some(fg)
-                } else {
-                    None
-                }
-            }
+            async move { rt_handle.get_flowgraph(0).await.ok() }
         },
     );
 

@@ -33,7 +33,7 @@ impl PreambleDetector {
         PreambleDetector::PREAMBLE
             .into_iter()
             .rev()
-            .flat_map(|n| std::iter::repeat(n).take(N_SAMPLES_PER_HALF_SYM))
+            .flat_map(|n| std::iter::repeat_n(n, N_SAMPLES_PER_HALF_SYM))
             .collect()
     }
 
