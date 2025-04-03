@@ -127,14 +127,14 @@ impl ControlPort {
 
         let mut app = Router::new()
             .route("/api/fg/", get(flowgraphs))
-            .route("/api/fg/:fg/", get(flowgraph_description))
-            .route("/api/fg/:fg/block/:blk/", get(block_description))
+            .route("/api/fg/{fg}/", get(flowgraph_description))
+            .route("/api/fg/{fg}/block/{blk}/", get(block_description))
             .route(
-                "/api/fg/:fg/block/:blk/call/:handler/",
+                "/api/fg/{fg}/block/{blk}/call/{handler}/",
                 get(handler_id).post(handler_id_post),
             )
             .route(
-                "/api/block/*foo",
+                "/api/block/{*foo}",
                 any(|uri: Uri| async move {
                     let u = uri.to_string().split_off(11);
                     Redirect::permanent(&format!("/api/fg/0/block/{u}/"))
@@ -144,7 +144,7 @@ impl ControlPort {
             .with_state(self.handle.clone());
 
         if let Some(c) = custom_routes {
-            app = app.nest("/", c);
+            app = app.merge(c);
         }
 
         let frontend = if let Some(ref p) = config::config().frontend_path {
