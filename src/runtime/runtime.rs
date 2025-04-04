@@ -600,11 +600,14 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                     .collect();
                 let message_edges = topology.message_edges.clone();
 
-                if tx.send(FlowgraphDescription {
-                    blocks,
-                    stream_edges,
-                    message_edges,
-                }).is_err() {
+                if tx
+                    .send(FlowgraphDescription {
+                        blocks,
+                        stream_edges,
+                        message_edges,
+                    })
+                    .is_err()
+                {
                     error!("Failed to send flowgraph description. Receiver may have disconnected.");
                 }
             }
