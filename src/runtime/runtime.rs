@@ -600,12 +600,13 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                     .collect();
                 let message_edges = topology.message_edges.clone();
 
-                tx.send(FlowgraphDescription {
+                if tx.send(FlowgraphDescription {
                     blocks,
                     stream_edges,
                     message_edges,
-                })
-                .unwrap();
+                }).is_err() {
+                    error!("Failed to send flowgraph description. Receiver may have disconnected.");
+                }
             }
             FlowgraphMessage::Terminate => {
                 if !terminated {
