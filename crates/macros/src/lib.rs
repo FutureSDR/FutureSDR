@@ -1,5 +1,4 @@
 //! Macros to make working with FutureSDR a bit nicer.
-
 use proc_macro::TokenStream;
 use quote::quote;
 use quote::ToTokens;
@@ -96,46 +95,45 @@ pub fn connect(input: TokenStream) -> TokenStream {
     dbg!(&connect_input);
     let fg = connect_input.flowgraph;
 
-    // let mut blocks = Vec::new();
+    let mut blocks: Vec<Ident> = Vec::new();
     // let mut connections = Vec::new();
-    //
-    // // Collect all blocks and generate connections
-    // for conn in connect_input.connection_strings.iter() {
-    //     let src_block = conn.source.get_block_ident();
-    //     blocks.push(src_block.clone());
-    //
-    //     // Handle all destinations in the chain
-    //     let src_output = conn.source.to_output_tokens();
-    //
-    //     for (_, dest) in &conn.destinations {
-    //         let dst_block = dest.get_block_ident();
-    //         blocks.push(dst_block.clone());
-    //
-    //         let dst_input = dest.to_input_tokens();
-    //         connections.push(quote! {
-    //             #fg.connect_stream(#src_output, #dst_input);
-    //         });
-    //     }
-    // }
-    //
-    // // Deduplicate blocks
-    // blocks.sort_by_key(|b| b.to_string());
-    // blocks.dedup();
-    //
-    // // Generate block declarations
-    // let block_decls = blocks.iter().map(|block| {
-    //     quote! {
-    //         let #block = #fg.add_block(#block);
-    //     }
-    // });
 
-    // let result = quote! {
-    //     #(#block_decls)*
-    //     #(#connections)*
-    // };
-    // println!("{}", pretty_print(&result));
+    // Collect all blocks and generate connections
+    for conn in connect_input.connection_strings.iter() {
+        let src_block = &conn.source.block;
+        blocks.push(src_block.clone());
+    
+        // // Handle all destinations in the chain
+        // let src_output = conn.source.to_output_tokens();
+    
+        for (_, dest) in &conn.connections {
+            let dst_block = &dest.block;
+            blocks.push(dst_block.clone());
+           
+            // let dst_input = dest.to_input_tokens();
+            // connections.push(quote! {
+            //     #fg.connect_stream(#src_output, #dst_input);
+            // });
+        }
+    }
+    
+    // Deduplicate blocks
+    blocks.sort_by_key(|b| b.to_string());
+    blocks.dedup();
+    
+    // Generate block declarations
+    let block_decls = blocks.iter().map(|block| {
+        quote! {
+            let #block = #fg.add_block(#block);
+        }
+    });
 
-    let result = quote! {};
+    let result = quote! {
+        #(#block_decls)*
+        // #(#connections)*
+    };
+
+    println!("{}", pretty_print(&result));
     result.into()
 }
 
@@ -159,22 +157,22 @@ impl Parse for ConnectInput {
 // connection line in the macro input
 #[derive(Debug)]
 struct ConnectionString {
-    source: Endpoint,
-    destinations: Vec<(ConnectionType, Endpoint)>,
+    source: Source,
+    connections: Vec<(ConnectionType, Endpoint)>,
 }
 impl Parse for ConnectionString {
     fn parse(input: ParseStream) -> Result<Self> {
-        let source: Endpoint = input.parse()?;
-        let mut destinations = Vec::new();
+        let source: Source = input.parse()?;
+        let mut connections = Vec::new();
 
         while let Ok(ct) = input.parse::<ConnectionType>() {
             let dest: Endpoint = input.parse()?;
-            destinations.push((ct, dest));
+            connections.push((ct, dest));
         }
 
         Ok(ConnectionString {
             source,
-            destinations,
+            connections,
         })
     }
 }
@@ -199,67 +197,115 @@ impl Parse for ConnectionType {
     }
 }
 
+#[derive(Debug)]
+struct Source {
+    block: Ident,
+    output: Option<Port>,
+}
+impl Parse for Source {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let block: Ident = input.parse()?;
+        if input.peek(Token![.]) {
+            input.parse::<Token![.]>()?;
+            let port: Port = input.parse()?;
+            Ok(Self {
+                block,
+                output: Some(port),
+            })
+        } else {
+            Ok(Self {
+                block,
+                output: None,
+            })
+        }
+    }
+}
+
 // connection endpoint is a block with input and output ports
 #[derive(Debug)]
 struct Endpoint {
     block: Ident,
-    input: Port,
-    output: Port,
+    input: Option<Port>,
+    output: Option<Port>,
 }
 impl Parse for Endpoint {
     fn parse(input: ParseStream) -> Result<Self> {
-        let ident: Ident = input.parse()?;
-        if input.peek(Token![.]) {
-            input.parse::<Token![.]>()?;
-            let port: Port= input.parse()?;
-            Ok(Endpoint::Port { block: ident, port })
-        } else {
-            Ok(Endpoint::Block(ident))
-        }
-    }
-}
-impl Endpoint {
-    fn get_block_ident(&self) -> &Ident {
-        self.block
-    }
+        let first: Port = input.parse()?;
 
-    fn to_output_tokens(&self) -> proc_macro2::TokenStream {
-        match self {
-            Endpoint::Block(ident) => quote! { #ident.get().output() },
-            Endpoint::Port { block, port } => {
-                if let Some(idx) = &port.index {
-                    quote! { &mut #block.get().#port.#idx }
-                } else {
-                    quote! { #block.get().#port }
-                }
+        // there is only one identifier, it has to be the block
+        if !input.peek(Token![.]) {
+            if first.index.is_none() {
+                return Ok(Self {
+                    block: first.name,
+                    input: None,
+                    output: None,
+                });
+            } else {
+                return Err(input.error("expected endpoint, got only port"));
             }
         }
-    }
 
-    fn to_input_tokens(&self) -> proc_macro2::TokenStream {
-        match self {
-            Endpoint::Block(ident) => quote! { #ident.get().input() },
-            Endpoint::Port { block, port } => {
-                if let Some(idx) = &port.index {
-                    quote! { #block.get().#port[#idx] }
-                } else {
-                    quote! { #block.get().#port }
-                }
-            }
+        input.parse::<Token![.]>()?;
+        let block: Ident = input.parse()?;
+
+        if !input.peek(Token![.]) {
+            return Ok(Self {
+                block,
+                input: Some(first),
+                output: None,
+            })
         }
+
+        input.parse::<Token![.]>()?;
+        let second: Port = input.parse()?;
+
+        return Ok(Self {
+            block,
+            input: Some(first),
+            output: Some(second),
+        })
     }
 }
 
-
-
+// impl Endpoint {
+//     fn get_block_ident(&self) -> &Ident {
+//         self.block
+//     }
+//
+//     fn to_output_tokens(&self) -> proc_macro2::TokenStream {
+//         match self {
+//             Endpoint::Block(ident) => quote! { #ident.get().output() },
+//             Endpoint::Port { block, port } => {
+//                 if let Some(idx) = &port.index {
+//                     quote! { &mut #block.get().#port.#idx }
+//                 } else {
+//                     quote! { #block.get().#port }
+//                 }
+//             }
+//         }
+//     }
+//
+//     fn to_input_tokens(&self) -> proc_macro2::TokenStream {
+//         match self {
+//             Endpoint::Block(ident) => quote! { #ident.get().input() },
+//             Endpoint::Port { block, port } => {
+//                 if let Some(idx) = &port.index {
+//                     quote! { #block.get().#port[#idx] }
+//                 } else {
+//                     quote! { #block.get().#port }
+//                 }
+//             }
+//         }
+//     }
+// }
 
 // input or output port
 #[derive(Debug)]
-struct Port{
+struct Port {
     name: Ident,
     index: Option<Index>,
 }
-impl Parse for Port{
+impl Parse for Port {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
         let index = if input.peek(token::Bracket) {
@@ -269,11 +315,11 @@ impl Parse for Port{
         } else {
             None
         };
-        Ok(Port{ name, index })
+        Ok(Port { name, index })
     }
 }
 
-impl ToTokens for Port{
+impl ToTokens for Port {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let name = &self.name;
         if let Some(index) = &self.index {
@@ -919,11 +965,10 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(expanded)
 }
 
-// https://stackoverflow.com/a/74360109
 #[allow(dead_code)]
 fn pretty_print(ts: &proc_macro2::TokenStream) -> String {
-    let file = syn::parse_file(&ts.to_string()).unwrap();
-    prettyplease::unparse(&file)
+    let syntax_tree = syn::parse2(ts.clone()).unwrap();
+    prettyplease::unparse(&syntax_tree)
 }
 
 //=========================================================================
