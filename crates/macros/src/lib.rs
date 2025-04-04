@@ -1,25 +1,25 @@
 //! Macros to make working with FutureSDR a bit nicer.
 
-use quote::quote;
 use proc_macro::TokenStream;
+use quote::quote;
 use quote::ToTokens;
+use syn::bracketed;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
-use syn::Token;
-use syn::bracketed;
-use syn::Ident;
-use syn::token;
-use syn::Index;
-use syn::Result;
-use syn::punctuated::Punctuated;
 use syn::parse_macro_input;
+use syn::punctuated::Punctuated;
+use syn::token;
 use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Fields;
 use syn::GenericParam;
+use syn::Ident;
+use syn::Index;
 use syn::Meta;
 use syn::PathArguments;
+use syn::Result;
+use syn::Token;
 use syn::Type;
 
 /// Avoid boilerplate when setting up the flowgraph.
@@ -95,156 +95,132 @@ pub fn connect(input: TokenStream) -> TokenStream {
     let connect_input = parse_macro_input!(input as ConnectInput);
     dbg!(&connect_input);
     let fg = connect_input.flowgraph;
-    
-    let mut blocks = Vec::new();
-    let mut connections = Vec::new();
 
-    // Collect all blocks and generate connections
-    for conn in connect_input.connections.iter() {
-        let src_block = conn.source.get_block_ident();
-        blocks.push(src_block.clone());
+    // let mut blocks = Vec::new();
+    // let mut connections = Vec::new();
+    //
+    // // Collect all blocks and generate connections
+    // for conn in connect_input.connection_strings.iter() {
+    //     let src_block = conn.source.get_block_ident();
+    //     blocks.push(src_block.clone());
+    //
+    //     // Handle all destinations in the chain
+    //     let src_output = conn.source.to_output_tokens();
+    //
+    //     for (_, dest) in &conn.destinations {
+    //         let dst_block = dest.get_block_ident();
+    //         blocks.push(dst_block.clone());
+    //
+    //         let dst_input = dest.to_input_tokens();
+    //         connections.push(quote! {
+    //             #fg.connect_stream(#src_output, #dst_input);
+    //         });
+    //     }
+    // }
+    //
+    // // Deduplicate blocks
+    // blocks.sort_by_key(|b| b.to_string());
+    // blocks.dedup();
+    //
+    // // Generate block declarations
+    // let block_decls = blocks.iter().map(|block| {
+    //     quote! {
+    //         let #block = #fg.add_block(#block);
+    //     }
+    // });
 
-        // Handle all destinations in the chain
-        let src_output = conn.source.to_output_tokens();
-        
-        for (_, dest) in &conn.destinations {
-            let dst_block = dest.get_block_ident();
-            blocks.push(dst_block.clone());
-            
-            let dst_input = dest.to_input_tokens();
-            connections.push(quote! {
-                #fg.connect_stream(#src_output, #dst_input);
-            });
-        }
-    }
+    // let result = quote! {
+    //     #(#block_decls)*
+    //     #(#connections)*
+    // };
+    // println!("{}", pretty_print(&result));
 
-    // Deduplicate blocks
-    blocks.sort_by_key(|b| b.to_string());
-    blocks.dedup();
-
-    // Generate block declarations
-    let block_decls = blocks.iter().map(|block| {
-        quote! {
-            let #block = #fg.add_block(#block);
-        }
-    });
-
-    let result = quote! {
-        #(#block_decls)*
-        #(#connections)*
-    };
-
-    println!("{}", pretty_print(&result));
+    let result = quote! {};
     result.into()
 }
 
-// Represents a connection line in the macro
-#[derive(Debug)]
-struct Connection {
-    source: Endpoint,
-    destinations: Vec<(Token![>], Endpoint)>,
-}
-
-// Represents the full macro input
+// full macro input
 #[derive(Debug)]
 struct ConnectInput {
     flowgraph: Ident,
     _comma: Token![,],
-    connections: Punctuated<Connection, Token![;]>,
+    connection_strings: Punctuated<ConnectionString, Token![;]>,
 }
-
-// Represents a port specification (e.g., outputs[0])
-#[derive(Debug)]
-struct PortSpec {
-    name: Ident,
-    index: Option<Index>,
-}
-
-// Represents an endpoint (either a block or a port)
-#[derive(Debug)]
-enum Endpoint {
-    Block(Ident),
-    Port {
-        block: Ident,
-        port: PortSpec,
-    },
-}
-
-impl Parse for PortSpec {
+impl Parse for ConnectInput {
     fn parse(input: ParseStream) -> Result<Self> {
-        let name: Ident = input.parse()?;
-        let index = if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            Some(content.parse()?)
-        } else {
-            None
-        };
-        Ok(PortSpec { name, index })
+        Ok(ConnectInput {
+            flowgraph: input.parse()?,
+            _comma: input.parse()?,
+            connection_strings: Punctuated::parse_terminated(input)?,
+        })
     }
 }
 
-impl ToTokens for PortSpec {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let name = &self.name;
-        if let Some(index) = &self.index {
-            tokens.extend(quote! { #name[#index] });
-        } else {
-            tokens.extend(quote! { #name });
-        }
-    }
+// connection line in the macro input
+#[derive(Debug)]
+struct ConnectionString {
+    source: Endpoint,
+    destinations: Vec<(ConnectionType, Endpoint)>,
 }
-
-impl Parse for Endpoint {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let ident: Ident = input.parse()?;
-        if input.peek(Token![.]) {
-            input.parse::<Token![.]>()?;
-            let port: PortSpec = input.parse()?;
-            Ok(Endpoint::Port {
-                block: ident,
-                port,
-            })
-        } else {
-            Ok(Endpoint::Block(ident))
-        }
-    }
-}
-
-impl Parse for Connection {
+impl Parse for ConnectionString {
     fn parse(input: ParseStream) -> Result<Self> {
         let source: Endpoint = input.parse()?;
         let mut destinations = Vec::new();
-        
-        while input.peek(Token![>]) {
-            let arrow: Token![>] = input.parse()?;
+
+        while let Ok(ct) = input.parse::<ConnectionType>() {
             let dest: Endpoint = input.parse()?;
-            destinations.push((arrow, dest));
+            destinations.push((ct, dest));
         }
-        
-        Ok(Connection {
+
+        Ok(ConnectionString {
             source,
             destinations,
         })
     }
 }
 
-impl Parse for ConnectInput {
+#[derive(Debug)]
+enum ConnectionType {
+    Stream,
+    Message,
+}
+
+impl Parse for ConnectionType {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(ConnectInput {
-            flowgraph: input.parse()?,
-            _comma: input.parse()?,
-            connections: Punctuated::parse_terminated(input)?,
-        })
+        if input.peek(Token![>]) {
+            input.parse::<Token![>]>()?;
+            Ok(Self::Stream)
+        } else if input.peek(Token![|]) {
+            input.parse::<Token![|]>()?;
+            Ok(Self::Message)
+        } else {
+            Err(input.error("expected `>` or `|` to specify the connection type"))
+        }
     }
 }
 
+// connection endpoint is a block with input and output ports
+#[derive(Debug)]
+struct Endpoint {
+    block: Ident,
+    input: Port,
+    output: Port,
+}
+impl Parse for Endpoint {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let ident: Ident = input.parse()?;
+        if input.peek(Token![.]) {
+            input.parse::<Token![.]>()?;
+            let port: Port= input.parse()?;
+            Ok(Endpoint::Port { block: ident, port })
+        } else {
+            Ok(Endpoint::Block(ident))
+        }
+    }
+}
 impl Endpoint {
     fn get_block_ident(&self) -> &Ident {
-        match self {
-            Endpoint::Block(ident) => ident,
-            Endpoint::Port { block, .. } => block,
-        }
+        self.block
     }
 
     fn to_output_tokens(&self) -> proc_macro2::TokenStream {
@@ -270,6 +246,40 @@ impl Endpoint {
                     quote! { #block.get().#port }
                 }
             }
+        }
+    }
+}
+
+
+
+
+// input or output port
+#[derive(Debug)]
+struct Port{
+    name: Ident,
+    index: Option<Index>,
+}
+impl Parse for Port{
+    fn parse(input: ParseStream) -> Result<Self> {
+        let name: Ident = input.parse()?;
+        let index = if input.peek(token::Bracket) {
+            let content;
+            bracketed!(content in input);
+            Some(content.parse()?)
+        } else {
+            None
+        };
+        Ok(Port{ name, index })
+    }
+}
+
+impl ToTokens for Port{
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let name = &self.name;
+        if let Some(index) = &self.index {
+            tokens.extend(quote! { #name[#index] });
+        } else {
+            tokens.extend(quote! { #name });
         }
     }
 }
@@ -530,11 +540,26 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         _ => Vec::new(),
     };
 
-    let stream_inputs_names = stream_inputs.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
-    let stream_inputs_init = stream_inputs.iter().map(|x| x.1.clone()).collect::<Vec<_>>();
-    let stream_inputs_validate = stream_inputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
-    let stream_inputs_notify = stream_inputs.iter().map(|x| x.3.clone()).collect::<Vec<_>>();
-    let stream_inputs_finish = stream_inputs.iter().map(|x| x.4.clone()).collect::<Vec<_>>();
+    let stream_inputs_names = stream_inputs
+        .iter()
+        .map(|x| x.0.clone())
+        .collect::<Vec<_>>();
+    let stream_inputs_init = stream_inputs
+        .iter()
+        .map(|x| x.1.clone())
+        .collect::<Vec<_>>();
+    let stream_inputs_validate = stream_inputs
+        .iter()
+        .map(|x| x.2.clone())
+        .collect::<Vec<_>>();
+    let stream_inputs_notify = stream_inputs
+        .iter()
+        .map(|x| x.3.clone())
+        .collect::<Vec<_>>();
+    let stream_inputs_finish = stream_inputs
+        .iter()
+        .map(|x| x.4.clone())
+        .collect::<Vec<_>>();
 
     let stream_outputs = match struct_data.fields {
         Fields::Named(ref fields) => {
@@ -660,10 +685,22 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         _ => Vec::new(),
     };
 
-    let stream_outputs_names = stream_outputs.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
-    let stream_outputs_init = stream_outputs.iter().map(|x| x.1.clone()).collect::<Vec<_>>();
-    let stream_outputs_validate = stream_outputs.iter().map(|x| x.2.clone()).collect::<Vec<_>>();
-    let stream_outputs_notify = stream_outputs.iter().map(|x| x.3.clone()).collect::<Vec<_>>();
+    let stream_outputs_names = stream_outputs
+        .iter()
+        .map(|x| x.0.clone())
+        .collect::<Vec<_>>();
+    let stream_outputs_init = stream_outputs
+        .iter()
+        .map(|x| x.1.clone())
+        .collect::<Vec<_>>();
+    let stream_outputs_validate = stream_outputs
+        .iter()
+        .map(|x| x.2.clone())
+        .collect::<Vec<_>>();
+    let stream_outputs_notify = stream_outputs
+        .iter()
+        .map(|x| x.3.clone())
+        .collect::<Vec<_>>();
 
     // Collect the names and types of fields that have the #[input] or #[output] attribute
     let (port_idents, port_types): (Vec<Ident>, Vec<Type>) = match struct_data.fields {
