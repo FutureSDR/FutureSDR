@@ -42,9 +42,10 @@ fn main() -> Result<()> {
     assert_eq!(c2.samples_per_frame(), 160);
     assert_eq!(c2.bits_per_frame(), 64);
 
-    let codec2 = ApplyNM::<_, _, _, 160, { (64 + 7) / 8 }>::new(move |i: &[i16], o: &mut [u8]| {
-        c2.encode(o, i);
-    });
+    let codec2 =
+        ApplyNM::<_, _, _, 160, { 64_usize.div_ceil(8) }>::new(move |i: &[i16], o: &mut [u8]| {
+            c2.encode(o, i);
+        });
 
     let lsf = LinkSetupFrame::new(CallSign::new_id("DF1BBL"), CallSign::new_broadcast());
     let encoder = EncoderBlock::new(lsf);

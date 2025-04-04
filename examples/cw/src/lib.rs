@@ -85,25 +85,22 @@ const DOT_LENGTH: usize = SAMPLE_RATE / 20;
 
 impl IntoIterator for CWAlphabet {
     type Item = f32;
-    type IntoIter = std::iter::Chain<
-        std::iter::Take<std::iter::Repeat<f32>>,
-        std::iter::Take<std::iter::Repeat<f32>>,
-    >;
+    type IntoIter = std::iter::Chain<std::iter::RepeatN<f32>, std::iter::RepeatN<f32>>;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            CWAlphabet::Dot => std::iter::repeat(1.0)
-                .take(DOT_LENGTH)
-                .chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
-            CWAlphabet::Dash => std::iter::repeat(1.0)
-                .take(3 * DOT_LENGTH)
-                .chain(std::iter::repeat(0.0).take(DOT_LENGTH)),
-            CWAlphabet::LetterSpace => std::iter::repeat(0.0)
-                .take(3 * DOT_LENGTH)
-                .chain(std::iter::repeat(0.0).take(0)),
-            CWAlphabet::WordSpace => std::iter::repeat(0.0)
-                .take((5 - 2) * DOT_LENGTH)
-                .chain(std::iter::repeat(0.0).take(0)),
+            CWAlphabet::Dot => {
+                std::iter::repeat_n(1.0, DOT_LENGTH).chain(std::iter::repeat_n(0.0, DOT_LENGTH))
+            }
+            CWAlphabet::Dash => {
+                std::iter::repeat_n(1.0, 3 * DOT_LENGTH).chain(std::iter::repeat_n(0.0, DOT_LENGTH))
+            }
+            CWAlphabet::LetterSpace => {
+                std::iter::repeat_n(0.0, 3 * DOT_LENGTH).chain(std::iter::repeat_n(0.0, 0))
+            }
+            CWAlphabet::WordSpace => {
+                std::iter::repeat_n(0.0, (5 - 2) * DOT_LENGTH).chain(std::iter::repeat_n(0.0, 0))
+            }
         }
     }
 }

@@ -12,7 +12,7 @@ impl Bch {
     const N: usize = Self::LEN;
     const K: usize = Self::MSG;
     const NP: usize = Self::N - Self::K;
-    const G: usize = ((Self::NP + 1) + 7) / 8;
+    const G: usize = (Self::NP + 1).div_ceil(8);
 
     fn slb1(buf: &[u8], pos: usize) -> u8 {
         (buf[pos] << 1) | (buf[pos + 1] >> 7)
