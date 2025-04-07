@@ -133,7 +133,8 @@ pub fn connect(input: TokenStream) -> TokenStream {
         // #(#connections)*
     };
 
-    println!("{}", pretty_print(&result));
+    let tmp = quote!(fn foo() { #result });
+    println!("{}", pretty_print(&tmp));
     result.into()
 }
 
