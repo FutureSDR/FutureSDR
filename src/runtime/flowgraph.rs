@@ -27,7 +27,7 @@ impl<K: Kernel> Clone for BlockRef<K> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            block: self.block.clone()
+            block: self.block.clone(),
         }
     }
 }

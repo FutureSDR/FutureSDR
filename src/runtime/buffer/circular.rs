@@ -97,11 +97,14 @@ impl<D: Send + Sync> BufferWriter for Writer<D> {
         self.inbox = Some(inbox);
     }
     fn validate(&self) -> Result<(), Error> {
-       if self.writer.is_some() {
-           Ok(())
-       } else {
-           Err(Error::ValidationError(format!("{:?}:{:?} not connected", self.block_id, self.port_id)))
-       }
+        if self.writer.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
     fn connect(&mut self, dest: &mut Self::Reader) {
         if self.writer.is_none() {
@@ -220,11 +223,14 @@ impl<D: Send + Sync> BufferReader for Reader<D> {
         self.inbox = Some(inbox);
     }
     fn validate(&self) -> Result<(), Error> {
-       if self.reader.is_some() {
-           Ok(())
-       } else {
-           Err(Error::ValidationError(format!("{:?}:{:?} not connected", self.block_id, self.port_id)))
-       }
+        if self.reader.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
     async fn notify_finished(&mut self) {
         let _ = self

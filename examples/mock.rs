@@ -1,10 +1,9 @@
-use rand::distr::Uniform;
-use rand::Rng;
-
 use futuresdr::blocks::Apply;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;
+use rand::distr::Uniform;
+use rand::Rng;
 
 fn main() {
     let input: Vec<u32> = rand::rng()

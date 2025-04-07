@@ -1,12 +1,4 @@
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Copy input samples to the output.
 #[derive(Block)]
@@ -21,8 +13,9 @@ pub struct Copy<
     output: O,
 }
 
-impl<T: Send + Sync + 'static, I, O> Copy<T, I, O>
+impl<T, I, O> Copy<T, I, O>
 where
+    T: Send + Sync + 'static,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -35,8 +28,9 @@ where
     }
 }
 
-impl<T: Send + Sync + 'static, I, O> Default for Copy<T, I, O>
+impl<T, I, O> Default for Copy<T, I, O>
 where
+    T: Send + Sync + 'static,
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
@@ -46,7 +40,12 @@ where
 }
 
 #[doc(hidden)]
-impl<T: std::marker::Copy + Send + Sync + 'static> Kernel for Copy<T> {
+impl<T, I, O> Kernel for Copy<T, I, O>
+where
+    T: std::marker::Copy + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,

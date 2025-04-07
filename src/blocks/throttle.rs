@@ -1,13 +1,5 @@
+use crate::prelude::*;
 use web_time::Instant;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 /// Limit sample rate.
 ///
@@ -22,50 +14,58 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Throttle;
-/// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let throttle = fg.add_block(Throttle::<Complex<f32>>::new(1_000_000.0));
+/// let throttle = Throttle::<u8>::new(1_000_000.0);
 /// ```
 #[derive(Block)]
-pub struct Throttle<T: Copy + Send + 'static> {
+pub struct Throttle<
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T> = circular::Reader<T>,
+    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+> {
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     rate: f64,
     t_init: Instant,
     n_items: usize,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Copy + Send + 'static> Throttle<T> {
+impl<T, I, O> Throttle<T, I, O>
+where
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Creates a new Throttle block which will throttle to the specified rate.
-    pub fn new(rate: f64) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
-                .build(),
-            Self {
-                rate,
-                t_init: Instant::now(),
-                n_items: 0,
-                _type: std::marker::PhantomData,
-            },
-        )
+    pub fn new(rate: f64) -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            rate,
+            t_init: Instant::now(),
+            n_items: 0,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
+impl<T, I, O> Kernel for Throttle<T, I, O>
+where
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
-        let o = sio.output(0).slice::<T>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
 
         let now = Instant::now();
         let target_items = (now - self.t_init).as_secs_f64() * self.rate;
@@ -80,11 +80,11 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
         if m != 0 {
             o[..m].copy_from_slice(&i[..m]);
             self.n_items += m;
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && i.len() == m {
+        if self.input.finished() && i_len == m {
             io.finished = true;
         }
 
@@ -98,12 +98,7 @@ impl<T: Copy + Send + 'static> Kernel for Throttle<T> {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.t_init = Instant::now();
         self.n_items = 0;
         Ok(())

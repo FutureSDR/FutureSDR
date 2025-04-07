@@ -46,10 +46,6 @@ name = "apply"
 harness = false
 
 [[example]]
-name = "scheduler"
-required-features = ["tpb_scheduler", "flow_scheduler"]
-
-[[example]]
 name = "vulkan"
 required-features = ["vulkan"]
 

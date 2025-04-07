@@ -222,8 +222,8 @@ pub use stream_duplicator::StreamDuplicator;
 // mod tcp_source;
 // #[cfg(not(target_arch = "wasm32"))]
 // pub use tcp_source::TcpSource;
-// mod throttle;
-// pub use throttle::Throttle;
+mod throttle;
+pub use throttle::Throttle;
 // #[cfg(not(target_arch = "wasm32"))]
 // mod udp_source;
 // #[cfg(not(target_arch = "wasm32"))]
@@ -245,14 +245,14 @@ pub use vector_source::VectorSource;
 // mod websocket_pmt_sink;
 // #[cfg(not(target_arch = "wasm32"))]
 // pub use websocket_pmt_sink::WebsocketPmtSink;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod websocket_sink;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use websocket_sink::WebsocketSink;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use websocket_sink::WebsocketSinkBuilder;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use websocket_sink::WebsocketSinkMode;
+#[cfg(not(target_arch = "wasm32"))]
+mod websocket_sink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_sink::WebsocketSink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_sink::WebsocketSinkBuilder;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_sink::WebsocketSinkMode;
 // pub mod xlating_fir;
 // pub use xlating_fir::XlatingFir;
 // pub use xlating_fir::XlatingFirBuilder;

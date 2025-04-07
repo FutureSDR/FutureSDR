@@ -133,13 +133,13 @@ pub fn connect(input: TokenStream) -> TokenStream {
                         let src_port = p.name.to_string();
                         quote! { #src_port }
                     } else {
-                        quote!("output")
+                        quote!("out")
                     };
                     let dst_port = if let Some(p) = &dst.input {
                         let dst_port = p.name.to_string();
                         quote! { #dst_port }
                     } else {
-                        quote!("input")
+                        quote!("in")
                     };
                     let dest_block = &dst.block;
                     quote! {
