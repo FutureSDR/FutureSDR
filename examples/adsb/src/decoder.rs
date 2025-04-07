@@ -43,7 +43,6 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(forward_failed_crc: bool) -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().build(),

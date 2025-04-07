@@ -40,7 +40,6 @@ const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
 impl AudioSink {
     /// Create AudioSink block
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().add_input::<f32>("in").build(),

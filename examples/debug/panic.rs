@@ -65,7 +65,6 @@ struct Panic {
 }
 
 impl Panic {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(w: PanicWhere) -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self { w })
     }

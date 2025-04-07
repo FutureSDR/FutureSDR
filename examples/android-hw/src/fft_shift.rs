@@ -14,7 +14,6 @@ pub struct FftShift<T: Send> {
 }
 
 impl<T: Copy + Send + 'static> FftShift<T> {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new()

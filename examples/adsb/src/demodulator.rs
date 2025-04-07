@@ -26,7 +26,6 @@ pub struct Demodulator {
 }
 
 impl Demodulator {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().add_input::<f32>("in").build(),

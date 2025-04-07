@@ -19,7 +19,6 @@ mod isolated_scope {
         struct MsgThing;
 
         impl MsgThing {
-            #[allow(clippy::new_ret_no_self)]
             fn new() -> TypedBlock<Self> {
                 TypedBlock::new(StreamIoBuilder::new().build(), Self)
             }

@@ -15,7 +15,6 @@ use futuresdr::runtime::WorkIo;
 struct FailInit;
 
 impl FailInit {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
@@ -36,7 +35,6 @@ impl Kernel for FailInit {
 struct FailWork;
 
 impl FailWork {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
@@ -58,7 +56,6 @@ impl Kernel for FailWork {
 struct FailDeinit;
 
 impl FailDeinit {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }

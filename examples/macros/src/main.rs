@@ -71,7 +71,6 @@ fn main() -> anyhow::Result<()> {
 pub struct Dummy;
 
 impl Dummy {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }
@@ -94,7 +93,6 @@ impl Kernel for Dummy {
 pub struct Strange;
 
 impl Strange {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().add_output::<u8>("foo bar").build(),
@@ -121,7 +119,6 @@ impl Kernel for Strange {
 pub struct Handler;
 
 impl Handler {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         TypedBlock::new(StreamIoBuilder::new().build(), Self)
     }

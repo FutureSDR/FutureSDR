@@ -1,11 +1,5 @@
 use anyhow::Result;
-use futuresdr::macros::Block;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -25,7 +19,6 @@ pub struct CtrlPortDemo {
 }
 
 impl CtrlPortDemo {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Self {
         Self { counter: 5 }
     }
@@ -39,5 +32,11 @@ impl CtrlPortDemo {
     ) -> Result<Pmt> {
         self.counter += 1;
         Ok(Pmt::U64(self.counter - 1))
+    }
+}
+
+impl Default for CtrlPortDemo {
+    fn default() -> Self {
+        Self::new()
     }
 }

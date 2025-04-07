@@ -211,7 +211,6 @@ pub struct Sink {
 unsafe impl Send for Sink {}
 
 impl Sink {
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         time_data: WriteSignal<Vec<u8>>,
         waterfall_data: WriteSignal<Vec<u8>>,

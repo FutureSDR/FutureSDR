@@ -34,7 +34,6 @@ unsafe impl Send for AudioSource {}
 
 impl AudioSource {
     /// Create AudioSource block
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new().add_output::<f32>("out").build(),

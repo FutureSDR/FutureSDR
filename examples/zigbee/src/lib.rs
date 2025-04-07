@@ -1,4 +1,3 @@
-#![allow(clippy::new_ret_no_self)]
 mod clock_recovery_mm;
 pub use clock_recovery_mm::ClockRecoveryMm;
 

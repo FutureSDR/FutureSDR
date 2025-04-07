@@ -96,6 +96,7 @@ pub mod prelude {
     pub use futuresdr::runtime::ItemTag;
     pub use futuresdr::runtime::Kernel;
     pub use futuresdr::runtime::MessageOutputs;
+    pub use futuresdr::runtime::Pmt;
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::Runtime;
     pub use futuresdr::runtime::RuntimeHandle;

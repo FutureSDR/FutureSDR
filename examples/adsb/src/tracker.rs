@@ -30,7 +30,6 @@ pub struct Tracker {
 
 impl Tracker {
     /// Creates a new tracker without pruning.
-    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
         Tracker::new_with_optional_args(None)
     }

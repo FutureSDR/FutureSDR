@@ -35,7 +35,6 @@ impl PreambleDetector {
             .collect()
     }
 
-    #[allow(clippy::new_ret_no_self)]
     pub fn new(detection_threshold: f32) -> TypedBlock<Self> {
         TypedBlock::new(
             StreamIoBuilder::new()
