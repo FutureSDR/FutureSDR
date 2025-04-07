@@ -19,12 +19,7 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::NullSource;
-/// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let source = fg.add_block(NullSource::<Complex<f32>>::new());
+/// let src = NullSource::<u8>::new();
 /// ```
 #[derive(Block)]
 pub struct NullSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {

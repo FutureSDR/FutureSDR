@@ -23,6 +23,14 @@ impl<K: Kernel> BlockRef<K> {
         self.block.try_lock().unwrap()
     }
 }
+impl<K: Kernel> Clone for BlockRef<K> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            block: self.block.clone()
+        }
+    }
+}
 
 /// The main component of any FutureSDR program.
 ///

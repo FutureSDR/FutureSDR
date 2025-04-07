@@ -2,8 +2,7 @@ use anyhow::Result;
 use futuresdr::blocks::StreamDuplicator;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use std::iter::repeat_with;
 use std::time;
 
@@ -23,6 +22,12 @@ fn main() -> Result<()> {
     fg.connect_stream(&mut dup.get().outputs()[0], snk0.get().input());
     fg.connect_stream(&mut dup.get().outputs()[1], snk1.get().input());
     fg.connect_stream(&mut dup.get().outputs()[2], snk2.get().input());
+
+    connect!(fg, src > dup;
+        dup.outputs[0] > snk0;
+        dup.outputs[1] > snk1;
+        dup.outputs[2] > snk2;
+    );
 
     let now = time::Instant::now();
     Runtime::new().run(fg)?;

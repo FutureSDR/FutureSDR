@@ -1,7 +1,6 @@
 //! Macros to make working with FutureSDR a bit nicer.
 use proc_macro::TokenStream;
 use quote::quote;
-use quote::ToTokens;
 use syn::bracketed;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
@@ -74,68 +73,149 @@ use syn::Type;
 /// ```ignore
 /// connect!(fg, dummy);
 /// ```
-///
-/// Port names with spaces have to be quoted.
-///
-/// ```ignore
-/// connect!(fg,
-///     src."out port" > snk
-/// );
-/// ```
-///
-/// Custom buffers for stream connections can be added by substituting `>` with `[...]`
-/// notation, e.g.:
-///
-/// ```ignore
-/// connect!(fg, src [Slab::new()] snk);
-/// ```
 #[proc_macro]
 pub fn connect(input: TokenStream) -> TokenStream {
     let connect_input = parse_macro_input!(input as ConnectInput);
-    dbg!(&connect_input);
+    // dbg!(&connect_input);
     let fg = connect_input.flowgraph;
 
     let mut blocks: Vec<Ident> = Vec::new();
-    // let mut connections = Vec::new();
+    let mut connections = Vec::new();
 
     // Collect all blocks and generate connections
     for conn in connect_input.connection_strings.iter() {
         let src_block = &conn.source.block;
         blocks.push(src_block.clone());
-    
-        // // Handle all destinations in the chain
-        // let src_output = conn.source.to_output_tokens();
-    
-        for (_, dest) in &conn.connections {
-            let dst_block = &dest.block;
-            blocks.push(dst_block.clone());
-           
-            // let dst_input = dest.to_input_tokens();
-            // connections.push(quote! {
-            //     #fg.connect_stream(#src_output, #dst_input);
-            // });
+
+        let mut src_block = &conn.source.block;
+        let mut src_port = &conn.source.output;
+
+        for (connection_type, dst) in &conn.connections {
+            blocks.push(dst.block.clone());
+
+            let out = match connection_type {
+                ConnectionType::Stream => {
+                    let src_port = match src_port {
+                        Some(Port { name, index: None }) => {
+                            quote! { #name() }
+                        }
+                        Some(Port {
+                            name,
+                            index: Some(i),
+                        }) => {
+                            quote! { #name().get_mut(#i).unwrap() }
+                        }
+                        None => {
+                            quote!(output())
+                        }
+                    };
+                    let dst_port = match &dst.input {
+                        Some(Port { name, index: None }) => {
+                            quote! { #name() }
+                        }
+                        Some(Port {
+                            name,
+                            index: Some(i),
+                        }) => {
+                            quote! { #name().get_mut(#i).unwrap() }
+                        }
+                        None => {
+                            quote!(input())
+                        }
+                    };
+                    let dst_block = &dst.block;
+                    quote! {
+                        #fg.connect_stream(#src_block.get().#src_port, #dst_block.get().#dst_port);
+                    }
+                }
+                ConnectionType::Message => {
+                    let src_port = if let Some(p) = &src_port {
+                        let src_port = p.name.to_string();
+                        quote! { #src_port }
+                    } else {
+                        quote!("output")
+                    };
+                    let dst_port = if let Some(p) = &dst.input {
+                        let dst_port = p.name.to_string();
+                        quote! { #dst_port }
+                    } else {
+                        quote!("input")
+                    };
+                    let dest_block = &dst.block;
+                    quote! {
+                        #fg.connect_message(&#src_block, #src_port, &#dest_block, #dst_port)?;
+                    }
+                }
+            };
+            connections.push(out);
+            src_block = &dst.block;
+            src_port = &dst.output;
         }
     }
-    
+
     // Deduplicate blocks
     blocks.sort_by_key(|b| b.to_string());
     blocks.dedup();
-    
+
     // Generate block declarations
     let block_decls = blocks.iter().map(|block| {
         quote! {
-            let #block = #fg.add_block(#block);
+            let #block = #fg.add(#block);
         }
     });
 
-    let result = quote! {
+    let out = quote! {
+        use futuresdr::runtime::BlockRef;
+        use futuresdr::runtime::Flowgraph;
+        use futuresdr::runtime::Kernel;
+        use futuresdr::runtime::KernelInterface;
+        use std::result::Result;
+
+        pub trait AddToFg<K: Kernel + KernelInterface + 'static> {
+            fn add_to_fg(self, fg: &mut Flowgraph) -> BlockRef<K>;
+        }
+        impl<K: Kernel + KernelInterface + 'static> AddToFg<K> for K {
+            fn add_to_fg(self, fg: &mut Flowgraph) -> BlockRef<K> {
+                fg.add_block(self)
+            }
+        }
+        impl<K: Kernel + KernelInterface + 'static> AddToFg<K> for BlockRef<K> {
+            fn add_to_fg(self, _fg: &mut Flowgraph) -> BlockRef<K> {
+                self
+            }
+        }
+        pub trait FgOps {
+            fn add<T, K>(&mut self, item: T) -> BlockRef<K>
+            where
+                T: AddToFg<K>,
+                K: Kernel + KernelInterface + 'static;
+        }
+        impl FgOps for Flowgraph {
+            fn add<T, K>(&mut self, item: T) -> BlockRef<K>
+            where
+                T: AddToFg<K>,
+                K: Kernel + KernelInterface + 'static,
+            {
+                item.add_to_fg(self)
+            }
+        }
+
         #(#block_decls)*
-        // #(#connections)*
+        #(#connections)*
+        (#(#blocks),*)
     };
 
-    let tmp = quote!(fn foo() { #result });
-    println!("{}", pretty_print(&tmp));
-    result.into()
+    let out = quote![
+        #[allow(unused_variables)]
+        let (#(#blocks),*) = {
+            #out
+        };
+    ];
+
+    // let tmp = quote!(fn foo() { #out });
+    // println!("{}", pretty_print(&tmp));
+    // println!("{}", &out);
+    out.into()
 }
 
 // full macro input
@@ -254,51 +334,19 @@ impl Parse for Endpoint {
                 block,
                 input: Some(first),
                 output: None,
-            })
+            });
         }
 
         input.parse::<Token![.]>()?;
         let second: Port = input.parse()?;
 
-        return Ok(Self {
+        Ok(Self {
             block,
             input: Some(first),
             output: Some(second),
         })
     }
 }
-
-// impl Endpoint {
-//     fn get_block_ident(&self) -> &Ident {
-//         self.block
-//     }
-//
-//     fn to_output_tokens(&self) -> proc_macro2::TokenStream {
-//         match self {
-//             Endpoint::Block(ident) => quote! { #ident.get().output() },
-//             Endpoint::Port { block, port } => {
-//                 if let Some(idx) = &port.index {
-//                     quote! { &mut #block.get().#port.#idx }
-//                 } else {
-//                     quote! { #block.get().#port }
-//                 }
-//             }
-//         }
-//     }
-//
-//     fn to_input_tokens(&self) -> proc_macro2::TokenStream {
-//         match self {
-//             Endpoint::Block(ident) => quote! { #ident.get().input() },
-//             Endpoint::Port { block, port } => {
-//                 if let Some(idx) = &port.index {
-//                     quote! { #block.get().#port[#idx] }
-//                 } else {
-//                     quote! { #block.get().#port }
-//                 }
-//             }
-//         }
-//     }
-// }
 
 // input or output port
 #[derive(Debug)]
@@ -317,17 +365,6 @@ impl Parse for Port {
             None
         };
         Ok(Port { name, index })
-    }
-}
-
-impl ToTokens for Port {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let name = &self.name;
-        if let Some(index) = &self.index {
-            tokens.extend(quote! { #name[#index] });
-        } else {
-            tokens.extend(quote! { #name });
-        }
     }
 }
 
