@@ -1,6 +1,5 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
-use vulkano::buffer::Subbuffer;
 use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
@@ -14,30 +13,11 @@ use vulkano::instance::InstanceCreateInfo;
 use vulkano::VulkanLibrary;
 
 mod d2h;
-pub use d2h::ReaderD2H;
-pub use d2h::WriterD2H;
-pub use d2h::D2H;
+pub use d2h::Reader as D2HReader;
+pub use d2h::Writer as D2HWriter;
 mod h2d;
-pub use h2d::ReaderH2D;
-pub use h2d::WriterH2D;
-pub use h2d::H2D;
-
-// ================== VULKAN MESSAGE ============================
-/// Full buffer
-#[derive(Debug)]
-pub struct BufferFull {
-    /// Buffer
-    pub buffer: Subbuffer<[u8]>,
-    /// Used bytes
-    pub used_bytes: usize,
-}
-
-/// Empty buffer
-#[derive(Debug)]
-pub struct BufferEmpty {
-    /// Buffer
-    pub buffer: Subbuffer<[u8]>,
-}
+pub use h2d::Reader as H2DReader;
+pub use h2d::Writer as H2DWriter;
 
 // ================== VULKAN BROKER ============================
 /// Vulkan broker

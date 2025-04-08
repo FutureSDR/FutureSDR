@@ -1,44 +1,32 @@
 use anyhow::Context;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::vulkan::Broker;
+use futuresdr::runtime::buffer::vulkan::D2HWriter;
+use futuresdr::runtime::buffer::vulkan::H2DReader;
 use std::sync::Arc;
 use vulkano::buffer::Buffer;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
+use vulkano::descriptor_set::DescriptorSet;
+use vulkano::descriptor_set::WriteDescriptorSet;
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::descriptor_set::layout::DescriptorSetLayout;
-use vulkano::descriptor_set::PersistentDescriptorSet;
-use vulkano::descriptor_set::WriteDescriptorSet;
 use vulkano::memory::allocator::AllocationCreateInfo;
 use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::pipeline::compute::ComputePipelineCreateInfo;
-use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
+use vulkano::pipeline::compute::ComputePipelineCreateInfo;
+use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
+use vulkano::sync;
 use vulkano::sync::GpuFuture;
-use vulkano::sync::{self};
 
-use crate::runtime::buffer::vulkan::Broker;
-use crate::runtime::buffer::vulkan::BufferEmpty;
-use crate::runtime::buffer::vulkan::ReaderH2D;
-use crate::runtime::buffer::vulkan::WriterD2H;
-use crate::runtime::buffer::BufferReaderCustom;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-
-#[allow(clippy::needless_question_mark)]
-#[allow(deprecated)]
 mod cs {
     vulkano_shaders::shader! {
         ty: "compute",
@@ -61,64 +49,49 @@ void main() {
 /// Interface GPU with Vulkan.
 #[derive(Block)]
 pub struct Vulkan {
+    #[input]
+    input: H2DReader<f32>,
+    #[output]
+    output: D2HWriter<f32>,
     broker: Arc<Broker>,
     capacity: u64,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
-    command_buffer_allocator: StandardCommandBufferAllocator,
+    command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
 }
 
 impl Vulkan {
     /// Create Vulkan block
-    pub fn new(broker: Arc<Broker>, capacity: u64) -> TypedBlock<Self> {
+    pub fn new(broker: Arc<Broker>, capacity: u64) -> Self {
         let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(broker.device()));
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             broker.device(),
             Default::default(),
         ));
-        let command_buffer_allocator =
-            StandardCommandBufferAllocator::new(broker.device(), Default::default());
+        let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
+            broker.device(),
+            Default::default(),
+        ));
 
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<f32>("out")
-                .build(),
-            Self {
-                broker,
-                pipeline: None,
-                layout: None,
-                capacity,
-                memory_allocator,
-                descriptor_set_allocator,
-                command_buffer_allocator,
-            },
-        )
+        Self {
+            input: H2DReader::default(),
+            output: D2HWriter::default(),
+            broker,
+            pipeline: None,
+            layout: None,
+            capacity,
+            memory_allocator,
+            descriptor_set_allocator,
+            command_buffer_allocator,
+        }
     }
-}
-
-#[inline]
-fn o(sio: &mut StreamIo, id: usize) -> &mut WriterD2H {
-    sio.output(id).try_as::<WriterD2H>().unwrap()
-}
-
-#[inline]
-fn i(sio: &mut StreamIo, id: usize) -> &mut ReaderH2D {
-    sio.input(id).try_as::<ReaderH2D>().unwrap()
 }
 
 #[doc(hidden)]
 impl Kernel for Vulkan {
-    async fn init(
-        &mut self,
-        sio: &mut StreamIo,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        let input = i(sio, 0);
-
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         for _ in 0..4u32 {
             let buffer = Buffer::new_slice(
                 self.memory_allocator.clone(),
@@ -133,7 +106,7 @@ impl Kernel for Vulkan {
                 },
                 self.capacity,
             )?;
-            input.submit(BufferEmpty { buffer });
+            self.input.submit(buffer);
         }
 
         let cs = cs::load(self.broker.device())
@@ -162,35 +135,34 @@ impl Kernel for Vulkan {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for m in o(sio, 0).buffers().into_iter() {
+        for m in self.output.buffers().into_iter() {
             debug!("vulkan: forwarding buff from output to input");
-            i(sio, 0).submit(m);
+            self.input.submit(m);
         }
 
         let pipeline = self.pipeline.as_ref().context("no pipeline")?.clone();
         let layout = self.layout.as_ref().context("no layout")?.clone();
 
-        for m in i(sio, 0).buffers().into_iter() {
+        for buffer in self.input.buffers().into_iter() {
             debug!("vulkan block: launching full buffer");
 
-            let set = PersistentDescriptorSet::new(
-                &self.descriptor_set_allocator,
+            let set = DescriptorSet::new(
+                self.descriptor_set_allocator.clone(),
                 layout.clone(),
-                [WriteDescriptorSet::buffer(0, m.buffer.clone())],
+                [WriteDescriptorSet::buffer(0, buffer.clone())],
                 [],
             )?;
 
-            let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
-            if m.used_bytes as u32 / 4 % 64 > 0 {
+            let mut dispatch = buffer.len() as u32 / 64; // 64: work group size
+            if buffer.len() % 64 > 0 {
                 dispatch += 1;
             }
 
             let mut builder = AutoCommandBufferBuilder::primary(
-                &self.command_buffer_allocator,
+                self.command_buffer_allocator.clone(),
                 self.broker.queue().queue_family_index(),
                 CommandBufferUsage::OneTimeSubmit,
             )?;
@@ -202,8 +174,9 @@ impl Kernel for Vulkan {
                     pipeline.layout().clone(),
                     0,
                     set,
-                )?
-                .dispatch([dispatch, 1, 1])?;
+                )?;
+
+            unsafe { builder.dispatch([dispatch, 1, 1]) }?;
 
             let command_buffer = builder.build()?;
 
@@ -215,39 +188,13 @@ impl Kernel for Vulkan {
             future.wait(None)?;
 
             debug!("vulkan block: forwarding processed buffer");
-            o(sio, 0).submit(m);
+            self.output.submit(buffer);
         }
 
-        if i(sio, 0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
         Ok(())
-    }
-}
-
-/// Build [Vulkan] block.
-pub struct VulkanBuilder {
-    broker: Arc<Broker>,
-    capacity: u64,
-}
-
-impl VulkanBuilder {
-    /// Create Vulkan builder
-    pub fn new(broker: Arc<Broker>) -> VulkanBuilder {
-        VulkanBuilder {
-            broker,
-            capacity: 8192,
-        }
-    }
-    /// Set capacity of buffers
-    #[must_use]
-    pub fn capacity(mut self, c: u64) -> VulkanBuilder {
-        self.capacity = c;
-        self
-    }
-    /// Build Vulkan block
-    pub fn build(self) -> TypedBlock<Vulkan> {
-        Vulkan::new(self.broker, self.capacity)
     }
 }

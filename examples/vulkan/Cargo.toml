@@ -1,0 +1,13 @@
+[package]
+name = "vulkan"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+futuresdr = { path = "../..", features = ["vulkan"] }
+rand = "0.9"
+vulkano = { version = "0.35" }
+vulkano-shaders = { version = "0.35" }

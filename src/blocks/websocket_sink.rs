@@ -116,11 +116,11 @@ where
                 let cap = v.capacity() * size_of::<T>();
                 let ptr = v.as_ptr() as *mut u8;
 
-                // Prevent Vec<T> from dropping
+                // prevent original Vec from dropping
                 std::mem::forget(v);
 
                 let v = unsafe { Vec::from_raw_parts(ptr, len, cap) };
-                let send = conn.send(Message::Binary(v));
+                let send = conn.send(Message::Binary(v.into()));
 
                 match future::select(acc, send).await {
                     Either::Left((a, _)) => {

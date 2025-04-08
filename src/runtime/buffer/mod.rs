@@ -92,6 +92,21 @@ pub trait CpuBufferReader: BufferReader + Send {
     fn consume(&mut self, n: usize);
 }
 
+/// A generic CPU buffer writer (out-of-place)
+///
+/// Current upstream implemenations are a circular buffer with douple mapping
+/// and the SLAB buffer
+pub trait CpuBufferWriter: BufferWriter + Send {
+    /// Buffer Items
+    type Item;
+    /// Available buffer space
+    fn slice(&mut self) -> &mut [Self::Item];
+    /// Available buffer space and tags.
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags);
+    /// samples produced
+    fn produce(&mut self, n: usize);
+}
+
 /// Output Tags
 pub struct Tags<'a> {
     tags: &'a mut Vec<ItemTag>,
@@ -112,18 +127,4 @@ impl<'a> Tags<'a> {
             tag,
         });
     }
-}
-/// A generic CPU buffer writer (out-of-place)
-///
-/// Current upstream implemenations are a circular buffer with douple mapping
-/// and the SLAB buffer
-pub trait CpuBufferWriter: BufferWriter + Send {
-    /// Buffer Items
-    type Item;
-    /// Available buffer space
-    fn slice(&mut self) -> &mut [Self::Item];
-    /// Available buffer space and tags.
-    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags);
-    /// samples produced
-    fn produce(&mut self, n: usize);
 }

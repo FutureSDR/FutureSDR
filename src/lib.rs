@@ -101,5 +101,10 @@ pub mod prelude {
     pub use futuresdr::runtime::Runtime;
     pub use futuresdr::runtime::RuntimeHandle;
     pub use futuresdr::runtime::WorkIo;
+    pub use futuresdr::tracing::debug;
+    pub use futuresdr::tracing::error;
+    pub use futuresdr::tracing::info;
+    pub use futuresdr::tracing::trace;
+    pub use futuresdr::tracing::warn;
     pub use num_complex::*;
 }
