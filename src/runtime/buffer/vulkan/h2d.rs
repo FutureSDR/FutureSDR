@@ -2,7 +2,6 @@ use futures::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 use vulkano::buffer::subbuffer::BufferContents;
-use vulkano::buffer::Subbuffer;
 
 use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::BufferReader;
@@ -13,9 +12,8 @@ use crate::runtime::Error;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::PortId;
+use crate::runtime::ItemTag;
 use crate::runtime::buffer::Tags;
-
-// everything is measured in items, e.g., offsets, capacity, space available
 
 // ====================== WRITER ============================
 /// Custom buffer writer
@@ -24,10 +22,10 @@ pub struct Writer<T: BufferContents> {
     current: Option<Buffer<T>>,
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    finished: bool,
     inbox: Option<Sender<BlockMessage>>,
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
+    tags: Vec<ItemTag>,
     reader_inbox: Option<Sender<BlockMessage>>,
     reader_port_id: Option<PortId>,
 }
@@ -42,10 +40,10 @@ where
             current: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            finished: false,
             inbox: None,
             block_id: None,
             port_id: None,
+            tags: Vec::new(),
             reader_inbox: None,
             reader_port_id: None,
         }
@@ -133,43 +131,29 @@ where
     type Item = T;
 
     fn slice(&mut self) -> &mut [Self::Item] {
-        todo!()
+        if self.current.is_none() {
+            if let Some(mut b) = self.inbound.lock().unwrap().pop() {
+                b.offset = 0;
+                self.current = Some(b);
+            } else {
+                return &mut [];
+            }
+        }
+    
+        // debug!("H2D writer called bytes, buff is some");
+        let b = self.current.as_mut().unwrap();
+        &mut b.buffer.slice(b.offset as u64..).write().unwrap()
     }
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         todo!()
+        // (self.slice(), Tags::new(&mut self.tags, 0))
     }
 
     fn produce(&mut self, n: usize) {
         todo!()
     }
 
-    // fn add_reader(
-    //     &mut self,
-    //     reader_inbox: Sender<BlockMessage>,
-    //     reader_input_id: usize,
-    // ) -> BufferReader {
-    //     debug!("H2D writer called add reader");
-    //     debug_assert!(self.reader_inbox.is_none());
-    //     debug_assert!(self.reader_input_id.is_none());
-    //
-    //     self.reader_inbox = Some(reader_inbox);
-    //     self.reader_input_id = Some(reader_input_id);
-    //
-    //     debug_assert_eq!(reader_input_id, 0);
-    //     BufferReader::Custom(Box::new(Reader {
-    //         inbound: self.outbound.clone(),
-    //         outbound: self.inbound.clone(),
-    //         writer_inbox: self.writer_inbox.clone(),
-    //         writer_output_id: self.writer_output_id,
-    //         finished: false,
-    //     }))
-    // }
-    //
-    // fn as_any(&mut self) -> &mut dyn Any {
-    //     self
-    // }
-    //
     // fn bytes(&mut self) -> (*mut u8, usize) {
     //     if self.buffer.is_none() {
     //         if let Some(b) = self.inbound.lock().unwrap().pop() {
@@ -235,6 +219,7 @@ pub struct Reader<T: BufferContents> {
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     inbox: Option<Sender<BlockMessage>>,
+    block_id: Option<BlockId>,
     port_id: Option<PortId>,
     writer_port_id: Option<PortId>,
     writer_inbox: Option<Sender<BlockMessage>>,
@@ -251,6 +236,7 @@ where
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             inbox: None,
+            block_id: None,
             port_id: None,
             writer_port_id: None,
             writer_inbox: None,
@@ -259,14 +245,14 @@ where
     }
 
     /// Send empty buffer back to writer
-    pub fn submit(&mut self, buffer: Subbuffer<[T]>) {
+    pub fn submit(&mut self, buffer: Buffer<T>) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
         let _ = self.writer_inbox.as_mut().unwrap().try_send(BlockMessage::Notify);
     }
 
     /// Get full buffer
-    pub fn buffers(&mut self) -> Vec<Subbuffer<[T]>> {
+    pub fn buffers(&mut self) -> Vec<Buffer<T>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
@@ -287,56 +273,49 @@ where
     T: BufferContents,
 {
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        todo!()
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        todo!()
+        if self.writer_inbox.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
 
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send {
-        async { todo!() }
+    async fn notify_finished(&mut self) {
+        debug!("H2D reader finish");
+        if self.finished {
+            return;
+        }
+    
+        self.writer_inbox.as_mut().unwrap()
+            .send(BlockMessage::StreamOutputDone {
+                output_id: self.port_id.clone().unwrap(),
+            })
+            .await
+            .unwrap();
     }
 
     fn finish(&mut self) {
-        todo!()
+        self.finished = true;
     }
 
     fn finished(&mut self) -> bool {
-        todo!()
+        self.finished
     }
 
     fn block_id(&self) -> BlockId {
-        todo!()
+        self.block_id.unwrap()
     }
 
     fn port_id(&self) -> PortId {
-        todo!()
+        self.port_id.clone().unwrap()
     }
-
-    // fn as_any(&mut self) -> &mut dyn Any {
-    //     self
-    // }
-    //
-    // async fn notify_finished(&mut self) {
-    //     debug!("H2D reader finish");
-    //     if self.finished {
-    //         return;
-    //     }
-    //
-    //     self.writer_inbox
-    //         .send(BlockMessage::StreamOutputDone {
-    //             output_id: self.writer_output_id,
-    //         })
-    //         .await
-    //         .unwrap();
-    // }
-    //
-    // fn finish(&mut self) {
-    //     self.finished = true;
-    // }
-    //
-    // fn finished(&self) -> bool {
-    //     self.finished
-    // }
 }

@@ -18,6 +18,13 @@ use crate::runtime::PortId;
 
 // everything is measured in items, e.g., offsets, capacity, space available
 
+#[derive(Debug)]
+pub struct CurrentBuffer<T: BufferContents> {
+    buffer: Subbuffer<[T]>,
+    offset: usize,
+    end: usize,
+}
+
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
