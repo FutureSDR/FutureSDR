@@ -9,6 +9,7 @@ use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
@@ -20,8 +21,8 @@ use crate::runtime::PortId;
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
-    inbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
-    outbound: Arc<Mutex<VecDeque<Subbuffer<[T]>>>>,
+    inbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     finished: bool,
     writer_inbox: Option<Sender<BlockMessage>>,
     writer_output_id: usize,
@@ -47,13 +48,13 @@ where
     }
 
     /// All available empty buffers
-    pub fn buffers(&mut self) -> Vec<Subbuffer<[T]>> {
+    pub fn buffers(&mut self) -> Vec<Buffer<T>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
     /// Submit full buffer to downstream CPU reader
-    pub fn submit(&mut self, buffer: Subbuffer<[T]>) {
+    pub fn submit(&mut self, buffer: Buffer<T>) {
         self.outbound.lock().unwrap().push_back(buffer);
         let _ = self
             .reader_inbox

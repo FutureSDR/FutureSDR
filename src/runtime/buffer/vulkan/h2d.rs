@@ -8,6 +8,7 @@ use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::Error;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
@@ -20,14 +21,15 @@ use crate::runtime::buffer::Tags;
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
-    current: Option<Subbuffer<[T]>>,
-    inbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
-    outbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
+    current: Option<Buffer<T>>,
+    inbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     finished: bool,
-    writer_inbox: Option<Sender<BlockMessage>>,
-    writer_output_id: Option<usize>,
+    inbox: Option<Sender<BlockMessage>>,
+    block_id: Option<BlockId>,
+    port_id: Option<PortId>,
     reader_inbox: Option<Sender<BlockMessage>>,
-    reader_input_id: Option<usize>,
+    reader_port_id: Option<PortId>,
 }
 
 impl<T> Writer<T>
@@ -41,10 +43,11 @@ where
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             finished: false,
-            writer_inbox: None,
-            writer_output_id: None,
+            inbox: None,
+            block_id: None,
+            port_id: None,
             reader_inbox: None,
-            reader_input_id: None,
+            reader_port_id: None,
         }
     }
 }
@@ -70,27 +73,56 @@ where
         port_id: PortId,
         inbox: Sender<BlockMessage>,
     ) {
-        todo!()
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        todo!()
+        if self.reader_inbox.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        todo!()
+        dest.inbound = self.outbound.clone();
+        dest.outbound = self.inbound.clone();
+        self.reader_port_id = dest.port_id.clone();
+        self.reader_inbox = dest.inbox.clone();
+        dest.writer_inbox = self.inbox.clone();
+        dest.writer_port_id = self.port_id.clone();
     }
 
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send {
-        async { todo!() }
+    async fn notify_finished(&mut self) {
+        debug!("H2D writer called finish");
+    
+        if let Some(buffer) = self.current.take() {
+            if buffer.offset > 0 {
+                self.outbound.lock().unwrap().push(buffer);
+            }
+        }
+    
+        self.reader_inbox
+            .as_mut()
+            .unwrap()
+            .send(BlockMessage::StreamInputDone {
+                input_id: self.reader_port_id.clone().unwrap(),
+            })
+            .await
+            .unwrap();
     }
 
     fn block_id(&self) -> BlockId {
-        todo!()
+        self.block_id.unwrap()
     }
 
     fn port_id(&self) -> PortId {
-        todo!()
+        self.port_id.as_ref().unwrap().clone()
     }
 }
 
@@ -193,36 +225,6 @@ where
     // }
     //
     // async fn notify_finished(&mut self) {
-    //     debug!("H2D writer called finish");
-    //     if self.finished {
-    //         return;
-    //     }
-    //
-    //     if let Some(CurrentBuffer { offset, buffer }) = self.buffer.take() {
-    //         if offset > 0 {
-    //             self.outbound.lock().unwrap().push(BufferFull {
-    //                 buffer: buffer.buffer,
-    //                 used_bytes: offset * self.item_size,
-    //             });
-    //         }
-    //     }
-    //
-    //     self.reader_inbox
-    //         .as_mut()
-    //         .unwrap()
-    //         .send(BlockMessage::StreamInputDone {
-    //             input_id: self.reader_input_id.unwrap(),
-    //         })
-    //         .await
-    //         .unwrap();
-    // }
-    //
-    // fn finish(&mut self) {
-    //     self.finished = true;
-    // }
-    //
-    // fn finished(&self) -> bool {
-    //     self.finished
     // }
 }
 
@@ -230,9 +232,11 @@ where
 /// Custom buffer reader
 #[derive(Debug)]
 pub struct Reader<T: BufferContents> {
-    inbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
-    outbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
-    writer_output_id: usize,
+    inbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    outbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    inbox: Option<Sender<BlockMessage>>,
+    port_id: Option<PortId>,
+    writer_port_id: Option<PortId>,
     writer_inbox: Option<Sender<BlockMessage>>,
     finished: bool,
 }
@@ -246,7 +250,9 @@ where
         Self {
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            writer_output_id: 0,
+            inbox: None,
+            port_id: None,
+            writer_port_id: None,
             writer_inbox: None,
             finished: false,
         }

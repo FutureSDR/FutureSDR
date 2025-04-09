@@ -1,16 +1,18 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
-use vulkano::device::physical::PhysicalDeviceType;
+use vulkano::VulkanLibrary;
+use vulkano::buffer::Subbuffer;
+use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
-use vulkano::instance::Instance;
+use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
-use vulkano::VulkanLibrary;
+use vulkano::instance;
 
 mod d2h;
 pub use d2h::Reader as D2HReader;
@@ -19,19 +21,25 @@ mod h2d;
 pub use h2d::Reader as H2DReader;
 pub use h2d::Writer as H2DWriter;
 
-// ================== VULKAN BROKER ============================
+#[derive(Debug)]
+pub struct Buffer<T: BufferContents> {
+    buffer: Subbuffer<[T]>,
+    offset: usize,
+}
+
+// ================== VULKAN INSTANCE ============================
 /// Vulkan broker
 #[derive(Debug)]
-pub struct Broker {
+pub struct Instance {
     device: Arc<Device>,
     queue: Arc<Queue>,
 }
 
-impl Broker {
+impl Instance {
     /// Create broker
-    pub fn new() -> Broker {
+    pub fn new() -> Self {
         let library = VulkanLibrary::new().unwrap();
-        let instance = Instance::new(
+        let instance = instance::Instance::new(
             library,
             InstanceCreateInfo {
                 flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
@@ -84,7 +92,7 @@ impl Broker {
 
         let queue = queues.next().unwrap();
 
-        Broker { device, queue }
+        Self { device, queue }
     }
 
     /// Vulkan device
@@ -98,7 +106,7 @@ impl Broker {
     }
 }
 
-impl Default for Broker {
+impl Default for Instance {
     fn default() -> Self {
         Self::new()
     }
