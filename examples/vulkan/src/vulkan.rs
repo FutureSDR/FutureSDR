@@ -1,8 +1,9 @@
 use anyhow::Context;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::vulkan::Broker;
+use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::D2HWriter;
 use futuresdr::runtime::buffer::vulkan::H2DReader;
+use futuresdr::runtime::buffer::vulkan::Instance;
 use std::sync::Arc;
 use vulkano::buffer::Buffer;
 use vulkano::buffer::BufferCreateInfo;
@@ -53,7 +54,7 @@ pub struct Vulkan {
     input: H2DReader<f32>,
     #[output]
     output: D2HWriter<f32>,
-    broker: Arc<Broker>,
+    broker: Arc<Instance>,
     capacity: u64,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
@@ -64,7 +65,7 @@ pub struct Vulkan {
 
 impl Vulkan {
     /// Create Vulkan block
-    pub fn new(broker: Arc<Broker>, capacity: u64) -> Self {
+    pub fn new(broker: Arc<Instance>, capacity: u64) -> Self {
         let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(broker.device()));
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             broker.device(),
@@ -106,7 +107,7 @@ impl Kernel for Vulkan {
                 },
                 self.capacity,
             )?;
-            self.input.submit(buffer);
+            self.input.submit(vulkan::Buffer { buffer, offset: 0 });
         }
 
         let cs = cs::load(self.broker.device())
@@ -146,46 +147,48 @@ impl Kernel for Vulkan {
         let pipeline = self.pipeline.as_ref().context("no pipeline")?.clone();
         let layout = self.layout.as_ref().context("no layout")?.clone();
 
-        for buffer in self.input.buffers().into_iter() {
+        let buffers = self.input.buffers();
+        for buffer in buffers.into_iter() {
             debug!("vulkan block: launching full buffer");
 
             let set = DescriptorSet::new(
                 self.descriptor_set_allocator.clone(),
                 layout.clone(),
-                [WriteDescriptorSet::buffer(0, buffer.clone())],
+                [WriteDescriptorSet::buffer(0, buffer.buffer.clone())],
                 [],
             )?;
 
-            let mut dispatch = buffer.len() as u32 / 64; // 64: work group size
-            if buffer.len() % 64 > 0 {
+            let mut dispatch = buffer.offset as u32 / 64; // 64: work group size
+            if buffer.buffer.len() % 64 > 0 {
                 dispatch += 1;
             }
 
-            let mut builder = AutoCommandBufferBuilder::primary(
-                self.command_buffer_allocator.clone(),
-                self.broker.queue().queue_family_index(),
-                CommandBufferUsage::OneTimeSubmit,
-            )?;
-
-            builder
-                .bind_pipeline_compute(pipeline.clone())?
-                .bind_descriptor_sets(
-                    PipelineBindPoint::Compute,
-                    pipeline.layout().clone(),
-                    0,
-                    set,
+            let future = {
+                let mut builder = AutoCommandBufferBuilder::primary(
+                    self.command_buffer_allocator.clone(),
+                    self.broker.queue().queue_family_index(),
+                    CommandBufferUsage::OneTimeSubmit,
                 )?;
 
-            unsafe { builder.dispatch([dispatch, 1, 1]) }?;
+                builder
+                    .bind_pipeline_compute(pipeline.clone())?
+                    .bind_descriptor_sets(
+                        PipelineBindPoint::Compute,
+                        pipeline.layout().clone(),
+                        0,
+                        set,
+                    )?;
 
-            let command_buffer = builder.build()?;
+                unsafe { builder.dispatch([dispatch, 1, 1]) }?;
 
-            let future = sync::now(self.broker.device().clone())
-                .then_execute(self.broker.queue().clone(), command_buffer)
-                .unwrap()
-                .then_signal_fence_and_flush()?;
+                let command_buffer = builder.build()?;
 
-            future.wait(None)?;
+                sync::now(self.broker.device().clone())
+                    .then_execute(self.broker.queue().clone(), command_buffer)?
+                    .then_signal_fence_and_flush()?
+            };
+
+            future.await?;
 
             debug!("vulkan block: forwarding processed buffer");
             self.output.submit(buffer);

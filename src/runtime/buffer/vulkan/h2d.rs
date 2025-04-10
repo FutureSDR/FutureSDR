@@ -1,25 +1,39 @@
 use futures::prelude::*;
+use ouroboros::self_referencing;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::sync::Mutex;
 use vulkano::buffer::subbuffer::BufferContents;
+use vulkano::buffer::BufferWriteGuard;
+use vulkano::buffer::Subbuffer;
 
 use crate::channel::mpsc::Sender;
+use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::buffer::vulkan::Buffer;
-use crate::runtime::Error;
+use crate::runtime::buffer::Tags;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::PortId;
+use crate::runtime::Error;
 use crate::runtime::ItemTag;
-use crate::runtime::buffer::Tags;
+use crate::runtime::PortId;
+
+#[self_referencing]
+#[derive(Debug)]
+struct CurrentBuffer<T: BufferContents> {
+    buffer: Subbuffer<[T]>,
+    offset: usize,
+    #[borrows(buffer)]
+    #[covariant]
+    guard: BufferWriteGuard<'this, [T]>,
+}
 
 // ====================== WRITER ============================
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
-    current: Option<Buffer<T>>,
+    current: Option<CurrentBuffer<T>>,
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     inbox: Option<Sender<BlockMessage>>,
@@ -65,12 +79,7 @@ where
 {
     type Reader = Reader<T>;
 
-    fn init(
-        &mut self,
-        block_id: BlockId,
-        port_id: PortId,
-        inbox: Sender<BlockMessage>,
-    ) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
         self.block_id = Some(block_id);
         self.port_id = Some(port_id);
         self.inbox = Some(inbox);
@@ -98,13 +107,17 @@ where
 
     async fn notify_finished(&mut self) {
         debug!("H2D writer called finish");
-    
+
         if let Some(buffer) = self.current.take() {
-            if buffer.offset > 0 {
-                self.outbound.lock().unwrap().push(buffer);
+            if *buffer.borrow_offset() > 0 {
+                let offset = *buffer.borrow_offset();
+                self.outbound.lock().unwrap().push(Buffer {
+                    buffer: buffer.into_heads().buffer,
+                    offset,
+                });
             }
         }
-    
+
         self.reader_inbox
             .as_mut()
             .unwrap()
@@ -120,7 +133,7 @@ where
     }
 
     fn port_id(&self) -> PortId {
-        self.port_id.as_ref().unwrap().clone()
+        self.port_id.clone().unwrap()
     }
 }
 
@@ -132,84 +145,78 @@ where
 
     fn slice(&mut self) -> &mut [Self::Item] {
         if self.current.is_none() {
-            if let Some(mut b) = self.inbound.lock().unwrap().pop() {
-                b.offset = 0;
-                self.current = Some(b);
+            if let Some(b) = self.inbound.lock().unwrap().pop() {
+                let buffer = CurrentBufferBuilder {
+                    offset: 0,
+                    buffer: b.buffer,
+                    guard_builder: |buffer| buffer.write().unwrap(),
+                }
+                .build();
+                self.current = Some(buffer);
             } else {
                 return &mut [];
             }
         }
-    
-        // debug!("H2D writer called bytes, buff is some");
+
         let b = self.current.as_mut().unwrap();
-        &mut b.buffer.slice(b.offset as u64..).write().unwrap()
+        let offset = *b.borrow_offset();
+        &mut b.with_guard_mut(|guard| guard.deref_mut())[offset..]
     }
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
-        todo!()
-        // (self.slice(), Tags::new(&mut self.tags, 0))
+        if self.current.is_none() {
+            if let Some(b) = self.inbound.lock().unwrap().pop() {
+                let buffer = CurrentBufferBuilder {
+                    offset: 0,
+                    buffer: b.buffer,
+                    guard_builder: |buffer| buffer.write().unwrap(),
+                }
+                .build();
+                self.current = Some(buffer);
+            } else {
+                return (&mut [], Tags::new(&mut self.tags, 0));
+            }
+        }
+
+        let b = self.current.as_mut().unwrap();
+        let offset = *b.borrow_offset();
+        let s = &mut b.with_guard_mut(|guard| guard.deref_mut())[offset..];
+        (s, Tags::new(&mut self.tags, 0))
     }
 
     fn produce(&mut self, n: usize) {
-        todo!()
-    }
+        let buffer = self.current.as_mut().unwrap();
+        let offset = buffer.with_offset_mut(|offset| {
+            *offset += n;
+            *offset
+        });
+        let capacity = buffer.borrow_buffer().len();
 
-    // fn bytes(&mut self) -> (*mut u8, usize) {
-    //     if self.buffer.is_none() {
-    //         if let Some(b) = self.inbound.lock().unwrap().pop() {
-    //             self.buffer = Some(CurrentBuffer {
-    //                 buffer: b,
-    //                 offset: 0,
-    //             });
-    //         } else {
-    //             // debug!("H2D writer called bytes, buff is none");
-    //             return (std::ptr::null_mut::<u8>(), 0);
-    //         }
-    //     }
-    //
-    //     // debug!("H2D writer called bytes, buff is some");
-    //     unsafe {
-    //         let buffer = self.buffer.as_mut().unwrap();
-    //         let capacity = buffer.buffer.buffer.size() as usize / self.item_size;
-    //         let mut ret = buffer.buffer.buffer.write().unwrap();
-    //         (
-    //             ret.as_mut_ptr().add(buffer.offset * self.item_size),
-    //             (capacity - buffer.offset) * self.item_size,
-    //         )
-    //     }
-    // }
-    //
-    // fn produce(&mut self, amount: usize, _tags: Vec<ItemTag>) {
-    //     // debug!("H2D writer called produce {}", amount);
-    //     let buffer = self.buffer.as_mut().unwrap();
-    //     let capacity = buffer.buffer.buffer.size() as usize / self.item_size;
-    //
-    //     debug_assert!(amount + buffer.offset <= capacity);
-    //     buffer.offset += amount;
-    //     if buffer.offset == capacity {
-    //         let buffer = self.buffer.take().unwrap().buffer.buffer;
-    //         self.outbound.lock().unwrap().push(BufferFull {
-    //             buffer,
-    //             used_bytes: capacity * self.item_size,
-    //         });
-    //
-    //         if let Some(b) = self.inbound.lock().unwrap().pop() {
-    //             self.buffer = Some(CurrentBuffer {
-    //                 buffer: b,
-    //                 offset: 0,
-    //             });
-    //         }
-    //
-    //         let _ = self
-    //             .reader_inbox
-    //             .as_mut()
-    //             .unwrap()
-    //             .try_send(BlockMessage::Notify);
-    //     }
-    // }
-    //
-    // async fn notify_finished(&mut self) {
-    // }
+        debug_assert!(offset as u64 <= capacity);
+        if offset as u64 == capacity {
+            let buffer = self.current.take().unwrap();
+            self.outbound.lock().unwrap().push(Buffer {
+                buffer: buffer.into_heads().buffer,
+                offset,
+            });
+
+            if let Some(b) = self.inbound.lock().unwrap().pop() {
+                let buffer = CurrentBufferBuilder {
+                    offset: 0,
+                    buffer: b.buffer,
+                    guard_builder: |buffer| buffer.write().unwrap(),
+                }
+                .build();
+                self.current = Some(buffer);
+            }
+
+            let _ = self
+                .reader_inbox
+                .as_mut()
+                .unwrap()
+                .try_send(BlockMessage::Notify);
+        }
+    }
 }
 
 // ====================== READER ============================
@@ -248,7 +255,11 @@ where
     pub fn submit(&mut self, buffer: Buffer<T>) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
-        let _ = self.writer_inbox.as_mut().unwrap().try_send(BlockMessage::Notify);
+        let _ = self
+            .writer_inbox
+            .as_mut()
+            .unwrap()
+            .try_send(BlockMessage::Notify);
     }
 
     /// Get full buffer
@@ -257,7 +268,6 @@ where
         std::mem::take(&mut vec)
     }
 }
-
 
 impl<T> Default for Reader<T>
 where
@@ -294,8 +304,10 @@ where
         if self.finished {
             return;
         }
-    
-        self.writer_inbox.as_mut().unwrap()
+
+        self.writer_inbox
+            .as_mut()
+            .unwrap()
             .send(BlockMessage::StreamOutputDone {
                 output_id: self.port_id.clone().unwrap(),
             })

@@ -1,18 +1,18 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
-use vulkano::VulkanLibrary;
-use vulkano::buffer::Subbuffer;
 use vulkano::buffer::subbuffer::BufferContents;
+use vulkano::buffer::Subbuffer;
+use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
-use vulkano::device::physical::PhysicalDeviceType;
+use vulkano::instance;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
-use vulkano::instance;
+use vulkano::VulkanLibrary;
 
 mod d2h;
 pub use d2h::Reader as D2HReader;
@@ -22,9 +22,12 @@ pub use h2d::Reader as H2DReader;
 pub use h2d::Writer as H2DWriter;
 
 #[derive(Debug)]
+/// Vulkan Buffer
 pub struct Buffer<T: BufferContents> {
-    buffer: Subbuffer<[T]>,
-    offset: usize,
+    /// Subbuffer
+    pub buffer: Subbuffer<[T]>,
+    /// Valid data in buffer
+    pub offset: usize,
 }
 
 // ================== VULKAN INSTANCE ============================

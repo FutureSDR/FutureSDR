@@ -32,7 +32,7 @@ seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
 tpb_scheduler = []
-vulkan = ["dep:vulkano"]
+vulkan = ["dep:vulkano", "dep:ouroboros"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
 zynq = ["dep:xilinx-dma"]
@@ -120,6 +120,7 @@ core_affinity = "0.8"
 cpal = { version = "0.15", optional = true }
 hound = { version = "3.5", optional = true }
 libc = "0.2"
+ouroboros = { version = "0.18", optional = true }
 rodio = { version = "0.20", default-features = false, features = ["symphonia-all"], optional = true }
 tokio = { version = "1", features = ["rt"] }
 tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"] }

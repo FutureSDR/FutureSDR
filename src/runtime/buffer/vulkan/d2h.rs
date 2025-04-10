@@ -1,28 +1,33 @@
 use futures::prelude::*;
+use ouroboros::self_referencing;
 use std::collections::VecDeque;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
 use vulkano::buffer::subbuffer::BufferContents;
+use vulkano::buffer::BufferReadGuard;
 use vulkano::buffer::Subbuffer;
 
 use crate::channel::mpsc::Sender;
+use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 
-// everything is measured in items, e.g., offsets, capacity, space available
-
+#[self_referencing]
 #[derive(Debug)]
-pub struct CurrentBuffer<T: BufferContents> {
+struct CurrentBuffer<T: BufferContents> {
     buffer: Subbuffer<[T]>,
     offset: usize,
     end: usize,
+    #[borrows(buffer)]
+    #[covariant]
+    guard: BufferReadGuard<'this, [T]>,
 }
 
 /// Custom buffer writer
@@ -30,11 +35,11 @@ pub struct CurrentBuffer<T: BufferContents> {
 pub struct Writer<T: BufferContents> {
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
-    finished: bool,
-    writer_inbox: Option<Sender<BlockMessage>>,
-    writer_output_id: usize,
+    block_id: Option<BlockId>,
+    port_id: Option<PortId>,
+    inbox: Option<Sender<BlockMessage>>,
     reader_inbox: Option<Sender<BlockMessage>>,
-    reader_input_id: Option<usize>,
+    reader_port_id: Option<PortId>,
 }
 
 impl<T> Writer<T>
@@ -46,11 +51,11 @@ where
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
-            finished: false,
-            writer_inbox: None,
-            writer_output_id: 0,
+            block_id: None,
+            port_id: None,
+            inbox: None,
             reader_inbox: None,
-            reader_input_id: None,
+            reader_port_id: None,
         }
     }
 
@@ -87,102 +92,82 @@ where
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        todo!()
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        todo!()
+        if self.reader_inbox.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        todo!()
+        dest.inbound = self.outbound.clone();
+        dest.outbound = self.inbound.clone();
+        dest.writer_port_id = self.port_id.clone();
+        dest.writer_inbox = self.inbox.clone();
+
+        self.reader_inbox = dest.inbox.clone();
+        self.reader_port_id = dest.port_id.clone();
     }
 
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send {
-        async { todo!() }
+    async fn notify_finished(&mut self) {
+        self.reader_inbox
+            .as_mut()
+            .unwrap()
+            .send(BlockMessage::StreamInputDone {
+                input_id: self.reader_port_id.clone().unwrap(),
+            })
+            .await
+            .unwrap();
     }
 
     fn block_id(&self) -> BlockId {
-        todo!()
+        self.block_id.unwrap()
     }
 
     fn port_id(&self) -> PortId {
-        todo!()
+        self.port_id.clone().unwrap()
     }
-    // fn add_reader(
-    //     &mut self,
-    //     reader_inbox: Sender<BlockMessage>,
-    //     reader_input_id: usize,
-    // ) -> BufferReader {
-    //     debug_assert!(self.reader_inbox.is_none());
-    //     debug_assert!(self.reader_input_id.is_none());
-    //
-    //     self.reader_inbox = Some(reader_inbox.clone());
-    //     self.reader_input_id = Some(reader_input_id);
-    //
-    //     BufferReader::Host(Box::new(Reader {
-    //         buffer: None,
-    //         outbound: self.inbound.clone(),
-    //         inbound: self.outbound.clone(),
-    //         item_size: self.item_size,
-    //         writer_inbox: self.writer_inbox.clone(),
-    //         writer_output_id: self.writer_output_id,
-    //         my_inbox: reader_inbox,
-    //         finished: false,
-    //     }))
-    // }
-    //
-    // fn as_any(&mut self) -> &mut dyn Any {
-    //     self
-    // }
-    //
-    // async fn notify_finished(&mut self) {
-    //     if self.finished {
-    //         return;
-    //     }
-    //
-    //     self.reader_inbox
-    //         .as_mut()
-    //         .unwrap()
-    //         .send(BlockMessage::StreamInputDone {
-    //             input_id: self.reader_input_id.unwrap(),
-    //         })
-    //         .await
-    //         .unwrap();
-    // }
-    //
-    // fn finish(&mut self) {
-    //     self.finished = true;
-    // }
-    //
-    // fn finished(&self) -> bool {
-    //     self.finished
-    // }
 }
 
 /// Custom buffer reader
 #[derive(Debug)]
 pub struct Reader<T: BufferContents> {
-    current: Option<Subbuffer<[T]>>,
-    inbound: Arc<Mutex<VecDeque<Subbuffer<[T]>>>>,
-    outbound: Arc<Mutex<Vec<Subbuffer<[T]>>>>,
+    current: Option<CurrentBuffer<T>>,
+    inbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
+    outbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    block_id: Option<BlockId>,
+    port_id: Option<PortId>,
+    inbox: Option<Sender<BlockMessage>>,
     writer_inbox: Option<Sender<BlockMessage>>,
-    writer_output_id: usize,
-    my_inbox: Option<Sender<BlockMessage>>,
+    writer_port_id: Option<PortId>,
+    tags: Vec<ItemTag>,
     finished: bool,
 }
 impl<T> Reader<T>
 where
     T: BufferContents,
 {
+    /// Create Vulkan Device-to-Host Reader
     pub fn new() -> Self {
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
+            block_id: None,
+            port_id: None,
+            inbox: None,
             writer_inbox: None,
-            writer_output_id: 0,
-            my_inbox: None,
+            writer_port_id: None,
+            tags: Vec::new(),
             finished: false,
         }
     }
@@ -202,103 +187,52 @@ where
     T: BufferContents,
 {
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        todo!()
+        self.block_id = Some(block_id);
+        self.port_id = Some(port_id);
+        self.inbox = Some(inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        todo!()
+        if self.writer_inbox.is_some() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
 
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send {
-        async { todo!() }
+    async fn notify_finished(&mut self) {
+        if self.finished {
+            return;
+        }
+
+        self.writer_inbox
+            .as_mut()
+            .unwrap()
+            .send(BlockMessage::StreamOutputDone {
+                output_id: self.writer_port_id.clone().unwrap(),
+            })
+            .await
+            .unwrap();
     }
 
     fn finish(&mut self) {
-        todo!()
+        self.finished = true;
     }
 
     fn finished(&mut self) -> bool {
-        todo!()
+        self.finished
     }
 
     fn block_id(&self) -> BlockId {
-        todo!()
+        self.block_id.unwrap()
     }
 
     fn port_id(&self) -> PortId {
-        todo!()
+        self.port_id.clone().unwrap()
     }
-    // fn as_any(&mut self) -> &mut dyn Any {
-    //     self
-    // }
-    //
-    // fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
-    //     if self.buffer.is_none() {
-    //         if let Some(b) = self.inbound.lock().unwrap().pop_front() {
-    //             self.buffer = Some(CurrentBuffer {
-    //                 buffer: b,
-    //                 offset: 0,
-    //             });
-    //         } else {
-    //             return (std::ptr::null::<u8>(), 0, Vec::new());
-    //         }
-    //     }
-    //
-    //     unsafe {
-    //         let buffer = self.buffer.as_ref().unwrap();
-    //         let capacity = buffer.buffer.used_bytes / self.item_size;
-    //         let ret = buffer.buffer.buffer.write().unwrap();
-    //         (
-    //             ret.as_ptr().add(buffer.offset * self.item_size),
-    //             (capacity - buffer.offset) * self.item_size,
-    //             Vec::new(),
-    //         )
-    //     }
-    // }
-    //
-    // fn consume(&mut self, amount: usize) {
-    //     debug_assert!(amount != 0);
-    //     debug_assert!(self.buffer.is_some());
-    //
-    //     let buffer = self.buffer.as_mut().unwrap();
-    //     let capacity = buffer.buffer.used_bytes / self.item_size;
-    //
-    //     debug_assert!(amount + buffer.offset <= capacity);
-    //
-    //     buffer.offset += amount;
-    //     if buffer.offset == capacity {
-    //         let buffer = self.buffer.take().unwrap().buffer.buffer;
-    //         self.outbound.lock().unwrap().push(BufferEmpty { buffer });
-    //         let _ = self.writer_inbox.try_send(BlockMessage::Notify);
-    //
-    //         // make sure to be called again for another potentially
-    //         // queued buffer. could also check if there is one and only
-    //         // message in this case.
-    //         let _ = self.my_inbox.try_send(BlockMessage::Notify);
-    //     }
-    // }
-    //
-    // async fn notify_finished(&mut self) {
-    //     debug!("D2H Reader finish");
-    //     if self.finished {
-    //         return;
-    //     }
-    //
-    //     self.writer_inbox
-    //         .send(BlockMessage::StreamOutputDone {
-    //             output_id: self.writer_output_id,
-    //         })
-    //         .await
-    //         .unwrap();
-    // }
-    //
-    // fn finish(&mut self) {
-    //     self.finished = true;
-    // }
-    //
-    // fn finished(&self) -> bool {
-    //     self.finished && self.inbound.lock().unwrap().is_empty()
-    // }
 }
 
 impl<T> CpuBufferReader for Reader<T>
@@ -308,14 +242,81 @@ where
     type Item = T;
 
     fn slice(&mut self) -> &[Self::Item] {
-        todo!()
+        if self.current.is_none() {
+            if let Some(b) = self.inbound.lock().unwrap().pop_front() {
+                let buffer = CurrentBufferBuilder {
+                    buffer: b.buffer,
+                    offset: 0,
+                    end: b.offset,
+                    guard_builder: |buffer| buffer.read().unwrap(),
+                }
+                .build();
+                self.current = Some(buffer);
+            } else {
+                return &[];
+            }
+        }
+
+        let current = self.current.as_ref().unwrap();
+        let offset = *current.borrow_offset();
+        let end = *current.borrow_end();
+        &current.with_guard(|guard| guard.deref())[offset..end]
     }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        todo!()
+        if self.current.is_none() {
+            if let Some(b) = self.inbound.lock().unwrap().pop_front() {
+                let buffer = CurrentBufferBuilder {
+                    buffer: b.buffer,
+                    offset: 0,
+                    end: b.offset,
+                    guard_builder: |buffer| buffer.read().unwrap(),
+                }
+                .build();
+                self.current = Some(buffer);
+            } else {
+                return (&[], &self.tags);
+            }
+        }
+
+        let current = self.current.as_ref().unwrap();
+        let offset = *current.borrow_offset();
+        let end = *current.borrow_end();
+        let s = &current.with_guard(|guard| guard.deref())[offset..end];
+        (s, &self.tags)
     }
 
     fn consume(&mut self, n: usize) {
-        todo!()
+        if n == 0 {
+            return;
+        }
+        debug!("consuming {}", n);
+        let buffer = self.current.as_mut().unwrap();
+        let offset = buffer.with_offset_mut(|offset| {
+            *offset += n;
+            *offset
+        });
+
+        let capacity = *buffer.borrow_end();
+        debug_assert!(offset <= capacity);
+
+        if offset == capacity {
+            let buffer = self.current.take().unwrap();
+            self.outbound.lock().unwrap().push(Buffer {
+                buffer: buffer.into_heads().buffer,
+                offset: 0,
+            });
+
+            let _ = self
+                .writer_inbox
+                .as_mut()
+                .unwrap()
+                .try_send(BlockMessage::Notify);
+
+            // make sure to be called again for another potentially
+            // queued buffer. could also check if there is one and only
+            // message in this case.
+            let _ = self.inbox.as_mut().unwrap().try_send(BlockMessage::Notify);
+        }
     }
 }
