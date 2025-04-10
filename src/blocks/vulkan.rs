@@ -4,7 +4,6 @@ use futuresdr::runtime::buffer::vulkan::D2HWriter;
 use futuresdr::runtime::buffer::vulkan::H2DReader;
 use futuresdr::runtime::buffer::vulkan::Instance;
 use std::sync::Arc;
-use vulkano::DeviceSize;
 use vulkano::buffer::BufferContents;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -107,10 +106,7 @@ impl<T: BufferContents> Kernel for Vulkan<T> {
                 [],
             )?;
 
-            let mut dispatch = buffer.offset as u32 / self.work_group_size;
-            if buffer.buffer.len() % self.work_group_size as DeviceSize > 0 {
-                dispatch += 1;
-            }
+            let dispatch = (buffer.offset as u32 + self.work_group_size - 1) / self.work_group_size;
 
             let future = {
                 let mut builder = AutoCommandBufferBuilder::primary(

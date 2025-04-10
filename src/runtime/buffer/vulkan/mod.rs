@@ -84,10 +84,11 @@ impl Instance {
             })
             .unwrap();
 
-        debug!(
-            "Using device: {} (type: {:?})",
+        info!(
+            "Using device: {} (type: {:?}, subgroup size: {})",
             physical_device.properties().device_name,
-            physical_device.properties().device_type
+            physical_device.properties().device_type,
+            physical_device.properties().subgroup_size.unwrap_or_default()
         );
 
         let (device, mut queues) = Device::new(
