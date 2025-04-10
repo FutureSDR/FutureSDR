@@ -3,15 +3,13 @@ use clap::Parser;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
+use futuresdr::blocks::Vulkan;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::vulkan::D2HReader;
 use futuresdr::runtime::buffer::vulkan::H2DWriter;
 use futuresdr::runtime::buffer::vulkan::Instance;
 use std::iter::repeat_with;
 use std::time::Instant;
-
-mod vulkan;
-use vulkan::Vulkan;
 
 mod cs {
     vulkano_shaders::shader! {
