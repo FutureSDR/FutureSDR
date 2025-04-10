@@ -4,6 +4,7 @@ use futuresdr::runtime::buffer::vulkan::D2HWriter;
 use futuresdr::runtime::buffer::vulkan::H2DReader;
 use futuresdr::runtime::buffer::vulkan::Instance;
 use std::sync::Arc;
+use vulkano::DeviceSize;
 use vulkano::buffer::BufferContents;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -32,6 +33,7 @@ pub struct Vulkan<T: BufferContents> {
     output: D2HWriter<T>,
     broker: Instance,
     entry_point: EntryPoint,
+    work_group_size: u32,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
@@ -40,7 +42,7 @@ pub struct Vulkan<T: BufferContents> {
 
 impl<T: BufferContents> Vulkan<T> {
     /// Create Vulkan block
-    pub fn new(broker: Instance, entry_point: EntryPoint) -> Self {
+    pub fn new(broker: Instance, entry_point: EntryPoint, work_group_size: u32) -> Self {
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             broker.device(),
             Default::default(),
@@ -57,6 +59,7 @@ impl<T: BufferContents> Vulkan<T> {
             pipeline: None,
             layout: None,
             entry_point,
+            work_group_size,
             descriptor_set_allocator,
             command_buffer_allocator,
         }
@@ -104,8 +107,8 @@ impl<T: BufferContents> Kernel for Vulkan<T> {
                 [],
             )?;
 
-            let mut dispatch = buffer.offset as u32 / 64; // 64: work group size
-            if buffer.buffer.len() % 64 > 0 {
+            let mut dispatch = buffer.offset as u32 / self.work_group_size;
+            if buffer.buffer.len() % self.work_group_size as DeviceSize > 0 {
                 dispatch += 1;
             }
 

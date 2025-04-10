@@ -27,7 +27,6 @@ layout(set = 0, binding = 0) buffer Data {
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    // buf.data[idx] *= 12.0;
     buf.data[idx] = exp(buf.data[idx]);
 }"
     }
@@ -79,10 +78,10 @@ fn run_vulkan() -> Result<()> {
         .unwrap();
 
     let mut src = VectorSource::<f32, H2DWriter<f32>>::new(orig.clone());
-    let vulkan = Vulkan::<f32>::new(instance.clone(), entry_point);
+    let vulkan = Vulkan::<f32>::new(instance.clone(), entry_point, 64);
     let snk = VectorSink::<f32, D2HReader<f32>>::new(N_ITEMS);
 
-    for _ in 0..1 {
+    for _ in 0..4 {
         let buffer = instance.create_buffer(1024 * 1024 * 8)?;
         src.output().add_buffer(buffer);
     }
