@@ -8,6 +8,7 @@ use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::buffer::BufferReadGuard;
 use vulkano::buffer::Subbuffer;
 
+use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
@@ -34,11 +35,11 @@ struct CurrentBuffer<T: BufferContents> {
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
     outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
-    block_id: Option<BlockId>,
-    port_id: Option<PortId>,
-    inbox: Option<Sender<BlockMessage>>,
-    reader_inbox: Option<Sender<BlockMessage>>,
-    reader_port_id: Option<PortId>,
+    block_id: BlockId,
+    port_id: PortId,
+    inbox: Sender<BlockMessage>,
+    reader_inbox: Sender<BlockMessage>,
+    reader_port_id: PortId,
 }
 
 impl<T> Writer<T>
@@ -47,24 +48,21 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
+        let (rx, _) = channel(0);
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
-            block_id: None,
-            port_id: None,
-            inbox: None,
-            reader_inbox: None,
-            reader_port_id: None,
+            block_id: BlockId(0),
+            port_id: PortId(String::new()),
+            inbox: rx.clone(),
+            reader_inbox: rx,
+            reader_port_id: PortId(String::new()),
         }
     }
 
     /// Submit full buffer to downstream CPU reader
     pub fn submit(&mut self, buffer: Buffer<T>) {
         self.outbound.lock().unwrap().push_back(buffer);
-        let _ = self
-            .reader_inbox
-            .as_mut()
-            .unwrap()
-            .try_send(BlockMessage::Notify);
+        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
     }
 }
 
@@ -84,13 +82,13 @@ where
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        self.block_id = Some(block_id);
-        self.port_id = Some(port_id);
-        self.inbox = Some(inbox);
+        self.block_id = block_id;
+        self.port_id = port_id;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.reader_inbox.is_some() {
+        if !self.reader_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -110,22 +108,20 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        self.reader_inbox
-            .as_mut()
-            .unwrap()
+        let _ = self
+            .reader_inbox
             .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_port_id.clone().unwrap(),
+                input_id: self.reader_port_id.clone(),
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id.unwrap()
+        self.block_id
     }
 
     fn port_id(&self) -> PortId {
-        self.port_id.clone().unwrap()
+        self.port_id.clone()
     }
 }
 
@@ -135,12 +131,12 @@ pub struct Reader<T: BufferContents> {
     current: Option<CurrentBuffer<T>>,
     inbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    block_id: Option<BlockId>,
-    port_id: Option<PortId>,
-    inbox: Option<Sender<BlockMessage>>,
-    writer_inbox: Option<Sender<BlockMessage>>,
-    circuit_start_inbox: Option<Sender<BlockMessage>>,
-    writer_port_id: Option<PortId>,
+    block_id: BlockId,
+    port_id: PortId,
+    inbox: Sender<BlockMessage>,
+    writer_inbox: Sender<BlockMessage>,
+    circuit_start_inbox: Sender<BlockMessage>,
+    writer_port_id: PortId,
     tags: Vec<ItemTag>,
     finished: bool,
 }
@@ -150,16 +146,17 @@ where
 {
     /// Create Vulkan Device-to-Host Reader
     pub fn new() -> Self {
+        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            block_id: None,
-            port_id: None,
-            inbox: None,
-            writer_inbox: None,
-            circuit_start_inbox: None,
-            writer_port_id: None,
+            block_id: BlockId(0),
+            port_id: PortId(String::new()),
+            inbox: rx.clone(),
+            writer_inbox: rx.clone(),
+            circuit_start_inbox: rx,
+            writer_port_id: PortId(String::new()),
             tags: Vec::new(),
             finished: false,
         }
@@ -171,7 +168,7 @@ where
         circuit_start_inbox: Sender<BlockMessage>,
         outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     ) {
-        self.circuit_start_inbox = Some(circuit_start_inbox);
+        self.circuit_start_inbox = circuit_start_inbox;
         self.outbound = outbound;
     }
 }
@@ -190,13 +187,13 @@ where
     T: BufferContents,
 {
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        self.block_id = Some(block_id);
-        self.port_id = Some(port_id);
-        self.inbox = Some(inbox);
+        self.block_id = block_id;
+        self.port_id = port_id;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.writer_inbox.is_some() {
+        if !self.writer_inbox.is_closed() && !self.circuit_start_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -211,14 +208,11 @@ where
             return;
         }
 
-        self.writer_inbox
-            .as_mut()
-            .unwrap()
+        let _ = self.writer_inbox
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_port_id.clone().unwrap(),
+                output_id: self.writer_port_id.clone(),
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     fn finish(&mut self) {
@@ -230,11 +224,11 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id.unwrap()
+        self.block_id
     }
 
     fn port_id(&self) -> PortId {
-        self.port_id.clone().unwrap()
+        self.port_id.clone()
     }
 }
 
@@ -312,14 +306,12 @@ where
 
             let _ = self
                 .circuit_start_inbox
-                .as_mut()
-                .unwrap()
                 .try_send(BlockMessage::Notify);
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.inbox.as_mut().unwrap().try_send(BlockMessage::Notify);
+            let _ = self.inbox.try_send(BlockMessage::Notify);
         }
     }
 }

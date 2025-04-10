@@ -8,6 +8,7 @@ use vulkano::buffer::BufferWriteGuard;
 use vulkano::buffer::Subbuffer;
 
 use crate::channel::mpsc::Sender;
+use crate::channel::mpsc::channel;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -38,12 +39,12 @@ pub struct Writer<T: BufferContents> {
     current: Option<CurrentBuffer<T>>,
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    inbox: Option<Sender<BlockMessage>>,
-    block_id: Option<BlockId>,
-    port_id: Option<PortId>,
+    inbox: Sender<BlockMessage>,
+    block_id: BlockId,
+    port_id: PortId,
     tags: Vec<ItemTag>,
-    reader_inbox: Option<Sender<BlockMessage>>,
-    reader_port_id: Option<PortId>,
+    reader_inbox: Sender<BlockMessage>,
+    reader_port_id: PortId,
 }
 
 impl<T> Writer<T>
@@ -52,16 +53,17 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
+        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            inbox: None,
-            block_id: None,
-            port_id: None,
+            inbox: rx.clone(),
+            block_id: BlockId(0),
+            port_id: PortId(String::new()),
             tags: Vec::new(),
-            reader_inbox: None,
-            reader_port_id: None,
+            reader_inbox: rx,
+            reader_port_id: PortId(String::new()),
         }
     }
 
@@ -72,7 +74,7 @@ where
 
     /// Close Circuit
     pub fn close_circuit(&mut self, end: &mut d2h::Reader<T>) {
-        end.close_circuit(self.inbox.clone().unwrap(), self.inbound.clone());
+        end.close_circuit(self.inbox.clone(), self.inbound.clone());
     }
 }
 
@@ -92,13 +94,13 @@ where
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        self.block_id = Some(block_id);
-        self.port_id = Some(port_id);
-        self.inbox = Some(inbox);
+        self.block_id = block_id;
+        self.port_id = port_id;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.reader_inbox.is_some() {
+        if !self.reader_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -129,22 +131,19 @@ where
             }
         }
 
-        self.reader_inbox
-            .as_mut()
-            .unwrap()
+        let _ = self.reader_inbox
             .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_port_id.clone().unwrap(),
+                input_id: self.reader_port_id.clone(),
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id.unwrap()
+        self.block_id
     }
 
     fn port_id(&self) -> PortId {
-        self.port_id.clone().unwrap()
+        self.port_id.clone()
     }
 }
 
@@ -223,8 +222,6 @@ where
 
             let _ = self
                 .reader_inbox
-                .as_mut()
-                .unwrap()
                 .try_send(BlockMessage::Notify);
         }
     }
@@ -235,11 +232,11 @@ where
 #[derive(Debug)]
 pub struct Reader<T: BufferContents> {
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    inbox: Option<Sender<BlockMessage>>,
-    block_id: Option<BlockId>,
-    port_id: Option<PortId>,
-    writer_port_id: Option<PortId>,
-    writer_inbox: Option<Sender<BlockMessage>>,
+    inbox: Sender<BlockMessage>,
+    block_id: BlockId,
+    port_id: PortId,
+    writer_port_id: PortId,
+    writer_inbox: Sender<BlockMessage>,
     finished: bool,
 }
 
@@ -249,13 +246,14 @@ where
 {
     /// Create a Reader
     pub fn new() -> Self {
+        let (rx, _) = channel(0);
         Self {
             inbound: Arc::new(Mutex::new(Vec::new())),
-            inbox: None,
-            block_id: None,
-            port_id: None,
-            writer_port_id: None,
-            writer_inbox: None,
+            inbox: rx.clone(),
+            block_id: BlockId(0),
+            port_id: PortId(String::new()),
+            writer_port_id: PortId(String::new()),
+            writer_inbox: rx,
             finished: false,
         }
     }
@@ -281,13 +279,13 @@ where
     T: BufferContents,
 {
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        self.block_id = Some(block_id);
-        self.port_id = Some(port_id);
-        self.inbox = Some(inbox);
+        self.block_id = block_id;
+        self.port_id = port_id;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.writer_inbox.is_some() {
+        if !self.writer_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -303,14 +301,11 @@ where
             return;
         }
 
-        self.writer_inbox
-            .as_mut()
-            .unwrap()
+        let _ = self.writer_inbox
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.port_id.clone().unwrap(),
+                output_id: self.port_id.clone(),
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     fn finish(&mut self) {
@@ -322,10 +317,10 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.block_id.unwrap()
+        self.block_id
     }
 
     fn port_id(&self) -> PortId {
-        self.port_id.clone().unwrap()
+        self.port_id.clone()
     }
 }
