@@ -19,6 +19,8 @@ use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 
+use super::d2h;
+
 #[self_referencing]
 #[derive(Debug)]
 struct CurrentBuffer<T: BufferContents> {
@@ -62,6 +64,16 @@ where
             reader_port_id: None,
         }
     }
+
+    /// Add buffer to circuit
+    pub fn add_buffer(&mut self, buffer: Buffer<T>) {
+        self.inbound.lock().unwrap().push(buffer);
+    }
+
+    /// Close Circuit
+    pub fn close_circuit(&mut self, end: &mut d2h::Reader<T>) {
+        end.close_circuit(self.inbox.clone().unwrap(), self.inbound.clone());
+    }
 }
 
 impl<T> Default for Writer<T>
@@ -98,7 +110,6 @@ where
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
-        dest.outbound = self.inbound.clone();
         self.reader_port_id = dest.port_id.clone();
         self.reader_inbox = dest.inbox.clone();
         dest.writer_inbox = self.inbox.clone();
@@ -224,7 +235,6 @@ where
 #[derive(Debug)]
 pub struct Reader<T: BufferContents> {
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     inbox: Option<Sender<BlockMessage>>,
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
@@ -241,7 +251,6 @@ where
     pub fn new() -> Self {
         Self {
             inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(Vec::new())),
             inbox: None,
             block_id: None,
             port_id: None,
@@ -249,17 +258,6 @@ where
             writer_inbox: None,
             finished: false,
         }
-    }
-
-    /// Send empty buffer back to writer
-    pub fn submit(&mut self, buffer: Buffer<T>) {
-        // debug!("H2D reader handling empty buffer");
-        self.outbound.lock().unwrap().push(buffer);
-        let _ = self
-            .writer_inbox
-            .as_mut()
-            .unwrap()
-            .try_send(BlockMessage::Notify);
     }
 
     /// Get full buffer

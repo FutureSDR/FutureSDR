@@ -1,6 +1,8 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
 use vulkano::buffer::subbuffer::BufferContents;
+use vulkano::buffer::BufferCreateInfo;
+use vulkano::buffer::BufferUsage;
 use vulkano::buffer::Subbuffer;
 use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::Device;
@@ -12,7 +14,14 @@ use vulkano::device::QueueFlags;
 use vulkano::instance;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
+use vulkano::memory::allocator::AllocationCreateInfo;
+use vulkano::memory::allocator::MemoryTypeFilter;
+use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::DeviceSize;
 use vulkano::VulkanLibrary;
+
+use futuresdr::runtime::buffer::vulkan;
+use futuresdr::runtime::Error;
 
 mod d2h;
 pub use d2h::Reader as D2HReader;
@@ -36,6 +45,7 @@ pub struct Buffer<T: BufferContents> {
 pub struct Instance {
     device: Arc<Device>,
     queue: Arc<Queue>,
+    memory_allocator: Arc<StandardMemoryAllocator>,
 }
 
 impl Instance {
@@ -95,7 +105,13 @@ impl Instance {
 
         let queue = queues.next().unwrap();
 
-        Self { device, queue }
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+
+        Self {
+            device,
+            queue,
+            memory_allocator,
+        }
     }
 
     /// Vulkan device
@@ -106,6 +122,28 @@ impl Instance {
     /// Vulkan queue
     pub fn queue(&self) -> Arc<Queue> {
         self.queue.clone()
+    }
+
+    /// Create a Buffer
+    pub fn create_buffer<T: BufferContents>(
+        &self,
+        capacity: DeviceSize,
+    ) -> Result<Buffer<T>, Error> {
+        let buffer = vulkano::buffer::Buffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::STORAGE_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            capacity,
+        )
+        .map_err(|e| Error::RuntimeError(e.to_string()))?;
+        Ok(vulkan::Buffer { buffer, offset: 0 })
     }
 }
 

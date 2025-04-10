@@ -33,7 +33,6 @@ struct CurrentBuffer<T: BufferContents> {
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<T: BufferContents> {
-    inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     block_id: Option<BlockId>,
     port_id: Option<PortId>,
@@ -50,19 +49,12 @@ where
     pub fn new() -> Self {
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
-            inbound: Arc::new(Mutex::new(Vec::new())),
             block_id: None,
             port_id: None,
             inbox: None,
             reader_inbox: None,
             reader_port_id: None,
         }
-    }
-
-    /// All available empty buffers
-    pub fn buffers(&mut self) -> Vec<Buffer<T>> {
-        let mut vec = self.inbound.lock().unwrap();
-        std::mem::take(&mut vec)
     }
 
     /// Submit full buffer to downstream CPU reader
@@ -110,7 +102,6 @@ where
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
-        dest.outbound = self.inbound.clone();
         dest.writer_port_id = self.port_id.clone();
         dest.writer_inbox = self.inbox.clone();
 
@@ -148,6 +139,7 @@ pub struct Reader<T: BufferContents> {
     port_id: Option<PortId>,
     inbox: Option<Sender<BlockMessage>>,
     writer_inbox: Option<Sender<BlockMessage>>,
+    circuit_start_inbox: Option<Sender<BlockMessage>>,
     writer_port_id: Option<PortId>,
     tags: Vec<ItemTag>,
     finished: bool,
@@ -166,10 +158,21 @@ where
             port_id: None,
             inbox: None,
             writer_inbox: None,
+            circuit_start_inbox: None,
             writer_port_id: None,
             tags: Vec::new(),
             finished: false,
         }
+    }
+
+    /// Close Circuit
+    pub fn close_circuit(
+        &mut self,
+        circuit_start_inbox: Sender<BlockMessage>,
+        outbound: Arc<Mutex<Vec<Buffer<T>>>>,
+    ) {
+        self.circuit_start_inbox = Some(circuit_start_inbox);
+        self.outbound = outbound;
     }
 }
 
@@ -308,7 +311,7 @@ where
             });
 
             let _ = self
-                .writer_inbox
+                .circuit_start_inbox
                 .as_mut()
                 .unwrap()
                 .try_send(BlockMessage::Notify);

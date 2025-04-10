@@ -128,6 +128,40 @@ pub fn connect(input: TokenStream) -> TokenStream {
                         #fg.connect_stream(#src_block.get().#src_port, #dst_block.get().#dst_port);
                     }
                 }
+                ConnectionType::Circuit => {
+                    let src_port = match src_port {
+                        Some(Port { name, index: None }) => {
+                            quote! { #name() }
+                        }
+                        Some(Port {
+                            name,
+                            index: Some(i),
+                        }) => {
+                            quote! { #name().get_mut(#i).unwrap() }
+                        }
+                        None => {
+                            quote!(output())
+                        }
+                    };
+                    let dst_port = match &dst.input {
+                        Some(Port { name, index: None }) => {
+                            quote! { #name() }
+                        }
+                        Some(Port {
+                            name,
+                            index: Some(i),
+                        }) => {
+                            quote! { #name().get_mut(#i).unwrap() }
+                        }
+                        None => {
+                            quote!(input())
+                        }
+                    };
+                    let dst_block = &dst.block;
+                    quote! {
+                        #src_block.get().#src_port.close_circuit(#dst_block.get().#dst_port);
+                    }
+                }
                 ConnectionType::Message => {
                     let src_port = if let Some(p) = &src_port {
                         let src_port = p.name.to_string();
@@ -262,6 +296,7 @@ impl Parse for ConnectionString {
 enum ConnectionType {
     Stream,
     Message,
+    Circuit,
 }
 
 impl Parse for ConnectionType {
@@ -272,6 +307,9 @@ impl Parse for ConnectionType {
         } else if input.peek(Token![|]) {
             input.parse::<Token![|]>()?;
             Ok(Self::Message)
+        } else if input.peek(Token![<]) {
+            input.parse::<Token![<]>()?;
+            Ok(Self::Circuit)
         } else {
             Err(input.error("expected `>` or `|` to specify the connection type"))
         }

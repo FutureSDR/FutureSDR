@@ -79,11 +79,17 @@ fn run_vulkan() -> Result<()> {
         .entry_point("main")
         .unwrap();
 
-    let src = VectorSource::<f32, H2DWriter<f32>>::new(orig.clone());
-    let vulkan = Vulkan::<f32>::new(instance, entry_point, 1024 * 1024 * 8);
+    let mut src = VectorSource::<f32, H2DWriter<f32>>::new(orig.clone());
+    let vulkan = Vulkan::<f32>::new(instance.clone(), entry_point);
     let snk = VectorSink::<f32, D2HReader<f32>>::new(N_ITEMS);
 
+    for _ in 0..1 {
+        let buffer = instance.create_buffer(1024 * 1024 * 8)?;
+        src.output().add_buffer(buffer);
+    }
+
     connect!(fg, src > vulkan > snk);
+    connect!(fg, src < snk);
 
     let now = Instant::now();
     Runtime::new().run(fg)?;
@@ -95,7 +101,7 @@ fn run_vulkan() -> Result<()> {
 
     assert_eq!(v.len(), N_ITEMS);
     for i in 0..v.len() {
-        assert!((orig[i].exp() - v[i]).abs() < 10.0 * f32::EPSILON);
+        assert!((orig[i].exp() - v[i]).abs() < 5.0 * f32::EPSILON);
     }
     Ok(())
 }
