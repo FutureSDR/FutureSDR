@@ -8,7 +8,6 @@ use futuresdr::runtime::buffer::vulkan::D2HReader;
 use futuresdr::runtime::buffer::vulkan::H2DWriter;
 use futuresdr::runtime::buffer::vulkan::Instance;
 use std::iter::repeat_with;
-use std::sync::Arc;
 use std::time::Instant;
 
 mod vulkan;
@@ -73,7 +72,7 @@ fn run_vulkan() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let instance = Arc::new(Instance::new());
+    let instance = Instance::new();
     let entry_point = cs::load(instance.device())
         .unwrap()
         .entry_point("main")

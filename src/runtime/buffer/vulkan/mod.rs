@@ -41,7 +41,7 @@ pub struct Buffer<T: BufferContents> {
 
 // ================== VULKAN INSTANCE ============================
 /// Vulkan broker
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Instance {
     device: Arc<Device>,
     queue: Arc<Queue>,

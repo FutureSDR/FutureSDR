@@ -30,7 +30,7 @@ pub struct Vulkan<T: BufferContents> {
     input: H2DReader<T>,
     #[output]
     output: D2HWriter<T>,
-    broker: Arc<Instance>,
+    broker: Instance,
     entry_point: EntryPoint,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
@@ -40,7 +40,7 @@ pub struct Vulkan<T: BufferContents> {
 
 impl<T: BufferContents> Vulkan<T> {
     /// Create Vulkan block
-    pub fn new(broker: Arc<Instance>, entry_point: EntryPoint) -> Self {
+    pub fn new(broker: Instance, entry_point: EntryPoint) -> Self {
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             broker.device(),
             Default::default(),
