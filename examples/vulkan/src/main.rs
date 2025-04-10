@@ -14,6 +14,26 @@ use std::time::Instant;
 mod vulkan;
 use vulkan::Vulkan;
 
+mod cs {
+    vulkano_shaders::shader! {
+        ty: "compute",
+        src: "
+#version 450
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) buffer Data {
+    float data[];
+} buf;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    // buf.data[idx] *= 12.0;
+    buf.data[idx] = exp(buf.data[idx]);
+}"
+    }
+}
+
 #[derive(Parser, Debug)]
 struct Args {
     #[clap(short, long, default_value_t = false)]
@@ -28,7 +48,7 @@ fn run_cpu() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = VectorSource::<f32>::new(orig.clone());
-    let process: Apply<_, _, _> = Apply::new(|i: &f32| -> f32 { i * 12.0 });
+    let process: Apply<_, _, _> = Apply::new(|i: &f32| -> f32 { i.exp() });
     let snk = VectorSink::<f32>::new(N_ITEMS);
 
     connect!(fg, src > process > snk);
@@ -43,7 +63,7 @@ fn run_cpu() -> Result<()> {
 
     assert_eq!(v.len(), N_ITEMS);
     for i in 0..v.len() {
-        assert!((orig[i] * 12.0 - v[i]).abs() < f32::EPSILON);
+        assert!((orig[i].exp() - v[i]).abs() < f32::EPSILON);
     }
     Ok(())
 }
@@ -53,10 +73,14 @@ fn run_vulkan() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let broker = Arc::new(Instance::new());
+    let instance = Arc::new(Instance::new());
+    let entry_point = cs::load(instance.device())
+        .unwrap()
+        .entry_point("main")
+        .unwrap();
 
     let src = VectorSource::<f32, H2DWriter<f32>>::new(orig.clone());
-    let vulkan = Vulkan::new(broker, 1024 * 1024 * 8);
+    let vulkan = Vulkan::<f32>::new(instance, entry_point, 1024 * 1024 * 8);
     let snk = VectorSink::<f32, D2HReader<f32>>::new(N_ITEMS);
 
     connect!(fg, src > vulkan > snk);
@@ -71,7 +95,7 @@ fn run_vulkan() -> Result<()> {
 
     assert_eq!(v.len(), N_ITEMS);
     for i in 0..v.len() {
-        assert!((orig[i] * 12.0 - v[i]).abs() < f32::EPSILON);
+        assert!((orig[i].exp() - v[i]).abs() < 10.0 * f32::EPSILON);
     }
     Ok(())
 }

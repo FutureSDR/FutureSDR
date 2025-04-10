@@ -6,6 +6,7 @@ use futuresdr::runtime::buffer::vulkan::H2DReader;
 use futuresdr::runtime::buffer::vulkan::Instance;
 use std::sync::Arc;
 use vulkano::buffer::Buffer;
+use vulkano::buffer::BufferContents;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
@@ -25,37 +26,20 @@ use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
 use vulkano::pipeline::compute::ComputePipelineCreateInfo;
 use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
+use vulkano::shader::EntryPoint;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
 
-mod cs {
-    vulkano_shaders::shader! {
-        ty: "compute",
-        src: "
-#version 450
-
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
-
-layout(set = 0, binding = 0) buffer Data {
-    float data[];
-} buf;
-
-void main() {
-    uint idx = gl_GlobalInvocationID.x;
-    buf.data[idx] *= 12.0;
-}"
-    }
-}
-
 /// Interface GPU with Vulkan.
 #[derive(Block)]
-pub struct Vulkan {
+pub struct Vulkan<T: BufferContents> {
     #[input]
-    input: H2DReader<f32>,
+    input: H2DReader<T>,
     #[output]
-    output: D2HWriter<f32>,
+    output: D2HWriter<T>,
     broker: Arc<Instance>,
     capacity: u64,
+    entry_point: EntryPoint,
     pipeline: Option<Arc<ComputePipeline>>,
     layout: Option<Arc<DescriptorSetLayout>>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -63,9 +47,9 @@ pub struct Vulkan {
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
 }
 
-impl Vulkan {
+impl<T: BufferContents> Vulkan<T> {
     /// Create Vulkan block
-    pub fn new(broker: Arc<Instance>, capacity: u64) -> Self {
+    pub fn new(broker: Arc<Instance>, entry_point: EntryPoint, capacity: u64) -> Self {
         let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(broker.device()));
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             broker.device(),
@@ -83,6 +67,7 @@ impl Vulkan {
             pipeline: None,
             layout: None,
             capacity,
+            entry_point,
             memory_allocator,
             descriptor_set_allocator,
             command_buffer_allocator,
@@ -91,7 +76,7 @@ impl Vulkan {
 }
 
 #[doc(hidden)]
-impl Kernel for Vulkan {
+impl<T: BufferContents> Kernel for Vulkan<T> {
     async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         for _ in 0..4u32 {
             let buffer = Buffer::new_slice(
@@ -110,11 +95,7 @@ impl Kernel for Vulkan {
             self.input.submit(vulkan::Buffer { buffer, offset: 0 });
         }
 
-        let cs = cs::load(self.broker.device())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
-        let stage = PipelineShaderStageCreateInfo::new(cs);
+        let stage = PipelineShaderStageCreateInfo::new(self.entry_point.clone());
         let layout = PipelineLayout::new(
             self.broker.device(),
             PipelineDescriptorSetLayoutCreateInfo::from_stages([&stage])
