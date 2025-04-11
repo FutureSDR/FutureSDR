@@ -1,12 +1,4 @@
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 
 #[derive(Debug)]
 enum State {
@@ -14,29 +6,34 @@ enum State {
     Down(usize),
 }
 
-#[derive(futuresdr::Block)]
-pub struct Decoder {
+#[derive(Block)]
+pub struct Decoder<I = circular::Reader<u8>>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    #[input]
+    input: I,
     state: State,
     n_read: usize,
     output: bool,
     output_string: String,
 }
 
-impl Decoder {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<u8>("in").build(),
-            Self {
-                state: State::Down(0),
-                n_read: 0,
-                output: false,
-                output_string: String::new(),
-            },
-        )
+impl<I> Decoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            state: State::Down(0),
+            n_read: 0,
+            output: false,
+            output_string: String::new(),
+        }
     }
 
-    fn print(&mut self) {
-        let mut s = std::mem::take(&mut self.output_string);
+    fn print(mut s: String) {
         let offset = s.find("10101111").unwrap_or(s.len());
         s.replace_range(..offset, "");
 
@@ -59,11 +56,10 @@ impl Kernel for Decoder {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let inbuf = sio.input(0).slice::<u8>();
+        let inbuf = self.input.slice();
         let mut i = 0;
 
         while i < inbuf.len() {
@@ -81,7 +77,7 @@ impl Kernel for Decoder {
                         self.output = false;
                         self.output_string += "0";
                     } else {
-                        self.print()
+                        Self::print(std::mem::take(&mut self.output_string));
                     }
 
                     self.state = State::Up(self.n_read + i);
@@ -99,7 +95,7 @@ impl Kernel for Decoder {
                         self.output = false;
                         self.output_string += "1";
                     } else {
-                        self.print()
+                        Self::print(std::mem::take(&mut self.output_string));
                     }
 
                     self.state = State::Down(self.n_read + i);
@@ -110,11 +106,11 @@ impl Kernel for Decoder {
             i += 1;
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        sio.input(0).consume(i);
+        self.input.consume(i);
         self.n_read += i;
 
         Ok(())

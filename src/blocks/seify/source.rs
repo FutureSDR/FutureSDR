@@ -9,16 +9,7 @@ use std::time::Duration;
 use crate::blocks::seify::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Seify Source block
 ///
@@ -40,40 +31,39 @@ use crate::runtime::WorkIo;
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, terminate, config)]
 #[type_name(SeifySource)]
-pub struct Source<D: DeviceTrait + Clone> {
+pub struct Source<D, OUT = circular::Writer<Complex32>>
+where
+    D: DeviceTrait + Clone,
+    OUT: CpuBufferWriter<Item = Complex32>,
+{
+    #[output]
+    outputs: Vec<OUT>,
     channels: Vec<usize>,
     dev: Device<D>,
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
 }
 
-impl<D: DeviceTrait + Clone> Source<D> {
-    pub(super) fn new(
-        dev: Device<D>,
-        channels: Vec<usize>,
-        start_time: Option<i64>,
-    ) -> TypedBlock<Self> {
+impl<D, OUT> Source<D, OUT>
+where
+    D: DeviceTrait + Clone,
+    OUT: CpuBufferWriter<Item = Complex32>,
+{
+    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
         assert!(!channels.is_empty());
 
-        let mut siob = StreamIoBuilder::new();
-
-        if channels.len() == 1 {
-            siob = siob.add_output::<Complex32>("out");
-        } else {
-            for i in 0..channels.len() {
-                siob = siob.add_output::<Complex32>(&format!("out{}", i + 1));
-            }
+        let mut outputs = Vec::new();
+        for _ in 0..channels.len() {
+            outputs.push(OUT::default());
         }
 
-        TypedBlock::new(
-            siob.build(),
-            Source {
-                channels,
-                dev,
-                start_time,
-                streamer: None,
-            },
-        )
+        Source {
+            outputs,
+            channels,
+            dev,
+            start_time,
+            streamer: None,
+        }
     }
 
     async fn terminate(
@@ -188,17 +178,18 @@ impl<D: DeviceTrait + Clone> Source<D> {
 }
 
 #[doc(hidden)]
-impl<D: DeviceTrait + Clone> Kernel for Source<D> {
+impl<D, OUT> Kernel for Source<D, OUT>
+where
+    D: DeviceTrait + Clone,
+    OUT: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let outs = sio.outputs_mut();
-        let mut bufs: Vec<&mut [Complex32]> =
-            outs.iter_mut().map(|b| b.slice::<Complex32>()).collect();
+        let mut bufs: Vec<&mut [Complex32]> = self.outputs.iter_mut().map(|b| b.slice()).collect();
 
         let n = bufs.iter().map(|b| b.len()).min().unwrap_or(0);
 
@@ -209,9 +200,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
 
         match streamer.read(&mut bufs, 1_000_000) {
             Ok(len) => {
-                for i in 0..outs.len() {
-                    sio.output(i).produce(len);
-                }
+                self.outputs.iter_mut().for_each(|o| o.produce(len));
             }
             Err(seify::Error::Overflow) => {
                 warn!("Seify Source Overflow");
@@ -226,12 +215,7 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.streamer = Some(self.dev.rx_streamer(&self.channels)?);
         self.streamer
             .as_mut()
@@ -241,23 +225,8 @@ impl<D: DeviceTrait + Clone> Kernel for Source<D> {
         Ok(())
     }
 
-    async fn deinit(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.streamer.as_mut().context("no stream")?.deactivate()?;
         Ok(())
-    }
-}
-
-/// Seify Source builder
-pub struct SourceBuilder;
-
-impl SourceBuilder {
-    /// Create Seify Source builder
-    pub fn new() -> Builder<GenericDevice> {
-        Builder::new(BuilderType::Source)
     }
 }

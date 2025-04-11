@@ -1,9 +1,6 @@
 use anyhow::Result;
 use futuresdr::blocks::MessageSourceBuilder;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use futuresdr::tracing::level_filters::LevelFilter;
 use std::time;
 use tracing_subscriber::filter::EnvFilter;
@@ -30,7 +27,7 @@ fn main() -> Result<()> {
     let msg_source = MessageSourceBuilder::new(Pmt::Null, time::Duration::from_millis(100))
         .n_messages(20)
         .build();
-    fg.add_block(msg_source)?;
+    fg.add_block(msg_source);
 
     let now = time::Instant::now();
     info!("starting flowgraph");

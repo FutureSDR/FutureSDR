@@ -5,23 +5,11 @@ use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
 
+use super::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::Error;
-use crate::runtime::ItemTag;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::Tag;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-
-use super::builder::BuilderType;
+use crate::prelude::*;
 
 /// Seify Sink block
 ///
@@ -44,39 +32,39 @@ use super::builder::BuilderType;
 #[message_inputs(freq, gain, sample_rate, cmd, config)]
 #[message_outputs(terminate_out)]
 #[type_name(SeifySink)]
-pub struct Sink<D: DeviceTrait + Clone> {
+pub struct Sink<D, IN = circular::Reader<Complex32>>
+where
+    D: DeviceTrait + Clone,
+    IN: CpuBufferReader<Item = Complex32>,
+{
+    #[input]
+    inputs: Vec<IN>,
     channels: Vec<usize>,
     dev: Device<D>,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
 }
 
-impl<D: DeviceTrait + Clone> Sink<D> {
-    pub(super) fn new(
-        dev: Device<D>,
-        channels: Vec<usize>,
-        start_time: Option<i64>,
-    ) -> TypedBlock<Self> {
+impl<D, IN> Sink<D, IN>
+where
+    D: DeviceTrait + Clone,
+    IN: CpuBufferReader<Item = Complex32>,
+{
+    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
         assert!(!channels.is_empty());
 
-        let mut siob = StreamIoBuilder::new();
-
-        if channels.len() == 1 {
-            siob = siob.add_input::<Complex32>("in");
-        } else {
-            for i in 0..channels.len() {
-                siob = siob.add_input::<Complex32>(&format!("in{}", i + 1));
-            }
+        let mut inputs = Vec::new();
+        for _ in 0..channels.len() {
+            inputs.push(IN::default());
         }
-        TypedBlock::new(
-            siob.build(),
-            Self {
-                channels,
-                dev,
-                start_time,
-                streamer: None,
-            },
-        )
+
+        Self {
+            inputs,
+            channels,
+            dev,
+            start_time,
+            streamer: None,
+        }
     }
 
     async fn cmd(
@@ -170,25 +158,29 @@ impl<D: DeviceTrait + Clone> Sink<D> {
 }
 
 #[doc(hidden)]
-impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
+impl<D, IN> Kernel for Sink<D, IN>
+where
+    D: DeviceTrait + Clone,
+    IN: CpuBufferReader<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let bufs: Vec<&[Complex32]> = sio
-            .inputs_mut()
+        let tags = self.inputs[0].slice_with_tags().1.clone();
+        let bufs: Vec<&[Complex32]> = self
+            .inputs
             .iter_mut()
-            .map(|b| b.slice::<Complex32>())
+            .map(|b| b.slice())
             .collect();
 
         let streamer = self.streamer.as_mut().unwrap();
-        let nitems_per_input_stream = bufs.iter().map(|b| b.len());
-        let n = nitems_per_input_stream.clone().min().unwrap_or(0);
+        let nitems_per_input_stream: Vec<usize> = bufs.iter().map(|b| b.len()).collect();
+        let n = nitems_per_input_stream.iter().copied().min().unwrap_or(0);
         let consumed = if n > 0 {
-            let t = sio.input(0).tags().iter().find_map(|x| match x {
+            let t = tags.iter().find_map(|x| match x {
                 ItemTag {
                     index,
                     tag: Tag::NamedUsize(n, len),
@@ -222,7 +214,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
                 ret
             };
 
-            sio.inputs_mut()
+            self.inputs
                 .iter_mut()
                 .for_each(|i| i.consume(consumed));
             consumed
@@ -230,9 +222,8 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             0
         };
 
-        io.finished = sio
-            .inputs()
-            .iter()
+        io.finished = self.inputs
+            .iter_mut()
             .zip(nitems_per_input_stream)
             .any(|(input, input_length)| input.finished() && input_length - consumed == 0);
         if io.finished {
@@ -245,7 +236,7 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             let termination_delay = consumed as f32 / smallest_sample_rate;
             async_io::Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
             // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup
-            mio.output_mut(0).post(Pmt::Ok).await;
+            mio.post("terminate_out", Pmt::Ok).await?;
         }
 
         Ok(())
@@ -253,7 +244,6 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
 
     async fn init(
         &mut self,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -268,7 +258,6 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
 
     async fn deinit(
         &mut self,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -277,15 +266,5 @@ impl<D: DeviceTrait + Clone> Kernel for Sink<D> {
             .ok_or(Error::RuntimeError("Seify: no streamer".to_string()))?
             .deactivate()?;
         Ok(())
-    }
-}
-
-/// Seify Sink builder
-pub struct SinkBuilder;
-
-impl SinkBuilder {
-    /// Create Seify Sink builder
-    pub fn new() -> Builder<GenericDevice> {
-        Builder::new(BuilderType::Sink)
     }
 }

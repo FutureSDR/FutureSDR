@@ -154,9 +154,9 @@ pub use file_source::FileSource;
 // pub use filter::Filter;
 // mod finite_source;
 // pub use finite_source::FiniteSource;
-// mod fir;
-// pub use fir::Fir;
-// pub use fir::FirBuilder;
+mod fir;
+pub use fir::Fir;
+pub use fir::FirBuilder;
 mod head;
 pub use head::Head;
 // mod iir;
@@ -193,9 +193,9 @@ pub use null_source::NullSource;
 // pub use pfb::arb_resampler::PfbArbResampler;
 // pub use pfb::channelizer::PfbChannelizer;
 // pub use pfb::synthesizer::PfbSynthesizer;
-// /// Seify hardware driver blocks
-// #[cfg(feature = "seify")]
-// pub mod seify;
+/// Seify hardware driver blocks
+#[cfg(feature = "seify")]
+pub mod seify;
 // mod selector;
 // pub use selector::DropPolicy as SelectorDropPolicy;
 // pub use selector::Selector;

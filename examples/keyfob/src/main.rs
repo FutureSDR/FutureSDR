@@ -1,16 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Block;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 use keyfob::Decoder;
 
@@ -40,17 +36,15 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src: Block = match args.file {
+    let src = match args.file {
         Some(file) => FileSource::<Complex32>::new(file, false).into(),
         None => {
-            let mut src = SourceBuilder::new()
+            let src = Builder::new()
                 .sample_rate(args.sample_rate)
                 .frequency(args.freq)
-                .gain(args.gain);
-            if let Some(a) = args.args {
-                src = src.args(a)?;
-            }
-            src.build()?
+                .gain(args.gain)
+                .args(args.args)?
+                .build_source()?;
         }
     };
 
@@ -77,9 +71,6 @@ fn main() -> Result<()> {
     });
 
     let decoder = Decoder::new();
-
-    // let to_complex = Apply::new(|f: &f32| Complex32::new(*f, 0.0));
-    // let file_sink = futuresdr::blocks::FileSink::<Complex32>::new("out.cf32");
 
     connect!(fg, src > resamp > complex_to_mag > avg > low_pass > slice > decoder);
 

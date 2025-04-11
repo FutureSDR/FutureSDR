@@ -10,78 +10,72 @@ use num_traits::Num;
 use std::iter::Sum;
 use std::ops::Mul;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// FIR filter.
 #[derive(Block)]
-pub struct Fir<InputType, OutputType, TapType, Core>
+pub struct Fir<InputType, OutputType, TapType, Core, IN = circular::Reader<InputType>, OUT = circular::Writer<OutputType>>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
     filter: Core,
-    _input_type: std::marker::PhantomData<InputType>,
-    _output_type: std::marker::PhantomData<OutputType>,
     _tap_type: std::marker::PhantomData<TapType>,
 }
 
-impl<InputType, OutputType, TapType, Core> Fir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapType, Core, IN, OUT> Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
     /// Create FIR block
-    pub fn new(filter: Core) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<InputType>("in")
-                .add_output::<OutputType>("out")
-                .build(),
+    pub fn new(filter: Core) -> Self {
             Self {
+                input: IN::default(),
+                output: OUT::default(),
                 filter,
-                _input_type: std::marker::PhantomData,
-                _output_type: std::marker::PhantomData,
                 _tap_type: std::marker::PhantomData,
-            },
-        )
+            }
     }
 }
 
 #[doc(hidden)]
-impl<InputType, OutputType, TapType, Core> Kernel for Fir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel for Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<InputType>();
-        let o = sio.output(0).slice::<OutputType>();
+        let i = self.input.slice();
+        let o = self.output.slice();
 
         let (consumed, produced, status) = self.filter.filter(i, o);
 
-        sio.input(0).consume(consumed);
-        sio.output(0).produce(produced);
+        self.input.consume(consumed);
+        self.output.produce(produced);
 
-        if sio.input(0).finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
+        if self.input.finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
             io.finished = true;
         }
 
@@ -91,68 +85,69 @@ where
 
 /// Stateful FIR filter.
 #[derive(Block)]
-pub struct StatefulFir<InputType, OutputType, TapType, Core>
+pub struct StatefulFir<InputType, OutputType, TapType, Core, IN = circular::Reader<InputType>, OUT=circular::Writer<OutputType>>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: StatefulFilter<InputType, OutputType, TapType> + Send,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
     filter: Core,
-    _input_type: std::marker::PhantomData<InputType>,
-    _output_type: std::marker::PhantomData<OutputType>,
     _tap_type: std::marker::PhantomData<TapType>,
 }
 
-impl<InputType, OutputType, TapType, Core> StatefulFir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapType, Core, IN, OUT> StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: StatefulFilter<InputType, OutputType, TapType> + Send + 'static,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
     /// Create FIR block
-    pub fn new(filter: Core) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<InputType>("in")
-                .add_output::<OutputType>("out")
-                .build(),
+    pub fn new(filter: Core) -> Self {
             Self {
+                input: IN::default(),
+                output: OUT::default(),
                 filter,
-                _input_type: std::marker::PhantomData,
-                _output_type: std::marker::PhantomData,
                 _tap_type: std::marker::PhantomData,
-            },
-        )
+            }
     }
 }
 
 #[doc(hidden)]
-impl<InputType, OutputType, TapType, Core> Kernel
-    for StatefulFir<InputType, OutputType, TapType, Core>
+impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel
+    for StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
     Core: StatefulFilter<InputType, OutputType, TapType> + Send + 'static,
+    IN: CpuBufferReader<Item = InputType>,
+    OUT: CpuBufferWriter<Item = OutputType>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<InputType>();
-        let o = sio.output(0).slice::<OutputType>();
+        let i = self.input.slice();
+        let o = self.output.slice();
 
         let (consumed, produced, status) = self.filter.filter(i, o);
 
-        sio.input(0).consume(consumed);
-        sio.output(0).produce(produced);
+        self.input.consume(consumed);
+        self.output.produce(produced);
 
-        if sio.input(0).finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
+        if self.input.finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
             io.finished = true;
         }
 
@@ -201,12 +196,11 @@ impl FirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
     pub fn new<InputType, OutputType, TapsType>(
         taps: TapsType,
-    ) -> TypedBlock<
-        Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>,
-    >
+    ) -> 
+        Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>
     where
-        InputType: 'static + Send,
-        OutputType: 'static + Send,
+        InputType: 'static + Send + Sync,
+        OutputType: 'static + Send + Sync,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         FirFilter<InputType, OutputType, TapsType>:
@@ -218,12 +212,11 @@ impl FirBuilder {
     /// Create a decimating FIR filter with standard low-pass taps.
     pub fn decimating<InputType, OutputType, TapsType>(
         decim: usize,
-    ) -> TypedBlock<
-        Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>,
-    >
+    ) -> 
+        Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>
     where
-        InputType: 'static + Send,
-        OutputType: 'static + Send,
+        InputType: 'static + Send + Sync,
+        OutputType: 'static + Send + Sync,
         DecimatingFirFilter<InputType, OutputType, Vec<f32>>:
             futuredsp::Filter<InputType, OutputType, f32>,
     {
@@ -235,17 +228,15 @@ impl FirBuilder {
     pub fn decimating_with_taps<InputType, OutputType, TapsType>(
         decim: usize,
         taps: TapsType,
-    ) -> TypedBlock<
-        Fir<
+    ) -> Fir<
             InputType,
             OutputType,
             TapsType::TapType,
             DecimatingFirFilter<InputType, OutputType, TapsType>,
-        >,
-    >
+        >
     where
-        InputType: 'static + Send,
-        OutputType: 'static + Send,
+        InputType: 'static + Send + Sync,
+        OutputType: 'static + Send + Sync,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         DecimatingFirFilter<InputType, OutputType, TapsType>:
@@ -265,12 +256,11 @@ impl FirBuilder {
     pub fn resampling<InputType, OutputType>(
         interp: usize,
         decim: usize,
-    ) -> TypedBlock<
-        Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>,
-    >
+    ) -> 
+        Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>
     where
-        InputType: 'static + Send,
-        OutputType: 'static + Send,
+        InputType: 'static + Send + Sync,
+        OutputType: 'static + Send + Sync,
         PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>: Filter<InputType, OutputType, f32>,
     {
         // Reduce factors
@@ -289,17 +279,16 @@ impl FirBuilder {
         interp: usize,
         decim: usize,
         taps: TapsType,
-    ) -> TypedBlock<
+    ) -> 
         Fir<
             InputType,
             OutputType,
             TapsType::TapType,
             PolyphaseResamplingFir<InputType, OutputType, TapsType>,
-        >,
-    >
+        >
     where
-        InputType: 'static + Send,
-        OutputType: 'static + Send,
+        InputType: 'static + Send + Sync,
+        OutputType: 'static + Send + Sync,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         PolyphaseResamplingFir<InputType, OutputType, TapsType>:
@@ -315,9 +304,9 @@ impl FirBuilder {
     /// Create a new MMSE Resampler.
     pub fn mmse<SampleType>(
         ratio: f32,
-    ) -> TypedBlock<StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>>
+    ) -> StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>
     where
-        SampleType: Copy + Send + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
+        SampleType: Copy + Send + Sync + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
         MmseResampler<SampleType>: StatefulFilter<SampleType, SampleType, f32>,
     {
         StatefulFir::<SampleType, SampleType, f32, MmseResampler<SampleType>>::new(

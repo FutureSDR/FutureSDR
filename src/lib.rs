@@ -100,6 +100,7 @@ pub mod prelude {
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::Runtime;
     pub use futuresdr::runtime::RuntimeHandle;
+    pub use futuresdr::runtime::Tag;
     pub use futuresdr::runtime::WorkIo;
     pub use futuresdr::tracing::debug;
     pub use futuresdr::tracing::error;
