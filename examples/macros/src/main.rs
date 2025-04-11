@@ -4,23 +4,12 @@ use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::macros::connect;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = VectorSource::new(vec![0u32, 1, 2, 3]);
+    let src = VectorSource::<_>::new(vec![0u32, 1, 2, 3]);
     let cpy0 = Copy::<u32>::new();
     let cpy1 = Copy::<u32>::new();
     let cpy2 = Copy::<u32>::new();
@@ -28,12 +17,12 @@ fn main() -> anyhow::Result<()> {
     let snk = NullSink::<u32>::new();
 
     // > indicates stream connections
-    // default port names (out/in) can be omitted
+    // default port names (output/input) can be omitted
     // blocks can be chained
     connect!(fg,
-             src.out > cpy0.in;
+             src.output > input.cpy0;
              cpy0 > cpy1;
-             cpy1 > cpy2 > cpy3 > snk
+             cpy1 > input.cpy2.output > cpy3 > snk
     );
 
     let msg_source = MessageSourceBuilder::new(
@@ -45,34 +34,31 @@ fn main() -> anyhow::Result<()> {
     let msg_copy0 = MessageCopy::new();
     let msg_copy1 = MessageCopy::new();
     let msg_sink = MessageSink::new();
+    let handler = Handler::new();
 
     // | indicates message connections
     connect!(fg,
              msg_source | msg_copy0;
-             msg_copy0 | msg_copy1 | msg_sink
+             msg_copy0 | msg_copy1 | msg_sink;
+             msg_copy1 | r#in.handler;
     );
 
     // add a block with no inputs or outputs
     let dummy = Dummy::new();
     connect!(fg, dummy);
 
-    // add a block with space in the port name
-    let strange = Strange::new();
-    let snk = NullSink::<u8>::new();
-    connect!(fg,
-             strange."foo bar" > snk);
-
     Runtime::new().run(fg)?;
 
     Ok(())
 }
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 pub struct Dummy;
 
 impl Dummy {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -80,7 +66,6 @@ impl Kernel for Dummy {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -89,59 +74,24 @@ impl Kernel for Dummy {
     }
 }
 
-#[derive(futuresdr::Block)]
-pub struct Strange;
-
-impl Strange {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<u8>("foo bar").build(),
-            Self,
-        )
-    }
-}
-
-impl Kernel for Strange {
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        io.finished = true;
-        Ok(())
-    }
-}
-
-#[derive(futuresdr::Block)]
-#[message_inputs(handler, other)]
+#[derive(Block)]
+#[message_inputs(r#in)]
 pub struct Handler;
 
 impl Handler {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self
     }
 
-    async fn handler(
+    async fn r#in(
         &mut self,
         _io: &mut WorkIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
-        println!("asdf");
         Ok(Pmt::Null)
-    }
-
-    async fn other(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        _p: Pmt,
-    ) -> Result<Pmt> {
-        Ok(Pmt::U32(0))
     }
 }
 
@@ -149,7 +99,6 @@ impl Kernel for Handler {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
