@@ -208,7 +208,8 @@ where
             return;
         }
 
-        let _ = self.writer_inbox
+        let _ = self
+            .writer_inbox
             .send(BlockMessage::StreamOutputDone {
                 output_id: self.writer_port_id.clone(),
             })
@@ -304,9 +305,7 @@ where
                 offset: 0,
             });
 
-            let _ = self
-                .circuit_start_inbox
-                .try_send(BlockMessage::Notify);
+            let _ = self.circuit_start_inbox.try_send(BlockMessage::Notify);
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only

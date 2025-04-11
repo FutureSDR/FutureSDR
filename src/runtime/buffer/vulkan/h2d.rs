@@ -7,8 +7,8 @@ use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::buffer::BufferWriteGuard;
 use vulkano::buffer::Subbuffer;
 
-use crate::channel::mpsc::Sender;
 use crate::channel::mpsc::channel;
+use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -131,7 +131,8 @@ where
             }
         }
 
-        let _ = self.reader_inbox
+        let _ = self
+            .reader_inbox
             .send(BlockMessage::StreamInputDone {
                 input_id: self.reader_port_id.clone(),
             })
@@ -220,9 +221,7 @@ where
                 self.current = Some(buffer);
             }
 
-            let _ = self
-                .reader_inbox
-                .try_send(BlockMessage::Notify);
+            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
         }
     }
 }
@@ -301,7 +300,8 @@ where
             return;
         }
 
-        let _ = self.writer_inbox
+        let _ = self
+            .writer_inbox
             .send(BlockMessage::StreamOutputDone {
                 output_id: self.port_id.clone(),
             })
