@@ -33,31 +33,33 @@ fn main() -> Result<()> {
 
     for r in 0..repetitions {
         let mut fg = Flowgraph::new();
-        let mut prev;
         let mut snks = Vec::new();
 
         for _ in 0..pipes {
-            prev = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size))?;
+            let src = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size));
 
-            for _ in 1..stages {
-                let block = fg.add_block(MessageCopy::new())?;
-                fg.connect_message(prev, "out", block, "in")?;
+            let block = fg.add_block(MessageCopy::new());
+            fg.connect_message(&src, "out", &block, "in")?;
+            let mut prev = block;
+
+            for _ in 2..stages {
+                let block = fg.add_block(MessageCopy::new());
+                fg.connect_message(&src, "out", &block, "in")?;
                 prev = block;
             }
 
-            let snk = fg.add_block(MessageSink::new())?;
+            let snk = fg.add_block(MessageSink::new());
+            fg.connect_message(&prev, "out", &snk, "in")?;
             snks.push(snk);
-            fg.connect_message(prev, "out", snk, "in")?;
         }
 
         let runtime = Runtime::new();
         let now = time::Instant::now();
-        let fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         let elapsed = now.elapsed();
 
         for s in snks {
-            let snk = fg.kernel::<MessageSink>(s).unwrap();
-            assert_eq!(snk.received(), burst_size);
+            assert_eq!(s.get().received(), burst_size);
         }
 
         println!(

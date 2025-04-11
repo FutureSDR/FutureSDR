@@ -16,8 +16,8 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../create_cpuset.sh
-	../cpugov.sh performance
+	# ../create_cpuset.sh
+	# ../cpugov.sh performance
 
 build/msg_flowgraph: msg_flowgraph.cpp msg_flowgraph.hpp
 	rm -rf build

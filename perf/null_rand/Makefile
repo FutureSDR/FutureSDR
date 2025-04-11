@@ -14,8 +14,8 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../create_cpuset.sh
-	../cpugov.sh performance
+	# ../create_cpuset.sh
+	# ../cpugov.sh performance
 
 perf-data/gr%.csv: build/null_rand_flowgraph
 	mkdir -p perf-data

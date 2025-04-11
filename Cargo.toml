@@ -21,7 +21,7 @@ members = [
 ]
 
 [features]
-default = ["vulkan"]
+default = []
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
