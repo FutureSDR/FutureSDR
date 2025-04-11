@@ -2,12 +2,9 @@ use anyhow::Context;
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction::Rx;
-use seify::GenericDevice;
 use seify::RxStreamer;
 use std::time::Duration;
 
-use crate::blocks::seify::builder::BuilderType;
-use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::prelude::*;
 

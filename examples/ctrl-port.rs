@@ -12,7 +12,9 @@ fn main() -> Result<()> {
     info!("Flowgraph JSON: curl http://127.0.0.1:1337/api/fg/0/");
     info!("Block JSON: curl http://127.0.0.1:1337/api/fg/0/block/0/");
     info!("Block Callback (GET): curl http://127.0.0.1:1337/api/fg/0/block/0/call/myhandler/");
-    info!(r#"Block Callback (POST): curl -X POST -H "Content-Type: application/json" -d '{{ "U32": 123 }}'  http://127.0.0.1:1337/api/fg/0/block/0/call/myhandler/"#);
+    info!(
+        r#"Block Callback (POST): curl -X POST -H "Content-Type: application/json" -d '{{ "U32": 123 }}'  http://127.0.0.1:1337/api/fg/0/block/0/call/myhandler/"#
+    );
 
     Runtime::new().run(fg)?;
     Ok(())

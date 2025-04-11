@@ -231,7 +231,7 @@ impl<T: Debug + Send + 'static> CpuBufferReader for Reader<T> {
         self.data.as_slice()
     }
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        (&self.data.as_slice(), &self.tags)
+        (self.data.as_slice(), &self.tags)
     }
 }
 

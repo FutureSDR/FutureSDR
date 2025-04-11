@@ -52,6 +52,15 @@ where
     }
 }
 
+impl<I> Default for Decoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Kernel for Decoder {
     async fn work(
         &mut self,

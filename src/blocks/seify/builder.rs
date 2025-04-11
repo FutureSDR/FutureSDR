@@ -2,16 +2,12 @@ use seify::Args;
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction;
+use seify::GenericDevice;
 
 use crate::blocks::seify::Config;
 use crate::blocks::seify::Sink;
 use crate::blocks::seify::Source;
 use crate::runtime::Error;
-
-pub enum BuilderType {
-    Source,
-    Sink,
-}
 
 pub trait IntoAntenna {
     fn into(self) -> Option<String>;
@@ -31,41 +27,43 @@ impl IntoAntenna for Option<String> {
 
 /// Seify Device builder
 pub struct Builder<D: DeviceTrait + Clone> {
-    args: Args,
     channels: Vec<usize>,
     config: Config,
-    dev: Option<Device<D>>,
+    dev: Device<D>,
     start_time: Option<i64>,
-    builder_type: BuilderType,
+}
+
+impl Builder<GenericDevice> {
+    /// Create Seify Device builder
+    pub fn new<A: TryInto<Args>>(args: A) -> Result<Self, Error> {
+        let args = args.try_into().or(Err(Error::SeifyArgsConversionError))?;
+        let dev = Device::from_args(args)?;
+        Ok(Self {
+            channels: vec![0],
+            config: Config::new(),
+            dev,
+            start_time: None,
+        })
+    }
 }
 
 impl<D: DeviceTrait + Clone> Builder<D> {
     /// Create Seify Device builder
-    pub fn new(builder_type: BuilderType) -> Self {
+    pub fn from_device(dev: Device<D>) -> Self {
         Self {
-            args: Args::new(),
             channels: vec![0],
             config: Config::new(),
-            dev: None,
+            dev,
             start_time: None,
-            builder_type,
         }
-    }
-    /// Arguments
-    pub fn args<A: TryInto<Args>>(mut self, a: A) -> Result<Self, Error> {
-        self.args
-            .merge(a.try_into().or(Err(Error::SeifyArgsConversionError))?);
-        Ok(self)
     }
     /// Seify device
     pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> Builder<D2> {
         Builder {
-            args: self.args,
             channels: self.channels,
             config: self.config,
-            dev: Some(dev),
+            dev,
             start_time: self.start_time,
-            builder_type: self.builder_type,
         }
     }
     /// Channel
@@ -109,23 +107,15 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self
     }
     /// Build Typed Seify Source
-    pub fn build_source(mut self) -> Result<Source<D>, Error> {
-        match (self.dev.take(), self.builder_type) {
-            (Some(dev), BuilderType::Source) => {
-                self.config.apply(&dev, &self.channels, Direction::Rx)?;
-                Ok(Source::new(dev, self.channels, self.start_time))
-            }
-            _ => Err(Error::InvalidParameter),
-        }
+    pub fn build_source(self) -> Result<Source<D>, Error> {
+        self.config
+            .apply(&self.dev, &self.channels, Direction::Rx)?;
+        Ok(Source::new(self.dev, self.channels, self.start_time))
     }
     /// Builder Typed Seify Sink
-    pub fn build_sink(mut self) -> Result<Sink<D>, Error> {
-        match (self.dev.take(), self.builder_type) {
-            (Some(dev), BuilderType::Sink) => {
-                self.config.apply(&dev, &self.channels, Direction::Tx)?;
-                Ok(Sink::new(dev, self.channels, self.start_time))
-            }
-            _ => Err(Error::InvalidParameter),
-        }
+    pub fn build_sink(self) -> Result<Sink<D>, Error> {
+        self.config
+            .apply(&self.dev, &self.channels, Direction::Tx)?;
+        Ok(Sink::new(self.dev, self.channels, self.start_time))
     }
 }

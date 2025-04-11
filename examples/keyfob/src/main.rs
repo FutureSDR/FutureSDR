@@ -36,33 +36,41 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = match args.file {
-        Some(file) => FileSource::<Complex32>::new(file, false).into(),
+    let resamp = match args.file {
+        Some(file) => {
+            let file = FileSource::<Complex32>::new(file, false);
+            let resamp =
+                FirBuilder::resampling::<Complex32, Complex32>(250000, args.sample_rate as usize);
+            connect!(fg, file > resamp);
+            resamp
+        }
         None => {
-            let src = Builder::new()
+            let src = Builder::new(args.args)?
                 .sample_rate(args.sample_rate)
                 .frequency(args.freq)
                 .gain(args.gain)
-                .args(args.args)?
                 .build_source()?;
+            let resamp =
+                FirBuilder::resampling::<Complex32, Complex32>(250000, args.sample_rate as usize);
+            connect!(fg, src.outputs[0] > resamp);
+            resamp
         }
     };
 
-    let resamp = FirBuilder::resampling::<Complex32, Complex32>(1, 16);
-    let complex_to_mag = Apply::new(|i: &Complex32| -> f32 { i.norm_sqr() });
+    let complex_to_mag = Apply::<_, _, _>::new(|i: &Complex32| -> f32 { i.norm_sqr() });
 
     let mut cur = 0.0;
     let alpha = 0.0001;
     let alpha_inv = 1.0 - alpha;
-    let avg = Apply::new(move |x: &f32| -> f32 {
+    let avg = Apply::<_, _, _>::new(move |x: &f32| -> f32 {
         cur = cur * alpha_inv + *x * alpha;
         *x - cur
     });
 
     let taps = firdes::lowpass::<f32>(15e3 / 250e3, &windows::hamming(128, false));
-    let low_pass = FirBuilder::new::<f32, f32, _>(taps);
+    let low_pass = FirBuilder::fir::<f32, f32, _>(taps);
 
-    let slice = Apply::new(move |i: &f32| -> u8 {
+    let slice = Apply::<_, _, _>::new(move |i: &f32| -> u8 {
         if *i > 0.0 {
             1
         } else {
@@ -72,7 +80,7 @@ fn main() -> Result<()> {
 
     let decoder = Decoder::new();
 
-    connect!(fg, src > resamp > complex_to_mag > avg > low_pass > slice > decoder);
+    connect!(fg, resamp > complex_to_mag > avg > low_pass > slice > decoder);
 
     Runtime::new().run(fg)?;
 

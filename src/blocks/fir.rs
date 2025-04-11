@@ -14,8 +14,14 @@ use crate::prelude::*;
 
 /// FIR filter.
 #[derive(Block)]
-pub struct Fir<InputType, OutputType, TapType, Core, IN = circular::Reader<InputType>, OUT = circular::Writer<OutputType>>
-where
+pub struct Fir<
+    InputType,
+    OutputType,
+    TapType,
+    Core,
+    IN = circular::Reader<InputType>,
+    OUT = circular::Writer<OutputType>,
+> where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
@@ -31,7 +37,8 @@ where
     _tap_type: std::marker::PhantomData<TapType>,
 }
 
-impl<InputType, OutputType, TapType, Core, IN, OUT> Fir<InputType, OutputType, TapType, Core, IN, OUT>
+impl<InputType, OutputType, TapType, Core, IN, OUT>
+    Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
@@ -42,17 +49,18 @@ where
 {
     /// Create FIR block
     pub fn new(filter: Core) -> Self {
-            Self {
-                input: IN::default(),
-                output: OUT::default(),
-                filter,
-                _tap_type: std::marker::PhantomData,
-            }
+        Self {
+            input: IN::default(),
+            output: OUT::default(),
+            filter,
+            _tap_type: std::marker::PhantomData,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel for Fir<InputType, OutputType, TapType, Core, IN, OUT>
+impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel
+    for Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
@@ -85,8 +93,14 @@ where
 
 /// Stateful FIR filter.
 #[derive(Block)]
-pub struct StatefulFir<InputType, OutputType, TapType, Core, IN = circular::Reader<InputType>, OUT=circular::Writer<OutputType>>
-where
+pub struct StatefulFir<
+    InputType,
+    OutputType,
+    TapType,
+    Core,
+    IN = circular::Reader<InputType>,
+    OUT = circular::Writer<OutputType>,
+> where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapType: 'static + Send,
@@ -102,7 +116,8 @@ where
     _tap_type: std::marker::PhantomData<TapType>,
 }
 
-impl<InputType, OutputType, TapType, Core, IN, OUT> StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
+impl<InputType, OutputType, TapType, Core, IN, OUT>
+    StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
@@ -113,12 +128,12 @@ where
 {
     /// Create FIR block
     pub fn new(filter: Core) -> Self {
-            Self {
-                input: IN::default(),
-                output: OUT::default(),
-                filter,
-                _tap_type: std::marker::PhantomData,
-            }
+        Self {
+            input: IN::default(),
+            output: OUT::default(),
+            filter,
+            _tap_type: std::marker::PhantomData,
+        }
     }
 }
 
@@ -194,10 +209,9 @@ pub struct FirBuilder;
 
 impl FirBuilder {
     /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new<InputType, OutputType, TapsType>(
+    pub fn fir<InputType, OutputType, TapsType>(
         taps: TapsType,
-    ) -> 
-        Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>
+    ) -> Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>
     where
         InputType: 'static + Send + Sync,
         OutputType: 'static + Send + Sync,
@@ -212,8 +226,7 @@ impl FirBuilder {
     /// Create a decimating FIR filter with standard low-pass taps.
     pub fn decimating<InputType, OutputType, TapsType>(
         decim: usize,
-    ) -> 
-        Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>
+    ) -> Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>
     where
         InputType: 'static + Send + Sync,
         OutputType: 'static + Send + Sync,
@@ -229,11 +242,11 @@ impl FirBuilder {
         decim: usize,
         taps: TapsType,
     ) -> Fir<
-            InputType,
-            OutputType,
-            TapsType::TapType,
-            DecimatingFirFilter<InputType, OutputType, TapsType>,
-        >
+        InputType,
+        OutputType,
+        TapsType::TapType,
+        DecimatingFirFilter<InputType, OutputType, TapsType>,
+    >
     where
         InputType: 'static + Send + Sync,
         OutputType: 'static + Send + Sync,
@@ -256,8 +269,7 @@ impl FirBuilder {
     pub fn resampling<InputType, OutputType>(
         interp: usize,
         decim: usize,
-    ) -> 
-        Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>
+    ) -> Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>
     where
         InputType: 'static + Send + Sync,
         OutputType: 'static + Send + Sync,
@@ -279,13 +291,12 @@ impl FirBuilder {
         interp: usize,
         decim: usize,
         taps: TapsType,
-    ) -> 
-        Fir<
-            InputType,
-            OutputType,
-            TapsType::TapType,
-            PolyphaseResamplingFir<InputType, OutputType, TapsType>,
-        >
+    ) -> Fir<
+        InputType,
+        OutputType,
+        TapsType::TapType,
+        PolyphaseResamplingFir<InputType, OutputType, TapsType>,
+    >
     where
         InputType: 'static + Send + Sync,
         OutputType: 'static + Send + Sync,
@@ -306,7 +317,8 @@ impl FirBuilder {
         ratio: f32,
     ) -> StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>
     where
-        SampleType: Copy + Send + Sync + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
+        SampleType:
+            Copy + Send + Sync + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
         MmseResampler<SampleType>: StatefulFilter<SampleType, SampleType, f32>,
     {
         StatefulFir::<SampleType, SampleType, f32, MmseResampler<SampleType>>::new(

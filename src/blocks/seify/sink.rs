@@ -1,12 +1,9 @@
 use seify::Device;
 use seify::DeviceTrait;
 use seify::Direction::Tx;
-use seify::GenericDevice;
 use seify::TxStreamer;
 use std::time::Duration;
 
-use super::builder::BuilderType;
-use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::prelude::*;
@@ -170,11 +167,7 @@ where
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let tags = self.inputs[0].slice_with_tags().1.clone();
-        let bufs: Vec<&[Complex32]> = self
-            .inputs
-            .iter_mut()
-            .map(|b| b.slice())
-            .collect();
+        let bufs: Vec<&[Complex32]> = self.inputs.iter_mut().map(|b| b.slice()).collect();
 
         let streamer = self.streamer.as_mut().unwrap();
         let nitems_per_input_stream: Vec<usize> = bufs.iter().map(|b| b.len()).collect();
@@ -214,15 +207,14 @@ where
                 ret
             };
 
-            self.inputs
-                .iter_mut()
-                .for_each(|i| i.consume(consumed));
+            self.inputs.iter_mut().for_each(|i| i.consume(consumed));
             consumed
         } else {
             0
         };
 
-        io.finished = self.inputs
+        io.finished = self
+            .inputs
             .iter_mut()
             .zip(nitems_per_input_stream)
             .any(|(input, input_length)| input.finished() && input_length - consumed == 0);
@@ -242,11 +234,7 @@ where
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()
@@ -256,11 +244,7 @@ where
         Ok(())
     }
 
-    async fn deinit(
-        &mut self,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.streamer
             .as_mut()
             .ok_or(Error::RuntimeError("Seify: no streamer".to_string()))?
