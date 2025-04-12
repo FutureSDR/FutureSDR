@@ -1,5 +1,5 @@
-use std::path;
 use crate::prelude::*;
+use std::path;
 
 /// Write samples to a WAV file.
 ///
@@ -47,10 +47,10 @@ where
         spec: hound::WavSpec,
     ) -> Self {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
-            Self {
-                input: I::default(),
-                writer,
-            }
+        Self {
+            input: I::default(),
+            writer,
+        }
     }
 }
 

@@ -21,7 +21,7 @@ members = [
 ]
 
 [features]
-default = []
+default = ["audio"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
@@ -44,10 +44,6 @@ harness = false
 [[bench]]
 name = "apply"
 harness = false
-
-[[example]]
-name = "zynq"
-required-features = ["zynq"]
 
 [[test]]
 name = "flow"

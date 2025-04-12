@@ -197,12 +197,12 @@ pub use null_source::NullSource;
 /// Seify hardware driver blocks
 #[cfg(feature = "seify")]
 pub mod seify;
-// mod selector;
-// pub use selector::DropPolicy as SelectorDropPolicy;
-// pub use selector::Selector;
-// pub mod signal_source;
-// pub use signal_source::FixedPointPhase;
-// pub use signal_source::SignalSourceBuilder;
+mod selector;
+pub use selector::DropPolicy as SelectorDropPolicy;
+pub use selector::Selector;
+pub mod signal_source;
+pub use signal_source::FixedPointPhase;
+pub use signal_source::SignalSourceBuilder;
 // mod sink;
 // pub use sink::Sink;
 // mod source;

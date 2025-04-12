@@ -11,10 +11,10 @@ use futures::StreamExt;
 use crate::prelude::*;
 
 /// Audio Source.
-#[allow(clippy::type_complexity)]
 #[derive(Block)]
 pub struct AudioSource<O = circular::Writer<f32>>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
     #[output]
     output: O,
@@ -27,35 +27,31 @@ where O: CpuBufferWriter<Item = f32>
 
 // cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl<O> Send for AudioSource<O> 
-where O: CpuBufferWriter<Item = f32>
-{}
+unsafe impl<O> Send for AudioSource<O> where O: CpuBufferWriter<Item = f32> {}
 
 impl<O> AudioSource<O>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
     /// Create AudioSource block
     pub fn new(sample_rate: u32, channels: u16) -> Self {
-            AudioSource {
-                output: O,
-                sample_rate,
-                channels,
-                stream: None,
-                rx: None,
-                buff: None,
-            }
+        AudioSource {
+            output: O::default(),
+            sample_rate,
+            channels,
+            stream: None,
+            rx: None,
+            buff: None,
+        }
     }
 }
 
 #[doc(hidden)]
 impl<O> Kernel for AudioSource<O>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
-    async fn init(
-        &mut self,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let host = cpal::default_host();
         let device = host
             .default_input_device()

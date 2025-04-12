@@ -10,7 +10,8 @@ use crate::prelude::*;
 /// Read an audio file and output its samples.
 #[derive(Block)]
 pub struct FileSource<O = circular::Writer<f32>>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
     #[output]
     output: O,
@@ -18,17 +19,18 @@ where O: CpuBufferWriter<Item = f32>
 }
 
 impl<O> FileSource<O>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
     /// Create FileSource block
     pub fn new(file: &str) -> Self {
         let file = BufReader::new(File::open(file).unwrap());
         let source = Decoder::new(file).unwrap();
 
-            FileSource {
-                output: O::default(),
-                src: source.convert_samples().buffered(),
-            }
+        FileSource {
+            output: O::default(),
+            src: source.convert_samples().buffered(),
+        }
     }
     /// Get sample rate
     pub fn sample_rate(&self) -> u32 {
@@ -42,7 +44,8 @@ where O: CpuBufferWriter<Item = f32>
 
 #[doc(hidden)]
 impl<O> Kernel for FileSource<O>
-where O: CpuBufferWriter<Item = f32>
+where
+    O: CpuBufferWriter<Item = f32>,
 {
     async fn work(
         &mut self,
