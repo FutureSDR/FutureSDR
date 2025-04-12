@@ -119,7 +119,8 @@ mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
 mod applynm;
 pub use applynm::ApplyNM;
-// pub mod audio;
+#[cfg(feature = "audio")]
+pub mod audio;
 // #[cfg(not(target_arch = "wasm32"))]
 // mod blob_to_udp;
 // #[cfg(not(target_arch = "wasm32"))]

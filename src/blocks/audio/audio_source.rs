@@ -5,22 +5,19 @@ use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 use futures::channel::mpsc;
 use futures::StreamExt;
+
+use crate::prelude::*;
 
 /// Audio Source.
 #[allow(clippy::type_complexity)]
 #[derive(Block)]
-pub struct AudioSource {
+pub struct AudioSource<O = circular::Writer<f32>>
+where O: CpuBufferWriter<Item = f32>
+{
+    #[output]
+    output: O,
     sample_rate: u32,
     channels: u16,
     stream: Option<Stream>,
@@ -30,29 +27,32 @@ pub struct AudioSource {
 
 // cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl Send for AudioSource {}
+unsafe impl<O> Send for AudioSource<O> 
+where O: CpuBufferWriter<Item = f32>
+{}
 
-impl AudioSource {
+impl<O> AudioSource<O>
+where O: CpuBufferWriter<Item = f32>
+{
     /// Create AudioSource block
-    pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<f32>("out").build(),
+    pub fn new(sample_rate: u32, channels: u16) -> Self {
             AudioSource {
+                output: O,
                 sample_rate,
                 channels,
                 stream: None,
                 rx: None,
                 buff: None,
-            },
-        )
+            }
     }
 }
 
 #[doc(hidden)]
-impl Kernel for AudioSource {
+impl<O> Kernel for AudioSource<O>
+where O: CpuBufferWriter<Item = f32>
+{
     async fn init(
         &mut self,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -92,12 +92,11 @@ impl Kernel for AudioSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some((buff, mut full)) = self.buff.take() {
-            let o = sio.output(0).slice::<f32>();
+            let o = self.output.slice();
             let n = std::cmp::min(o.len(), buff.len() - full);
 
             for (i, v) in o.iter_mut().take(n).enumerate() {
@@ -113,7 +112,7 @@ impl Kernel for AudioSource {
                 self.buff = Some((buff, full));
             }
 
-            sio.output(0).produce(n);
+            self.output.produce(n);
         } else if let Some(v) = self.rx.as_mut().unwrap().next().await {
             io.call_again = true;
             self.buff = Some((v, 0));

@@ -20,14 +20,12 @@ fn main() -> Result<()> {
         .collect();
 
     let src = VectorSource::<u32>::new(orig.clone());
-    let cpy = Copy::<u32>::new();
     let zynq = Zynq::<u32, u32>::new("uio4", "uio5", vec!["udmabuf0", "udmabuf1"])?;
     let snk = VectorSinkBuilder::<u32>::new().build();
 
-    let src = fg.add_block(src)?;
-    let cpy = fg.add_block(cpy)?;
-    let zynq = fg.add_block(zynq)?;
-    let snk = fg.add_block(snk)?;
+    let src = fg.add_block(src);
+    let zynq = fg.add_block(zynq);
+    let snk = fg.add_block(snk);
 
     fg.connect_stream(src, "out", cpy, "in")?;
     fg.connect_stream_with_type(cpy, "out", zynq, "in", H2D::with_size(1 << 14))?;

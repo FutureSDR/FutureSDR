@@ -76,6 +76,7 @@ impl Kernel for Dummy {
 
 #[derive(Block)]
 #[message_inputs(r#in)]
+#[null_kernel]
 pub struct Handler;
 
 impl Handler {
@@ -92,17 +93,5 @@ impl Handler {
         _p: Pmt,
     ) -> Result<Pmt> {
         Ok(Pmt::Null)
-    }
-}
-
-impl Kernel for Handler {
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        io.finished = true;
-        Ok(())
     }
 }

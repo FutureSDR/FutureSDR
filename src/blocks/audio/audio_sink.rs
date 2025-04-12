@@ -9,19 +9,16 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::SinkExt;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Audio Sink.
 #[allow(clippy::type_complexity)]
 #[derive(Block)]
-pub struct AudioSink {
+pub struct AudioSink<I = circular::Reader<f32>> 
+where I: CpuBufferReader<Item = f32>
+{
+    #[input]
+    input: I,
     sample_rate: u32,
     channels: u16,
     stream: Option<Stream>,
@@ -33,17 +30,20 @@ pub struct AudioSink {
 
 // cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl Send for AudioSink {}
+unsafe impl<I> Send for AudioSink<I>
+where I: CpuBufferReader<Item = f32>
+{}
 
 const QUEUE_SIZE: usize = 5;
 const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
-impl AudioSink {
+impl<I> AudioSink<I>
+where I: CpuBufferReader<Item = f32>
+{
     /// Create AudioSink block
-    pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
+    pub fn new(sample_rate: u32, channels: u16) -> Self {
             AudioSink {
+                input: I::default(),
                 sample_rate,
                 channels,
                 stream: None,
@@ -51,8 +51,7 @@ impl AudioSink {
                 vec: Vec::new(),
                 terminated: None,
                 tx: None,
-            },
-        )
+            }
     }
     /// Get default sample rate
     pub fn default_sample_rate() -> Option<u32> {

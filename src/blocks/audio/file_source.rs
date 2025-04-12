@@ -5,33 +5,30 @@ use rodio::Decoder;
 use std::fs::File;
 use std::io::BufReader;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Read an audio file and output its samples.
 #[derive(Block)]
-pub struct FileSource {
+pub struct FileSource<O = circular::Writer<f32>>
+where O: CpuBufferWriter<Item = f32>
+{
+    #[output]
+    output: O,
     src: Buffered<SamplesConverter<Decoder<BufReader<File>>, f32>>,
 }
 
-impl FileSource {
+impl<O> FileSource<O>
+where O: CpuBufferWriter<Item = f32>
+{
     /// Create FileSource block
-    pub fn new(file: &str) -> TypedBlock<Self> {
+    pub fn new(file: &str) -> Self {
         let file = BufReader::new(File::open(file).unwrap());
         let source = Decoder::new(file).unwrap();
 
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<f32>("out").build(),
             FileSource {
+                output: O::default(),
                 src: source.convert_samples().buffered(),
-            },
-        )
+            }
     }
     /// Get sample rate
     pub fn sample_rate(&self) -> u32 {
@@ -44,15 +41,17 @@ impl FileSource {
 }
 
 #[doc(hidden)]
-impl Kernel for FileSource {
+impl<O> Kernel for FileSource<O>
+where O: CpuBufferWriter<Item = f32>
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<f32>();
+        let out = self.output.slice();
+        let o_len = out.len();
 
         let mut n = 0;
         for (i, v) in self.src.by_ref().take(out.len()).enumerate() {
@@ -60,8 +59,8 @@ impl Kernel for FileSource {
             n += 1;
         }
 
-        sio.output(0).produce(n);
-        if n < out.len() {
+        self.output.produce(n);
+        if n < o_len {
             io.finished = true;
         }
 
