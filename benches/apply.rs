@@ -1,17 +1,16 @@
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Criterion;
-use rand::Rng;
+use std::iter::repeat_with;
 
 use futuresdr::blocks::Apply;
-use futuresdr::runtime::Mocker;
+use futuresdr::runtime::mocker::Mocker;
+use futuresdr::runtime::mocker::Reader;
+use futuresdr::runtime::mocker::Writer;
 
 pub fn apply(c: &mut Criterion) {
     let n_samp = 123456;
-    let input: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
-        .take(n_samp)
-        .collect();
+    let input: Vec<u32> = repeat_with(rand::random::<u32>).take(n_samp).collect();
 
     let mut group = c.benchmark_group("apply");
 
@@ -19,11 +18,11 @@ pub fn apply(c: &mut Criterion) {
 
     group.bench_function(format!("mock-u32-plus-1-{n_samp}"), |b| {
         b.iter(|| {
-            let block = Apply::new(|x: &u32| x + 1);
+            let block: Apply<_, _, _, Reader<u32>, Writer<u32>> = Apply::new(|x: &u32| x + 1);
 
             let mut mocker = Mocker::new(block);
-            mocker.input(0, input.clone());
-            mocker.init_output::<u32>(0, n_samp);
+            mocker.input().set(input.clone());
+            mocker.output().reserve(n_samp);
             mocker.run();
         });
     });
