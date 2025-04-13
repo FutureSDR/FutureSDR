@@ -4,6 +4,7 @@ use futuresdr::async_io;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Selector;
 use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
+use futuresdr::blocks::SignalSource;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::prelude::*;
 
@@ -20,7 +21,7 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src0 = SignalSourceBuilder::sinf32(440.0, 48000.0)
+    let src0 = SignalSourceBuilder::<f32, _, circular::Writer<f32>>::sinf32(440.0, 48000.0)
         .amplitude(0.3)
         .build();
     let src1 = SignalSourceBuilder::sinf32(261.63, 48000.0)

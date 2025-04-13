@@ -202,6 +202,7 @@ pub use selector::DropPolicy as SelectorDropPolicy;
 pub use selector::Selector;
 pub mod signal_source;
 pub use signal_source::FixedPointPhase;
+pub use signal_source::SignalSource;
 pub use signal_source::SignalSourceBuilder;
 // mod sink;
 // pub use sink::Sink;

@@ -117,21 +117,21 @@ where
     F: FnMut(FixedPointPhase) -> f32 + Send + 'static,
     O: CpuBufferWriter<Item = f32>,
 {
-    // /// Create cosine wave
-    // pub fn cosf32(
-    //     frequency: f32,
-    //     sample_rate: f32,
-    // ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
-    //     SignalSourceBuilder {
-    //         offset: 0.0,
-    //         amplitude: 1.0,
-    //         sample_rate,
-    //         frequency,
-    //         initial_phase: 0.0,
-    //         phase_to_amplitude: |phase: FixedPointPhase| phase.cos(),
-    //         _p: PhantomData,
-    //     }
-    // }
+    /// Create cosine wave
+    pub fn cosf32(
+        frequency: f32,
+        sample_rate: f32,
+    ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        SignalSourceBuilder {
+            offset: 0.0,
+            amplitude: 1.0,
+            sample_rate,
+            frequency,
+            initial_phase: 0.0,
+            phase_to_amplitude: |phase: FixedPointPhase| phase.cos(),
+            _p: PhantomData,
+        }
+    }
     /// Create sine wave
     pub fn sinf32(
         frequency: f32,
@@ -147,27 +147,27 @@ where
             _p: PhantomData,
         }
     }
-    // /// Create square wave
-    // pub fn squaref32(
-    //     frequency: f32,
-    //     sample_rate: f32,
-    // ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
-    //     SignalSourceBuilder {
-    //         offset: 0.0,
-    //         amplitude: 1.0,
-    //         sample_rate,
-    //         frequency,
-    //         initial_phase: 0.0,
-    //         phase_to_amplitude: |phase: FixedPointPhase| {
-    //             if phase.value < 0 {
-    //                 1.0
-    //             } else {
-    //                 0.0
-    //             }
-    //         },
-    //         _p: PhantomData,
-    //     }
-    // }
+    /// Create square wave
+    pub fn squaref32(
+        frequency: f32,
+        sample_rate: f32,
+    ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        SignalSourceBuilder {
+            offset: 0.0,
+            amplitude: 1.0,
+            sample_rate,
+            frequency,
+            initial_phase: 0.0,
+            phase_to_amplitude: |phase: FixedPointPhase| {
+                if phase.value < 0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            _p: PhantomData,
+        }
+    }
     /// Create Signal Source block
     pub fn build(self) -> SignalSource<F, f32, O> {
         let nco = NCO::new(
