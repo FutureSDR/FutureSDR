@@ -17,10 +17,6 @@ path = "play_tone.rs"
 name = "play-stereo"
 path = "play_stereo.rs"
 
-[[bin]]
-name = "play-selectable-tone"
-path = "play_selectable_tone.rs"
-
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }

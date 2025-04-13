@@ -1,11 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Apply a function to combine two streams into one.
 ///
@@ -29,65 +22,71 @@ use crate::runtime::WorkIo;
 /// ```
 #[derive(Block)]
 #[allow(clippy::type_complexity)]
-pub struct Combine<F, A, B, C>
+pub struct Combine<F, A, B, C, INA = circular::Reader<A>, INB = circular::Reader<B>, OUT = circular::Writer<C>>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    INA: CpuBufferReader<Item = A>,
+    INB: CpuBufferReader<Item = B>,
+    OUT: CpuBufferWriter<Item = C>,
 {
+    #[input]
+    in0: INA,
+    #[input]
+    in1: INB,
+    #[output]
+    output: OUT,
     f: F,
-    _p1: std::marker::PhantomData<A>,
-    _p2: std::marker::PhantomData<B>,
-    _p3: std::marker::PhantomData<C>,
 }
 
-impl<F, A, B, C> Combine<F, A, B, C>
+impl<F, A, B, C, INA, INB, OUT> Combine<F, A, B, C, INA, INB, OUT>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    INA: CpuBufferReader<Item = A>,
+    INB: CpuBufferReader<Item = B>,
+    OUT: CpuBufferWriter<Item = C>,
 {
     /// Create [`Combine`] block
     ///
     /// ## Parameter
     /// - `f`: Function `(&A, &B) -> C` used to combine samples
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<A>("in0")
-                .add_input::<B>("in1")
-                .add_output::<C>("out")
-                .build(),
+    pub fn new(f: F) -> Self {
             Self {
+                in0: INA::default(),
+                in1: INB::default(),
+                output: OUT::default(),
                 f,
-                _p1: std::marker::PhantomData,
-                _p2: std::marker::PhantomData,
-                _p3: std::marker::PhantomData,
-            },
-        )
+            }
     }
 }
 
 #[doc(hidden)]
-impl<F, A, B, C> Kernel for Combine<F, A, B, C>
+impl<F, A, B, C, INA, INB, OUT> Kernel for Combine<F, A, B, C, INA, INB, OUT>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    INA: CpuBufferReader<Item = A>,
+    INB: CpuBufferReader<Item = B>,
+    OUT: CpuBufferWriter<Item = C>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i0 = sio.input(0).slice::<A>();
-        let i1 = sio.input(1).slice::<B>();
-        let o0 = sio.output(0).slice::<C>();
+        let i0 = self.in0.slice();
+        let i1 = self.in1.slice();
+        let o0 = self.output.slice();
+        let i0_len = i0.len();
+        let i1_len = i1.len();
 
         let m = std::cmp::min(i0.len(), i1.len());
         let m = std::cmp::min(m, o0.len());
@@ -97,16 +96,16 @@ where
                 *y = (self.f)(x0, x1);
             }
 
-            sio.input(0).consume(m);
-            sio.input(1).consume(m);
-            sio.output(0).produce(m);
+            self.in0.consume(m);
+            self.in1.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == i0.len() {
+        if self.in0.finished() && m == i0_len {
             io.finished = true;
         }
 
-        if sio.input(1).finished() && m == i1.len() {
+        if self.in1.finished() && m == i1_len {
             io.finished = true;
         }
 

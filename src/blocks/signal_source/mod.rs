@@ -1,53 +1,54 @@
 //! SignalSource using Lookup Tables
 mod fxpt_phase;
-use std::marker::PhantomData;
-
 pub use fxpt_phase::FixedPointPhase;
-
 mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
+use std::marker::PhantomData;
 use crate::prelude::*;
 
 /// Signal Source block
 #[derive(Block)]
-pub struct SignalSource<F, A, O = circular::Writer<A>>
+pub struct SignalSource<A, F, O = circular::Writer<A>>
 where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     A: Send + 'static,
+    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
     #[output]
     output: O,
     nco: NCO,
     phase_to_amplitude: F,
-    amplitude: A,
-    offset: A,
+    amplitude: f32,
 }
 
-impl<F, A, O> SignalSource<F, A, O>
+impl<A, F, O> SignalSource<A, F, O>
 where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
     /// Create SignalSource block
-    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> Self {
+    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: f32) -> Self {
         Self {
             output: O::default(),
             nco,
             phase_to_amplitude,
             amplitude,
-            offset,
         }
+    }
+
+    /// Set amplitude
+    pub fn set_amplitude(&mut self, amplitude: f32) {
+        self.amplitude = amplitude;
     }
 }
 
 #[doc(hidden)]
-impl<F, A, O> Kernel for SignalSource<F, A, O>
+impl<A, F, O> Kernel for SignalSource<A, F, O>
 where
+    A: Copy + Send + 'static + std::ops::Mul<f32, Output = A> + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
-    A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
     O: CpuBufferWriter<Item = A>,
 {
     async fn work(
@@ -62,7 +63,6 @@ where
         for v in o.iter_mut() {
             let a = (self.phase_to_amplitude)(self.nco.phase);
             let a = a * self.amplitude;
-            let a = a + self.offset;
             *v = a;
             self.nco.step();
         }
@@ -74,161 +74,106 @@ where
 }
 
 /// Build a SignalSource block
-pub struct SignalSourceBuilder<A, F, O = circular::Writer<A>>
-where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
-    A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
-    O: CpuBufferWriter<Item = A>,
-{
-    offset: A,
-    amplitude: A,
-    sample_rate: f32,
-    frequency: f32,
-    initial_phase: f32,
-    phase_to_amplitude: F,
-    _p: PhantomData<O>,
+pub struct SignalSourceBuilder<T, O = circular::Writer<T>>
+where O: CpuBufferWriter<Item = T> {
+    _t: PhantomData<T>,
+    _o: PhantomData<O>,
 }
 
-impl<A, F, O> SignalSourceBuilder<A, F, O>
+impl<O> SignalSourceBuilder<f32, O>
 where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
-    A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
-    O: CpuBufferWriter<Item = A>,
-{
-    /// Set y-offset (i.e., a DC component)
-    pub fn offset(mut self, offset: A) -> SignalSourceBuilder<A, F, O> {
-        self.offset = offset;
-        self
-    }
-    /// Set amplitude
-    pub fn amplitude(mut self, amplitude: A) -> SignalSourceBuilder<A, F, O> {
-        self.amplitude = amplitude;
-        self
-    }
-    /// Set initial phase
-    pub fn initial_phase(mut self, initial_phase: f32) -> SignalSourceBuilder<A, F, O> {
-        self.initial_phase = initial_phase;
-        self
-    }
-}
-
-impl<F, O> SignalSourceBuilder<f32, F, O>
-where
-    F: FnMut(FixedPointPhase) -> f32 + Send + 'static,
     O: CpuBufferWriter<Item = f32>,
 {
     /// Create cosine wave
-    pub fn cosf32(
+    pub fn cos(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| phase.cos(),
-            _p: PhantomData,
-        }
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(|phase: FixedPointPhase| phase.cos(), nco, amplitude)
     }
     /// Create sine wave
-    pub fn sinf32(
+    pub fn sin(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| phase.sin(),
-            _p: PhantomData,
-        }
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(|phase: FixedPointPhase| phase.sin(), nco, amplitude)
     }
     /// Create square wave
-    pub fn squaref32(
+    pub fn square(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| {
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new( |phase: FixedPointPhase| {
                 if phase.value < 0 {
                     1.0
                 } else {
                     0.0
                 }
-            },
-            _p: PhantomData,
-        }
-    }
-    /// Create Signal Source block
-    pub fn build(self) -> SignalSource<F, f32, O> {
-        let nco = NCO::new(
-            self.initial_phase,
-            2.0 * core::f32::consts::PI * self.frequency / self.sample_rate,
-        );
-        SignalSource::new(self.phase_to_amplitude, nco, self.amplitude, self.offset)
+            }, nco, amplitude)
     }
 }
 
-impl<O, F> SignalSourceBuilder<Complex32, F, O>
+impl<O> SignalSourceBuilder<Complex32, O>
 where
-    F: FnMut(FixedPointPhase) -> Complex32 + Send + 'static,
     O: CpuBufferWriter<Item = Complex32>,
 {
     /// Create cosine signal
     pub fn cos(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
     {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
-            _p: PhantomData,
-        }
+        Self::sin(frequency, sample_rate, amplitude, initial_phase)
     }
     ///Create sine signal
     pub fn sin(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
     {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
-            _p: PhantomData,
-        }
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(|phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()), nco, amplitude)
     }
 
     /// Create square wave signal
     pub fn square(
         frequency: f32,
         sample_rate: f32,
-    ) -> SignalSourceBuilder<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
     {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            phase_to_amplitude: |phase: FixedPointPhase| {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(
+            |phase: FixedPointPhase| {
                 let t = phase.value >> 30;
                 match t {
                     -2 => Complex32::new(1.0, 0.0),
@@ -237,16 +182,6 @@ where
                     1 => Complex32::new(0.0, 0.0),
                     _ => unreachable!(),
                 }
-            },
-            _p: PhantomData,
-        }
-    }
-    /// Create Signal Source block
-    pub fn build(self) -> SignalSource<F, Complex32, O> {
-        let nco = NCO::new(
-            self.initial_phase,
-            2.0 * core::f32::consts::PI * self.frequency / self.sample_rate,
-        );
-        SignalSource::new(self.phase_to_amplitude, nco, self.amplitude, self.offset)
+            }, nco, amplitude)
     }
 }
