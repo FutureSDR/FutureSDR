@@ -337,7 +337,7 @@ impl Endpoint {
         let i = match port {
             TokenTree::Ident(i) => i.to_string(),
             TokenTree::Literal(l) => l.to_string().replace('"', ""),
-            _ => return EndpointResult::Error(None, format!("invalid endpoint port {}", port)),
+            _ => return EndpointResult::Error(None, format!("invalid endpoint port {port}")),
         };
         EndpointResult::Point(Self {
             block,
@@ -353,7 +353,7 @@ impl Endpoint {
             _ => {
                 return EndpointResult::Error(
                     None,
-                    format!("invalid endpoint input port {}", in_port),
+                    format!("invalid endpoint input port {in_port}"),
                 )
             }
         };
@@ -363,7 +363,7 @@ impl Endpoint {
             _ => {
                 return EndpointResult::Error(
                     None,
-                    format!("invalid endpoint output port {}", out_port),
+                    format!("invalid endpoint output port {out_port}"),
                 )
             }
         };

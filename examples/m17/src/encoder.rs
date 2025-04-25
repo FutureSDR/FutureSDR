@@ -47,7 +47,7 @@ impl Encoder {
             1 => 3.0,
             2 => -1.0,
             3 => -3.0,
-            v => panic!("wrong symbol ({} not in [0..3])", v),
+            v => panic!("wrong symbol ({v} not in [0..3])"),
         }
     }
 

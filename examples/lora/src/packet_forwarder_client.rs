@@ -60,7 +60,7 @@ impl PacketForwarderClient {
         rt_tokio.block_on(async move {
             let (uplink_sender, mut downlink_request_receiver, udp_runtime) =
                 UdpRuntime::new(mac_address, host).await.unwrap();
-            println!("Connecting to server {}", server_addr);
+            println!("Connecting to server {server_addr}");
             let udp_runtime_task = handle.spawn(udp_runtime.run(shutdown_signal));
 
             // send received frames

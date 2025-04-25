@@ -79,6 +79,7 @@ impl Modulation {
                 ];
                 QPSK[i as usize]
             }
+            #[allow(clippy::neg_multiply)]
             Modulation::Qam16 => {
                 const LEVEL: f32 = 0.31622776601683794;
                 const QAM16: [Complex32; 16] = [
@@ -101,6 +102,7 @@ impl Modulation {
                 ];
                 QAM16[i as usize]
             }
+            #[allow(clippy::neg_multiply)]
             Modulation::Qam64 => {
                 const LEVEL: f32 = 0.1543033499620919;
                 const QAM64: [Complex32; 64] = [

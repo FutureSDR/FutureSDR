@@ -98,7 +98,7 @@ impl From<TransceiverMode> for u16 {
 
 impl From<JsValue> for Error {
     fn from(e: JsValue) -> Self {
-        Self::BrowserError(format!("{:?}", e))
+        Self::BrowserError(format!("{e:?}"))
     }
 }
 

@@ -3,10 +3,12 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Canvas;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::WebGl2RenderingContext as GL;
 use web_sys::WebGlProgram;
 
@@ -16,7 +18,7 @@ const MAX_SAMPLES: usize = 4096;
 
 pub enum TimeSinkMode {
     Websocket(String),
-    Data(Rc<RefCell<Option<Vec<u8>>>>),
+    Data(ReadSignal<Vec<u8>>),
 }
 
 impl Default for TimeSinkMode {
@@ -26,7 +28,7 @@ impl Default for TimeSinkMode {
 }
 
 struct RenderState {
-    canvas: HtmlElement<Canvas>,
+    canvas: HtmlCanvasElement,
     gl: GL,
     shader: WebGlProgram,
     vertex_len: i32,
@@ -35,22 +37,21 @@ struct RenderState {
 #[component]
 /// Time Sink
 pub fn TimeSink(
-    #[prop(into)] min: MaybeSignal<f32>,
-    #[prop(into)] max: MaybeSignal<f32>,
+    #[prop(into)] min: Signal<f32>,
+    #[prop(into)] max: Signal<f32>,
     #[prop(optional)] mode: TimeSinkMode,
 ) -> impl IntoView {
     let data = match mode {
         TimeSinkMode::Data(d) => d,
         TimeSinkMode::Websocket(s) => {
-            let data = Rc::new(RefCell::new(None));
+            let (data, set_data) = signal(vec![]);
             {
-                let data = data.clone();
                 spawn_local(async move {
                     let mut ws = WebSocket::open(&s).unwrap();
                     while let Some(msg) = ws.next().await {
                         match msg {
                             Ok(Message::Bytes(b)) => {
-                                *data.borrow_mut() = Some(b);
+                                set_data(b);
                             }
                             _ => {
                                 log!("TimeSink: WebSocket {:?}", msg);
@@ -64,9 +65,9 @@ pub fn TimeSink(
         }
     };
 
-    let canvas_ref = create_node_ref::<Canvas>();
-    canvas_ref.on_load(move |canvas_ref| {
-        let _ = canvas_ref.on_mount(move |canvas| {
+    let canvas_ref = NodeRef::<Canvas>::new();
+    Effect::new(move || {
+        if let Some(canvas) = canvas_ref.get() {
             let gl: GL = canvas
                 .get_context("webgl2")
                 .unwrap()
@@ -124,47 +125,35 @@ pub fn TimeSink(
             gl.link_program(&shader);
             gl.use_program(Some(&shader));
 
-            {
-                let gl = gl.clone();
-                let shader = shader.clone();
-                create_render_effect(move |_| {
-                    let u_min = gl.get_uniform_location(&shader, "u_min");
-                    gl.uniform1f(u_min.as_ref(), min.get());
-                    let u_max = gl.get_uniform_location(&shader, "u_max");
-                    gl.uniform1f(u_max.as_ref(), max.get());
-                });
-            }
+            let u_min = gl.get_uniform_location(&shader, "u_min");
+            gl.uniform1f(u_min.as_ref(), min.get());
+            let u_max = gl.get_uniform_location(&shader, "u_max");
+            gl.uniform1f(u_max.as_ref(), max.get());
 
             let vertex_buffer = gl.create_buffer().unwrap();
             let init_data = [0.0f32; MAX_SAMPLES * 2];
             let view = unsafe { f32::view(&init_data) };
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            gl.buffer_data_with_array_buffer_view(
-                GL::ARRAY_BUFFER,
-                &view,
-                GL::DYNAMIC_DRAW,
-            );
+            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &view, GL::DYNAMIC_DRAW);
 
             let position = gl.get_attrib_location(&shader, "coordinates") as u32;
             gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
             gl.enable_vertex_attrib_array(position);
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, shader, vertex_len: 0
+                canvas,
+                gl,
+                shader,
+                vertex_len: 0,
             }));
             request_animation_frame(render(state, data))
-        });
+        }
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
-fn render(
-    state: Rc<RefCell<RenderState>>,
-    data: Rc<RefCell<Option<Vec<u8>>>>,
-) -> impl FnOnce() + 'static {
+fn render(state: Rc<RefCell<RenderState>>, data: ReadSignal<Vec<u8>>) -> impl FnOnce() + 'static {
     move || {
         {
             let RenderState {
@@ -185,7 +174,8 @@ fn render(
                 gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
 
-            if let Some(bytes) = data.borrow_mut().take() {
+            let bytes = &*data.read_untracked();
+            if !bytes.is_empty() {
                 let samples = unsafe {
                     let s = std::cmp::min(bytes.len() / 4, MAX_SAMPLES);
                     let p = bytes.as_ptr();
@@ -206,9 +196,9 @@ fn render(
                 gl.uniform1f(u_nsamples.as_ref(), l as f32);
 
                 *vertex_len = l as i32;
-            };
 
-            gl.draw_arrays(GL::LINE_STRIP, 0, *vertex_len);
+                gl.draw_arrays(GL::LINE_STRIP, 0, *vertex_len);
+            }
         }
         request_animation_frame(render(state, data))
     }

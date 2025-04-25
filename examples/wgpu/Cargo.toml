@@ -15,11 +15,11 @@ path = "src/loopback.rs"
 [dependencies]
 anyhow = "1.0"
 futuresdr = { path = "../..", features = ["wgpu"] }
-rand = "0.8"
+rand = "0.9"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 

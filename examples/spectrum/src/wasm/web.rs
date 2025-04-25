@@ -18,18 +18,17 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
-use prophecy::leptos::html::Span;
-use prophecy::leptos::wasm_bindgen::JsCast;
-use prophecy::leptos::*;
+use leptos::html::Span;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::wasm_bindgen::JsCast;
+use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
-use std::cell::RefCell;
-use std::rc::Rc;
-use web_sys::HtmlInputElement;
 
 const FFT_SIZE: usize = 2048;
 
@@ -37,12 +36,12 @@ const FFT_SIZE: usize = 2048;
 /// Spectrum Widget
 pub fn Spectrum(
     handle: prophecy::FlowgraphHandle,
-    time_data: Rc<RefCell<Option<Vec<u8>>>>,
-    waterfall_data: Rc<RefCell<Option<Vec<u8>>>>,
+    time_data: ReadSignal<Vec<u8>>,
+    waterfall_data: ReadSignal<Vec<u8>>,
 ) -> impl IntoView {
-    let fg_desc = create_local_resource(|| (), {
+    let fg_desc = LocalResource::new({
         let handle = handle.clone();
-        move |_| {
+        move || {
             let mut handle = handle.clone();
             async move {
                 if let Ok(desc) = handle.description().await {
@@ -53,14 +52,14 @@ pub fn Spectrum(
         }
     });
 
-    let (min, set_min) = create_signal(-40.0f32);
-    let (max, set_max) = create_signal(20.0f32);
+    let (min, set_min) = signal(-40.0f32);
+    let (max, set_max) = signal(20.0f32);
 
-    let min_label = create_node_ref::<Span>();
-    let max_label = create_node_ref::<Span>();
-    let freq_label = create_node_ref::<Span>();
+    let min_label = NodeRef::<Span>::new();
+    let max_label = NodeRef::<Span>::new();
+    let freq_label = NodeRef::<Span>::new();
 
-    let (ctrl, set_ctrl) = create_signal(true);
+    let (ctrl, set_ctrl) = signal(true);
     let ctrl_click = move |_| {
         set_ctrl(!ctrl());
     };
@@ -159,10 +158,7 @@ pub fn Spectrum(
         </div>
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
-                match fg_desc.get() {
-                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_view(),
-                    _ => view! {}.into_view(),
-                }
+                fg_desc.get().map(|x| x.take().unwrap()).map(|x| view! { <FlowgraphMermaid fg=x /> }.into_any()).unwrap_or(().into_any());
             }}
         </div>
     }
@@ -171,11 +167,9 @@ pub fn Spectrum(
 #[component]
 /// Main GUI
 pub fn Gui() -> impl IntoView {
-    let (handle, set_handle) = create_signal(None);
-
-    let data = vec![Rc::new(RefCell::new(None)), Rc::new(RefCell::new(None))];
-    let time_data = data[0].clone();
-    let waterfall_data = data[1].clone();
+    let (handle, set_handle) = signal_local(None);
+    let (time_data, set_time_data) = signal(vec![]);
+    let (waterfall_data, set_waterfall_data) = signal(vec![]);
 
     view! {
         <h1 class="m-4 text-xl text-white"> FutureSDR Spectrum</h1>
@@ -185,22 +179,20 @@ pub fn Gui() -> impl IntoView {
                  Some(handle) => {
                      let handle = prophecy::FlowgraphHandle::from_handle(handle);
                      view! {
-                         <Spectrum handle=handle time_data=time_data.clone() waterfall_data=waterfall_data.clone() /> }.into_view()
+                         <Spectrum handle=handle time_data=time_data waterfall_data=waterfall_data /> }.into_any()
                  },
                  _ => view! {
                      <div class="m-4 space-y-4 text-white">
                          <button class="p-2 rounded bg-slate-600 hover:bg-slate-700" on:click={
-                             let data = data.clone();
                              move |_| {
-                             leptos::spawn_local({
-                                 let data = data.clone();
+                             spawn_local({
                                  async move {
-                                     run(set_handle, data).await.unwrap();
+                                     run(set_handle, set_time_data, set_waterfall_data).await.unwrap();
                                  }});
                          }}>Start</button>
                          <div>"Please Click to Start Flowgraph"</div>
                      </div>
-                 }.into_view(),
+                 }.into_any(),
              }
         }}
     }
@@ -212,19 +204,26 @@ pub fn web() {
 }
 
 pub struct Sink {
-    data: Vec<Rc<RefCell<Option<Vec<u8>>>>>,
+    time_data: WriteSignal<Vec<u8>>,
+    waterfall_data: WriteSignal<Vec<u8>>,
 }
 
 unsafe impl Send for Sink {}
 
 impl Sink {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(data: Vec<Rc<RefCell<Option<Vec<u8>>>>>) -> TypedBlock<Self> {
+    pub fn new(
+        time_data: WriteSignal<Vec<u8>>,
+        waterfall_data: WriteSignal<Vec<u8>>,
+    ) -> TypedBlock<Self> {
         TypedBlock::new(
             BlockMetaBuilder::new("Sink").build(),
             StreamIoBuilder::new().add_input::<f32>("in").build(),
             MessageIoBuilder::new().build(),
-            Self { data },
+            Self {
+                time_data,
+                waterfall_data,
+            },
         )
     }
 }
@@ -248,9 +247,8 @@ impl Kernel for Sink {
                 let p = samples.as_ptr();
                 std::slice::from_raw_parts(p as *const u8, l)
             };
-            for d in &self.data {
-                *d.borrow_mut() = Some(Vec::from(bytes));
-            }
+            self.time_data.set(Vec::from(bytes));
+            self.waterfall_data.set(Vec::from(bytes));
             sio.input(0).consume(2048);
         }
 
@@ -265,8 +263,9 @@ impl Kernel for Sink {
 }
 
 async fn run(
-    set_handle: WriteSignal<Option<FlowgraphHandle>>,
-    data: Vec<Rc<RefCell<Option<Vec<u8>>>>>,
+    set_handle: WriteSignal<Option<FlowgraphHandle>, LocalStorage>,
+    set_time_data: WriteSignal<Vec<u8>>,
+    set_waterfall_data: WriteSignal<Vec<u8>>,
 ) -> Result<()> {
     let mut fg = Flowgraph::new();
 
@@ -274,7 +273,7 @@ async fn run(
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let mag_sqr = crate::power_block();
     let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
-    let snk = Sink::new(data);
+    let snk = Sink::new(set_time_data, set_waterfall_data);
 
     futuresdr::runtime::config::set("slab_reserved", 0);
     connect!(fg, src > fft > mag_sqr > keep > snk);

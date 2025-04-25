@@ -1,17 +1,14 @@
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Criterion;
-use rand::Rng;
+use std::iter::repeat_with;
 
 use futuresdr::blocks::Apply;
 use futuresdr::runtime::Mocker;
 
 pub fn apply(c: &mut Criterion) {
     let n_samp = 123456;
-    let input: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
-        .take(n_samp)
-        .collect();
+    let input: Vec<u32> = repeat_with(rand::random::<u32>).take(n_samp).collect();
 
     let mut group = c.benchmark_group("apply");
 

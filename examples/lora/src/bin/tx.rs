@@ -91,7 +91,7 @@ fn main() -> Result<()> {
     rt.block_on(async move {
         let mut counter: usize = 0;
         loop {
-            let payload = format!("hello world! {:02}", counter).to_string();
+            let payload = format!("hello world! {counter:02}");
             handle
                 .call(transmitter, fg_tx_port, Pmt::String(payload))
                 .await

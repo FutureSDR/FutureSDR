@@ -26,7 +26,7 @@ where
     pub fn new(num_outputs: usize) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new().add_input::<T>("in");
         for i in 0..num_outputs {
-            sio = sio.add_output::<T>(&format!("out{}", i));
+            sio = sio.add_output::<T>(&format!("out{i}"));
         }
         TypedBlock::new(
             BlockMetaBuilder::new("StreamDuplicator").build(),

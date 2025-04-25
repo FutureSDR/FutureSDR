@@ -78,8 +78,8 @@ fn main() -> Result<()> {
     // add noise
     let normal = Normal::new(0.0f32, 0.01).unwrap();
     let noise = fg.add_block(Apply::new(move |i: &Complex32| -> Complex32 {
-        let re = normal.sample(&mut rand::thread_rng());
-        let imag = normal.sample(&mut rand::thread_rng());
+        let re = normal.sample(&mut rand::rng());
+        let imag = normal.sample(&mut rand::rng());
         i + Complex32::new(re, imag)
     }))?;
     fg.connect_stream_with_type(

@@ -214,7 +214,7 @@ impl<K: Kernel + 'static> Mocker<K> {
                         BlockMessage::Call { data, .. } => {
                             self.messages[n].push(data);
                         }
-                        _ => panic!("Mocked Block produced unexpected BlockMessage {:?}", m),
+                        _ => panic!("Mocked Block produced unexpected BlockMessage {m:?}"),
                     }
                 }
             }

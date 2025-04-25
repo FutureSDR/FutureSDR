@@ -7,12 +7,13 @@ use futuresdr::runtime::Mocker;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Tag;
+use rand::distr::Uniform;
 use rand::Rng;
 
 #[test]
 fn multi_input_mock() {
-    let input: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
+    let input: Vec<u32> = rand::rng()
+        .sample_iter(Uniform::<u32>::new(0, 1024).unwrap())
         .take(128)
         .collect();
 

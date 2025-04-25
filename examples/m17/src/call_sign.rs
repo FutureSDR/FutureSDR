@@ -81,6 +81,6 @@ impl fmt::Display for CallSign {
             Self::Reserved(_) => "#RSRVD".to_string(),
         };
 
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }

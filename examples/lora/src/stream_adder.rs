@@ -25,7 +25,7 @@ where
     pub fn new(num_inputs: usize) -> TypedBlock<Self> {
         let mut sio = StreamIoBuilder::new();
         for i in 0..num_inputs {
-            sio = sio.add_input::<T>(&format!("in{}", i));
+            sio = sio.add_input::<T>(&format!("in{i}"));
         }
         sio = sio.add_output::<T>("out");
         TypedBlock::new(

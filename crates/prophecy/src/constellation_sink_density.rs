@@ -3,11 +3,13 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Canvas;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 use num_complex::Complex32;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::WebGl2RenderingContext as GL;
 
 use crate::ArrayView;
@@ -15,9 +17,9 @@ use crate::ArrayView;
 pub const BINS: usize = 128;
 
 struct RenderState {
-    canvas: HtmlElement<Canvas>,
+    canvas: HtmlCanvasElement,
     gl: GL,
-    width: MaybeSignal<f32>,
+    width: Signal<f32>,
     texture: [f32; BINS * BINS],
 }
 
@@ -26,37 +28,35 @@ struct RenderState {
 ///
 /// See WLAN receiver for an example.
 pub fn ConstellationSinkDensity(
-    #[prop(into)] width: MaybeSignal<f32>,
+    #[prop(into)] width: Signal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
-    let data = Rc::new(RefCell::new(None));
-    {
-        let data = data.clone();
-        spawn_local(async move {
-            let mut ws = WebSocket::open(&websocket).unwrap();
-            while let Some(msg) = ws.next().await {
-                match msg {
-                    Ok(Message::Bytes(b)) => {
-                        *data.borrow_mut() = Some(b);
-                    }
-                    _ => {
-                        log!("ConstellationSinkDensity: WebSocket {:?}", msg);
-                    }
+    let (data, set_data) = signal(vec![]);
+    spawn_local(async move {
+        let mut ws = WebSocket::open(&websocket).unwrap();
+        while let Some(msg) = ws.next().await {
+            match msg {
+                Ok(Message::Bytes(b)) => {
+                    set_data(b);
+                }
+                _ => {
+                    log!("ConstellationSinkDensity: WebSocket {:?}", msg);
                 }
             }
-            log!("ConstellationSinkDensity: WebSocket Closed");
-        });
-    }
+        }
+        log!("ConstellationSinkDensity: WebSocket Closed");
+    });
 
-    let canvas_ref = create_node_ref::<Canvas>();
-    canvas_ref.on_load(move |canvas_ref| {
-        let _ = canvas_ref.on_mount(move |canvas| {
+    let canvas_ref = NodeRef::<Canvas>::new();
+    Effect::new(move || {
+        if let Some(canvas) = canvas_ref.get() {
             let context_options = js_sys::Object::new();
             js_sys::Reflect::set(
                 &context_options,
                 &"premultipliedAlpha".into(),
                 &wasm_bindgen::JsValue::FALSE,
-            ).expect("Cannot create context options");
+            )
+            .expect("Cannot create context options");
 
             let gl: GL = canvas
                 .get_context_with_context_options("webgl2", &context_options)
@@ -139,43 +139,33 @@ pub fn ConstellationSinkDensity(
             let vertexes = [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0];
             let vertex_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            let view = unsafe {f32::view(&vertexes)};
-            gl.buffer_data_with_array_buffer_view(
-                GL::ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            let view = unsafe { f32::view(&vertexes) };
+            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let indices = [0, 1, 2, 0, 2, 3];
             let indices_buffer = gl.create_buffer().unwrap();
             gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&indices_buffer));
             let view = unsafe { u16::view(&indices) };
-            gl.buffer_data_with_array_buffer_view(
-                GL::ELEMENT_ARRAY_BUFFER,
-                &view,
-                GL::STATIC_DRAW,
-            );
+            gl.buffer_data_with_array_buffer_view(GL::ELEMENT_ARRAY_BUFFER, &view, GL::STATIC_DRAW);
 
             let loc = gl.get_attrib_location(&shader, "texCoord") as u32;
             gl.enable_vertex_attrib_array(loc);
             gl.vertex_attrib_pointer_with_i32(loc, 2, GL::FLOAT, false, 0, 0);
 
             let state = Rc::new(RefCell::new(RenderState {
-                canvas, gl, texture, width,
+                canvas,
+                gl,
+                texture,
+                width,
             }));
             request_animation_frame(render(state, data))
-        });
+        }
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
-fn render(
-    state: Rc<RefCell<RenderState>>,
-    data: Rc<RefCell<Option<Vec<u8>>>>,
-) -> impl FnOnce() + 'static {
+fn render(state: Rc<RefCell<RenderState>>, data: ReadSignal<Vec<u8>>) -> impl FnOnce() + 'static {
     move || {
         {
             let RenderState {
@@ -196,7 +186,8 @@ fn render(
                 gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
 
-            if let Some(bytes) = data.borrow_mut().take() {
+            let bytes = &*data.read_untracked();
+            if !bytes.is_empty() {
                 let samples = unsafe {
                     let s = bytes.len() / 8;
                     let p = bytes.as_ptr();

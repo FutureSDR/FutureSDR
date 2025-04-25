@@ -28,13 +28,14 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 crc32fast = "1.4"
 futuresdr = { path = "../..", features = ["seify"] }
-rand = "0.8"
-rand_distr = "0.4"
+rand = "0.9"
+rand_distr = "0.5"
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-gloo-net = "0.5"
-leptos = { version = "0.6", features = ["csr", "nightly"] }
+gloo-net = "0.6"
+leptos = { version = "0.7", features = ["csr", "nightly"] }
 log = "0.4"
 prophecy = { path = "../../crates/prophecy" }
 serde_json = "1.0"

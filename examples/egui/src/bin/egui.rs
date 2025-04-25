@@ -44,12 +44,12 @@ async fn process_gui_actions(mut rx: UnboundedReceiver<GuiAction>) -> anyhow::Re
     let remote = Remote::new("http://127.0.0.1:1337");
     let fgs = remote.flowgraphs().await?;
     let sdr = &fgs[0].blocks()[0];
-    println!("sdr {:?}", sdr);
+    println!("sdr {sdr:?}");
 
     while let Some(m) = rx.recv().await {
         match m {
             GuiAction::SetFreq(f) => {
-                println!("setting frequency to {}MHz", f);
+                println!("setting frequency to {f}MHz");
                 sdr.callback(Handler::Id(0), Pmt::U64(f * 1000000)).await?
             }
         };

@@ -5,7 +5,6 @@ set -xe
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
 
-export RUSTFLAGS='--cfg=web_sys_unstable_apis'
 cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
 
 CARGO_FMT="cargo +nightly fmt"

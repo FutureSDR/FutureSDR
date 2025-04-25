@@ -1,7 +1,6 @@
 use futuresdr_types::FlowgraphDescription;
-use leptos::html::div;
-use leptos::html::pre;
-use leptos::*;
+use leptos::html::Pre;
+use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -38,9 +37,18 @@ fn flowgraph_to_mermaid(fg: FlowgraphDescription) -> String {
 #[component]
 /// Mermaid Graph of Flowgraph
 pub fn FlowgraphMermaid(fg: FlowgraphDescription) -> impl IntoView {
-    div().on_mount(|_| mermaid_render()).child(
-        pre()
-            .classes("mermaid")
-            .inner_html(flowgraph_to_mermaid(fg)),
-    )
+    let pre_ref = NodeRef::<Pre>::new();
+
+    Effect::new(move |_| {
+        if let Some(pre) = pre_ref.get() {
+            pre.set_inner_html(&flowgraph_to_mermaid(fg.clone()));
+            mermaid_render();
+        }
+    });
+
+    view! {
+        <div>
+            <pre class="mermaid" node_ref=pre_ref></pre>
+        </div>
+    }
 }

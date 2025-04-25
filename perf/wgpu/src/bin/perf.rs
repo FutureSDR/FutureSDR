@@ -33,13 +33,14 @@ mod foo {
 #[cfg(target_arch = "wasm32")]
 mod foo {
     use anyhow::Result;
-    use leptos::*;
+    use leptos::prelude::*;
+    use leptos::task::spawn_local;
 
     #[component]
     /// Main GUI
     fn Gui() -> impl IntoView {
         let start = move |_| {
-            leptos::spawn_local(async {
+            spawn_local(async {
                 perf_wgpu::run(0, "wasm".to_string(), 1000000, 32768)
                     .await
                     .unwrap();

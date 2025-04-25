@@ -1,37 +1,35 @@
 use futuresdr::runtime::Pmt;
 use leptos::html::Span;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 use leptos::wasm_bindgen::JsCast;
-use leptos::*;
+use leptos::web_sys::HtmlInputElement;
 use prophecy::ConstellationSinkDensity;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
-use web_sys::HtmlInputElement;
 
 #[component]
 pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
     let fg_desc = {
         let fg_handle = fg_handle.clone();
-        create_local_resource(
-            || (),
-            move |_| {
-                let mut fg_handle = fg_handle.clone();
-                async move {
-                    if let Ok(desc) = fg_handle.description().await {
-                        return Some(desc);
-                    }
-                    None
+        LocalResource::new(move || {
+            let mut fg_handle = fg_handle.clone();
+            async move {
+                if let Ok(desc) = fg_handle.description().await {
+                    return Some(desc);
                 }
-            },
-        )
+                None
+            }
+        })
     };
 
-    let (width, set_width) = create_signal(2.0f32);
+    let (width, set_width) = signal(2.0f32);
 
-    let width_label = create_node_ref::<Span>();
-    let gain_label = create_node_ref::<Span>();
+    let width_label = NodeRef::<Span>::new();
+    let gain_label = NodeRef::<Span>::new();
 
     view! {
         <div class="border-2 border-slate-500 rounded-md flex flex-row flex-wrap m-4 p-4">
@@ -154,8 +152,12 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="border-2 border-slate-500 rounded-md m-4 p-4">
             {move || {
                 match fg_desc.get() {
-                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_view(),
-                    _ => view! {}.into_view(),
+                    Some(wrapped) => {
+                        match wrapped.take() {
+                            Some(desc) => view! { <FlowgraphMermaid fg=desc /> }.into_any(),
+                            _ => view! { }.into_any(),
+                        }},
+                    _ => view! {}.into_any(),
                 }
             }}
         </div>
@@ -168,29 +170,30 @@ pub fn Gui() -> impl IntoView {
     // let rt_handle = RuntimeHandle::from_url(rt_url);
     let rt_handle = RuntimeHandle::from_url("http://127.0.0.1:1337");
 
-    let fg_handle = create_local_resource(
-        || (),
-        move |_| {
-            let rt_handle = rt_handle.clone();
-            async move {
-                if let Ok(fg) = rt_handle.get_flowgraph(0).await {
-                    Some(fg)
-                } else {
-                    None
-                }
+    let fg_handle = LocalResource::new(move || {
+        let rt_handle = rt_handle.clone();
+        async move {
+            if let Ok(fg) = rt_handle.get_flowgraph(0).await {
+                Some(fg)
+            } else {
+                None
             }
-        },
-    );
+        }
+    });
 
     view! {
         <h1 class="text-xl text-white m-4"> FutureSDR WLAN</h1>
         {move || {
              match fg_handle.get() {
-                 Some(Some(handle)) => view! {
-                     <Wlan fg_handle=handle /> }.into_view(),
+                 Some(wrapped) => {
+                     match wrapped.take() {
+                         Some(handle) => view! { <Wlan fg_handle=handle /> }.into_any(),
+                        _ => view! {}.into_any()
+                     }
+                 },
                  _ => view! {
                      <div>"Connecting"</div>
-                 }.into_view(),
+                 }.into_any(),
              }
         }}
     }

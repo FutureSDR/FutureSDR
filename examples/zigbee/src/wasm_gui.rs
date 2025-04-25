@@ -2,8 +2,14 @@ use futuresdr::tracing::info;
 use gloo_worker::Spawnable;
 use gloo_worker::WorkerBridge;
 use leptos::html::Select;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos::wasm_bindgen::prelude::*;
+use leptos::web_sys;
+use serde::ser::SerializeTuple;
+use serde::ser::Serializer;
 use std::collections::VecDeque;
+use wasm_bindgen_futures::JsFuture;
 
 use crate::wasm_worker::Frame;
 use crate::wasm_worker::Worker;
@@ -17,10 +23,10 @@ pub fn wasm_main() {
 #[component]
 /// Main GUI
 fn Gui() -> impl IntoView {
-    let (n_frames, set_n_frames) = create_signal(-1);
-    let (frames, set_frames) = create_signal(VecDeque::new());
-    let (handle, set_handle) = create_signal(None);
-    create_effect(move |_| {
+    let (n_frames, set_n_frames) = signal(-1);
+    let (frames, set_frames) = signal(VecDeque::new());
+    let (handle, set_handle) = signal_local(None);
+    Effect::new(move |_| {
         _ = frames();
         set_n_frames.update(|n| *n += 1);
     });
@@ -28,31 +34,39 @@ fn Gui() -> impl IntoView {
         if handle.get_untracked().is_some() {
             info!("already running");
         } else {
-            leptos::spawn_local(run_fg(set_handle, set_frames));
+            spawn_local(run_fg(set_handle, set_frames));
         }
     };
     view! {
         <h1>"FutureSDR ZigBee Receiver"</h1>
-        <button on:click=start type="button" class="bg-fs-blue hover:brightness-75 text-slate-200 font-bold py-2 px-4 rounded">Start</button>
-        <Channel handle=handle/>
-        <div class="bg-fs-blue font-mono">
-            "Frames received: " {n_frames}
-        </div>
+        <button
+            on:click=start
+            type="button"
+            class="bg-fs-blue hover:brightness-75 text-slate-200 font-bold py-2 px-4 rounded"
+        >
+            Start
+        </button>
+        <Channel handle=handle />
+        <div class="bg-fs-blue font-mono">"Frames received: " {n_frames}</div>
         <ul class="font-mono">
-            {move || frames().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
+            {move || {
+                frames().into_iter().map(|n| view! { <li>{format!("{n:?}")}</li> }).collect_view()
+            }}
         </ul>
     }
 }
 
 #[component]
-fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl IntoView {
+fn Channel(
+    handle: ReadSignal<Option<&'static WorkerBridge<Worker>>, LocalStorage>,
+) -> impl IntoView {
     let _ = handle;
-    let select_ref = create_node_ref::<Select>();
+    let select_ref = NodeRef::<Select>::new();
     let change = move |_| {
         let select = select_ref.get().unwrap();
         info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
-        leptos::spawn_local(async move {
+        spawn_local(async move {
             if let Some(h) = handle.get_untracked() {
                 h.send(WorkerMessage::Freq(freq));
             }
@@ -61,36 +75,32 @@ fn Channel(handle: ReadSignal<Option<&'static WorkerBridge<Worker>>>) -> impl In
 
     view! {
         <div class="bg-fs-green">
-            Channel:
-            <select on:change=change node_ref=select_ref>
-            <option          value="2405000000">11</option>
-            <option          value="2410000000">12</option>
-            <option          value="2415000000">13</option>
-            <option          value="2420000000">14</option>
-            <option          value="2425000000">15</option>
-            <option          value="2430000000">16</option>
-            <option          value="2435000000">17</option>
-            <option          value="2440000000">18</option>
-            <option          value="2445000000">19</option>
-            <option          value="2450000000">20</option>
-            <option          value="2455000000">21</option>
-            <option          value="2460000000">22</option>
-            <option          value="2465000000">23</option>
-            <option          value="2470000000">24</option>
-            <option          value="2475000000">25</option>
-            <option selected value="2480000000">26</option>
+            Channel: <select on:change=change node_ref=select_ref>
+                <option value="2405000000">11</option>
+                <option value="2410000000">12</option>
+                <option value="2415000000">13</option>
+                <option value="2420000000">14</option>
+                <option value="2425000000">15</option>
+                <option value="2430000000">16</option>
+                <option value="2435000000">17</option>
+                <option value="2440000000">18</option>
+                <option value="2445000000">19</option>
+                <option value="2450000000">20</option>
+                <option value="2455000000">21</option>
+                <option value="2460000000">22</option>
+                <option value="2465000000">23</option>
+                <option value="2470000000">24</option>
+                <option value="2475000000">25</option>
+                <option selected value="2480000000">
+                    26
+                </option>
             </select>
         </div>
     }
 }
 
-use serde::ser::SerializeTuple;
-use serde::ser::Serializer;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-
 async fn run_fg(
-    set_handle: WriteSignal<Option<&WorkerBridge<Worker>>>,
+    set_handle: WriteSignal<Option<&'static WorkerBridge<Worker>>, LocalStorage>,
     set_frames: WriteSignal<VecDeque<Frame>>,
 ) {
     let window = web_sys::window().expect("No global 'window' exists!");

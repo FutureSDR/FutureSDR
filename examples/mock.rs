@@ -1,11 +1,12 @@
+use rand::distr::Uniform;
 use rand::Rng;
 
 use futuresdr::blocks::Apply;
 use futuresdr::runtime::Mocker;
 
 fn main() {
-    let input: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
+    let input: Vec<u32> = rand::rng()
+        .sample_iter(Uniform::<u32>::new(0, 1024).unwrap())
         .take(64)
         .collect();
 

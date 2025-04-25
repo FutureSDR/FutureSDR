@@ -568,8 +568,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                             let _ = tx.send(Ok(b));
                         } else {
                             let _ = tx.send(Err(Error::RuntimeError(format!(
-                                "Block {} terminated or crashed",
-                                block_id
+                                "Block {block_id} terminated or crashed"
                             ))));
                         }
                     } else {

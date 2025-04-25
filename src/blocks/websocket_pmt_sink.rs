@@ -97,7 +97,7 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
@@ -112,7 +112,7 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
@@ -127,13 +127,13 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
                 }
-                Some(Pmt::Blob(b)) => Some(Message::Binary(b)),
-                Some(Pmt::String(s)) => Some(Message::Text(s)),
+                Some(Pmt::Blob(b)) => Some(Message::Binary(b.into())),
+                Some(Pmt::String(s)) => Some(Message::Text(s.into())),
                 Some(p) => {
                     warn!("WebsocketPmtSink: unsupported PMT type {:?}", p);
                     None

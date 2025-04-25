@@ -121,7 +121,7 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
                         .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
                         .accept(),
                 );
-                let send = conn.send(Message::Binary(v));
+                let send = conn.send(Message::Binary(v.into()));
 
                 match future::select(acc, send).await {
                     Either::Left((a, _)) => {

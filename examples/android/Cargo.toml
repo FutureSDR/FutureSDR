@@ -12,4 +12,4 @@ crate-type = ["cdylib", "rlib"]
 anyhow = "1.0"
 futuresdr = { path = "../..", features = ["vulkan"] }
 jni = { version = "0.21" }
-rand = "0.8"
+rand = "0.9"

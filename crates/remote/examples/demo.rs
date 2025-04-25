@@ -19,15 +19,15 @@ async fn main() -> Result<(), Error> {
     println!("Connections:");
     let msg_connections = fg.message_connections();
     for c in msg_connections {
-        println!("{}", c);
+        println!("{c}");
     }
     let stream_connections = fg.stream_connections();
     for c in stream_connections {
-        println!("{}", c);
+        println!("{c}");
     }
 
     let p = b.call(Handler::Id(0)).await?;
-    println!("result: {:?}", p);
+    println!("result: {p:?}");
 
     Ok(())
 }

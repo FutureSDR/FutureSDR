@@ -30,8 +30,8 @@ impl From<String> for PortId {
 impl fmt::Display for PortId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Index(i) => write!(f, "{}", i),
-            Self::Name(s) => write!(f, "{}", s),
+            Self::Index(i) => write!(f, "{i}"),
+            Self::Name(s) => write!(f, "{s}"),
         }
     }
 }

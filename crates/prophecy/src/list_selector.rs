@@ -3,7 +3,8 @@ use futuresdr_types::PortId;
 use indexmap::IndexMap;
 use leptos::html::Select;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 
 use crate::FlowgraphHandle;
 
@@ -19,7 +20,7 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     #[prop(into, optional)] select_class: String,
 ) -> impl IntoView {
     let handler = handler.into();
-    let select_ref = create_node_ref::<Select>();
+    let select_ref = NodeRef::<Select>::new();
     let values: IndexMap<String, Pmt> = IndexMap::from_iter(values);
 
     let change = {
@@ -29,7 +30,7 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
             let handler = handler.clone();
             let select = select_ref.get().unwrap();
             let pmt = values.get(&select.value()).unwrap().clone();
-            leptos::spawn_local(async move {
+            spawn_local(async move {
                 log!(
                     "sending block {} handler {:?} pmt {:?}",
                     block_id,
@@ -42,13 +43,11 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     };
 
     view! {
-        <select node_ref=select_ref on:change=change class={select_class}> {
-            values.into_iter()
-            .map(|(n, _)| view! {
-                <option value={n.clone()}>{n}</option>
-            })
-            .collect::<Vec<_>>()
-        }
+        <select node_ref=select_ref on:change=change class=select_class>
+            {values
+                .into_iter()
+                .map(|(n, _)| view! { <option value=n.clone()>{n.clone()}</option> })
+                .collect::<Vec<_>>()}
         </select>
     }
 }

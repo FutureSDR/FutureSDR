@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         }
     }
 
-    println!("channels: {:?}", channels);
+    println!("channels: {channels:?}");
 
     let src = SourceBuilder::new()
         .sample_rate(1e6)

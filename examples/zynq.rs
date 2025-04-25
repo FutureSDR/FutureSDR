@@ -8,14 +8,15 @@ use futuresdr::runtime::buffer::zynq::D2H;
 use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use rand::distr::Uniform;
 use rand::Rng;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let n_items = 100_000;
-    let orig: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
+    let orig: Vec<u32> = rand::rng()
+        .sample_iter(Uniform::<u32>::new(0, 1024).unwrap())
         .take(n_items)
         .collect();
 

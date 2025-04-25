@@ -3,10 +3,12 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Canvas;
 use leptos::logging::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::WebGl2RenderingContext as GL;
 use web_sys::WebGlProgram;
 
@@ -14,7 +16,7 @@ use crate::ArrayView;
 
 pub enum WaterfallMode {
     Websocket(String),
-    Data(Rc<RefCell<Option<Vec<u8>>>>),
+    Data(ReadSignal<Vec<u8>>),
 }
 
 impl Default for WaterfallMode {
@@ -24,7 +26,7 @@ impl Default for WaterfallMode {
 }
 
 struct RenderState {
-    canvas: HtmlElement<Canvas>,
+    canvas: HtmlCanvasElement,
     gl: GL,
     shader: WebGlProgram,
     texture_offset: i32,
@@ -35,38 +37,35 @@ const SHADER_HEIGHT: usize = 256;
 #[component]
 /// Waterfall Sink
 pub fn Waterfall(
-    #[prop(into)] min: MaybeSignal<f32>,
-    #[prop(into)] max: MaybeSignal<f32>,
+    #[prop(into)] min: Signal<f32>,
+    #[prop(into)] max: Signal<f32>,
     #[prop(optional)] mode: WaterfallMode,
 ) -> impl IntoView {
     let data = match mode {
         WaterfallMode::Data(d) => d,
         WaterfallMode::Websocket(s) => {
-            let data = Rc::new(RefCell::new(None));
-            {
-                let data = data.clone();
-                spawn_local(async move {
-                    let mut ws = WebSocket::open(&s).unwrap();
-                    while let Some(msg) = ws.next().await {
-                        match msg {
-                            Ok(Message::Bytes(b)) => {
-                                *data.borrow_mut() = Some(b);
-                            }
-                            _ => {
-                                log!("TimeSink: WebSocket {:?}", msg);
-                            }
+            let (data, set_data) = signal(vec![]);
+            spawn_local(async move {
+                let mut ws = WebSocket::open(&s).unwrap();
+                while let Some(msg) = ws.next().await {
+                    match msg {
+                        Ok(Message::Bytes(b)) => {
+                            set_data.set(b);
+                        }
+                        _ => {
+                            log!("TimeSink: WebSocket {:?}", msg);
                         }
                     }
-                    log!("TimeSink: WebSocket Closed");
-                });
-            }
+                }
+                log!("TimeSink: WebSocket Closed");
+            });
             data
         }
     };
 
-    let canvas_ref = create_node_ref::<Canvas>();
-    canvas_ref.on_load(move |canvas_ref| {
-        let _ = canvas_ref.on_mount(move |canvas| {
+    let canvas_ref = NodeRef::<Canvas>::new();
+    Effect::new(move || {
+        if let Some(canvas) = canvas_ref.get() {
             let gl: GL = canvas
                 .get_context("webgl2")
                 .unwrap()
@@ -156,7 +155,7 @@ pub fn Waterfall(
             {
                 let gl = gl.clone();
                 let shader = shader.clone();
-                create_render_effect(move |_| {
+                let _ = RenderEffect::new(move |_| {
                     let u_min = gl.get_uniform_location(&shader, "u_min");
                     gl.uniform1f(u_min.as_ref(), min.get());
                     let u_max = gl.get_uniform_location(&shader, "u_max");
@@ -171,7 +170,7 @@ pub fn Waterfall(
                 texture_offset: 0,
             };
             request_animation_frame(render(Rc::new(RefCell::new(state)), data, fft_size))
-        });
+        }
     });
 
     view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
@@ -179,7 +178,7 @@ pub fn Waterfall(
 
 fn render(
     state: Rc<RefCell<RenderState>>,
-    data: Rc<RefCell<Option<Vec<u8>>>>,
+    data: ReadSignal<Vec<u8>>,
     last_fft_size: usize,
 ) -> impl FnOnce() + 'static {
     move || {
@@ -203,8 +202,8 @@ fn render(
                 gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
 
-            if let Some(bytes) = data.borrow_mut().take() {
-                // assert_eq!(bytes.len(), fft_size_val * 4);
+            let bytes = &*data.read_untracked();
+            if !bytes.is_empty() {
                 fft_size_val = bytes.len() / 4;
                 if fft_size_val != last_fft_size {
                     initialize_texture(gl, fft_size_val);
@@ -234,9 +233,8 @@ fn render(
                 let loc = gl.get_uniform_location(shader, "yoffset");
                 gl.uniform1f(loc.as_ref(), *texture_offset as f32 / SHADER_HEIGHT as f32);
                 *texture_offset = (*texture_offset + 1) % SHADER_HEIGHT as i32;
-
-                gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
             }
+            gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
         }
         request_animation_frame(render(state, data, fft_size_val))
     }

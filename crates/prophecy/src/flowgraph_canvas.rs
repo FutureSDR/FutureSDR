@@ -1,12 +1,9 @@
-use leptos::*;
+use leptos::prelude::*;
 
 #[component]
 /// Flowgraph Canvas (WIP)
 pub fn FlowgraphCanvas() -> impl IntoView {
-    view! {
-        <div class="bg-red-500" style="width=100%; height: 50vh" >
-        </div>
-    }
+    view! { <div class="bg-red-500" style="width=100%; height: 50vh"></div> }
 }
 
 // #[component]

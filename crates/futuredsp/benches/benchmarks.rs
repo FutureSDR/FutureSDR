@@ -18,34 +18,34 @@ trait Generatable {
 
 impl Generatable for f32 {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
-        rng.gen::<f32>() * 2.0 - 1.0
+        let mut rng = rand::rng();
+        rng.random::<f32>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f32> {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Complex {
-            re: rng.gen::<f32>() * 2.0 - 1.0,
-            im: rng.gen::<f32>() * 2.0 - 1.0,
+            re: rng.random::<f32>() * 2.0 - 1.0,
+            im: rng.random::<f32>() * 2.0 - 1.0,
         }
     }
 }
 
 impl Generatable for f64 {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
-        rng.gen::<f64>() * 2.0 - 1.0
+        let mut rng = rand::rng();
+        rng.random::<f64>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f64> {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Complex {
-            re: rng.gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
-            im: rng.gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            re: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            im: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
         }
     }
 }

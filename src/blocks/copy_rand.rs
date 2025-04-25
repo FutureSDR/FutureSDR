@@ -8,6 +8,7 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use rand::Rng;
 use std::marker::PhantomData;
 
 /// Copy input samples to the output, forwarding only a randomly selected number of samples.
@@ -60,7 +61,7 @@ impl<T: Copy + Send + 'static> Kernel for CopyRand<T> {
 
         let mut m = *[self.max_copy, i.len(), o.len()].iter().min().unwrap_or(&0);
         if m > 0 {
-            m = rand::random::<usize>() % m + 1;
+            m = rand::rng().random_range(1..=m);
             o[..m].copy_from_slice(&i[..m]);
             sio.input(0).consume(m);
             sio.output(0).produce(m);
