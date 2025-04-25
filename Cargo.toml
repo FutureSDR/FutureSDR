@@ -10,29 +10,32 @@ repository = "https://github.com/futuresdr/futuresdr/"
 readme = "README.md"
 description = "An Experimental Async SDR Runtime for Heterogeneous Architectures."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
-categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
-
-[workspace]
-members = [
-    ".",
-    "crates/futuredsp",
-    "crates/macros",
-    "crates/types",
+categories = [
+  "asynchronous",
+  "concurrency",
+  "hardware-support",
+  "science",
+  "wasm",
 ]
 
+[workspace]
+members = [".", "crates/futuredsp", "crates/macros", "crates/types"]
+
 [features]
-default = []
+default = ["tracing_max_level_debug", "tracing_release_max_level_info"]
 aaronia = ["seify/aaronia"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
+hackrf = ["seify/hackrfone"]
 lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
 rtlsdr = ["seify/rtlsdr"]
-hackrf = ["seify/hackrfone"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
 tpb_scheduler = []
+tracing_max_level_debug = ["tracing/max_level_debug"]
+tracing_release_max_level_info = ["tracing/release_max_level_info"]
 vulkan = ["dep:vulkano", "dep:vulkano-shaders"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
@@ -96,7 +99,7 @@ slab = "0.4"
 spin = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
-tracing = { version = "0.1", features = ["log", "max_level_debug", "release_max_level_info"] }
+tracing = { version = "0.1", features = ["log"] }
 web-time = { version = "1.1" }
 wgpu = { version = "0.20", optional = true }
 async-std = "1.12.0"
@@ -104,7 +107,10 @@ async-std = "1.12.0"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 cpal = { version = "0.15", optional = true, features = ['wasm-bindgen'] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
-gloo-net = { version = "0.6", default-features = false, features = ["websocket", "json"] }
+gloo-net = { version = "0.6", default-features = false, features = [
+  "websocket",
+  "json",
+] }
 gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
 rodio = { version = "0.20", default-features = false, optional = true }
@@ -130,7 +136,9 @@ core_affinity = "0.8"
 cpal = { version = "0.15", optional = true }
 hound = { version = "3.5", optional = true }
 libc = "0.2"
-rodio = { version = "0.20", default-features = false, features = ["symphonia-all"], optional = true }
+rodio = { version = "0.20", default-features = false, features = [
+  "symphonia-all",
+], optional = true }
 tokio = { version = "1", features = ["rt"] }
 tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
@@ -149,24 +157,24 @@ android_logger = "0.15"
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"
 features = [
-    'Document',
-    'Element',
-    'HtmlElement',
-    'Navigator',
-    'Node',
-    'Usb',
-    'UsbConfiguration',
-    'UsbControlTransferParameters',
-    'UsbDevice',
-    'UsbDeviceFilter',
-    'UsbDeviceRequestOptions',
-    'UsbInTransferResult',
-    'UsbOutTransferResult',
-    'UsbRecipient',
-    'UsbRequestType',
-    'Window',
-    'WorkerGlobalScope',
-    'WorkerNavigator',
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Navigator',
+  'Node',
+  'Usb',
+  'UsbConfiguration',
+  'UsbControlTransferParameters',
+  'UsbDevice',
+  'UsbDeviceFilter',
+  'UsbDeviceRequestOptions',
+  'UsbInTransferResult',
+  'UsbOutTransferResult',
+  'UsbRecipient',
+  'UsbRequestType',
+  'Window',
+  'WorkerGlobalScope',
+  'WorkerNavigator',
 ]
 
 [build-dependencies]
@@ -190,4 +198,3 @@ panic = "abort"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
-
