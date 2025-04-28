@@ -1,0 +1,20 @@
+[package]
+name = "perf"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[features]
+default = []
+lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
+
+[dependencies]
+futuresdr = { path = "../../" }
+rand = "0.9"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+lttng-ust = { version = "0.1.0", git = "https://github.com/bastibl/lttng-ust-rs", rev = "023b3fad4c6be0e2d506cf4f6bafcc1b6f80e5c5", optional = true }
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+lttng-ust-generate = { version = "0.1.1", git = "https://github.com/bastibl/lttng-ust-rs", rev = "023b3fad4c6be0e2d506cf4f6bafcc1b6f80e5c5", optional = true }

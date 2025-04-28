@@ -59,9 +59,6 @@
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
 //! | [struct@Copy] | Copy input samples to the output. | ✅ | |
-//! | [CopyRand] | Copy input samples to the output, forwarding only a randomly selected number of samples. | ❌ | |
-//! | [lttng::NullSource] | Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples. | ❌ | lttng |
-//! | [lttng:NullSink] | Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples. | ❌ | lttng |
 //!
 //! ## I/O
 //! | Block | Usage | WebAssembly? |
@@ -134,9 +131,6 @@ mod console_sink;
 pub use console_sink::ConsoleSink;
 mod copy;
 pub use copy::Copy;
-mod copy_rand;
-pub use copy_rand::CopyRand;
-pub use copy_rand::CopyRandBuilder;
 mod delay;
 pub use delay::Delay;
 mod fft;
@@ -163,8 +157,6 @@ pub use head::Head;
 mod iir;
 pub use iir::Iir;
 pub use iir::IirBuilder;
-#[cfg(all(feature = "lttng", target_os = "linux"))]
-pub mod lttng;
 
 mod message_annotator;
 pub use message_annotator::MessageAnnotator;

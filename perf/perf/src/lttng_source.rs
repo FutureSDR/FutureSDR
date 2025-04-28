@@ -1,35 +1,35 @@
+use futuresdr::macros::async_trait;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
+use futuresdr::runtime::WorkIo;
 use lttng_ust::import_tracepoints;
 use std::ptr;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples.
-pub struct NullSource<T: Send + 'static> {
+pub struct LttngSource<T: Send + 'static> {
     probe_granularity: u64,
     id: Option<u64>,
     n_produced: u64,
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> NullSource<T> {
-    /// Create NullSource block
+impl<T: Send + 'static> LttngSource<T> {
+    /// Create LttngSource block
     pub fn new(probe_granularity: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("LTTngNullSource").build(),
+            BlockMetaBuilder::new("LTTngLttngSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
-            NullSource::<T> {
+            LttngSource::<T> {
                 probe_granularity,
                 id: None,
                 n_produced: 0,
@@ -41,7 +41,7 @@ impl<T: Send + 'static> NullSource<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for NullSource<T> {
+impl<T: Send + 'static> Kernel for LttngSource<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,

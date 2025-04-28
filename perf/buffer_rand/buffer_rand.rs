@@ -1,7 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
@@ -11,6 +10,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
+use perf::CopyRandBuilder;
 use std::time;
 
 fn connect(

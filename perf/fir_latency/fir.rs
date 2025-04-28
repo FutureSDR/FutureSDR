@@ -1,16 +1,16 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::lttng::NullSink;
-use futuresdr::blocks::lttng::NullSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
+use perf::CopyRandBuilder;
+use perf::LttngSink;
+use perf::LttngSource;
 use std::iter::repeat_with;
 use std::time;
 
@@ -52,7 +52,7 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new(GRANULARITY))?;
+        let src = fg.add_block(LttngSource::<f32>::new(GRANULARITY))?;
         let head = fg.add_block(Head::<f32>::new(samples))?;
         fg.connect_stream(src, "out", head, "in")?;
 
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
             fg.connect_stream(copy, "out", last, "in")?;
         }
 
-        let snk = fg.add_block(NullSink::<f32>::new(GRANULARITY))?;
+        let snk = fg.add_block(LttngSink::<f32>::new(GRANULARITY))?;
         fg.connect_stream(last, "out", snk, "in")?;
         snks.push(snk);
     }
@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let snk = fg.kernel::<NullSink<f32>>(s).context("no block")?;
+        let snk = fg.kernel::<LttngSink<f32>>(s).context("no block")?;
         let v = snk.n_received();
         assert_eq!(v, samples - (stages * 63));
     }

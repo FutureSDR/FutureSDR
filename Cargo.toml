@@ -28,7 +28,6 @@ aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []
 hackrf = ["seify/hackrfone"]
-lttng = ["dep:lttng-ust", "dep:lttng-ust-generate"]
 rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
@@ -92,7 +91,6 @@ num-complex = "0.4"
 num-integer = "0.1"
 num_cpus = "1.16"
 once_cell = "1.21"
-rand = "0.9"
 rustfft = "6.3"
 seify = { version = "0.16", default-features = false, optional = true }
 slab = "0.4"
@@ -148,7 +146,6 @@ vulkano-shaders = { version = "0.34", optional = true }
 zmq = { version = "0.10", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-lttng-ust = { version = "0.1.0", git = "https://github.com/bastibl/lttng-ust-rs", rev = "023b3fad4c6be0e2d506cf4f6bafcc1b6f80e5c5", optional = true }
 xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
@@ -180,14 +177,12 @@ features = [
 [build-dependencies]
 rustc_version = "0.4"
 
-[target.'cfg(target_os = "linux")'.build-dependencies]
-lttng-ust-generate = { version = "0.1.1", git = "https://github.com/bastibl/lttng-ust-rs", rev = "023b3fad4c6be0e2d506cf4f6bafcc1b6f80e5c5", optional = true }
-
 [dev-dependencies]
 async-channel = "2.3"
 criterion = { version = "0.5", features = ["html_reports"] }
 easy-parallel = "3.3"
 float-cmp = "0.10"
+rand = "0.9"
 
 [profile.release]
 codegen-units = 1

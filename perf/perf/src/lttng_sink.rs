@@ -1,34 +1,34 @@
+use futuresdr::macros::async_trait;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockMetaBuilder;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::MessageIo;
+use futuresdr::runtime::MessageIoBuilder;
+use futuresdr::runtime::Result;
+use futuresdr::runtime::StreamIo;
+use futuresdr::runtime::StreamIoBuilder;
+use futuresdr::runtime::TypedBlock;
+use futuresdr::runtime::WorkIo;
 use lttng_ust::import_tracepoints;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples.
-pub struct NullSink<T: Send + 'static> {
+pub struct LttngSink<T: Send + 'static> {
     n_received: u64,
     probe_granularity: u64,
     id: Option<u64>,
     _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> NullSink<T> {
-    /// Create NullSink block
+impl<T: Send + 'static> LttngSink<T> {
+    /// Create LttngSink block
     pub fn new(probe_granularity: u64) -> TypedBlock<Self> {
         TypedBlock::new(
-            BlockMetaBuilder::new("LTTngNullSink").build(),
+            BlockMetaBuilder::new("LTTngLttngSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
-            NullSink::<T> {
+            LttngSink::<T> {
                 n_received: 0,
                 probe_granularity,
                 id: None,
@@ -44,7 +44,7 @@ impl<T: Send + 'static> NullSink<T> {
 
 #[doc(hidden)]
 #[async_trait]
-impl<T: Send + 'static> Kernel for NullSink<T> {
+impl<T: Send + 'static> Kernel for LttngSink<T> {
     async fn init(
         &mut self,
         _sio: &mut StreamIo,

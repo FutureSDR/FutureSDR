@@ -1,7 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -11,6 +10,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
+use perf::CopyRandBuilder;
 use std::iter::repeat_with;
 use std::time;
 
