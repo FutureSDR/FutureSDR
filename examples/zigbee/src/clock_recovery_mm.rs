@@ -51,11 +51,7 @@ impl ClockRecoveryMm {
 }
 
 fn slice(i: f32) -> f32 {
-    if i > 0.0 {
-        1.0
-    } else {
-        -1.0
-    }
+    if i > 0.0 { 1.0 } else { -1.0 }
 }
 
 #[async_trait]

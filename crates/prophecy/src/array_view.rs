@@ -2,8 +2,8 @@
 // This Code is from maia-sdr
 use js_sys::Float32Array;
 use js_sys::Object;
-use js_sys::Uint16Array;
 use js_sys::Uint8Array;
+use js_sys::Uint16Array;
 use std::ops::Deref;
 use web_sys::WebGl2RenderingContext;
 
@@ -34,12 +34,12 @@ pub trait ArrayView: Sized {
 }
 
 macro_rules! impl_array_view {
-    ($rust:ty, $js:ty, $gl:expr) => {
+    ($rust:ty, $js:ty, $gl:expr_2021) => {
         impl ArrayView for $rust {
             type JS = $js;
             const GL_TYPE: u32 = $gl;
             unsafe fn view(rust: &[$rust]) -> $js {
-                <$js>::view(rust)
+                unsafe { <$js>::view(rust) }
             }
         }
     };

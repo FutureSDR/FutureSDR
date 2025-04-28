@@ -1,8 +1,8 @@
-use anyhow::bail;
 use anyhow::Result;
+use anyhow::bail;
 use clap::Parser;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::VectorSource;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;

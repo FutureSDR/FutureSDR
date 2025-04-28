@@ -6,12 +6,12 @@ use std::fmt;
 use std::mem;
 use std::slice;
 
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::tag::default_tag_propagation;
 use crate::runtime::BlockMessage;
 use crate::runtime::ItemTag;
 use crate::runtime::Tag;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::tag::default_tag_propagation;
 
 #[derive(Debug)]
 struct CurrentInput {
@@ -134,8 +134,10 @@ impl StreamInput {
     /// # Safety
     /// The block has to be the sole reader for the input buffer.
     pub unsafe fn slice_mut<T>(&mut self) -> &'static mut [T] {
-        assert_eq!(self.type_id, TypeId::of::<T>());
-        self.slice_mut_unchecked()
+        unsafe {
+            assert_eq!(self.type_id, TypeId::of::<T>());
+            self.slice_mut_unchecked()
+        }
     }
 
     /// Returns a mutable slice to the input buffer.
@@ -143,8 +145,10 @@ impl StreamInput {
     /// # Safety
     /// The block has to be the sole reader for the input buffer.
     pub unsafe fn slice_mut_unchecked<T>(&mut self) -> &'static mut [T] {
-        let s = self.slice::<T>();
-        slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
+        unsafe {
+            let s = self.slice::<T>();
+            slice::from_raw_parts_mut(s.as_ptr() as *mut T, s.len())
+        }
     }
 
     /// Get [`ItemTags`](ItemTag) in buffer
@@ -350,8 +354,7 @@ impl StreamOutput {
     /// Get a mutable reference to the buffer writer
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn writer_mut(&mut self) -> &mut BufferWriter {
-        let w = self.writer.as_mut().unwrap();
-        w
+        self.writer.as_mut().unwrap()
     }
 }
 

@@ -1,8 +1,8 @@
+use crate::utils::LEGACY_SF_5_6;
+use crate::utils::WHITENING_SEQ;
 use crate::utils::bool2int;
 use crate::utils::int2bool;
 use crate::utils::my_modulo;
-use crate::utils::LEGACY_SF_5_6;
-use crate::utils::WHITENING_SEQ;
 
 pub struct Encoder {
     code_rate: u8,

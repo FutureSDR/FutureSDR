@@ -1,10 +1,10 @@
-use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::Sender;
-use futures::future::join_all;
-use futures::future::Either;
 use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::channel::mpsc::Receiver;
+use futures::channel::mpsc::Sender;
+use futures::future::Either;
+use futures::future::join_all;
 use std::any::Any;
 use std::fmt;
 use std::future::Future;
@@ -245,17 +245,20 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                 .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
             {
                 BlockMessage::Initialize => {
-                    if let Err(e) = kernel.init(sio, mio, meta).await {
-                        error!(
-                            "{}: Error during initialization. Terminating.",
-                            meta.instance_name().unwrap()
-                        );
-                        return Err(Error::RuntimeError(e.to_string()));
-                    } else {
-                        main_inbox
-                            .send(FlowgraphMessage::Initialized)
-                            .await
-                            .map_err(|e| Error::RuntimeError(e.to_string()))?;
+                    match kernel.init(sio, mio, meta).await {
+                        Err(e) => {
+                            error!(
+                                "{}: Error during initialization. Terminating.",
+                                meta.instance_name().unwrap()
+                            );
+                            return Err(Error::RuntimeError(e.to_string()));
+                        }
+                        _ => {
+                            main_inbox
+                                .send(FlowgraphMessage::Initialized)
+                                .await
+                                .map_err(|e| Error::RuntimeError(e.to_string()))?;
+                        }
                     }
                     break;
                 }
@@ -395,21 +398,24 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
 
             // ================== blocking
             if !work_io.call_again {
-                if let Some(f) = work_io.block_on.take() {
-                    let p = inbox.as_mut().peek();
+                match work_io.block_on.take() {
+                    Some(f) => {
+                        let p = inbox.as_mut().peek();
 
-                    match futures::future::select(f, p).await {
-                        Either::Left(_) => {
-                            work_io.call_again = true;
-                        }
-                        Either::Right((_, f)) => {
-                            work_io.block_on = Some(f);
-                            continue;
-                        }
-                    };
-                } else {
-                    inbox.as_mut().peek().await;
-                    continue;
+                        match futures::future::select(f, p).await {
+                            Either::Left(_) => {
+                                work_io.call_again = true;
+                            }
+                            Either::Right((_, f)) => {
+                                work_io.block_on = Some(f);
+                                continue;
+                            }
+                        };
+                    }
+                    _ => {
+                        inbox.as_mut().peek().await;
+                        continue;
+                    }
                 }
             }
 

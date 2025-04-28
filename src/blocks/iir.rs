@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
-use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
+use futuredsp::prelude::*;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;

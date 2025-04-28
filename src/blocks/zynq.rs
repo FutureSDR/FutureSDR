@@ -2,10 +2,6 @@ use std::marker::PhantomData;
 use xilinx_dma::AxiDmaAsync;
 use xilinx_dma::DmaBuffer;
 
-use crate::runtime::buffer::zynq::BufferEmpty;
-use crate::runtime::buffer::zynq::BufferFull;
-use crate::runtime::buffer::zynq::ReaderH2D;
-use crate::runtime::buffer::zynq::WriterD2H;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -16,6 +12,10 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use crate::runtime::buffer::zynq::BufferEmpty;
+use crate::runtime::buffer::zynq::BufferFull;
+use crate::runtime::buffer::zynq::ReaderH2D;
+use crate::runtime::buffer::zynq::WriterD2H;
 
 /// Interface Zynq FPGA w/ AXI DMA (async mode).
 ///

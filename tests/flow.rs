@@ -5,10 +5,10 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr_macros::connect;
 
 #[test]

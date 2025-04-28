@@ -1,22 +1,22 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
+use futuresdr::async_io::block_on;
+use futuresdr::blocks::Apply;
 use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::blocks::Apply;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
 use std::time::Duration;
 
-use zigbee::modulator;
-use zigbee::parse_channel;
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::IqDelay;
 use zigbee::Mac;
+use zigbee::modulator;
+use zigbee::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

@@ -6,15 +6,15 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use wgpu::BufferView;
 
-use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
-use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
+use crate::runtime::BlockMessage;
+use crate::runtime::ItemTag;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterCustom;
-use crate::runtime::BlockMessage;
-use crate::runtime::ItemTag;
+use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
+use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
 
 /// Device-to-Host stream connection
 #[derive(Debug, PartialEq, Hash)]

@@ -1,10 +1,10 @@
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
-use cpal::traits::StreamTrait;
 use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -16,8 +16,8 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
-use futures::channel::mpsc;
 use futures::StreamExt;
+use futures::channel::mpsc;
 
 /// Audio Source.
 #[allow(clippy::type_complexity)]

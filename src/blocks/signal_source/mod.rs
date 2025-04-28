@@ -172,11 +172,7 @@ impl SignalSourceBuilder<f32> {
             .into(),
             WaveForm::Square => SignalSource::new(
                 |phase: FixedPointPhase| {
-                    if phase.value < 0 {
-                        1.0
-                    } else {
-                        0.0
-                    }
+                    if phase.value < 0 { 1.0 } else { 0.0 }
                 },
                 nco,
                 self.amplitude,

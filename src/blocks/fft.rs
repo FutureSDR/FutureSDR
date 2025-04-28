@@ -1,5 +1,5 @@
-use rustfft::num_complex::Complex32;
 use rustfft::FftPlanner;
+use rustfft::num_complex::Complex32;
 use std::cmp;
 use std::sync::Arc;
 

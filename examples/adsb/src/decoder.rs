@@ -126,15 +126,15 @@ impl Decoder {
                     if crc_passed {
                         self.n_crc_ok += 1;
                         debug!(
-                                "Decoded packet with CRC OK (index: {}, preamble correlation: {}, data: {:?})",
-                                pkt.preamble_index, pkt.preamble_correlation, pkt.bits
-                            );
+                            "Decoded packet with CRC OK (index: {}, preamble correlation: {}, data: {:?})",
+                            pkt.preamble_index, pkt.preamble_correlation, pkt.bits
+                        );
                     } else {
                         self.n_crc_fail += 1;
                         debug!(
-                                "Decoded packet with CRC error (index: {}, preamble correlation: {}, data: {:?})",
-                                pkt.preamble_index, pkt.preamble_correlation, pkt.bits
-                            );
+                            "Decoded packet with CRC error (index: {}, preamble correlation: {}, data: {:?})",
+                            pkt.preamble_index, pkt.preamble_correlation, pkt.bits
+                        );
                     }
 
                     if crc_passed || self.forward_failed_crc {

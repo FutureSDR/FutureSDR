@@ -1,7 +1,7 @@
+use rodio::Decoder;
 use rodio::source::Buffered;
 use rodio::source::SamplesConverter;
 use rodio::source::Source;
-use rodio::Decoder;
 use std::fs::File;
 use std::io::BufReader;
 

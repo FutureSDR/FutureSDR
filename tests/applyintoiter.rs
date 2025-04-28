@@ -3,18 +3,16 @@ use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::circular::Circular;
 
 fn base_test(multiplier: usize, buf1_size: usize, buf2_size: usize) -> Result<()> {
     let mut fg = Flowgraph::new();
     let orig: Vec<f32> = vec![1.0, 2.0, 3.0];
     let src = fg.add_block(VectorSource::<f32>::new(orig.clone()))?;
     let apply_into_iter = fg.add_block(ApplyIntoIter::new(
-        move |i: &f32| -> std::iter::Take<std::iter::Repeat<f32>> {
-            std::iter::repeat(*i).take(multiplier)
-        },
+        move |i: &f32| -> std::iter::RepeatN<f32> { std::iter::repeat_n(*i, multiplier) },
     ))?;
     let vect_sink = fg.add_block(VectorSinkBuilder::<f32>::new().build())?;
 

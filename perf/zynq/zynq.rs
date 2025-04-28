@@ -5,13 +5,13 @@ use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Zynq;
 use futuresdr::blocks::ZynqSync;
-use futuresdr::runtime::buffer::zynq::D2H;
-use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use rand::distr::Uniform;
+use futuresdr::runtime::buffer::zynq::D2H;
+use futuresdr::runtime::buffer::zynq::H2D;
 use rand::Rng;
+use rand::distr::Uniform;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]

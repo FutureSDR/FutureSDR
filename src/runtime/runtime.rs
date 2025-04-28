@@ -2,12 +2,12 @@
 use async_io::block_on;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
-use futures::channel::mpsc::channel;
+use futures::FutureExt;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures::prelude::*;
-use futures::FutureExt;
 use slab::Slab;
 use std::fmt;
 use std::pin::Pin;
@@ -17,13 +17,6 @@ use std::task;
 use std::task::Poll;
 
 use crate::runtime;
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::scheduler::SmolScheduler;
-use crate::runtime::scheduler::Task;
-#[cfg(target_arch = "wasm32")]
-use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
@@ -33,6 +26,13 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::scheduler::SmolScheduler;
+use crate::runtime::scheduler::Task;
+#[cfg(target_arch = "wasm32")]
+use crate::runtime::scheduler::WasmScheduler;
 
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
@@ -275,8 +275,8 @@ trait Spawn {
 #[async_trait]
 impl<S: Scheduler + Sync + 'static> Spawn for S {
     async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
-        use crate::runtime::runtime::run_flowgraph;
         use crate::runtime::FlowgraphMessage;
+        use crate::runtime::runtime::run_flowgraph;
         use futures::channel::mpsc::channel;
         use futures::channel::oneshot;
 
@@ -426,7 +426,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     // init blocks
     let mut active_blocks = 0u32;
     for (_, opt) in inboxes.iter_mut() {
-        if let Some(ref mut chan) = opt {
+        if let Some(chan) = opt {
             chan.send(BlockMessage::Initialize).await.unwrap();
             active_blocks += 1;
         }
@@ -464,7 +464,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 
     debug!("running blocks");
     for (_, opt) in inboxes.iter_mut() {
-        if let Some(ref mut chan) = opt {
+        if let Some(chan) = opt {
             if chan.send(BlockMessage::Notify).await.is_err() {
                 debug!("runtime wanted to start block that already terminated");
             }
@@ -558,7 +558,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 let _ = main_channel.send(FlowgraphMessage::Terminate).await;
             }
             FlowgraphMessage::BlockDescription { block_id, tx } => {
-                if let Some(Some(ref mut b)) = inboxes.get_mut(block_id) {
+                if let Some(Some(b)) = inboxes.get_mut(block_id) {
                     let (b_tx, rx) = oneshot::channel::<BlockDescription>();
                     if b.send(BlockMessage::BlockDescription { tx: b_tx })
                         .await
@@ -595,7 +595,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 let stream_edges = topology
                     .stream_edges
                     .iter()
-                    .flat_map(|x| x.1.iter().map(|y| (x.0 .0, x.0 .1, y.0, y.1)))
+                    .flat_map(|x| x.1.iter().map(|y| (x.0.0, x.0.1, y.0, y.1)))
                     .collect();
                 let message_edges = topology.message_edges.clone();
 
@@ -613,7 +613,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             FlowgraphMessage::Terminate => {
                 if !terminated {
                     for (_, opt) in inboxes.iter_mut() {
-                        if let Some(ref mut chan) = opt {
+                        if let Some(chan) = opt {
                             if chan.send(BlockMessage::Terminate).await.is_err() {
                                 debug!(
                                     "runtime tried to terminate block that was already terminated"

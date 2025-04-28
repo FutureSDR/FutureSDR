@@ -1,28 +1,28 @@
 use clap::Parser;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
-use futuresdr::futures::channel::mpsc;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::futures::StreamExt;
+use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::copy_tag_propagation;
 
-use wlan::parse_channel;
 use wlan::Decoder;
 use wlan::FrameEqualizer;
 use wlan::MovingAverage;
 use wlan::SyncLong;
 use wlan::SyncShort;
+use wlan::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

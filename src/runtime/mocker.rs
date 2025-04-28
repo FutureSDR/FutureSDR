@@ -1,12 +1,9 @@
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use std::any::Any;
 use std::fmt::Debug;
 
-use crate::runtime::buffer::BufferReaderHost;
-use crate::runtime::buffer::BufferWriterHost;
-use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::BufferReader;
@@ -18,6 +15,9 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use crate::runtime::buffer::BufferReaderHost;
+use crate::runtime::buffer::BufferWriterHost;
+use crate::runtime::config::config;
 
 /// Mocker for a block
 ///

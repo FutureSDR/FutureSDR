@@ -5,12 +5,12 @@ use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::buffer::slab::Slab;
-use futuresdr::runtime::scheduler::FlowScheduler;
-use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::slab::Slab;
+use futuresdr::runtime::scheduler::FlowScheduler;
+use futuresdr::runtime::scheduler::SmolScheduler;
 use std::time;
 
 fn connect(

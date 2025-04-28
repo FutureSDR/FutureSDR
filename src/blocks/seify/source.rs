@@ -1,6 +1,6 @@
-use crate::blocks::seify::builder::BuilderType;
 use crate::blocks::seify::Builder;
 use crate::blocks::seify::Config;
+use crate::blocks::seify::builder::BuilderType;
 use crate::num_complex::Complex32;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;

@@ -3,31 +3,26 @@ use std::sync::Arc;
 use vulkano::buffer::Buffer;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::command_buffer::CommandBufferUsage;
-use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
-use vulkano::descriptor_set::layout::DescriptorSetLayout;
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::descriptor_set::WriteDescriptorSet;
+use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
+use vulkano::descriptor_set::layout::DescriptorSetLayout;
 use vulkano::memory::allocator::AllocationCreateInfo;
 use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::pipeline::compute::ComputePipelineCreateInfo;
-use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::Pipeline;
 use vulkano::pipeline::PipelineBindPoint;
 use vulkano::pipeline::PipelineLayout;
 use vulkano::pipeline::PipelineShaderStageCreateInfo;
+use vulkano::pipeline::compute::ComputePipelineCreateInfo;
+use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::sync::GpuFuture;
 use vulkano::sync::{self};
 
-use crate::runtime::buffer::vulkan::Broker;
-use crate::runtime::buffer::vulkan::BufferEmpty;
-use crate::runtime::buffer::vulkan::ReaderH2D;
-use crate::runtime::buffer::vulkan::WriterD2H;
-use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -38,6 +33,11 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use crate::runtime::buffer::BufferReaderCustom;
+use crate::runtime::buffer::vulkan::Broker;
+use crate::runtime::buffer::vulkan::BufferEmpty;
+use crate::runtime::buffer::vulkan::ReaderH2D;
+use crate::runtime::buffer::vulkan::WriterD2H;
 
 #[allow(clippy::needless_question_mark)]
 #[allow(deprecated)]

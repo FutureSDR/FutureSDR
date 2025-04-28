@@ -1,21 +1,18 @@
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::macros::connect;
-use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::tracing::info;
 use std::fmt::Debug;
 use std::time::Duration;
 
-use lora::utils::Bandwidth;
-use lora::utils::CodeRate;
-use lora::utils::SpreadingFactor;
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;
@@ -25,6 +22,9 @@ use lora::HammingDec;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 use lora::Transmitter;
+use lora::utils::Bandwidth;
+use lora::utils::CodeRate;
+use lora::utils::SpreadingFactor;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

@@ -7,15 +7,15 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::UdpSource;
 use futuresdr::blocks::WebsocketPmtSink;
-use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::StreamExt;
+use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::copy_tag_propagation;
 
 use wlan::Decoder;
 use wlan::FrameEqualizer;

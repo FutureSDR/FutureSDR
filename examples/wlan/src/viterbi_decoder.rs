@@ -1,8 +1,8 @@
 // use futuresdr::tracing::info;
 
 use crate::FrameParam;
-use crate::Mcs;
 use crate::MAX_ENCODED_BITS;
+use crate::Mcs;
 
 const TRACEBACK_MAX: usize = 24;
 

@@ -1,5 +1,5 @@
-use futuredsp::prelude::*;
 use futuredsp::FirFilter;
+use futuredsp::prelude::*;
 use num_complex::Complex32;
 use std::cmp::min;
 

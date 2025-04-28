@@ -1,16 +1,10 @@
+use futures::SinkExt;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
-use futures::SinkExt;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::buffer::circular::Circular;
-#[cfg(target_arch = "wasm32")]
-use crate::runtime::buffer::slab::Slab;
-use crate::runtime::buffer::BufferBuilder;
-use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockMessage;
@@ -21,6 +15,12 @@ use crate::runtime::Kernel;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Topology;
+use crate::runtime::buffer::BufferBuilder;
+use crate::runtime::buffer::BufferWriter;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::buffer::circular::Circular;
+#[cfg(target_arch = "wasm32")]
+use crate::runtime::buffer::slab::Slab;
 
 /// The main component of any FutureSDR program.
 ///

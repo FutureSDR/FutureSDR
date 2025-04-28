@@ -1,6 +1,6 @@
 use anyhow::Result;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ChannelSource;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
@@ -13,8 +13,8 @@ use leptos::task::spawn_local;
 use std::collections::VecDeque;
 use wasm_bindgen::prelude::*;
 
-use crate::wasm_decoder::DecoderMessage;
 use crate::Encoder;
+use crate::wasm_decoder::DecoderMessage;
 
 #[wasm_bindgen(module = "/assets/setup-decoder.js")]
 extern "C" {

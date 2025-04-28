@@ -1,5 +1,5 @@
-use rustc_version::version_meta;
 use rustc_version::Channel;
+use rustc_version::version_meta;
 
 #[cfg(all(feature = "lttng", target_os = "linux"))]
 fn gen_lttng_tracepoints() {

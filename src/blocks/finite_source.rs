@@ -55,12 +55,15 @@ where
         let o = sio.output(0).slice::<A>();
 
         for (i, v) in o.iter_mut().enumerate() {
-            if let Some(x) = (self.f)() {
-                *v = x;
-            } else {
-                sio.output(0).produce(i);
-                io.finished = true;
-                return Ok(());
+            match (self.f)() {
+                Some(x) => {
+                    *v = x;
+                }
+                _ => {
+                    sio.output(0).produce(i);
+                    io.finished = true;
+                    return Ok(());
+                }
             }
         }
 

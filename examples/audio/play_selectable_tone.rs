@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Selector;
 use futuresdr::blocks::SelectorDropPolicy as DropPolicy;
 use futuresdr::blocks::SignalSourceBuilder;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;

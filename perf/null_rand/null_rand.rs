@@ -5,11 +5,11 @@ use futuresdr::blocks::CopyRandBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
 use std::time;
 
 #[derive(Parser, Debug)]

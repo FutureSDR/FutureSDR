@@ -1,19 +1,19 @@
-use futures::channel::mpsc::Sender;
 use futures::SinkExt;
+use futures::channel::mpsc::Sender;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::runtime::buffer::zynq::BufferEmpty;
-use crate::runtime::buffer::zynq::BufferFull;
+use crate::runtime::BlockMessage;
+use crate::runtime::ItemTag;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterCustom;
-use crate::runtime::BlockMessage;
-use crate::runtime::ItemTag;
+use crate::runtime::buffer::zynq::BufferEmpty;
+use crate::runtime::buffer::zynq::BufferFull;
 
 /// Device-to-Host stream connection
 #[derive(Debug, PartialEq, Hash)]

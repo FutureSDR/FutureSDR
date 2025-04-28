@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::audio::*;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::Combine;
@@ -8,6 +7,7 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Split;
+use futuresdr::blocks::audio::*;
 use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows::hamming;
 use futuresdr::macros::connect;

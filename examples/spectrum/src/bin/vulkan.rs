@@ -1,17 +1,17 @@
 use anyhow::Result;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::runtime::buffer::vulkan;
-use futuresdr::runtime::buffer::vulkan::Broker;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::vulkan;
+use futuresdr::runtime::buffer::vulkan::Broker;
 use std::sync::Arc;
 
-use spectrum::power_block;
 use spectrum::Vulkan;
+use spectrum::power_block;
 
 const FFT_SIZE: usize = 4096;
 

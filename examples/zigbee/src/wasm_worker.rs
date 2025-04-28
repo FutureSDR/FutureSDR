@@ -1,19 +1,19 @@
 use anyhow::Result;
-use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::channel::mpsc::Receiver;
+use futuresdr::blocks::wasm::HackRf;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures::StreamExt;
+use futuresdr::futures::channel::mpsc;
+use futuresdr::futures::channel::mpsc::Receiver;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::FlowgraphHandle;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::slab::Slab;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;
 use leptos::task::spawn_local;
@@ -123,7 +123,7 @@ impl gloo_worker::Worker for Worker {
             }
             WorkerMessage::Freq(f) => match &mut self.handle {
                 Handle::None => {}
-                Handle::Receiver(ref mut r) => {
+                Handle::Receiver(r) => {
                     if let Ok(Some(mut h)) = r.try_next() {
                         self.handle = Handle::Flowgraph(h.clone());
                         spawn_local(async move {

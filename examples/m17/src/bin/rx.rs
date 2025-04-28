@@ -2,12 +2,12 @@
 use anyhow::Result;
 use codec2::Codec2;
 use codec2::Codec2Mode;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;

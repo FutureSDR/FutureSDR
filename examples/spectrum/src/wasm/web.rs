@@ -1,7 +1,7 @@
-use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
+use futuresdr::blocks::wasm::HackRf;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
 use futuresdr::runtime::BlockMeta;

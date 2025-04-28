@@ -192,11 +192,7 @@ mod test {
             if n_consumed > 0 {
                 self.input.drain(0..n_consumed);
             }
-            if n_produced > 0 {
-                Some(out[0])
-            } else {
-                None
-            }
+            if n_produced > 0 { Some(out[0]) } else { None }
         }
     }
 

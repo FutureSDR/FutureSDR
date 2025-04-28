@@ -1,5 +1,5 @@
-use rand::distr::Uniform;
 use rand::Rng;
+use rand::distr::Uniform;
 
 use futuresdr::blocks::Apply;
 use futuresdr::runtime::Mocker;

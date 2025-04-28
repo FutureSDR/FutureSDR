@@ -1,11 +1,11 @@
-use futures::channel;
 use futures::SinkExt;
 use futures::StreamExt;
-use gloo_net::websocket::futures::WebSocket;
+use futures::channel;
 use gloo_net::websocket::Message;
 use gloo_net::websocket::WebSocketError::ConnectionClose;
 use gloo_net::websocket::WebSocketError::ConnectionError;
 use gloo_net::websocket::WebSocketError::MessageSendError;
+use gloo_net::websocket::futures::WebSocket;
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::sync::Arc;

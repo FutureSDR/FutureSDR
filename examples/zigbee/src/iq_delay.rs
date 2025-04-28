@@ -95,25 +95,28 @@ impl Kernel for IqDelay {
                     if left == 0 && consumed == i.len() {
                         break;
                     } else if left == 0 {
-                        if let Some(ItemTag {
-                            tag: Tag::Id(id), ..
-                        }) = sio
+                        match sio
                             .input(0)
                             .tags()
                             .iter()
                             .find(|x| x.index == consumed)
                             .cloned()
                         {
-                            self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
-                            sio.output(0).add_tag(
-                                produced,
-                                Tag::NamedUsize(
-                                    "burst_start".to_string(),
-                                    2 * PADDING + id as usize * 2 * 16 * 4 + 2,
-                                ),
-                            );
-                        } else {
-                            panic!("no frame start tag");
+                            Some(ItemTag {
+                                tag: Tag::Id(id), ..
+                            }) => {
+                                self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
+                                sio.output(0).add_tag(
+                                    produced,
+                                    Tag::NamedUsize(
+                                        "burst_start".to_string(),
+                                        2 * PADDING + id as usize * 2 * 16 * 4 + 2,
+                                    ),
+                                );
+                            }
+                            _ => {
+                                panic!("no frame start tag");
+                            }
                         }
                     } else {
                         let n = std::cmp::min(o.len() - produced, left);

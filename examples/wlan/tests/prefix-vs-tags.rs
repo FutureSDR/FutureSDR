@@ -3,13 +3,13 @@ use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessageBurst;
 use futuresdr::blocks::NullSink;
 use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::copy_tag_propagation;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::circular::Circular;
+use futuresdr::runtime::copy_tag_propagation;
 
 use wlan::Encoder;
 use wlan::Mac;

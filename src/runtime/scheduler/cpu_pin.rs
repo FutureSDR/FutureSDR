@@ -1,14 +1,14 @@
 use super::flow::FlowExecutor;
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
 use async_io::block_on;
 use async_lock::Barrier;
 use async_task::Task;
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures_lite::future::Future;
 use slab::Slab;

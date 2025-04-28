@@ -1,26 +1,26 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
+use vulkano::VulkanLibrary;
 use vulkano::buffer::Subbuffer;
-use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
+use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::instance::Instance;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
-use vulkano::VulkanLibrary;
 
 mod d2h;
+pub use d2h::D2H;
 pub use d2h::ReaderD2H;
 pub use d2h::WriterD2H;
-pub use d2h::D2H;
 mod h2d;
+pub use h2d::H2D;
 pub use h2d::ReaderH2D;
 pub use h2d::WriterH2D;
-pub use h2d::H2D;
 
 // ================== VULKAN MESSAGE ============================
 /// Full buffer

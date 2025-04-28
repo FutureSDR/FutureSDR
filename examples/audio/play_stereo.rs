@@ -1,8 +1,8 @@
 use anyhow::Result;
-use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::audio::FileSource;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::audio::AudioSink;
+use futuresdr::blocks::audio::FileSource;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 

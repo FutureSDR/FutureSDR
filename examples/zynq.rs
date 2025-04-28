@@ -4,12 +4,12 @@ use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Zynq;
-use futuresdr::runtime::buffer::zynq::D2H;
-use futuresdr::runtime::buffer::zynq::H2D;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
-use rand::distr::Uniform;
+use futuresdr::runtime::buffer::zynq::D2H;
+use futuresdr::runtime::buffer::zynq::H2D;
 use rand::Rng;
+use rand::distr::Uniform;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

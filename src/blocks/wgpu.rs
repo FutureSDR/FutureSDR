@@ -14,8 +14,6 @@ use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
 use std::borrow::Cow;
 
-use crate::runtime::buffer::wgpu;
-use crate::runtime::buffer::BufferReaderCustom;
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
@@ -26,6 +24,8 @@ use crate::runtime::StreamIo;
 use crate::runtime::StreamIoBuilder;
 use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
+use crate::runtime::buffer::BufferReaderCustom;
+use crate::runtime::buffer::wgpu;
 
 /// Interface GPU w/ native API.
 pub struct Wgpu {

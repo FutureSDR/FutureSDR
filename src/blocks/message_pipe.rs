@@ -1,5 +1,5 @@
-use futures::channel::mpsc;
 use futures::SinkExt;
+use futures::channel::mpsc;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;

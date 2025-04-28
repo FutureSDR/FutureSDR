@@ -1,8 +1,8 @@
 use anyhow::Result;
-use futuresdr::blocks::zeromq::PubSinkBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
+use futuresdr::blocks::zeromq::PubSinkBuilder;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 

@@ -1,7 +1,7 @@
 use futuredsp::firdes;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Source;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::runtime::Block;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;

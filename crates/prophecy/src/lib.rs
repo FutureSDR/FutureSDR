@@ -15,11 +15,11 @@ mod constellation_sink_density;
 pub use constellation_sink_density::ConstellationSinkDensity;
 
 mod handle;
+pub use handle::FlowgraphHandle;
+pub use handle::RuntimeHandle;
 pub use handle::call_periodically;
 pub use handle::get_flowgraph_handle;
 pub use handle::poll_periodically;
-pub use handle::FlowgraphHandle;
-pub use handle::RuntimeHandle;
 
 mod flowgraph_canvas;
 pub use flowgraph_canvas::FlowgraphCanvas;

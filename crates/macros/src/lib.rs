@@ -102,13 +102,13 @@ pub fn connect(attr: proc_macro::TokenStream) -> proc_macro::TokenStream {
             return quote_spanned! {
                 t.span() => compile_error!("Connect macro expects flowgraph as first argument.")
             }
-            .into()
+            .into();
         }
         None => {
             return quote! {
                 compile_error!("Connect macro expects flowgraph and connections as arguments.")
             }
-            .into()
+            .into();
         }
     };
 
@@ -300,7 +300,7 @@ fn parse_connections(attrs: &mut Peekable<impl Iterator<Item = TokenTree>>) -> P
                     stream,
                     message,
                     blocks,
-                }
+                };
             }
         };
 
@@ -354,7 +354,7 @@ impl Endpoint {
                 return EndpointResult::Error(
                     None,
                     format!("invalid endpoint input port {in_port}"),
-                )
+                );
             }
         };
         let output = match out_port {
@@ -364,7 +364,7 @@ impl Endpoint {
                 return EndpointResult::Error(
                     None,
                     format!("invalid endpoint output port {out_port}"),
-                )
+                );
             }
         };
         EndpointResult::Point(Self {

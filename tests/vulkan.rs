@@ -3,10 +3,10 @@ use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
-use futuresdr::runtime::buffer::vulkan;
-use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::vulkan;
+use futuresdr::runtime::buffer::vulkan::Broker;
 use std::iter::repeat_with;
 use std::sync::Arc;
 

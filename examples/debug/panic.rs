@@ -2,7 +2,6 @@ use clap::Parser;
 use clap::ValueEnum;
 use futuresdr::macros::async_trait;
 use futuresdr::macros::connect;
-use futuresdr::runtime::scheduler;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::BlockMetaBuilder;
 use futuresdr::runtime::Flowgraph;
@@ -15,6 +14,7 @@ use futuresdr::runtime::StreamIo;
 use futuresdr::runtime::StreamIoBuilder;
 use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
+use futuresdr::runtime::scheduler;
 
 #[derive(Debug, Clone, ValueEnum)]
 enum PanicWhere {

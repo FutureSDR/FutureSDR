@@ -11,13 +11,13 @@ use futuresdr_remote::Remote;
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::thread;
-use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::unbounded_channel;
+use tungstenite::Message;
 use tungstenite::connect;
 use tungstenite::protocol::WebSocket;
 use tungstenite::stream::MaybeTlsStream;
-use tungstenite::Message;
 
 use futuresdr_egui::FFT_SIZE;
 

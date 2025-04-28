@@ -242,15 +242,15 @@ impl<T: Send> MessageIoBuilder<T> {
         mut self,
         name: &str,
         c: impl for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync
-            + 'static,
+            &'a mut T,
+            &'a mut WorkIo,
+            &'a mut MessageIo<T>,
+            &'a mut BlockMeta,
+            Pmt,
+        ) -> HandlerFuture<'a>
+        + Send
+        + Sync
+        + 'static,
     ) -> MessageIoBuilder<T> {
         self.inputs.push(MessageInput::new(name, Arc::new(c)));
         self

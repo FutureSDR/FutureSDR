@@ -7,13 +7,13 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-use crate::runtime::buffer::BufferBuilder;
-use crate::runtime::buffer::BufferWriter;
 use crate::runtime::Block;
 use crate::runtime::BlockMessage;
 use crate::runtime::ConnectCtx;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferBuilder;
+use crate::runtime::buffer::BufferWriter;
 
 pub trait BufferBuilderKey: Debug + Send + Sync {
     fn eq(&self, other: &dyn BufferBuilderKey) -> bool;
@@ -308,7 +308,8 @@ impl Topology {
                         != 1
                     {
                         return Err(Error::ValidationError(format!(
-                            "Block {block_id} stream input {input_id} does not have exactly one input")));
+                            "Block {block_id} stream input {input_id} does not have exactly one input"
+                        )));
                     }
                 }
             } else {
@@ -332,7 +333,8 @@ impl Topology {
                 let input = dst_block.stream_input(*dst_port);
                 if output.type_id() != input.type_id() {
                     return Err(Error::ValidationError(format!(
-                        "Item size of stream connection does not match ({src}, {src:?} -> {dst}, {dst_port:?})")));
+                        "Item size of stream connection does not match ({src}, {src:?} -> {dst}, {dst_port:?})"
+                    )));
                 }
             }
         }

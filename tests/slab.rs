@@ -5,9 +5,9 @@ use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::buffer::slab::Slab;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::slab::Slab;
 use std::iter::repeat_with;
 
 #[test]

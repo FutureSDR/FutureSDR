@@ -206,7 +206,7 @@ impl FftDemod {
             }
             if self.max_log_approx {
                 self.lls[n] = self.lls[n].ln(); // Log-Likelihood
-                                                //LLs[n] = m_fft_mag_sq[n]; // same performance with just |Y[n]| or |Y[n]|²
+                //LLs[n] = m_fft_mag_sq[n]; // same performance with just |Y[n]| or |Y[n]|²
             }
         }
         // change to max-log formula with only |Y[n]|² to avoid overflows, solve LLR computation incapacity in high SNR

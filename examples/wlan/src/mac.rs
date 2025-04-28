@@ -1,6 +1,6 @@
-use crate::Mcs;
 use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;
+use crate::Mcs;
 
 use futuresdr::macros::async_trait;
 use futuresdr::macros::message_handler;

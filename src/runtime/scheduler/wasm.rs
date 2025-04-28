@@ -1,6 +1,6 @@
 //! WASM Scheduler
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures::future::Future;
 use futures::task::Context;
@@ -9,11 +9,11 @@ use futures_lite::FutureExt;
 use slab::Slab;
 use std::pin::Pin;
 
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::BlockMessage;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Topology;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
 
 /// WASM Scheduler
 #[derive(Clone, Debug)]

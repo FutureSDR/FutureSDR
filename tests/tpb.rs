@@ -4,9 +4,9 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
-use futuresdr::runtime::scheduler::TpbScheduler;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::scheduler::TpbScheduler;
 
 #[test]
 fn flowgraph_tpb() -> Result<()> {

@@ -4,11 +4,11 @@ use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::VulkanBuilder;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Runtime;
 use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::buffer::vulkan::D2H;
 use futuresdr::runtime::buffer::vulkan::H2D;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
 use futuresdr::tracing::info;
 use std::iter::repeat_with;
 use std::sync::Arc;
@@ -52,9 +52,9 @@ pub fn run_fg() -> Result<()> {
 #[cfg(target_os = "android")]
 mod android {
     use super::*;
+    use jni::JNIEnv;
     use jni::objects::JClass;
     use jni::objects::JString;
-    use jni::JNIEnv;
 
     #[allow(non_snake_case)]
     #[no_mangle]

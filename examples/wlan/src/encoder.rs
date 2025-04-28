@@ -16,9 +16,9 @@ use futuresdr::tracing::warn;
 use std::collections::VecDeque;
 
 use crate::FrameParam;
-use crate::Mcs;
 use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
+use crate::Mcs;
 
 /// Maximum number of frames to queue for transmission
 const MAX_FRAMES: usize = 1000;
@@ -93,9 +93,9 @@ impl Encoder {
                     let data = data.clone();
                     if self.tx_frames.len() >= MAX_FRAMES {
                         warn!(
-                                "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
-                                MAX_FRAMES
-                            );
+                            "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
+                            MAX_FRAMES
+                        );
                     } else if data.len() > MAX_PSDU_SIZE {
                         warn!(
                             "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",

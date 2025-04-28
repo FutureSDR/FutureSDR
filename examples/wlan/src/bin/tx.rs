@@ -1,23 +1,23 @@
 use clap::Parser;
 use futuresdr::async_io::Timer;
-use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::copy_tag_propagation;
+use futuresdr::blocks::seify::SinkBuilder;
 use futuresdr::runtime::BlockT;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::circular::Circular;
+use futuresdr::runtime::copy_tag_propagation;
 use std::time::Duration;
 
-use wlan::parse_channel;
 use wlan::Encoder;
 use wlan::Mac;
 use wlan::Mapper;
 use wlan::Mcs;
 use wlan::Prefix;
+use wlan::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

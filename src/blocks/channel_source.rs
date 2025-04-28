@@ -1,5 +1,5 @@
-use crate::futures::channel::mpsc::Receiver;
 use crate::futures::StreamExt;
+use crate::futures::channel::mpsc::Receiver;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;

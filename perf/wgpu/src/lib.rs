@@ -3,9 +3,9 @@ use anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::Wgpu;
-use futuresdr::runtime::buffer::wgpu;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::wgpu;
 use std::iter::repeat_with;
 
 #[cfg(not(target_arch = "wasm32"))]

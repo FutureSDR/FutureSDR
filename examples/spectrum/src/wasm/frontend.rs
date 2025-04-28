@@ -1,7 +1,7 @@
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
-use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
+use gloo_net::websocket::futures::WebSocket;
 use leptos::html::Span;
 use leptos::logging::*;
 use leptos::prelude::*;

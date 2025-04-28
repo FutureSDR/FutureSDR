@@ -1,7 +1,7 @@
 //! An ADS-B receiver
 use serde::Serialize;
-use serde_with::serde_as;
 use serde_with::DisplayFromStr;
+use serde_with::serde_as;
 use std::collections::HashMap;
 use std::time::SystemTime;
 

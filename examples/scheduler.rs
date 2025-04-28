@@ -1,14 +1,14 @@
 use anyhow::Result;
-use async_io::block_on;
 use async_io::Timer;
+use async_io::block_on;
 use futuresdr::blocks::MessageSourceBuilder;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::Pmt;
+use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::Scheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
 use std::time::Duration;
 
 fn create_fg() -> Flowgraph {

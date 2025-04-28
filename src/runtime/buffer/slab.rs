@@ -5,14 +5,14 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use crate::runtime::BlockMessage;
+use crate::runtime::ItemTag;
 use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::BufferWriterHost;
 use crate::runtime::config;
-use crate::runtime::BlockMessage;
-use crate::runtime::ItemTag;
 
 /// Slab buffer
 #[derive(Debug, PartialEq, Hash)]
@@ -353,16 +353,19 @@ impl BufferReaderHost for Reader {
             }
         } else {
             let mut state = self.state.lock().unwrap();
-            if let Some(b) = state.reader_input.pop_front() {
-                let capacity = b.items + self.reserved_items;
-                self.current = Some(CurrentBuffer {
-                    buffer: b.buffer,
-                    offset: self.reserved_items,
-                    capacity,
-                    tags: b.tags,
-                });
-            } else {
-                return (std::ptr::null::<u8>(), 0, Vec::new());
+            match state.reader_input.pop_front() {
+                Some(b) => {
+                    let capacity = b.items + self.reserved_items;
+                    self.current = Some(CurrentBuffer {
+                        buffer: b.buffer,
+                        offset: self.reserved_items,
+                        capacity,
+                        tags: b.tags,
+                    });
+                }
+                _ => {
+                    return (std::ptr::null::<u8>(), 0, Vec::new());
+                }
             }
         }
 

@@ -52,11 +52,7 @@ impl PolarEncoder {
 
     pub fn encode(code: &mut [i8], message: &[u8], frozen_bits: &[u32], data_bits: usize) {
         fn nrz(bit: bool) -> i8 {
-            if bit {
-                -1
-            } else {
-                1
-            }
+            if bit { -1 } else { 1 }
         }
 
         let mut mesg = [0; Self::MAX_BITS];

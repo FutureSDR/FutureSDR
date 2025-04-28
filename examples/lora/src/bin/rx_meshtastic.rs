@@ -1,22 +1,18 @@
 use anyhow::Result;
 use clap::Parser;
 use futuredsp::firdes;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::XlatingFirBuilder;
-use futuresdr::futures::channel::mpsc;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::futures::StreamExt;
+use futuresdr::futures::channel::mpsc;
 use futuresdr::macros::connect;
-use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::buffer::circular::Circular;
 use futuresdr::tracing::info;
 
-use lora::meshtastic::MeshtasticChannel;
-use lora::meshtastic::MeshtasticChannels;
-use lora::meshtastic::MeshtasticConfig;
-use lora::utils::Bandwidth;
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;
@@ -25,6 +21,10 @@ use lora::GrayMapping;
 use lora::HammingDec;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
+use lora::meshtastic::MeshtasticChannel;
+use lora::meshtastic::MeshtasticChannels;
+use lora::meshtastic::MeshtasticConfig;
+use lora::utils::Bandwidth;
 
 const SOFT_DECODING: bool = true;
 const IMPLICIT_HEADER: bool = false;

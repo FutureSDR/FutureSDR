@@ -1,6 +1,6 @@
 use anyhow::Result;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::SignalSourceBuilder;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 

@@ -13,8 +13,8 @@ use futuresdr::runtime::TypedBlock;
 use futuresdr::runtime::WorkIo;
 use futuresdr::tracing::info;
 
-use crate::utils::*;
 use crate::Frame;
+use crate::utils::*;
 
 pub struct Decoder;
 

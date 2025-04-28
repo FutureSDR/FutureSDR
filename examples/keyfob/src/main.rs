@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows;
 use futuresdr::macros::connect;
@@ -69,11 +69,7 @@ fn main() -> Result<()> {
     let low_pass = FirBuilder::new::<f32, f32, _>(taps);
 
     let slice = Apply::new(move |i: &f32| -> u8 {
-        if *i > 0.0 {
-            1
-        } else {
-            0
-        }
+        if *i > 0.0 { 1 } else { 0 }
     });
 
     let decoder = Decoder::new();

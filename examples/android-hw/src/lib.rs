@@ -1,12 +1,12 @@
 mod fft_shift;
 use anyhow::Result;
 use fft_shift::FftShift;
-use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::SourceBuilder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
@@ -61,10 +61,10 @@ pub fn run_fg() -> Result<()> {
 #[cfg(target_os = "android")]
 mod android {
     use super::*;
+    use jni::JNIEnv;
     use jni::objects::JClass;
     use jni::objects::JString;
     use jni::sys::jint;
-    use jni::JNIEnv;
 
     #[allow(non_snake_case)]
     #[no_mangle]

@@ -10,10 +10,10 @@ use futuresdr::tracing::info;
 use std::io::BufRead;
 use std::io::Write;
 
+use lora::Transmitter;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticConfig;
 use lora::utils::Bandwidth;
-use lora::Transmitter;
 
 #[derive(Parser, Debug)]
 struct Args {
