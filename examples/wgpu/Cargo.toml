@@ -24,4 +24,4 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-async-io = "2.3"
+async-io = "2.4"

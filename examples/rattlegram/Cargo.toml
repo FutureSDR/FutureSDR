@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 anyhow = "1.0"
 crc = "3.2"
 futuresdr = { path = "../..", features = ["audio"] }
-rustfft = "6.2"
+rustfft = "6.3"
 serde = "1.0"
 serde_json = "1.0"
 

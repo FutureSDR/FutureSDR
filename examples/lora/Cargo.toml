@@ -11,16 +11,16 @@ license = "GPL-3.0-only"
 aes = "0.8"
 anyhow = "1.0"
 base64 = "0.22"
-chrono = "0.4.38"
+chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 ctr = "0.9"
 futuredsp = { path = "../../crates/futuredsp" }
 futuresdr = { path = "../..", features = ["seify", "soapy"] }
 meshtastic = "0.1"
 num-traits = "0.2"
-rustfft = "6.2"
+rustfft = "6.3"
 scilib = "1.0"
-semtech-udp = { version = "0.11.0", features = ["client"] }
-structopt = "0.3.26"
-tokio = { version = "1.38.1", features = ["rt-multi-thread"] }
-triggered = "0.1.2"
+semtech-udp = { version = "0.12", features = ["client"] }
+structopt = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+triggered = "0.1"
