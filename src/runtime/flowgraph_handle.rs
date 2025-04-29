@@ -52,10 +52,11 @@ impl FlowgraphHandle {
     /// Call message handler
     pub async fn callback(
         &mut self,
-        block_id: BlockId,
+        block_id: impl Into<BlockId>,
         port_id: impl Into<PortId>,
         data: Pmt,
     ) -> Result<Pmt, Error> {
+        let block_id = block_id.into();
         let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockCallback {

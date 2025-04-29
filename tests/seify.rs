@@ -5,11 +5,7 @@ use futuresdr::blocks::seify::*;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use futuresdr::seify::Direction::*;
 use std::collections::HashMap;
 
@@ -20,19 +16,18 @@ use std::collections::HashMap;
 /// E.g. from examples/spectrum.
 #[test]
 fn builder_compat() -> Result<()> {
-    futuresdr::runtime::init(); //For logging
+    futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
-    let src = SourceBuilder::new()
-        .args("driver=dummy")?
+    let src = Builder::new("driver=dummy")?
         .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
-        .build()?;
+        .build_source()?;
 
     let head = Head::<Complex<f32>>::new(1024);
     let snk = NullSink::<Complex<f32>>::new();
 
-    connect!(fg, src > head > snk);
+    connect!(fg, src.outputs[0] > head > snk);
 
     Runtime::new().run(fg)?;
 
@@ -43,17 +38,16 @@ fn builder_compat() -> Result<()> {
 #[test]
 fn builder_compat_filter() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let src = SourceBuilder::new()
-        .args("driver=dummy")?
+    let src = Builder::new("driver=dummy")?
         .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
-        .build()?;
+        .build_source()?;
 
     let head = Head::<Complex<f32>>::new(1024);
     let snk = NullSink::<Complex<f32>>::new();
 
-    connect!(fg, src > head > snk);
+    connect!(fg, src.outputs[0] > head > snk);
 
     Runtime::new().run(fg)?;
 
@@ -65,15 +59,14 @@ fn builder_config() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let dev = seify::Device::from_args("driver=dummy")?;
-    let src = SourceBuilder::new()
-        .device(dev.clone())
+    let src = Builder::from_device(dev.clone())
         .channels(vec![0]) //testing, same as default
         .sample_rate(1e6)
         .frequency(100e6)
-        .build()?;
+        .build_source()?;
 
     let snk = NullSink::<Complex<f32>>::new();
-    connect!(fg, src > snk);
+    connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
     rt.start_sync(fg);
@@ -91,29 +84,29 @@ fn config_freq_gain_ports() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let dev = seify::Device::from_args("driver=dummy")?;
-    let src = SourceBuilder::new()
-        .device(dev.clone())
+    let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
         .gain(1.0)
-        .build()?;
+        .build_source()?;
 
     let snk = NullSink::<Complex<f32>>::new();
-    connect!(fg, src > snk);
+    connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
     let (_task, mut fg_handle) = rt.start_sync(fg);
 
     // Freq
     block_on(async {
-        fg_handle.callback(src, 0, Pmt::F64(102e6)).await.unwrap();
+        let src = src.clone();
+        fg_handle.callback(src, "freq", Pmt::F64(102e6)).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
 
     // Gain, use Pmt::U32 to test type conversion
     block_on(async {
-        fg_handle.callback(src, 1, Pmt::U32(2)).await.unwrap();
+        fg_handle.callback(src, "gain", Pmt::U32(2)).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.gain(Rx, 0)?.unwrap(), 2.0);
@@ -129,21 +122,21 @@ fn src_config_cmd_map() -> Result<()> {
 
     let dev = seify::Device::from_args("driver=dummy")?;
 
-    let src = SourceBuilder::new()
-        .device(dev.clone())
+    let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
         .gain(1.0)
-        .build()?;
+        .build_source()?;
 
     let snk = NullSink::<Complex<f32>>::new();
 
-    connect!(fg, src > snk);
+    connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
     let (_, mut fg_handle) = rt.start_sync(fg);
 
     block_on(async {
+        let src = src.clone();
         let pmt = Pmt::MapStrPmt(HashMap::from([
             ("chan".to_owned(), Pmt::U32(0)),
             ("freq".to_owned(), Pmt::F64(102e6)),
@@ -175,21 +168,21 @@ fn sink_config_cmd_map() -> Result<()> {
 
     let dev = seify::Device::from_args("driver=dummy")?;
 
-    let snk = SinkBuilder::new()
-        .device(dev.clone())
+    let snk = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
         .gain(1.0)
-        .build()?;
+        .build_sink()?;
 
     let src = NullSource::<Complex<f32>>::new();
 
-    connect!(fg, src > snk);
+    connect!(fg, src > inputs[0].snk);
 
     let rt = Runtime::new();
     let (_, mut fg_handle) = rt.start_sync(fg);
 
     block_on(async {
+        let snk = snk.clone();
         let pmt = Pmt::MapStrPmt(HashMap::from([
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),
