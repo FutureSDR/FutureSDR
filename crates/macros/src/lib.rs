@@ -552,7 +552,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}{}", #field_name_str, i) {
-                                        Some(&mut self.#field_name[i]);
+                                        return Some(&mut self.#field_name[i]);
                                     }
                                 }
                             };

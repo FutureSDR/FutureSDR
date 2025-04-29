@@ -26,7 +26,7 @@ use crate::prelude::*;
 /// * Message outputs: None
 #[derive(Block)]
 #[blocking]
-#[message_inputs(freq, gain, sample_rate, cmd, terminate, config)]
+#[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = circular::Writer<Complex32>>
 where
@@ -39,6 +39,7 @@ where
     dev: Device<D>,
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
+    overflows: u64,
 }
 
 impl<D, OUT> Source<D, OUT>
@@ -60,6 +61,7 @@ where
             dev,
             start_time,
             streamer: None,
+            overflows: 0,
         }
     }
 
@@ -172,6 +174,16 @@ where
         }
         Ok(Config::from(&self.dev, Rx, id)?.to_serializable_pmt())
     }
+
+    async fn overflows(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        _in: Pmt,
+    ) -> Result<Pmt> {
+        Ok(Pmt::U64(self.overflows))
+    }
 }
 
 #[doc(hidden)]
@@ -200,6 +212,7 @@ where
                 self.outputs.iter_mut().for_each(|o| o.produce(len));
             }
             Err(seify::Error::Overflow) => {
+                self.overflows += 1;
                 warn!("Seify Source Overflow");
             }
             Err(e) => {
