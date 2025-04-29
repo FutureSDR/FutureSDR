@@ -4,8 +4,8 @@ pub use fxpt_phase::FixedPointPhase;
 mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
-use std::marker::PhantomData;
 use crate::prelude::*;
+use std::marker::PhantomData;
 
 /// Signal Source block
 #[derive(Block)]
@@ -47,7 +47,12 @@ where
 #[doc(hidden)]
 impl<A, F, O> Kernel for SignalSource<A, F, O>
 where
-    A: Copy + Send + 'static + std::ops::Mul<f32, Output = A> + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    A: Copy
+        + Send
+        + 'static
+        + std::ops::Mul<f32, Output = A>
+        + std::ops::Mul<Output = A>
+        + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
@@ -75,7 +80,9 @@ where
 
 /// Build a SignalSource block
 pub struct SignalSourceBuilder<T, O = circular::Writer<T>>
-where O: CpuBufferWriter<Item = T> {
+where
+    O: CpuBufferWriter<Item = T>,
+{
     _t: PhantomData<T>,
     _o: PhantomData<O>,
 }
@@ -121,13 +128,17 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new( |phase: FixedPointPhase| {
+        SignalSource::new(
+            |phase: FixedPointPhase| {
                 if phase.value < 0 {
                     1.0
                 } else {
                     0.0
                 }
-            }, nco, amplitude)
+            },
+            nco,
+            amplitude,
+        )
     }
 }
 
@@ -141,8 +152,7 @@ where
         sample_rate: f32,
         amplitude: f32,
         initial_phase: f32,
-    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
-    {
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
         Self::sin(frequency, sample_rate, amplitude, initial_phase)
     }
     ///Create sine signal
@@ -151,13 +161,16 @@ where
         sample_rate: f32,
         amplitude: f32,
         initial_phase: f32,
-    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
-    {
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
         let nco = NCO::new(
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(|phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()), nco, amplitude)
+        SignalSource::new(
+            |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
+            nco,
+            amplitude,
+        )
     }
 
     /// Create square wave signal
@@ -166,8 +179,7 @@ where
         sample_rate: f32,
         amplitude: f32,
         initial_phase: f32,
-    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O>
-    {
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
         let nco = NCO::new(
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
@@ -182,6 +194,9 @@ where
                     1 => Complex32::new(0.0, 0.0),
                     _ => unreachable!(),
                 }
-            }, nco, amplitude)
+            },
+            nco,
+            amplitude,
+        )
     }
 }

@@ -22,8 +22,15 @@ use crate::prelude::*;
 /// ```
 #[derive(Block)]
 #[allow(clippy::type_complexity)]
-pub struct Combine<F, A, B, C, INA = circular::Reader<A>, INB = circular::Reader<B>, OUT = circular::Writer<C>>
-where
+pub struct Combine<
+    F,
+    A,
+    B,
+    C,
+    INA = circular::Reader<A>,
+    INB = circular::Reader<B>,
+    OUT = circular::Writer<C>,
+> where
     F: FnMut(&A, &B) -> C + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
@@ -56,12 +63,12 @@ where
     /// ## Parameter
     /// - `f`: Function `(&A, &B) -> C` used to combine samples
     pub fn new(f: F) -> Self {
-            Self {
-                in0: INA::default(),
-                in1: INB::default(),
-                output: OUT::default(),
-                f,
-            }
+        Self {
+            in0: INA::default(),
+            in1: INB::default(),
+            output: OUT::default(),
+            f,
+        }
     }
 }
 
