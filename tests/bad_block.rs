@@ -21,17 +21,17 @@ pub struct BadBlock<T: Send + Sync + 'static> {
     #[input]
     input: circular::Reader<T>,
     #[output]
-    output: circular::Writer<T>
+    output: circular::Writer<T>,
 }
 
 impl<T: Copy + Send + Sync + 'static> BadBlock<T> {
     pub fn new() -> Self {
-            Self {
-                work_fail: None,
-                drop_fail: None,
-                input: Default::default(),
-                output: Default::default(),
-            }
+        Self {
+            work_fail: None,
+            drop_fail: None,
+            input: Default::default(),
+            output: Default::default(),
+        }
     }
 }
 

@@ -89,8 +89,8 @@ where
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = self.input.slice();
-        let o = self.output.slice();
+        let (i, i_tags) = self.input.slice_with_tags();
+        let (o, mut o_tags) = self.output.slice_with_tags();
         let i_len = i.len();
 
         let m = std::cmp::min(i_len, o.len());
@@ -98,6 +98,12 @@ where
             for (v, r) in i.iter().zip(o.iter_mut()) {
                 *r = (self.f)(v);
             }
+
+            i_tags.iter().for_each(|t| {
+                if t.index < m {
+                    o_tags.add_tag(t.index, t.tag.clone())
+                }
+            });
 
             self.input.consume(m);
             self.output.produce(m);

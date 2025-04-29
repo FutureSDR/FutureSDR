@@ -10,7 +10,7 @@ fn combine_const_fn() -> Result<()> {
 
     let src0 = VectorSource::<u32>::new(vec![1u32, 2, 3, 4]);
     let src1 = VectorSource::<u32>::new(vec![5u32, 6, 7, 8]);
-    let combine:Combine<_, _, _, _> = Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b });
+    let combine: Combine<_, _, _, _> = Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b });
     let snk = VectorSink::<u32>::new(4);
 
     connect!(fg, src0 > in0.combine.output > snk);
@@ -36,7 +36,7 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
 
     let src0 = VectorSource::<u32>::new(vec![1u32, 2, 3, 4, 11, 12]);
     let src1 = VectorSource::<u32>::new(vec![5u32, 6, 7, 8]);
-    let combine:Combine<_, _, _, _> = Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b });
+    let combine: Combine<_, _, _, _> = Combine::new(|a: &u32, b: &u32| -> u32 { *a + *b });
     let snk = VectorSink::<u32>::new(4);
 
     connect!(fg, src0 > in0.combine.output > snk);

@@ -3,13 +3,12 @@ use futuresdr::async_io::block_on;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
-use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
+use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
+use futuresdr::runtime::scheduler::FlowScheduler;
 use std::iter::repeat_with;
 
 #[test]
@@ -18,21 +17,14 @@ fn flowgraph() -> Result<()> {
 
     let copy = Copy::<f32>::new();
     let head = Head::<f32>::new(1_000_000);
-    let null_source = NullSource::<f32>::new();
-    let vect_sink = VectorSinkBuilder::<f32>::new().build();
+    let src = NullSource::<f32>::new();
+    let snk = VectorSink::<f32>::new(1_000_000);
 
-    let copy = fg.add_block(copy)?;
-    let head = fg.add_block(head)?;
-    let null_source = fg.add_block(null_source)?;
-    let vect_sink = fg.add_block(vect_sink)?;
+    connect!(fg, src > head > copy > snk);
 
-    fg.connect_stream(null_source, "out", head, "in")?;
-    fg.connect_stream(head, "out", copy, "in")?;
-    fg.connect_stream(copy, "out", vect_sink, "in")?;
+    Runtime::new().run(fg)?;
 
-    fg = Runtime::new().run(fg)?;
-
-    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = snk.get();
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -43,28 +35,39 @@ fn flowgraph() -> Result<()> {
     Ok(())
 }
 
-// #[test]
-// fn fg_compile_fail() -> Result<()> {
-//     let fg = Flowgraph::new();
-//     let (fg, _) = block_on(Runtime::new().start(fg));
-//     block_on(fg).unwrap();
-//     Ok(())
-// }
+#[test]
+fn flowgraph_flow() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let copy = Copy::<f32>::new();
+    let head = Head::<f32>::new(1_000_000);
+    let src = NullSource::<f32>::new();
+    let snk = VectorSink::<f32>::new(1_000_000);
+
+    connect!(fg, src > head > copy > snk);
+
+    Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
+
+    let snk = snk.get();
+    let v = snk.items();
+
+    assert_eq!(v.len(), 1_000_000);
+    for i in v {
+        assert!(i.abs() < f32::EPSILON);
+    }
+
+    Ok(())
+}
 
 #[test]
 fn fg_terminate() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let null_source = NullSource::<f32>::new();
+    let src = NullSource::<f32>::new();
     let throttle = Throttle::<f32>::new(10.0);
-    let null_sink = NullSink::<f32>::new();
+    let snk = NullSink::<f32>::new();
 
-    let null_source = fg.add_block(null_source)?;
-    let throttle = fg.add_block(throttle)?;
-    let null_sink = fg.add_block(null_sink)?;
-
-    fg.connect_stream(null_source, "out", throttle, "in")?;
-    fg.connect_stream(throttle, "out", null_sink, "in")?;
+    connect!(fg, src > throttle > snk);
 
     let rt = Runtime::new();
     let (fg, mut handle) = rt.start_sync(fg);
@@ -86,18 +89,13 @@ fn fg_rand_vec() -> Result<()> {
 
     let src = VectorSource::<f32>::new(orig.clone());
     let copy = Copy::<f32>::new();
-    let snk = VectorSinkBuilder::<f32>::new().build();
+    let snk = VectorSink::<f32>::new(n_items);
 
-    let src = fg.add_block(src)?;
-    let copy = fg.add_block(copy)?;
-    let snk = fg.add_block(snk)?;
+    connect!(fg, src > copy > snk);
 
-    fg.connect_stream(src, "out", copy, "in")?;
-    fg.connect_stream(copy, "out", snk, "in")?;
+    Runtime::new().run(fg)?;
 
-    fg = Runtime::new().run(fg)?;
-
-    let snk = fg.kernel::<VectorSink<f32>>(snk).unwrap();
+    let snk = snk.get();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);
@@ -118,23 +116,21 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
 
     let src = VectorSource::<f32>::new(orig.clone());
     let copy = Copy::<f32>::new();
-    let src = fg.add_block(src)?;
-    let copy = fg.add_block(copy)?;
 
-    fg.connect_stream(src, "out", copy, "in")?;
+    connect!(fg, src > copy);
 
     let mut snks = Vec::new();
     for _ in 0..n_snks {
-        let snk = VectorSinkBuilder::<f32>::new().build();
-        let snk = fg.add_block(snk)?;
+        let snk = VectorSink::<f32>::new(n_items);
+        let copy = copy.clone();
+        connect!(fg, copy > snk);
         snks.push(snk);
-        fg.connect_stream(copy, "out", snk, "in")?;
     }
 
-    fg = Runtime::new().run(fg)?;
+    Runtime::new().run(fg)?;
 
     for s in &snks {
-        let snk = fg.kernel::<VectorSink<f32>>(*s).unwrap();
+        let snk = s.get();
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);
@@ -143,5 +139,21 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+#[test]
+fn flowgraph_instance_name() -> Result<()> {
+    let rt = Runtime::new();
+    let name = "my_special_name";
+    let mut fg = Flowgraph::new();
+
+    let src = NullSource::<f32>::new();
+    let snk = NullSink::<f32>::new();
+    connect!(fg, src > snk);
+    snk.get().meta.set_instance_name(name);
+    let (_th, mut fg) = rt.start_sync(fg);
+
+    let desc = rt.block_on(async move { fg.description().await })?;
+    assert_eq!(desc.blocks.first().unwrap().instance_name, name);
     Ok(())
 }

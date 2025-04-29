@@ -49,7 +49,7 @@ name = "apply"
 harness = false
 
 [[test]]
-name = "flow"
+name = "flowgraph"
 required-features = ["flow_scheduler"]
 
 [[test]]

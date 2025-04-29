@@ -13,11 +13,7 @@ impl FailInit {
 }
 
 impl Kernel for FailInit {
-    async fn init(
-        &mut self,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         bail!("FailInit, failed init()")
     }
 }
@@ -62,11 +58,7 @@ impl Kernel for FailDeinit {
         Ok(())
     }
 
-    async fn deinit(
-        &mut self,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         bail!("FailDeinit, failed deinit()")
     }
 }

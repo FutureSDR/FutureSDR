@@ -71,7 +71,8 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     }
 
     /// Post a PMT to a message handler of the block.
-    pub fn post(&mut self, id: PortId, p: Pmt) -> Result<Pmt, Error> {
+    pub fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<Pmt, Error> {
+        let id = id.into();
         let mut io = WorkIo {
             call_again: false,
             finished: false,
