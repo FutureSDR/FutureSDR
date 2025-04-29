@@ -20,6 +20,7 @@ pub mod wgpu;
 #[cfg(feature = "zynq")]
 pub mod zynq;
 
+use std::any::Any;
 use std::future::Future;
 
 use futuresdr::channel::mpsc::Sender;
@@ -34,7 +35,11 @@ use futuresdr::runtime::Tag;
 ///
 /// This is the core trait that every buffer reader has to implements.
 /// It is what the runtime needs to make things work.
-pub trait BufferReader: Default {
+#[async_trait]
+pub trait BufferReader: Any {
+    /// for downcasting
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     /// Initialize buffer
     ///
     /// This sets the own block ID, Port ID, and message receiver so that it can
@@ -43,7 +48,7 @@ pub trait BufferReader: Default {
     /// Check if connected
     fn validate(&self) -> Result<(), Error>;
     /// notify upstream that we are done
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
+    async fn notify_finished(&mut self);
     /// The upstream is done
     ///
     /// The Block will usually process the remaining samples and shut down.
@@ -60,7 +65,7 @@ pub trait BufferReader: Default {
 ///
 /// This is the core trait that every buffer writer has to implements.
 /// It is what the runtime needs to make things work.
-pub trait BufferWriter: Default {
+pub trait BufferWriter {
     /// The corresponding reader.
     type Reader: BufferReader;
     /// Initialize buffer
@@ -72,6 +77,17 @@ pub trait BufferWriter: Default {
     fn validate(&self) -> Result<(), Error>;
     /// Connect the writer to (another) reader.
     fn connect(&mut self, dest: &mut Self::Reader);
+    /// Connect the writer to (another) reader.
+    fn connect_dyn(&mut self, dest: &mut dyn BufferReader) -> Result<(), Error> {
+        if let Some(concrete) = dest.as_any_mut().downcast_mut::<Self::Reader>() {
+            self.connect(concrete);
+            Ok(())
+        } else {
+            Err(Error::ValidationError(
+                "dyn BufferReader has wrong type".to_string(),
+            ))
+        }
+    }
     /// Notify downstream blocks that we are done.
     fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
     /// Own Block ID
@@ -81,7 +97,7 @@ pub trait BufferWriter: Default {
 }
 
 /// A generic CPU buffer reader (out-of-place)
-pub trait CpuBufferReader: BufferReader + Send {
+pub trait CpuBufferReader: BufferReader + Default + Send {
     /// Buffer Items
     type Item;
     /// Get available samples.
@@ -96,7 +112,7 @@ pub trait CpuBufferReader: BufferReader + Send {
 ///
 /// Current upstream implemenations are a circular buffer with douple mapping
 /// and the SLAB buffer
-pub trait CpuBufferWriter: BufferWriter + Send {
+pub trait CpuBufferWriter: BufferWriter + Default + Send {
     /// Buffer Items
     type Item;
     /// Available buffer space

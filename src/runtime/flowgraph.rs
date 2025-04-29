@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::runtime::Block;
 use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::BufferReader;
 use crate::runtime::BufferWriter;
 use crate::runtime::Error;
@@ -29,6 +30,16 @@ impl<K: Kernel> Clone for BlockRef<K> {
             id: self.id,
             block: self.block.clone(),
         }
+    }
+}
+impl<K: Kernel> From<BlockRef<K>> for BlockId {
+    fn from(value: BlockRef<K>) -> Self {
+        value.id
+    }
+}
+impl<K: Kernel> From<&BlockRef<K>> for BlockId {
+    fn from(value: &BlockRef<K>) -> Self {
+        value.id
     }
 }
 
@@ -75,6 +86,28 @@ impl Flowgraph {
             dst_port.port_id(),
         ));
         src_port.connect(dst_port);
+    }
+
+    /// Connect stream ports non-type-safe
+    pub fn connect_dyn(
+        &mut self,
+        src: impl Into<BlockId>,
+        src_port: impl Into<PortId>,
+        dst: impl Into<BlockId>,
+        dst_port: impl Into<PortId>,
+    ) -> Result<(), Error> {
+        let src = src.into();
+        let src_port = src_port.into();
+        let dst = dst.into();
+        let dst_port: PortId = dst_port.into();
+        let src = self.blocks.get(src.0).ok_or(Error::InvalidBlock(src))?;
+        let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
+        let mut tmp = dst.lock_arc_blocking();
+        let reader = tmp
+            .stream_input(&dst_port.0)
+            .ok_or(Error::InvalidStreamPort(BlockPortCtx::None, dst_port))?;
+        src.lock_arc_blocking()
+            .connect_stream_output(&src_port.0, reader)
     }
 
     /// Make message connection

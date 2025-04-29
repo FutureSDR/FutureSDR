@@ -1,4 +1,5 @@
 use futures::prelude::*;
+use std::any::Any;
 use std::fmt;
 use vmcircbuffer::generic;
 
@@ -54,7 +55,7 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-pub struct Writer<D: Send + Sync> {
+pub struct Writer<D: Send + Sync + 'static> {
     min_bytes: usize,
     min_items: usize,
     inbox: Option<Sender<BlockMessage>>,
@@ -66,7 +67,7 @@ pub struct Writer<D: Send + Sync> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Send + Sync> Writer<D> {
+impl<D: Send + Sync + 'static> Writer<D> {
     fn new() -> Self {
         Self {
             min_bytes: 0,
@@ -82,13 +83,13 @@ impl<D: Send + Sync> Writer<D> {
     }
 }
 
-impl<D: Send + Sync> Default for Writer<D> {
+impl<D: Send + Sync + 'static> Default for Writer<D> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D: Send + Sync> BufferWriter for Writer<D> {
+impl<D: Send + Sync + 'static> BufferWriter for Writer<D> {
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
@@ -201,7 +202,7 @@ pub struct Reader<D: Send + Sync> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Send + Sync> Default for Reader<D> {
+impl<D: Send + Sync + 'static> Default for Reader<D> {
     fn default() -> Self {
         Self {
             reader: None,
@@ -216,7 +217,12 @@ impl<D: Send + Sync> Default for Reader<D> {
     }
 }
 
-impl<D: Send + Sync> BufferReader for Reader<D> {
+#[async_trait]
+impl<D: Send + Sync + 'static> BufferReader for Reader<D> {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
         self.block_id = Some(block_id);
         self.port_id = Some(port_id);
@@ -256,7 +262,7 @@ impl<D: Send + Sync> BufferReader for Reader<D> {
     }
 }
 
-impl<D: Send + Sync> CpuBufferReader for Reader<D> {
+impl<D: Send + Sync + 'static> CpuBufferReader for Reader<D> {
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {

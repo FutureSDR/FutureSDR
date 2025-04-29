@@ -2,6 +2,7 @@ use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
 use futuresdr_types::BlockId;
+use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -195,7 +196,11 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
     }
 }
 
+#[async_trait]
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: Sender<BlockMessage>) {
         self.block_id = block_id;
         self.port_id = port_id;

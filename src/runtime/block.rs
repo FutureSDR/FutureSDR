@@ -9,6 +9,7 @@ use std::ops::DerefMut;
 
 use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::config;
 use futuresdr::runtime::BlockDescription;
 use futuresdr::runtime::BlockId;
@@ -27,16 +28,22 @@ use futuresdr::runtime::WorkIo;
 /// Block interface, implemented for [WrappedKernel]s
 pub trait Block: Send + Any {
     // ##### BLOCK
-    /// Cast block to [std::any::Any].
-    fn as_any(&self) -> &dyn Any;
-    /// Cast block to [std::any::Any] mutably.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
     /// Get the inbox of the block
     fn inbox(&self) -> Sender<BlockMessage>;
     /// Get the ID of the block
     fn id(&self) -> BlockId;
+
+    // ##### Stream Ports
+    /// Get dyn reference to stream input
+    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader>;
+    /// Connect dyn BufferReader by downcasting it
+    fn connect_stream_output(
+        &mut self,
+        name: &str,
+        reader: &mut dyn BufferReader,
+    ) -> Result<(), Error>;
 
     // ##### META
     /// Get instance name (see [`BlockMeta::instance_name`])
@@ -284,17 +291,23 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
 #[async_trait]
 impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
     // ##### Block
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
     fn inbox(&self) -> Sender<BlockMessage> {
         self.inbox_tx.clone()
     }
     fn id(&self) -> BlockId {
         self.id
+    }
+
+    // ##### Strams
+    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader> {
+        self.kernel.stream_input(name)
+    }
+    fn connect_stream_output(
+        &mut self,
+        name: &str,
+        reader: &mut dyn BufferReader,
+    ) -> Result<(), Error> {
+        self.kernel.connect_stream_output(name, reader)
     }
 
     // ##### META

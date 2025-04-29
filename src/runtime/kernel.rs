@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
@@ -96,6 +97,15 @@ pub trait KernelInterface {
     fn stream_input_finish(&mut self, port_id: PortId) -> Result<(), Error>;
     /// Tell adjacent blocks that we are done
     fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()> + Send;
+    /// Get dyn reference to stream input
+    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader>;
+    /// Connect dyn BufferReader by downcasting it
+    fn connect_stream_output(
+        &mut self,
+        name: &str,
+        reader: &mut dyn BufferReader,
+    ) -> Result<(), Error>;
+
     /// Input Message Handler Names.
     fn message_inputs() -> &'static [&'static str];
     /// Output Message Handler Names.
