@@ -1,29 +1,20 @@
 use anyhow::bail;
 use anyhow::Result;
 use futuresdr::blocks::MessageSink;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 struct FailInit;
 
 impl FailInit {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    pub fn new() -> Self {
+        Self
     }
 }
 
 impl Kernel for FailInit {
     async fn init(
         &mut self,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -31,12 +22,12 @@ impl Kernel for FailInit {
     }
 }
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 struct FailWork;
 
 impl FailWork {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -44,7 +35,6 @@ impl Kernel for FailWork {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -52,12 +42,12 @@ impl Kernel for FailWork {
     }
 }
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 struct FailDeinit;
 
 impl FailDeinit {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -65,7 +55,6 @@ impl Kernel for FailDeinit {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -75,7 +64,6 @@ impl Kernel for FailDeinit {
 
     async fn deinit(
         &mut self,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -87,8 +75,8 @@ impl Kernel for FailDeinit {
 fn fail_init() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new())?;
-    fg.add_block(FailInit::new())?;
+    fg.add_block(MessageSink::new());
+    fg.add_block(FailInit::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")
@@ -101,8 +89,8 @@ fn fail_init() -> Result<()> {
 fn fail_work() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new())?;
-    fg.add_block(FailWork::new())?;
+    fg.add_block(MessageSink::new());
+    fg.add_block(FailWork::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")
@@ -115,8 +103,8 @@ fn fail_work() -> Result<()> {
 fn fail_deinit() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new())?;
-    fg.add_block(FailDeinit::new())?;
+    fg.add_block(MessageSink::new());
+    fg.add_block(FailDeinit::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")

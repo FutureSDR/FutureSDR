@@ -1,30 +1,29 @@
 use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessageCopy;
-use futuresdr::runtime::copy_tag_propagation;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Mocker;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::PortId;
-use futuresdr::runtime::Tag;
+use futuresdr::prelude::*;
+use futuresdr::runtime::mocker::Mocker;
+use futuresdr::runtime::mocker::Writer;
+use futuresdr::runtime::mocker::Reader;
 use rand::Rng;
+use rand::distr::Uniform;
 
 #[test]
 fn multi_input_mock() {
-    let input: Vec<u32> = rand::thread_rng()
-        .sample_iter(rand::distributions::Uniform::<u32>::new(0, 1024))
+    let input: Vec<u32> = rand::rng()
+        .sample_iter(Uniform::<u32>::new(0, 1024).unwrap())
         .take(128)
         .collect();
 
-    let block = Apply::new(|x: &u32| x + 1);
+    let block: Apply<_, _, _, Reader<_>, Writer<_>> = Apply::new(|x: &u32| x + 1);
 
     let mut mocker = Mocker::new(block);
-    mocker.input(0, input[..64].to_vec());
-    mocker.init_output::<u32>(0, 128);
+    mocker.input().set(input[..64].to_vec());
+    mocker.output().reserve(128);
     mocker.run();
-    mocker.input(0, input[64..].to_vec());
+    mocker.input().set(input[64..].to_vec());
     mocker.run();
-    let (output, _) = mocker.output::<u32>(0);
+    let (output, _) = mocker.output().get();
 
     assert_eq!(input.len(), output.len());
     for (a, b) in input.iter().zip(output.iter()) {

@@ -4,10 +4,7 @@ use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSource;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::Error;
-use futuresdr::runtime::Flowgraph;
-use futuresdr_types::Pmt;
-use num_complex::Complex;
+use futuresdr::prelude::*;
 use std::time::Duration;
 
 #[test]

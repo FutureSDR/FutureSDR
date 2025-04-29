@@ -11,7 +11,7 @@ fn main() {
         .take(64)
         .collect();
 
-    let mut block = Apply::<_, _, _, Reader<u32>, Writer<u32>>::new(|x: &u32| x + 1);
+    let mut block = Apply::<_, _, _, Reader<_>, Writer<_>>::new(|x: &u32| x + 1);
     block.input().set(input.clone());
     block.output().reserve(64);
 

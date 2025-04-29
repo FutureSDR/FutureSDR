@@ -5,20 +5,8 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
-use futuresdr::macros::connect;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Error;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
+use futuresdr::prelude::*;
 use std::cmp;
-use std::marker::PhantomData;
 
 pub enum FailType {
     Panic,
@@ -26,35 +14,38 @@ pub enum FailType {
 }
 
 /// Intentionally generate errors to test the runtime.
-#[derive(futuresdr::Block)]
-pub struct BadBlock<T: Send> {
+#[derive(Block)]
+pub struct BadBlock<T: Send + Sync + 'static> {
     pub work_fail: Option<FailType>,
     pub drop_fail: Option<FailType>,
-    _phantom: PhantomData<T>,
+    #[input]
+    input: circular::Reader<T>,
+    #[output]
+    output: circular::Writer<T>
 }
 
-impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
-                .build(),
+impl<T: Copy + Send + Sync + 'static> BadBlock<T> {
+    pub fn new() -> Self {
             Self {
                 work_fail: None,
                 drop_fail: None,
-                _phantom: PhantomData,
-            },
-        )
+                input: Default::default(),
+                output: Default::default(),
+            }
+    }
+}
+
+impl<T: Copy + Send + Sync + 'static> Default for BadBlock<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[doc(hidden)]
-impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
+impl<T: Copy + Send + Sync + 'static> Kernel for BadBlock<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -70,17 +61,18 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
             _ => {}
         }
 
-        let i = sio.input(0).slice::<T>();
-        let o = sio.output(0).slice::<T>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
 
-        let m = cmp::min(i.len(), o.len());
+        let m = cmp::min(i_len, o.len());
         if m > 0 {
             o[..m].copy_from_slice(&i[..m]);
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        if self.input.finished() && m == i_len {
             io.finished = true;
         }
 
@@ -88,7 +80,7 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
     }
 }
 
-impl<T: Send> Drop for BadBlock<T> {
+impl<T: Send + Sync> Drop for BadBlock<T> {
     fn drop(&mut self) {
         debug!("In BadBlock::drop()");
         if let Some(FailType::Panic) = self.drop_fail {
@@ -103,19 +95,13 @@ enum RunMode {
     Terminate,
 }
 
-fn run_badblock(bb: TypedBlock<BadBlock<f32>>, mode: RunMode) -> Result<Option<Error>> {
+fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
     let mut fg = Flowgraph::new();
 
     let null_source = NullSource::<f32>::new();
     let throttle = Throttle::<f32>::new(100.0);
     let head = Head::<f32>::new(10);
     let null_sink = NullSink::<f32>::new();
-
-    let bb: futuresdr::runtime::Block = bb.into();
-    let null_source: futuresdr::runtime::Block = null_source.into();
-    let throttle: futuresdr::runtime::Block = throttle.into();
-    let head: futuresdr::runtime::Block = head.into();
-    let null_sink: futuresdr::runtime::Block = null_sink.into();
 
     connect!(fg, null_source > throttle > head > bb > null_sink);
 
@@ -154,7 +140,7 @@ fn run_no_err() -> Result<()> {
 #[test]
 fn run_work_err() -> Result<()> {
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.work_fail = Some(FailType::Error);
+    bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Run)? {
         None => bail!("Expected Error, got: None"),
         Some(e) => {
@@ -170,7 +156,7 @@ fn run_work_err() -> Result<()> {
 fn run_work_panic() {
     //FIXME: (#89) this currently hangs the runtime
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.work_fail = Some(FailType::Panic);
+    bb.work_fail = Some(FailType::Panic);
     let _ = run_badblock(bb, RunMode::Run);
 }
 
@@ -178,7 +164,7 @@ fn run_work_panic() {
 #[should_panic(expected = "BadBlock!")]
 fn run_drop_panic() {
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.drop_fail = Some(FailType::Panic);
+    bb.drop_fail = Some(FailType::Panic);
     let _ = run_badblock(bb, RunMode::Run);
 }
 
@@ -200,7 +186,7 @@ fn terminate_work_err() -> Result<()> {
     // panics `Err` value: send failed because receiver is gone
     // FIXME: should probably return some sort of flowgraph not running error
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.work_fail = Some(FailType::Error);
+    bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Terminate)? {
         None => bail!("Expected Error, got: None"),
         Some(e) => {
@@ -219,7 +205,7 @@ fn terminate_work_panic() -> Result<()> {
     // Assume race condition.
     // TODO: can we do *something* reliably here?
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.work_fail = Some(FailType::Panic);
+    bb.work_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate)? {
         None => bail!("Expected Error, got: None"),
         Some(e) => {
@@ -239,7 +225,7 @@ fn terminate_drop_panic() {
     //      Intermittently panics with "task has failed", sometimes Error("Flowgraph was terminated")
     //      Assume race condition.
     let mut bb = BadBlock::<f32>::new();
-    bb.kernel.drop_fail = Some(FailType::Panic);
+    bb.drop_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate) {
         Ok(None) => panic!("Expected Error, got: None"),
         Ok(Some(e)) => {
