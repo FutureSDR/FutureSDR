@@ -1,5 +1,6 @@
 use futures::prelude::*;
 use ouroboros::self_referencing;
+use std::any::Any;
 use std::collections::VecDeque;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -182,10 +183,15 @@ where
     }
 }
 
+#[async_trait]
 impl<T> BufferReader for Reader<T>
 where
     T: BufferContents,
 {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
         self.block_id = block_id;
         self.port_id = port_id;
