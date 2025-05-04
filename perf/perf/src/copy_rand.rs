@@ -1,13 +1,5 @@
+use futuresdr::prelude::*;
 use rand::Rng;
-
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
 
 /// Copy input samples to the output, forwarding only a randomly selected number of samples.
 ///
