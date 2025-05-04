@@ -1,59 +1,60 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
 #[derive(Block)]
-pub struct SubSource<T: Send + 'static> {
+pub struct SubSource<T, O = circular::Writer<T>>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[output]
+    output: O,
     address: String,
     receiver: Option<zmq::Socket>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> SubSource<T> {
+impl<T, O> SubSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create SubSource block
-    pub fn new(address: impl Into<String>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            Self {
-                address: address.into(),
-                receiver: None,
-                _type: std::marker::PhantomData::<T>,
-            },
-        )
+    pub fn new(address: impl Into<String>) -> Self {
+        Self {
+            output: O::default(),
+            address: address.into(),
+            receiver: None,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static> Kernel for SubSource<T> {
+impl<T, O> Kernel for SubSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice_unchecked::<u8>();
-        let n_bytes = self.receiver.as_mut().unwrap().recv_into(o, 0)?;
+        let o = self.output.slice();
+        let ptr = o.as_ptr() as *mut u8;
+        let byte_len = o.len() * std::mem::size_of::<T>();
+        let buffer = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
+
+        let n_bytes = self.receiver.as_mut().unwrap().recv_into(buffer, 0)?;
         debug_assert_eq!(o.len() % std::mem::size_of::<T>(), 0);
         let n = n_bytes / std::mem::size_of::<T>();
         debug!("SubSource received {}", n);
-        sio.output(0).produce(n);
+        self.output.produce(n);
 
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         debug!("SubSource Init");
 
         let context = zmq::Context::new();
@@ -67,14 +68,22 @@ impl<T: Send + 'static> Kernel for SubSource<T> {
 }
 
 /// Build a ZeroMQ [SubSource].
-pub struct SubSourceBuilder<T: Send + 'static> {
+pub struct SubSourceBuilder<T, O = circular::Writer<T>>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     address: String,
-    _type: std::marker::PhantomData<T>,
+    _type: std::marker::PhantomData<O>,
 }
 
-impl<T: Send + 'static> SubSourceBuilder<T> {
+impl<T, O> SubSourceBuilder<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create SubSource builder
-    pub fn new() -> SubSourceBuilder<T> {
+    pub fn new() -> Self {
         SubSourceBuilder {
             address: "tcp://*:5555".into(),
             _type: std::marker::PhantomData,
@@ -83,18 +92,22 @@ impl<T: Send + 'static> SubSourceBuilder<T> {
 
     /// Set address
     #[must_use]
-    pub fn address(mut self, address: &str) -> SubSourceBuilder<T> {
+    pub fn address(mut self, address: &str) -> Self {
         self.address = address.to_string();
         self
     }
 
     /// Build ZMQ source
-    pub fn build(self) -> TypedBlock<SubSource<T>> {
-        SubSource::<T>::new(self.address)
+    pub fn build(self) -> SubSource<T, O> {
+        SubSource::<T, O>::new(self.address)
     }
 }
 
-impl<T: Send + 'static> Default for SubSourceBuilder<T> {
+impl<T, O> Default for SubSourceBuilder<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     fn default() -> Self {
         Self::new()
     }

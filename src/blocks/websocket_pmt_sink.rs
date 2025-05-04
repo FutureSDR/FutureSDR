@@ -15,16 +15,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Error;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push Samples from PMTs in a WebSocket.
 #[derive(Block)]
@@ -38,16 +29,13 @@ pub struct WebsocketPmtSink {
 
 impl WebsocketPmtSink {
     /// Create WebsocketPmtSink block
-    pub fn new(port: u32) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            Self {
-                port,
-                listener: None,
-                conn: None,
-                pmts: VecDeque::new(),
-            },
-        )
+    pub fn new(port: u32) -> Self {
+        Self {
+            port,
+            listener: None,
+            conn: None,
+            pmts: VecDeque::new(),
+        }
     }
 
     async fn r#in(
@@ -74,7 +62,6 @@ impl Kernel for WebsocketPmtSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -91,7 +78,7 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
@@ -106,7 +93,7 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
@@ -121,13 +108,13 @@ impl Kernel for WebsocketPmtSink {
                         })
                         .collect();
                     if !v.is_empty() {
-                        Some(Message::Binary(v))
+                        Some(Message::Binary(v.into()))
                     } else {
                         None
                     }
                 }
-                Some(Pmt::Blob(b)) => Some(Message::Binary(b)),
-                Some(Pmt::String(s)) => Some(Message::Text(s)),
+                Some(Pmt::Blob(b)) => Some(Message::Binary(b.into())),
+                Some(Pmt::String(s)) => Some(Message::Text(s.into())),
                 Some(p) => {
                     warn!("WebsocketPmtSink: unsupported PMT type {:?}", p);
                     None
@@ -186,12 +173,7 @@ impl Kernel for WebsocketPmtSink {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
             format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));

@@ -241,10 +241,10 @@ pub use vulkan::Vulkan;
 // /// WASM-specfici blocks (target wasm32-unknown-unknown)
 // #[cfg(target_arch = "wasm32")]
 // pub mod wasm;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod websocket_pmt_sink;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use websocket_pmt_sink::WebsocketPmtSink;
+#[cfg(not(target_arch = "wasm32"))]
+mod websocket_pmt_sink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use websocket_pmt_sink::WebsocketPmtSink;
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket_sink;
 #[cfg(not(target_arch = "wasm32"))]
@@ -253,15 +253,14 @@ pub use websocket_sink::WebsocketSink;
 pub use websocket_sink::WebsocketSinkBuilder;
 #[cfg(not(target_arch = "wasm32"))]
 pub use websocket_sink::WebsocketSinkMode;
-// pub mod xlating_fir;
-// pub use xlating_fir::XlatingFir;
-// pub use xlating_fir::XlatingFirBuilder;
+pub mod xlating_fir;
+pub use xlating_fir::XlatingFir;
 // #[cfg(feature = "wgpu")]
 // mod wgpu;
 // #[cfg(feature = "wgpu")]
 // pub use self::wgpu::Wgpu;
-// #[cfg(feature = "zeromq")]
-// pub mod zeromq;
+#[cfg(feature = "zeromq")]
+pub mod zeromq;
 // #[cfg(feature = "zynq")]
 // mod zynq;
 // #[cfg(feature = "zynq")]

@@ -4,31 +4,39 @@ use futuredsp::prelude::*;
 use futuredsp::DecimatingFirFilter;
 use futuredsp::Rotator;
 
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Frequency Xlating FIR filter.
 #[derive(Block)]
-pub struct XlatingFir {
+pub struct XlatingFir<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     filter: DecimatingFirFilter<Complex32, Complex32, Vec<Complex32>>,
     rotator: Rotator,
 }
 
-impl XlatingFir {
+impl<I, O> XlatingFir<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    /// Create a new non-resampling FIR filter with the specified taps.
+    pub fn new(decimation: usize, offset: f32, sample_rate: f32) -> Self {
+        assert!(decimation >= 2, "Xlating FIR: Decimation has to be >= 2");
+        let transition_bw = 0.1;
+        let cutoff = (0.5f64 - transition_bw - f64::EPSILON).min(1.0 / decimation as f64);
+        let taps = firdes::kaiser::lowpass::<f32>(cutoff, transition_bw, 0.0001);
+        Self::with_taps(taps, decimation, offset, sample_rate)
+    }
+
     /// Create Xlating FIR block
-    pub fn new(
-        taps: Vec<f32>,
-        decimation: usize,
-        offset: f32,
-        sample_rate: f32,
-    ) -> TypedBlock<Self> {
+    pub fn with_taps(taps: Vec<f32>, decimation: usize, offset: f32, sample_rate: f32) -> Self {
         assert!(decimation != 0);
 
         let mut bpf_taps = Vec::new();
@@ -39,99 +47,43 @@ impl XlatingFir {
             );
         }
 
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            Self {
-                filter: DecimatingFirFilter::new(decimation, bpf_taps),
-                rotator: Rotator::new(
-                    -std::f32::consts::TAU * offset * decimation as f32 / sample_rate,
-                ),
-            },
-        )
+        Self {
+            input: I::default(),
+            output: O::default(),
+            filter: DecimatingFirFilter::new(decimation, bpf_taps),
+            rotator: Rotator::new(
+                -std::f32::consts::TAU * offset * decimation as f32 / sample_rate,
+            ),
+        }
     }
 }
 
 #[doc(hidden)]
-impl Kernel for XlatingFir {
+impl<I, O> Kernel for XlatingFir<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<Complex32>();
-        let o = sio.output(0).slice::<Complex32>();
+        let i = self.input.slice();
+        let o = self.output.slice();
 
         let (consumed, produced, status) = self.filter.filter(i, o);
 
         self.rotator.rotate_inplace(&mut o[0..produced]);
 
-        sio.input(0).consume(consumed);
-        sio.output(0).produce(produced);
+        self.input.consume(consumed);
+        self.output.produce(produced);
 
-        if sio.input(0).finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
+        if self.input.finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
             io.finished = true;
         }
 
         Ok(())
-    }
-}
-
-/// Create a [XlatingFir] filter.
-///
-/// Uses `futuredsp` to pick the optimal FIR implementation for the given
-/// constraints.
-///
-/// Note that there must be an implementation of [futuredsp::TapsAccessor] for
-/// the taps object you pass in, see docs for details.
-///
-/// Additionally, there must be an available core (implementation of
-/// [futuredsp::UnaryKernel]) available for the specified `SampleType` and
-/// `TapsType`. See the [futuredsp docs](futuredsp::fir) for available
-/// implementations.
-///
-/// # Inputs
-///
-/// `in`: Input
-///
-/// # Outputs
-///
-/// `out`: Output
-///
-/// # Usage
-/// ```
-/// use futuresdr::blocks::XlatingFirBuilder;
-/// use futuresdr::runtime::Flowgraph;
-/// use futuresdr::num_complex::Complex32;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let fir = fg.add_block(XlatingFirBuilder::new(2, 100e3, 1e6));
-/// let fir = fg.add_block(XlatingFirBuilder::with_taps(vec![1.0, 2.0, 3.0], 2, 100e3, 1e6));
-/// ```
-pub struct XlatingFirBuilder;
-
-impl XlatingFirBuilder {
-    /// Create a new non-resampling FIR filter with the specified taps.
-    pub fn new(decimation: usize, offset: f32, sample_rate: f32) -> TypedBlock<XlatingFir> {
-        assert!(decimation >= 2, "Xlating FIR: Decimation has to be >= 2");
-        let transition_bw = 0.1;
-        let cutoff = (0.5f64 - transition_bw - f64::EPSILON).min(1.0 / decimation as f64);
-        let taps = firdes::kaiser::lowpass::<f32>(cutoff, transition_bw, 0.0001);
-        XlatingFirBuilder::with_taps(taps, decimation, offset, sample_rate)
-    }
-
-    /// Create a decimating FIR filter with standard low-pass taps.
-    pub fn with_taps(
-        taps: Vec<f32>,
-        decimation: usize,
-        offset: f32,
-        sample_rate: f32,
-    ) -> TypedBlock<XlatingFir> {
-        XlatingFir::new(taps, decimation, offset, sample_rate)
     }
 }
