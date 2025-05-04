@@ -1,67 +1,60 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Repeatedly apply a function to generate samples, using [Option] values to allow termination.
 #[derive(Block)]
-pub struct FiniteSource<F, A>
+pub struct FiniteSource<F, A, O = circular::Writer<A>>
 where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
+    #[output]
+    output: O,
     f: F,
-    _p: std::marker::PhantomData<A>,
 }
 
-impl<F, A> FiniteSource<F, A>
+impl<F, A, O> FiniteSource<F, A, O>
 where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
     /// Create FiniteSource block
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<A>("out").build(),
-            Self {
-                f,
-                _p: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            output: O::default(),
+            f,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<F, A> Kernel for FiniteSource<F, A>
+impl<F, A, O> Kernel for FiniteSource<F, A, O>
 where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<A>();
+        let o = self.output.slice();
+        let o_len = o.len();
 
         for (i, v) in o.iter_mut().enumerate() {
             if let Some(x) = (self.f)() {
                 *v = x;
             } else {
-                sio.output(0).produce(i);
+                self.output.produce(i);
                 io.finished = true;
                 return Ok(());
             }
         }
 
-        sio.output(0).produce(o.len());
-
+        self.output.produce(o_len);
         Ok(())
     }
 }

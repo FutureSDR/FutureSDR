@@ -1,33 +1,35 @@
 #![allow(clippy::type_complexity)]
+use crate::prelude::*;
 use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-
 /// IIR filter.
 #[derive(Block)]
-pub struct Iir<InputType, OutputType, TapsType, Core>
-where
+pub struct Iir<
+    InputType,
+    OutputType,
+    TapsType,
+    Core,
+    I = circular::Reader<InputType>,
+    O = circular::Writer<OutputType>,
+> where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapsType: 'static + Send + Taps,
     Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
+    I: CpuBufferReader<Item = InputType>,
+    O: CpuBufferWriter<Item = OutputType>,
 {
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     core: Core,
-    _input_type: std::marker::PhantomData<InputType>,
-    _output_type: std::marker::PhantomData<OutputType>,
     _tap_type: std::marker::PhantomData<TapsType>,
 }
 
-impl<InputType, OutputType, TapsType, Core> Iir<InputType, OutputType, TapsType, Core>
+impl<InputType, OutputType, TapsType, Core, I, O> Iir<InputType, OutputType, TapsType, Core, I, O>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
@@ -35,26 +37,23 @@ where
     Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
     IirFilter<InputType, OutputType, TapsType>:
         StatefulFilter<InputType, OutputType, TapsType::TapType>,
+    I: CpuBufferReader<Item = InputType>,
+    O: CpuBufferWriter<Item = OutputType>,
 {
     /// Create IIR filter block
-    pub fn new(core: Core) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<InputType>("in")
-                .add_output::<OutputType>("out")
-                .build(),
-            Self {
-                core,
-                _input_type: std::marker::PhantomData,
-                _output_type: std::marker::PhantomData,
-                _tap_type: std::marker::PhantomData,
-            },
-        )
+    pub fn new(core: Core) -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            core,
+            _tap_type: std::marker::PhantomData,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<InputType, OutputType, TapsType, Core> Kernel for Iir<InputType, OutputType, TapsType, Core>
+impl<InputType, OutputType, TapsType, Core, I, O> Kernel
+    for Iir<InputType, OutputType, TapsType, Core, I, O>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
@@ -62,23 +61,24 @@ where
     Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
     IirFilter<InputType, OutputType, TapsType>:
         StatefulFilter<InputType, OutputType, TapsType::TapType>,
+    I: CpuBufferReader<Item = InputType>,
+    O: CpuBufferWriter<Item = OutputType>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<InputType>();
-        let o = sio.output(0).slice::<OutputType>();
+        let i = self.input.slice();
+        let o = self.output.slice();
 
         let (consumed, produced, status) = self.core.filter(i, o);
 
-        sio.input(0).consume(consumed);
-        sio.output(0).produce(produced);
+        self.input.consume(consumed);
+        self.output.produce(produced);
 
-        if sio.input(0).finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
+        if self.input.finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
             io.finished = true;
         }
 
