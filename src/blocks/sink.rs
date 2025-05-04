@@ -1,11 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Apply a function to received samples.
 ///
@@ -27,56 +20,57 @@ use crate::runtime::WorkIo;
 /// let sink = fg.add_block(Sink::new(|x: &f32| println!("{}", x)));
 /// ```
 #[derive(Block)]
-pub struct Sink<F, A>
+pub struct Sink<F, A, I = circular::Reader<A>>
 where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,
+    I: CpuBufferReader<Item = A>,
 {
+    #[input]
+    input: I,
     f: F,
-    _p: std::marker::PhantomData<A>,
 }
 
-impl<F, A> Sink<F, A>
+impl<F, A, I> Sink<F, A, I>
 where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,
+    I: CpuBufferReader<Item = A>,
 {
     /// Create Sink block
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<A>("in").build(),
-            Self {
-                f,
-                _p: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            input: I::default(),
+            f,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<F, A> Kernel for Sink<F, A>
+impl<F, A, I> Kernel for Sink<F, A, I>
 where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,
+    I: CpuBufferReader<Item = A>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<A>();
+        let i = self.input.slice();
+        let i_len = i.len();
 
         for v in i.iter() {
             (self.f)(v);
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        sio.input(0).consume(i.len());
+        self.input.consume(i_len);
 
         Ok(())
     }

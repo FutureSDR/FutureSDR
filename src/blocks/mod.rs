@@ -23,7 +23,7 @@
 //! |---|---|---|
 //! | [Fft](Fft) | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
-//! | [Iir](IirBuilder) | IIR filter. | ✅ |
+//! | [Iir](Iir) | IIR filter. | ✅ |
 //! | [PfbArbResampler](PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
 //! | [PfbChannelizer](PfbChannelizer) | Polyphase Channelizer | ✅ |
 //! | [PfbSynthesizer](PfbSynthesizer) | Polyphase Synthesizer | ✅ |
@@ -157,7 +157,6 @@ mod head;
 pub use head::Head;
 mod iir;
 pub use iir::Iir;
-pub use iir::IirBuilder;
 mod message_annotator;
 pub use message_annotator::MessageAnnotator;
 mod message_apply;
@@ -176,8 +175,8 @@ mod message_source;
 pub use message_source::MessageSource;
 #[cfg(not(target_arch = "wasm32"))]
 pub use message_source::MessageSourceBuilder;
-// mod moving_avg;
-// pub use moving_avg::MovingAvg;
+mod moving_avg;
+pub use moving_avg::MovingAvg;
 mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
@@ -196,32 +195,32 @@ pub mod signal_source;
 pub use signal_source::FixedPointPhase;
 pub use signal_source::SignalSource;
 pub use signal_source::SignalSourceBuilder;
-// mod sink;
-// pub use sink::Sink;
-// mod source;
-// pub use source::Source;
-// mod split;
-// pub use split::Split;
-// mod stream_deinterleaver;
-// pub use stream_deinterleaver::StreamDeinterleaver;
+mod sink;
+pub use sink::Sink;
+mod source;
+pub use source::Source;
+mod split;
+pub use split::Split;
+mod stream_deinterleaver;
+pub use stream_deinterleaver::StreamDeinterleaver;
 mod stream_duplicator;
 pub use stream_duplicator::StreamDuplicator;
-// mod tag_debug;
-// pub use tag_debug::TagDebug;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod tcp_sink;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use tcp_sink::TcpSink;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod tcp_source;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use tcp_source::TcpSource;
+mod tag_debug;
+pub use tag_debug::TagDebug;
+#[cfg(not(target_arch = "wasm32"))]
+mod tcp_sink;
+#[cfg(not(target_arch = "wasm32"))]
+pub use tcp_sink::TcpSink;
+#[cfg(not(target_arch = "wasm32"))]
+mod tcp_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub use tcp_source::TcpSource;
 mod throttle;
 pub use throttle::Throttle;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod udp_source;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use udp_source::UdpSource;
+#[cfg(not(target_arch = "wasm32"))]
+mod udp_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub use udp_source::UdpSource;
 mod vector_sink;
 pub use vector_sink::VectorSink;
 mod vector_source;
@@ -259,6 +258,5 @@ pub mod zeromq;
 // pub use zynq::Zynq;
 // #[cfg(feature = "zynq")]
 // mod zynq_sync;
-//
 // #[cfg(feature = "zynq")]
 // pub use zynq_sync::ZynqSync;

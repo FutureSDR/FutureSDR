@@ -4,45 +4,47 @@ use async_net::TcpListener;
 use async_net::TcpStream;
 use futures::AsyncWriteExt;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push samples into a TCP socket.
 #[derive(Block)]
-pub struct TcpSink<T: Send + 'static> {
+pub struct TcpSink<T, I = circular::Reader<T>>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
+    #[input]
+    input: I,
     port: u32,
     listener: Option<TcpListener>,
     socket: Option<TcpStream>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> TcpSink<T> {
+impl<T, I> TcpSink<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create TCP Sink block
-    pub fn new(port: u32) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            Self {
-                port,
-                listener: None,
-                socket: None,
-                _type: std::marker::PhantomData::<T>,
-            },
-        )
+    pub fn new(port: u32) -> Self {
+        Self {
+            input: I::default(),
+            port,
+            listener: None,
+            socket: None,
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static> Kernel for TcpSink<T> {
+impl<T, I> Kernel for TcpSink<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
@@ -57,38 +59,34 @@ impl<T: Send + 'static> Kernel for TcpSink<T> {
             debug!("tcp sink accepted connection");
         }
 
-        let i = sio.input(0).slice_unchecked::<u8>();
+        let i = self.input.slice();
+        let i_len = i.len();
+        let ptr = i.as_ptr() as *const u8;
+        let byte_len = std::mem::size_of_val(i);
+        let data = unsafe { std::slice::from_raw_parts(ptr, byte_len) };
 
         match self
             .socket
             .as_mut()
             .context("no socket")?
-            .write_all(i)
+            .write_all(data)
             .await
         {
             Ok(()) => {}
             Err(_) => bail!("tcp sink socket error"),
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        debug!(
-            "tcp sink wrote bytes {}",
-            i.len() / std::mem::size_of::<T>()
-        );
-        sio.input(0).consume(i.len() / std::mem::size_of::<T>());
+        debug!("tcp sink wrote bytes {}", i_len * std::mem::size_of::<T>());
+        self.input.consume(i_len);
 
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(TcpListener::bind(format!("127.0.0.1:{}", self.port)).await?);
         Ok(())
     }
