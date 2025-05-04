@@ -1,12 +1,13 @@
 use futuredsp::prelude::*;
 use futuredsp::FirFilter;
 use num_integer::Integer;
-use futuresdr::prelude::*;
 use rustfft::Fft;
 use rustfft::FftDirection;
 use rustfft::FftPlanner;
 use std::cmp::min;
 use std::sync::Arc;
+
+use crate::prelude::*;
 
 fn partition_filter_taps(
     taps: &[f32],
@@ -24,19 +25,17 @@ fn partition_filter_taps(
     (fir_filters, taps_per_filter)
 }
 
-fn create_sio_builder(n_filters: usize) -> StreamIoBuilder {
-    let mut sio = StreamIoBuilder::new();
-    for i in 0..n_filters {
-        sio = sio
-            .add_input::<Complex32>(format!("in{i}").as_str())
-            .add_output::<Complex32>(format!("out{i}").as_str());
-    }
-    sio
-}
-
 /// Polyphase Channelizer
 #[derive(Block)]
-pub struct PfbChannelizer {
+pub struct PfbChannelizer<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    inputs: Vec<I>,
+    #[output]
+    outputs: Vec<O>,
     fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
     taps_per_filter: usize,
     n_filters: usize,
@@ -48,58 +47,64 @@ pub struct PfbChannelizer {
     num_filtering_rounds: usize,
 }
 
-impl PfbChannelizer {
+impl<I, O> PfbChannelizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     /// Create Polyphase Channelizer.
-    pub fn new(nfilts: usize, taps: &[f32], oversample_rate: f32) -> TypedBlock<Self> {
-        if oversample_rate == 0. || nfilts as f32 % oversample_rate != 0. {
+    pub fn new(n_filters: usize, taps: &[f32], oversample_rate: f32) -> Self {
+        if oversample_rate == 0. || n_filters as f32 % oversample_rate != 0. {
             panic!("pfb_channelizer: oversample rate must be N/i for i in [1, N]");
         }
-        let rate_ratio = (nfilts as f32 / oversample_rate) as usize; // no rounding necessary, since condition above ensures the result is integer
-        let idx_lut = (0..nfilts)
-            .map(|i| nfilts - ((i + rate_ratio) % nfilts) - 1)
+        let rate_ratio = (n_filters as f32 / oversample_rate) as usize; // no rounding necessary, since condition above ensures the result is integer
+        let idx_lut = (0..n_filters)
+            .map(|i| n_filters - ((i + rate_ratio) % n_filters) - 1)
             .collect();
         // Calculate the number of filtering rounds to do to evenly
         // align the input vectors with the output channels
-        let num_filtering_rounds = nfilts.lcm(&rate_ratio) / nfilts;
-        let (fir_filters, taps_per_filter) = partition_filter_taps(taps, nfilts);
+        let num_filtering_rounds = n_filters.lcm(&rate_ratio) / n_filters;
+        let (fir_filters, taps_per_filter) = partition_filter_taps(taps, n_filters);
 
-        let channelizer = PfbChannelizer {
+        Self {
+            inputs: (0..n_filters).map(|_| I::default()).collect(),
+            outputs: (0..n_filters).map(|_| O::default()).collect(),
             fir_filters,
             taps_per_filter,
-            n_filters: nfilts,
+            n_filters,
             os_factor: oversample_rate,
             idx_lut,
-            fft: FftPlanner::new().plan_fft(nfilts, FftDirection::Inverse),
-            fft_buf: vec![Complex32::new(0.0, 0.0); nfilts],
+            fft: FftPlanner::new().plan_fft(n_filters, FftDirection::Inverse),
+            fft_buf: vec![Complex32::new(0.0, 0.0); n_filters],
             rate_ratio,
             num_filtering_rounds,
-        };
-
-        let sio = create_sio_builder(nfilts);
-
-        TypedBlock::new(sio.build(), channelizer)
+        }
     }
 }
 
 #[doc(hidden)]
-impl Kernel for PfbChannelizer {
+impl<I, O> Kernel for PfbChannelizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let n_items_available = sio
-            .inputs_mut()
+        let n_items_available = self
+            .inputs
             .iter_mut()
-            .map(|x| x.slice::<Complex32>().len())
+            .map(|x| x.slice().len())
             .min()
             .unwrap();
         let n_items_to_consume = n_items_available.saturating_sub(self.taps_per_filter); // ensure we leave enough samples for "overlapping" FIR filter iterations (ref. "history" property of GNU Radio blocks)
-        let n_items_producable = sio
-            .outputs_mut()
+        let n_items_producable = self
+            .outputs
             .iter_mut()
-            .map(|x| x.slice::<Complex32>().len())
+            .map(|x| x.slice().len())
             .min()
             .unwrap();
         let n_items_to_process = min(
@@ -112,16 +117,9 @@ impl Kernel for PfbChannelizer {
         let n_items_to_produce = (n_items_to_process as f32 * self.os_factor) as usize;
 
         if n_items_to_process > 0 {
-            let mut outs: Vec<&mut [Complex32]> = sio
-                .outputs_mut()
-                .iter_mut()
-                .map(|x| x.slice::<Complex32>())
-                .collect();
-            let ins: Vec<&[Complex32]> = sio
-                .inputs_mut()
-                .iter_mut()
-                .map(|x| x.slice::<Complex32>())
-                .collect();
+            let mut outs: Vec<&mut [Complex32]> =
+                self.outputs.iter_mut().map(|x| x.slice()).collect();
+            let ins: Vec<&[Complex32]> = self.inputs.iter_mut().map(|x| x.slice()).collect();
             let mut n = 1;
             let mut oo = 0;
             let mut i: isize = -1;
@@ -165,15 +163,15 @@ impl Kernel for PfbChannelizer {
             assert_eq!(n_items_to_produce, oo);
 
             for i in 0..self.n_filters {
-                sio.input(i).consume(n_items_to_process);
-                sio.output(i).produce(n_items_to_produce);
+                self.inputs[i].consume(n_items_to_process);
+                self.outputs[i].produce(n_items_to_produce);
             }
         }
         // each iteration either depletes the available input items or the available space in the out buffer, therefore no manual call_again necessary
         // appropriately propagate flowgraph termination
         if n_items_to_consume - n_items_to_process
             < self.taps_per_filter + self.num_filtering_rounds
-            && sio.inputs().iter().all(|x| x.finished())
+            && self.inputs.iter_mut().all(|x| x.finished())
         {
             io.finished = true;
             debug!("PfbChannelizer: Terminated.")

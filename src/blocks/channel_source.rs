@@ -21,7 +21,7 @@ use crate::prelude::*;
 /// tx.try_send(vec![0, 1, 2].into_boxed_slice());
 /// ```
 #[derive(Block)]
-pub struct ChannelSource<T, O = circular::Reader<T>>
+pub struct ChannelSource<T, O = circular::Writer<T>>
 where
     T: Send + 'static,
     O: CpuBufferWriter<Item = T>,

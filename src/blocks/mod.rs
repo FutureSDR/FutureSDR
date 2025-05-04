@@ -181,10 +181,10 @@ mod null_sink;
 pub use null_sink::NullSink;
 mod null_source;
 pub use null_source::NullSource;
-// mod pfb;
-// pub use pfb::arb_resampler::PfbArbResampler;
-// pub use pfb::channelizer::PfbChannelizer;
-// pub use pfb::synthesizer::PfbSynthesizer;
+mod pfb;
+pub use pfb::arb_resampler::PfbArbResampler;
+pub use pfb::channelizer::PfbChannelizer;
+pub use pfb::synthesizer::PfbSynthesizer;
 /// Seify hardware driver blocks
 #[cfg(feature = "seify")]
 pub mod seify;

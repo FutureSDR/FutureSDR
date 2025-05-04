@@ -7,7 +7,8 @@ use std::cmp::min;
 #[derive(Block)]
 pub struct PfbArbResampler<
     I: CpuBufferReader<Item = Complex32> = circular::Reader<Complex32>,
-    O: CpuBufferWriter<Item = Complex32> = circular::Writer<Complex32>> {
+    O: CpuBufferWriter<Item = Complex32> = circular::Writer<Complex32>,
+> {
     rate: f32,
     /* The number of filters is specified by the user as the
        filter size; this is also the interpolation rate of the
@@ -40,8 +41,9 @@ pub struct PfbArbResampler<
 }
 
 impl<I, O> PfbArbResampler<I, O>
-where 
-I: CpuBufferReader<Item = Complex32>, O: CpuBufferWriter<Item = Complex32>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
 {
     fn taps_per_filter(num_taps: usize, num_filts: usize) -> usize {
         (num_taps as f32 / num_filts as f32).ceil() as usize
@@ -101,20 +103,20 @@ I: CpuBufferReader<Item = Complex32>, O: CpuBufferWriter<Item = Complex32>
 
         let starting_filter = (taps.len() / 2) % num_filters;
 
-            Self {
-                rate,
-                num_filters,
-                n_taps_per_filter,
-                fir_filters: filters,
-                diff_filters,
-                filter_index: starting_filter,
-                dec_rate: dec_rate as usize,
-                accum: 0.0,
-                flt_rate,
-                buff: [Complex32::new(0., 0.); 2],
-                input: I::default(),
-                output: O::default(),
-            }
+        Self {
+            rate,
+            num_filters,
+            n_taps_per_filter,
+            fir_filters: filters,
+            diff_filters,
+            filter_index: starting_filter,
+            dec_rate: dec_rate as usize,
+            accum: 0.0,
+            flt_rate,
+            buff: [Complex32::new(0., 0.); 2],
+            input: I::default(),
+            output: O::default(),
+        }
     }
 }
 
