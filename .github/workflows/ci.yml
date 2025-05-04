@@ -54,6 +54,9 @@ jobs:
       - name: Run cargo fmt (perf/null_rand_latency)
         run: cargo fmt --all --manifest-path=perf/null_rand_latency/Cargo.toml -- --check
 
+      - name: Run cargo fmt (perf/perf)
+        run: cargo fmt --all --manifest-path=perf/perf/Cargo.toml -- --check
+
       - name: Run cargo fmt (perf/vulkan)
         run: cargo fmt --all --manifest-path=perf/vulkan/Cargo.toml -- --check
 
@@ -156,14 +159,11 @@ jobs:
       - name: Install alsalibs
         run: sudo apt-get -y install libasound2-dev
 
-      - name: Install LTTng
-        run: sudo apt-get -y install liblttng-ust-dev
-
       - name: Install Soapy
         run: sudo apt-get -y install libsoapysdr-dev
 
       - name: Run cargo clippy (main)
-        run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,lttng,zynq,wgpu -- -D warnings
+        run: cargo clippy --all-targets --workspace --features=aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,zynq,wgpu -- -D warnings
 
       - name: Run cargo clippy (futuredsp)
         run: cargo clippy --lib --manifest-path=crates/futuredsp/Cargo.toml -- -D warnings
@@ -225,6 +225,9 @@ jobs:
       - name: Run cargo clippy (perf/null_rand_latency)
         run: cargo clippy --all-targets --manifest-path=perf/null_rand_latency/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (perf/perf)
+        run: cargo clippy --all-targets --all-features --manifest-path=perf/null_rand_latency/Cargo.toml -- -D warnings
+
       - name: Run cargo clippy (perf/vulkan)
         run: cargo clippy --all-targets --manifest-path=perf/vulkan/Cargo.toml -- -D warnings
 
@@ -257,9 +260,6 @@ jobs:
 
       - name: Install libdbus-dev
         run: sudo apt-get -y install libdbus-1-dev
-
-      - name: Install LTTng
-        run: sudo apt-get -y install liblttng-ust-dev
 
       - name: Install Soapy
         run: sudo apt-get -y install libsoapysdr-dev
@@ -390,7 +390,7 @@ jobs:
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
-      - run: cargo test --all-targets --workspace --features=aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,lttng,zynq,wgpu
+      - run: cargo test --all-targets --workspace --features=aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,zynq,wgpu
       - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
       - run: cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
       - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
