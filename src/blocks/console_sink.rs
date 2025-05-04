@@ -1,45 +1,49 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
+use std::fmt::Debug;
 
 /// Log stream data with [log::info!].
 #[derive(Block)]
-pub struct ConsoleSink<T: Send + 'static + std::fmt::Debug> {
+pub struct ConsoleSink<T, I = circular::Reader<T>>
+where
+    T: Send + 'static + Debug,
+    I: CpuBufferReader<Item = T>,
+{
+    #[input]
+    input: I,
     sep: String,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static + std::fmt::Debug> ConsoleSink<T> {
+impl<T, I> ConsoleSink<T, I>
+where
+    T: Send + 'static + Debug,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create [`ConsoleSink`] block
     ///
     /// ## Parameter
     /// - `sep`: Separator between items
-    pub fn new(sep: impl Into<String>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            Self {
-                sep: sep.into(),
-                _type: std::marker::PhantomData,
-            },
-        )
+    pub fn new(sep: impl Into<String>) -> Self {
+        Self {
+            input: I::default(),
+            sep: sep.into(),
+        }
     }
 }
 
 #[doc(hidden)]
-impl<T: Send + 'static + std::fmt::Debug> Kernel for ConsoleSink<T> {
+impl<T, I> Kernel for ConsoleSink<T, I>
+where
+    T: Send + 'static + Debug,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
+        let i = self.input.slice();
+        let i_len = i.len();
 
         if !i.is_empty() {
             let s = i
@@ -49,10 +53,10 @@ impl<T: Send + 'static + std::fmt::Debug> Kernel for ConsoleSink<T> {
                 .concat();
             info!("{}", s);
 
-            sio.input(0).consume(i.len());
+            self.input.consume(i_len);
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

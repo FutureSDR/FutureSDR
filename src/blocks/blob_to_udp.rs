@@ -2,15 +2,7 @@ use async_net::SocketAddr;
 use async_net::UdpSocket;
 use std::net::ToSocketAddrs;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
 #[derive(Block)]
@@ -25,22 +17,19 @@ impl BlobToUdp {
     ///
     /// ## Parameter
     /// - `remote`: UDP socket address, e.g., `localhost:2342`
-    pub fn new<S>(remote: S) -> TypedBlock<Self>
+    pub fn new<S>(remote: S) -> Self
     where
         S: AsRef<str>,
     {
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            BlobToUdp {
-                socket: None,
-                remote: remote
-                    .as_ref()
-                    .to_socket_addrs()
-                    .expect("could not resolve socket address")
-                    .next()
-                    .unwrap(),
-            },
-        )
+        BlobToUdp {
+            socket: None,
+            remote: remote
+                .as_ref()
+                .to_socket_addrs()
+                .expect("could not resolve socket address")
+                .next()
+                .unwrap(),
+        }
     }
 
     async fn r#in(
@@ -73,12 +62,7 @@ impl BlobToUdp {
 
 #[doc(hidden)]
 impl Kernel for BlobToUdp {
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let socket = UdpSocket::bind("127.0.0.1:0").await?;
         self.socket = Some(socket);
         Ok(())

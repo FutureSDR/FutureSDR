@@ -99,7 +99,10 @@ fn config_freq_gain_ports() -> Result<()> {
     // Freq
     block_on(async {
         let src = src.clone();
-        fg_handle.callback(src, "freq", Pmt::F64(102e6)).await.unwrap();
+        fg_handle
+            .callback(src, "freq", Pmt::F64(102e6))
+            .await
+            .unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);

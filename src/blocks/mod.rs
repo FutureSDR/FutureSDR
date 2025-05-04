@@ -121,28 +121,28 @@ mod applynm;
 pub use applynm::ApplyNM;
 #[cfg(feature = "audio")]
 pub mod audio;
-// #[cfg(not(target_arch = "wasm32"))]
-// mod blob_to_udp;
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use blob_to_udp::BlobToUdp;
-// mod channel_sink;
-// pub use channel_sink::ChannelSink;
-// mod channel_source;
-// pub use channel_source::ChannelSource;
+#[cfg(not(target_arch = "wasm32"))]
+mod blob_to_udp;
+#[cfg(not(target_arch = "wasm32"))]
+pub use blob_to_udp::BlobToUdp;
+mod channel_sink;
+pub use channel_sink::ChannelSink;
+mod channel_source;
+pub use channel_source::ChannelSource;
 mod combine;
 pub use combine::Combine;
-// mod console_sink;
-// pub use console_sink::ConsoleSink;
+mod console_sink;
+pub use console_sink::ConsoleSink;
 mod copy;
 pub use copy::Copy;
 mod copy_rand;
 pub use copy_rand::CopyRand;
-// mod delay;
-// pub use delay::Delay;
-// mod fft;
-// pub use fft::Fft;
-// pub use fft::FftDirection;
-//
+mod delay;
+pub use delay::Delay;
+mod fft;
+pub use fft::Fft;
+pub use fft::FftDirection;
+
 #[cfg(not(target_arch = "wasm32"))]
 mod file_sink;
 #[cfg(not(target_arch = "wasm32"))]
