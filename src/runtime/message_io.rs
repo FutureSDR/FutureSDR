@@ -1,6 +1,7 @@
 //! Message/Event/RPC-based Ports
 use futures::SinkExt;
 use futuresdr::channel::mpsc::Sender;
+use futuresdr_types::BlockId;
 
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
@@ -62,14 +63,15 @@ impl MessageOutput {
 /// Message Outputs
 #[derive(Debug)]
 pub struct MessageOutputs {
+    block_id: BlockId,
     outputs: Vec<MessageOutput>,
 }
 
 impl MessageOutputs {
     /// Create message outputs with given names
-    pub fn new(outputs: Vec<String>) -> Self {
+    pub fn new(block_id: BlockId, outputs: Vec<String>) -> Self {
         let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
-        MessageOutputs { outputs }
+        MessageOutputs { block_id, outputs }
     }
     /// Post data to connected downstream ports
     pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
@@ -87,8 +89,9 @@ impl MessageOutputs {
         dst_block_inbox: Sender<BlockMessage>,
         dst_port: &PortId,
     ) -> Result<(), Error> {
+        let block_id = self.block_id;
         self.output_mut(src_port)
-            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::None, src_port.clone()))?
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
             .connect(dst_port.clone(), dst_block_inbox);
         Ok(())
     }

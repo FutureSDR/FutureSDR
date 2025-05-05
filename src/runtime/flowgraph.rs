@@ -96,22 +96,22 @@ impl Flowgraph {
         dst: impl Into<BlockId>,
         dst_port: impl Into<PortId>,
     ) -> Result<(), Error> {
-        let src = src.into();
+        let src_id = src.into();
         let src_port = src_port.into();
         let dst = dst.into();
         let dst_port: PortId = dst_port.into();
-        let src = self.blocks.get(src.0).ok_or(Error::InvalidBlock(src))?;
+        let src = self.blocks.get(src_id.0).ok_or(Error::InvalidBlock(src_id))?;
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
         let mut tmp = dst.lock_arc_blocking();
         let reader = tmp
             .stream_input(&dst_port.0)
-            .ok_or(Error::InvalidStreamPort(BlockPortCtx::None, dst_port))?;
+            .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
         src.lock_arc_blocking()
             .connect_stream_output(&src_port.0, reader)
     }
 
     /// Make message connection
-    pub fn connect_message<K1: Kernel, K2: Kernel>(
+    pub fn connect_message<K1: Kernel, K2: Kernel + KernelInterface>(
         &mut self,
         src_block: &BlockRef<K1>,
         src_port: impl Into<PortId>,
@@ -123,6 +123,12 @@ impl Flowgraph {
         let dst_port = dst_port.into();
 
         src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
+        if !K2::message_inputs().to_owned().contains(&dst_port.0.as_str()) {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(dst_block.id),
+                dst_port,
+            ));
+        }
         self.message_edges
             .push((src_block.id, src_port, dst_block.id, dst_port));
         Ok(())

@@ -247,7 +247,7 @@ pub enum BlockPortCtx {
     /// BlockId is not specified
     None,
     /// Block is identified by its ID in the [`Flowgraph`]
-    Id(usize),
+    Id(BlockId),
     /// Block is identified by its `type_name`
     Name(String),
 }

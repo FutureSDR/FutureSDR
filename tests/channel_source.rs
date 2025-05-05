@@ -1,10 +1,10 @@
 use anyhow::anyhow;
 use anyhow::Result;
 use futuresdr::async_io::block_on;
-use futuresdr::futures::SinkExt;
-use futuresdr::prelude::*;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::VectorSink;
+use futuresdr::futures::SinkExt;
+use futuresdr::prelude::*;
 
 #[test]
 fn channel_source_min() -> Result<()> {

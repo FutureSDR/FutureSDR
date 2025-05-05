@@ -88,7 +88,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
         kernel.stream_ports_init(id, tx.clone());
         Self {
             meta: BlockMeta::new(),
-            mio: MessageOutputs::new(K::message_outputs().iter().map(|x| x.to_string()).collect()),
+            mio: MessageOutputs::new(id, K::message_outputs().iter().map(|x| x.to_string()).collect()),
             kernel,
             id,
             inbox: rx,
@@ -211,7 +211,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                                     meta.instance_name().unwrap(),
                                 );
                                 let _ = tx.send(Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::Id(self.id.0),
+                                    BlockPortCtx::Id(self.id),
                                     port_id,
                                 )));
                                 return Err(e);

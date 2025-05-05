@@ -169,7 +169,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 easy-parallel = "3.3"
 float-cmp = "0.10"
 rand = "0.9"
-vulkano-shaders = { version = "0.35" }
+vulkano-shaders = "0.35"
 
 [profile.release]
 codegen-units = 1

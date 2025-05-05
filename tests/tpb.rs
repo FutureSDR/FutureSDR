@@ -3,32 +3,23 @@ use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
+use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
 
 #[test]
 fn flowgraph_tpb() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let copy = Copy::<f32>::new();
+    let src = NullSource::<f32>::new();
     let head = Head::<f32>::new(1_000_000);
-    let null_source = NullSource::<f32>::new();
-    let vect_sink = VectorSinkBuilder::<f32>::new().build();
+    let copy = Copy::<f32>::new();
+    let snk = VectorSink::<f32>::new(1_000_00);
 
-    let copy = fg.add_block(copy)?;
-    let head = fg.add_block(head)?;
-    let null_source = fg.add_block(null_source)?;
-    let vect_sink = fg.add_block(vect_sink)?;
+    connect!(fg, src > head > copy > snk);
 
-    fg.connect_stream(null_source, "out", head, "in")?;
-    fg.connect_stream(head, "out", copy, "in")?;
-    fg.connect_stream(copy, "out", vect_sink, "in")?;
+    Runtime::with_scheduler(TpbScheduler::new()).run(fg)?;
 
-    fg = Runtime::with_scheduler(TpbScheduler::new()).run(fg)?;
-
-    let snk = fg.kernel::<VectorSink<f32>>(vect_sink).unwrap();
+    let snk = snk.get();
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
