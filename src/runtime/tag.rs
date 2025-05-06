@@ -4,13 +4,13 @@ use std::fmt;
 
 use crate::runtime::Pmt;
 
-pub trait TagAny: Any + DynClone + Send + 'static {
+pub trait TagAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 dyn_clone::clone_trait_object!(TagAny);
 
-impl<T: Any + DynClone + Send + 'static> TagAny for T {
+impl<T: Any + DynClone + Send + Sync + 'static> TagAny for T {
     fn as_any(&self) -> &dyn Any {
         self
     }

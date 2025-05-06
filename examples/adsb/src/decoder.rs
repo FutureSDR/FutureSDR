@@ -1,16 +1,6 @@
 use crate::DemodPacket;
-use adsb_deku::deku::DekuContainerRead;
 use anyhow::bail;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::info;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use serde::Serialize;
 use std::time::SystemTime;
 
@@ -26,13 +16,25 @@ pub struct DecoderMetaData {
     pub timestamp: SystemTime,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AdsbPacket {
     pub message: adsb_deku::Frame,
     pub decoder_metadata: DecoderMetaData,
 }
 
-#[derive(futuresdr::Block)]
+impl Clone for AdsbPacket {
+    fn clone(&self) -> Self {
+        Self {
+            message: adsb_deku::Frame {
+                df: self.message.df.clone(),
+                crc: self.message.crc,
+            },
+            decoder_metadata: self.decoder_metadata.clone(),
+        }
+    }
+}
+
+#[derive(Block)]
 #[message_inputs(r#in)]
 #[message_outputs(out)]
 #[null_kernel]
@@ -43,15 +45,12 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn new(forward_failed_crc: bool) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            Self {
-                forward_failed_crc,
-                n_crc_ok: 0,
-                n_crc_fail: 0,
-            },
-        )
+    pub fn new(forward_failed_crc: bool) -> Self {
+        Self {
+            forward_failed_crc,
+            n_crc_ok: 0,
+            n_crc_fail: 0,
+        }
     }
 
     /// Checks if the CRC is valid
@@ -91,8 +90,8 @@ impl Decoder {
             .step_by(8)
             .map(|i| bin_to_u64(&packet.bits[i..i + 8]) as u8)
             .collect();
-        match adsb_deku::Frame::from_bytes((&bytes, 0)) {
-            Ok((_, message)) => {
+        match adsb_deku::Frame::from_bytes(&bytes) {
+            Ok(message) => {
                 let packet = AdsbPacket {
                     message,
                     decoder_metadata,
@@ -132,9 +131,7 @@ impl Decoder {
                     if crc_passed || self.forward_failed_crc {
                         match self.decode_packet(pkt, crc_passed, SystemTime::now()) {
                             Ok(decoded_packet) => {
-                                mio.output_mut(0)
-                                    .post(Pmt::Any(Box::new(decoded_packet)))
-                                    .await
+                                mio.post("out", Pmt::Any(Box::new(decoded_packet))).await?
                             }
                             _ => info!("Could not decode packet despite valid CRC"),
                         }

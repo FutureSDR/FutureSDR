@@ -1,20 +1,36 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
-#[derive(futuresdr::Block)]
-pub struct PreambleDetector {
+#[derive(Block)]
+pub struct PreambleDetector<
+    IS = circular::Reader<f32>,
+    IN = circular::Reader<f32>,
+    IP = circular::Reader<f32>,
+    O = circular::Writer<f32>,
+> where
+    IS: CpuBufferReader<Item = f32>,
+    IN: CpuBufferReader<Item = f32>,
+    IP: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
+    #[input]
+    in_samples: IS,
+    #[input]
+    in_nf: IN,
+    #[input]
+    in_preamble_cor: IP,
+    #[output]
+    output: O,
     detection_threshold: f32,
 }
 
-impl PreambleDetector {
+impl<IS, IN, IP, O> PreambleDetector<IS, IN, IP, O>
+where
+    IS: CpuBufferReader<Item = f32>,
+    IN: CpuBufferReader<Item = f32>,
+    IP: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
     pub const PREAMBLE: [f32; 16] = [
         1.0f32, -1.0f32, // Symbol 1
         1.0f32, -1.0f32, // Symbol 2
@@ -28,25 +44,21 @@ impl PreambleDetector {
 
     /// Returns taps for the preamble correlation filter
     pub fn preamble_correlator_taps() -> Vec<f32> {
-        PreambleDetector::PREAMBLE
+        Self::PREAMBLE
             .into_iter()
             .rev()
             .flat_map(|n| std::iter::repeat(n).take(N_SAMPLES_PER_HALF_SYM))
             .collect()
     }
 
-    pub fn new(detection_threshold: f32) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<f32>("in_samples")
-                .add_input::<f32>("in_nf")
-                .add_input::<f32>("in_preamble_corr")
-                .add_output::<f32>("out")
-                .build(),
-            Self {
-                detection_threshold,
-            },
-        )
+    pub fn new(detection_threshold: f32) -> Self {
+        Self {
+            in_samples: IS::default(),
+            in_nf: IN::default(),
+            in_preamble_cor: IP::default(),
+            output: O::default(),
+            detection_threshold,
+        }
     }
 }
 
@@ -54,14 +66,13 @@ impl Kernel for PreambleDetector {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let samples = sio.input(0).slice::<f32>();
-        let nf = sio.input(1).slice::<f32>();
-        let corr = sio.input(2).slice::<f32>();
-        let out = sio.output(0).slice::<f32>();
+        let samples = self.in_samples.slice();
+        let nf = self.in_nf.slice();
+        let corr = self.in_preamble_cor.slice();
+        let (out, mut out_tag) = self.output.slice_with_tags();
 
         let samples_to_read = [samples.len(), nf.len(), corr.len(), out.len()]
             .iter()
@@ -111,7 +122,7 @@ impl Kernel for PreambleDetector {
                 // should be less than the maximum high power.
                 if min_high_pwr > 0.1 * max_high_pwr && max_low_pwr < max_high_pwr {
                     // Tag preamble.
-                    sio.output(0).add_tag(
+                    out_tag.add_tag(
                         max_corr_idx,
                         Tag::NamedF32("preamble_start".to_string(), max_corr),
                     );
@@ -122,12 +133,12 @@ impl Kernel for PreambleDetector {
             }
         }
 
-        sio.input(0).consume(num_read);
-        sio.input(1).consume(num_read);
-        sio.input(2).consume(num_read);
-        sio.output(0).produce(num_read);
+        self.in_samples.consume(num_read);
+        self.in_nf.consume(num_read);
+        self.in_preamble_cor.consume(num_read);
+        self.output.produce(num_read);
 
-        if sio.input(0).finished() || sio.input(1).finished() || sio.input(2).finished() {
+        if self.in_samples.finished() || self.in_nf.finished() || self.in_preamble_cor.finished() {
             io.finished = true;
         }
 

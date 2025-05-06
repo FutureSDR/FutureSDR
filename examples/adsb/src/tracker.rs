@@ -1,15 +1,5 @@
 use futuresdr::async_io::Timer;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use std::cmp::Ordering;
 use std::time::Duration;
 
@@ -19,7 +9,7 @@ use crate::*;
 /// The duration considered to be recent when decoding CPR frames
 const ADSB_TIME_RECENT: Duration = Duration::new(10, 0);
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_inputs(r#in, ctrl_port)]
 pub struct Tracker {
     /// When to prune aircraft from the register.
@@ -30,25 +20,22 @@ pub struct Tracker {
 
 impl Tracker {
     /// Creates a new tracker without pruning.
-    pub fn new() -> TypedBlock<Self> {
+    pub fn new() -> Self {
         Tracker::new_with_optional_args(None)
     }
 
-    pub fn with_pruning(after: Duration) -> TypedBlock<Self> {
+    pub fn with_pruning(after: Duration) -> Self {
         Tracker::new_with_optional_args(Some(after))
     }
 
-    fn new_with_optional_args(prune_after: Option<Duration>) -> TypedBlock<Self> {
+    fn new_with_optional_args(prune_after: Option<Duration>) -> Self {
         let aircraft_register = AircraftRegister {
             register: HashMap::new(),
         };
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            Self {
-                prune_after,
-                aircraft_register,
-            },
-        )
+        Self {
+            prune_after,
+            aircraft_register,
+        }
     }
 
     /// This function handles control port messages.
@@ -92,16 +79,19 @@ impl Tracker {
                     if let adsb_deku::DF::ADSB(adsb) = &adsb_packet.message.df {
                         let metadata = &adsb_packet.decoder_metadata;
                         match &adsb.me {
-                            adsb_deku::adsb::ME::AircraftIdentification(identification) => self
-                                .aircraft_identification_received(
-                                    &adsb.icao,
-                                    identification,
-                                    metadata,
-                                ),
-                            adsb_deku::adsb::ME::AirbornePositionBaroAltitude(altitude)
-                            | adsb_deku::adsb::ME::AirbornePositionGNSSAltitude(altitude) => {
-                                self.airborne_position_received(&adsb.icao, altitude, metadata)
+                            adsb_deku::adsb::ME::AircraftIdentification {
+                                identification, ..
+                            } => self.aircraft_identification_received(
+                                &adsb.icao,
+                                identification,
+                                metadata,
+                            ),
+                            adsb_deku::adsb::ME::AirbornePositionBaroAltitude {
+                                altitude, ..
                             }
+                            | adsb_deku::adsb::ME::AirbornePositionGNSSAltitude {
+                                altitude, ..
+                            } => self.airborne_position_received(&adsb.icao, altitude, metadata),
                             adsb_deku::adsb::ME::AirborneVelocity(velocity) => {
                                 self.airborne_velocity_received(&adsb.icao, velocity, metadata)
                             }
@@ -216,7 +206,6 @@ impl Tracker {
                         latitude: pos.latitude,
                         longitude: pos.longitude,
                         altitude: altitude.alt,
-                        type_code: altitude.tc,
                     };
                     let new_rec = AircraftPositionRecord {
                         position: new_pos,
@@ -271,7 +260,6 @@ impl Kernel for Tracker {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {

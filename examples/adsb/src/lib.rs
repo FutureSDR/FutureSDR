@@ -39,7 +39,6 @@ pub struct AircraftPosition {
     pub latitude: f64,
     pub longitude: f64,
     pub altitude: Option<u16>,
-    pub type_code: u8,
 }
 
 /// Represents the source of the vertical rate.
