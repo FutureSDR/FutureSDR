@@ -2,9 +2,6 @@
 use axum::extract::Path;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::http::Uri;
-use axum::response::Redirect;
-use axum::routing::any;
 use axum::routing::get;
 use axum::routing::get_service;
 use axum::Json;
@@ -126,13 +123,6 @@ impl ControlPort {
             .route(
                 "/api/fg/{fg}/block/{blk}/call/{handler}/",
                 get(handler_id).post(handler_id_post),
-            )
-            .route(
-                "/api/block/{*foo}",
-                any(|uri: Uri| async move {
-                    let u = uri.to_string().split_off(11);
-                    Redirect::permanent(&format!("/api/fg/0/block/{u}/"))
-                }),
             )
             .layer(CorsLayer::permissive())
             .with_state(self.handle.clone());
