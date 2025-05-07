@@ -756,7 +756,8 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i) {
+                                    if name == format!("{}{}", #field_name_str, i)
+                                        || name == format!("{}[{}]", #field_name_str, i) {
                                         return self.#field_name[i].connect_dyn(reader);
                                     }
                                 }
@@ -788,7 +789,8 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i) {
+                                    if name == format!("{}{}", #field_name_str, i)
+                                        || name == format!("{}[{}]", #field_name_str, i) {
                                         return self.#field_name[i].connect_dyn(reader);
                                     }
                                 }
@@ -833,7 +835,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let connect_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if name == format!("{}{}", #field_name_str, #index) {
+                                    if name == format!("{}{}", #field_name_str, #index)
+                                        || name == format!("{}[{}]", #field_name_str, #index)
+                                        || name == format!("{}.{}", #field_name_str, #index) {
                                         return self.#field_name.#index.connect_dyn(reader);
                                     }
                                 }

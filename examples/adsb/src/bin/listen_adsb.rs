@@ -59,7 +59,7 @@ fn main() -> Result<()> {
     futuresdr::runtime::init();
 
     let src: BlockId = match args.file {
-        Some(f) => {
+        Some(ref f) => {
             let file_src_block = FileSource::<Complex32>::new(f, false);
             let throttle_block = Throttle::<Complex32>::new(args.sample_rate);
             connect!(fg, file_src_block > throttle_block);
@@ -94,7 +94,11 @@ fn main() -> Result<()> {
     let interp_block = fg.add_block(FirBuilder::resampling::<Complex32, Complex32>(
         interp, decim,
     ));
-    fg.connect_dyn(src, "output", &interp_block, "input")?;
+    if args.file.is_some() {
+        fg.connect_dyn(src, "output", &interp_block, "input")?;
+    } else {
+        fg.connect_dyn(src, "outputs[0]", &interp_block, "input")?;
+    }
 
     let complex_to_mag_2: Apply<_, _, _> = Apply::new(|i: &Complex32| i.norm_sqr());
     let nf_est_block = FirBuilder::fir::<f32, f32, _>(vec![1.0f32 / 32.0; 32]);
@@ -111,24 +115,9 @@ fn main() -> Result<()> {
         complex_to_mag_2 > preamble_corr_block;
         complex_to_mag_2 > in_samples.preamble_detector;
         nf_est_block > in_nf.preamble_detector;
-        preamble_corr_block > preamble_corr_block;
+        preamble_corr_block > in_preamble_cor.preamble_detector;
         preamble_detector > adsb_demod | adsb_decoder | tracker
         );
-    // fg.connect_stream(interp_block, "out", complex_to_mag_2, "in")?;
-    // fg.connect_stream(complex_to_mag_2, "out", nf_est_block, "in")?;
-    // fg.connect_stream(complex_to_mag_2, "out", preamble_corr_block, "in")?;
-    // fg.connect_stream(complex_to_mag_2, "out", preamble_detector, "in_samples")?;
-    // fg.connect_stream(nf_est_block, "out", preamble_detector, "in_nf")?;
-    // fg.connect_stream(
-    //     preamble_corr_block,
-    //     "out",
-    //     preamble_detector,
-    //     "in_preamble_corr",
-    // )?;
-
-    // fg.connect_stream(preamble_detector, "out", adsb_demod, "in")?;
-    // fg.connect_message(adsb_demod, "out", adsb_decoder, "in")?;
-    // fg.connect_message(adsb_decoder, "out", tracker, "in")?;
 
     println!("Please open the map in the browser: http://127.0.0.1:1337/");
     Runtime::new().run(fg)?;
