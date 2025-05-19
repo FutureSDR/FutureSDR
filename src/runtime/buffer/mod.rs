@@ -6,7 +6,7 @@ pub mod circular;
 
 // ===================== SLAB ========================
 /// Slab buffer
-// pub mod slab;
+pub mod slab;
 
 // ==================== VULKAN =======================
 #[cfg(feature = "vulkan")]
