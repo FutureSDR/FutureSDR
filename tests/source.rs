@@ -9,12 +9,12 @@ fn source_const_fn() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src: Source<_, _> = Source::new(|| 123u32);
-    let head =Head::<u32>::new(10);
+    let head = Head::<u32>::new(10);
     let snk = VectorSink::<u32>::new(10);
 
     connect!(fg, src > head > snk);
 
-     Runtime::new().run(fg)?;
+    Runtime::new().run(fg)?;
 
     let snk = snk.get();
     let v = snk.items();

@@ -16,7 +16,7 @@ use crate::prelude::*;
 /// ```
 /// use futuresdr::blocks::Combine;
 ///
-/// let adder = Combine::new(|a: &f32, b: &f32| {
+/// let adder = Combine::<_, _, _, _>::new(|a: &f32, b: &f32| {
 ///     a + b
 /// });
 /// ```

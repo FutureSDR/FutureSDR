@@ -13,12 +13,9 @@ use crate::prelude::*;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Source;
-/// use futuresdr::runtime::Flowgraph;
-///
-/// let mut fg = Flowgraph::new();
 ///
 /// // Generate zeroes
-/// let source = fg.add_block(Source::new(|| { 0.0f32 }));
+/// let source = Source::<_, _>::new(|| { 0.0f32 });
 /// ```
 #[derive(Block)]
 pub struct Source<F, A, O = circular::Writer<A>>

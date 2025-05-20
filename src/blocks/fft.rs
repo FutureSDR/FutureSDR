@@ -23,11 +23,8 @@ use std::sync::Arc;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Fft;
-/// use futuresdr::runtime::Flowgraph;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let fft = fg.add_block(Fft::new(2048));
+/// let fft: Fft<> = Fft::new(2048);
 /// ```
 #[derive(Block)]
 #[message_inputs(fft_size)]

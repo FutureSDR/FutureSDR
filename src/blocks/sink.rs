@@ -13,11 +13,8 @@ use crate::prelude::*;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Sink;
-/// use futuresdr::runtime::Flowgraph;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let sink = fg.add_block(Sink::new(|x: &f32| println!("{}", x)));
+/// let sink = Sink::<_, _>::new(|x: &f32| println!("{}", x));
 /// ```
 #[derive(Block)]
 pub struct Sink<F, A, I = circular::Reader<A>>

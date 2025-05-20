@@ -29,12 +29,12 @@ pub struct Iir<
     _tap_type: std::marker::PhantomData<TapsType>,
 }
 
-impl<InputType, OutputType, TapsType, Core, I, O> Iir<InputType, OutputType, TapsType, Core, I, O>
+impl<InputType, OutputType, TapsType, I, O>
+    Iir<InputType, OutputType, TapsType, IirFilter<InputType, OutputType, TapsType>, I, O>
 where
     InputType: 'static + Send,
     OutputType: 'static + Send,
     TapsType: 'static + Send + Taps,
-    Core: 'static + StatefulFilter<InputType, OutputType, TapsType::TapType> + Send,
     IirFilter<InputType, OutputType, TapsType>:
         StatefulFilter<InputType, OutputType, TapsType::TapType>,
     I: CpuBufferReader<Item = InputType>,
@@ -72,12 +72,9 @@ where
     ///
     /// # Usage
     /// ```
-    /// use futuresdr::blocks::IirBuilder;
-    /// use futuresdr::runtime::Flowgraph;
+    /// use futuresdr::blocks::Iir;
     ///
-    /// let mut fg = Flowgraph::new();
-    ///
-    /// let iir = fg.add_block(IirBuilder::new::<f32, f32, _>([1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]));
+    /// let iir: Iir<_, _, _, _> = Iir::new([1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]);
     /// ```
     pub fn new(
         a_taps: TapsType,

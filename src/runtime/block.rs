@@ -88,7 +88,10 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
         kernel.stream_ports_init(id, tx.clone());
         Self {
             meta: BlockMeta::new(),
-            mio: MessageOutputs::new(id, K::message_outputs().iter().map(|x| x.to_string()).collect()),
+            mio: MessageOutputs::new(
+                id,
+                K::message_outputs().iter().map(|x| x.to_string()).collect(),
+            ),
             kernel,
             id,
             inbox: rx,

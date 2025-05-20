@@ -177,7 +177,7 @@ impl<D: Send + Sync> CpuBufferWriter for Writer<D> {
     }
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         let s = self.writer.as_mut().unwrap().slice(false);
-        (s, Tags::new(&mut self.tags))
+        (s, Tags::new(&mut self.tags, 0))
     }
 }
 

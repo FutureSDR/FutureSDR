@@ -1,5 +1,6 @@
 use async_lock::Mutex;
 use async_lock::MutexGuard;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::runtime::Block;
@@ -30,6 +31,17 @@ impl<K: Kernel> Clone for BlockRef<K> {
             id: self.id,
             block: self.block.clone(),
         }
+    }
+}
+impl<K: Kernel> Debug for BlockRef<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockRef")
+            .field("id", &self.id)
+            .field(
+                "instance_name",
+                &self.block.try_lock().unwrap().meta.instance_name(),
+            )
+            .finish()
     }
 }
 impl<K: Kernel> From<BlockRef<K>> for BlockId {
@@ -100,7 +112,10 @@ impl Flowgraph {
         let src_port = src_port.into();
         let dst = dst.into();
         let dst_port: PortId = dst_port.into();
-        let src = self.blocks.get(src_id.0).ok_or(Error::InvalidBlock(src_id))?;
+        let src = self
+            .blocks
+            .get(src_id.0)
+            .ok_or(Error::InvalidBlock(src_id))?;
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
         let mut tmp = dst.lock_arc_blocking();
         let reader = tmp
@@ -123,7 +138,10 @@ impl Flowgraph {
         let dst_port = dst_port.into();
 
         src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
-        if !K2::message_inputs().to_owned().contains(&dst_port.0.as_str()) {
+        if !K2::message_inputs()
+            .to_owned()
+            .contains(&dst_port.0.as_str())
+        {
             return Err(Error::InvalidMessagePort(
                 BlockPortCtx::Id(dst_block.id),
                 dst_port,

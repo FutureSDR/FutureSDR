@@ -194,16 +194,13 @@ where
 /// # Usage
 /// ```
 /// use futuresdr::blocks::FirBuilder;
-/// use futuresdr::runtime::Flowgraph;
 /// use num_complex::Complex;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>([1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<Complex<f32>, Complex<f32>, _>(&[1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(vec![1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]));
-/// let fir = fg.add_block(FirBuilder::mmse::<f32>(2.0));
+/// let fir = FirBuilder::fir::<f32, f32, _>([1.0f32, 2.0, 3.0]);
+/// let fir = FirBuilder::fir::<Complex<f32>, Complex<f32>, _>(&[1.0f32, 2.0, 3.0]);
+/// let fir = FirBuilder::fir::<f32, f32, _>(vec![1.0f32, 2.0, 3.0]);
+/// let fir = FirBuilder::resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]);
+/// let fir = FirBuilder::mmse::<f32>(2.0);
 /// ```
 pub struct FirBuilder;
 
