@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use std::fmt;
 
 /// Port Identifier
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,11 +14,5 @@ impl From<&str> for PortId {
 impl From<String> for PortId {
     fn from(item: String) -> Self {
         PortId(item)
-    }
-}
-
-impl fmt::Display for PortId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PortId({})", self.0)
     }
 }

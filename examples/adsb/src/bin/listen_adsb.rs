@@ -102,7 +102,8 @@ fn main() -> Result<()> {
 
     let complex_to_mag_2: Apply<_, _, _> = Apply::new(|i: &Complex32| i.norm_sqr());
     let nf_est_block = FirBuilder::fir::<f32, f32, _>(vec![1.0f32 / 32.0; 32]);
-    let preamble_taps: Vec<f32> = PreambleDetector::<circular::Reader<f32>>::preamble_correlator_taps();
+    let preamble_taps: Vec<f32> =
+        PreambleDetector::<circular::Reader<f32>>::preamble_correlator_taps();
     let preamble_corr_block = FirBuilder::fir::<f32, f32, _>(preamble_taps);
     let preamble_detector = PreambleDetector::new(args.preamble_threshold);
     let adsb_demod = Demodulator::new();
@@ -112,12 +113,12 @@ fn main() -> Result<()> {
         None => Tracker::new(),
     };
     connect!(fg, interp_block > complex_to_mag_2 > nf_est_block;
-        complex_to_mag_2 > preamble_corr_block;
-        complex_to_mag_2 > in_samples.preamble_detector;
-        nf_est_block > in_nf.preamble_detector;
-        preamble_corr_block > in_preamble_cor.preamble_detector;
-        preamble_detector > adsb_demod | adsb_decoder | tracker
-        );
+    complex_to_mag_2 > preamble_corr_block;
+    complex_to_mag_2 > in_samples.preamble_detector;
+    nf_est_block > in_nf.preamble_detector;
+    preamble_corr_block > in_preamble_cor.preamble_detector;
+    preamble_detector > adsb_demod | adsb_decoder | tracker
+    );
 
     println!("Please open the map in the browser: http://127.0.0.1:1337/");
     Runtime::new().run(fg)?;

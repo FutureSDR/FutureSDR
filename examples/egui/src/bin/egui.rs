@@ -43,14 +43,19 @@ enum GuiAction {
 async fn process_gui_actions(mut rx: UnboundedReceiver<GuiAction>) -> anyhow::Result<()> {
     let remote = Remote::new("http://127.0.0.1:1337");
     let fgs = remote.flowgraphs().await?;
-    let sdr = &fgs[0].blocks()[0];
-    println!("sdr {:?}", sdr);
+    println!("sdr {:?}", fgs[0].blocks());
+    let sdr = fgs[0]
+        .blocks()
+        .into_iter()
+        .find(|b| b.description().type_name == "SeifySource")
+        .unwrap();
 
     while let Some(m) = rx.recv().await {
         match m {
             GuiAction::SetFreq(f) => {
-                println!("setting frequency to {}MHz", f);
-                sdr.callback(Handler::Id(0), Pmt::U64(f * 1000000)).await?
+                println!("setting frequency to {f}MHz");
+                sdr.callback(Handler::Name("freq".to_string()), Pmt::U64(f * 1000000))
+                    .await?
             }
         };
     }
@@ -354,9 +359,8 @@ impl Spectrum {
                 let coords = gl.get_attrib_location(self.program, "coordinates").unwrap();
                 gl.enable_vertex_attrib_array(coords);
                 gl.vertex_attrib_pointer_f32(coords, 2, glow::FLOAT, false, 0, 0);
+                gl.draw_arrays(glow::LINE_STRIP, 0, FFT_SIZE as i32);
             }
-
-            gl.draw_arrays(glow::LINE_STRIP, 0, FFT_SIZE as i32);
         }
     }
 }

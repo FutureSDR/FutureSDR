@@ -5,10 +5,10 @@ import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples.
 #[derive(Block)]
-pub struct LttngSink<T, I = circular::Reader<T>> 
+pub struct LttngSink<T, I = circular::Reader<T>>
 where
-T: Send + 'static,
-I: CpuBufferReader<Item = T>
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
 {
     #[input]
     input: I,
@@ -19,17 +19,17 @@ I: CpuBufferReader<Item = T>
 
 impl<T, I> LttngSink<T, I>
 where
-T: Send + 'static,
-I: CpuBufferReader<Item = T>
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
 {
     /// Create LttngSink block
     pub fn new(probe_granularity: u64) -> Self {
-            Self {
-                input: I::default(),
-                n_received: 0,
-                probe_granularity,
-                id: None,
-            }
+        Self {
+            input: I::default(),
+            n_received: 0,
+            probe_granularity,
+            id: None,
+        }
     }
     /// Get number of received samples
     pub fn n_received(&self) -> u64 {
@@ -40,14 +40,10 @@ I: CpuBufferReader<Item = T>
 #[doc(hidden)]
 impl<T, I> Kernel for LttngSink<T, I>
 where
-T: Send + 'static,
-I: CpuBufferReader<Item = T>
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
 {
-    async fn init(
-        &mut self,
-        _mio: &mut MessageOutputs,
-        meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, meta: &mut BlockMeta) -> Result<()> {
         let s = meta.instance_name().unwrap();
         self.id = Some(s.split('_').next_back().unwrap().parse::<u64>().unwrap());
         Ok(())

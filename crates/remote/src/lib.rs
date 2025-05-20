@@ -24,7 +24,6 @@
 //! }
 //! ```
 mod remote;
-pub use futuresdr_types as types;
 pub use remote::Block;
 pub use remote::Connection;
 pub use remote::ConnectionType;

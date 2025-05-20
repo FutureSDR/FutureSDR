@@ -184,16 +184,16 @@ pub enum BlockMessage {
 #[non_exhaustive]
 pub enum Error {
     /// Block does not exist
-    #[error("Block {0} does not exist")]
+    #[error("Block {:?} does not exist", 0)]
     InvalidBlock(BlockId),
     /// Flowgraph does not exist or terminated
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
     /// Message port does not exist
-    #[error("Block '{0}' does not have message port '{1}'")]
+    #[error("Block '{0}' does not have message port '{1:?}'")]
     InvalidMessagePort(BlockPortCtx, PortId),
     /// Stream port does not exist
-    #[error("Block '{0}' does not have stream port '{1}'")]
+    #[error("Block '{0}' does not have stream port '{1:?}'")]
     InvalidStreamPort(BlockPortCtx, PortId),
     /// Invalid Parameter
     #[error("Invalid Parameter")]
@@ -262,7 +262,7 @@ impl Display for BlockPortCtx {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             BlockPortCtx::None => write!(f, "<None>"),
-            BlockPortCtx::Id(id) => write!(f, "ID {id}"),
+            BlockPortCtx::Id(id) => write!(f, "ID {:?}", id),
             BlockPortCtx::Name(name) => write!(f, "{name}"),
         }
     }

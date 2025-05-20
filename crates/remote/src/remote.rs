@@ -1,6 +1,8 @@
 use futuresdr_types::BlockDescription;
+use futuresdr_types::BlockId;
 use futuresdr_types::FlowgraphDescription;
 use futuresdr_types::Pmt;
+use futuresdr_types::PortId;
 use reqwest::Client;
 use reqwest::IntoUrl;
 use serde::Deserialize;
@@ -98,7 +100,7 @@ impl Flowgraph {
     /// Get a specific [`Block`](Block) of the [`Flowgraph`] by `id`.
     ///
     /// Returns `None` if `Block` is not found.
-    pub fn block(&self, id: usize) -> Option<Block> {
+    pub fn block(&self, id: BlockId) -> Option<Block> {
         self.block_by(|d| d.id == id)
     }
 
@@ -134,9 +136,9 @@ impl Flowgraph {
             .map(|d| Connection {
                 connection_type: ConnectionType::Message,
                 src_block: self.block(d.0).unwrap(),
-                src_port: d.1,
+                src_port: d.1.clone(),
                 dst_block: self.block(d.2).unwrap(),
-                dst_port: d.3,
+                dst_port: d.3.clone(),
             })
             .collect()
     }
@@ -149,9 +151,9 @@ impl Flowgraph {
             .map(|d| Connection {
                 connection_type: ConnectionType::Stream,
                 src_block: self.block(d.0).unwrap(),
-                src_port: d.1,
+                src_port: d.1.clone(),
                 dst_block: self.block(d.2).unwrap(),
-                dst_port: d.3,
+                dst_port: d.3.clone(),
             })
             .collect()
     }
@@ -195,7 +197,7 @@ impl Block {
             self.client.clone(),
             format!(
                 "{}/api/fg/{}/block/{}/",
-                self.url, self.flowgraph_id, self.description.id
+                self.url, self.flowgraph_id, self.description.id.0
             ),
         )
         .await?;
@@ -215,11 +217,11 @@ impl Block {
         let url = match handler {
             Handler::Name(n) => format!(
                 "{}/api/fg/{}/block/{}/call/{}/",
-                &self.url, self.flowgraph_id, self.description.id, n
+                &self.url, self.flowgraph_id, self.description.id.0, n
             ),
             Handler::Id(i) => format!(
                 "{}/api/fg/{}/block/{}/call/{}/",
-                &self.url, self.flowgraph_id, self.description.id, i
+                &self.url, self.flowgraph_id, self.description.id.0, i
             ),
         };
 
@@ -244,7 +246,7 @@ impl std::fmt::Display for Block {
         write!(
             f,
             "{} ({}, {})",
-            &self.description.instance_name, &self.description.type_name, self.description.id,
+            &self.description.instance_name, &self.description.type_name, self.description.id.0,
         )
     }
 }
@@ -263,9 +265,9 @@ pub enum ConnectionType {
 pub struct Connection {
     connection_type: ConnectionType,
     src_block: Block,
-    src_port: usize,
+    src_port: PortId,
     dst_block: Block,
-    dst_port: usize,
+    dst_port: PortId,
 }
 
 impl Connection {
@@ -278,16 +280,16 @@ impl Connection {
         &self.src_block
     }
     /// Source port
-    pub fn src_port(&self) -> usize {
-        self.src_port
+    pub fn src_port(&self) -> &PortId {
+        &self.src_port
     }
     /// Source block
     pub fn dst_block(&self) -> &Block {
         &self.dst_block
     }
     /// Source port
-    pub fn dst_port(&self) -> usize {
-        self.dst_port
+    pub fn dst_port(&self) -> &PortId {
+        &self.dst_port
     }
 }
 
@@ -298,17 +300,17 @@ impl std::fmt::Display for Connection {
                 f,
                 "{}.{} > {}.{}",
                 self.src_block.description.instance_name,
-                &self.src_block.description.stream_outputs[self.src_port],
+                self.src_port.0,
                 self.dst_block.description.instance_name,
-                &self.dst_block.description.stream_inputs[self.dst_port]
+                self.dst_port.0
             ),
             ConnectionType::Message => write!(
                 f,
                 "{}.{} | {}.{}",
                 self.src_block.description.instance_name,
-                &self.src_block.description.message_outputs[self.src_port],
+                self.src_port.0,
                 self.dst_block.description.instance_name,
-                &self.dst_block.description.message_inputs[self.dst_port]
+                self.dst_port.0
             ),
         }
     }
