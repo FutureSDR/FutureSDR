@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use crate::runtime::config;
 use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::BufferReader;
@@ -48,10 +49,11 @@ pub struct Writer<D: Send + Sync + 'static> {
     current: Option<CurrentBuffer<D>>,
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
-    reader_inbox: Option<Sender<BlockMessage>>,
-    reader_input_id: Option<usize>,
-    writer_inbox: Sender<BlockMessage>,
-    writer_output_id: usize,
+    reader_inbox: Sender<BlockMessage>,
+    reader_input_id: PortId,
+    inbox: Sender<BlockMessage>,
+    port_id: PortId,
+    block_id: BlockId,
     finished: bool,
 }
 
@@ -59,29 +61,21 @@ impl<D> Writer<D>
 where D: Send + Sync + 'static {
     /// Create Slab writer
     pub fn new() -> Self {
+        let (rx, _) = channel(0);
         Self {
             current: None,
+            state: Arc::new(Mutex::new(State {
+                writer_input: VecDeque::new(),
+                reader_input: VecDeque::new(),
+            })),
+            reserved_items: 0,
+            reader_inbox: rx.clone(),
+            reader_input_id: PortId("".to_string()),
+            inbox: rx,
+            port_id: PortId("".to_string()),
+            block_id: BlockId(0),
+            finished: false,
         }
-        // let mut writer_input = VecDeque::new();
-        // for _ in 0..2 {
-        //     writer_input.push_back(BufferEmpty {
-        //         buffer: vec![0; buffer_size].into_boxed_slice(),
-        //     });
-        // }
-        //
-        // Self {
-        //     current: None,
-        //     state: Arc::new(Mutex::new(State {
-        //         writer_input,
-        //         reader_input: VecDeque::new(),
-        //     })),
-        //     reserved_items,
-        //     reader_inbox: None,
-        //     reader_input_id: None,
-        //     writer_inbox,
-        //     writer_output_id,
-        //     finished: false,
-        // }
     }
 }
 
@@ -93,32 +87,79 @@ where D: Send + Sync + 'static {
 }
 
 impl<D> BufferWriter for Writer<D>
-    where D: Send + Sync + 'static,
+    where D: Default + Clone + Send + Sync + 'static,
 {
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
-        todo!()
+        self.block_id = block_id;
+        self.port_id = port_id;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
-        todo!()
+        if !self.reader_inbox.is_closed() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.block_id, self.port_id
+            )))
+        }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        todo!()
+        let buffer_size = config::config().buffer_size / std::mem::size_of::<D>();
+        let mut s = self.state.lock().unwrap();
+        for _ in 0..2 {
+            s.writer_input.push_back(BufferEmpty {
+                buffer: vec![D::default(); buffer_size].into_boxed_slice(),
+            });
+        }
+
+        self.reader_inbox = dest.reader_inbox.clone();
+        self.reader_input_id = dest.port_id();
+        self.reserved_items = std::cmp::max(self.reserved_items, dest.reserved_items);
+
+        dest.state = self.state.clone();
+        dest.reserved_items = self.reserved_items;
+        dest.writer_inbox = self.inbox.clone();
+        dest.writer_output_id = self.port_id();
     }
 
     async fn notify_finished(&mut self) {
-        todo!()
+        if let Some(CurrentBuffer {
+            buffer,
+            offset,
+            tags,
+            ..
+        }) = self.current.take()
+        {
+            if offset > self.reserved_items {
+                let mut state = self.state.lock().unwrap();
+    
+                state.reader_input.push_back(BufferFull {
+                    buffer,
+                    items: offset - self.reserved_items,
+                    tags,
+                });
+            }
+        }
+    
+        let _ = self
+            .reader_inbox
+            .send(BlockMessage::StreamInputDone {
+                input_id: self.reader_input_id.clone(),
+            })
+            .await;
     }
 
     fn block_id(&self) -> futuresdr_types::BlockId {
-        todo!()
+        self.block_id
     }
 
     fn port_id(&self) -> futuresdr_types::PortId {
-        todo!()
+        self.port_id.clone()
     }
 }
 
@@ -136,32 +177,35 @@ impl<D> CpuBufferWriter for Writer<D>
     }
 
     fn produce(&mut self, n: usize) {
-        todo!()
+        debug_assert!(n > 0);
+    
+        let c = self.current.as_mut().unwrap();
+        debug_assert!(n <= c.capacity - c.offset);
+        for t in tags.iter_mut() {
+            t.index += c.offset;
+        }
+        c.tags.append(&mut tags);
+        c.offset += n;
+        if c.offset == c.capacity {
+            let c = self.current.take().unwrap();
+            let mut state = self.state.lock().unwrap();
+    
+            state.reader_input.push_back(BufferFull {
+                buffer: c.buffer,
+                items: c.capacity - self.reserved_items,
+                tags: c.tags,
+            });
+    
+            let _ = self
+                .reader_inbox
+                .try_send(BlockMessage::Notify);
+    
+            // make sure to be called again, if we have another buffer queued
+            if !state.writer_input.is_empty() {
+                let _ = self.inbox.try_send(BlockMessage::Notify);
+            }
+        }
     }
-
-    // fn add_reader(
-    //     &mut self,
-    //     reader_inbox: Sender<BlockMessage>,
-    //     reader_input_id: usize,
-    // ) -> BufferReader {
-    //     debug_assert!(self.reader_inbox.is_none());
-    //     debug_assert!(self.reader_input_id.is_none());
-    //
-    //     self.reader_inbox = Some(reader_inbox.clone());
-    //     self.reader_input_id = Some(reader_input_id);
-    //
-    //     BufferReader::Host(Box::new(Reader {
-    //         current: None,
-    //         state: self.state.clone(),
-    //         item_size: self.item_size,
-    //         reader_inbox,
-    //         reserved_items: self.reserved_items,
-    //         writer_inbox: self.writer_inbox.clone(),
-    //         writer_output_id: self.writer_output_id,
-    //         finished: false,
-    //     }))
-    // }
-    //
     // fn bytes(&mut self) -> (*mut u8, usize) {
     //     if self.current.is_none() {
     //         let mut state = self.state.lock().unwrap();
@@ -189,77 +233,9 @@ impl<D> CpuBufferWriter for Writer<D>
     // }
     //
     // fn produce(&mut self, amount: usize, mut tags: Vec<ItemTag>) {
-    //     debug_assert!(amount > 0);
-    //
-    //     let c = self.current.as_mut().unwrap();
-    //     debug_assert!(amount <= c.capacity - c.offset);
-    //     for t in tags.iter_mut() {
-    //         t.index += c.offset;
-    //     }
-    //     c.tags.append(&mut tags);
-    //     c.offset += amount;
-    //     if c.offset == c.capacity {
-    //         let c = self.current.take().unwrap();
-    //         let mut state = self.state.lock().unwrap();
-    //
-    //         state.reader_input.push_back(BufferFull {
-    //             buffer: c.buffer,
-    //             items: c.capacity - self.reserved_items,
-    //             tags: c.tags,
-    //         });
-    //
-    //         let _ = self
-    //             .reader_inbox
-    //             .as_mut()
-    //             .unwrap()
-    //             .try_send(BlockMessage::Notify);
-    //
-    //         // make sure to be called again, if we have another buffer queued
-    //         if !state.writer_input.is_empty() {
-    //             let _ = self.writer_inbox.try_send(BlockMessage::Notify);
-    //         }
-    //     }
     // }
     //
     // async fn notify_finished(&mut self) {
-    //     if self.finished {
-    //         return;
-    //     }
-    //
-    //     if let Some(CurrentBuffer {
-    //         buffer,
-    //         offset,
-    //         tags,
-    //         ..
-    //     }) = self.current.take()
-    //     {
-    //         if offset > self.reserved_items {
-    //             let mut state = self.state.lock().unwrap();
-    //
-    //             state.reader_input.push_back(BufferFull {
-    //                 buffer,
-    //                 items: offset - self.reserved_items,
-    //                 tags,
-    //             });
-    //         }
-    //     }
-    //
-    //     let _ = self
-    //         .reader_inbox
-    //         .as_mut()
-    //         .unwrap()
-    //         .send(BlockMessage::StreamInputDone {
-    //             input_id: self.reader_input_id.unwrap(),
-    //         })
-    //         .await;
-    // }
-    //
-    // fn finish(&mut self) {
-    //     self.finished = true;
-    // }
-    //
-    // fn finished(&self) -> bool {
-    //     self.finished
     // }
 }
 
@@ -272,11 +248,11 @@ pub struct Reader<D: Send + Sync + 'static> {
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
     reader_inbox: Sender<BlockMessage>,
-    writer_inbox: Sender<BlockMessage>,
-    finished: bool,
     block_id: BlockId,
     port_id: PortId,
+    writer_inbox: Sender<BlockMessage>,
     writer_output_id: PortId,
+    finished: bool,
 }
 
 impl<D> Reader<D>

@@ -126,20 +126,19 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
 /// Output Tags
 pub struct Tags<'a> {
     tags: &'a mut Vec<ItemTag>,
-    offset: usize,
 }
 
 impl<'a> Tags<'a> {
     /// Create Output Tags structure
     ///
     /// Should only be constructed in buffer implementations.
-    pub fn new(tags: &'a mut Vec<ItemTag>, offset: usize) -> Self {
-        Self { tags, offset }
+    pub fn new(tags: &'a mut Vec<ItemTag>) -> Self {
+        Self { tags }
     }
     /// Used in work to add a tag to the output
     pub fn add_tag(&mut self, index: usize, tag: Tag) {
         self.tags.push(ItemTag {
-            index: self.offset + index,
+            index,
             tag,
         });
     }
