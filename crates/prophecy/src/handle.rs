@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use futuresdr::runtime;
 use futuresdr_types::FlowgraphDescription;
+use futuresdr_types::FlowgraphId;
 use futuresdr_types::Pmt;
 use futuresdr_types::PortId;
 use gloo_net::http::Request;
@@ -13,7 +14,7 @@ use crate::Error;
 
 pub fn get_flowgraph_handle(
     rt: RuntimeHandle,
-    flowgraph_id: usize,
+    flowgraph_id: FlowgraphId,
 ) -> Result<ReadSignal<Option<FlowgraphHandle>>, Error> {
     let (fg_handle, set_fg_handle) = signal(None);
 
@@ -127,7 +128,7 @@ impl RuntimeHandle {
     pub fn from_handle(h: runtime::RuntimeHandle) -> Self {
         Self::Web(h)
     }
-    pub async fn get_flowgraphs(&self) -> Result<Vec<usize>, Error> {
+    pub async fn get_flowgraphs(&self) -> Result<Vec<FlowgraphId>, Error> {
         match self {
             Self::Remote(u) => Ok(Request::get(&format!("{u}api/fg/"))
                 .send()
@@ -137,9 +138,9 @@ impl RuntimeHandle {
             Self::Web(h) => Ok(h.get_flowgraphs()),
         }
     }
-    pub async fn get_flowgraph(&self, id: usize) -> Result<FlowgraphHandle, Error> {
+    pub async fn get_flowgraph(&self, id: FlowgraphId) -> Result<FlowgraphHandle, Error> {
         match self {
-            Self::Remote(u) => Ok(FlowgraphHandle::Remote(format!("{}api/fg/{}/", u, id))),
+            Self::Remote(u) => Ok(FlowgraphHandle::Remote(format!("{}api/fg/{}/", u, id.0))),
             Self::Web(h) => Ok(FlowgraphHandle::Web(
                 h.get_flowgraph(id).ok_or(Error::FlowgraphId(id))?,
             )),
@@ -185,7 +186,7 @@ impl FlowgraphHandle {
                     "{}block/{}/call/{}/",
                     u,
                     block_id,
-                    handler.into()
+                    handler.into().name()
                 ))
                 .header("Content-Type", "application/json")
                 .body(serde_json::to_string(&pmt)?)?
@@ -193,7 +194,7 @@ impl FlowgraphHandle {
                 .await?;
                 Ok(())
             }
-            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
+            Self::Web(h) => Ok(h.call(block_id.into(), handler, pmt).await?),
         }
     }
     pub async fn callback(
@@ -208,7 +209,7 @@ impl FlowgraphHandle {
                     "{}block/{}/call/{}/",
                     u,
                     block_id,
-                    handler.into()
+                    handler.into().name()
                 ))
                 .header("Content-Type", "application/json")
                 .body(serde_json::to_string(&pmt)?)?

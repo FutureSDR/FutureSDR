@@ -11,6 +11,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
@@ -222,7 +223,9 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     }
 }
 
-impl<T: Debug + Send + 'static> CpuBufferReader for Reader<T> {
+impl<T> CpuBufferReader for Reader<T> 
+where T: CpuSample
+{
     type Item = T;
 
     fn consume(&mut self, n: usize) {
@@ -302,7 +305,9 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     }
 }
 
-impl<T: Clone + Debug + Send + 'static> CpuBufferWriter for Writer<T> {
+impl<T> CpuBufferWriter for Writer<T> 
+where T: CpuSample,
+{
     type Item = T;
 
     fn slice(&mut self) -> &mut [Self::Item] {

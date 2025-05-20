@@ -1,10 +1,4 @@
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Drop samples.
 ///
@@ -27,7 +21,7 @@ use crate::runtime::WorkIo;
 /// let sink = fg.add_block(NullSink::<Complex<f32>>::new());
 /// ```
 #[derive(Block)]
-pub struct NullSink<T: Send + 'static, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct NullSink<T: CpuSample, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
     n_received: usize,
     #[input]
     input: I,
@@ -35,7 +29,7 @@ pub struct NullSink<T: Send + 'static, I: CpuBufferReader<Item = T> = circular::
 
 impl<T, I> NullSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     /// Create NullSink block
@@ -53,7 +47,7 @@ where
 
 impl<T, I> Default for NullSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     fn default() -> Self {
@@ -64,7 +58,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for NullSink<T, I>
 where
-    T: Send + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(

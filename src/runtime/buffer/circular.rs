@@ -8,6 +8,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
@@ -55,7 +56,9 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-pub struct Writer<D: Send + Sync + 'static> {
+pub struct Writer<D>
+where D: CpuSample,
+{
     min_bytes: usize,
     min_items: usize,
     inbox: Option<Sender<BlockMessage>>,
@@ -67,7 +70,9 @@ pub struct Writer<D: Send + Sync + 'static> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Send + Sync + 'static> Writer<D> {
+impl<D> Writer<D> 
+where D: CpuSample,
+{
     fn new() -> Self {
         Self {
             min_bytes: 0,
@@ -83,13 +88,17 @@ impl<D: Send + Sync + 'static> Writer<D> {
     }
 }
 
-impl<D: Send + Sync + 'static> Default for Writer<D> {
+impl<D> Default for Writer<D> 
+where D:CpuSample,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D: Send + Sync + 'static> BufferWriter for Writer<D> {
+impl<D> BufferWriter for Writer<D> 
+where D:CpuSample,
+{
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
@@ -163,7 +172,9 @@ impl<D: Send + Sync + 'static> BufferWriter for Writer<D> {
     }
 }
 
-impl<D: Send + Sync> CpuBufferWriter for Writer<D> {
+impl<D> CpuBufferWriter for Writer<D>
+where D:CpuSample,
+{
     type Item = D;
 
     fn produce(&mut self, items: usize) {
@@ -181,7 +192,9 @@ impl<D: Send + Sync> CpuBufferWriter for Writer<D> {
     }
 }
 
-impl<D: Send + Sync> fmt::Debug for Writer<D> {
+impl<D> fmt::Debug for Writer<D> 
+where D:CpuSample,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
             .field("output_id", &self.port_id)
@@ -191,7 +204,9 @@ impl<D: Send + Sync> fmt::Debug for Writer<D> {
 }
 
 /// Circular Reader
-pub struct Reader<D: Send + Sync> {
+pub struct Reader<D>
+where D:CpuSample,
+{
     reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
     finished: bool,
     writer_inbox: Option<Sender<BlockMessage>>,
@@ -202,7 +217,9 @@ pub struct Reader<D: Send + Sync> {
     tags: Vec<ItemTag>,
 }
 
-impl<D: Send + Sync + 'static> Default for Reader<D> {
+impl<D> Default for Reader<D>
+where D:CpuSample,
+    {
     fn default() -> Self {
         Self {
             reader: None,
@@ -218,7 +235,8 @@ impl<D: Send + Sync + 'static> Default for Reader<D> {
 }
 
 #[async_trait]
-impl<D: Send + Sync + 'static> BufferReader for Reader<D> {
+impl<D> BufferReader for Reader<D> 
+where D:CpuSample, {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -262,7 +280,9 @@ impl<D: Send + Sync + 'static> BufferReader for Reader<D> {
     }
 }
 
-impl<D: Send + Sync + 'static> CpuBufferReader for Reader<D> {
+impl<D> CpuBufferReader for Reader<D> 
+where D: CpuSample,
+{
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {
@@ -288,7 +308,9 @@ impl<D: Send + Sync + 'static> CpuBufferReader for Reader<D> {
     }
 }
 
-impl<D: Send + Sync> fmt::Debug for Reader<D> {
+impl<D> fmt::Debug for Reader<D> 
+where D:CpuSample,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")
             .field("writer_output_id", &self.writer_output_id)

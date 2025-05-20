@@ -1,3 +1,4 @@
+use futuresdr_types::FlowgraphId;
 use thiserror::Error;
 
 // Re-Exports
@@ -56,7 +57,7 @@ pub enum Error {
     #[error("Serde Error {0}")]
     Serde(String),
     #[error("Invalid flowgraph id {0}")]
-    FlowgraphId(usize),
+    FlowgraphId(FlowgraphId),
     #[error("FutureSDR Error {0}")]
     FutureSdr(#[from] futuresdr::runtime::Error),
 }

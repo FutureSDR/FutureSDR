@@ -22,8 +22,8 @@ pub struct Fir<
     IN = circular::Reader<InputType>,
     OUT = circular::Writer<OutputType>,
 > where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
+    InputType: CpuSample,
+    OutputType: CpuSample,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send,
     IN: CpuBufferReader<Item = InputType>,
@@ -40,8 +40,8 @@ pub struct Fir<
 impl<InputType, OutputType, TapType, Core, IN, OUT>
     Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
+    InputType: CpuSample,
+    OutputType: CpuSample,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
     IN: CpuBufferReader<Item = InputType>,
@@ -62,8 +62,8 @@ where
 impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel
     for Fir<InputType, OutputType, TapType, Core, IN, OUT>
 where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
+    InputType: CpuSample,
+    OutputType: CpuSample,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
     IN: CpuBufferReader<Item = InputType>,
@@ -210,8 +210,8 @@ impl FirBuilder {
         taps: TapsType,
     ) -> Fir<InputType, OutputType, TapsType::TapType, FirFilter<InputType, OutputType, TapsType>>
     where
-        InputType: 'static + Send + Sync,
-        OutputType: 'static + Send + Sync,
+        InputType: CpuSample,
+        OutputType: CpuSample,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         FirFilter<InputType, OutputType, TapsType>:
@@ -225,8 +225,8 @@ impl FirBuilder {
         decim: usize,
     ) -> Fir<InputType, OutputType, f32, DecimatingFirFilter<InputType, OutputType, Vec<f32>>>
     where
-        InputType: 'static + Send + Sync,
-        OutputType: 'static + Send + Sync,
+        InputType: CpuSample,
+        OutputType: CpuSample,
         DecimatingFirFilter<InputType, OutputType, Vec<f32>>:
             futuredsp::Filter<InputType, OutputType, f32>,
     {
@@ -245,8 +245,8 @@ impl FirBuilder {
         DecimatingFirFilter<InputType, OutputType, TapsType>,
     >
     where
-        InputType: 'static + Send + Sync,
-        OutputType: 'static + Send + Sync,
+        InputType: CpuSample,
+        OutputType: CpuSample,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         DecimatingFirFilter<InputType, OutputType, TapsType>:
@@ -268,8 +268,8 @@ impl FirBuilder {
         decim: usize,
     ) -> Fir<InputType, OutputType, f32, PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>>
     where
-        InputType: 'static + Send + Sync,
-        OutputType: 'static + Send + Sync,
+        InputType: CpuSample,
+        OutputType: CpuSample,
         PolyphaseResamplingFir<InputType, OutputType, Vec<f32>>: Filter<InputType, OutputType, f32>,
     {
         // Reduce factors
@@ -295,8 +295,8 @@ impl FirBuilder {
         PolyphaseResamplingFir<InputType, OutputType, TapsType>,
     >
     where
-        InputType: 'static + Send + Sync,
-        OutputType: 'static + Send + Sync,
+        InputType: CpuSample,
+        OutputType: CpuSample,
         TapsType: 'static + Taps + Send,
         TapsType::TapType: 'static + Send,
         PolyphaseResamplingFir<InputType, OutputType, TapsType>:
@@ -315,7 +315,7 @@ impl FirBuilder {
     ) -> StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>
     where
         SampleType:
-            Copy + Send + Sync + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
+            CpuSample + Copy + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
         MmseResampler<SampleType>: StatefulFilter<SampleType, SampleType, f32>,
     {
         StatefulFir::<SampleType, SampleType, f32, MmseResampler<SampleType>>::new(

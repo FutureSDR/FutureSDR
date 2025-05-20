@@ -10,8 +10,8 @@ use std::time::Duration;
 #[test]
 fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let fft: BlockId = fg.add_block(Fft::new(1024) as Fft).into();
-    let sink: BlockId = fg.add_block(NullSink::<[Complex<f32>; 1024]>::new()).into();
+    let fft: BlockId = fg.add_block(Fft::new(16) as Fft).into();
+    let sink: BlockId = fg.add_block(NullSink::<[Complex<f32>; 16]>::new()).into();
     let result = fg.connect_dyn(fft, "output", sink, "input");
 
     match result {

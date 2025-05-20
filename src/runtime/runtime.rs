@@ -226,7 +226,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         ));
         rx.await.expect("run_flowgraph crashed").unwrap();
         let handle = FlowgraphHandle::new(fg_inbox);
-        self.flowgraphs.lock_blocking().push(handle.clone());
+        self.flowgraphs.try_lock().unwrap().push(handle.clone());
         (TaskHandle::new(task), handle)
     }
 
@@ -332,21 +332,21 @@ impl RuntimeHandle {
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers
     fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
-        let mut v = self.flowgraphs.lock_blocking();
+        let mut v = self.flowgraphs.try_lock().unwrap();
         let l = v.len();
         v.push(handle);
         FlowgraphId(l)
     }
 
     /// Get handle to a running flowgraph
-    pub fn get_flowgraph(&self, id: usize) -> Option<FlowgraphHandle> {
-        self.flowgraphs.lock_blocking().get(id).cloned()
+    pub fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
+        self.flowgraphs.try_lock().unwrap().get(id.0).cloned()
     }
 
     /// Get list of flowgraph IDs
     pub fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
-            .lock_blocking()
+            .try_lock().unwrap()
             .iter()
             .enumerate()
             .map(|x| FlowgraphId(x.0))
@@ -370,9 +370,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     let mut inboxes: Vec<Sender<BlockMessage>> = fg
         .blocks
         .iter()
-        .map(|b| b.lock_blocking().inbox())
+        .map(|b| b.try_lock().unwrap().inbox())
         .collect();
-    let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.lock_blocking().id()).collect();
+    let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.try_lock().unwrap().id()).collect();
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
     debug!("init blocks");

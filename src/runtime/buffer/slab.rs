@@ -10,6 +10,7 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config;
 use crate::runtime::BlockId;
@@ -19,12 +20,12 @@ use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 
 #[derive(Debug)]
-struct BufferEmpty<D: Send + Sync + 'static> {
+struct BufferEmpty<D: CpuSample> {
     buffer: Box<[D]>,
 }
 
 #[derive(Debug)]
-struct BufferFull<D: Send + Sync + 'static> {
+struct BufferFull<D: CpuSample> {
     buffer: Box<[D]>,
     /// number of items, starting at reserved space
     items: usize,
@@ -32,7 +33,7 @@ struct BufferFull<D: Send + Sync + 'static> {
 }
 
 #[derive(Debug)]
-struct CurrentBuffer<D: Send + Sync + 'static> {
+struct CurrentBuffer<D: CpuSample> {
     buffer: Box<[D]>,
     end_offset: usize,
     offset: usize,
@@ -40,14 +41,14 @@ struct CurrentBuffer<D: Send + Sync + 'static> {
 }
 
 #[derive(Debug)]
-struct State<D: Send + Sync + 'static> {
+struct State<D: CpuSample> {
     writer_input: VecDeque<BufferEmpty<D>>,
     reader_input: VecDeque<BufferFull<D>>,
 }
 
 /// Slab writer
 #[derive(Debug)]
-pub struct Writer<D: Send + Sync + 'static> {
+pub struct Writer<D: CpuSample> {
     current: Option<CurrentBuffer<D>>,
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
@@ -61,7 +62,7 @@ pub struct Writer<D: Send + Sync + 'static> {
 
 impl<D> Writer<D>
 where
-    D: Send + Sync + 'static,
+    D: CpuSample
 {
     /// Create Slab writer
     pub fn new() -> Self {
@@ -85,7 +86,7 @@ where
 
 impl<D> Default for Writer<D>
 where
-    D: Send + Sync + 'static,
+    D: CpuSample
 {
     fn default() -> Self {
         Self::new()
@@ -94,7 +95,7 @@ where
 
 impl<D> BufferWriter for Writer<D>
 where
-    D: Default + Clone + Send + Sync + 'static,
+    D: CpuSample
 {
     type Reader = Reader<D>;
 
@@ -172,7 +173,7 @@ where
 
 impl<D> CpuBufferWriter for Writer<D>
 where
-    D: Default + Clone + Send + Sync + 'static,
+    D: CpuSample,
 {
     type Item = D;
 
@@ -234,7 +235,7 @@ where
 
 /// Slab reader
 #[derive(Debug)]
-pub struct Reader<D: Send + Sync + 'static> {
+pub struct Reader<D: CpuSample> {
     current: Option<CurrentBuffer<D>>,
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
@@ -248,7 +249,7 @@ pub struct Reader<D: Send + Sync + 'static> {
 
 impl<D> Reader<D>
 where
-    D: Send + Sync + 'static,
+    D: CpuSample,
 {
     /// Create Slab Buffer Reader
     pub fn new() -> Self {
@@ -273,7 +274,7 @@ where
 
 impl<D> Default for Reader<D>
 where
-    D: Send + Sync + 'static,
+    D: CpuSample,
 {
     fn default() -> Self {
         Self::new()
@@ -283,7 +284,7 @@ where
 #[async_trait]
 impl<D> BufferReader for Reader<D>
 where
-    D: Send + Sync + 'static,
+    D: CpuSample,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -326,7 +327,9 @@ where
     }
 }
 
-impl<D: Clone + Send + Sync + 'static> CpuBufferReader for Reader<D> {
+impl<D> CpuBufferReader for Reader<D> 
+where D: CpuSample,
+{
     type Item = D;
 
     fn slice(&mut self) -> &[Self::Item] {

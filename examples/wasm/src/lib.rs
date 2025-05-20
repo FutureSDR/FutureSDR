@@ -1,12 +1,8 @@
-use anyhow::Context;
 use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use std::iter::repeat_with;
 
 pub async fn run() -> Result<()> {
@@ -16,22 +12,15 @@ pub async fn run() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = VectorSource::<f32>::new(orig.clone());
-    let mul = Apply::new(|i: &f32| i * 12.0);
-    let snk = VectorSinkBuilder::<f32>::new().build();
+    let mul = Apply::<_, _, _>::new(|i: &f32| i * 12.0);
+    let snk = VectorSink::<f32>::new(n_items);
 
-    let src = fg.add_block(src)?;
-    let mul = fg.add_block(mul)?;
-    let snk = fg.add_block(snk)?;
-
-    fg.connect_stream(src, "out", mul, "in")?;
-    fg.connect_stream(mul, "out", snk, "in")?;
+    connect!(fg, src > mul > snk);
 
     info!("start flowgraph");
-    fg = Runtime::new().run_async(fg).await?;
+    Runtime::new().run_async(fg).await?;
 
-    let snk = fg
-        .kernel::<VectorSink<f32>>(snk)
-        .context("wrong block type")?;
+    let snk = snk.get();
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

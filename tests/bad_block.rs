@@ -15,7 +15,7 @@ pub enum FailType {
 
 /// Intentionally generate errors to test the runtime.
 #[derive(Block)]
-pub struct BadBlock<T: Send + Sync + 'static> {
+pub struct BadBlock<T: CpuSample> {
     pub work_fail: Option<FailType>,
     pub drop_fail: Option<FailType>,
     #[input]
@@ -24,7 +24,7 @@ pub struct BadBlock<T: Send + Sync + 'static> {
     output: circular::Writer<T>,
 }
 
-impl<T: Copy + Send + Sync + 'static> BadBlock<T> {
+impl<T: CpuSample> BadBlock<T> {
     pub fn new() -> Self {
         Self {
             work_fail: None,
@@ -35,14 +35,14 @@ impl<T: Copy + Send + Sync + 'static> BadBlock<T> {
     }
 }
 
-impl<T: Copy + Send + Sync + 'static> Default for BadBlock<T> {
+impl<T: CpuSample> Default for BadBlock<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[doc(hidden)]
-impl<T: Copy + Send + Sync + 'static> Kernel for BadBlock<T> {
+impl<T: CpuSample> Kernel for BadBlock<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
@@ -67,7 +67,7 @@ impl<T: Copy + Send + Sync + 'static> Kernel for BadBlock<T> {
 
         let m = cmp::min(i_len, o.len());
         if m > 0 {
-            o[..m].copy_from_slice(&i[..m]);
+            o[..m].clone_from_slice(&i[..m]);
             self.input.consume(m);
             self.output.produce(m);
         }
@@ -80,7 +80,7 @@ impl<T: Copy + Send + Sync + 'static> Kernel for BadBlock<T> {
     }
 }
 
-impl<T: Send + Sync> Drop for BadBlock<T> {
+impl<T: CpuSample> Drop for BadBlock<T> {
     fn drop(&mut self) {
         debug!("In BadBlock::drop()");
         if let Some(FailType::Panic) = self.drop_fail {

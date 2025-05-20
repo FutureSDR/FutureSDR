@@ -4,16 +4,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::WorkerGlobalScope;
 
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 const TRANSFER_SIZE: usize = 262144;
 
@@ -104,6 +95,8 @@ impl From<JsValue> for Error {
 #[derive(Block)]
 #[message_inputs(freq, vga, lna, amp, sample_rate)]
 pub struct HackRf {
+    #[output]
+    output: slab::Writer<Complex32>,
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
     device: Option<web_sys::UsbDevice>,
@@ -113,17 +106,13 @@ unsafe impl Send for HackRf {}
 
 impl HackRf {
     /// Create HackRf Source
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_output::<Complex32>("out")
-                .build(),
-            Self {
-                buffer: [0; TRANSFER_SIZE],
-                offset: TRANSFER_SIZE,
-                device: None,
-            },
-        )
+    pub fn new() -> Self {
+        Self {
+            output: slab::Writer::default(),
+            buffer: [0; TRANSFER_SIZE],
+            offset: TRANSFER_SIZE,
+            device: None,
+        }
     }
 
     async fn freq(
@@ -459,7 +448,6 @@ impl HackRf {
 impl Kernel for HackRf {
     async fn init(
         &mut self,
-        _s: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
@@ -535,11 +523,10 @@ impl Kernel for HackRf {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<Complex32>();
+        let o = self.output.slice();
 
         let n = std::cmp::min(o.len(), (TRANSFER_SIZE - self.offset) / 2);
 
@@ -550,7 +537,7 @@ impl Kernel for HackRf {
             );
         }
 
-        sio.output(0).produce(n);
+        self.output.produce(n);
         self.offset += n * 2;
         if self.offset == TRANSFER_SIZE {
             self.fill_buffer().await.unwrap();

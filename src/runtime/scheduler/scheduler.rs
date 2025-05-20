@@ -38,11 +38,11 @@ pub trait Scheduler: Clone + Send + 'static {
 pub trait Scheduler: Clone + Send + 'static {
     /// Run a whole [`Flowgraph`](crate::runtime::Flowgraph) on the
     /// [`Runtime`](crate::runtime::Runtime)
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>>;
+    );
 
     /// Spawn a task
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T>;

@@ -117,11 +117,11 @@ impl Flowgraph {
             .get(src_id.0)
             .ok_or(Error::InvalidBlock(src_id))?;
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
-        let mut tmp = dst.lock_arc_blocking();
+        let mut tmp = dst.try_lock().unwrap();
         let reader = tmp
             .stream_input(&dst_port.name())
             .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
-        src.lock_arc_blocking()
+        src.try_lock().unwrap()
             .connect_stream_output(&src_port.name(), reader)
     }
 

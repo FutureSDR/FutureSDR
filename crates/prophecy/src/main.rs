@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
+use futuresdr_types::FlowgraphId;
 use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use leptos::html::Input;
@@ -87,8 +88,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         {
             move || match fg_desc.get() {
                 Some(wrapped) => {
-                    let data = wrapped.take();
-                    match data {
+                    match wrapped {
                         Some(data) => view! {
                             <div>
                                 // <p>{ format!("{:?}", data) }</p>
@@ -100,7 +100,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
                             <FlowgraphMermaid fg=data.clone() />
                             // <FlowgraphCanvas fg=data />
                             </div> }.into_any(),
-                            None => "Flowgraph Handle not set".into_any(),
+                        None => "Flowgraph Handle not set".into_any(),
                     }
                 }
 
@@ -131,9 +131,13 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
         })
     };
 
-    let connect_flowgraph = move |rt_handle: Signal<RuntimeHandle>, id: usize| {
+    let connect_flowgraph = move |rt_handle: Signal<RuntimeHandle>, id: FlowgraphId| {
         spawn_local(async move {
-            if let Ok(fg) = rt_handle.get_untracked().get_flowgraph(id).await {
+            if let Ok(fg) = rt_handle
+                .get_untracked()
+                .get_flowgraph(id)
+                .await
+            {
                 fg_handle_set(Some(fg));
             } else {
                 warn!(
@@ -148,13 +152,12 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
     view! {
         {
             move || match res_fgs.get() {
-                Some(wrapper) => {
-                    let fgs = wrapper.take();
+                Some(fgs) => {
                     match fgs {
                         Ok(data) => view! {
                             <ul class="list-inside list-disc text-white m-2"> {
                                 data.into_iter().map(|n| view! {
-                                    <li>{n} <button on:click={
+                                    <li>{n.0} <button on:click={
                                         move |_| {
                                             let rt_handle = rt_handle;
                                             connect_flowgraph(rt_handle, n)

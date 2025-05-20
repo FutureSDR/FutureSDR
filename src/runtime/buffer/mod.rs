@@ -7,6 +7,12 @@ pub mod circular;
 // ===================== SLAB ========================
 /// Slab buffer
 pub mod slab;
+#[cfg(target_arch = "wasm32")]
+/// Circular buffer is an alias for the Slab buffer
+pub mod circular {
+    pub use super::slab::Reader;
+    pub use super::slab::Writer;
+}
 
 // ==================== VULKAN =======================
 #[cfg(feature = "vulkan")]
@@ -96,10 +102,18 @@ pub trait BufferWriter {
     fn port_id(&self) -> PortId;
 }
 
+/// A short hand for the traits required for CpuSamples
+pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
+
+impl<T> CpuSample for T
+where
+    T: Default + Clone + std::fmt::Debug + Send + Sync + 'static,
+{}
+
 /// A generic CPU buffer reader (out-of-place)
 pub trait CpuBufferReader: BufferReader + Default + Send {
     /// Buffer Items
-    type Item;
+    type Item: CpuSample;
     /// Get available samples.
     fn slice(&mut self) -> &[Self::Item];
     /// Get available samples and tags.
@@ -114,7 +128,7 @@ pub trait CpuBufferReader: BufferReader + Default + Send {
 /// and the SLAB buffer
 pub trait CpuBufferWriter: BufferWriter + Default + Send {
     /// Buffer Items
-    type Item;
+    type Item: CpuSample;
     /// Available buffer space
     fn slice(&mut self) -> &mut [Self::Item];
     /// Available buffer space and tags.

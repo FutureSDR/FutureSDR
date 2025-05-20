@@ -186,7 +186,7 @@ pub use pfb::arb_resampler::PfbArbResampler;
 pub use pfb::channelizer::PfbChannelizer;
 pub use pfb::synthesizer::PfbSynthesizer;
 /// Seify hardware driver blocks
-#[cfg(feature = "seify")]
+#[cfg(all(feature = "seify", not(target_arch = "wasm32")))]
 pub mod seify;
 mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;
@@ -229,9 +229,9 @@ pub use vector_source::VectorSource;
 mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::Vulkan;
-// /// WASM-specfici blocks (target wasm32-unknown-unknown)
-// #[cfg(target_arch = "wasm32")]
-// pub mod wasm;
+/// WASM-specfici blocks (target wasm32-unknown-unknown)
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket_pmt_sink;
 #[cfg(not(target_arch = "wasm32"))]

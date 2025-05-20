@@ -30,7 +30,7 @@ pub enum WebsocketSinkMode {
 
 /// Push samples in a WebSocket.
 #[derive(Block)]
-pub struct WebsocketSink<T: Send, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
     #[input]
     input: I,
     port: u32,
@@ -42,7 +42,7 @@ pub struct WebsocketSink<T: Send, I: CpuBufferReader<Item = T> = circular::Reade
 
 impl<T, I> WebsocketSink<T, I>
 where
-    T: Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     /// Create WebsocketSink block
@@ -61,7 +61,7 @@ where
 #[doc(hidden)]
 impl<T, I> Kernel for WebsocketSink<T, I>
 where
-    T: Clone + Send + Sync + 'static,
+    T: CpuSample,
     I: CpuBufferReader<Item = T>,
 {
     async fn work(
@@ -180,7 +180,7 @@ pub struct WebsocketSinkBuilder<T> {
     _p: PhantomData<T>,
 }
 
-impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
+impl<T: CpuSample> WebsocketSinkBuilder<T> {
     /// Create WebsocketSink builder
     pub fn new(port: u32) -> WebsocketSinkBuilder<T> {
         WebsocketSinkBuilder {

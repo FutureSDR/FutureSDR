@@ -14,9 +14,9 @@ futuresdr = { version = "0.0.37", path = "../../" }
 futuresdr-types = { version = "0.0.12", path = "../types/" }
 gloo-net = "0.6"
 gloo-timers = { version = "0.3", features = ["futures"] }
-indexmap = "2.7"
+indexmap = "2.9"
 js-sys = "0.3"
-leptos = { version = "0.7", features = ["csr", "nightly"] }
+leptos = { version = "0.8", features = ["csr", "nightly"] }
 log = "0.4"
 num-complex = "0.4"
 serde = { version = "1", features = ["derive"] }
