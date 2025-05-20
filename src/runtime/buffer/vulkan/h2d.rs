@@ -61,10 +61,10 @@ where
             outbound: Arc::new(Mutex::new(Vec::new())),
             inbox: rx.clone(),
             block_id: BlockId(0),
-            port_id: PortId(String::new()),
+            port_id: PortId::default(),
             tags: Vec::new(),
             reader_inbox: rx,
-            reader_port_id: PortId(String::new()),
+            reader_port_id: PortId::default(),
         }
     }
 
@@ -251,8 +251,8 @@ where
             inbound: Arc::new(Mutex::new(Vec::new())),
             inbox: rx.clone(),
             block_id: BlockId(0),
-            port_id: PortId(String::new()),
-            writer_port_id: PortId(String::new()),
+            port_id: PortId::default(),
+            writer_port_id: PortId::default(),
             writer_inbox: rx,
             finished: false,
         }

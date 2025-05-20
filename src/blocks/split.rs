@@ -8,42 +8,42 @@ pub struct Split<
     B,
     C,
     I = circular::Reader<A>,
-    O1 = circular::Writer<B>,
-    O2 = circular::Writer<C>,
+    O0 = circular::Writer<B>,
+    O1 = circular::Writer<C>,
 > where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
     I: CpuBufferReader<Item = A>,
-    O1: CpuBufferWriter<Item = B>,
-    O2: CpuBufferWriter<Item = C>,
+    O0: CpuBufferWriter<Item = B>,
+    O1: CpuBufferWriter<Item = C>,
 {
     #[input]
     input: I,
     #[output]
-    output1: O1,
+    output0: O0,
     #[output]
-    output2: O2,
+    output1: O1,
     f: F,
 }
 
-impl<F, A, B, C, I, O1, O2> Split<F, A, B, C, I, O1, O2>
+impl<F, A, B, C, I, O0, O1> Split<F, A, B, C, I, O0, O1>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
     I: CpuBufferReader<Item = A>,
-    O1: CpuBufferWriter<Item = B>,
-    O2: CpuBufferWriter<Item = C>,
+    O0: CpuBufferWriter<Item = B>,
+    O1: CpuBufferWriter<Item = C>,
 {
     /// Create Split block
     pub fn new(f: F) -> Self {
         Self {
             input: I::default(),
+            output0: O0::default(),
             output1: O1::default(),
-            output2: O2::default(),
             f,
         }
     }
@@ -67,8 +67,8 @@ where
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i0 = self.input.slice();
-        let o0 = self.output1.slice();
-        let o1 = self.output2.slice();
+        let o0 = self.output0.slice();
+        let o1 = self.output1.slice();
         let i0_len = i0.len();
 
         let m = std::cmp::min(i0.len(), o0.len());
@@ -82,8 +82,8 @@ where
             }
 
             self.input.consume(m);
+            self.output0.produce(m);
             self.output1.produce(m);
-            self.output2.produce(m);
         }
 
         if self.input.finished() && m == i0_len {

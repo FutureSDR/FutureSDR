@@ -53,10 +53,10 @@ where
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             block_id: BlockId(0),
-            port_id: PortId(String::new()),
+            port_id: PortId::default(),
             inbox: rx.clone(),
             reader_inbox: rx,
-            reader_port_id: PortId(String::new()),
+            reader_port_id: PortId::default(),
         }
     }
 
@@ -153,11 +153,11 @@ where
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             block_id: BlockId(0),
-            port_id: PortId(String::new()),
+            port_id: PortId::default(),
             inbox: rx.clone(),
             writer_inbox: rx.clone(),
             circuit_start_inbox: rx,
-            writer_port_id: PortId(String::new()),
+            writer_port_id: PortId::default(),
             tags: Vec::new(),
             finished: false,
         }

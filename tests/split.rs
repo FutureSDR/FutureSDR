@@ -15,7 +15,7 @@ fn split_const_fn() -> Result<()> {
     let snk0 = VectorSink::<i32>::new(10);
     let snk1 = VectorSink::<i32>::new(10);
 
-    connect!(fg, src > input.split.output1 > snk0; split.output2 > snk1);
+    connect!(fg, src > input.split.output0 > snk0; split.output1 > snk1);
 
     Runtime::new().run(fg)?;
 
