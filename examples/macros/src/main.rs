@@ -87,11 +87,14 @@ impl Handler {
 
     async fn r#in(
         &mut self,
-        _io: &mut WorkIo,
+        io: &mut WorkIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
-        _p: Pmt,
+        p: Pmt,
     ) -> Result<Pmt> {
+        if let Pmt::Finished = p {
+            io.finished = true
+        }
         Ok(Pmt::Null)
     }
 }

@@ -13,8 +13,6 @@ cargo run --release --bin receive
 
 By default, this reads the file `ssb_lsb_256k_complex2.dat` and outputs the audio to your default audio device.
 
-You can download that file from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip or by running `make ssb_lsb_256k_complex2.dat`
-
 ![](flowgraph-2022-07-28-124646.png)
 
 ### Transmit

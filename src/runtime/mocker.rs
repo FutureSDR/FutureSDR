@@ -59,7 +59,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             message_sinks.push(rx);
             block
                 .mio
-                .connect(&PortId(n.to_string()), tx, &PortId("input".to_string()))
+                .connect(&PortId::new(*n), tx, &PortId::new("input"))
                 .unwrap();
         }
 
@@ -144,7 +144,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
                         BlockMessage::Call { data, .. } => {
                             self.messages[n].push(data);
                         }
-                        _ => panic!("Mocked Block produced unexpected BlockMessage {:?}", m),
+                        _ => panic!("Mocked Block produced unexpected BlockMessage {m:?}"),
                     }
                 }
             }
@@ -192,7 +192,7 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
             data: vec![],
             tags: vec![],
             block_id: BlockId(0),
-            port_id: PortId("input".to_string()),
+            port_id: PortId::new("input"),
         }
     }
 }
@@ -256,7 +256,7 @@ impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
             data: vec![],
             tags: vec![],
             block_id: BlockId(0),
-            port_id: PortId("output".to_string()),
+            port_id: PortId::new("output"),
         }
     }
 }

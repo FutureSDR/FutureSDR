@@ -52,6 +52,9 @@ where
             tx: None,
         }
     }
+}
+
+impl AudioSink<circular::Reader<f32>> {
     /// Get default sample rate
     pub fn default_sample_rate() -> Option<u32> {
         Some(

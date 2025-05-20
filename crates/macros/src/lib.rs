@@ -523,12 +523,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         Type::Path(type_path) if is_vec(type_path) => {
                             let name_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}[{}]", #field_name_str, i));
                                 }
                             };
                             let init_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
+                                    self.#field_name[i].init(block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
                                 }
                             };
                             let validate_code = quote! {
@@ -543,7 +543,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let finish_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if port == format!("{}{}", #field_name_str, i) {
+                                    if port == format!("{}[{}]", #field_name_str, i) {
                                         self.#field_name[i].finish();
                                         return Ok(());
                                     }
@@ -551,7 +551,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i) {
+                                    if name == format!("{}[{}]", #field_name_str, i) {
                                         return Some(&mut self.#field_name[i]);
                                     }
                                 }
@@ -563,12 +563,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let len = &array.len;
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}[{}]", #field_name_str, i));
                                 }
                             };
                             let init_code = quote! {
                                 for i in 0..#len {
-                                    self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
+                                    self.#field_name[i].init(block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
                                 }
                             };
                             let validate_code = quote! {
@@ -583,7 +583,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let finish_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if port == format!("{}{}", #field_name_str, i) {
+                                    if port == format!("{}[{}]", #field_name_str, i) {
                                         self.#field_name[i].finish();
                                         return Ok(());
                                     }
@@ -591,7 +591,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i) {
+                                    if name == format!("{}[{}]", #field_name_str, i) {
                                         return Some(&mut self.#field_name[i]);
                                     }
                                 }
@@ -603,13 +603,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let len = tuple.elems.len();
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}.{}", #field_name_str, i));
                                 }
                             };
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    self.#field_name.#index.init(block_id, PortId(format!("{}{}", #field_name_str, #index)), inbox.clone());
+                                    self.#field_name.#index.init(block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), inbox.clone());
                                 }
                             });
                             let init_code = quote! {
@@ -636,7 +636,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let finish_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if port == format!("{}{}", #field_name_str, #index) {
+                                    if port == format!("{}.{}", #field_name_str, #index) {
                                         self.#field_name.#index.finish();
                                         return Ok(());
                                     }
@@ -648,7 +648,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let get_input_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if name == format!("{}{}", #field_name_str, #index) {
+                                    if name == format!("{}.{}", #field_name_str, #index) {
                                         return Some(&mut self.#field_name.#index);
                                     }
                                 }
@@ -664,7 +664,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 names.push(#field_name_str.to_string());
                             };
                             let init_code = quote! {
-                                self.#field_name.init(block_id, PortId(#field_name_str.to_string()), inbox.clone());
+                                self.#field_name.init(block_id, PortId::new(#field_name_str.to_string()), inbox.clone());
                             };
                             let validate_code = quote! {
                                 self.#field_name.validate()?;
@@ -736,12 +736,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         Type::Path(type_path) if is_vec(type_path) => {
                             let name_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}[{}]", #field_name_str, i));
                                 }
                             };
                             let init_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
+                                    self.#field_name[i].init(block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
                                 }
                             };
                             let validate_code = quote! {
@@ -756,8 +756,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i)
-                                        || name == format!("{}[{}]", #field_name_str, i) {
+                                    if name == format!("{}[{}]", #field_name_str, i) {
                                         return self.#field_name[i].connect_dyn(reader);
                                     }
                                 }
@@ -769,12 +768,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let len = &array.len;
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}[{}]", #field_name_str, i));
                                 }
                             };
                             let init_code = quote! {
                                 for i in 0..#len {
-                                    self.#field_name[i].init(block_id, PortId(format!("{}{}", #field_name_str, i)), inbox.clone());
+                                    self.#field_name[i].init(block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
                                 }
                             };
                             let validate_code = quote! {
@@ -789,8 +788,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}{}", #field_name_str, i)
-                                        || name == format!("{}[{}]", #field_name_str, i) {
+                                    if name == format!("{}[{}]", #field_name_str, i) {
                                         return self.#field_name[i].connect_dyn(reader);
                                     }
                                 }
@@ -802,13 +800,13 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let len = tuple.elems.len();
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}{}", #field_name_str, i));
+                                    names.push(format!("{}.{}", #field_name_str, i));
                                 }
                             };
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    self.#field_name.#index.init(block_id, PortId(format!("{}{}", #field_name_str, #index)), inbox.clone());
+                                    self.#field_name.#index.init(block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), inbox.clone());
                                 }
                             });
                             let init_code = quote! {
@@ -835,9 +833,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let connect_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if name == format!("{}{}", #field_name_str, #index)
-                                        || name == format!("{}[{}]", #field_name_str, #index)
-                                        || name == format!("{}.{}", #field_name_str, #index) {
+                                    if name == format!("{}.{}", #field_name_str, #index) {
                                         return self.#field_name.#index.connect_dyn(reader);
                                     }
                                 }
@@ -853,7 +849,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 names.push(#field_name_str.to_string());
                             };
                             let init_code = quote! {
-                                self.#field_name.init(block_id, PortId(#field_name_str.to_string()), inbox.clone());
+                                self.#field_name.init(block_id, PortId::new(#field_name_str.to_string()), inbox.clone());
                             };
                             let validate_code = quote! {
                                 self.#field_name.validate()?;
@@ -1063,7 +1059,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
-                let port = port_id.0.as_str();
+                let port = port_id.name();
                 #(#stream_inputs_finish)*
                 Err(Error::InvalidMessagePort(BlockPortCtx::None, port_id))
             }
@@ -1103,7 +1099,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         use ::futuresdr::runtime::Pmt;
                         use ::futuresdr::runtime::PortId;
                         use ::futuresdr::runtime::Result;
-                        let ret: Result<Pmt> = match id.0.as_str() {
+                        let ret: Result<Pmt> = match id.name() {
                                 #(#handler_matches)*
                                 _ => return Err(Error::InvalidMessagePort(
                                     BlockPortCtx::None,

@@ -119,10 +119,10 @@ impl Flowgraph {
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
         let mut tmp = dst.lock_arc_blocking();
         let reader = tmp
-            .stream_input(&dst_port.0)
+            .stream_input(&dst_port.name())
             .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
         src.lock_arc_blocking()
-            .connect_stream_output(&src_port.0, reader)
+            .connect_stream_output(&src_port.name(), reader)
     }
 
     /// Make message connection
@@ -140,7 +140,7 @@ impl Flowgraph {
         src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
         if !K2::message_inputs()
             .to_owned()
-            .contains(&dst_port.0.as_str())
+            .contains(&dst_port.name())
         {
             return Err(Error::InvalidMessagePort(
                 BlockPortCtx::Id(dst_block.id),

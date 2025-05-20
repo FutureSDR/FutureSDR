@@ -74,9 +74,9 @@ where
             })),
             reserved_items: 0,
             reader_inbox: rx.clone(),
-            reader_input_id: PortId("".to_string()),
+            reader_input_id: PortId::default(),
             inbox: rx,
-            port_id: PortId("".to_string()),
+            port_id: PortId::default(),
             block_id: BlockId(0),
             tags: Vec::new(),
         }
@@ -265,8 +265,8 @@ where
             writer_inbox,
             finished: false,
             block_id: BlockId(0),
-            port_id: PortId("".to_string()),
-            writer_output_id: PortId("".to_string()),
+            port_id: PortId::default(),
+            writer_output_id: PortId::default(),
         }
     }
 }
