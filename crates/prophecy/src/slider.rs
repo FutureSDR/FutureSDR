@@ -26,11 +26,16 @@ pub fn Slider<P: Into<PortId>>(
     let init = init.unwrap_or(min);
 
     view! {
-        <input type="range" min=min max =max step=step value=init class=input_class
+        <input
+            type="range"
+            min=min
+            max=max
+            step=step
+            value=init
+            class=input_class
             on:change={
                 let handler = handler.clone();
                 let fg_handle = fg_handle.clone();
-
                 move |v| {
                     let handler = handler.clone();
                     let mut fg_handle = fg_handle.clone();
@@ -38,15 +43,14 @@ pub fn Slider<P: Into<PortId>>(
                     let input: HtmlInputElement = target.dyn_into().unwrap();
                     let value: f64 = input.value().parse().unwrap();
                     let pmt = Pmt::F64(value);
-
                     if let Some(setter) = setter {
                         setter(value);
                     }
-
                     spawn_local(async move {
                         let _ = fg_handle.call(block_id, handler, pmt).await;
                     });
                 }
-        } />
+            }
+        />
     }
 }

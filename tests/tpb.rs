@@ -13,7 +13,7 @@ fn flowgraph_tpb() -> Result<()> {
     let src = NullSource::<f32>::new();
     let head = Head::<f32>::new(1_000_000);
     let copy = Copy::<f32>::new();
-    let snk = VectorSink::<f32>::new(1_000_00);
+    let snk = VectorSink::<f32>::new(1_000_000);
 
     connect!(fg, src > head > copy > snk);
 

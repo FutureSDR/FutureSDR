@@ -42,7 +42,7 @@ where
     ) -> Result<()> {
         let o = self.output.slice();
         let ptr = o.as_ptr() as *mut u8;
-        let byte_len = o.len() * std::mem::size_of::<T>();
+        let byte_len = std::mem::size_of_val(o);
         let buffer = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
 
         let n_bytes = self.receiver.as_mut().unwrap().recv_into(buffer, 0)?;

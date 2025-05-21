@@ -223,8 +223,9 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     }
 }
 
-impl<T> CpuBufferReader for Reader<T> 
-where T: CpuSample
+impl<T> CpuBufferReader for Reader<T>
+where
+    T: CpuSample,
 {
     type Item = T;
 
@@ -305,8 +306,9 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     }
 }
 
-impl<T> CpuBufferWriter for Writer<T> 
-where T: CpuSample,
+impl<T> CpuBufferWriter for Writer<T>
+where
+    T: CpuSample,
 {
     type Item = T;
 

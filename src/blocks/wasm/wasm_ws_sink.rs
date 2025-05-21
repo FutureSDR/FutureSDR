@@ -106,28 +106,18 @@ where
 
         // Do not process data until at least `items_to_process_per_run` are in the input buffer.
         if items_to_process_per_run <= i_len {
-
             let len_bytes = items_to_process_per_run * std::mem::size_of::<T>();
-            let s = unsafe {
-                std::slice::from_raw_parts(
-                    i.as_ptr() as *const u8,
-                    len_bytes,
-                )
-            };
+            let s = unsafe { std::slice::from_raw_parts(i.as_ptr() as *const u8, len_bytes) };
             self.data_storage.extend_from_slice(s);
 
             self.input.consume(items_to_process_per_run);
 
             // Send data only if the `iterations_per_send` is reached.
             if self.data_storage.len()
-                >= items_to_process_per_run
-                    * self.iterations_per_send
-                    * std::mem::size_of::<T>()
+                >= items_to_process_per_run * self.iterations_per_send * std::mem::size_of::<T>()
             {
                 let mut movable_vector = Vec::with_capacity(
-                    items_to_process_per_run
-                        * self.iterations_per_send
-                        * std::mem::size_of::<T>(),
+                    items_to_process_per_run * self.iterations_per_send * std::mem::size_of::<T>(),
                 );
                 std::mem::swap(&mut self.data_storage, &mut movable_vector);
                 // If send fails, we cannot gracefully recover so we panic.

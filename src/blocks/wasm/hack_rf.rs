@@ -446,11 +446,7 @@ impl HackRf {
 
 #[doc(hidden)]
 impl Kernel for HackRf {
-    async fn init(
-        &mut self,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let usb = {
             if let Some(window) = web_sys::window() {
                 let navigator: web_sys::Navigator = window.navigator();

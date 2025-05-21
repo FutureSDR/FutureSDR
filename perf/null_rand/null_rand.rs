@@ -1,14 +1,13 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::CopyRand;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use perf::CopyRand;
 use std::time;
 
 #[derive(Parser, Debug)]

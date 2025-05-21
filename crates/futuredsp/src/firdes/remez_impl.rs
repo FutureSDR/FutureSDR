@@ -764,7 +764,7 @@ pub fn pm_remez(
     } else if filter_type == "hilbert" {
         HILBERT
     } else {
-        punt(&format!("unknown ftype '{}'", filter_type));
+        punt(&format!("unknown ftype '{filter_type}'"));
         0
     };
 

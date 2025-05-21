@@ -103,6 +103,8 @@ impl MessageOutputs {
     }
     /// Get output port Id, given its name
     fn output_mut(&mut self, port: &PortId) -> Option<&mut MessageOutput> {
-        self.outputs.iter_mut().find(|item| item.name() == port.name())
+        self.outputs
+            .iter_mut()
+            .find(|item| item.name() == port.name())
     }
 }

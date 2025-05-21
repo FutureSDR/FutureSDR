@@ -36,9 +36,7 @@ pub fn Pmt(
         }
     };
 
-    view! {
-        <span class=class>{ move || pmt.get().to_string() }</span>
-    }
+    view! { <span class=class>{move || pmt.get().to_string()}</span> }
 }
 
 const ENTER_KEY: u32 = 13;
@@ -83,12 +81,21 @@ pub fn PmtInput(
     };
 
     view! {
-        <input class=classes node_ref=input_ref on:keydown=on_input></input>
-        { move || button.then({
-            let button_text = button_text.clone();
-            let button_class = button_class.clone();
-            move || view!{<button class=button_class on:click=move |_| parse_pmt()>{button_text}</button>}})
-        }
+        <input class=classes node_ref=input_ref on:keydown=on_input />
+        {move || {
+            button
+                .then({
+                    let button_text = button_text.clone();
+                    let button_class = button_class.clone();
+                    move || {
+                        view! {
+                            <button class=button_class on:click=move |_| parse_pmt()>
+                                {button_text}
+                            </button>
+                        }
+                    }
+                })
+        }}
     }
 }
 
@@ -197,19 +204,26 @@ pub fn PmtInputList(
     };
 
     view! {
-        <select node_ref=select_ref class={select_class}> {
-            types.into_iter()
-            .map(|k| view! {
-                <option value={k.to_string()}>{k.to_string()}</option>
-            })
-            .collect::<Vec<_>>()
-        }
+        <select node_ref=select_ref class=select_class>
+            {types
+                .into_iter()
+                .map(|k| view! { <option value=k.to_string()>{k.to_string()}</option> })
+                .collect::<Vec<_>>()}
         </select>
-        <input class=classes node_ref=input_ref on:keydown=on_input></input>
-        { move || button.then({
-            let button_text = button_text.clone();
-            let button_class = button_class.clone();
-            move || view!{<button class=button_class on:click=move |_| parse_pmt()>{button_text}</button>}})
-        }
+        <input class=classes node_ref=input_ref on:keydown=on_input />
+        {move || {
+            button
+                .then({
+                    let button_text = button_text.clone();
+                    let button_class = button_class.clone();
+                    move || {
+                        view! {
+                            <button class=button_class on:click=move |_| parse_pmt()>
+                                {button_text}
+                            </button>
+                        }
+                    }
+                })
+        }}
     }
 }

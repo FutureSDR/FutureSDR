@@ -151,22 +151,22 @@ impl fmt::Display for Pmt {
             Pmt::Ok => write!(f, "Ok"),
             Pmt::InvalidValue => write!(f, "InvalidValue"),
             Pmt::Null => write!(f, "Null"),
-            Pmt::String(v) => write!(f, "{}", v),
-            Pmt::Bool(v) => write!(f, "{}", v),
-            Pmt::Usize(v) => write!(f, "{}", v),
-            Pmt::Isize(v) => write!(f, "{}", v),
-            Pmt::U32(v) => write!(f, "{}", v),
-            Pmt::U64(v) => write!(f, "{}", v),
-            Pmt::F32(v) => write!(f, "{}", v),
-            Pmt::F64(v) => write!(f, "{}", v),
-            Pmt::VecCF32(v) => write!(f, "{:?}", v),
-            Pmt::VecF32(v) => write!(f, "{:?}", v),
-            Pmt::VecU64(v) => write!(f, "{:?}", v),
-            Pmt::Blob(v) => write!(f, "{:?}", v),
-            Pmt::VecPmt(v) => write!(f, "{:?}", v),
+            Pmt::String(v) => write!(f, "{v}"),
+            Pmt::Bool(v) => write!(f, "{v}"),
+            Pmt::Usize(v) => write!(f, "{v}"),
+            Pmt::Isize(v) => write!(f, "{v}"),
+            Pmt::U32(v) => write!(f, "{v}"),
+            Pmt::U64(v) => write!(f, "{v}"),
+            Pmt::F32(v) => write!(f, "{v}"),
+            Pmt::F64(v) => write!(f, "{v}"),
+            Pmt::VecCF32(v) => write!(f, "{v:?}"),
+            Pmt::VecF32(v) => write!(f, "{v:?}"),
+            Pmt::VecU64(v) => write!(f, "{v:?}"),
+            Pmt::Blob(v) => write!(f, "{v:?}"),
+            Pmt::VecPmt(v) => write!(f, "{v:?}"),
             Pmt::Finished => write!(f, "Finished"),
-            Pmt::MapStrPmt(v) => write!(f, "{:?}", v),
-            Pmt::Any(v) => write!(f, "{:?}", v),
+            Pmt::MapStrPmt(v) => write!(f, "{v:?}"),
+            Pmt::Any(v) => write!(f, "{v:?}"),
         }
     }
 }
@@ -216,7 +216,7 @@ impl std::str::FromStr for Pmt {
         }
 
         if let Some((a, b)) = s.split_once(':') {
-            let s = format!("{{ \"{}\": {}}}", a, b);
+            let s = format!("{{ \"{a}\": {b}}}");
             if let Ok(p) = serde_json::from_str(&s) {
                 return Ok(p);
             }

@@ -104,9 +104,7 @@ pub fn ConstellationSink(
         }
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
 fn render(

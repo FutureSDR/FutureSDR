@@ -9,7 +9,8 @@ impl PortId {
     /// Create PortId from String
     pub fn new(s: impl Into<String>) -> Self {
         let mut s = s.into();
-        s = s.strip_prefix("r#")
+        s = s
+            .strip_prefix("r#")
             .map(|rest| rest.to_string())
             .unwrap_or(s);
         Self(s)

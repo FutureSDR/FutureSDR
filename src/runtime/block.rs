@@ -27,6 +27,9 @@ use futuresdr::runtime::WorkIo;
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
 pub trait Block: Send + Any {
+    /// for downcasting
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     // ##### BLOCK
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
@@ -293,6 +296,9 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
 
 #[async_trait]
 impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     // ##### Block
     fn inbox(&self) -> Sender<BlockMessage> {
         self.inbox_tx.clone()

@@ -15,6 +15,7 @@ use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuSample;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
@@ -23,7 +24,7 @@ use crate::runtime::PortId;
 
 #[self_referencing]
 #[derive(Debug)]
-struct CurrentBuffer<T: BufferContents> {
+struct CurrentBuffer<T: BufferContents + CpuSample> {
     buffer: Subbuffer<[T]>,
     offset: usize,
     end: usize,
@@ -34,7 +35,7 @@ struct CurrentBuffer<T: BufferContents> {
 
 /// Custom buffer writer
 #[derive(Debug)]
-pub struct Writer<T: BufferContents> {
+pub struct Writer<T: BufferContents + CpuSample> {
     outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     block_id: BlockId,
     port_id: PortId,
@@ -45,7 +46,7 @@ pub struct Writer<T: BufferContents> {
 
 impl<T> Writer<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     /// Create buffer writer
     pub fn new() -> Self {
@@ -69,7 +70,7 @@ where
 
 impl<T> Default for Writer<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     fn default() -> Self {
         Self::new()
@@ -78,7 +79,7 @@ where
 
 impl<T> BufferWriter for Writer<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     type Reader = Reader<T>;
 
@@ -128,7 +129,7 @@ where
 
 /// Custom buffer reader
 #[derive(Debug)]
-pub struct Reader<T: BufferContents> {
+pub struct Reader<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
     inbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
@@ -143,7 +144,7 @@ pub struct Reader<T: BufferContents> {
 }
 impl<T> Reader<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     /// Create Vulkan Device-to-Host Reader
     pub fn new() -> Self {
@@ -176,7 +177,7 @@ where
 
 impl<T> Default for Reader<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     fn default() -> Self {
         Self::new()
@@ -186,7 +187,7 @@ where
 #[async_trait]
 impl<T> BufferReader for Reader<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -241,7 +242,7 @@ where
 
 impl<T> CpuBufferReader for Reader<T>
 where
-    T: BufferContents,
+    T: BufferContents + CpuSample,
 {
     type Item = T;
 

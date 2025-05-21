@@ -24,13 +24,13 @@ fn flowgraph_to_mermaid(fg: FlowgraphDescription) -> String {
         let src_port = e.1.name();
         let dst_port = e.3.name();
         let con = src_port.to_string() + " > " + dst_port;
-        g.push_str(&format!("N{}-->|{}| N{};\n", e.0.0, con, e.2.0));
+        g.push_str(&format!("N{}-->|{}| N{};\n", e.0 .0, con, e.2 .0));
     }
     for e in fg.message_edges {
         let src_port = e.1.name();
         let dst_port = e.3.name();
         let con = src_port.to_string() + " > " + dst_port;
-        g.push_str(&format!("N{}-.->|{}| N{};\n", e.0.0, con, e.2.0));
+        g.push_str(&format!("N{}-.->|{}| N{};\n", e.0 .0, con, e.2 .0));
     }
     g
 }
@@ -49,8 +49,7 @@ pub fn FlowgraphMermaid(fg: FlowgraphDescription) -> impl IntoView {
 
     view! {
         <div>
-            <pre class="mermaid" node_ref=pre_ref>
-            </pre>
+            <pre class="mermaid" node_ref=pre_ref></pre>
         </div>
     }
 }

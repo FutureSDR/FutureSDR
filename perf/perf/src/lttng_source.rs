@@ -41,7 +41,7 @@ where
 {
     async fn init(&mut self, _mio: &mut MessageOutputs, meta: &mut BlockMeta) -> Result<()> {
         let s = meta.instance_name().unwrap();
-        self.id = Some(s.split('_').next_back().unwrap().parse::<u64>().unwrap());
+        self.id = Some(s.split('-').next_back().unwrap().parse::<u64>().unwrap());
         Ok(())
     }
 

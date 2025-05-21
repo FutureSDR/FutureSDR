@@ -43,13 +43,11 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     };
 
     view! {
-        <select node_ref=select_ref on:change=change class={select_class}> {
-            values.into_iter()
-            .map(|(n, _)| view! {
-                <option value={n.clone()}>{n.clone()}</option>
-            })
-            .collect::<Vec<_>>()
-        }
+        <select node_ref=select_ref on:change=change class=select_class>
+            {values
+                .into_iter()
+                .map(|(n, _)| view! { <option value=n.clone()>{n.clone()}</option> })
+                .collect::<Vec<_>>()}
         </select>
     }
 }

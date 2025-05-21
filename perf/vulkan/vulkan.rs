@@ -2,15 +2,31 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::blocks::VulkanBuilder;
+use futuresdr::blocks::Vulkan;
+use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::vulkan;
-use futuresdr::runtime::buffer::vulkan::Broker;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
 use std::iter::repeat_with;
-use std::sync::Arc;
 use std::time;
+
+mod cs {
+    vulkano_shaders::shader! {
+        ty: "compute",
+        src: "
+#version 450
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) buffer Data {
+    float data[];
+} buf;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    buf.data[idx] = 12.0 * buf.data[idx];
+}"
+    }
+}
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -30,22 +46,31 @@ fn main() -> Result<()> {
     } = Args::parse();
 
     let orig: Vec<f32> = repeat_with(rand::random::<f32>).take(samples).collect();
-    let broker = Arc::new(Broker::new());
+    let instance = vulkan::Instance::new();
+    let entry_point = cs::load(instance.device())
+        .unwrap()
+        .entry_point("main")
+        .unwrap();
     let mut fg = Flowgraph::new();
 
-    let src = fg.add_block(VectorSource::<f32>::new(orig.clone()))?;
-    let vulkan = fg.add_block(VulkanBuilder::new(broker).capacity(buffer_size).build())?;
-    let snk = fg.add_block(VectorSink::<f32>::new(samples))?;
+    let mut src = VectorSource::<f32, vulkan::H2DWriter<f32>>::new(orig.clone());
+    let vulkan = Vulkan::new(instance.clone(), entry_point, 32);
+    let snk = VectorSink::<f32, vulkan::D2HReader<f32>>::new(samples);
 
-    fg.connect_stream_with_type(src, "out", vulkan, "in", vulkan::H2D::new())?;
-    fg.connect_stream_with_type(vulkan, "out", snk, "in", vulkan::D2H::new())?;
+    for _ in 0..4 {
+        let buffer = instance.create_buffer(1024 * 1024 * 8)?;
+        src.output().add_buffer(buffer);
+    }
+
+    connect!(fg, src > vulkan > snk);
+    connect!(fg, src < snk);
 
     let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
     let now = time::Instant::now();
-    fg = runtime.run(fg)?;
+    runtime.run(fg)?;
     let elapsed = now.elapsed();
 
-    let snk = fg.kernel::<VectorSink<f32>>(snk).unwrap();
+    let snk = snk.get();
     let v = snk.items();
     assert_eq!(v.len(), orig.len());
     for i in 0..v.len() {

@@ -300,17 +300,17 @@ impl std::fmt::Display for Connection {
                 f,
                 "{}.{} > {}.{}",
                 self.src_block.description.instance_name,
-                self.src_port.0,
+                self.src_port.name(),
                 self.dst_block.description.instance_name,
-                self.dst_port.0
+                self.dst_port.name()
             ),
             ConnectionType::Message => write!(
                 f,
                 "{}.{} | {}.{}",
                 self.src_block.description.instance_name,
-                self.src_port.0,
+                self.src_port.name(),
                 self.dst_block.description.instance_name,
-                self.dst_port.0
+                self.dst_port.name()
             ),
         }
     }
@@ -320,11 +320,13 @@ impl std::fmt::Display for Connection {
 mod tests {
     use crate::Flowgraph;
     use futuresdr_types::BlockDescription;
+    use futuresdr_types::BlockId;
     use futuresdr_types::FlowgraphDescription;
+    use futuresdr_types::PortId;
 
     fn block(id: usize, name: &str) -> BlockDescription {
         BlockDescription {
-            id,
+            id: BlockId(id),
             type_name: "test_block".to_string(),
             instance_name: name.to_string(),
             stream_inputs: vec!["in".to_string()],
@@ -341,18 +343,31 @@ mod tests {
             id: 0,
             description: FlowgraphDescription {
                 blocks: vec![block(0, "a"), block(1, "b")],
-                stream_edges: vec![(0, 0, 1, 0)],
-                message_edges: vec![(1, 0, 0, 0)],
+                stream_edges: vec![(
+                    BlockId(0),
+                    PortId::new("output"),
+                    BlockId(1),
+                    PortId::new("input"),
+                )],
+                message_edges: vec![(
+                    BlockId(1),
+                    PortId::new("out"),
+                    BlockId(0),
+                    PortId::new("in"),
+                )],
             },
             client: reqwest::Client::new(),
             url: "http://localhost".to_string(),
         };
 
         assert_eq!(
-            fg.block(0).map(|b| b.description.instance_name),
+            fg.block(BlockId(0)).map(|b| b.description.instance_name),
             Some("a".to_string())
         );
-        assert_eq!(fg.block_by_name("b").map(|b| b.description.id), Some(1));
+        assert_eq!(
+            fg.block_by_name("b").map(|b| b.description.id),
+            Some(BlockId(1))
+        );
         assert!(fg.block_by(|d| d.type_name == "test_block").is_some());
         assert!(fg.block_by(|d| d.type_name == "foo").is_none());
     }

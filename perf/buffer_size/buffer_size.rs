@@ -1,34 +1,14 @@
-use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::CopyRand;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::buffer::slab::Slab;
+use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::Error;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::runtime::WrappedKernel;
+use perf::CopyRand;
 use std::time;
-
-fn connect(
-    fg: &mut Flowgraph,
-    src: usize,
-    src_port: &'static str,
-    dst: usize,
-    dst_port: &'static str,
-    slab: bool,
-    min_bytes: usize,
-) -> Result<(), Error> {
-    if slab {
-        fg.connect_stream_with_type(src, src_port, dst, dst_port, Slab::with_size(min_bytes))
-    } else {
-        fg.connect_stream_with_type(src, src_port, dst, dst_port, Circular::with_size(min_bytes))
-    }
-}
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -48,6 +28,61 @@ struct Args {
     slab: bool,
 }
 
+pub trait BufferType {
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + 'static;
+}
+pub struct SlabBuffer;
+impl BufferType for SlabBuffer {
+    type Writer<T: CpuSample> = slab::Writer<T>;
+}
+pub struct CircBuffer;
+impl BufferType for CircBuffer {
+    type Writer<T: CpuSample> = circular::Writer<T>;
+}
+
+type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
+
+fn generate<B>() -> Result<(Flowgraph, Vec<BlockId>)>
+where
+    B: BufferType,
+    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
+{
+    let Args {
+        stages,
+        pipes,
+        samples,
+        ..
+    } = Args::parse();
+
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+
+    for _ in 0..pipes {
+        let src = fg.add_block(NullSource::<f32, B::Writer<f32>>::new());
+        let head = fg.add_block(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            samples as u64,
+        ));
+        fg.connect_dyn(src, "output", &head, "input")?;
+
+        let mut last: BlockId = fg
+            .add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))
+            .into();
+        fg.connect_dyn(head, "output", last, "input")?;
+
+        for _ in 1..stages {
+            let block = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024));
+            fg.connect_dyn(last, "output", &block, "input")?;
+            last = block.into();
+        }
+
+        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
+        fg.connect_dyn(last, "output", &snk, "input")?;
+        snks.push(snk.into());
+    }
+
+    Ok((fg, snks))
+}
+
 fn main() -> Result<()> {
     let Args {
         run,
@@ -59,30 +94,16 @@ fn main() -> Result<()> {
         slab,
     } = Args::parse();
 
-    let mut fg = Flowgraph::new();
-    let mut snks = Vec::new();
+    futuresdr::runtime::init();
+    futuresdr::runtime::config::set("buffer_size", buffer_size as u64);
 
-    for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new())?;
-        let head = fg.add_block(Head::<f32>::new(samples as u64))?;
-        connect(&mut fg, src, "out", head, "in", slab, buffer_size)?;
-
-        let mut last = fg.add_block(CopyRand::<f32>::new(1024))?;
-        connect(&mut fg, head, "out", last, "in", slab, buffer_size)?;
-
-        for _ in 1..stages {
-            let block = fg.add_block(CopyRand::<f32>::new(1024))?;
-            connect(&mut fg, last, "out", block, "in", slab, buffer_size)?;
-            last = block;
-        }
-
-        let snk = fg.add_block(NullSink::<f32>::new())?;
-        connect(&mut fg, last, "out", snk, "in", slab, buffer_size)?;
-        snks.push(snk);
-    }
+    let (mut fg, snks) = if slab {
+        generate::<SlabBuffer>()?
+    } else {
+        generate::<CircBuffer>()?
+    };
 
     let elapsed;
-
     if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
@@ -103,9 +124,23 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let snk = fg.kernel::<NullSink<f32>>(s).context("no block")?;
-        let v = snk.n_received();
-        assert_eq!(v, samples);
+        let blk = fg.get(s);
+        let mut t = blk.lock_blocking();
+        if slab {
+            let snk = t
+                .as_any_mut()
+                .downcast_mut::<WrappedKernel<NullSink<f32, slab::Reader<f32>>>>()
+                .unwrap();
+            let v = snk.n_received();
+            assert_eq!(v, samples);
+        } else {
+            let snk = t
+                .as_any_mut()
+                .downcast_mut::<WrappedKernel<NullSink<f32, circular::Reader<f32>>>>()
+                .unwrap();
+            let v = snk.n_received();
+            assert_eq!(v, samples);
+        }
     }
 
     println!(

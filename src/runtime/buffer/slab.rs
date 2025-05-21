@@ -62,7 +62,7 @@ pub struct Writer<D: CpuSample> {
 
 impl<D> Writer<D>
 where
-    D: CpuSample
+    D: CpuSample,
 {
     /// Create Slab writer
     pub fn new() -> Self {
@@ -86,7 +86,7 @@ where
 
 impl<D> Default for Writer<D>
 where
-    D: CpuSample
+    D: CpuSample,
 {
     fn default() -> Self {
         Self::new()
@@ -95,7 +95,7 @@ where
 
 impl<D> BufferWriter for Writer<D>
 where
-    D: CpuSample
+    D: CpuSample,
 {
     type Reader = Reader<D>;
 
@@ -222,8 +222,7 @@ where
                 tags: c.tags,
             });
 
-            debug!("{:?} producing", self.block_id);
-            let _ = dbg!(self.reader_inbox.try_send(BlockMessage::Notify));
+            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
 
             // make sure to be called again, if we have another buffer queued
             if !state.writer_input.is_empty() {
@@ -327,8 +326,9 @@ where
     }
 }
 
-impl<D> CpuBufferReader for Reader<D> 
-where D: CpuSample,
+impl<D> CpuBufferReader for Reader<D>
+where
+    D: CpuSample,
 {
     type Item = D;
 

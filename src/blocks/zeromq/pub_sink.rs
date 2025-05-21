@@ -48,7 +48,7 @@ where
         if n > 0 && n > self.min_item {
             let i = self.input.slice();
             let ptr = i.as_ptr() as *const u8;
-            let byte_len = i.len() * std::mem::size_of::<T>();
+            let byte_len = std::mem::size_of_val(i);
             let data = unsafe { std::slice::from_raw_parts(ptr, byte_len) };
             self.publisher.as_mut().unwrap().send(data, 0).unwrap();
             self.input.consume(n);

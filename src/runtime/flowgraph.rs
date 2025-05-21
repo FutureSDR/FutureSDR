@@ -119,10 +119,11 @@ impl Flowgraph {
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
         let mut tmp = dst.try_lock().unwrap();
         let reader = tmp
-            .stream_input(&dst_port.name())
+            .stream_input(dst_port.name())
             .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
-        src.try_lock().unwrap()
-            .connect_stream_output(&src_port.name(), reader)
+        src.try_lock()
+            .unwrap()
+            .connect_stream_output(src_port.name(), reader)
     }
 
     /// Make message connection
@@ -138,10 +139,7 @@ impl Flowgraph {
         let dst_port = dst_port.into();
 
         src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
-        if !K2::message_inputs()
-            .to_owned()
-            .contains(&dst_port.name())
-        {
+        if !K2::message_inputs().to_owned().contains(&dst_port.name()) {
             return Err(Error::InvalidMessagePort(
                 BlockPortCtx::Id(dst_block.id),
                 dst_port,
@@ -151,6 +149,12 @@ impl Flowgraph {
             .push((src_block.id, src_port, dst_block.id, dst_port));
         Ok(())
     }
+
+    /// Get Block Dyn
+    pub fn get(&self, id: BlockId) -> Arc<Mutex<dyn Block>> {
+        self.blocks[id.0].clone()
+    }
+
     /// Validate flowgraph
     ///
     /// Checks mainly that all stream ports are connected.

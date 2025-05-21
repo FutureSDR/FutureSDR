@@ -80,7 +80,6 @@ where
             io.finished = true;
         }
 
-        debug!("tcp sink wrote bytes {}", i_len * std::mem::size_of::<T>());
         self.input.consume(i_len);
 
         Ok(())

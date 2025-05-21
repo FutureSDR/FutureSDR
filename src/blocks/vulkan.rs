@@ -25,7 +25,10 @@ use vulkano::sync::GpuFuture;
 
 /// Interface GPU with Vulkan.
 #[derive(Block)]
-pub struct Vulkan<T: BufferContents> {
+pub struct Vulkan<T>
+where
+    T: BufferContents + CpuSample,
+{
     #[input]
     input: H2DReader<T>,
     #[output]
@@ -39,7 +42,10 @@ pub struct Vulkan<T: BufferContents> {
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
 }
 
-impl<T: BufferContents> Vulkan<T> {
+impl<T> Vulkan<T>
+where
+    T: BufferContents + CpuSample,
+{
     /// Create Vulkan block
     pub fn new(broker: Instance, entry_point: EntryPoint, work_group_size: u32) -> Self {
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
@@ -66,7 +72,10 @@ impl<T: BufferContents> Vulkan<T> {
 }
 
 #[doc(hidden)]
-impl<T: BufferContents> Kernel for Vulkan<T> {
+impl<T> Kernel for Vulkan<T>
+where
+    T: BufferContents + CpuSample,
+{
     async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let stage = PipelineShaderStageCreateInfo::new(self.entry_point.clone());
         let layout = PipelineLayout::new(

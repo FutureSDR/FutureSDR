@@ -262,7 +262,7 @@ impl Display for BlockPortCtx {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             BlockPortCtx::None => write!(f, "<None>"),
-            BlockPortCtx::Id(id) => write!(f, "{:?}", id),
+            BlockPortCtx::Id(id) => write!(f, "{id:?}"),
             BlockPortCtx::Name(name) => write!(f, "{name}"),
         }
     }

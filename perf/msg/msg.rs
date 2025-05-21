@@ -3,6 +3,7 @@ use clap::Parser;
 use futuresdr::blocks::MessageBurst;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
+use futuresdr::prelude::*;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
@@ -36,15 +37,15 @@ fn main() -> Result<()> {
         let mut snks = Vec::new();
 
         for _ in 0..pipes {
-            let src = fg.add_block(MessageBurst::new(Pmt::F64(1.23), burst_size));
+            let src = MessageBurst::new(Pmt::F64(1.23), burst_size);
 
-            let block = fg.add_block(MessageCopy::new());
-            fg.connect_message(&src, "out", &block, "in")?;
+            let block = MessageCopy::new();
+            connect!(fg, src | block);
             let mut prev = block;
 
             for _ in 2..stages {
                 let block = fg.add_block(MessageCopy::new());
-                fg.connect_message(&src, "out", &block, "in")?;
+                fg.connect_message(&prev, "out", &block, "in")?;
                 prev = block;
             }
 
@@ -72,6 +73,5 @@ fn main() -> Result<()> {
             elapsed.as_secs_f64()
         );
     }
-
     Ok(())
 }

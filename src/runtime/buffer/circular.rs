@@ -57,7 +57,8 @@ impl generic::Metadata for MyMetadata {
 
 /// Circular writer
 pub struct Writer<D>
-where D: CpuSample,
+where
+    D: CpuSample,
 {
     min_bytes: usize,
     min_items: usize,
@@ -70,8 +71,9 @@ where D: CpuSample,
     tags: Vec<ItemTag>,
 }
 
-impl<D> Writer<D> 
-where D: CpuSample,
+impl<D> Writer<D>
+where
+    D: CpuSample,
 {
     fn new() -> Self {
         Self {
@@ -88,16 +90,18 @@ where D: CpuSample,
     }
 }
 
-impl<D> Default for Writer<D> 
-where D:CpuSample,
+impl<D> Default for Writer<D>
+where
+    D: CpuSample,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D> BufferWriter for Writer<D> 
-where D:CpuSample,
+impl<D> BufferWriter for Writer<D>
+where
+    D: CpuSample,
 {
     type Reader = Reader<D>;
 
@@ -173,7 +177,8 @@ where D:CpuSample,
 }
 
 impl<D> CpuBufferWriter for Writer<D>
-where D:CpuSample,
+where
+    D: CpuSample,
 {
     type Item = D;
 
@@ -192,8 +197,9 @@ where D:CpuSample,
     }
 }
 
-impl<D> fmt::Debug for Writer<D> 
-where D:CpuSample,
+impl<D> fmt::Debug for Writer<D>
+where
+    D: CpuSample,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
@@ -205,7 +211,8 @@ where D:CpuSample,
 
 /// Circular Reader
 pub struct Reader<D>
-where D:CpuSample,
+where
+    D: CpuSample,
 {
     reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
     finished: bool,
@@ -218,8 +225,9 @@ where D:CpuSample,
 }
 
 impl<D> Default for Reader<D>
-where D:CpuSample,
-    {
+where
+    D: CpuSample,
+{
     fn default() -> Self {
         Self {
             reader: None,
@@ -235,8 +243,10 @@ where D:CpuSample,
 }
 
 #[async_trait]
-impl<D> BufferReader for Reader<D> 
-where D:CpuSample, {
+impl<D> BufferReader for Reader<D>
+where
+    D: CpuSample,
+{
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -280,8 +290,9 @@ where D:CpuSample, {
     }
 }
 
-impl<D> CpuBufferReader for Reader<D> 
-where D: CpuSample,
+impl<D> CpuBufferReader for Reader<D>
+where
+    D: CpuSample,
 {
     type Item = D;
 
@@ -308,8 +319,9 @@ where D: CpuSample,
     }
 }
 
-impl<D> fmt::Debug for Reader<D> 
-where D:CpuSample,
+impl<D> fmt::Debug for Reader<D>
+where
+    D: CpuSample,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")

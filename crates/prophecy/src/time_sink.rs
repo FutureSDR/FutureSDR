@@ -150,9 +150,7 @@ pub fn TimeSink(
         }
     });
 
-    view! {
-        <canvas node_ref=canvas_ref style="width: 100%; height: 100%" />
-    }
+    view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
 fn render(state: Rc<RefCell<RenderState>>, data: ReadSignal<Vec<u8>>) -> impl FnOnce() + 'static {

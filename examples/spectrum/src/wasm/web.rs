@@ -278,15 +278,12 @@ pub struct Sink {
 unsafe impl Send for Sink {}
 
 impl Sink {
-    pub fn new(
-        time_data: WriteSignal<Vec<u8>>,
-        waterfall_data: WriteSignal<Vec<u8>>,
-    ) -> Self {
-            Self {
-                input: slab::Reader::default(),
-                time_data,
-                waterfall_data,
-            }
+    pub fn new(time_data: WriteSignal<Vec<u8>>, waterfall_data: WriteSignal<Vec<u8>>) -> Self {
+        Self {
+            input: slab::Reader::default(),
+            time_data,
+            waterfall_data,
+        }
     }
 }
 

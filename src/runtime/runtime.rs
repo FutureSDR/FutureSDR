@@ -346,7 +346,8 @@ impl RuntimeHandle {
     /// Get list of flowgraph IDs
     pub fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
-            .try_lock().unwrap()
+            .try_lock()
+            .unwrap()
             .iter()
             .enumerate()
             .map(|x| FlowgraphId(x.0))
@@ -372,7 +373,11 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         .iter()
         .map(|b| b.try_lock().unwrap().inbox())
         .collect();
-    let ids: Vec<BlockId> = fg.blocks.iter().map(|b| b.try_lock().unwrap().id()).collect();
+    let ids: Vec<BlockId> = fg
+        .blocks
+        .iter()
+        .map(|b| b.try_lock().unwrap().id())
+        .collect();
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
     debug!("init blocks");

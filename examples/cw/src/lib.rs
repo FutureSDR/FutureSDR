@@ -14,6 +14,12 @@ pub enum CWAlphabet {
     WordSpace,
 }
 
+impl Default for CWAlphabet {
+    fn default() -> Self {
+        Self::Dot
+    }
+}
+
 impl fmt::Debug for CWAlphabet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {

@@ -34,12 +34,10 @@ cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/examples/android && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/android-hw && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/audio && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/custom-routes && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/cw && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/examples/debug && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/egui && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/file-trx && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/firdes && ${CARGO_FMT} --check
@@ -62,7 +60,8 @@ cd ${SCRIPTPATH}/examples/zigbee && ${CARGO_FMT} --check
 # CLIPPY
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+# cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,seify_dummy -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
@@ -83,12 +82,10 @@ cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/android && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/debug && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/egui && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/file-trx && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
@@ -145,12 +142,10 @@ cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/debug && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/egui && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets

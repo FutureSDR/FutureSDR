@@ -105,10 +105,7 @@ pub trait BufferWriter {
 /// A short hand for the traits required for CpuSamples
 pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
-impl<T> CpuSample for T
-where
-    T: Default + Clone + std::fmt::Debug + Send + Sync + 'static,
-{}
+impl<T> CpuSample for T where T: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
 /// A generic CPU buffer reader (out-of-place)
 pub trait CpuBufferReader: BufferReader + Default + Send {
