@@ -1,14 +1,15 @@
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
-#[derive(futuresdr::Block)]
-pub struct ClockRecoveryMm {
+#[derive(Block)]
+pub struct ClockRecoveryMm<I = circular::Reader<f32>, O = circular::Writer<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     omega: f32,
     omega_mid: f32,
     omega_limit: f32,
@@ -19,30 +20,30 @@ pub struct ClockRecoveryMm {
     look_ahead: usize,
 }
 
-impl ClockRecoveryMm {
+impl<I, O> ClockRecoveryMm<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
     pub fn new(
         omega: f32,
         gain_omega: f32,
         mu: f32,
         gain_mu: f32,
         omega_relative_limit: f32,
-    ) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<f32>("out")
-                .build(),
-            Self {
-                omega,
-                omega_mid: omega,
-                omega_limit: omega * omega_relative_limit,
-                gain_omega,
-                mu,
-                gain_mu,
-                last_sample: 0.0,
-                look_ahead: (omega + omega * omega_relative_limit + gain_mu).ceil() as usize,
-            },
-        )
+    ) -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            omega,
+            omega_mid: omega,
+            omega_limit: omega * omega_relative_limit,
+            gain_omega,
+            mu,
+            gain_mu,
+            last_sample: 0.0,
+            look_ahead: (omega + omega * omega_relative_limit + gain_mu).ceil() as usize,
+        }
     }
 }
 
@@ -54,16 +55,19 @@ fn slice(i: f32) -> f32 {
     }
 }
 
-impl Kernel for ClockRecoveryMm {
+impl<I, O> Kernel for ClockRecoveryMm<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<f32>();
-        let o = sio.output(0).slice::<f32>();
+        let i = self.input.slice();
+        let o = self.output.slice();
 
         let mut ii = 0;
         let mut oo = 0;
@@ -83,10 +87,10 @@ impl Kernel for ClockRecoveryMm {
             oo += 1;
         }
 
-        sio.input(0).consume(ii);
-        sio.output(0).produce(oo);
+        self.input.consume(ii);
+        self.output.produce(oo);
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

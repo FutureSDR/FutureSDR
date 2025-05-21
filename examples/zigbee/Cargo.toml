@@ -22,6 +22,7 @@ clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["seify"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"
 futuresdr = { path = "../.." }
 gloo-worker = "0.5"

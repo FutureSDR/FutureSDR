@@ -125,6 +125,7 @@ where
             let page_size = vmcircbuffer::double_mapped_buffer::pagesize();
             let mut buffer_size = page_size;
 
+            self.min_bytes = futuresdr::runtime::config::config().buffer_size;
             let item_size = std::mem::size_of::<D>();
             while (buffer_size < self.min_bytes)
                 || (buffer_size < self.min_items * item_size)

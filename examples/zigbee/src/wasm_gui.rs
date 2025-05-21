@@ -1,10 +1,10 @@
+use any_spawner::Executor;
 use futuresdr::tracing::info;
 use gloo_worker::Spawnable;
 use gloo_worker::WorkerBridge;
 use leptos::html::Select;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos::task::Executor;
 use leptos::wasm_bindgen;
 use leptos::web_sys;
 use serde::ser::SerializeTuple;
@@ -49,7 +49,7 @@ fn Gui() -> impl IntoView {
             "Frames received: " {n_frames}
         </div>
         <ul class="font-mono">
-            {move || frames().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
+            {move || frames().into_iter().map(|n| view! { <li>{format!("{n:?}")}</li> }).collect_view()}
         </ul>
     }
 }

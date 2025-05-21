@@ -13,6 +13,12 @@ pub trait IntoAntenna {
     fn into(self) -> Option<String>;
 }
 
+impl IntoAntenna for &str {
+    fn into(self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
 impl IntoAntenna for String {
     fn into(self) -> Option<String> {
         Some(self)

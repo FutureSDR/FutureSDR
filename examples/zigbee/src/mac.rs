@@ -1,16 +1,4 @@
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::info;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
 const MAX_FRAMES: usize = 128;
@@ -20,10 +8,15 @@ const DESTINATION_PAN: u16 = 0x1aaa;
 const DESTINATION_ADDRESS: u16 = 0xffff;
 const SOURCE_ADDRESS: u16 = 0x3344;
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_inputs(rx, tx, stats)]
 #[message_outputs(rxed, rftap)]
-pub struct Mac {
+pub struct Mac<O = circular::Writer<u8>>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
+    #[output]
+    output: O,
     tx_frames: VecDeque<Vec<u8>>,
     current_frame: [u8; 256],
     sequence_number: u8,
@@ -33,8 +26,11 @@ pub struct Mac {
     n_sent: u64,
 }
 
-impl Mac {
-    pub fn new() -> TypedBlock<Self> {
+impl<O> Mac<O>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
+    pub fn new() -> Self {
         let mut b = [0; 256];
         b[0] = 0x0;
         b[1] = 0x0;
@@ -51,18 +47,16 @@ impl Mac {
         b[12] = SOURCE_ADDRESS.to_le_bytes()[0];
         b[13] = SOURCE_ADDRESS.to_le_bytes()[1];
 
-        TypedBlock::new(
-            StreamIoBuilder::new().add_output::<u8>("out").build(),
-            Mac {
-                tx_frames: VecDeque::new(),
-                current_frame: b,
-                sequence_number: 0,
-                current_index: 0,
-                current_len: 0,
-                n_received: 0,
-                n_sent: 0,
-            },
-        )
+        Mac {
+            output: O::default(),
+            tx_frames: VecDeque::new(),
+            current_frame: b,
+            sequence_number: 0,
+            current_index: 0,
+            current_len: 0,
+            n_received: 0,
+            n_sent: 0,
+        }
     }
 
     fn calc_crc(data: &[u8]) -> u16 {
@@ -107,7 +101,7 @@ impl Mac {
                     rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
                     rftap[8..12].copy_from_slice(&195u32.to_le_bytes());
                     rftap[12..].copy_from_slice(&data);
-                    mio.output_mut(1).post(Pmt::Blob(rftap)).await;
+                    mio.post("rftap", Pmt::Blob(rftap)).await?;
 
                     self.n_received += 1;
                     let s = String::from_iter(
@@ -123,7 +117,7 @@ impl Mac {
                             }),
                     );
                     debug!("{}", s);
-                    mio.output_mut(0).post(Pmt::Blob(data)).await;
+                    mio.post("rxed", Pmt::Blob(data)).await?;
                 } else {
                     debug!("received frame, crc wrong");
                 }
@@ -183,16 +177,27 @@ impl Mac {
     }
 }
 
-impl Kernel for Mac {
+impl<O> Default for Mac<O>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<O> Kernel for Mac<O>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {
-            let out = sio.output(0).slice::<u8>();
+            let (out, mut tags) = self.output.slice_with_tags();
             if out.is_empty() {
                 break;
             }
@@ -217,7 +222,7 @@ impl Kernel for Mac {
                     // 4 preamble + 1 len + 9 header + 2 crc
                     self.current_len = v.len() + 16;
                     self.current_index = 0;
-                    sio.output(0).add_tag(0, Tag::Id(self.current_len as u64));
+                    tags.add_tag(0, Tag::Id(self.current_len as u64));
                     debug!("sending frame, len {}", self.current_len);
                     self.n_sent += 1;
                     debug!("{:?}", &self.current_frame[0..self.current_len]);
@@ -234,7 +239,7 @@ impl Kernel for Mac {
                     );
                 }
 
-                sio.output(0).produce(n);
+                self.output.produce(n);
                 self.current_index += n;
 
                 if self.current_index == self.current_len {

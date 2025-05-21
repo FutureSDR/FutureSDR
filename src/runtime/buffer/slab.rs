@@ -119,7 +119,7 @@ where
     fn connect(&mut self, dest: &mut Self::Reader) {
         let buffer_size = config::config().buffer_size / std::mem::size_of::<D>();
         let mut s = self.state.lock().unwrap();
-        for _ in 0..2 {
+        for _ in 0..4 {
             s.writer_input.push_back(BufferEmpty {
                 buffer: vec![D::default(); buffer_size].into_boxed_slice(),
             });
@@ -204,6 +204,9 @@ where
 
     fn produce(&mut self, n: usize) {
         debug_assert!(n > 0);
+        if n == 0 {
+            return;
+        }
 
         let c = self.current.as_mut().unwrap();
         debug_assert!(n <= c.end_offset - c.offset);
@@ -260,7 +263,7 @@ where
                 writer_input: VecDeque::new(),
                 reader_input: VecDeque::new(),
             })),
-            reserved_items: 0,
+            reserved_items: futuresdr::runtime::config::config().slab_reserved,
             reader_inbox,
             writer_inbox,
             finished: false,

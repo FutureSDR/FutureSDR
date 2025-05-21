@@ -171,6 +171,7 @@ where
 
         let streamer = self.streamer.as_mut().unwrap();
         let nitems_per_input_stream: Vec<usize> = bufs.iter().map(|b| b.len()).collect();
+
         let n = nitems_per_input_stream.iter().copied().min().unwrap_or(0);
         let consumed = if n > 0 {
             let t = tags.iter().find_map(|x| match x {
