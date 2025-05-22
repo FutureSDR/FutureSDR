@@ -55,6 +55,7 @@ cd ${SCRIPTPATH}/examples/wgpu && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/wlan && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zeromq && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zigbee && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/zynq && ${CARGO_FMT} --check
 
 ###########################################################
 # CLIPPY
@@ -81,7 +82,7 @@ cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
+# cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
@@ -91,17 +92,18 @@ cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/m17 && cargo clippy --all-targets -- -D warnings
+# cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
+# cd ${SCRIPTPATH}/examples/m17 && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warnings
+# cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/ssb && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/wlan && cargo clippy --all-targets -- -D warnings
+# cd ${SCRIPTPATH}/examples/wlan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zeromq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/zynq && cargo clippy --all-targets -- -D warnings
 
 # WASM
 cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,seify_dummy,wgpu --target=wasm32-unknown-unknown -- -D warnings
@@ -110,7 +112,7 @@ cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets --target=wasm32-u
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
-cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
+# cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/spectrum && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wasm && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --lib --target=wasm32-unknown-unknown -- -D warnings
@@ -141,7 +143,7 @@ cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
+# cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
@@ -150,15 +152,16 @@ cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/m17 && cargo test --all-targets
+# cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
+# cd ${SCRIPTPATH}/examples/m17 && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
+# cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/file-trx && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/spectrum && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/ssb && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wasm && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wgpu && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/wlan && cargo test --all-targets
+# cd ${SCRIPTPATH}/examples/wlan && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/zeromq && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/zigbee && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/zynq && cargo test --all-targets

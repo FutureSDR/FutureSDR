@@ -218,7 +218,7 @@ impl FlowgraphHandle {
                 if response.ok() {
                     Ok(serde_json::from_str(&response.text().await?)?)
                 } else {
-                    Err(Error::Gloo(format!("Request failed {:?}", response)))
+                    Err(Error::Gloo(format!("Request failed {response:?}")))
                 }
             }
             Self::Web(h) => Ok(h.callback(block_id, handler, pmt).await?),

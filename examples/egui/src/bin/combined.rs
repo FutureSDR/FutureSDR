@@ -45,7 +45,7 @@ async fn process_gui_actions(
     while let Some(m) = rx.next().await {
         match m {
             GuiAction::SetFreq(f) => {
-                println!("setting frequency to {}MHz", f);
+                println!("setting frequency to {f}MHz");
                 handle
                     .call(seify_src, "freq", Pmt::U64(f * 1000000))
                     .await?

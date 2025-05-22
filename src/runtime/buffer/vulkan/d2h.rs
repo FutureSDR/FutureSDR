@@ -90,13 +90,13 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if !self.reader_inbox.is_closed() {
-            Ok(())
-        } else {
+        if self.reader_inbox.is_closed() {
             Err(Error::ValidationError(format!(
                 "{:?}:{:?} not connected",
                 self.block_id, self.port_id
             )))
+        } else {
+            Ok(())
         }
     }
 

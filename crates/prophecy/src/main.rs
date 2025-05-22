@@ -38,13 +38,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         let fg_handle = fg_handle.clone();
         LocalResource::new(move || {
             let mut fg_handle = fg_handle.clone();
-            async move {
-                if let Ok(desc) = fg_handle.description().await {
-                    Some(desc)
-                } else {
-                    None
-                }
-            }
+            async move { fg_handle.description().await.ok() }
         })
     };
 
@@ -76,7 +70,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
             "flowgraph: "
             {
                 let fg_handle = fg_handle.clone();
-                move || format!("{:?}", fg_handle)
+                move || format!("{fg_handle:?}")
             }
         </h2>
 

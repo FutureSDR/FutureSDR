@@ -22,9 +22,9 @@ pub mod vulkan;
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
 
-// // -==================== ZYNQ ========================
-// #[cfg(feature = "zynq")]
-// pub mod zynq;
+// -==================== ZYNQ ========================
+#[cfg(feature = "zynq")]
+pub mod zynq;
 
 use std::any::Any;
 use std::future::Future;

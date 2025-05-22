@@ -87,7 +87,7 @@ impl From<TransceiverMode> for u16 {
 
 impl From<JsValue> for Error {
     fn from(e: JsValue) -> Self {
-        Self::BrowserError(format!("{:?}", e))
+        Self::BrowserError(format!("{e:?}"))
     }
 }
 
@@ -103,6 +103,12 @@ pub struct HackRf {
 }
 
 unsafe impl Send for HackRf {}
+
+impl Default for HackRf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl HackRf {
     /// Create HackRf Source

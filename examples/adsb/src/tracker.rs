@@ -256,6 +256,12 @@ impl Tracker {
     }
 }
 
+impl Default for Tracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Kernel for Tracker {
     async fn work(
         &mut self,

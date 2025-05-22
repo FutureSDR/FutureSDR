@@ -32,7 +32,7 @@ pub fn Pmt(
                 Pmt::Any(_) => "pmt-any",
                 _ => "",
             };
-            format!("{} {}", c, span_class)
+            format!("{c} {span_class}")
         }
     };
 
@@ -54,7 +54,7 @@ pub fn PmtInput(
     let (error, set_error) = signal(false);
     let classes = Memo::new(move |_| {
         if error() {
-            format!("{} {}", input_class, error_class)
+            format!("{input_class} {error_class}")
         } else {
             input_class.to_string()
         }
@@ -132,7 +132,7 @@ pub fn PmtInputList(
     let (error, set_error) = signal(false);
     let classes = Memo::new(move |_| {
         if error() {
-            format!("{} {}", input_class, error_class)
+            format!("{input_class} {error_class}")
         } else {
             input_class.to_string()
         }
@@ -150,8 +150,8 @@ pub fn PmtInputList(
             PmtKind::InvalidValue => Some(Pmt::InvalidValue),
             PmtKind::Null => Some(Pmt::Null),
             PmtKind::String => {
-                let pmt = serde_json::from_str::<Pmt>(&format!("{{\"String\": {}}}", v))
-                    .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"String\": \"{}\"}}", v)))
+                let pmt = serde_json::from_str::<Pmt>(&format!("{{\"String\": {v}}}"))
+                    .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"String\": \"{v}\"}}")))
                     .unwrap_or(Pmt::String(v));
                 Some(pmt)
             }
@@ -169,21 +169,21 @@ pub fn PmtInputList(
             PmtKind::U64 => v.parse::<u64>().map(Pmt::U64).ok(),
             PmtKind::F32 => v.parse::<f32>().map(Pmt::F32).ok(),
             PmtKind::F64 => v.parse::<f64>().map(Pmt::F64).ok(),
-            PmtKind::VecF32 => serde_json::from_str::<Pmt>(&format!("{{\"VecF32\": {}}}", v))
-                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecF32\": [{}]}}", v)))
+            PmtKind::VecF32 => serde_json::from_str::<Pmt>(&format!("{{\"VecF32\": {v}}}"))
+                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecF32\": [{v}]}}")))
                 .ok(),
-            PmtKind::VecU64 => serde_json::from_str::<Pmt>(&format!("{{\"VecU64\": {}}}", v))
-                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecU64\": [{}]}}", v)))
+            PmtKind::VecU64 => serde_json::from_str::<Pmt>(&format!("{{\"VecU64\": {v}}}"))
+                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecU64\": [{v}]}}")))
                 .ok(),
-            PmtKind::Blob => serde_json::from_str::<Pmt>(&format!("{{\"Blob\": {}}}", v))
-                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"Blob\": [{}]}}", v)))
+            PmtKind::Blob => serde_json::from_str::<Pmt>(&format!("{{\"Blob\": {v}}}"))
+                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"Blob\": [{v}]}}")))
                 .ok(),
-            PmtKind::VecPmt => serde_json::from_str::<Pmt>(&format!("{{\"VecPmt\": {}}}", v))
-                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecPmt\": [{}]}}", v)))
+            PmtKind::VecPmt => serde_json::from_str::<Pmt>(&format!("{{\"VecPmt\": {v}}}"))
+                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"VecPmt\": [{v}]}}")))
                 .ok(),
             PmtKind::Finished => Some(Pmt::Finished),
-            PmtKind::MapStrPmt => serde_json::from_str::<Pmt>(&format!("{{\"MapStrPmt\": {}}}", v))
-                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"MapStrPmt\": {{{}}}}}", v)))
+            PmtKind::MapStrPmt => serde_json::from_str::<Pmt>(&format!("{{\"MapStrPmt\": {v}}}"))
+                .or_else(|_| serde_json::from_str::<Pmt>(&format!("{{\"MapStrPmt\": {{{v}}}}}")))
                 .ok(),
             _ => None,
         };

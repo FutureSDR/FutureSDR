@@ -252,11 +252,11 @@ mod wgpu;
 pub use self::wgpu::Wgpu;
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
-// #[cfg(feature = "zynq")]
-// mod zynq;
-// #[cfg(feature = "zynq")]
-// pub use zynq::Zynq;
-// #[cfg(feature = "zynq")]
-// mod zynq_sync;
-// #[cfg(feature = "zynq")]
-// pub use zynq_sync::ZynqSync;
+#[cfg(feature = "zynq")]
+mod zynq;
+#[cfg(feature = "zynq")]
+pub use zynq::Zynq;
+#[cfg(feature = "zynq")]
+mod zynq_sync;
+#[cfg(feature = "zynq")]
+pub use zynq_sync::ZynqSync;

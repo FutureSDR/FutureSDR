@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["zynq"] }
-rand = "0.8"
+rand = "0.9"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 
 [[bin]]

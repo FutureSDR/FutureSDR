@@ -33,6 +33,15 @@ where
     }
 }
 
+impl<I> Default for Demodulator<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<I> Kernel for Demodulator<I>
 where
     I: CpuBufferReader<Item = f32>,
