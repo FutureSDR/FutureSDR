@@ -1,132 +1,207 @@
-use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 use wgpu::BufferView;
 
+use crate::channel::mpsc::channel;
+use crate::channel::mpsc::Sender;
 use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
-use crate::runtime::buffer::BufferBuilder;
 use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferReaderHost;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::BufferWriterCustom;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuSample;
+use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::Error;
 use crate::runtime::ItemTag;
+use crate::runtime::PortId;
 
-/// Device-to-Host stream connection
-#[derive(Debug, PartialEq, Hash)]
-pub struct D2H;
-
-impl Eq for D2H {}
-
-impl D2H {
-    /// Create custom buffer
-    pub fn new() -> D2H {
-        D2H
-    }
+#[derive(Debug)]
+struct CurrentBuffer<D>
+where
+    D: CpuSample,
+{
+    buffer: *mut BufferFull<D>,
+    byte_offset: usize,
+    slice: BufferView<'static>,
 }
 
-impl Default for D2H {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BufferBuilder for D2H {
-    fn build(
-        &self,
-        item_size: usize,
-        writer_inbox: Sender<BlockMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        WriterD2H::new(item_size, writer_inbox, writer_output_id)
-    }
-}
-
-// everything is measured in items, e.g., offsets, capacity, space available
+// Needed for raw pointer `buffer`
+unsafe impl<D> Send for CurrentBuffer<D> where D: CpuSample {}
 
 /// Custom buffer writer
 #[derive(Debug)]
-pub struct WriterD2H {
-    item_size: usize,
-    inbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    outbound: Arc<Mutex<VecDeque<BufferFull>>>,
-    finished: bool,
+pub struct Writer<D: CpuSample> {
+    inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
+    outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
     writer_inbox: Sender<BlockMessage>,
-    writer_output_id: usize,
-    reader_inbox: Option<Sender<BlockMessage>>,
-    reader_input_id: Option<usize>,
+    writer_id: BlockId,
+    writer_output_id: PortId,
+    reader_inbox: Sender<BlockMessage>,
+    reader_input_id: PortId,
 }
 
-unsafe impl Send for WriterD2H {}
+unsafe impl<D> Send for Writer<D> where D: CpuSample {}
 
-impl WriterD2H {
+impl<D> Writer<D>
+where
+    D: CpuSample,
+{
     /// Create buffer writer
-    pub fn new(
-        item_size: usize,
-        writer_inbox: Sender<BlockMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        #[allow(clippy::arc_with_non_send_sync)]
-        BufferWriter::Custom(Box::new(WriterD2H {
-            item_size,
+    pub fn new() -> Self {
+        let (rx, _) = channel(0);
+        Writer {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
-            finished: false,
-            writer_inbox,
-            writer_output_id,
-            reader_inbox: None,
-            reader_input_id: None,
-        }))
+            writer_inbox: rx.clone(),
+            writer_id: BlockId::default(),
+            writer_output_id: PortId::default(),
+            reader_inbox: rx.clone(),
+            reader_input_id: PortId::default(),
+        }
     }
 
     /// All available empty buffers
-    pub fn buffers(&mut self) -> Vec<BufferEmpty> {
+    pub fn buffers(&mut self) -> Vec<BufferEmpty<D>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
     /// Submit full buffer to downstream CPU reader
-    pub fn submit(&mut self, buffer: BufferFull) {
+    pub fn submit(&mut self, buffer: BufferFull<D>) {
         self.outbound.lock().unwrap().push_back(buffer);
+        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+    }
+}
+
+impl<D> BufferWriter for Writer<D>
+where
+    D: CpuSample,
+{
+    type Reader = Reader<D>;
+
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+        self.writer_id = block_id;
+        self.writer_output_id = port_id;
+        self.writer_inbox = inbox;
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        if !self.reader_inbox.is_closed() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.writer_id, self.writer_output_id
+            )))
+        }
+    }
+
+    fn connect(&mut self, dest: &mut Self::Reader) {
+        dest.inbound = self.outbound.clone();
+        dest.writer_output_id = self.writer_output_id.clone();
+        dest.writer_inbox = self.writer_inbox.clone();
+
+        self.reader_inbox = dest.reader_inbox.clone();
+        self.reader_input_id = dest.reader_input_id.clone();
+    }
+
+    async fn notify_finished(&mut self) {
         let _ = self
             .reader_inbox
-            .as_mut()
-            .unwrap()
-            .try_send(BlockMessage::Notify);
+            .send(BlockMessage::StreamInputDone {
+                input_id: self.reader_input_id.clone(),
+            })
+            .await;
+    }
+
+    fn block_id(&self) -> BlockId {
+        self.writer_id
+    }
+
+    fn port_id(&self) -> PortId {
+        self.writer_output_id.clone()
+    }
+}
+
+/// Custom buffer reader
+#[derive(Debug)]
+pub struct Reader<D>
+where
+    D: CpuSample,
+{
+    buffer: Option<CurrentBuffer<D>>,
+    inbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
+    outbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
+    writer_inbox: Sender<BlockMessage>,
+    writer_output_id: PortId,
+    reader_id: BlockId,
+    reader_input_id: PortId,
+    reader_inbox: Sender<BlockMessage>,
+    finished: bool,
+}
+
+unsafe impl<D> Send for Reader<D> where D: CpuSample {}
+
+impl<D> Reader<D>
+where
+    D: CpuSample,
+{
+    /// Create Reader
+    pub fn new() -> Self {
+        let (rx, _) = channel(0);
+        Self {
+            buffer: None,
+            inbound: Arc::new(Mutex::new(VecDeque::new())),
+            outbound: Arc::new(Mutex::new(Vec::new())),
+            writer_inbox: rx.clone(),
+            writer_output_id: PortId::default(),
+            reader_id: BlockId::default(),
+            reader_input_id: PortId::default(),
+            reader_inbox: rx,
+            finished: false,
+        }
+    }
+}
+
+impl<D> Default for Reader<D>
+where
+    D: CpuSample,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[async_trait]
-impl BufferWriterCustom for WriterD2H {
-    fn add_reader(
-        &mut self,
-        reader_inbox: Sender<BlockMessage>,
-        reader_input_id: usize,
-    ) -> BufferReader {
-        debug_assert!(self.reader_inbox.is_none());
-        debug_assert!(self.reader_input_id.is_none());
-
-        self.reader_inbox = Some(reader_inbox.clone());
-        self.reader_input_id = Some(reader_input_id);
-
-        BufferReader::Host(Box::new(ReaderD2H {
-            buffer: None,
-            outbound: self.inbound.clone(),
-            inbound: self.outbound.clone(),
-            item_size: self.item_size,
-            writer_inbox: self.writer_inbox.clone(),
-            writer_output_id: self.writer_output_id,
-            my_inbox: reader_inbox,
-            finished: false,
-        }))
+impl<D> BufferReader for Reader<D>
+where
+    D: CpuSample,
+{
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+        self.reader_id = block_id;
+        self.reader_input_id = port_id;
+        self.reader_inbox = inbox;
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        if !self.writer_inbox.is_closed() {
+            Ok(())
+        } else {
+            Err(Error::ValidationError(format!(
+                "{:?}:{:?} not connected",
+                self.reader_id, self.reader_input_id
+            )))
+        }
     }
 
     async fn notify_finished(&mut self) {
@@ -134,14 +209,12 @@ impl BufferWriterCustom for WriterD2H {
             return;
         }
 
-        self.reader_inbox
-            .as_mut()
-            .unwrap()
-            .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_input_id.unwrap(),
+        let _ = self
+            .writer_inbox
+            .send(BlockMessage::StreamOutputDone {
+                output_id: self.writer_output_id.clone(),
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     fn finish(&mut self) {
@@ -149,70 +222,56 @@ impl BufferWriterCustom for WriterD2H {
     }
 
     fn finished(&self) -> bool {
-        self.finished
+        self.finished && self.inbound.lock().unwrap().is_empty()
+    }
+
+    fn block_id(&self) -> BlockId {
+        self.reader_id
+    }
+
+    fn port_id(&self) -> PortId {
+        self.reader_input_id.clone()
     }
 }
 
-/// Custom buffer reader
-#[derive(Debug)]
-pub struct ReaderD2H {
-    buffer: Option<CurrentBuffer>,
-    inbound: Arc<Mutex<VecDeque<BufferFull>>>,
-    outbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    item_size: usize,
-    writer_inbox: Sender<BlockMessage>,
-    writer_output_id: usize,
-    my_inbox: Sender<BlockMessage>,
-    finished: bool,
-}
+impl<D> CpuBufferReader for Reader<D>
+where
+    D: CpuSample,
+{
+    type Item = D;
 
-unsafe impl Send for ReaderD2H {}
-
-#[derive(Debug)]
-struct CurrentBuffer {
-    buffer: *mut BufferFull,
-    offset: usize,
-    slice: BufferView<'static>,
-}
-
-// Needed for raw pointer `buffer`
-unsafe impl Send for CurrentBuffer {}
-
-#[async_trait]
-impl BufferReaderHost for ReaderD2H {
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn bytes(&mut self) -> (*const u8, usize, Vec<ItemTag>) {
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+        static V: Vec<ItemTag> = vec![];
         debug!("D2H reader bytes");
         if self.buffer.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop_front() {
                 let buffer = Box::leak(Box::new(b));
-                let t = buffer as *mut BufferFull;
+                let t = buffer as *mut BufferFull<D>;
                 let slice = buffer
                     .buffer
                     .slice(0..buffer.used_bytes as u64)
                     .get_mapped_range();
                 self.buffer = Some(CurrentBuffer {
                     buffer: t,
-                    offset: 0,
+                    byte_offset: 0,
                     slice,
                 });
             } else {
-                return (std::ptr::null::<u8>(), 0, Vec::new());
+                return (&[], &V);
             }
         }
 
         unsafe {
             let buffer = self.buffer.as_ref().unwrap();
-            let capacity = buffer.slice.len() / self.item_size;
+            let byte_len = buffer.slice.len();
             let ptr = buffer.slice.as_ptr();
 
             (
-                ptr.add(buffer.offset * self.item_size),
-                (capacity - buffer.offset) * self.item_size,
-                Vec::new(),
+                std::slice::from_raw_parts(
+                    ptr.add(buffer.byte_offset) as *const D,
+                    (byte_len - buffer.byte_offset) / size_of::<D>(),
+                ),
+                &V,
             )
         }
     }
@@ -222,47 +281,28 @@ impl BufferReaderHost for ReaderD2H {
         debug_assert!(self.buffer.is_some());
 
         let buffer = self.buffer.as_mut().unwrap();
-        let capacity = buffer.slice.len() / self.item_size;
+        let byte_len = buffer.slice.len();
         info!(
-            "Consume -- capacity: {}, offset: {}",
-            capacity, buffer.offset
+            "Consume -- byte_len: {}, offset: {}",
+            byte_len, buffer.byte_offset
         );
-        debug_assert!(amount + buffer.offset <= capacity);
+        debug_assert!(amount * size_of::<D>() + buffer.byte_offset <= byte_len);
 
-        buffer.offset += amount;
-        if buffer.offset == capacity {
+        buffer.byte_offset += amount * size_of::<D>();
+        if buffer.byte_offset == byte_len {
             let c = unsafe { Box::from_raw(self.buffer.take().unwrap().buffer) };
             let buffer = c.buffer;
             buffer.unmap();
-            self.outbound.lock().unwrap().push(BufferEmpty { buffer });
+            self.outbound.lock().unwrap().push(BufferEmpty {
+                buffer,
+                _p: PhantomData,
+            });
             let _ = self.writer_inbox.try_send(BlockMessage::Notify);
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.my_inbox.try_send(BlockMessage::Notify);
+            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
         }
-    }
-
-    async fn notify_finished(&mut self) {
-        debug!("D2H Reader finish");
-        if self.finished {
-            return;
-        }
-
-        self.writer_inbox
-            .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output_id,
-            })
-            .await
-            .unwrap();
-    }
-
-    fn finish(&mut self) {
-        self.finished = true;
-    }
-
-    fn finished(&self) -> bool {
-        self.finished && self.inbound.lock().unwrap().is_empty()
     }
 }

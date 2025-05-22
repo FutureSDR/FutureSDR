@@ -212,7 +212,7 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     }
     async fn notify_finished(&mut self) {}
     fn finish(&mut self) {}
-    fn finished(&mut self) -> bool {
+    fn finished(&self) -> bool {
         true
     }
     fn block_id(&self) -> BlockId {

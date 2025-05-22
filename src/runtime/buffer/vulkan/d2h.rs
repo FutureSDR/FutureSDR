@@ -227,7 +227,7 @@ where
         self.finished = true;
     }
 
-    fn finished(&mut self) -> bool {
+    fn finished(&self) -> bool {
         self.finished
     }
 
@@ -245,28 +245,6 @@ where
     T: BufferContents + CpuSample,
 {
     type Item = T;
-
-    fn slice(&mut self) -> &[Self::Item] {
-        if self.current.is_none() {
-            if let Some(b) = self.inbound.lock().unwrap().pop_front() {
-                let buffer = CurrentBufferBuilder {
-                    buffer: b.buffer,
-                    offset: 0,
-                    end: b.offset,
-                    guard_builder: |buffer| buffer.read().unwrap(),
-                }
-                .build();
-                self.current = Some(buffer);
-            } else {
-                return &[];
-            }
-        }
-
-        let current = self.current.as_ref().unwrap();
-        let offset = *current.borrow_offset();
-        let end = *current.borrow_end();
-        &current.with_guard(|guard| guard.deref())[offset..end]
-    }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         if self.current.is_none() {

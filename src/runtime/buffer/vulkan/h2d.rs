@@ -156,26 +156,6 @@ where
 {
     type Item = T;
 
-    fn slice(&mut self) -> &mut [Self::Item] {
-        if self.current.is_none() {
-            if let Some(b) = self.inbound.lock().unwrap().pop() {
-                let buffer = CurrentBufferBuilder {
-                    offset: 0,
-                    buffer: b.buffer,
-                    guard_builder: |buffer| buffer.write().unwrap(),
-                }
-                .build();
-                self.current = Some(buffer);
-            } else {
-                return &mut [];
-            }
-        }
-
-        let b = self.current.as_mut().unwrap();
-        let offset = *b.borrow_offset();
-        &mut b.with_guard_mut(|guard| guard.deref_mut())[offset..]
-    }
-
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         if self.current.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop() {
@@ -291,13 +271,13 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if !self.writer_inbox.is_closed() {
-            Ok(())
-        } else {
+        if self.writer_inbox.is_closed() {
             Err(Error::ValidationError(format!(
                 "{:?}:{:?} not connected",
                 self.block_id, self.port_id
             )))
+        } else {
+            Ok(())
         }
     }
 
@@ -319,7 +299,7 @@ where
         self.finished = true;
     }
 
-    fn finished(&mut self) -> bool {
+    fn finished(&self) -> bool {
         self.finished
     }
 

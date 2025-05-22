@@ -177,10 +177,6 @@ where
 {
     type Item = D;
 
-    fn slice(&mut self) -> &mut [Self::Item] {
-        self.slice_with_tags().0
-    }
-
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         if self.current.is_none() {
             let mut state = self.state.lock().unwrap();
@@ -318,7 +314,7 @@ where
     fn finish(&mut self) {
         self.finished = true;
     }
-    fn finished(&mut self) -> bool {
+    fn finished(&self) -> bool {
         self.finished && self.state.lock().unwrap().reader_input.is_empty()
     }
     fn block_id(&self) -> BlockId {
@@ -334,10 +330,6 @@ where
     D: CpuSample,
 {
     type Item = D;
-
-    fn slice(&mut self) -> &[Self::Item] {
-        self.slice_with_tags().0
-    }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         if let Some(cur) = self.current.as_mut() {

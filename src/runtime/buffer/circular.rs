@@ -189,9 +189,6 @@ where
             .unwrap()
             .produce(items, std::mem::take(&mut self.tags));
     }
-    fn slice(&mut self) -> &mut [Self::Item] {
-        self.writer.as_mut().unwrap().slice(false)
-    }
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         let s = self.writer.as_mut().unwrap().slice(false);
         (s, Tags::new(&mut self.tags, 0))
@@ -280,7 +277,7 @@ where
     fn finish(&mut self) {
         self.finished = true;
     }
-    fn finished(&mut self) -> bool {
+    fn finished(&self) -> bool {
         self.finished
     }
     fn block_id(&self) -> BlockId {
@@ -297,15 +294,6 @@ where
 {
     type Item = D;
 
-    fn slice(&mut self) -> &[Self::Item] {
-        if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
-            self.tags = tags;
-            s
-        } else {
-            debug_assert!(self.tags.is_empty());
-            &[]
-        }
-    }
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
             self.tags = tags;

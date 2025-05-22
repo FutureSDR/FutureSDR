@@ -60,7 +60,7 @@ pub trait BufferReader: Any {
     /// The Block will usually process the remaining samples and shut down.
     fn finish(&mut self);
     /// Did the upstream already mark this buffer as done.
-    fn finished(&mut self) -> bool;
+    fn finished(&self) -> bool;
     /// Own Block ID
     fn block_id(&self) -> BlockId;
     /// Own Port ID
@@ -112,7 +112,9 @@ pub trait CpuBufferReader: BufferReader + Default + Send {
     /// Buffer Items
     type Item: CpuSample;
     /// Get available samples.
-    fn slice(&mut self) -> &[Self::Item];
+    fn slice(&mut self) -> &[Self::Item] {
+        self.slice_with_tags().0
+    }
     /// Get available samples and tags.
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
     /// Consume Items
@@ -127,7 +129,9 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
     /// Buffer Items
     type Item: CpuSample;
     /// Available buffer space
-    fn slice(&mut self) -> &mut [Self::Item];
+    fn slice(&mut self) -> &mut [Self::Item] {
+        self.slice_with_tags().0
+    }
     /// Available buffer space and tags.
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags);
     /// samples produced
