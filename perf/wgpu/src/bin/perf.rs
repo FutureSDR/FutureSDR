@@ -54,7 +54,7 @@ mod foo {
 
     pub fn main() -> Result<()> {
         console_error_panic_hook::set_once();
-        leptos::task::Executor::init_wasm_bindgen().unwrap();
+        any_spawner::Executor::init_wasm_bindgen().unwrap();
         mount_to_body(|| view! { <Gui /> });
         Ok(())
     }

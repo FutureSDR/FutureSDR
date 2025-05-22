@@ -1,5 +1,4 @@
 use anyhow::Result;
-use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Criterion;
@@ -8,6 +7,7 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::prelude::*;
+use std::hint::black_box;
 use std::time::Duration;
 use std::time::Instant;
 

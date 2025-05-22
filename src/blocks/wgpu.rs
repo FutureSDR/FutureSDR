@@ -14,10 +14,10 @@ use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
 use std::borrow::Cow;
 
-use crate::runtime::buffer::wgpu;
-use crate::runtime::buffer::wgpu::H2DReader;
-use crate::runtime::buffer::wgpu::D2HWriter;
 use crate::prelude::*;
+use crate::runtime::buffer::wgpu;
+use crate::runtime::buffer::wgpu::D2HWriter;
+use crate::runtime::buffer::wgpu::H2DReader;
 
 const SHADER: &str = r#"
     @group(0)
@@ -33,8 +33,7 @@ const SHADER: &str = r#"
 
 /// Interface GPU w/ native API.
 #[derive(Block)]
-pub struct Wgpu
-{
+pub struct Wgpu {
     #[input]
     input: H2DReader<f32>,
     #[output]
@@ -65,27 +64,23 @@ impl Wgpu {
             mapped_at_creation: false,
         });
 
-            Self {
-                input: H2DReader::new(),
-                output: D2HWriter::new(),
-                instance,
-                buffer_items,
-                pipeline: None,
-                output_buffers: Vec::new(),
-                storage_buffer,
-                n_input_buffers,
-                n_output_buffers,
-            }
+        Self {
+            input: H2DReader::new(),
+            output: D2HWriter::new(),
+            instance,
+            buffer_items,
+            pipeline: None,
+            output_buffers: Vec::new(),
+            storage_buffer,
+            n_input_buffers,
+            n_output_buffers,
+        }
     }
 }
 
 #[doc(hidden)]
 impl Kernel for Wgpu {
-    async fn init(
-        &mut self,
-        _m: &mut MessageOutputs,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         for _ in 0..self.n_output_buffers {
             let output_buffer = self.instance.device.create_buffer(&BufferDescriptor {
                 label: None,
@@ -151,14 +146,17 @@ impl Kernel for Wgpu {
 
             // Instantiates the bind group, once again specifying the binding of buffers.
             let bind_group_layout = self.pipeline.as_ref().unwrap().get_bind_group_layout(0);
-            let bind_group = self.instance.device.create_bind_group(&BindGroupDescriptor {
-                label: None,
-                layout: &bind_group_layout,
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: self.storage_buffer.as_entire_binding(),
-                }],
-            });
+            let bind_group = self
+                .instance
+                .device
+                .create_bind_group(&BindGroupDescriptor {
+                    label: None,
+                    layout: &bind_group_layout,
+                    entries: &[BindGroupEntry {
+                        binding: 0,
+                        resource: self.storage_buffer.as_entire_binding(),
+                    }],
+                });
 
             let mut dispatch = m.n_items as u32 / 64; // 64: work group size
             if m.n_items as u32 % 64 > 0 {
@@ -216,7 +214,8 @@ impl Kernel for Wgpu {
                 panic!("failed to map result buffer")
             }
 
-            self.input.submit(wgpu::InputBufferEmpty { buffer: m.buffer });
+            self.input
+                .submit(wgpu::InputBufferEmpty { buffer: m.buffer });
         }
 
         if self.input.finished() {
