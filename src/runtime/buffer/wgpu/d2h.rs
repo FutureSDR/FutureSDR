@@ -79,6 +79,15 @@ where
     }
 }
 
+impl<D> Default for Writer<D>
+where
+    D: CpuSample,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<D> BufferWriter for Writer<D>
 where
     D: CpuSample,
@@ -104,6 +113,7 @@ where
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
+        dest.outbound = self.inbound.clone();
         dest.writer_output_id = self.writer_output_id.clone();
         dest.writer_inbox = self.writer_inbox.clone();
 
@@ -257,9 +267,11 @@ where
                     slice,
                 });
             } else {
+                debug!("D2H reader return empty slice");
                 return (&[], &V);
             }
         }
+        debug!("D2H reader buffer available");
 
         unsafe {
             let buffer = self.buffer.as_ref().unwrap();
@@ -277,7 +289,9 @@ where
     }
 
     fn consume(&mut self, amount: usize) {
-        debug_assert!(amount != 0);
+        if amount == 0 {
+            return;
+        }
         debug_assert!(self.buffer.is_some());
 
         let buffer = self.buffer.as_mut().unwrap();

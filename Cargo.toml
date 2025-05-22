@@ -22,7 +22,7 @@ categories = [
 members = [".", "crates/futuredsp", "crates/macros", "crates/types"]
 
 [features]
-default = ["wgpu", "tracing_max_level_debug", "tracing_release_max_level_info"]
+default = ["tracing_max_level_debug", "tracing_release_max_level_info"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 flow_scheduler = []

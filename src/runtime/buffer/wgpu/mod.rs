@@ -47,7 +47,7 @@ where
     /// Used bytes
     pub used_bytes: usize,
     /// Marker for sample type
-    _p: PhantomData<D>,
+    pub _p: PhantomData<D>,
 }
 
 /// Empty output buffer

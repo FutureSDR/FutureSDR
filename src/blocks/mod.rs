@@ -246,10 +246,10 @@ pub use websocket_sink::WebsocketSinkBuilder;
 pub use websocket_sink::WebsocketSinkMode;
 pub mod xlating_fir;
 pub use xlating_fir::XlatingFir;
-// #[cfg(feature = "wgpu")]
-// mod wgpu;
-// #[cfg(feature = "wgpu")]
-// pub use self::wgpu::Wgpu;
+#[cfg(feature = "wgpu")]
+mod wgpu;
+#[cfg(feature = "wgpu")]
+pub use self::wgpu::Wgpu;
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
 // #[cfg(feature = "zynq")]

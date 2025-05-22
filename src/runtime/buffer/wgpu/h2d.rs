@@ -101,6 +101,7 @@ where
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
+        dest.outbound = self.inbound.clone();
         self.reader_input_id = dest.reader_input_id.clone();
         self.reader_inbox = dest.reader_inbox.clone();
         dest.writer_inbox = self.writer_inbox.clone();
