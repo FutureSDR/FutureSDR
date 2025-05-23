@@ -127,7 +127,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let blk = fg.get(s);
+        let blk = fg.get_block(s)?;
         let mut t = blk.lock_blocking();
         if slab {
             let snk = t
