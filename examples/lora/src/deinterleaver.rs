@@ -1,74 +1,60 @@
+use futuresdr::prelude::*;
 use std::collections::HashMap;
-
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::warn;
 
 use crate::utils::*;
 
-#[derive(futuresdr::Block)]
-pub struct Deinterleaver {
-    sf: usize,           // Spreading factor
-    cr: usize,           // Coding rate
+#[derive(Block)]
+pub struct Deinterleaver<I = circular::Reader<u16>, O = circular::Writer<u8>>
+where
+    I: CpuBufferReader<Item = u16>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    sf: usize,            // Spreading factor
+    cr: usize,            // Coding rate
     is_header: bool, // Indicate that we need to deinterleave the first block with the default header parameters (cr=4/8, reduced rate)
-    soft_decoding: bool, // Hard/Soft decoding
+    _soft_decoding: bool, // Hard/Soft decoding
     ldro: bool,      // use low datarate optimization mode
 }
 
-impl Deinterleaver {
-    pub fn new(soft_decoding: bool) -> TypedBlock<Self> {
-        let mut sio = StreamIoBuilder::new();
-        if soft_decoding {
-            sio = sio.add_input::<[LLR; MAX_SF]>("in");
-            sio = sio.add_output::<[LLR; 8]>("out");
-        } else {
-            sio = sio.add_input::<u16>("in");
-            sio = sio.add_output::<u8>("out");
+impl<I, O> Deinterleaver<I, O>
+where
+    I: CpuBufferReader<Item = u16>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    pub fn new(soft_decoding: bool) -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            _soft_decoding: soft_decoding,
+            sf: 0,
+            cr: 0,
+            is_header: false,
+            ldro: false,
         }
-        TypedBlock::new(
-            sio.build(),
-            Self {
-                soft_decoding,
-                sf: 0,
-                cr: 0,
-                is_header: false,
-                ldro: false,
-            },
-        )
     }
 }
 
-impl Kernel for Deinterleaver {
+impl<I, O> Kernel for Deinterleaver<I, O>
+where
+    I: CpuBufferReader<Item = u16>,
+    O: CpuBufferWriter<Item = u8>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let mut n_input = if self.soft_decoding {
-            sio.input(0).slice::<[LLR; MAX_SF]>().len()
-        } else {
-            sio.input(0).slice::<u16>().len()
-        };
-        let n_output = if self.soft_decoding {
-            sio.output(0).slice::<[LLR; 8]>().len()
-        } else {
-            sio.output(0).slice::<u8>().len()
-        };
+        let (input, in_tags) = self.input.slice_with_tags();
+        let (output, mut out_tags) = self.output.slice_with_tags();
+        let mut input_len = input.len();
+        let output_len = output.len();
 
-        let tags: Vec<(usize, &HashMap<String, Pmt>)> = sio
-            .input(0)
-            .tags()
+        let tags: Vec<(usize, &HashMap<String, Pmt>)> = in_tags
             .iter()
             .filter_map(|x| match x {
                 ItemTag {
@@ -92,20 +78,20 @@ impl Kernel for Deinterleaver {
 
         let tag_tmp = if !tags.is_empty() {
             if tags[0].0 != 0 {
-                n_input = tags[0].0;
-                if n_input < cw_len_current {
+                input_len = tags[0].0;
+                if input_len < cw_len_current {
                     warn!("Deinterleaver: incorrect number of samples; dropping.");
-                    sio.input(0).consume(n_input);
+                    self.input.consume(input_len);
                     io.call_again = true;
                     return Ok(());
                 }
                 None
             } else {
                 if tags.len() >= 2 {
-                    n_input = tags[1].0;
-                    if n_input < cw_len_current {
+                    input_len = tags[1].0;
+                    if input_len < cw_len_current {
                         warn!("Deinterleaver: too few samples between tags; dropping.");
-                        sio.input(0).consume(n_input);
+                        self.input.consume(input_len);
                         io.call_again = true;
                         return Ok(());
                     }
@@ -151,71 +137,66 @@ impl Kernel for Deinterleaver {
         } else {
             self.sf
         };
-        if n_output < sf_app {
-            warn!(
-                "[deinterleaver] Not enough output space! {}/{}",
-                n_output, sf_app
-            );
+        if output_len < sf_app {
+            warn!("[deinterleaver] Not enough output space! {output_len}/{sf_app}");
             return Ok(());
         }
         let cw_len = if self.is_header { 8 } else { self.cr + 4 };
 
-        if n_input >= cw_len {
+        if input_len >= cw_len {
             if let Some(tag) = tag_tmp {
-                sio.output(0).add_tag(
+                out_tags.add_tag(
                     0,
                     Tag::NamedAny("frame_info".to_string(), Box::new(Pmt::MapStrPmt(tag))),
                 );
             }
             // wait for a full block to deinterleave
-            if self.soft_decoding {
-                let input = sio.input(0).slice::<[LLR; MAX_SF]>();
-                let output = sio.output(0).slice::<[LLR; 8]>();
-                let mut inter_bin: Vec<[LLR; MAX_SF]> = vec![[0.; MAX_SF]; cw_len];
-                let mut deinter_bin: Vec<[LLR; 8]> = vec![[0.; 8]; sf_app];
-                for i in 0..cw_len {
-                    // take only sf_app bits over the sf bits available
-                    let input_offset = self.sf - sf_app;
-                    let count = sf_app;
-                    inter_bin[i][0..count]
-                        .copy_from_slice(&input[i][input_offset..(input_offset + count)]);
-                }
-                // Do the actual deinterleaving
-                for i in 0..cw_len {
-                    for j in 0..sf_app {
-                        deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
-                            inter_bin[i][j];
-                    }
-                }
-                output[0..sf_app].copy_from_slice(&deinter_bin[0..sf_app]);
-                // Write only the cw_len bits over the 8 bits space available
-            } else {
-                // Hard-Decoding
-                let input = sio.input(0).slice::<u16>();
-                let output = sio.output(0).slice::<u8>();
-                let mut inter_bin: Vec<Vec<bool>> = vec![vec![false; sf_app]; cw_len];
-                let mut deinter_bin: Vec<Vec<bool>> = vec![vec![false; cw_len]; sf_app];
-                // convert decimal vector to binary vector of vector
-                for i in 0..cw_len {
-                    inter_bin[i] = int2bool(input[i], sf_app);
-                }
-                // do the actual deinterleaving
-                for i in 0..cw_len {
-                    for j in 0..sf_app {
-                        deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
-                            inter_bin[i][j];
-                    }
-                }
-                // transform codewords from binary vector to dec
-                for i in 0..sf_app {
-                    output[i] = bool2int(&deinter_bin[i]) as u8;
+            // if self.soft_decoding {
+            //     let input = sio.input(0).slice::<[LLR; MAX_SF]>();
+            //     let output = sio.output(0).slice::<[LLR; 8]>();
+            //     let mut inter_bin: Vec<[LLR; MAX_SF]> = vec![[0.; MAX_SF]; cw_len];
+            //     let mut deinter_bin: Vec<[LLR; 8]> = vec![[0.; 8]; sf_app];
+            //     for i in 0..cw_len {
+            //         // take only sf_app bits over the sf bits available
+            //         let input_offset = self.sf - sf_app;
+            //         let count = sf_app;
+            //         inter_bin[i][0..count]
+            //             .copy_from_slice(&input[i][input_offset..(input_offset + count)]);
+            //     }
+            //     // Do the actual deinterleaving
+            //     for i in 0..cw_len {
+            //         for j in 0..sf_app {
+            //             deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
+            //                 inter_bin[i][j];
+            //         }
+            //     }
+            //     output[0..sf_app].copy_from_slice(&deinter_bin[0..sf_app]);
+            //     // Write only the cw_len bits over the 8 bits space available
+            // } else {
+            // Hard-Decoding
+            let mut inter_bin: Vec<Vec<bool>> = vec![vec![false; sf_app]; cw_len];
+            let mut deinter_bin: Vec<Vec<bool>> = vec![vec![false; cw_len]; sf_app];
+            // convert decimal vector to binary vector of vector
+            for i in 0..cw_len {
+                inter_bin[i] = int2bool(input[i], sf_app);
+            }
+            // do the actual deinterleaving
+            for i in 0..cw_len {
+                for j in 0..sf_app {
+                    deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
+                        inter_bin[i][j];
                 }
             }
-            sio.input(0).consume(cw_len);
-            sio.output(0).produce(sf_app);
+            // transform codewords from binary vector to dec
+            for i in 0..sf_app {
+                output[i] = bool2int(&deinter_bin[i]) as u8;
+            }
+            // }
+            self.input.consume(cw_len);
+            self.output.produce(sf_app);
         }
 
-        if sio.input(0).finished() && ((n_input < cw_len) || (n_input - cw_len) < cw_len) {
+        if self.input.finished() && ((input_len < cw_len) || (input_len - cw_len) < cw_len) {
             io.finished = true;
         }
         Ok(())

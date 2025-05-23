@@ -1,17 +1,5 @@
-use futuresdr::num_complex::Complex32;
 use futuresdr::num_complex::Complex64;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use rustfft::FftPlanner;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -35,12 +23,11 @@ pub fn bessel_I0(x: f64) -> f64 {
     sum
 }
 
-#[derive(futuresdr::Block)]
-pub struct FftDemod {
-    m_sf: usize,                 //< Spreading factor
-    m_cr: usize,                 //< Coding rate
-    m_soft_decoding: bool,       //< Hard/Soft decoding
-    max_log_approx: bool,        //< use Max-log approximation in LLR formula
+struct State {
+    m_sf: usize,            //< Spreading factor
+    m_cr: usize,            //< Coding rate
+    _m_soft_decoding: bool, //< Hard/Soft decoding
+    // max_log_approx: bool,        //< use Max-log approximation in LLR formula
     m_ldro: bool,                //< use low datarate optimisation
     m_symb_numb: usize,          //< number of symbols in the frame
     m_samples_per_symbol: usize, //< Number of samples received per lora symbols
@@ -48,48 +35,16 @@ pub struct FftDemod {
     // variable used to perform the FFT demodulation
     base_downchirp: Vec<Complex64>, //< Reference upchirp
     m_downchirp: Vec<Complex32>,    //< Reference downchirp
-    output: Vec<u16>, //< Stores the value to be outputted once a full bloc has been received
-    llrs_block: Vec<[LLR; MAX_SF]>, //< Stores the LLRs to be outputted once a full bloc has been received
-    is_header: bool,                //< Indicate that the first block hasn't been fully received
+    out: Vec<u16>, //< Stores the value to be outputted once a full bloc has been received
+    // llrs_block: Vec<[LLR; MAX_SF]>, //< Stores the LLRs to be outputted once a full bloc has been received
+    is_header: bool, //< Indicate that the first block hasn't been fully received
     fft_plan: Arc<dyn rustfft::Fft<f32>>,
     // soft deoding buffers:
-    lls: Vec<f64>,       // 2**sf  Log-Likelihood
-    llrs: [LLR; MAX_SF], //      Log-Likelihood Ratios
+    // lls: Vec<f64>,       // 2**sf  Log-Likelihood
+    // llrs: [LLR; MAX_SF], //      Log-Likelihood Ratios
 }
 
-impl FftDemod {
-    pub fn new(soft_decoding: bool, sf_initial: usize) -> TypedBlock<Self> {
-        let m_samples_per_symbol = 1_usize << sf_initial;
-        let fft_plan = FftPlanner::new().plan_fft_forward(m_samples_per_symbol);
-        let fs = Self {
-            m_sf: sf_initial,
-            m_cr: 0, // initial value irrelevant, set from tag before read
-            m_soft_decoding: soft_decoding,
-            max_log_approx: true,
-            m_samples_per_symbol,
-            base_downchirp: build_upchirp(0, sf_initial, 1)
-                .iter()
-                .map(|&x| Complex64::new(x.re as f64, x.im as f64).conj())
-                .collect(),
-            m_downchirp: vec![],
-            output: Vec::with_capacity(8),
-            llrs_block: Vec::with_capacity(8),
-            is_header: false,
-            m_ldro: false,
-            m_symb_numb: 0,
-            fft_plan,
-            lls: vec![0.; m_samples_per_symbol],
-            llrs: [0.; MAX_SF],
-        };
-        let mut sio = StreamIoBuilder::new().add_input::<Complex32>("in");
-        if soft_decoding {
-            sio = sio.add_output::<[LLR; MAX_SF]>("out")
-        } else {
-            sio = sio.add_output::<u16>("out")
-        }
-        TypedBlock::new(sio.build(), fs)
-    }
-
+impl State {
     /// Set spreading factor and init vector sizes accordingly
     fn set_sf(&mut self, sf: usize) {
         //Set he new sf for the frame
@@ -134,128 +89,128 @@ impl FftDemod {
         }
     }
 
-    ///  Use in Soft-decoding
-    /// Compute the Log-Likelihood Ratios of the SF nbr of bits
-    fn compute_llrs(&mut self, samples: &[Complex32]) {
-        let mut m_fft_mag_sq = self.compute_fft_mag(samples);
-        // compute SNR estimate at each received symbol as SNR remains constant during 1 simulation run
-        // Estimate signal power
-        let symbol_idx = argmax_f64(&m_fft_mag_sq);
-        // Estimate noise power
-        let mut signal_energy: f64 = 0.;
-        let mut noise_energy: f64 = 0.;
-
-        let n_adjacent_bins = 1; // Put '0' for best accurate SNR estimation but if symbols energy splitted in 2 bins, put '1' for safety
-        for (i, &frequency_bin_energy) in m_fft_mag_sq.iter().enumerate() {
-            if ((i as isize - symbol_idx as isize).unsigned_abs() % (self.m_samples_per_symbol - 1))
-                < 1 + n_adjacent_bins
-            {
-                signal_energy += frequency_bin_energy;
-            } else {
-                noise_energy += frequency_bin_energy;
-            }
-        }
-
-        // If you want to use a normalized constant identical to all symbols within a frame, but it leads to same performance
-        // Lowpass filter update
-        //double p = 0.99; // proportion to keep
-        //Ps_est = p*Ps_est + (1-p)*  signal_energy / m_samples_per_symbol;
-        //Pn_est = p*Pn_est + (1-p)* noise_energy / (m_samples_per_symbol-1-2*n_adjacent_bins); // remove used bins for better estimation
-        // Signal and noise power estimation for each received symbol
-        let m_ps_est = signal_energy / self.m_samples_per_symbol as f64;
-        let m_pn_est = noise_energy / (self.m_samples_per_symbol - 1 - 2 * n_adjacent_bins) as f64;
-
-        let _snr_db_estimate = 10. * (m_ps_est / m_pn_est).log10();
-        // info!("SNR {}", SNRdB_estimate);
-        //  Normalize fft_mag to 1 to avoid Bessel overflow
-        m_fft_mag_sq = m_fft_mag_sq
-            .iter()
-            .map(|x| x * self.m_samples_per_symbol as f64)
-            .collect();
-        // upgrade to avoid for loop
-        // Normalized |Y[n]| * sqrt(N) => |Y[n]|² * N (depends on kiss FFT library)
-        //m_fft_mag_sq[i] /= Ps_frame; // // Normalize to avoid Bessel overflow (does not change the performances)
-        //
-        let mut clipping = false;
-        #[allow(clippy::needless_range_loop)]
-        for n in 0..self.m_samples_per_symbol {
-            let bessel_arg = m_ps_est.sqrt() / m_pn_est * m_fft_mag_sq[n].sqrt();
-            // Manage overflow of Bessel function
-            // 713 ~ log(std::numeric_limits<LLR>::max())
-            // if bessel_arg < 713. {
-            // println!("{}", LLR::MAX.ln() as usize);
-            if bessel_arg < 709. {
-                // TODO original limit produces NaNs
-                // TODO extremely slow implementation
-                // let tmp = bessel::i_nu(0., Complex64::new(bessel_arg, 0.));
-                let tmp = bessel_I0(bessel_arg);
-                assert!(!tmp.is_nan());
-                self.lls[n] = tmp; // compute Bessel safely
-            } else {
-                //std::cerr << RED << "Log-Likelihood clipping :-( SNR: " << SNRdB_estimate << " |Y|: " << std::sqrt(m_fft_mag_sq[n]) << RESET << std::endl;
-                //LLs[n] = std::numeric_limits<LLR>::max();  // clipping
-                clipping = true;
-                break;
-            }
-            if self.max_log_approx {
-                self.lls[n] = self.lls[n].ln(); // Log-Likelihood
-                                                //LLs[n] = m_fft_mag_sq[n]; // same performance with just |Y[n]| or |Y[n]|²
-            }
-        }
-        // change to max-log formula with only |Y[n]|² to avoid overflows, solve LLR computation incapacity in high SNR
-        if clipping {
-            self.lls.copy_from_slice(&m_fft_mag_sq);
-        }
-
-        // Log-Likelihood Ratio estimations
-        if self.max_log_approx {
-            for i in 0..self.m_sf {
-                // sf bits => sf LLRs
-                let mut max_x1: f64 = 0.;
-                let mut max_x0: f64 = 0.; // X1 = set of symbols where i-th bit is '1'
-                for (n, &ll) in self.lls.iter().enumerate() {
-                    // for all symbols n : 0 --> 2^sf
-                    // LoRa: shift by -1 and use reduce rate if first block (header)
-                    let mut s: usize = my_modulo(n as isize - 1, 1 << self.m_sf)
-                        / if self.reduced_rate() { 4 } else { 1 };
-                    s = s ^ (s >> 1); // Gray encoding formula               // Gray demap before (in this block)
-                    if (s & (1 << i)) != 0 {
-                        // if i-th bit of symbol n is '1'
-                        if ll > max_x1 {
-                            max_x1 = ll
-                        }
-                    } else {
-                        // if i-th bit of symbol n is '0'
-                        if ll > max_x0 {
-                            max_x0 = ll
-                        }
-                    }
-                }
-                self.llrs[self.m_sf - 1 - i] = max_x1 - max_x0; // [MSB ... ... LSB]
-            }
-        } else {
-            // Without max-log approximation of the LLR estimation
-            for i in 0..self.m_sf {
-                let mut sum_x1: f64 = 0.;
-                let mut sum_x0: f64 = 0.; // X1 = set of symbols where i-th bit is '1'
-                for (n, &ll) in self.lls.iter().enumerate() {
-                    // for all symbols n : 0 --> 2^sf
-                    let mut s: usize =
-                        ((n - 1) % (1 << self.m_sf)) / if self.reduced_rate() { 4 } else { 1 };
-                    s = s ^ (s >> 1); // Gray demap
-                    if (s & (1 << i)) != 0 {
-                        sum_x1 += ll;
-                    }
-                    // Likelihood
-                    else {
-                        sum_x0 += ll;
-                    }
-                }
-                self.llrs[self.m_sf - 1 - i] = sum_x1.ln() - sum_x0.ln();
-                // [MSB ... ... LSB]
-            }
-        }
-    }
+    // ///  Use in Soft-decoding
+    // /// Compute the Log-Likelihood Ratios of the SF nbr of bits
+    // fn compute_llrs(&mut self, samples: &[Complex32]) {
+    //     let mut m_fft_mag_sq = self.compute_fft_mag(samples);
+    //     // compute SNR estimate at each received symbol as SNR remains constant during 1 simulation run
+    //     // Estimate signal power
+    //     let symbol_idx = argmax_f64(&m_fft_mag_sq);
+    //     // Estimate noise power
+    //     let mut signal_energy: f64 = 0.;
+    //     let mut noise_energy: f64 = 0.;
+    //
+    //     let n_adjacent_bins = 1; // Put '0' for best accurate SNR estimation but if symbols energy splitted in 2 bins, put '1' for safety
+    //     for (i, &frequency_bin_energy) in m_fft_mag_sq.iter().enumerate() {
+    //         if ((i as isize - symbol_idx as isize).unsigned_abs() % (self.m_samples_per_symbol - 1))
+    //             < 1 + n_adjacent_bins
+    //         {
+    //             signal_energy += frequency_bin_energy;
+    //         } else {
+    //             noise_energy += frequency_bin_energy;
+    //         }
+    //     }
+    //
+    //     // If you want to use a normalized constant identical to all symbols within a frame, but it leads to same performance
+    //     // Lowpass filter update
+    //     //double p = 0.99; // proportion to keep
+    //     //Ps_est = p*Ps_est + (1-p)*  signal_energy / m_samples_per_symbol;
+    //     //Pn_est = p*Pn_est + (1-p)* noise_energy / (m_samples_per_symbol-1-2*n_adjacent_bins); // remove used bins for better estimation
+    //     // Signal and noise power estimation for each received symbol
+    //     let m_ps_est = signal_energy / self.m_samples_per_symbol as f64;
+    //     let m_pn_est = noise_energy / (self.m_samples_per_symbol - 1 - 2 * n_adjacent_bins) as f64;
+    //
+    //     let _snr_db_estimate = 10. * (m_ps_est / m_pn_est).log10();
+    //     // info!("SNR {}", SNRdB_estimate);
+    //     //  Normalize fft_mag to 1 to avoid Bessel overflow
+    //     m_fft_mag_sq = m_fft_mag_sq
+    //         .iter()
+    //         .map(|x| x * self.m_samples_per_symbol as f64)
+    //         .collect();
+    //     // upgrade to avoid for loop
+    //     // Normalized |Y[n]| * sqrt(N) => |Y[n]|² * N (depends on kiss FFT library)
+    //     //m_fft_mag_sq[i] /= Ps_frame; // // Normalize to avoid Bessel overflow (does not change the performances)
+    //     //
+    //     let mut clipping = false;
+    //     #[allow(clippy::needless_range_loop)]
+    //     for n in 0..self.m_samples_per_symbol {
+    //         let bessel_arg = m_ps_est.sqrt() / m_pn_est * m_fft_mag_sq[n].sqrt();
+    //         // Manage overflow of Bessel function
+    //         // 713 ~ log(std::numeric_limits<LLR>::max())
+    //         // if bessel_arg < 713. {
+    //         // println!("{}", LLR::MAX.ln() as usize);
+    //         if bessel_arg < 709. {
+    //             // TODO original limit produces NaNs
+    //             // TODO extremely slow implementation
+    //             // let tmp = bessel::i_nu(0., Complex64::new(bessel_arg, 0.));
+    //             let tmp = bessel_I0(bessel_arg);
+    //             assert!(!tmp.is_nan());
+    //             self.lls[n] = tmp; // compute Bessel safely
+    //         } else {
+    //             //std::cerr << RED << "Log-Likelihood clipping :-( SNR: " << SNRdB_estimate << " |Y|: " << std::sqrt(m_fft_mag_sq[n]) << RESET << std::endl;
+    //             //LLs[n] = std::numeric_limits<LLR>::max();  // clipping
+    //             clipping = true;
+    //             break;
+    //         }
+    //         if self.max_log_approx {
+    //             self.lls[n] = self.lls[n].ln(); // Log-Likelihood
+    //                                             //LLs[n] = m_fft_mag_sq[n]; // same performance with just |Y[n]| or |Y[n]|²
+    //         }
+    //     }
+    //     // change to max-log formula with only |Y[n]|² to avoid overflows, solve LLR computation incapacity in high SNR
+    //     if clipping {
+    //         self.lls.copy_from_slice(&m_fft_mag_sq);
+    //     }
+    //
+    //     // Log-Likelihood Ratio estimations
+    //     if self.max_log_approx {
+    //         for i in 0..self.m_sf {
+    //             // sf bits => sf LLRs
+    //             let mut max_x1: f64 = 0.;
+    //             let mut max_x0: f64 = 0.; // X1 = set of symbols where i-th bit is '1'
+    //             for (n, &ll) in self.lls.iter().enumerate() {
+    //                 // for all symbols n : 0 --> 2^sf
+    //                 // LoRa: shift by -1 and use reduce rate if first block (header)
+    //                 let mut s: usize = my_modulo(n as isize - 1, 1 << self.m_sf)
+    //                     / if self.reduced_rate() { 4 } else { 1 };
+    //                 s = s ^ (s >> 1); // Gray encoding formula               // Gray demap before (in this block)
+    //                 if (s & (1 << i)) != 0 {
+    //                     // if i-th bit of symbol n is '1'
+    //                     if ll > max_x1 {
+    //                         max_x1 = ll
+    //                     }
+    //                 } else {
+    //                     // if i-th bit of symbol n is '0'
+    //                     if ll > max_x0 {
+    //                         max_x0 = ll
+    //                     }
+    //                 }
+    //             }
+    //             self.llrs[self.m_sf - 1 - i] = max_x1 - max_x0; // [MSB ... ... LSB]
+    //         }
+    //     } else {
+    //         // Without max-log approximation of the LLR estimation
+    //         for i in 0..self.m_sf {
+    //             let mut sum_x1: f64 = 0.;
+    //             let mut sum_x0: f64 = 0.; // X1 = set of symbols where i-th bit is '1'
+    //             for (n, &ll) in self.lls.iter().enumerate() {
+    //                 // for all symbols n : 0 --> 2^sf
+    //                 let mut s: usize =
+    //                     ((n - 1) % (1 << self.m_sf)) / if self.reduced_rate() { 4 } else { 1 };
+    //                 s = s ^ (s >> 1); // Gray demap
+    //                 if (s & (1 << i)) != 0 {
+    //                     sum_x1 += ll;
+    //                 }
+    //                 // Likelihood
+    //                 else {
+    //                     sum_x0 += ll;
+    //                 }
+    //             }
+    //             self.llrs[self.m_sf - 1 - i] = sum_x1.ln() - sum_x0.ln();
+    //             // [MSB ... ... LSB]
+    //         }
+    //     }
+    // }
 
     fn next_iteration_possible(
         &self,
@@ -266,33 +221,80 @@ impl FftDemod {
             return false;
         }
         let block_size = 4 + if self.is_header { 4 } else { self.m_cr };
-        if self.m_soft_decoding {
-            self.llrs_block.len() < block_size || space_left_in_output >= block_size
-        } else {
-            self.output.len() < block_size || space_left_in_output >= block_size
+        // if self.m_soft_decoding {
+        //     self.llrs_block.len() < block_size || space_left_in_output >= block_size
+        // } else {
+        self.out.len() < block_size || space_left_in_output >= block_size
+        // }
+    }
+}
+
+#[derive(Block)]
+pub struct FftDemod<I = circular::Reader<Complex32>, O = circular::Writer<u16>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u16>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    s: State,
+}
+
+impl<I, O> FftDemod<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u16>,
+{
+    pub fn new(soft_decoding: bool, sf_initial: usize) -> Self {
+        let m_samples_per_symbol = 1_usize << sf_initial;
+        let fft_plan = FftPlanner::new().plan_fft_forward(m_samples_per_symbol);
+        Self {
+            input: I::default(),
+            output: O::default(),
+            s: State {
+                m_sf: sf_initial,
+                m_cr: 0, // initial value irrelevant, set from tag before read
+                _m_soft_decoding: soft_decoding,
+                // max_log_approx: true,
+                m_samples_per_symbol,
+                base_downchirp: build_upchirp(0, sf_initial, 1)
+                    .iter()
+                    .map(|&x| Complex64::new(x.re as f64, x.im as f64).conj())
+                    .collect(),
+                m_downchirp: vec![],
+                out: Vec::with_capacity(8),
+                // llrs_block: Vec::with_capacity(8),
+                is_header: false,
+                m_ldro: false,
+                m_symb_numb: 0,
+                fft_plan,
+                // lls: vec![0.; m_samples_per_symbol],
+                // llrs: [0.; MAX_SF],
+            },
         }
     }
 }
 
-impl Kernel for FftDemod {
+impl<I, O> Kernel for FftDemod<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u16>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<Complex32>();
-        let mut nitems_to_process = input.len();
-        let output_len = if self.m_soft_decoding {
-            sio.output(0).slice::<[LLR; MAX_SF]>().len()
-        } else {
-            sio.output(0).slice::<u16>().len()
-        };
+        let (input, in_tags) = self.input.slice_with_tags();
+        let input_len = input.len();
+        let mut nitems_to_process = input_len;
+        let (output, mut out_tags) = self.output.slice_with_tags();
+        let output_len = output.len();
 
-        let tags: Vec<(usize, &HashMap<String, Pmt>)> = sio
-            .input(0)
-            .tags()
+        let tags: Vec<(usize, &HashMap<String, Pmt>)> = in_tags
             .iter()
             .filter_map(|x| match x {
                 ItemTag {
@@ -315,9 +317,9 @@ impl Kernel for FftDemod {
         let tag_tmp = if !tags.is_empty() {
             if tags[0].0 != 0 {
                 nitems_to_process = nitems_to_process.min(tags[0].0);
-                if nitems_to_process < self.m_samples_per_symbol {
+                if nitems_to_process < self.s.m_samples_per_symbol {
                     warn!("FftDemod: incorrect number of samples; dropping.");
-                    sio.input(0).consume(nitems_to_process);
+                    self.input.consume(nitems_to_process);
                     io.call_again = true;
                     return Ok(());
                 }
@@ -325,20 +327,20 @@ impl Kernel for FftDemod {
             } else {
                 if tags.len() >= 2 {
                     nitems_to_process = nitems_to_process.min(tags[1].0);
-                    if nitems_to_process < self.m_samples_per_symbol {
+                    if nitems_to_process < self.s.m_samples_per_symbol {
                         warn!("FftDemod: too few samples between tags; dropping.");
-                        sio.input(0).consume(nitems_to_process);
+                        self.input.consume(nitems_to_process);
                         io.call_again = true;
                         return Ok(());
                     }
                 }
                 let (_, tag) = tags[0];
-                self.is_header = if let Pmt::Bool(tmp) = tag.get("is_header").unwrap() {
+                self.s.is_header = if let Pmt::Bool(tmp) = tag.get("is_header").unwrap() {
                     *tmp
                 } else {
                     panic!()
                 };
-                if self.is_header
+                if self.s.is_header
                 // new frame beginning
                 {
                     // warn!("FftDemod: received new header tag.");
@@ -357,11 +359,12 @@ impl Kernel for FftDemod {
                     } else {
                         panic!()
                     };
-                    if sf != self.m_sf {
-                        self.set_sf(sf);
+                    if sf != self.s.m_sf {
+                        self.s.set_sf(sf);
                     }
                     // adapt the downchirp to the cfo_frac of the frame
-                    self.m_downchirp = self
+                    self.s.m_downchirp = self
+                        .s
                         .base_downchirp
                         .iter()
                         .enumerate()
@@ -369,30 +372,30 @@ impl Kernel for FftDemod {
                             x * Complex64::from_polar(
                                 1.,
                                 -2. * std::f64::consts::PI * (cfo_int as f64 + cfo_frac)
-                                    / self.m_samples_per_symbol as f64
+                                    / self.s.m_samples_per_symbol as f64
                                     * i as f64,
                             )
                         })
                         .map(|x| Complex32::new(x.re as f32, x.im as f32))
                         .collect();
-                    if self.m_soft_decoding {
-                        self.llrs_block.clear();
-                    } else {
-                        self.output.clear();
-                    }
+                    // if self.m_soft_decoding {
+                    //     self.llrs_block.clear();
+                    // } else {
+                    self.s.out.clear();
+                    // }
                 } else {
-                    self.m_cr = if let Pmt::Usize(tmp) = tag.get("cr").unwrap() {
+                    self.s.m_cr = if let Pmt::Usize(tmp) = tag.get("cr").unwrap() {
                         *tmp
                     } else {
                         panic!()
                     };
                     // warn!("FftDemod: received new cr {}", self.m_cr);
-                    self.m_ldro = if let Pmt::Bool(tmp) = tag.get("ldro").unwrap() {
+                    self.s.m_ldro = if let Pmt::Bool(tmp) = tag.get("ldro").unwrap() {
                         *tmp
                     } else {
                         panic!()
                     };
-                    self.m_symb_numb = if let Pmt::Usize(tmp) = tag.get("symb_numb").unwrap() {
+                    self.s.m_symb_numb = if let Pmt::Usize(tmp) = tag.get("symb_numb").unwrap() {
                         *tmp
                     } else {
                         panic!()
@@ -404,62 +407,62 @@ impl Kernel for FftDemod {
             None
         };
 
-        let block_size = 4 + if self.is_header { 4 } else { self.m_cr };
+        let block_size = 4 + if self.s.is_header { 4 } else { self.s.m_cr };
 
-        let consumed = if self.next_iteration_possible(nitems_to_process, output_len) {
+        let consumed = if self
+            .s
+            .next_iteration_possible(nitems_to_process, output_len)
+        {
             if let Some(tag) = tag_tmp {
-                sio.output(0).add_tag(
+                out_tags.add_tag(
                     0,
                     Tag::NamedAny("frame_info".to_string(), Box::new(Pmt::MapStrPmt(tag))),
                 );
             }
-            if self.m_soft_decoding {
-                self.compute_llrs(&input[..self.m_samples_per_symbol]);
-                self.llrs_block.push(self.llrs); // Store 'sf' LLRs
-            } else {
-                // Hard decoding
-                // shift by -1 and use reduce rate if first block (header)
-                self.output.push(
-                    my_modulo(
-                        self.get_symbol_val(&input[..self.m_samples_per_symbol]) as isize - 1,
-                        1 << self.m_sf,
-                    ) as u16
-                        / if self.reduced_rate() { 4 } else { 1 },
-                );
-            }
+            // if self.m_soft_decoding {
+            //     self.compute_llrs(&input[..self.m_samples_per_symbol]);
+            //     self.llrs_block.push(self.llrs); // Store 'sf' LLRs
+            // } else {
+            // Hard decoding
+            // shift by -1 and use reduce rate if first block (header)
+            self.s.out.push(
+                my_modulo(
+                    self.s.get_symbol_val(&input[..self.s.m_samples_per_symbol]) as isize - 1,
+                    1 << self.s.m_sf,
+                ) as u16
+                    / if self.s.reduced_rate() { 4 } else { 1 },
+            );
+            // }
 
-            let produced = if !self.m_soft_decoding && self.output.len() == block_size {
-                let out_buf = sio.output(0).slice::<u16>();
-                out_buf[0..block_size].copy_from_slice(&self.output);
-                self.output.clear();
+            let produced = if output_len == block_size {
+                output[0..block_size].clone_from_slice(&self.s.out);
+                self.s.out.clear();
                 block_size
-            } else if self.m_soft_decoding && self.llrs_block.len() == block_size {
-                let out_buf = sio.output(0).slice::<[LLR; MAX_SF]>();
-                out_buf[0..block_size].copy_from_slice(&self.llrs_block);
-                self.llrs_block.clear();
-                block_size
+            // } else if self.m_soft_decoding && self.llrs_block.len() == block_size {
+            //     let out_buf = sio.output(0).slice::<[LLR; MAX_SF]>();
+            //     out_buf[0..block_size].copy_from_slice(&self.llrs_block);
+            //     self.llrs_block.clear();
+            //     block_size
             } else {
                 0
             };
 
             // warn!("FftDemod: consumed {self.m_samples_per_symbol}");
-            sio.input(0).consume(self.m_samples_per_symbol);
-            if produced > 0 {
-                sio.output(0).produce(produced);
-            }
+            self.input.consume(self.s.m_samples_per_symbol);
+            self.output.produce(produced);
 
-            io.call_again = self.next_iteration_possible(
-                input.len() - self.m_samples_per_symbol,
+            io.call_again = self.s.next_iteration_possible(
+                input_len - self.s.m_samples_per_symbol,
                 output_len - produced,
             );
-            self.m_samples_per_symbol
+            self.s.m_samples_per_symbol
         } else {
             0
         };
 
         if !io.call_again
-            && sio.input(0).finished()
-            && (input.len() - consumed) < self.m_samples_per_symbol
+            && self.input.finished()
+            && (input_len - consumed) < self.s.m_samples_per_symbol
         {
             io.finished = true;
         }

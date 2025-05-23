@@ -19,20 +19,11 @@ use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::channel::mpsc::Sender;
-use futuresdr::futures::SinkExt;
-use futuresdr::futures::StreamExt;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::channel::mpsc::Sender;
+use futuresdr::prelude::*;
 
 /// Forward messages.
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_inputs(r#in)]
 #[null_kernel]
 pub struct PacketForwarderClient {
@@ -44,7 +35,7 @@ pub struct PacketForwarderClient {
 }
 
 impl PacketForwarderClient {
-    pub fn new(mac_addr: &str, server_addr: &str) -> TypedBlock<Self> {
+    pub fn new(mac_addr: &str, server_addr: &str) -> Self {
         let mac_address = MacAddress::from_str(mac_addr).unwrap();
         let (to_forwarder_sender, mut to_forwarder_receiver) = mpsc::channel::<Packet>(1);
         let host = SocketAddr::from_str(server_addr).unwrap();
@@ -59,7 +50,7 @@ impl PacketForwarderClient {
         rt_tokio.block_on(async move {
             let (uplink_sender, mut downlink_request_receiver, udp_runtime) =
                 UdpRuntime::new(mac_address, host).await.unwrap();
-            println!("Connecting to server {}", server_addr);
+            println!("Connecting to server {server_addr}");
             let udp_runtime_task = handle.spawn(udp_runtime.run(shutdown_signal));
 
             // send received frames
@@ -94,15 +85,12 @@ impl PacketForwarderClient {
             });
         });
 
-        TypedBlock::new(
-            StreamIoBuilder::new().build(),
-            PacketForwarderClient {
-                mac_addr: mac_address,
-                shutdown_trigger: shutdown_trigger_tmp,
-                uplink_sender: to_forwarder_sender,
-                udp_client_runtime: rt_tokio,
-            },
-        )
+        Self {
+            mac_addr: mac_address,
+            shutdown_trigger: shutdown_trigger_tmp,
+            uplink_sender: to_forwarder_sender,
+            udp_client_runtime: rt_tokio,
+        }
     }
 
     async fn r#in(

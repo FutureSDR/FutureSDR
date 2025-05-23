@@ -1,26 +1,18 @@
+use futuresdr::prelude::*;
 use std::collections::HashMap;
-
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
 
 use crate::utils::*;
 use crate::Frame;
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_inputs(r#in)]
 #[message_outputs(out, out_annotated, rftap, crc_check)]
 #[null_kernel]
 pub struct Decoder;
 
 impl Decoder {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(StreamIoBuilder::new().build(), Self)
+    pub fn new() -> Self {
+        Self
     }
 
     fn crc16(data: &[u8]) -> u16 {
@@ -78,7 +70,7 @@ impl Decoder {
                 let crc_valid: bool =
                     ((dewhitened[l - 2] as u16) + ((dewhitened[l - 1] as u16) << 8)) as i32
                         == crc as i32;
-                mio.output_mut(3).post(Pmt::Bool(crc_valid)).await;
+                mio.post("crc_check", Pmt::Bool(crc_valid)).await.unwrap();
                 if !crc_valid {
                     info!("crc check failed");
                     false
@@ -109,7 +101,7 @@ impl Decoder {
             rftap[25] = 0; // net_id_caching
             rftap[26] = 0x12; // sync word
             rftap[27..].copy_from_slice(&dewhitened);
-            mio.output_mut(2).post(Pmt::Blob(rftap.clone())).await;
+            mio.post("rftap", Pmt::Blob(rftap.clone())).await.unwrap();
 
             // let data = String::from_utf8_lossy(&dewhitened[..dewhitened.len() - 2]);
             // info!("received frame: {}", data);
@@ -144,10 +136,9 @@ impl Decoder {
                             String::from("implicit_header"),
                             Pmt::Bool(frame.implicit_header),
                         );
-                        mio.output_mut(0).post(Pmt::Blob(dewhitened)).await;
-                        mio.output_mut(1)
-                            .post(Pmt::MapStrPmt(annotated_payload))
-                            .await;
+                        mio.post("out", Pmt::Blob(dewhitened)).await?;
+                        mio.post("out_annotated", Pmt::MapStrPmt(annotated_payload))
+                            .await?;
                     }
                     Pmt::Ok
                 } else {
@@ -161,5 +152,11 @@ impl Decoder {
             _ => Pmt::InvalidValue,
         };
         Ok(ret)
+    }
+}
+
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
     }
 }

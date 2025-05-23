@@ -1,19 +1,14 @@
 use anyhow::Result;
 use clap::Parser;
 use futuredsp::firdes::remez;
-use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::blocks::MessageAnnotator;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::PfbArbResampler;
 use futuresdr::blocks::PfbChannelizer;
 use futuresdr::blocks::StreamDeinterleaver;
-use futuresdr::macros::connect;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use rustfft::num_complex::Complex32;
+use futuresdr::prelude::*;
 use std::collections::HashMap;
 use std::time::SystemTime;
 
@@ -86,18 +81,19 @@ fn main() -> Result<()> {
     // streamer start time is relative to function call -> can not be used for precise rx timestamping -> just use the system time when constructing the flowgraph as a reference
     let stream_start_time = SystemTime::now();
 
-    let src = SourceBuilder::new()
+    let packet_forwarder = args
+        .forward_addr
+        .map(|addr| fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr)));
+
+    let src = Builder::new(args.args)?
         .sample_rate((NUM_CHANNELS_PADDED * CHANNEL_SPACING) as f64)
         .frequency(CENTER_FREQ)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_source()?;
 
     let deinterleaver = StreamDeinterleaver::<Complex32>::new(NUM_CHANNELS_PADDED);
-    connect!(fg, src > deinterleaver);
-
-    let mut tagged_msg_out_ports: Vec<usize> = vec![];
+    connect!(fg, src.outputs[0] > deinterleaver);
 
     let transition_bw = (CHANNEL_SPACING - BANDWIDTH) as f64 / CHANNEL_SPACING as f64;
     let channelizer_taps: Vec<f32> = remez::low_pass(
@@ -112,26 +108,24 @@ fn main() -> Result<()> {
     .into_iter()
     .map(|x| x as f32)
     .collect();
-    let channelizer = fg.add_block(PfbChannelizer::new(
-        NUM_CHANNELS_PADDED,
-        &channelizer_taps,
-        1.0,
-    ))?;
+    let channelizer: PfbChannelizer =
+        PfbChannelizer::new(NUM_CHANNELS_PADDED, &channelizer_taps, 1.0);
+    let channelizer = fg.add_block(channelizer);
     for i in 0..NUM_CHANNELS_PADDED {
-        fg.connect_stream(
-            deinterleaver,
+        fg.connect_dyn(
+            &deinterleaver,
             format!("out{i}"),
-            channelizer,
+            &channelizer,
             format!("in{i}"),
         )?;
     }
     for n_out in 0..NUM_CHANNELS_PADDED {
         let n_chan = map_port(n_out);
         if n_chan.is_none() {
-            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new())?;
+            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new());
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
-            fg.connect_stream(
-                channelizer,
+            fg.connect_dyn(
+                &channelizer,
                 format!("out{n_out}"),
                 null_sink_extra_channel,
                 "in",
@@ -154,8 +148,8 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|x| x as f32)
         .collect();
-        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5))?;
-        fg.connect_stream(channelizer, format!("out{n_out}"), resampler, "in")?;
+        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5));
+        fg.connect_dyn(&channelizer, format!("out{n_out}"), &resampler, "in")?;
         let center_freq = CENTER_FREQS[n_chan] as f32;
         println!(
             "connecting {:.1}MHz chain to channel {}",
@@ -167,7 +161,7 @@ fn main() -> Result<()> {
                 "connecting {:.1}MHz FrameSync with spreading factor {sf}",
                 center_freq / 1.0e6,
             );
-            let frame_sync = fg.add_block(FrameSync::new(
+            let frame_sync: FrameSync = FrameSync::new(
                 center_freq as u32,
                 BANDWIDTH,
                 sf,
@@ -178,52 +172,40 @@ fn main() -> Result<()> {
                 None,
                 false,
                 Some(stream_start_time),
-            ))?;
-            fg.connect_stream_with_type(
-                resampler,
-                "out",
-                frame_sync,
-                "in",
-                Circular::with_size((1 << 12) * 64),
-            )?;
-            let fft_demod = FftDemod::new(SOFT_DECODING, sf);
-            let gray_mapping = GrayMapping::new(SOFT_DECODING);
-            let deinterleaver = Deinterleaver::new(SOFT_DECODING);
-            let hamming_dec = HammingDec::new(SOFT_DECODING);
+            );
+            let frame_sync = fg.add_block(frame_sync);
+            fg.connect_dyn(&resampler, "out", &frame_sync, "in")?;
+            let fft_demod: FftDemod = FftDemod::new(SOFT_DECODING, sf);
+            let gray_mapping: GrayMapping = GrayMapping::new(SOFT_DECODING);
+            let deinterleaver: Deinterleaver = Deinterleaver::new(SOFT_DECODING);
+            let hamming_dec: HammingDec = HammingDec::new(SOFT_DECODING);
             let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, sf >= 12);
-            let decoder = fg.add_block(Decoder::new())?;
-            let udp_data = fg.add_block(BlobToUdp::new("127.0.0.1:55555"))?;
-            let udp_rftap = fg.add_block(BlobToUdp::new("127.0.0.1:55556"))?;
+            let decoder = Decoder::new();
+            let udp_data = BlobToUdp::new("127.0.0.1:55555");
+            let udp_rftap = BlobToUdp::new("127.0.0.1:55556");
 
             connect!(fg,
                 frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-                header_decoder.frame_info | frame_sync.frame_info;
+                header_decoder.frame_info | frame_info.frame_sync;
                 header_decoder | decoder;
                 decoder.out | udp_data;
                 decoder.rftap | udp_rftap;
             );
-            if args.forward_addr.is_some() {
+            if let Some(ref pf) = packet_forwarder {
+                let packet_forwarder = pf.clone();
                 let tags: HashMap<String, Pmt> = HashMap::from([
                     (String::from("sf"), Pmt::U32(sf as u32)),
                     (String::from("bw"), Pmt::U32((BANDWIDTH / 1000) as u32)),
                     (String::from("freq"), Pmt::F64(center_freq as f64)),
                 ]);
                 let metadata_tagger = MessageAnnotator::new(tags, None);
-                connect!(fg, decoder.out_annotated | metadata_tagger.in);
-                tagged_msg_out_ports.push(metadata_tagger);
+                connect!(fg, decoder.out_annotated | metadata_tagger);
+                connect!(fg, metadata_tagger | packet_forwarder);
             }
         }
     }
 
-    if let Some(addr) = args.forward_addr {
-        let packet_forwarder =
-            fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr))?;
-        for metadata_tagger in tagged_msg_out_ports {
-            connect!(fg, metadata_tagger.out | packet_forwarder.in);
-        }
-    }
-
-    let _ = rt.run(fg);
+    rt.run(fg)?;
 
     Ok(())
 }

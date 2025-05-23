@@ -363,10 +363,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     initialized: oneshot::Sender<Result<(), Error>>,
 ) -> Result<Flowgraph, Error> {
     debug!("in run_flowgraph");
-    if let Err(e) = fg.validate() {
-        initialized.send(Err(e.clone())).unwrap();
-        return Err(e);
-    }
 
     let mut inboxes: Vec<Sender<BlockMessage>> = fg
         .blocks

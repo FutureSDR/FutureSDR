@@ -1,17 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
 use futuredsp::firdes;
-use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::MessagePipe;
-use futuresdr::blocks::XlatingFirBuilder;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::StreamExt;
-use futuresdr::macros::connect;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::blocks::XlatingFir;
+use futuresdr::prelude::*;
 
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticChannels;
@@ -63,15 +56,14 @@ fn main() -> Result<()> {
         }
     }
 
-    println!("channels: {:?}", channels);
+    println!("channels: {channels:?}");
 
-    let src = SourceBuilder::new()
+    let src = Builder::new(args.args)?
         .sample_rate(1e6)
         .frequency(freq as f64 - 200e3)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_source()?;
 
     let decimation = match bandwidth {
         Bandwidth::BW62 => 4,
@@ -82,9 +74,9 @@ fn main() -> Result<()> {
     let cutoff = Into::<f64>::into(bandwidth) / 2.0 / 1e6;
     let transition_bw = Into::<f64>::into(bandwidth) / 10.0 / 1e6;
     let taps = firdes::kaiser::lowpass(cutoff, transition_bw, 0.05);
-    let decimation = XlatingFirBuilder::with_taps(taps, decimation, 200e3, 1e6);
+    let decimation: XlatingFir = XlatingFir::with_taps(taps, decimation, 200e3, 1e6);
 
-    let frame_sync = FrameSync::new(
+    let frame_sync: FrameSync = FrameSync::new(
         freq,
         bandwidth.into(),
         spreading_factor.into(),
@@ -96,10 +88,10 @@ fn main() -> Result<()> {
         false,
         None,
     );
-    let fft_demod = FftDemod::new(SOFT_DECODING, spreading_factor.into());
-    let gray_mapping = GrayMapping::new(SOFT_DECODING);
-    let deinterleaver = Deinterleaver::new(SOFT_DECODING);
-    let hamming_dec = HammingDec::new(SOFT_DECODING);
+    let fft_demod: FftDemod = FftDemod::new(SOFT_DECODING, spreading_factor.into());
+    let gray_mapping: GrayMapping = GrayMapping::new(SOFT_DECODING);
+    let deinterleaver: Deinterleaver = Deinterleaver::new(SOFT_DECODING);
+    let hamming_dec: HammingDec = HammingDec::new(SOFT_DECODING);
     let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
     let decoder = Decoder::new();
 
@@ -108,12 +100,12 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     connect!(fg,
-        src > decimation [Circular::with_size((1 << 12) * 16 * OVERSAMPLING)] frame_sync;
-        frame_sync [Circular::with_size((1 << 12) * 16 * OVERSAMPLING)] fft_demod;
+        src.outputs[0] > decimation > frame_sync;
+        frame_sync > fft_demod;
         fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-        header_decoder.frame_info | frame_sync.frame_info;
+        header_decoder.frame_info | frame_info.frame_sync;
         header_decoder | decoder;
-        decoder.out | message_pipe;
+        decoder | message_pipe;
     );
 
     let rt = Runtime::new();

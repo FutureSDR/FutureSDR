@@ -2,12 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::BlobToUdp;
-use futuresdr::macros::connect;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use std::fmt::Debug;
 use std::time::Duration;
 
@@ -64,7 +59,7 @@ fn main() -> Result<()> {
     // ==============================================================
     // TX
     // ==============================================================
-    let transmitter = Transmitter::new(
+    let transmitter: Transmitter = Transmitter::new(
         args.code_rate.into(),
         HAS_CRC,
         args.spreading_factor.into(),
@@ -79,7 +74,7 @@ fn main() -> Result<()> {
     // ==============================================================
     // RX
     // ==============================================================
-    let frame_sync = FrameSync::new(
+    let frame_sync: FrameSync = FrameSync::new(
         868_000_000,
         args.bandwidth.into(),
         args.spreading_factor.into(),
@@ -91,22 +86,24 @@ fn main() -> Result<()> {
         false,
         None,
     );
-    let fft_demod = FftDemod::new(args.soft_decoding, args.spreading_factor.into());
-    let gray_mapping = GrayMapping::new(args.soft_decoding);
-    let deinterleaver = Deinterleaver::new(args.soft_decoding);
-    let hamming_dec = HammingDec::new(args.soft_decoding);
-    let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, false);
+    let fft_demod: FftDemod = FftDemod::new(args.soft_decoding, args.spreading_factor.into());
+    let gray_mapping: GrayMapping = GrayMapping::new(args.soft_decoding);
+    let deinterleaver: Deinterleaver = Deinterleaver::new(args.soft_decoding);
+    let hamming_dec: HammingDec = HammingDec::new(args.soft_decoding);
+    let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, false);
     let decoder = Decoder::new();
     let udp_data = BlobToUdp::new("127.0.0.1:55555");
     let udp_rftap = BlobToUdp::new("127.0.0.1:55556");
     connect!(fg,
-        transmitter [Circular::with_size((1 << usize::from(args.spreading_factor)) * 3 * args.oversampling)] frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-        header_decoder.frame_info | frame_sync.frame_info;
+        transmitter > frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
+        header_decoder.frame_info | frame_info.frame_sync;
         header_decoder | decoder;
-        decoder.crc_check | frame_sync.payload_crc_result;
+        decoder.crc_check | payload_crc_result.frame_sync;
         decoder.out | udp_data;
         decoder.rftap | udp_rftap;
     );
+
+    let transmitter = transmitter.into();
 
     // ==============================================================
     // Send Frames
@@ -116,7 +113,7 @@ fn main() -> Result<()> {
     rt.block_on(async move {
         let mut counter: usize = 0;
         loop {
-            let payload = format!("hello world! {:02}", counter).to_string();
+            let payload = format!("hello world! {counter:02}");
             handle
                 .call(transmitter, "msg", Pmt::String(payload))
                 .await

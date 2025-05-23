@@ -1,12 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io::Timer;
-use futuresdr::blocks::seify::SinkBuilder;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 use std::time::Duration;
 
 use lora::utils::Bandwidth;
@@ -59,15 +55,14 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let sink = SinkBuilder::new()
+    let sink = Builder::new(args.args)?
         .sample_rate((Into::<usize>::into(args.bandwidth) * args.oversampling) as f64)
         .frequency(args.freq)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_sink()?;
 
-    let transmitter = Transmitter::new(
+    let transmitter: Transmitter = Transmitter::new(
         args.code_rate.into(),
         HAS_CRC,
         args.spreading_factor.into(),
@@ -79,7 +74,8 @@ fn main() -> Result<()> {
         PAD,
     );
 
-    connect!(fg, transmitter > sink);
+    connect!(fg, transmitter > inputs[0].sink);
+    let transmitter = transmitter.into();
 
     let rt = Runtime::new();
 
@@ -87,7 +83,7 @@ fn main() -> Result<()> {
     rt.block_on(async move {
         let mut counter: usize = 0;
         loop {
-            let payload = format!("hello world! {:02}", counter).to_string();
+            let payload = format!("hello world! {counter:02}");
             handle
                 .call(transmitter, "msg", Pmt::String(payload))
                 .await

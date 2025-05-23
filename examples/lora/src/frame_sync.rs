@@ -1,18 +1,5 @@
-use futuresdr::futures::channel::mpsc;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::info;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::Tags;
 use rustfft::Fft;
 use rustfft::FftDirection;
 use rustfft::FftPlanner;
@@ -87,13 +74,7 @@ impl FromStr for NetIdCachingPolicy {
     }
 }
 
-const ADDITIONAL_SAMPLES_FOR_NET_ID_RESYNCHING: usize = 4; // might need to consider os_factor
-const MAX_UNKNOWN_NET_ID_OFFSET: usize = 1;
-
-#[derive(futuresdr::Block)]
-#[message_inputs(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
-#[message_outputs(net_id_caching, frame_detected, detection_failed)]
-pub struct FrameSync {
+struct State {
     m_state: DecoderState, //< Current state of the synchronization
     m_center_freq: u32,    //< RF center frequency
     m_bw: usize,           //< Bandwidth
@@ -169,261 +150,7 @@ pub struct FrameSync {
     processed_samples: u64,
 }
 
-impl FrameSync {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        center_freq: u32,
-        bandwidth: usize,
-        sf: usize,
-        impl_head: bool,
-        initial_sync_words: Vec<Vec<usize>>, // initially known NetIDs
-        os_factor: usize,
-        preamble_len: Option<usize>,
-        net_id_caching_policy: Option<&str>,
-        collect_receive_statistics: bool,
-        startup_timestamp: Option<SystemTime>,
-    ) -> TypedBlock<Self> {
-        let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(net_id_caching_policy.unwrap_or("header_crc_ok")) {
-            Ok(tmp) => tmp,
-            Err(_) => panic!("Supplied invalid value for parameter net_id_caching_policy. Possible values: 'none', 'seen', 'header_crc_ok', 'payload_crc_ok'"),
-        };
-        let preamble_len_tmp = preamble_len.unwrap_or(8);
-        if preamble_len_tmp < 5 {
-            panic!("Preamble length should be greater than 5!"); // only warning in original implementation
-        }
-        // NetID caching structure
-        let mut known_valid_net_ids: [[bool; 256]; 256] = [[false; 256]; 256];
-        let mut known_valid_net_ids_reverse: [[bool; 256]; 256] = [[false; 256]; 256];
-        for sync_word in initial_sync_words {
-            let sync_word_tmp: Vec<usize> = expand_sync_word(sync_word);
-            known_valid_net_ids_reverse[sync_word_tmp[1]][sync_word_tmp[0]] = true;
-            known_valid_net_ids[sync_word_tmp[0]][sync_word_tmp[1]] = true;
-        }
-        let m_number_of_bins_tmp = 1_usize << sf;
-        let m_samples_per_symbol_tmp = m_number_of_bins_tmp * os_factor;
-        let (m_upchirp_tmp, m_downchirp_tmp) = build_ref_chirps(sf, 1);
-
-        let fft_detect = FftPlanner::new().plan_fft(m_number_of_bins_tmp, FftDirection::Forward);
-
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            FrameSync {
-                m_state: DecoderState::Detect, //< Current state of the synchronization
-                m_center_freq: center_freq,    //< RF center frequency
-                m_bw: bandwidth,               //< Bandwidth
-                m_sf: sf,                      //< Spreading factor
-
-                // m_sync_words: sync_word_tmp, //< vector containing the two sync words (network identifiers)
-                m_os_factor: os_factor, //< oversampling factor
-
-                m_preamb_len: preamble_len_tmp, //< Number of consecutive upchirps in preamble
-                // net_ids: vec![None; 2],         //< values of the network identifiers received
-                m_n_up_req: From::<usize>::from(preamble_len_tmp - 3), //< number of consecutive upchirps required to trigger a detection
-                up_symb_to_use: preamble_len_tmp - 4, //< number of upchirp symbols to use for CFO and STO frac estimation
-
-                // m_cfo_int: 0,    //< integer part of CFO
-                m_sto_frac: 0.0, //< fractional part of CFO
-
-                m_impl_head: impl_head, //< use implicit header mode
-
-                m_number_of_bins: m_number_of_bins_tmp, //< Number of bins in each lora Symbol
-                m_samples_per_symbol: m_samples_per_symbol_tmp, //< Number of samples received per lora symbols
-                additional_symbol_samp: vec![Complex32::new(0., 0.); 2 * m_samples_per_symbol_tmp], //< save the value of the last 1.25 downchirp as it might contain the first payload symbol
-                m_upchirp: m_upchirp_tmp,     //< Reference upchirp
-                m_downchirp: m_downchirp_tmp, //< Reference downchirp
-                preamble_upchirps: vec![
-                    Complex32::new(0., 0.);
-                    preamble_len_tmp * m_number_of_bins_tmp
-                ], //<vector containing the preamble upchirps
-                preamble_raw_up: vec![
-                    Complex32::new(0., 0.);
-                    (preamble_len_tmp + 3) * m_samples_per_symbol_tmp
-                ], //<vector containing the upsampled preamble upchirps without any synchronization
-                cfo_frac_correc: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< cfo frac correction vector
-                // cfo_sfo_frac_correc: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< correction vector accounting for cfo and sfo
-                // symb_corr: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< symbol with CFO frac corrected
-                in_down: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< downsampled input
-                preamble_raw: vec![Complex32::new(0., 0.); m_number_of_bins_tmp * preamble_len_tmp], //<vector containing the preamble upchirps without any synchronization
-                net_id_samp: vec![
-                    Complex32::new(0., 0.);
-                    (m_samples_per_symbol_tmp as f32 * 2.5) as usize
-                ], //< vector of the oversampled network identifier samples
-
-                bin_idx: None,                 //< value of previous lora symbol
-                symbol_cnt: SyncState::NetId1, //< Number of symbols already received
-                k_hat: 0,                      //< integer part of CFO+STO
-                preamb_up_vals: vec![0; preamble_len_tmp - 3], //< value of the preamble upchirps
-                frame_cnt: 0,                  //< Number of frame received
-
-                // cx_in: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //<input of the FFT
-                // cx_out: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //<output of the FFT
-
-                // m_samp_rate: u32,               //< Sampling rate  // unused
-                // m_cr: u8,                       //< Coding rate  // local to frame info handler
-                // m_pay_len: u32,                 //< payload length  // local to frame info handler
-                // m_has_crc: u8,                  //< CRC presence  // local to frame info handler
-                // m_invalid_header: u8,           //< invalid header checksum  // local to frame info handler
-                // m_ldro: bool,                        //< use of low datarate optimisation mode  // local to frame info handler
-                m_symb_numb: 0,         //<number of payload lora symbols
-                m_received_head: false, //< indicate that the header has be decoded and received by this block
-                snr_est: 0.0,           //< estimate of the snr
-
-                // bin_idx_new: i32, //< value of newly demodulated symbol  // local to work
-                additional_upchirps: 0, //< indicate the number of additional upchirps found in preamble (in addition to the minimum required to trigger a detection)
-
-                // one_symbol_off: i32, //< indicate that we are offset by one symbol after the preamble  // local to work
-                // downchirp_raw: Vec<Complex32>,    //< vetor containing the preamble downchirps without any synchronization  // unused
-                m_cfo_frac: 0.0, //< fractional part of CFO
-                // m_cfo_frac_bernier: 0.0, //< fractional part of CFO using Berniers algo
-                // m_cfo_int: i32,                               //< integer part of CFO  // local to work
-                sfo_hat: 0.0,                 //< estimated sampling frequency offset
-                sfo_cum: 0.0,                 //< cumulation of the sfo
-                cfo_frac_sto_frac_est: false, //< indicate that the estimation of CFO_frac and STO_frac has been performed
-
-                down_val: None, //< value of the preamble downchirps
-                // net_id_off: i32,                    //< offset of the network identifier  // local to work
-                // m_should_log: false, //< indicate that the sync values should be logged
-                // off_by_one_id: f32  // local to work
-                tag_from_msg_handler_to_work_channel: mpsc::channel::<Pmt>(1),
-                known_valid_net_ids,
-                known_valid_net_ids_reverse,
-                net_id: [0; 2],
-                ready_to_detect: true,
-                net_id_caching_policy: net_id_caching_policy_tmp,
-                collect_receive_statistics,
-                receive_statistics_net_id_offset: 0,
-                receive_statistics_one_symbol_off: false,
-                fft_forward_number_of_bins: fft_detect,
-                fft_forward_two_times_number_of_bins: FftPlanner::new()
-                    .plan_fft(2 * m_number_of_bins_tmp, FftDirection::Forward),
-                startup_timestamp_nanos: startup_timestamp
-                    .unwrap_or(SystemTime::now())
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos() as u64,
-                processed_samples: 0,
-            },
-        )
-    }
-
-    async fn poke(
-        &mut self,
-        io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        _p: Pmt,
-    ) -> Result<Pmt> {
-        io.call_again = true;
-        Ok(Pmt::Null)
-    }
-
-    async fn bandwidth(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        if let Pmt::Usize(new_bw) = p {
-            self.m_bw = new_bw;
-            self.reset(false);
-        } else {
-            warn! {"PMT to bandwidth_handler was not a usize"}
-        }
-        Ok(Pmt::Null)
-    }
-
-    async fn center_freq(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        if let Pmt::Usize(new_center_freq) = p {
-            self.m_center_freq = new_center_freq as u32;
-            self.reset(false);
-        } else {
-            warn! {"PMT to center_freq_handler was not a usize"}
-        }
-        Ok(Pmt::Null)
-    }
-
-    fn my_roundf(number: f32) -> isize {
-        if number > 0.0 {
-            (number + 0.5) as isize
-        } else {
-            (number - 0.5).ceil() as isize
-        }
-    }
-
-    // fn forecast(int noutput_items, gr_vector_int &ninput_items_required)
-    //     {
-    //         ninput_items_required[0] = (m_os_factor * (m_number_of_bins + 2));
-    //     }
-
-    // fn estimate_cfo_frac(&self, samples: &[Complex32]) -> (Vec<Complex32>, f64) {
-    //     // create longer downchirp
-    //     let mut downchirp_aug: Vec<Complex32> =
-    //         vec![Complex32::new(0., 0.); self.up_symb_to_use * self.m_number_of_bins];
-    //     for i in 0_usize..self.up_symb_to_use {
-    //         downchirp_aug[(i * self.m_number_of_bins)..((i + 1) * self.m_number_of_bins)]
-    //             .copy_from_slice(&self.m_downchirp[0..self.m_number_of_bins]);
-    //     }
-    //
-    //     // Dechirping
-    //     let dechirped: Vec<Complex32> = volk_32fc_x2_multiply_32fc(&samples, &downchirp_aug);
-    //     // prepare FFT
-    //     // zero padded
-    //     // let mut cx_in_cfo: Vec<Complex32> = vec![Complex32::new(0., 0.), 2 * self.up_symb_to_use * self.m_number_of_bins];
-    //     // cx_in_cfo[..(self.up_symb_to_use * self.m_number_of_bins)].copy_from_slice(dechirped.as_slice());
-    //     let mut cx_out_cfo: Vec<Complex32> =
-    //         vec![Complex32::new(0., 0.); 2 * self.up_symb_to_use * self.m_number_of_bins];
-    //     cx_out_cfo[..(self.up_symb_to_use * self.m_number_of_bins)]
-    //         .copy_from_slice(dechirped.as_slice());
-    //     // do the FFT
-    //     FftPlanner::new()
-    //         .plan_fft(cx_out_cfo.len(), FftDirection::Forward)
-    //         .process(&mut cx_out_cfo);
-    //     // Get magnitude
-    //     let fft_mag_sq: Vec<f32> = volk_32fc_magnitude_squared_32f(&cx_out_cfo);
-    //     // get argmax here
-    //     let k0: usize = argmax_f32(&fft_mag_sq);
-    //
-    //     // get three spectral lines
-    //     let y_1 = fft_mag_sq[my_modulo(
-    //         k0 as isize - 1,
-    //         2 * self.up_symb_to_use * self.m_number_of_bins,
-    //     )] as f64;
-    //     let y0 = fft_mag_sq[k0] as f64;
-    //     let y1 = fft_mag_sq[(k0 + 1) % (2 * self.up_symb_to_use * self.m_number_of_bins)] as f64;
-    //     // set constant coeff
-    //     let u = 64. * self.m_number_of_bins as f64 / 406.5506497; // from Cui yang (15)
-    //     let v = u * 2.4674;
-    //     // RCTSL
-    //     let wa = (y1 - y_1) / (u * (y1 + y_1) + v * y0);
-    //     let ka = wa * self.m_number_of_bins as f64 / core::f64::consts::PI;
-    //     let k_residual = ((k0 as f64 + ka) / 2. / self.up_symb_to_use as f64) % 1.;
-    //     let cfo_frac = k_residual - if k_residual > 0.5 { 1. } else { 0. };
-    //     // Correct CFO frac in preamble
-    //     let cfo_frac_correc_aug: Vec<Complex32> = (0_usize
-    //         ..self.up_symb_to_use * self.m_number_of_bins)
-    //         .map(|x| {
-    //             Complex32::from_polar(
-    //                 1.,
-    //                 -2. * PI * (cfo_frac as f32) / self.m_number_of_bins as f32 * x as f32,
-    //             )
-    //         })
-    //         .collect();
-    //
-    //     let preamble_upchirps = volk_32fc_x2_multiply_32fc(&samples, &cfo_frac_correc_aug);
-    //
-    //     (preamble_upchirps, cfo_frac)
-    // }
-
+impl State {
     fn estimate_cfo_frac_bernier(&self, samples: &[Complex32]) -> (Vec<Complex32>, f64) {
         let mut fft_val: Vec<Complex32> =
             vec![Complex32::new(0., 0.); self.up_symb_to_use * self.m_number_of_bins];
@@ -592,136 +319,6 @@ impl FrameSync {
         self.known_valid_net_ids_reverse[self.net_id[1] as usize][self.net_id[0] as usize] = true;
     }
 
-    async fn payload_crc_result(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        if let Pmt::Bool(crc_valid) = p {
-            if self.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk {
-                // payload decoded successfully, cache current net_ids for future frame corrections
-                if crc_valid {
-                    self.cache_current_net_id();
-                } else {
-                    info!(
-                        "failed to decode payload for netid [{}, {}], dropping.",
-                        self.net_id[0], self.net_id[1]
-                    );
-                }
-                self.ready_to_detect = true;
-            }
-        } else {
-            warn!("payload_crc_result pmt was not a Bool");
-        }
-        Ok(Pmt::Null)
-    }
-
-    async fn frame_info(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        if let Pmt::MapStrPmt(mut frame_info) = p {
-            let m_cr: usize = if let Pmt::Usize(temp) = frame_info.get("cr").unwrap() {
-                *temp
-            } else {
-                panic!("invalid cr")
-            };
-            let m_pay_len: usize = if let Pmt::Usize(temp) = frame_info.get("pay_len").unwrap() {
-                *temp
-            } else {
-                panic!("invalid pay_len")
-            };
-            let m_has_crc: bool = if let Pmt::Bool(temp) = frame_info.get("crc").unwrap() {
-                *temp
-            } else {
-                panic!("invalid m_has_crc")
-            };
-            // uint8_t
-            let ldro_mode_tmp: LdroMode =
-                if let Pmt::Bool(temp) = frame_info.get("ldro_mode").unwrap() {
-                    if *temp {
-                        LdroMode::ENABLE
-                    } else {
-                        LdroMode::DISABLE
-                    }
-                } else {
-                    panic!("invalid ldro_mode")
-                };
-            let m_invalid_header = if let Pmt::Bool(temp) = frame_info.get("err").unwrap() {
-                *temp
-            } else {
-                panic!("invalid err flag")
-            };
-
-            debug!(
-                "FrameSync: received header info: invalid header {m_invalid_header}, sf{}",
-                self.m_sf
-            );
-
-            if m_invalid_header {
-                self.reset(false)
-            } else {
-                // NetID caching
-                if self.net_id_caching_policy == NetIdCachingPolicy::HeaderCrcOk {
-                    self.cache_current_net_id();
-                } else if self.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk
-                    && m_has_crc
-                {
-                    // blocking until crc result is in to avoid interleaving caching decision with next frame (with new unchecked net ids)
-                    // TODO append NetID to FrameInfo, pass through to decoder, and include NetID in CRC result to avoid need to block
-                    self.ready_to_detect = false;
-                }
-                // frame parameters
-                let m_ldro: LdroMode = if ldro_mode_tmp == LdroMode::AUTO {
-                    if (1_usize << self.m_sf) as f32 * 1e3 / self.m_bw as f32 > LDRO_MAX_DURATION_MS
-                    {
-                        LdroMode::ENABLE
-                    } else {
-                        LdroMode::DISABLE
-                    }
-                } else {
-                    ldro_mode_tmp
-                };
-
-                let m_symb_numb_tmp = 8_isize
-                    + ((2 * m_pay_len as isize - self.m_sf as isize
-                        + if self.m_sf >= 7 || LEGACY_SF_5_6 {
-                            2
-                        } else {
-                            0
-                        }
-                        + (!self.m_impl_head) as isize * 5
-                        + if m_has_crc { 4 } else { 0 }) as f64
-                        / (self.m_sf - 2 * m_ldro as usize) as f64)
-                        .ceil() as isize
-                        * (4 + m_cr as isize);
-                assert!(
-                    m_symb_numb_tmp >= 0,
-                    "FrameSync::frame_info_handler computed negative symbol number"
-                );
-                self.m_symb_numb = m_symb_numb_tmp as usize;
-                self.m_received_head = true;
-                frame_info.insert(String::from("is_header"), Pmt::Bool(false));
-                frame_info.insert(String::from("symb_numb"), Pmt::Usize(self.m_symb_numb));
-                frame_info.remove("ldro_mode");
-                frame_info.insert(String::from("ldro"), Pmt::Bool(m_ldro as usize != 0));
-                let frame_info_pmt = Pmt::MapStrPmt(frame_info);
-                self.tag_from_msg_handler_to_work_channel
-                    .0
-                    .try_send(frame_info_pmt)
-                    .unwrap();
-            }
-        } else {
-            warn!("frame_info pmt was not a Map/Dict");
-        }
-        Ok(Pmt::Null)
-    }
-
     fn detect(&mut self, input: &[Complex32]) -> (isize, usize) {
         let bin_idx_new_opt = get_symbol_val(
             &self.in_down,
@@ -817,15 +414,15 @@ impl FrameSync {
         //         0.5 - self.m_sto_frac
         //     )
         // ) as usize
-        (FrameSync::my_roundf(self.m_os_factor as f32 * (0.5 - self.m_sto_frac)) as usize)
+        (Self::my_roundf(self.m_os_factor as f32 * (0.5 - self.m_sto_frac)) as usize)
             .min(self.m_os_factor - 1)
     }
 
     fn sync_quarter_down(
         &mut self,
-        sio: &mut StreamIo,
         input: &[Complex32],
         out: &mut [Complex32],
+        tags: &mut Tags,
         nitems_to_process: usize,
     ) -> (isize, usize) {
         let mut items_to_consume = ADDITIONAL_SAMPLES_FOR_NET_ID_RESYNCHING as isize; // always consume the remaining four samples of the second NetId (except when the offsets added below become more negative than 1/4 symbol length), left over by the previous state as a buffer
@@ -918,10 +515,9 @@ impl FrameSync {
         // get SNR estimate from preamble
         // downsample preab_raw
         // apply sto correction
-        let preamble_raw_up_offset = ((self.m_os_factor * (self.m_number_of_bins - self.k_hat))
-            as isize
-            - FrameSync::my_roundf(self.m_os_factor as f32 * self.m_sto_frac))
-            as usize;
+        let preamble_raw_up_offset =
+            ((self.m_os_factor * (self.m_number_of_bins - self.k_hat)) as isize
+                - Self::my_roundf(self.m_os_factor as f32 * self.m_sto_frac)) as usize;
         let count = (Into::<usize>::into(self.m_n_up_req) + self.additional_upchirps)
             * self.m_number_of_bins;
         let mut corr_preamb: Vec<Complex32> = self.preamble_raw_up
@@ -1106,7 +702,7 @@ impl FrameSync {
                 items_to_consume -= -(self.m_os_factor as isize) * net_id_off as isize;
                 // the first symbol was mistaken for the end of the downchirp. we should correct and output it.
                 let start_off = self.m_os_factor as isize / 2  // start half a sample delayed to have a buffer for the following STOfrac (of value +-1/2 sample) ->
-                    - FrameSync::my_roundf(self.m_sto_frac * self.m_os_factor as f32)
+                    - Self::my_roundf(self.m_sto_frac * self.m_os_factor as f32)
                     + self.m_os_factor as isize * (self.m_number_of_bins as isize / 4 + m_cfo_int);
                 for i in (start_off..(self.m_samples_per_symbol as isize * 5 / 4))
                     .step_by(self.m_os_factor)
@@ -1166,7 +762,7 @@ impl FrameSync {
             items_to_consume -= 1;
         }
         self.sfo_cum = ((self.m_sto_frac * self.m_os_factor as f32)
-            - FrameSync::my_roundf(self.m_sto_frac * self.m_os_factor as f32) as f32)
+            - Self::my_roundf(self.m_sto_frac * self.m_os_factor as f32) as f32)
             / self.m_os_factor as f32;
 
         if self.m_sf < 7 && !LEGACY_SF_5_6
@@ -1203,7 +799,7 @@ impl FrameSync {
             self.m_center_freq, self.m_sf
         );
 
-        sio.output(0).add_tag(
+        tags.add_tag(
             0,
             Tag::NamedAny("frame_info".to_string(), Box::new(frame_info_pmt)),
         );
@@ -1222,9 +818,9 @@ impl FrameSync {
 
     fn sync(
         &mut self,
-        sio: &mut StreamIo,
         input: &[Complex32],
         out: &mut [Complex32],
+        tags: &mut Tags,
         nitems_to_process: usize,
     ) -> (isize, usize) {
         let mut items_to_output = 0;
@@ -1336,7 +932,7 @@ impl FrameSync {
             }
             SyncState::QuarterDown => {
                 (items_to_consume, items_to_output) =
-                    self.sync_quarter_down(sio, input, out, nitems_to_process);
+                    self.sync_quarter_down(input, out, tags, nitems_to_process);
             }
             _ => warn!("encountered unexpercted symbol_cnt SyncState."),
         }
@@ -1345,9 +941,9 @@ impl FrameSync {
 
     fn compensate_sfo(
         &mut self,
-        sio: &mut StreamIo,
         // input: &[Complex32],
         out: &mut [Complex32],
+        tags: &mut Tags,
     ) -> (isize, usize) {
         if let Ok(Some(Pmt::MapStrPmt(mut frame_info))) =
             self.tag_from_msg_handler_to_work_channel.1.try_next()
@@ -1366,7 +962,7 @@ impl FrameSync {
             // frame_info.insert(String::from("cfo_int"), Pmt::Isize(self.m_cfo_int));
             // frame_info.insert(String::from("cfo_frac"), Pmt::F64(self.m_cfo_frac));
             frame_info.insert(String::from("snr"), Pmt::F64(self.snr_est));
-            sio.output(0).add_tag(
+            tags.add_tag(
                 0,
                 Tag::NamedAny(
                     "frame_info".to_string(),
@@ -1507,48 +1103,461 @@ impl FrameSync {
         self.cfo_frac_sto_frac_est = false;
         self.ready_to_detect = true;
     }
+
+    fn my_roundf(number: f32) -> isize {
+        if number > 0.0 {
+            (number + 0.5) as isize
+        } else {
+            (number - 0.5).ceil() as isize
+        }
+    }
 }
 
-impl Kernel for FrameSync {
+const ADDITIONAL_SAMPLES_FOR_NET_ID_RESYNCHING: usize = 4; // might need to consider os_factor
+const MAX_UNKNOWN_NET_ID_OFFSET: usize = 1;
+
+#[derive(Block)]
+#[message_inputs(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
+#[message_outputs(net_id_caching, frame_detected, detection_failed)]
+pub struct FrameSync<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    s: State,
+}
+
+impl<I, O> FrameSync<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        center_freq: u32,
+        bandwidth: usize,
+        sf: usize,
+        impl_head: bool,
+        initial_sync_words: Vec<Vec<usize>>, // initially known NetIDs
+        os_factor: usize,
+        preamble_len: Option<usize>,
+        net_id_caching_policy: Option<&str>,
+        collect_receive_statistics: bool,
+        startup_timestamp: Option<SystemTime>,
+    ) -> Self {
+        let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(net_id_caching_policy.unwrap_or("header_crc_ok")) {
+            Ok(tmp) => tmp,
+            Err(_) => panic!("Supplied invalid value for parameter net_id_caching_policy. Possible values: 'none', 'seen', 'header_crc_ok', 'payload_crc_ok'"),
+        };
+        let preamble_len_tmp = preamble_len.unwrap_or(8);
+        if preamble_len_tmp < 5 {
+            panic!("Preamble length should be greater than 5!"); // only warning in original implementation
+        }
+        // NetID caching structure
+        let mut known_valid_net_ids: [[bool; 256]; 256] = [[false; 256]; 256];
+        let mut known_valid_net_ids_reverse: [[bool; 256]; 256] = [[false; 256]; 256];
+        for sync_word in initial_sync_words {
+            let sync_word_tmp: Vec<usize> = expand_sync_word(sync_word);
+            known_valid_net_ids_reverse[sync_word_tmp[1]][sync_word_tmp[0]] = true;
+            known_valid_net_ids[sync_word_tmp[0]][sync_word_tmp[1]] = true;
+        }
+        let m_number_of_bins_tmp = 1_usize << sf;
+        let m_samples_per_symbol_tmp = m_number_of_bins_tmp * os_factor;
+        let (m_upchirp_tmp, m_downchirp_tmp) = build_ref_chirps(sf, 1);
+
+        let fft_detect = FftPlanner::new().plan_fft(m_number_of_bins_tmp, FftDirection::Forward);
+
+        Self {
+            input: I::default(),
+            output: O::default(),
+            s: State {
+                m_state: DecoderState::Detect, //< Current state of the synchronization
+                m_center_freq: center_freq,    //< RF center frequency
+                m_bw: bandwidth,               //< Bandwidth
+                m_sf: sf,                      //< Spreading factor
+
+                // m_sync_words: sync_word_tmp, //< vector containing the two sync words (network identifiers)
+                m_os_factor: os_factor, //< oversampling factor
+
+                m_preamb_len: preamble_len_tmp, //< Number of consecutive upchirps in preamble
+                // net_ids: vec![None; 2],         //< values of the network identifiers received
+                m_n_up_req: From::<usize>::from(preamble_len_tmp - 3), //< number of consecutive upchirps required to trigger a detection
+                up_symb_to_use: preamble_len_tmp - 4, //< number of upchirp symbols to use for CFO and STO frac estimation
+
+                // m_cfo_int: 0,    //< integer part of CFO
+                m_sto_frac: 0.0, //< fractional part of CFO
+
+                m_impl_head: impl_head, //< use implicit header mode
+
+                m_number_of_bins: m_number_of_bins_tmp, //< Number of bins in each lora Symbol
+                m_samples_per_symbol: m_samples_per_symbol_tmp, //< Number of samples received per lora symbols
+                additional_symbol_samp: vec![Complex32::new(0., 0.); 2 * m_samples_per_symbol_tmp], //< save the value of the last 1.25 downchirp as it might contain the first payload symbol
+                m_upchirp: m_upchirp_tmp,     //< Reference upchirp
+                m_downchirp: m_downchirp_tmp, //< Reference downchirp
+                preamble_upchirps: vec![
+                    Complex32::new(0., 0.);
+                    preamble_len_tmp * m_number_of_bins_tmp
+                ], //<vector containing the preamble upchirps
+                preamble_raw_up: vec![
+                    Complex32::new(0., 0.);
+                    (preamble_len_tmp + 3) * m_samples_per_symbol_tmp
+                ], //<vector containing the upsampled preamble upchirps without any synchronization
+                cfo_frac_correc: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< cfo frac correction vector
+                // cfo_sfo_frac_correc: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< correction vector accounting for cfo and sfo
+                // symb_corr: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< symbol with CFO frac corrected
+                in_down: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //< downsampled input
+                preamble_raw: vec![Complex32::new(0., 0.); m_number_of_bins_tmp * preamble_len_tmp], //<vector containing the preamble upchirps without any synchronization
+                net_id_samp: vec![
+                    Complex32::new(0., 0.);
+                    (m_samples_per_symbol_tmp as f32 * 2.5) as usize
+                ], //< vector of the oversampled network identifier samples
+
+                bin_idx: None,                 //< value of previous lora symbol
+                symbol_cnt: SyncState::NetId1, //< Number of symbols already received
+                k_hat: 0,                      //< integer part of CFO+STO
+                preamb_up_vals: vec![0; preamble_len_tmp - 3], //< value of the preamble upchirps
+                frame_cnt: 0,                  //< Number of frame received
+
+                // cx_in: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //<input of the FFT
+                // cx_out: vec![Complex32::new(0., 0.); m_number_of_bins_tmp], //<output of the FFT
+
+                // m_samp_rate: u32,               //< Sampling rate  // unused
+                // m_cr: u8,                       //< Coding rate  // local to frame info handler
+                // m_pay_len: u32,                 //< payload length  // local to frame info handler
+                // m_has_crc: u8,                  //< CRC presence  // local to frame info handler
+                // m_invalid_header: u8,           //< invalid header checksum  // local to frame info handler
+                // m_ldro: bool,                        //< use of low datarate optimisation mode  // local to frame info handler
+                m_symb_numb: 0,         //<number of payload lora symbols
+                m_received_head: false, //< indicate that the header has be decoded and received by this block
+                snr_est: 0.0,           //< estimate of the snr
+
+                // bin_idx_new: i32, //< value of newly demodulated symbol  // local to work
+                additional_upchirps: 0, //< indicate the number of additional upchirps found in preamble (in addition to the minimum required to trigger a detection)
+
+                // one_symbol_off: i32, //< indicate that we are offset by one symbol after the preamble  // local to work
+                // downchirp_raw: Vec<Complex32>,    //< vetor containing the preamble downchirps without any synchronization  // unused
+                m_cfo_frac: 0.0, //< fractional part of CFO
+                // m_cfo_frac_bernier: 0.0, //< fractional part of CFO using Berniers algo
+                // m_cfo_int: i32,                               //< integer part of CFO  // local to work
+                sfo_hat: 0.0,                 //< estimated sampling frequency offset
+                sfo_cum: 0.0,                 //< cumulation of the sfo
+                cfo_frac_sto_frac_est: false, //< indicate that the estimation of CFO_frac and STO_frac has been performed
+
+                down_val: None, //< value of the preamble downchirps
+                // net_id_off: i32,                    //< offset of the network identifier  // local to work
+                // m_should_log: false, //< indicate that the sync values should be logged
+                // off_by_one_id: f32  // local to work
+                tag_from_msg_handler_to_work_channel: mpsc::channel::<Pmt>(1),
+                known_valid_net_ids,
+                known_valid_net_ids_reverse,
+                net_id: [0; 2],
+                ready_to_detect: true,
+                net_id_caching_policy: net_id_caching_policy_tmp,
+                collect_receive_statistics,
+                receive_statistics_net_id_offset: 0,
+                receive_statistics_one_symbol_off: false,
+                fft_forward_number_of_bins: fft_detect,
+                fft_forward_two_times_number_of_bins: FftPlanner::new()
+                    .plan_fft(2 * m_number_of_bins_tmp, FftDirection::Forward),
+                startup_timestamp_nanos: startup_timestamp
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos() as u64,
+                processed_samples: 0,
+            },
+        }
+    }
+
+    async fn poke(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        io.call_again = true;
+        Ok(Pmt::Null)
+    }
+
+    async fn bandwidth(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Usize(new_bw) = p {
+            self.s.m_bw = new_bw;
+            self.s.reset(false);
+        } else {
+            warn! {"PMT to bandwidth_handler was not a usize"}
+        }
+        Ok(Pmt::Null)
+    }
+
+    async fn center_freq(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Usize(new_center_freq) = p {
+            self.s.m_center_freq = new_center_freq as u32;
+            self.s.reset(false);
+        } else {
+            warn! {"PMT to center_freq_handler was not a usize"}
+        }
+        Ok(Pmt::Null)
+    }
+
+    // fn forecast(int noutput_items, gr_vector_int &ninput_items_required)
+    //     {
+    //         ninput_items_required[0] = (m_os_factor * (m_number_of_bins + 2));
+    //     }
+
+    // fn estimate_cfo_frac(&self, samples: &[Complex32]) -> (Vec<Complex32>, f64) {
+    //     // create longer downchirp
+    //     let mut downchirp_aug: Vec<Complex32> =
+    //         vec![Complex32::new(0., 0.); self.up_symb_to_use * self.m_number_of_bins];
+    //     for i in 0_usize..self.up_symb_to_use {
+    //         downchirp_aug[(i * self.m_number_of_bins)..((i + 1) * self.m_number_of_bins)]
+    //             .copy_from_slice(&self.m_downchirp[0..self.m_number_of_bins]);
+    //     }
+    //
+    //     // Dechirping
+    //     let dechirped: Vec<Complex32> = volk_32fc_x2_multiply_32fc(&samples, &downchirp_aug);
+    //     // prepare FFT
+    //     // zero padded
+    //     // let mut cx_in_cfo: Vec<Complex32> = vec![Complex32::new(0., 0.), 2 * self.up_symb_to_use * self.m_number_of_bins];
+    //     // cx_in_cfo[..(self.up_symb_to_use * self.m_number_of_bins)].copy_from_slice(dechirped.as_slice());
+    //     let mut cx_out_cfo: Vec<Complex32> =
+    //         vec![Complex32::new(0., 0.); 2 * self.up_symb_to_use * self.m_number_of_bins];
+    //     cx_out_cfo[..(self.up_symb_to_use * self.m_number_of_bins)]
+    //         .copy_from_slice(dechirped.as_slice());
+    //     // do the FFT
+    //     FftPlanner::new()
+    //         .plan_fft(cx_out_cfo.len(), FftDirection::Forward)
+    //         .process(&mut cx_out_cfo);
+    //     // Get magnitude
+    //     let fft_mag_sq: Vec<f32> = volk_32fc_magnitude_squared_32f(&cx_out_cfo);
+    //     // get argmax here
+    //     let k0: usize = argmax_f32(&fft_mag_sq);
+    //
+    //     // get three spectral lines
+    //     let y_1 = fft_mag_sq[my_modulo(
+    //         k0 as isize - 1,
+    //         2 * self.up_symb_to_use * self.m_number_of_bins,
+    //     )] as f64;
+    //     let y0 = fft_mag_sq[k0] as f64;
+    //     let y1 = fft_mag_sq[(k0 + 1) % (2 * self.up_symb_to_use * self.m_number_of_bins)] as f64;
+    //     // set constant coeff
+    //     let u = 64. * self.m_number_of_bins as f64 / 406.5506497; // from Cui yang (15)
+    //     let v = u * 2.4674;
+    //     // RCTSL
+    //     let wa = (y1 - y_1) / (u * (y1 + y_1) + v * y0);
+    //     let ka = wa * self.m_number_of_bins as f64 / core::f64::consts::PI;
+    //     let k_residual = ((k0 as f64 + ka) / 2. / self.up_symb_to_use as f64) % 1.;
+    //     let cfo_frac = k_residual - if k_residual > 0.5 { 1. } else { 0. };
+    //     // Correct CFO frac in preamble
+    //     let cfo_frac_correc_aug: Vec<Complex32> = (0_usize
+    //         ..self.up_symb_to_use * self.m_number_of_bins)
+    //         .map(|x| {
+    //             Complex32::from_polar(
+    //                 1.,
+    //                 -2. * PI * (cfo_frac as f32) / self.m_number_of_bins as f32 * x as f32,
+    //             )
+    //         })
+    //         .collect();
+    //
+    //     let preamble_upchirps = volk_32fc_x2_multiply_32fc(&samples, &cfo_frac_correc_aug);
+    //
+    //     (preamble_upchirps, cfo_frac)
+    // }
+
+    async fn payload_crc_result(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Bool(crc_valid) = p {
+            if self.s.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk {
+                // payload decoded successfully, cache current net_ids for future frame corrections
+                if crc_valid {
+                    self.s.cache_current_net_id();
+                } else {
+                    info!(
+                        "failed to decode payload for netid [{}, {}], dropping.",
+                        self.s.net_id[0], self.s.net_id[1]
+                    );
+                }
+                self.s.ready_to_detect = true;
+            }
+        } else {
+            warn!("payload_crc_result pmt was not a Bool");
+        }
+        Ok(Pmt::Null)
+    }
+
+    async fn frame_info(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::MapStrPmt(mut frame_info) = p {
+            let m_cr: usize = if let Pmt::Usize(temp) = frame_info.get("cr").unwrap() {
+                *temp
+            } else {
+                panic!("invalid cr")
+            };
+            let m_pay_len: usize = if let Pmt::Usize(temp) = frame_info.get("pay_len").unwrap() {
+                *temp
+            } else {
+                panic!("invalid pay_len")
+            };
+            let m_has_crc: bool = if let Pmt::Bool(temp) = frame_info.get("crc").unwrap() {
+                *temp
+            } else {
+                panic!("invalid m_has_crc")
+            };
+            // uint8_t
+            let ldro_mode_tmp: LdroMode =
+                if let Pmt::Bool(temp) = frame_info.get("ldro_mode").unwrap() {
+                    if *temp {
+                        LdroMode::ENABLE
+                    } else {
+                        LdroMode::DISABLE
+                    }
+                } else {
+                    panic!("invalid ldro_mode")
+                };
+            let m_invalid_header = if let Pmt::Bool(temp) = frame_info.get("err").unwrap() {
+                *temp
+            } else {
+                panic!("invalid err flag")
+            };
+
+            debug!(
+                "FrameSync: received header info: invalid header {m_invalid_header}, sf{}",
+                self.s.m_sf
+            );
+
+            if m_invalid_header {
+                self.s.reset(false)
+            } else {
+                // NetID caching
+                if self.s.net_id_caching_policy == NetIdCachingPolicy::HeaderCrcOk {
+                    self.s.cache_current_net_id();
+                } else if self.s.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk
+                    && m_has_crc
+                {
+                    // blocking until crc result is in to avoid interleaving caching decision with next frame (with new unchecked net ids)
+                    // TODO append NetID to FrameInfo, pass through to decoder, and include NetID in CRC result to avoid need to block
+                    self.s.ready_to_detect = false;
+                }
+                // frame parameters
+                let m_ldro: LdroMode = if ldro_mode_tmp == LdroMode::AUTO {
+                    if (1_usize << self.s.m_sf) as f32 * 1e3 / self.s.m_bw as f32
+                        > LDRO_MAX_DURATION_MS
+                    {
+                        LdroMode::ENABLE
+                    } else {
+                        LdroMode::DISABLE
+                    }
+                } else {
+                    ldro_mode_tmp
+                };
+
+                let m_symb_numb_tmp = 8_isize
+                    + ((2 * m_pay_len as isize - self.s.m_sf as isize
+                        + if self.s.m_sf >= 7 || LEGACY_SF_5_6 {
+                            2
+                        } else {
+                            0
+                        }
+                        + (!self.s.m_impl_head) as isize * 5
+                        + if m_has_crc { 4 } else { 0 }) as f64
+                        / (self.s.m_sf - 2 * m_ldro as usize) as f64)
+                        .ceil() as isize
+                        * (4 + m_cr as isize);
+                assert!(
+                    m_symb_numb_tmp >= 0,
+                    "FrameSync::frame_info_handler computed negative symbol number"
+                );
+                self.s.m_symb_numb = m_symb_numb_tmp as usize;
+                self.s.m_received_head = true;
+                frame_info.insert(String::from("is_header"), Pmt::Bool(false));
+                frame_info.insert(String::from("symb_numb"), Pmt::Usize(self.s.m_symb_numb));
+                frame_info.remove("ldro_mode");
+                frame_info.insert(String::from("ldro"), Pmt::Bool(m_ldro as usize != 0));
+                let frame_info_pmt = Pmt::MapStrPmt(frame_info);
+                self.s
+                    .tag_from_msg_handler_to_work_channel
+                    .0
+                    .try_send(frame_info_pmt)
+                    .unwrap();
+            }
+        } else {
+            warn!("frame_info pmt was not a Map/Dict");
+        }
+        Ok(Pmt::Null)
+    }
+}
+
+impl<I, O> Kernel for FrameSync<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<Complex32>();
-        let input = sio.input(0).slice::<Complex32>();
+        let (out, mut out_tags) = self.output.slice_with_tags();
+        let input = self.input.slice();
         let nitems_to_process = input.len();
+        let out_len = out.len();
 
         let mut check_finished_or_abort = false;
-        let consumed = if self.next_iteration_possible(nitems_to_process, out.len()) {
+        let consumed = if self.s.next_iteration_possible(nitems_to_process, out_len) {
             // downsampling
             // m_sto_frac is bounded by ]-0.5, 0.5] -> indexing_offset [0, self.m_os_factor[
-            let indexing_offset = self.compute_sto_index();
-            self.in_down = input
+            let indexing_offset = self.s.compute_sto_index();
+            self.s.in_down = input
                 .iter()
                 .skip(indexing_offset)
-                .step_by(self.m_os_factor)
-                .take(self.m_number_of_bins)
+                .step_by(self.s.m_os_factor)
+                .take(self.s.m_number_of_bins)
                 .copied()
                 .collect();
             // outer state machine
-            let (items_to_consume, items_to_output) = match self.m_state {
+            let (items_to_consume, items_to_output) = match self.s.m_state {
                 DecoderState::Detect => {
-                    if self.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk
-                        && !self.ready_to_detect
+                    if self.s.net_id_caching_policy == NetIdCachingPolicy::PayloadCrcOk
+                        && !self.s.ready_to_detect
                     {
                         (0, 0)
                     } else {
                         assert!(
-                            nitems_to_process >= self.m_os_factor / 2 + self.m_samples_per_symbol
+                            nitems_to_process
+                                >= self.s.m_os_factor / 2 + self.s.m_samples_per_symbol
                         );
-                        self.detect(input)
+                        self.s.detect(input)
                     }
                 }
-                DecoderState::Sync => self.sync(sio, input, out, nitems_to_process),
-                DecoderState::SfoCompensation => self.compensate_sfo(sio, out),
+                DecoderState::Sync => self.s.sync(input, out, &mut out_tags, nitems_to_process),
+                DecoderState::SfoCompensation => self.s.compensate_sfo(out, &mut out_tags),
             };
             debug_assert!(
                 items_to_consume >= 0,
@@ -1560,15 +1569,15 @@ impl Kernel for FrameSync {
                 but input buffer only holds {nitems_to_process}."
             );
             if items_to_consume > 0 {
-                self.processed_samples += items_to_consume as u64;
-                sio.input(0).consume(items_to_consume as usize);
+                self.s.processed_samples += items_to_consume as u64;
+                self.input.consume(items_to_consume as usize);
             }
             if items_to_output > 0 {
-                sio.output(0).produce(items_to_output);
+                self.output.produce(items_to_output);
             }
-            if self.next_iteration_possible(
-                input.len() - items_to_consume as usize,
-                out.len() - items_to_output,
+            if self.s.next_iteration_possible(
+                nitems_to_process - items_to_consume as usize,
+                out_len - items_to_output,
             ) {
                 // if next iteration is possible without external events, explicitly call again to avoid deadlocks
                 io.call_again = true;
@@ -1581,8 +1590,10 @@ impl Kernel for FrameSync {
             0
         };
         if check_finished_or_abort
-            && sio.input(0).finished()
-            && !self.next_iteration_possible(input.len() - consumed, self.m_samples_per_symbol)
+            && self.input.finished()
+            && !self
+                .s
+                .next_iteration_possible(nitems_to_process - consumed, self.s.m_samples_per_symbol)
         {
             // appropriately propagate flowgraph termination
             io.finished = true;

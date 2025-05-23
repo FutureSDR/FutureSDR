@@ -92,7 +92,7 @@ cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
-# cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/m17 && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/rattlegram && cargo clippy --all-targets -- -D warnings
@@ -152,7 +152,7 @@ cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
-# cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/m17 && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/rattlegram && cargo test --all-targets
