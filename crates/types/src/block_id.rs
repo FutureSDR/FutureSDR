@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-/// Port Identifier
+/// Block identifier
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockId(pub usize);
 

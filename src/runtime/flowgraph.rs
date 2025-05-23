@@ -14,13 +14,19 @@ use crate::runtime::KernelInterface;
 use crate::runtime::PortId;
 use crate::runtime::WrappedKernel;
 
-/// Reference to block that was added to the flowgraph.
+/// Reference to a [Block] that was added to the [Flowgraph].
+///
+/// Internally, it keeps an `Arc<Mutex<WrappedKernel<K>>>`, where `K` is the struct implementing
+/// the block.
 pub struct BlockRef<K: Kernel> {
     id: BlockId,
     block: Arc<Mutex<WrappedKernel<K>>>,
 }
 impl<K: Kernel> BlockRef<K> {
-    /// Get mutable, typed handle to [WrappedKernel].
+    /// Get a mutable, typed handle to [WrappedKernel]
+    ///
+    /// Since [WrappedKernel] implements [Deref](std::ops::Deref) and
+    /// [DerefMut](std::ops::DerefMut), one can directly access the block.
     pub fn get(&self) -> MutexGuard<WrappedKernel<K>> {
         self.block.try_lock().unwrap()
     }
