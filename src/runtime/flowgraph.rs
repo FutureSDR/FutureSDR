@@ -55,10 +55,32 @@ impl<K: Kernel> From<&BlockRef<K>> for BlockId {
     }
 }
 
-/// The main component of any FutureSDR program.
+/// The main component of any FutureSDR application.
 ///
-/// A [Flowgraph] is what drives the entire program. It is composed of a set of blocks and connections between them.
-/// There is at least one source and one sink in every Flowgraph.
+/// A [Flowgraph] is composed of a set of blocks and connections between them. It is typically set
+/// up with the [connect](futuresdr::macros::connect) macro. Once it is configure, the [Flowgraph]
+/// is executed on a [Runtime](futuresdr::runtime::Runtime).
+///
+/// ```
+/// use anyhow::Result;
+/// use futuresdr::blocks::Head;
+/// use futuresdr::blocks::NullSink;
+/// use futuresdr::blocks::NullSource;
+/// use futuresdr::prelude::*;
+///
+/// fn main() -> Result<()> {
+///     let mut fg = Flowgraph::new();
+///
+///     let src = NullSource::<u8>::new();
+///     let head = Head::<u8>::new(1234);
+///     let snk = NullSink::<u8>::new();
+///
+///     connect!(fg, src > head > snk);
+///     Runtime::new().run(fg)?;
+///
+///     Ok(())
+/// }
+/// ```
 pub struct Flowgraph {
     pub(crate) blocks: Vec<Arc<Mutex<dyn Block>>>,
     pub(crate) stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
@@ -66,7 +88,7 @@ pub struct Flowgraph {
 }
 
 impl Flowgraph {
-    /// Creates a new [Flowgraph].
+    /// Create a [Flowgraph].
     pub fn new() -> Flowgraph {
         Flowgraph {
             blocks: Vec::new(),
@@ -75,7 +97,38 @@ impl Flowgraph {
         }
     }
 
-    /// Add [`Block`] to flowgraph
+    /// Add a [`Block`] to the [Flowgraph]
+    ///
+    /// The returned reference is typed and can be used to access the block before and after the
+    /// flowgraph ran.
+    ///
+    /// Usually, this is done under the hood by the [connect](futuresdr::macros::connect) macro.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     connect!(fg, src > head > snk);
+    ///     Runtime::new().run(fg)?;
+    ///
+    ///     // typed-access to the block
+    ///     let snk = snk.get();
+    ///     let n = snk.n_received();
+    ///     assert_eq!(n, 1234);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn add_block<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let mut b = WrappedKernel::new(block, block_id);
@@ -89,7 +142,35 @@ impl Flowgraph {
         }
     }
 
-    /// Make stream connection
+    /// Make a stream connection
+    ///
+    /// This is the prefered way to connect stream ports. Usually, this function is not called
+    /// directly but used through the [connect](futuresdr::macros::connect) macro.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     // here, it is used under the hood
+    ///     connect!(fg, src > head);
+    ///     // explicit use
+    ///     let snk = fg.add_block(snk);
+    ///     fg.connect_stream(head.get().output(), snk.get().input());
+    ///
+    ///     Runtime::new().run(fg)?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
         self.stream_edges.push((
             src_port.block_id(),
@@ -101,6 +182,45 @@ impl Flowgraph {
     }
 
     /// Connect stream ports non-type-safe
+    ///
+    /// This function only does runtime checks. If the stream ports exist and have compatible
+    /// types and sample types, will only be checked during runtime.
+    ///
+    /// If possible, it is, therefore, recommneded to use the typed version ([Flowgraph::connect_stream]).
+    ///
+    /// This function can be helpful when using types is not practical. For example, when a runtime
+    /// option switches between different block types, which is often used to switch between
+    /// reading samples from hardware or a file.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     // type erasure for src
+    ///     let src = fg.add_block(src);
+    ///     let src: BlockId = src.into();
+    ///
+    ///     let head = fg.add_block(head);
+    ///
+    ///     // untyped connect
+    ///     fg.connect_dyn(src, "output", &head, "input")?;
+    ///     // typed connect
+    ///     connect!(fg, head > snk);
+    ///
+    ///     Runtime::new().run(fg)?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn connect_dyn(
         &mut self,
         src: impl Into<BlockId>,
@@ -138,11 +258,18 @@ impl Flowgraph {
         let dst_id = dst_block.into();
         let src_port = src_port.into();
         let dst_port = dst_port.into();
+        debug_assert_ne!(src_id, dst_id);
 
-        let mut src_block = self.blocks[src_id.0]
+        let mut src_block = self
+            .blocks
+            .get(src_id.0)
+            .ok_or(Error::InvalidBlock(src_id))?
             .try_lock()
             .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {src_id:?}")))?;
-        let dst_block = self.blocks[dst_id.0]
+        let dst_block = self
+            .blocks
+            .get(dst_id.0)
+            .ok_or(Error::InvalidBlock(dst_id))?
             .try_lock()
             .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {dst_id:?}")))?;
         let dst_box = dst_block.inbox();
@@ -159,9 +286,51 @@ impl Flowgraph {
         Ok(())
     }
 
-    /// Get Block Dyn
-    pub fn get(&self, id: BlockId) -> Arc<Mutex<dyn Block>> {
-        self.blocks[id.0].clone()
+    /// Get dyn reference to [Block]
+    ///
+    /// This should only be used when a [BlockRef], i.e., a typed reference to the block is not
+    /// available.
+    ///
+    /// A dyn Block reference can be downcasted to a typed refrence, e.g.:
+    ///
+    /// ```rust
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    /// use futuresdr::runtime::WrappedKernel;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     connect!(fg, src > head > snk);
+    ///
+    ///     // Let's assume this is required.
+    ///     let snk: BlockId = snk.into();
+    ///     fg = Runtime::new().run(fg)?;
+    ///
+    ///     let mut blk = fg.get_block(snk)?.lock_arc_blocking();
+    ///     let snk = blk
+    ///         .as_any_mut()
+    ///         .downcast_mut::<WrappedKernel<NullSink<u8>>>()
+    ///         .unwrap();
+    ///     let v = snk.n_received();
+    ///     assert_eq!(v, 1234);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn get_block(&self, id: BlockId) -> Result<Arc<Mutex<dyn Block>>, Error> {
+        Ok(self
+            .blocks
+            .get(id.0)
+            .ok_or(Error::InvalidBlock(id))?
+            .clone())
     }
 }
 
