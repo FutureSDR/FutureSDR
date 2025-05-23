@@ -95,12 +95,15 @@ where
                 out_tags.add_tag(0, Tag::NamedUsize("burst_start".to_string(), produce));
                 self.output.produce(produce);
 
-                if finished && input_len < len * 64 {
-                    io.finished = true;
+                if input_len > len * 64 {
+                    io.call_again = true;
                 }
+            } else if finished && (input_len < len * 64) {
+                io.finished = true;
             }
-        } else if finished {
-            io.finished = true;
+        } else {
+            // if there are samples, there should also be a tag
+            debug_assert_eq!(input_len, 0);
         }
 
         Ok(())
