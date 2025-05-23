@@ -94,7 +94,7 @@ fn Gui() -> impl IntoView {
             <button on:click=move |_| { if !rx_started { spawn_local(async move { start_rx(set_messages).await; })} rx_started = true } class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 my-4 rounded">"Start RX"</button>
             <br/>
             <ul class="list-disc p-4">
-            {move || messages().into_iter().map(|n| view! { <li>{format!("{:?}", n)}</li> }).collect_view()}
+            {move || messages().into_iter().map(|n| view! { <li>{format!("{n:?}")}</li> }).collect_view()}
             </ul>
         </div>
     }

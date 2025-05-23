@@ -2,10 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::audio::AudioSource;
 use futuresdr::blocks::audio::FileSource;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Block;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 use rattlegram::DecoderBlock;
 
@@ -22,14 +19,15 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src: Block = if let Some(f) = args.file {
-        FileSource::new(&f).into()
-    } else {
-        AudioSource::new(48000, 1).into()
-    };
+    let snk: DecoderBlock = DecoderBlock::new();
 
-    let snk = DecoderBlock::new();
-    connect!(fg, src > snk);
+    if let Some(f) = args.file {
+        let src: FileSource = FileSource::new(&f);
+        connect!(fg, src > snk);
+    } else {
+        let src: AudioSource = AudioSource::new(48000, 1);
+        connect!(fg, src > snk);
+    };
 
     Runtime::new().run(fg)?;
 

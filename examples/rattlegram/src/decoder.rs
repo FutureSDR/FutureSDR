@@ -1,13 +1,4 @@
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
@@ -22,31 +13,49 @@ use crate::OrderedStatisticsDecoder;
 use crate::PolarDecoder;
 use crate::Xorshift32;
 
-#[derive(futuresdr::Block)]
-pub struct DecoderBlock {
+#[derive(Block)]
+pub struct DecoderBlock<I = circular::Reader<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    #[input]
+    input: I,
     decoder: Box<Decoder>,
 }
 
-impl DecoderBlock {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
-            Self {
-                decoder: Box::new(Decoder::new()),
-            },
-        )
+impl<I> DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            decoder: Box::new(Decoder::new()),
+        }
     }
 }
 
-impl Kernel for DecoderBlock {
+impl<I> Default for DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I> Kernel for DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<f32>();
+        let input = self.input.slice();
+        let input_len = input.len();
 
         for s in input.chunks_exact(960) {
             if !self.decoder.feed(s) {
@@ -99,9 +108,9 @@ impl Kernel for DecoderBlock {
             }
         }
 
-        sio.input(0).consume(input.len() / (960) * (960));
+        self.input.consume(input_len / (960) * (960));
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
@@ -886,7 +895,7 @@ pub struct Decoder {
     generator: [i8; 255 * 71],
     code: [i8; Self::CODE_LEN],
     osd: OrderedStatisticsDecoder,
-    data: [u8; (Self::PRE_SEQ_LEN + 7) / 8],
+    data: [u8; Self::PRE_SEQ_LEN.div_ceil(8)],
     cons: [Complex32; Self::PAY_CAR_CNT],
     prev: [Complex32; Self::PAY_CAR_CNT],
     index: [f32; Self::PAY_CAR_CNT],
@@ -1043,7 +1052,7 @@ impl Decoder {
             polar: PolarDecoder::new(),
             code: [0; Self::CODE_LEN],
             osd: OrderedStatisticsDecoder::new(),
-            data: [0; (Self::PRE_SEQ_LEN + 7) / 8],
+            data: [0; Self::PRE_SEQ_LEN.div_ceil(8)],
             cons: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
             prev: [Complex32::new(0.0, 0.0); Self::PAY_CAR_CNT],
             index: [0.0; Self::PAY_CAR_CNT],

@@ -1,47 +1,16 @@
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 use crate::FrameParam;
 use crate::Modulation;
 use crate::POLARITY;
 
-#[derive(futuresdr::Block)]
-pub struct Mapper {
+struct Signal {
     signal: [u8; 24],
     signal_encoded: [u8; 48],
     signal_interleaved: [u8; 48],
-    current_mod: Modulation,
-    current_len: usize,
-    index: usize,
 }
 
-impl Mapper {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<u8>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            Mapper {
-                signal: [0; 24],
-                signal_encoded: [0; 48],
-                signal_interleaved: [0; 48],
-                current_mod: Modulation::Bpsk,
-                current_len: 0,
-                index: 0,
-            },
-        )
-    }
-
+impl Signal {
     #[inline(always)]
     fn get_bit(data: u8, bit: usize) -> u8 {
         u8::from(data & (1 << bit) > 0)
@@ -98,6 +67,43 @@ impl Mapper {
             self.signal_interleaved[INTERLEAVER_PATTERN[i]] = self.signal_encoded[i];
         }
     }
+}
+
+#[derive(Block)]
+pub struct Mapper<I = circular::Reader<u8>, O = circular::Writer<Complex32>>
+where
+    I: CpuBufferReader<Item = u8>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    signal: Signal,
+    current_mod: Modulation,
+    current_len: usize,
+    index: usize,
+}
+
+impl<I, O> Mapper<I, O>
+where
+    I: CpuBufferReader<Item = u8>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            signal: Signal {
+                signal: [0; 24],
+                signal_encoded: [0; 48],
+                signal_interleaved: [0; 48],
+            },
+            current_mod: Modulation::Bpsk,
+            current_len: 0,
+            index: 0,
+        }
+    }
 
     fn map(input: &[u8; 48], output: &mut [Complex32; 64], modulation: Modulation, index: usize) {
         // dc
@@ -126,18 +132,33 @@ impl Mapper {
     }
 }
 
-impl Kernel for Mapper {
+impl<I, O> Default for Mapper<I, O>
+where
+    I: CpuBufferReader<Item = u8>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I, O> Kernel for Mapper<I, O>
+where
+    I: CpuBufferReader<Item = u8>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let mut input = sio.input(0).slice::<u8>();
-        let output = sio.output(0).slice::<Complex32>();
-        if output.len() < 128 || input.len() < 48 {
-            if sio.input(0).finished() {
+        let (mut input, in_tags) = self.input.slice_with_tags();
+        let (output, mut out_tags) = self.output.slice_with_tags();
+        let input_len = input.len();
+        let output_len = output.len();
+        if output_len < 128 || input_len < 48 {
+            if self.input.finished() {
                 io.finished = true;
             }
             return Ok(());
@@ -145,8 +166,7 @@ impl Kernel for Mapper {
 
         let mut o = 0;
 
-        let tags = sio.input(0).tags().clone();
-        if let Some((index, frame)) = tags.iter().find_map(|x| match x {
+        if let Some((index, frame)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedAny(n, any),
@@ -160,15 +180,15 @@ impl Kernel for Mapper {
             _ => None,
         }) {
             if *index == 0 {
-                self.generate_signal_field(frame);
+                self.signal.generate_signal_field(frame);
                 Self::map(
-                    &self.signal_interleaved,
+                    &self.signal.signal_interleaved,
                     (&mut output[0..64]).try_into().unwrap(),
                     Modulation::Bpsk,
                     0,
                 );
                 o += 1;
-                sio.output(0).add_tag(
+                out_tags.add_tag(
                     0,
                     Tag::NamedUsize("wifi_start".to_string(), frame.n_symbols() + 1),
                 );
@@ -176,7 +196,7 @@ impl Kernel for Mapper {
                 self.current_mod = frame.mcs().modulation();
                 self.current_len = frame.n_symbols();
                 self.index = 0;
-                input = &input[0..std::cmp::min(input.len(), frame.n_symbols() * 48)];
+                input = &input[0..std::cmp::min(input_len, frame.n_symbols() * 48)];
             } else {
                 assert!(*index <= (self.current_len - self.index) * 48);
                 input = &input[0..*index];
@@ -197,10 +217,10 @@ impl Kernel for Mapper {
             );
         }
 
-        sio.input(0).consume(n * 48);
-        sio.output(0).produce((n + o) * 64);
+        self.input.consume(n * 48);
+        self.output.produce((n + o) * 64);
 
-        if sio.input(0).finished() && n == input.len() / 48 {
+        if self.input.finished() && n == input_len / 48 {
             io.finished = true;
         }
 

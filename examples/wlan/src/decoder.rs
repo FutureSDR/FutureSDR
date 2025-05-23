@@ -1,15 +1,4 @@
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 
 use crate::FrameParam;
 use crate::Mcs;
@@ -18,9 +7,14 @@ use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 use crate::MAX_SYM;
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_outputs(rx_frames, rftap)]
-pub struct Decoder {
+pub struct Decoder<I = circular::Reader<u8>>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    #[input]
+    input: I,
     frame_complete: bool,
     frame_param: FrameParam,
     decoder: ViterbiDecoder,
@@ -32,22 +26,23 @@ pub struct Decoder {
     out_bytes: [u8; MAX_PSDU_SIZE + 2], // 2 for signal field
 }
 
-impl Decoder {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new().add_input::<u8>("in").build(),
-            Self {
-                frame_complete: true,
-                frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
-                decoder: ViterbiDecoder::new(),
-                copied: 0,
-                rx_symbols: [0; 48 * MAX_SYM],
-                rx_bits: [0; MAX_ENCODED_BITS],
-                deinterleaved_bits: [0; MAX_ENCODED_BITS],
-                decoded_bits: [0; MAX_ENCODED_BITS],
-                out_bytes: [0; MAX_PSDU_SIZE + 2], // 2 for signal field
-            },
-        )
+impl<I> Decoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            frame_complete: true,
+            frame_param: FrameParam::new(Mcs::Bpsk_1_2, 0),
+            decoder: ViterbiDecoder::new(),
+            copied: 0,
+            rx_symbols: [0; 48 * MAX_SYM],
+            rx_bits: [0; MAX_ENCODED_BITS],
+            deinterleaved_bits: [0; MAX_ENCODED_BITS],
+            decoded_bits: [0; MAX_ENCODED_BITS],
+            out_bytes: [0; MAX_PSDU_SIZE + 2], // 2 for signal field
+        }
     }
     fn deinterleave(&mut self) {
         let n_cbps = self.frame_param.mcs().n_cbps();
@@ -120,18 +115,28 @@ impl Decoder {
     }
 }
 
-impl Kernel for Decoder {
+impl<I> Default for Decoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I> Kernel for Decoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let mut input = sio.input(0).slice::<u8>();
+        let (mut input, in_tags) = self.input.slice_with_tags();
 
-        let tags = sio.input(0).tags();
-        if let Some((index, any)) = tags.iter().find_map(|x| match x {
+        if let Some((index, any)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedAny(n, any),
@@ -195,8 +200,8 @@ impl Kernel for Decoder {
                     rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
                     rftap[8..12].copy_from_slice(&105u32.to_le_bytes());
                     rftap[12..].copy_from_slice(&blob);
-                    mio.output_mut(0).post(Pmt::Blob(blob)).await;
-                    mio.output_mut(1).post(Pmt::Blob(rftap)).await;
+                    mio.post("rx_frames", Pmt::Blob(blob)).await?;
+                    mio.post("rftap", Pmt::Blob(rftap)).await?;
                 }
 
                 i = max_i;
@@ -204,9 +209,9 @@ impl Kernel for Decoder {
             }
         }
 
-        sio.input(0).consume(i * 48);
-        if sio.input(0).finished() && i == max_i {
-            mio.output_mut(0).post(Pmt::Null).await;
+        self.input.consume(i * 48);
+        if self.input.finished() && i == max_i {
+            mio.post("rx_frames", Pmt::Finished).await?;
             io.finished = true;
         }
 

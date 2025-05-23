@@ -1,5 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::excessive_precision)]
+#![allow(clippy::neg_multiply)]
 use futuresdr::num_complex::Complex32;
 
 mod channels;

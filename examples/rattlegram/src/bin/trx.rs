@@ -4,9 +4,7 @@ use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::AudioSource;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::futures::channel::mpsc;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 use rattlegram::DecoderBlock;
 use rattlegram::Encoder;
@@ -31,7 +29,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     // RX
-    let src = AudioSource::new(48000, 1);
+    let src: AudioSource = AudioSource::new(48000, 1);
     let snk = DecoderBlock::new();
     connect!(fg, src > snk);
 

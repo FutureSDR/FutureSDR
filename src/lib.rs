@@ -78,6 +78,7 @@ pub mod macros {
 
 /// Prelude with common structs and traits
 pub mod prelude {
+    pub use futures::prelude::*;
     pub use futuresdr::channel::mpsc;
     pub use futuresdr::channel::oneshot;
     pub use futuresdr::macros::async_trait;

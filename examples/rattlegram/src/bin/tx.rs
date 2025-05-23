@@ -4,9 +4,7 @@ use clap::Parser;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::hound;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use rattlegram::Encoder;
 
 #[derive(Parser, Debug)]
@@ -66,7 +64,7 @@ fn main() -> Result<()> {
             .for_each(|s| writer.write_sample(s).unwrap());
     } else {
         let mut fg = Flowgraph::new();
-        let src = VectorSource::new(sig);
+        let src = VectorSource::<f32>::new(sig);
         let snk = AudioSink::new(48000, 1);
         connect!(fg, src > snk);
 

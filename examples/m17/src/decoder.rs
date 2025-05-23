@@ -39,11 +39,7 @@ impl ViterbiDecoder {
     }
 
     fn q_abs_diff(v1: u16, v2: u16) -> u16 {
-        if v2 > v1 {
-            v2 - v1
-        } else {
-            v1 - v2
-        }
+        v2.abs_diff(v1)
     }
 
     fn decode_bit(&mut self, s0: u16, s1: u16, pos: usize) {
@@ -349,7 +345,7 @@ impl Decoder {
                             let src = CallSign::from_bytes(lsf.src());
                             let dst = CallSign::from_bytes(lsf.dst());
                             let t = u16::from_be_bytes(*lsf.r#type());
-                            println!("LSF {} -> {} Type {}", src, dst, t);
+                            println!("LSF {src} -> {dst} Type {t}");
                         } else {
                             println!("LSF w/ Wrong CRC.");
                         }
@@ -376,9 +372,9 @@ impl Decoder {
                         let src = CallSign::from_bytes(lsf.src());
                         let dst = CallSign::from_bytes(lsf.dst());
                         let t = u16::from_be_bytes(*lsf.r#type());
-                        println!("LSF {} -> {} Type {} Errors {}", src, dst, t, e);
+                        println!("LSF {src} -> {dst} Type {t} Errors {e}");
                     } else {
-                        println!("LSF w/ Wrong CRC. Errors {}", e);
+                        println!("LSF w/ Wrong CRC. Errors {e}");
                     }
                 }
 

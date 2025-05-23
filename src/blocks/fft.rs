@@ -138,14 +138,19 @@ where
         _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = self.input.slice();
-        let o = self.output.slice();
+        let (i, in_tags) = self.input.slice_with_tags();
+        let (o, mut out_tags) = self.output.slice_with_tags();
 
         let m = cmp::min(i.len(), o.len());
         let m = (m / self.len) * self.len;
         let m = cmp::min(m, self.len * BUFF_FFTS);
 
         if m > 0 {
+            in_tags
+                .iter()
+                .filter(|t| t.index < m)
+                .for_each(|t| out_tags.add_tag(t.index, t.tag.clone()));
+
             if matches!(self.direction, FftDirection::Inverse) && self.fft_shift {
                 for f in 0..(m / self.len) {
                     for k in 0..self.len {

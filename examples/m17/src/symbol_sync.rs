@@ -1,15 +1,8 @@
-use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::Integer;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
+#[derive(Block)]
 struct InterpResampler {
     phase_wrapped: f32,
     phase: f32,
@@ -1731,86 +1724,18 @@ impl TimingErrorDetector {
     }
 }
 
-#[derive(futuresdr::Block)]
-pub struct SymbolSync {
-    ted: TimingErrorDetector,
-    osps: f32,
-    clock: ClockTrackingLoop,
+struct State {
     ted_input_clock: bool,
-    output_sample_clock: bool,
-    symbol_clock: bool,
-    interp: InterpResampler,
     interp_clock: usize,
     interps_per_symbol: f32,
+    output_sample_clock: bool,
+    symbol_clock: bool,
     interps_per_symbol_n: usize,
     interps_per_output_sample_n: usize,
     interps_per_ted_input_n: usize,
-    inst_interp_period: f32,
-    inst_output_period: f32,
-    inst_clock_period: f32,
-    avg_clock_period: f32,
 }
 
-impl SymbolSync {
-    pub fn new(
-        sps: f32,
-        loop_bw: f32,
-        damping_factor: f32,
-        ted_gain: f32,
-        max_deviation: f32,
-        osps: usize,
-    ) -> TypedBlock<Self> {
-        assert!(sps > 1.0);
-        assert!(osps >= 1);
-
-        let osps_n = osps;
-        let osps = osps_n as f32;
-        let ted = TimingErrorDetector::new(2, 3, false, false);
-        let interps_per_symbol_n = ted.inputs_per_symbol().lcm(&osps_n);
-        let interps_per_ted_input_n = interps_per_symbol_n / ted.inputs_per_symbol();
-
-        let mut s = Self {
-            ted,
-            interp: InterpResampler::new(),
-            osps,
-            ted_input_clock: false,
-            output_sample_clock: false,
-            symbol_clock: false,
-            interps_per_symbol: interps_per_symbol_n as f32,
-            interp_clock: interps_per_symbol_n - 1,
-            interps_per_symbol_n,
-            interps_per_ted_input_n,
-            interps_per_output_sample_n: interps_per_symbol_n / osps_n,
-            inst_interp_period: 0.0,
-            inst_output_period: sps / osps,
-            inst_clock_period: sps,
-            avg_clock_period: sps,
-            clock: ClockTrackingLoop::new(
-                loop_bw,
-                sps + max_deviation,
-                sps - max_deviation,
-                sps,
-                damping_factor,
-                ted_gain,
-            ),
-        };
-
-        s.sync_reset_internal_clocks();
-        s.inst_interp_period = s.inst_clock_period / s.interps_per_symbol;
-        assert!(s.interps_per_symbol <= sps);
-        s.ted.sync_reset();
-        s.interp.sync_reset(sps);
-        // let filter_delay = (s.interp.ntaps() + 1) / 2;
-
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<f32>("out")
-                .build(),
-            s,
-        )
-    }
-
+impl State {
     fn ted_input_clock(&self) -> bool {
         self.ted_input_clock
     }
@@ -1820,37 +1745,6 @@ impl SymbolSync {
     fn symbol_clock(&self) -> bool {
         self.symbol_clock
     }
-
-    // fn loop_bandwidth(&self) -> f32 {
-    //     self.clock.get_loop_bandwidth()
-    // }
-    // fn damping_factor(&self) -> f32 {
-    //     self.clock.get_damping_factor()
-    // }
-    // fn ted_gain(&self) -> f32 {
-    //     self.clock.get_ted_gain()
-    // }
-    // fn alpha(&self) -> f32 {
-    //     self.clock.get_alpha()
-    // }
-    // fn beta(&self) -> f32 {
-    //     self.clock.get_beta()
-    // }
-    // fn set_loop_bandwidth(&mut self, omega_n_norm: f32) {
-    //     self.clock.set_loop_bandwidth(omega_n_norm);
-    // }
-    // fn set_damping_factor(&mut self, zeta: f32) {
-    //     self.clock.set_damping_factor(zeta);
-    // }
-    // fn set_ted_gain(&mut self, ted_gain: f32) {
-    //     self.clock.set_ted_gain(ted_gain);
-    // }
-    // fn set_alpha(&mut self, alpha: f32) {
-    //     self.clock.set_alpha(alpha);
-    // }
-    // fn set_beta(&mut self, beta: f32) {
-    //     self.clock.set_beta(beta);
-    // }
 
     fn update_internal_clock_outputs(&mut self) {
         // a d_interp_clock boolean output would always be true.
@@ -1879,16 +1773,103 @@ impl SymbolSync {
     }
 }
 
-impl Kernel for SymbolSync {
+#[derive(Block)]
+pub struct SymbolSync<I = circular::Reader<f32>, O = circular::Writer<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    ted: TimingErrorDetector,
+    osps: f32,
+    clock: ClockTrackingLoop,
+    interp: InterpResampler,
+    inst_interp_period: f32,
+    inst_output_period: f32,
+    inst_clock_period: f32,
+    avg_clock_period: f32,
+    state: State,
+}
+
+impl<I, O> SymbolSync<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
+    pub fn new(
+        sps: f32,
+        loop_bw: f32,
+        damping_factor: f32,
+        ted_gain: f32,
+        max_deviation: f32,
+        osps: usize,
+    ) -> Self {
+        assert!(sps > 1.0);
+        assert!(osps >= 1);
+
+        let osps_n = osps;
+        let osps = osps_n as f32;
+        let ted = TimingErrorDetector::new(2, 3, false, false);
+        let interps_per_symbol_n = ted.inputs_per_symbol().lcm(&osps_n);
+        let interps_per_ted_input_n = interps_per_symbol_n / ted.inputs_per_symbol();
+
+        let mut s = Self {
+            input: I::default(),
+            output: O::default(),
+            ted,
+            interp: InterpResampler::new(),
+            osps,
+            state: State {
+                ted_input_clock: false,
+                output_sample_clock: false,
+                symbol_clock: false,
+                interps_per_symbol: interps_per_symbol_n as f32,
+                interp_clock: interps_per_symbol_n - 1,
+                interps_per_symbol_n,
+                interps_per_ted_input_n,
+                interps_per_output_sample_n: interps_per_symbol_n / osps_n,
+            },
+            inst_interp_period: 0.0,
+            inst_output_period: sps / osps,
+            inst_clock_period: sps,
+            avg_clock_period: sps,
+            clock: ClockTrackingLoop::new(
+                loop_bw,
+                sps + max_deviation,
+                sps - max_deviation,
+                sps,
+                damping_factor,
+                ted_gain,
+            ),
+        };
+
+        s.state.sync_reset_internal_clocks();
+        s.inst_interp_period = s.inst_clock_period / s.state.interps_per_symbol;
+        assert!(s.state.interps_per_symbol <= sps);
+        s.ted.sync_reset();
+        s.interp.sync_reset(sps);
+        // let filter_delay = (s.interp.ntaps() + 1) / 2;
+
+        s
+    }
+}
+
+impl<I, O> Kernel for SymbolSync<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = f32>,
+{
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<f32>();
-        let out = sio.output(0).slice::<f32>();
+        let input = self.input.slice();
+        let out = self.output.slice();
         let noutput_items = out.len();
 
         let ni = input.len().saturating_sub(self.interp.ntaps());
@@ -1905,24 +1886,24 @@ impl Kernel for SymbolSync {
 
         while oo < noutput_items {
             // Block Internal Clocks
-            self.advance_internal_clocks();
+            self.state.advance_internal_clocks();
 
             // Symbol Clock and Interpolator Positioning & Alignment
             interp_output = self
                 .interp
                 .interpolate(&input[ii..], self.interp.phase_wrapped());
-            if self.output_sample_clock() {
+            if self.state.output_sample_clock() {
                 out[oo] = interp_output;
             }
 
             // Timing Error Detector
-            if self.ted_input_clock() {
+            if self.state.ted_input_clock() {
                 self.ted.input(interp_output);
             }
 
             let error = self.ted.error();
 
-            if self.symbol_clock() {
+            if self.state.symbol_clock() {
                 // Symbol Clock Tracking and Estimation
                 self.clock.advance_loop(error);
                 self.inst_clock_period = self.clock.get_inst_period();
@@ -1930,13 +1911,13 @@ impl Kernel for SymbolSync {
                 self.clock.phase_wrap();
 
                 // Symbol Clock and Interpolator Positioning & Alignment
-                self.inst_interp_period = self.inst_clock_period / self.interps_per_symbol;
+                self.inst_interp_period = self.inst_clock_period / self.state.interps_per_symbol;
 
                 // Tag Propagation
                 self.inst_output_period = self.inst_clock_period / self.osps;
             }
 
-            if self.symbol_clock() {
+            if self.state.symbol_clock() {
                 self.interp.next_phase(
                     self.inst_clock_period,
                     &mut look_ahead_phase,
@@ -1947,22 +1928,22 @@ impl Kernel for SymbolSync {
                 if ii + look_ahead_phase_n >= ni {
                     self.clock.revert_loop();
                     self.ted.revert(false);
-                    self.revert_internal_clocks();
+                    self.state.revert_internal_clocks();
                     break;
                 }
             }
 
             self.interp.advance_phase(self.inst_interp_period);
 
-            if self.output_sample_clock() {
+            if self.state.output_sample_clock() {
                 oo += 1;
             }
 
             ii += self.interp.phase_n();
         }
 
-        sio.input(0).consume(ii);
-        sio.output(0).produce(oo);
+        self.input.consume(ii);
+        self.output.produce(oo);
 
         Ok(())
     }

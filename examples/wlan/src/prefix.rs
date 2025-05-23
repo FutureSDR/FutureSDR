@@ -1,55 +1,58 @@
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
-#[derive(futuresdr::Block)]
-pub struct Prefix {
+#[derive(Block)]
+pub struct Prefix<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     pad_front: usize,
     pad_tail: usize,
 }
 
-impl Prefix {
-    pub fn new(pad_front: usize, pad_tail: usize) -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            Prefix {
-                pad_front,
-                pad_tail,
-            },
-        )
+impl<I, O> Prefix<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new(pad_front: usize, pad_tail: usize) -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            pad_front,
+            pad_tail,
+        }
     }
 }
 
-impl Kernel for Prefix {
+impl<I, O> Kernel for Prefix<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<Complex32>();
-        let output = sio.output(0).slice::<Complex32>();
+        let finished = self.input.finished();
+        let (input, in_tags) = self.input.slice_with_tags();
+        let input_len = input.len();
+        let (output, mut out_tags) = self.output.slice_with_tags();
+        let output_len = output.len();
 
-        let tags = sio.input(0).tags().clone();
-        if let Some((index, len)) = tags.iter().find_map(|x| match x {
+        if let Some((index, len)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedUsize(n, len),
             } => {
                 if n == "wifi_start" {
-                    Some((index, len))
+                    Some((index, *len))
                 } else {
                     None
                 }
@@ -57,13 +60,13 @@ impl Kernel for Prefix {
             _ => None,
         }) {
             assert_eq!(*index, 0);
-            if output.len() >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
-                && input.len() >= len * 64
+            if output_len >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+                && input_len >= len * 64
             {
                 output[0..self.pad_front].fill(Complex32::new(0.0, 0.0));
                 output[self.pad_front..self.pad_front + 320].copy_from_slice(&SYNC_WORDS);
 
-                for k in 0..*len {
+                for k in 0..len {
                     let in_offset = k * 64;
                     let out_offset = self.pad_front + 320 + k * 80;
                     output[out_offset..out_offset + 16]
@@ -75,7 +78,7 @@ impl Kernel for Prefix {
                 // windowing
                 let out_offset = self.pad_front + 320;
                 output[out_offset] = 0.5 * (output[out_offset] + SYNC_WORDS[320 - 64]);
-                for k in 0..*len {
+                for k in 0..len {
                     output[out_offset + (k + 1) * 80] = 0.5
                         * (output[out_offset + (k + 1) * 80] + output[out_offset + k * 80 + 16]);
                 }
@@ -84,20 +87,19 @@ impl Kernel for Prefix {
                 output[out_offset + 1..out_offset + std::cmp::max(self.pad_tail, 1)]
                     .fill(Complex32::new(0.0, 0.0));
 
-                sio.input(0).consume(len * 64);
+                self.input.consume(len * 64);
                 let produce = self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320;
 
                 output[0..produce].iter_mut().for_each(|v| *v *= 0.6);
 
-                sio.output(0)
-                    .add_tag(0, Tag::NamedUsize("burst_start".to_string(), produce));
-                sio.output(0).produce(produce);
+                out_tags.add_tag(0, Tag::NamedUsize("burst_start".to_string(), produce));
+                self.output.produce(produce);
 
-                if sio.input(0).finished() && input.len() < len * 64 {
+                if finished && input_len < len * 64 {
                     io.finished = true;
                 }
             }
-        } else if sio.input(0).finished() {
+        } else if finished {
             io.finished = true;
         }
 

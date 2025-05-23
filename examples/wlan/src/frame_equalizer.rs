@@ -1,16 +1,4 @@
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 
 use crate::FrameParam;
 use crate::Mcs;
@@ -87,9 +75,17 @@ enum State {
     Skip,
 }
 
-#[derive(futuresdr::Block)]
+#[derive(Block)]
 #[message_outputs(symbols)]
-pub struct FrameEqualizer {
+pub struct FrameEqualizer<I = circular::Reader<Complex32>, O = circular::Writer<u8>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     equalizer: Equalizer,
     state: State,
     sym_in: [Complex32; 64],
@@ -100,28 +96,31 @@ pub struct FrameEqualizer {
     syms: Vec<Complex32>,
 }
 
-impl FrameEqualizer {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<u8>("out")
-                .build(),
-            Self {
-                equalizer: Equalizer::new(),
-                state: State::Skip,
-                sym_in: [Complex32::new(0.0, 0.0); 64],
-                sym_out: [Complex32::new(0.0, 0.0); 48],
-                decoded_bits: [0; 24],
-                bits_out: [0; 48],
-                decoder: ViterbiDecoder::new(),
-                syms: Vec::new(),
-            },
-        )
+impl<I, O> FrameEqualizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            equalizer: Equalizer::new(),
+            state: State::Skip,
+            sym_in: [Complex32::new(0.0, 0.0); 64],
+            sym_out: [Complex32::new(0.0, 0.0); 48],
+            decoded_bits: [0; 24],
+            bits_out: [0; 48],
+            decoder: ViterbiDecoder::new(),
+            syms: Vec::new(),
+        }
     }
 
-    fn decode_signal_field(&mut self) -> Option<FrameParam> {
-        let bits = self.bits_out;
+    fn decode_signal_field(
+        decoder: &mut ViterbiDecoder,
+        bits: &[u8; 48],
+        decoded_bits: &mut [u8; 24],
+    ) -> Option<FrameParam> {
         // info!("bits: {:?}", &bits);
 
         let mut deinterleaved = [0u8; 48];
@@ -130,12 +129,12 @@ impl FrameEqualizer {
         }
         // info!("deinterleaved: {:?}", &deinterleaved);
 
-        self.decoder.decode(
+        decoder.decode(
             FrameParam::new(Mcs::Bpsk_1_2, 0),
             &deinterleaved,
-            &mut self.decoded_bits,
+            decoded_bits,
         );
-        let decoded_bits = self.decoded_bits;
+        // let decoded_bits = decoded_bits;
         // info!("decoded: {:?}", &decoded_bits[0..24]);
 
         let mut r = 0;
@@ -174,20 +173,32 @@ impl FrameEqualizer {
     }
 }
 
-impl Kernel for FrameEqualizer {
+impl<I, O> Default for FrameEqualizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I, O> Kernel for FrameEqualizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = u8>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let mut input = sio.input(0).slice::<Complex32>();
-        let out = sio.output(0).slice::<u8>();
+        let (mut input, in_tags) = self.input.slice_with_tags();
+        let (out, mut out_tags) = self.output.slice_with_tags();
 
-        let tags = sio.input(0).tags();
         // info!("eq: input {} output {} tags {:?}", input.len(), out.len(), tags);
-        if let Some((index, _freq)) = tags.iter().find_map(|x| match x {
+        if let Some((index, _freq)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedF32(n, f),
@@ -286,7 +297,11 @@ impl Kernel for FrameEqualizer {
                     );
                     // info!("{:?}", &self.bits_out);
                     i += 1;
-                    if let Some(frame) = self.decode_signal_field() {
+                    if let Some(frame) = Self::decode_signal_field(
+                        &mut self.decoder,
+                        &self.bits_out,
+                        &mut self.decoded_bits,
+                    ) {
                         // info!("signal field decoded {:?}, snr {}", &frame, self.equalizer.snr());
 
                         self.state = State::Copy(
@@ -294,7 +309,7 @@ impl Kernel for FrameEqualizer {
                             frame.n_symbols(),
                             frame.mcs().modulation(),
                         );
-                        sio.output(0).add_tag(
+                        out_tags.add_tag(
                             o * 48,
                             Tag::NamedAny("wifi_start".to_string(), Box::new(frame)),
                         );
@@ -323,8 +338,8 @@ impl Kernel for FrameEqualizer {
                         n_sym -= 1;
                         if n_sym == 0 {
                             if !self.syms.is_empty() {
-                                mio.post(0, Pmt::VecCF32(std::mem::take(&mut self.syms)))
-                                    .await;
+                                mio.post("symbols", Pmt::VecCF32(std::mem::take(&mut self.syms)))
+                                    .await?;
                             }
                             self.state = State::Skip;
                         } else {
@@ -340,10 +355,10 @@ impl Kernel for FrameEqualizer {
             }
         }
 
-        sio.input(0).consume(i * 64);
-        sio.output(0).produce(o * 48);
+        self.input.consume(i * 64);
+        self.output.produce(o * 48);
 
-        if sio.input(0).finished() && i == max_i {
+        if self.input.finished() && i == max_i {
             io.finished = true;
         }
 

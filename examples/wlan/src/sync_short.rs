@@ -1,13 +1,4 @@
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageOutputs;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 const MIN_GAP: usize = 480;
 const MAX_SAMPLES: usize = 540 * 80;
@@ -20,39 +11,76 @@ enum State {
     Copy(usize, f32, bool),
 }
 
-#[derive(futuresdr::Block)]
-pub struct SyncShort {
+#[derive(Block)]
+pub struct SyncShort<
+    I0 = circular::Reader<Complex32>,
+    I1 = circular::Reader<Complex32>,
+    I2 = circular::Reader<f32>,
+    O = circular::Writer<Complex32>,
+> where
+    I0: CpuBufferReader<Item = Complex32>,
+    I1: CpuBufferReader<Item = Complex32>,
+    I2: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    in_sig: I0,
+    #[input]
+    in_abs: I1,
+    #[input]
+    in_cor: I2,
+    #[output]
+    output: O,
     state: State,
 }
 
-impl SyncShort {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in_sig")
-                .add_input::<Complex32>("in_abs")
-                .add_input::<f32>("in_cor")
-                .add_output::<Complex32>("out")
-                .build(),
-            Self {
-                state: State::Search,
-            },
-        )
+impl<I0, I1, I2, O> SyncShort<I0, I1, I2, O>
+where
+    I0: CpuBufferReader<Item = Complex32>,
+    I1: CpuBufferReader<Item = Complex32>,
+    I2: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new() -> Self {
+        Self {
+            in_sig: I0::default(),
+            in_abs: I1::default(),
+            in_cor: I2::default(),
+            output: O::default(),
+            state: State::Search,
+        }
+    }
+}
+impl<I0, I1, I2, O> Default for SyncShort<I0, I1, I2, O>
+where
+    I0: CpuBufferReader<Item = Complex32>,
+    I1: CpuBufferReader<Item = Complex32>,
+    I2: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl Kernel for SyncShort {
+impl<I0, I1, I2, O> Kernel for SyncShort<I0, I1, I2, O>
+where
+    I0: CpuBufferReader<Item = Complex32>,
+    I1: CpuBufferReader<Item = Complex32>,
+    I2: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let in_sig = sio.input(0).slice::<Complex32>();
-        let in_abs = sio.input(1).slice::<Complex32>();
-        let in_cor = sio.input(2).slice::<f32>();
-        let out = sio.output(0).slice::<Complex32>();
+        let in_sig = self.in_sig.slice();
+        let in_abs = self.in_abs.slice();
+        let in_cor = self.in_cor.slice();
+        let in_cor_len = in_cor.len();
+        let (out, mut tags) = self.output.slice_with_tags();
 
         let n_input = std::cmp::min(std::cmp::min(in_sig.len(), in_abs.len()), in_cor.len());
 
@@ -70,8 +98,7 @@ impl Kernel for SyncShort {
                     if in_cor[i] > THRESHOLD {
                         let f_offset = -in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
-                        sio.output(0)
-                            .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
+                        tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                     } else {
                         self.state = State::Search;
                     }
@@ -82,8 +109,7 @@ impl Kernel for SyncShort {
                         if last_above_threshold && n_copied > MIN_GAP {
                             let f_offset = -in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
-                            sio.output(0)
-                                .add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
+                            tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                             i += 1;
                             continue;
                         } else {
@@ -106,12 +132,12 @@ impl Kernel for SyncShort {
             i += 1;
         }
 
-        sio.input(0).consume(i);
-        sio.input(1).consume(i);
-        sio.input(2).consume(i);
-        sio.output(0).produce(o);
+        self.in_sig.consume(i);
+        self.in_abs.consume(i);
+        self.in_cor.consume(i);
+        self.output.produce(o);
 
-        if sio.input(2).finished() && i == in_cor.len() {
+        if self.in_cor.finished() && i == in_cor_len {
             io.finished = true;
         }
 

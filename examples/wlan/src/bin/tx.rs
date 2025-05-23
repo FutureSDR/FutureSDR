@@ -1,15 +1,9 @@
 use clap::Parser;
 use futuresdr::async_io::Timer;
-use futuresdr::blocks::seify::SinkBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::runtime::copy_tag_propagation;
-use futuresdr::runtime::BlockT;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use std::time::Duration;
 
 use wlan::parse_channel;
@@ -39,7 +33,7 @@ struct Args {
     channel: f64,
 }
 
-use wlan::MAX_SYM;
+// use wlan::MAX_SYM;
 const PAD_FRONT: usize = 5000;
 const PAD_TAIL: usize = 5000;
 
@@ -48,60 +42,47 @@ fn main() -> Result<()> {
     futuresdr::runtime::init();
     println!("Configuration: {args:?}");
 
-    let mut size = 4096;
-    let prefix_in_size = loop {
-        if size / 8 >= MAX_SYM * 64 {
-            break size;
-        }
-        size += 4096
-    };
-    let mut size = 4096;
-    let prefix_out_size = loop {
-        if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
-            break size;
-        }
-        size += 4096
-    };
+    // let mut size = 4096;
+    // let prefix_in_size = loop {
+    //     if size / 8 >= MAX_SYM * 64 {
+    //         break size;
+    //     }
+    //     size += 4096
+    // };
+    // let mut size = 4096;
+    // let prefix_out_size = loop {
+    //     if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
+    //         break size;
+    //     }
+    //     size += 4096
+    // };
 
     let mut fg = Flowgraph::new();
-    let mac = fg.add_block(Mac::new([0x42; 6], [0x23; 6], [0xff; 6]))?;
-    let encoder = fg.add_block(Encoder::new(Mcs::Qpsk_1_2))?;
-    fg.connect_message(mac, "tx", encoder, "tx")?;
-    let mapper = fg.add_block(Mapper::new())?;
-    fg.connect_stream(encoder, "out", mapper, "in")?;
-    let mut fft = Fft::with_options(
+    let mac = Mac::new([0x42; 6], [0x23; 6], [0xff; 6]);
+    let encoder: Encoder = Encoder::new(Mcs::Qpsk_1_2);
+    connect!(fg, mac.tx | tx.encoder);
+    let mapper: Mapper = Mapper::new();
+    connect!(fg, encoder > mapper);
+    let fft: Fft = Fft::with_options(
         64,
         FftDirection::Inverse,
         true,
         Some((1.0f32 / 52.0).sqrt()),
     );
-    fft.set_tag_propagation(Box::new(copy_tag_propagation));
-    let fft = fg.add_block(fft)?;
-    fg.connect_stream(mapper, "out", fft, "in")?;
-    let prefix = fg.add_block(Prefix::new(PAD_FRONT, PAD_TAIL))?;
-    fg.connect_stream_with_type(
-        fft,
-        "out",
-        prefix,
-        "in",
-        Circular::with_size(prefix_in_size),
-    )?;
-    let snk = SinkBuilder::new()
+    // fft.set_tag_propagation(Box::new(copy_tag_propagation));
+    connect!(fg, mapper > fft);
+    let prefix: Prefix = Prefix::new(PAD_FRONT, PAD_TAIL);
+    connect!(fg, fft > prefix);
+    let snk = Builder::new(args.args)?
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_sink()?;
 
-    let snk = fg.add_block(snk)?;
-    fg.connect_stream_with_type(
-        prefix,
-        "out",
-        snk,
-        "in",
-        Circular::with_size(prefix_out_size),
-    )?;
+    connect!(fg, prefix > inputs[0].snk);
+
+    let mac = mac.get().id;
 
     let rt = Runtime::new();
     let (_fg, mut handle) = rt.start_sync(fg);
@@ -112,8 +93,8 @@ fn main() -> Result<()> {
             Timer::after(Duration::from_secs_f32(0.1)).await;
             handle
                 .call(
-                    0,
-                    0,
+                    mac,
+                    "tx",
                     Pmt::Any(Box::new((
                         format!("FutureSDR {seq}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").as_bytes().to_vec(),
                         Mcs::Qam16_1_2,
