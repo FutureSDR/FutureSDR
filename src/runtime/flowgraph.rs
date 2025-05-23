@@ -127,26 +127,35 @@ impl Flowgraph {
     }
 
     /// Make message connection
-    pub fn connect_message<K1: Kernel, K2: Kernel + KernelInterface>(
+    pub fn connect_message(
         &mut self,
-        src_block: &BlockRef<K1>,
+        src_block: impl Into<BlockId>,
         src_port: impl Into<PortId>,
-        dst_block: &BlockRef<K2>,
+        dst_block: impl Into<BlockId>,
         dst_port: impl Into<PortId>,
     ) -> Result<(), Error> {
-        let dst_box = dst_block.get().inbox_tx.clone();
+        let src_id = src_block.into();
+        let dst_id = dst_block.into();
         let src_port = src_port.into();
         let dst_port = dst_port.into();
 
-        src_block.get().mio.connect(&src_port, dst_box, &dst_port)?;
-        if !K2::message_inputs().contains(&dst_port.name()) {
+        let mut src_block = self.blocks[src_id.0]
+            .try_lock()
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {src_id:?}")))?;
+        let dst_block = self.blocks[dst_id.0]
+            .try_lock()
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {dst_id:?}")))?;
+        let dst_box = dst_block.inbox();
+
+        src_block.connect(&src_port, dst_box, &dst_port)?;
+        if !dst_block.message_inputs().contains(&dst_port.name()) {
             return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(dst_block.id),
+                BlockPortCtx::Id(dst_id),
                 dst_port,
             ));
         }
         self.message_edges
-            .push((src_block.id, src_port, dst_block.id, dst_port));
+            .push((src_id, src_port, dst_id, dst_port));
         Ok(())
     }
 

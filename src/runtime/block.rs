@@ -21,6 +21,7 @@ use futuresdr::runtime::FlowgraphMessage;
 use futuresdr::runtime::Kernel;
 use futuresdr::runtime::KernelInterface;
 use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::PortId;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
 
@@ -46,6 +47,17 @@ pub trait Block: Send + Any {
         &mut self,
         name: &str,
         reader: &mut dyn BufferReader,
+    ) -> Result<(), Error>;
+
+    // ##### Message Ports
+    /// Message inputs of the block
+    fn message_inputs(&self) -> &'static [&'static str];
+    /// Connect message output port
+    fn connect(
+        &mut self,
+        src_port: &PortId,
+        sender: Sender<BlockMessage>,
+        dst_port: &PortId,
     ) -> Result<(), Error>;
 
     // ##### META
@@ -307,7 +319,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
         self.id
     }
 
-    // ##### Strams
+    // ##### Stream Ports
     fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader> {
         self.kernel.stream_input(name)
     }
@@ -317,6 +329,19 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
         reader: &mut dyn BufferReader,
     ) -> Result<(), Error> {
         self.kernel.connect_stream_output(name, reader)
+    }
+
+    // ##### Message Ports
+    fn message_inputs(&self) -> &'static [&'static str] {
+        K::message_inputs()
+    }
+    fn connect(
+        &mut self,
+        src_port: &PortId,
+        dst_box: Sender<BlockMessage>,
+        dst_port: &PortId,
+    ) -> Result<(), Error> {
+        self.mio.connect(src_port, dst_box, dst_port)
     }
 
     // ##### META
