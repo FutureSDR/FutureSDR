@@ -58,6 +58,11 @@ where
             _tap_type: std::marker::PhantomData,
         }
     }
+
+    /// Returns the number of taps
+    pub fn n_taps(&self) -> usize {
+        self.filter.length()
+    }
 }
 
 #[doc(hidden)]

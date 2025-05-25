@@ -8,6 +8,7 @@ description = "FutureSDR GUI"
 [workspace]
 
 [dependencies]
+any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"
 futures = "0.3"
 futuresdr = { version = "0.0.37", path = "../../" }

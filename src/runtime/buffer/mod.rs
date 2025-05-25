@@ -7,12 +7,6 @@ pub mod circular;
 // ===================== SLAB ========================
 /// Slab buffer
 pub mod slab;
-#[cfg(target_arch = "wasm32")]
-/// Circular buffer is an alias for the Slab buffer
-pub mod circular {
-    pub use super::slab::Reader;
-    pub use super::slab::Writer;
-}
 
 // ==================== VULKAN =======================
 #[cfg(feature = "vulkan")]

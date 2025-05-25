@@ -546,6 +546,10 @@ video {
   margin: 1rem;
 }
 
+.block {
+  display: block;
+}
+
 .inline {
   display: inline;
 }

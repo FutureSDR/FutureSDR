@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use any_spawner::Executor;
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
 use futuresdr_types::FlowgraphId;
@@ -274,5 +275,6 @@ pub fn Prophecy() -> impl IntoView {
 
 pub fn main() {
     console_error_panic_hook::set_once();
+    Executor::init_wasm_bindgen().unwrap();
     mount_to_body(|| view! { <Prophecy /> })
 }

@@ -1,3 +1,5 @@
+use any_spawner::Executor;
+use futuresdr::runtime::FlowgraphId;
 use futuresdr::runtime::Pmt;
 use leptos::html::Span;
 use leptos::prelude::*;
@@ -152,11 +154,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="border-2 border-slate-500 rounded-md m-4 p-4">
             {move || {
                 match fg_desc.get() {
-                    Some(wrapped) => {
-                        match wrapped.take() {
-                            Some(desc) => view! { <FlowgraphMermaid fg=desc /> }.into_any(),
-                            _ => view! { }.into_any(),
-                        }},
+                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_any(),
                     _ => view! {}.into_any(),
                 }
             }}
@@ -173,7 +171,7 @@ pub fn Gui() -> impl IntoView {
     let fg_handle = LocalResource::new(move || {
         let rt_handle = rt_handle.clone();
         async move {
-            if let Ok(fg) = rt_handle.get_flowgraph(0).await {
+            if let Ok(fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await {
                 Some(fg)
             } else {
                 None
@@ -182,25 +180,21 @@ pub fn Gui() -> impl IntoView {
     });
 
     view! {
-        <h1 class="text-xl text-white m-4"> FutureSDR WLAN</h1>
+        <h1 class="text-xl text-white m-4">FutureSDR WLAN</h1>
         {move || {
-             match fg_handle.get() {
-                 Some(wrapped) => {
-                     match wrapped.take() {
-                        Some(handle) => view! { <Wlan fg_handle=handle /> }.into_any(),
-                        _ => view! {}.into_any()
-                     }
-                 },
-                 _ => view! {
-                     <div>"Connecting"</div>
-                 }.into_any(),
-             }
+            match fg_handle.get() {
+                Some(wrapped) => match wrapped {
+                    Some(handle) => view! { <Wlan fg_handle=handle /> }.into_any(),
+                    _ => view! {}.into_any(),
+                }
+                _ => view! { <div>"Connecting"</div> }.into_any(),
+            }
         }}
     }
 }
 
 pub fn frontend() {
     console_error_panic_hook::set_once();
-    leptos::task::Executor::init_wasm_bindgen().unwrap();
+    Executor::init_wasm_bindgen().unwrap();
     mount_to_body(|| view! { <Gui /> })
 }

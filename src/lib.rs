@@ -84,6 +84,7 @@ pub mod prelude {
     pub use futuresdr::macros::async_trait;
     pub use futuresdr::macros::connect;
     pub use futuresdr::macros::Block;
+    #[cfg(not(target_arch = "wasm32"))]
     pub use futuresdr::runtime::buffer::circular;
     pub use futuresdr::runtime::buffer::slab;
     pub use futuresdr::runtime::buffer::BufferReader;
