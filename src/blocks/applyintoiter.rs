@@ -6,8 +6,8 @@ pub struct ApplyIntoIter<
     F,
     A,
     B,
-    I = circular::Reader<A>,
-    O = circular::Writer<<B as IntoIterator>::Item>,
+    I = DefaultCpuReader<A>,
+    O = DefaultCpuWriter<<B as IntoIterator>::Item>,
 > where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + Sync + 'static,

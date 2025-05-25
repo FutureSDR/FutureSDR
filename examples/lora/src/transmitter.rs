@@ -7,7 +7,7 @@ use crate::Modulator;
 
 #[derive(Block)]
 #[message_inputs(msg)]
-pub struct Transmitter<O = circular::Writer<Complex32>>
+pub struct Transmitter<O = DefaultCpuWriter<Complex32>>
 where
     O: CpuBufferWriter<Item = Complex32>,
 {

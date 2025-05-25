@@ -51,7 +51,7 @@ impl Correlator {
 
 #[derive(Block)]
 #[message_outputs(out)]
-pub struct Decoder<I = circular::Reader<f32>>
+pub struct Decoder<I = DefaultCpuReader<f32>>
 where
     I: CpuBufferReader<Item = f32>,
 {

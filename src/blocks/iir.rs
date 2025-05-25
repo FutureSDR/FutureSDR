@@ -11,8 +11,8 @@ pub struct Iir<
     OutputType,
     TapsType,
     Core,
-    I = circular::Reader<InputType>,
-    O = circular::Writer<OutputType>,
+    I = DefaultCpuReader<InputType>,
+    O = DefaultCpuWriter<OutputType>,
 > where
     InputType: 'static + Send,
     OutputType: 'static + Send,

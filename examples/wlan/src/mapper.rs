@@ -70,7 +70,7 @@ impl Signal {
 }
 
 #[derive(Block)]
-pub struct Mapper<I = circular::Reader<u8>, O = circular::Writer<Complex32>>
+pub struct Mapper<I = DefaultCpuReader<u8>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = u8>,
     O: CpuBufferWriter<Item = Complex32>,

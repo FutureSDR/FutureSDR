@@ -8,7 +8,7 @@ use crate::prelude::*;
 
 /// Push samples into a TCP socket.
 #[derive(Block)]
-pub struct TcpSink<T, I = circular::Reader<T>>
+pub struct TcpSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,

@@ -1,11 +1,4 @@
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Copies only a given number of samples and stops.
 ///
@@ -30,8 +23,8 @@ use crate::runtime::WorkIo;
 #[derive(Block)]
 pub struct Head<
     T: Copy + Send + 'static,
-    I: CpuBufferReader<Item = T> = circular::Reader<T>,
-    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
     n_items: u64,
     #[input]

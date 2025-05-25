@@ -4,8 +4,8 @@ use crate::prelude::*;
 #[derive(Block)]
 pub struct Copy<
     T: Send + Sync + 'static,
-    I: CpuBufferReader<Item = T> = circular::Reader<T>,
-    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
     #[input]
     input: I,

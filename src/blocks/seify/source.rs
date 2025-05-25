@@ -28,7 +28,7 @@ use crate::prelude::*;
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]
 #[type_name(SeifySource)]
-pub struct Source<D, OUT = circular::Writer<Complex32>>
+pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
     D: DeviceTrait + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,

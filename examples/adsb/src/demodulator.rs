@@ -12,7 +12,7 @@ pub struct DemodPacket {
 
 #[derive(Block)]
 #[message_outputs(out)]
-pub struct Demodulator<I = circular::Reader<f32>>
+pub struct Demodulator<I = DefaultCpuReader<f32>>
 where
     I: CpuBufferReader<Item = f32>,
 {

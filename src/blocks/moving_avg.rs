@@ -8,7 +8,7 @@ use crate::prelude::*;
 ///
 /// [egui]: https://github.com/FutureSDR/FutureSDR/blob/main/examples/egui/src/bin/combined.rs
 #[derive(Block)]
-pub struct MovingAvg<const WIDTH: usize, I = circular::Reader<f32>, O = circular::Writer<f32>>
+pub struct MovingAvg<const WIDTH: usize, I = DefaultCpuReader<f32>, O = DefaultCpuWriter<f32>>
 where
     I: CpuBufferReader<Item = f32>,
     O: CpuBufferWriter<Item = f32>,

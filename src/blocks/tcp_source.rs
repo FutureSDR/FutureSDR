@@ -7,7 +7,7 @@ use crate::prelude::*;
 
 /// Read samples from a TCP socket.
 #[derive(Block)]
-pub struct TcpSource<T, O = circular::Writer<T>>
+pub struct TcpSource<T, O = DefaultCpuWriter<T>>
 where
     T: Send + 'static,
     O: CpuBufferWriter<Item = T>,

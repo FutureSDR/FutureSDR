@@ -7,9 +7,9 @@ pub struct Split<
     A,
     B,
     C,
-    I = circular::Reader<A>,
-    O0 = circular::Writer<B>,
-    O1 = circular::Writer<C>,
+    I = DefaultCpuReader<A>,
+    O0 = DefaultCpuWriter<B>,
+    O1 = DefaultCpuWriter<C>,
 > where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,

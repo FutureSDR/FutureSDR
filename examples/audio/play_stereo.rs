@@ -11,7 +11,7 @@ const GAIN_R: f32 = 0.2;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<circular::Writer<f32>>::new("rick.mp3");
+    let src = FileSource::<DefaultCpuWriter<f32>>::new("rick.mp3");
 
     // resample to 48kHz
     let resample = FirBuilder::resampling::<f32, f32>(48_000, src.sample_rate() as usize);

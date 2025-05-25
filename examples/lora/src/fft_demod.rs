@@ -230,7 +230,7 @@ impl State {
 }
 
 #[derive(Block)]
-pub struct FftDemod<I = circular::Reader<Complex32>, O = circular::Writer<u16>>
+pub struct FftDemod<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<u16>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = u16>,

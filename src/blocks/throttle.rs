@@ -20,8 +20,8 @@ use web_time::Instant;
 #[derive(Block)]
 pub struct Throttle<
     T: Copy + Send + 'static,
-    I: CpuBufferReader<Item = T> = circular::Reader<T>,
-    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
     #[input]
     input: I,

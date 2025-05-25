@@ -39,8 +39,8 @@ pub struct ApplyNM<
     B,
     const N: usize,
     const M: usize,
-    I = circular::Reader<A>,
-    O = circular::Writer<B>,
+    I = DefaultCpuReader<A>,
+    O = DefaultCpuWriter<B>,
 > where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
     A: Send + 'static,

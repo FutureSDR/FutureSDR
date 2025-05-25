@@ -1,17 +1,11 @@
 use std::cmp;
 use std::ptr;
 
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Stream samples from vector.
 #[derive(Block)]
-pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {
+pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     items: Vec<T>,
     n_copied: usize,
     #[output]

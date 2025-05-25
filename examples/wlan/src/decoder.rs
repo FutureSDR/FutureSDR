@@ -9,7 +9,7 @@ use crate::MAX_SYM;
 
 #[derive(Block)]
 #[message_outputs(rx_frames, rftap)]
-pub struct Decoder<I = circular::Reader<u8>>
+pub struct Decoder<I = DefaultCpuReader<u8>>
 where
     I: CpuBufferReader<Item = u8>,
 {

@@ -3,7 +3,7 @@ use futuresdr::prelude::*;
 use crate::Decoder;
 
 #[derive(Block)]
-pub struct DecoderBlock<I = circular::Reader<f32>, O = circular::Writer<u8>>
+pub struct DecoderBlock<I = DefaultCpuReader<f32>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = f32>,
     O: CpuBufferWriter<Item = u8>,

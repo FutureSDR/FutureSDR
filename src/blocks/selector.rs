@@ -66,8 +66,8 @@ pub struct Selector<
     A,
     const N: usize,
     const M: usize,
-    IN = circular::Reader<A>,
-    OUT = circular::Writer<A>,
+    IN = DefaultCpuReader<A>,
+    OUT = DefaultCpuWriter<A>,
 > where
     A: Send + 'static + Copy,
     IN: CpuBufferReader<Item = A>,

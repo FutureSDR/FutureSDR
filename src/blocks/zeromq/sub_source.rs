@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
 #[derive(Block)]
-pub struct SubSource<T, O = circular::Writer<T>>
+pub struct SubSource<T, O = DefaultCpuWriter<T>>
 where
     T: Send + 'static,
     O: CpuBufferWriter<Item = T>,
@@ -68,7 +68,7 @@ where
 }
 
 /// Build a ZeroMQ [SubSource].
-pub struct SubSourceBuilder<T, O = circular::Writer<T>>
+pub struct SubSourceBuilder<T, O = DefaultCpuWriter<T>>
 where
     T: Send + 'static,
     O: CpuBufferWriter<Item = T>,

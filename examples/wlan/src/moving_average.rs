@@ -25,7 +25,7 @@ impl MovingAverageType for f32 {
 }
 
 #[derive(Block)]
-pub struct MovingAverage<D, I = circular::Reader<D>, O = circular::Writer<D>>
+pub struct MovingAverage<D, I = DefaultCpuReader<D>, O = DefaultCpuWriter<D>>
 where
     D: MovingAverageType + CpuSample,
     I: CpuBufferReader<Item = D>,

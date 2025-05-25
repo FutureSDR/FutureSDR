@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// Repeatedly apply a function to generate samples, using [Option] values to allow termination.
 #[derive(Block)]
-pub struct FiniteSource<F, A, O = circular::Writer<A>>
+pub struct FiniteSource<F, A, O = DefaultCpuWriter<A>>
 where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,

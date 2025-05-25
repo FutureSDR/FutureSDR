@@ -77,7 +77,7 @@ enum State {
 
 #[derive(Block)]
 #[message_outputs(symbols)]
-pub struct FrameEqualizer<I = circular::Reader<Complex32>, O = circular::Writer<u8>>
+pub struct FrameEqualizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = u8>,

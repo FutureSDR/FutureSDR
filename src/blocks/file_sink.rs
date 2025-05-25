@@ -1,14 +1,7 @@
+use crate::prelude::*;
 use async_fs::File;
 use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
-
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
 
 /// Write samples to a file.
 ///
@@ -36,7 +29,7 @@ use crate::runtime::WorkIo;
 /// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
 /// ```
 #[derive(Block)]
-pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     #[input]
     input: I,
     file_name: String,

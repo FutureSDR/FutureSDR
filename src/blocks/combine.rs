@@ -27,9 +27,9 @@ pub struct Combine<
     A,
     B,
     C,
-    INA = circular::Reader<A>,
-    INB = circular::Reader<B>,
-    OUT = circular::Writer<C>,
+    INA = DefaultCpuReader<A>,
+    INB = DefaultCpuReader<B>,
+    OUT = DefaultCpuWriter<C>,
 > where
     F: FnMut(&A, &B) -> C + Send + 'static,
     A: Send + 'static,

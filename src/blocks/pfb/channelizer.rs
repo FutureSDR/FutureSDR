@@ -27,7 +27,7 @@ fn partition_filter_taps(
 
 /// Polyphase Channelizer
 #[derive(Block)]
-pub struct PfbChannelizer<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct PfbChannelizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,

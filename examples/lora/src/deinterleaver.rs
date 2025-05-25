@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::utils::*;
 
 #[derive(Block)]
-pub struct Deinterleaver<I = circular::Reader<u16>, O = circular::Writer<u8>>
+pub struct Deinterleaver<I = DefaultCpuReader<u16>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = u16>,
     O: CpuBufferWriter<Item = u8>,

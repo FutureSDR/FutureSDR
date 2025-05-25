@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 /// Signal Source block
 #[derive(Block)]
-pub struct SignalSource<A, F, O = circular::Writer<A>>
+pub struct SignalSource<A, F, O = DefaultCpuWriter<A>>
 where
     A: Send + 'static,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
@@ -79,7 +79,7 @@ where
 }
 
 /// Build a SignalSource block
-pub struct SignalSourceBuilder<T, O = circular::Writer<T>>
+pub struct SignalSourceBuilder<T, O = DefaultCpuWriter<T>>
 where
     O: CpuBufferWriter<Item = T>,
 {

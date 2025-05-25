@@ -1774,7 +1774,7 @@ impl State {
 }
 
 #[derive(Block)]
-pub struct SymbolSync<I = circular::Reader<f32>, O = circular::Writer<f32>>
+pub struct SymbolSync<I = DefaultCpuReader<f32>, O = DefaultCpuWriter<f32>>
 where
     I: CpuBufferReader<Item = f32>,
     O: CpuBufferWriter<Item = f32>,

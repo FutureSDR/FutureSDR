@@ -27,7 +27,7 @@ pub const CW_COUNT: usize = 16; // In LoRa, always "only" 16 possible codewords 
 
 #[derive(Block)]
 #[message_outputs(out)]
-pub struct HammingDec<I = circular::Reader<u8>, O = circular::Writer<u8>>
+pub struct HammingDec<I = DefaultCpuReader<u8>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = u8>,
     O: CpuBufferWriter<Item = u8>,

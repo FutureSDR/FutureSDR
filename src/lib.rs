@@ -91,6 +91,8 @@ pub mod prelude {
     pub use futuresdr::runtime::buffer::CpuBufferReader;
     pub use futuresdr::runtime::buffer::CpuBufferWriter;
     pub use futuresdr::runtime::buffer::CpuSample;
+    pub use futuresdr::runtime::buffer::DefaultCpuReader;
+    pub use futuresdr::runtime::buffer::DefaultCpuWriter;
     pub use futuresdr::runtime::BlockId;
     pub use futuresdr::runtime::BlockMeta;
     pub use futuresdr::runtime::BlockRef;

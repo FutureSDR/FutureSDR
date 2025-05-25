@@ -5,7 +5,7 @@ use crate::prelude::*;
 
 /// Read samples from a UDP socket.
 #[derive(Block)]
-pub struct UdpSource<T, O = circular::Writer<T>>
+pub struct UdpSource<T, O = DefaultCpuWriter<T>>
 where
     T: Send + 'static,
     O: CpuBufferWriter<Item = T>,

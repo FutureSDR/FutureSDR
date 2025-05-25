@@ -29,7 +29,7 @@ enum State {
 /// ```
 #[derive(Block)]
 #[message_inputs(new_value)]
-pub struct Delay<T, I = circular::Reader<T>, O = circular::Writer<T>>
+pub struct Delay<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where
     T: Copy + Send + 'static,
     I: CpuBufferReader<Item = T>,

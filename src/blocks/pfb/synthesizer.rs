@@ -10,7 +10,7 @@ use crate::prelude::*;
 
 /// Polyphase Synthesizer.
 #[derive(Block)]
-pub struct PfbSynthesizer<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct PfbSynthesizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,

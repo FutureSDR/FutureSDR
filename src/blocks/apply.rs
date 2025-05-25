@@ -38,7 +38,7 @@ use futuresdr::prelude::*;
 /// });
 /// ```
 #[derive(Block)]
-pub struct Apply<F, A, B, IN = circular::Reader<A>, OUT = circular::Writer<B>>
+pub struct Apply<F, A, B, IN = DefaultCpuReader<A>, OUT = DefaultCpuWriter<B>>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,

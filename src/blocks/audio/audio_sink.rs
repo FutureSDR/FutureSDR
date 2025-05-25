@@ -13,7 +13,7 @@ use crate::prelude::*;
 
 /// Audio Sink.
 #[derive(Block)]
-pub struct AudioSink<I = circular::Reader<f32>>
+pub struct AudioSink<I = DefaultCpuReader<f32>>
 where
     I: CpuBufferReader<Item = f32>,
 {
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl AudioSink<circular::Reader<f32>> {
+impl AudioSink<DefaultCpuReader<f32>> {
     /// Get default sample rate
     pub fn default_sample_rate() -> Option<u32> {
         Some(

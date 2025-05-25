@@ -30,7 +30,7 @@ pub enum WebsocketSinkMode {
 
 /// Push samples in a WebSocket.
 #[derive(Block)]
-pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     #[input]
     input: I,
     port: u32,

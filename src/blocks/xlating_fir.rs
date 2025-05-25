@@ -8,7 +8,7 @@ use crate::prelude::*;
 
 /// Frequency Xlating FIR filter.
 #[derive(Block)]
-pub struct XlatingFir<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct XlatingFir<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,

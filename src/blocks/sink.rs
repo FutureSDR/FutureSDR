@@ -17,7 +17,7 @@ use crate::prelude::*;
 /// let sink = Sink::<_, _>::new(|x: &f32| println!("{}", x));
 /// ```
 #[derive(Block)]
-pub struct Sink<F, A, I = circular::Reader<A>>
+pub struct Sink<F, A, I = DefaultCpuReader<A>>
 where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,

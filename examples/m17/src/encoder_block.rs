@@ -4,7 +4,7 @@ use crate::Encoder;
 use crate::LinkSetupFrame;
 
 #[derive(Block)]
-pub struct EncoderBlock<I = circular::Reader<u8>, O = circular::Writer<f32>>
+pub struct EncoderBlock<I = DefaultCpuReader<u8>, O = DefaultCpuWriter<f32>>
 where
     I: CpuBufferReader<Item = u8>,
     O: CpuBufferWriter<Item = f32>,

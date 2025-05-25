@@ -1119,7 +1119,7 @@ const MAX_UNKNOWN_NET_ID_OFFSET: usize = 1;
 #[derive(Block)]
 #[message_inputs(bandwidth, center_freq, frame_info, payload_crc_result, poke)]
 #[message_outputs(net_id_caching, frame_detected, detection_failed)]
-pub struct FrameSync<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct FrameSync<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,

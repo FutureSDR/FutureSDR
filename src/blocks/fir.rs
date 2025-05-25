@@ -19,8 +19,8 @@ pub struct Fir<
     OutputType,
     TapType,
     Core,
-    IN = circular::Reader<InputType>,
-    OUT = circular::Writer<OutputType>,
+    IN = DefaultCpuReader<InputType>,
+    OUT = DefaultCpuWriter<OutputType>,
 > where
     InputType: CpuSample,
     OutputType: CpuSample,
@@ -100,8 +100,8 @@ pub struct StatefulFir<
     OutputType,
     TapType,
     Core,
-    IN = circular::Reader<InputType>,
-    OUT = circular::Writer<OutputType>,
+    IN = DefaultCpuReader<InputType>,
+    OUT = DefaultCpuWriter<OutputType>,
 > where
     InputType: 'static + Send,
     OutputType: 'static + Send,

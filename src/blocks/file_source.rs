@@ -1,12 +1,4 @@
-use futures::AsyncReadExt;
-
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Read samples from a file.
 ///
@@ -34,7 +26,7 @@ use crate::runtime::WorkIo;
 /// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32", false));
 /// ```
 #[derive(Block)]
-pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {
+pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     file_name: String,
     file: Option<async_fs::File>,
     repeat: bool,

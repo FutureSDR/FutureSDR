@@ -12,7 +12,7 @@ use crate::prelude::*;
 
 /// Audio Source.
 #[derive(Block)]
-pub struct AudioSource<O = circular::Writer<f32>>
+pub struct AudioSource<O = DefaultCpuWriter<f32>>
 where
     O: CpuBufferWriter<Item = f32>,
 {

@@ -3,7 +3,7 @@ use futuresdr::prelude::*;
 use crate::FFT_SIZE;
 
 #[derive(Block)]
-pub struct ChannelSink<I = circular::Reader<f32>>
+pub struct ChannelSink<I = DefaultCpuReader<f32>>
 where
     I: CpuBufferReader<Item = f32>,
 {

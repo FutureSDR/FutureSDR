@@ -37,7 +37,7 @@ impl BufferType for SlabBuffer {
 }
 pub struct CircBuffer;
 impl BufferType for CircBuffer {
-    type Writer<T: CpuSample> = circular::Writer<T>;
+    type Writer<T: CpuSample> = DefaultCpuWriter<T>;
 }
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;

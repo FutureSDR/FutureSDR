@@ -13,10 +13,10 @@ enum State {
 
 #[derive(Block)]
 pub struct SyncShort<
-    I0 = circular::Reader<Complex32>,
-    I1 = circular::Reader<Complex32>,
-    I2 = circular::Reader<f32>,
-    O = circular::Writer<Complex32>,
+    I0 = DefaultCpuReader<Complex32>,
+    I1 = DefaultCpuReader<Complex32>,
+    I2 = DefaultCpuReader<f32>,
+    O = DefaultCpuWriter<Complex32>,
 > where
     I0: CpuBufferReader<Item = Complex32>,
     I1: CpuBufferReader<Item = Complex32>,

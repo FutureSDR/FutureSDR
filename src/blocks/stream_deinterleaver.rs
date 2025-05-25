@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 /// Stream Deinterleaver
 #[derive(Block)]
-pub struct StreamDeinterleaver<T, I = circular::Reader<T>, O = circular::Writer<T>>
+pub struct StreamDeinterleaver<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where
     T: Copy + Send + Sync + 'static,
     I: CpuBufferReader<Item = T>,

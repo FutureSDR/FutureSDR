@@ -11,7 +11,7 @@ const SOURCE_ADDRESS: u16 = 0x3344;
 #[derive(Block)]
 #[message_inputs(rx, tx, stats)]
 #[message_outputs(rxed, rftap)]
-pub struct Mac<O = circular::Writer<u8>>
+pub struct Mac<O = DefaultCpuWriter<u8>>
 where
     O: CpuBufferWriter<Item = u8>,
 {

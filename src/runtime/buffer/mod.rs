@@ -168,6 +168,19 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
     fn max_items(&self) -> usize;
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+/// Default [CpuBufferReader] implementation
+pub type DefaultCpuReader<D> = circular::Reader<D>;
+/// Default [CpuBufferWriter] implementation
+#[cfg(not(target_arch = "wasm32"))]
+pub type DefaultCpuWriter<D> = circular::Writer<D>;
+#[cfg(target_arch = "wasm32")]
+/// Default [CpuBufferReader] implementation
+pub type DefaultCpuReader<D> = slab::Reader<D>;
+#[cfg(target_arch = "wasm32")]
+/// Default [CpuBufferWriter] implementation
+pub type DefaultCpuWriter<D> = slab::Writer<D>;
+
 /// Output Tags
 pub struct Tags<'a> {
     tags: &'a mut Vec<ItemTag>,

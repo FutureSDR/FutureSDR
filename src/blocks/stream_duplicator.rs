@@ -6,8 +6,8 @@ use std::cmp::min;
 pub struct StreamDuplicator<
     T,
     const N: usize,
-    I: CpuBufferReader<Item = T> = circular::Reader<T>,
-    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
     #[input]
     input: I,

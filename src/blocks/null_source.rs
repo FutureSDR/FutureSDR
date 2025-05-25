@@ -1,10 +1,4 @@
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Generate a stream of zeroes.
 ///
@@ -22,7 +16,7 @@ use crate::runtime::WorkIo;
 /// let src = NullSource::<u8>::new();
 /// ```
 #[derive(Block)]
-pub struct NullSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = circular::Writer<T>> {
+pub struct NullSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     #[output]
     output: O,
 }

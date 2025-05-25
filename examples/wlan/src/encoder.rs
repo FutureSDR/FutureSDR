@@ -133,7 +133,7 @@ impl Enc {
 
 #[derive(Block)]
 #[message_inputs(tx)]
-pub struct Encoder<O = circular::Writer<u8>>
+pub struct Encoder<O = DefaultCpuWriter<u8>>
 where
     O: CpuBufferWriter<Item = u8>,
 {

@@ -29,7 +29,7 @@ use crate::prelude::*;
 #[message_inputs(freq, gain, sample_rate, cmd, config)]
 #[message_outputs(terminate_out)]
 #[type_name(SeifySink)]
-pub struct Sink<D, IN = circular::Reader<Complex32>>
+pub struct Sink<D, IN = DefaultCpuReader<Complex32>>
 where
     D: DeviceTrait + Clone,
     IN: CpuBufferReader<Item = Complex32>,

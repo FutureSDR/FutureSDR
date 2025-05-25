@@ -23,7 +23,7 @@ use crate::prelude::*;
 /// let sink = fg.add_block(TagDebug::<Complex32>::new("foo"));
 /// ```
 #[derive(Block)]
-pub struct TagDebug<T, I = circular::Reader<T>>
+pub struct TagDebug<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,

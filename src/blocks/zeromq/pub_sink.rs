@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
 #[derive(Block)]
-pub struct PubSink<T, I = circular::Reader<T>>
+pub struct PubSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,
@@ -73,7 +73,7 @@ where
 }
 
 /// Build a ZeroMQ [PubSink].
-pub struct PubSinkBuilder<T, I = circular::Reader<T>>
+pub struct PubSinkBuilder<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,

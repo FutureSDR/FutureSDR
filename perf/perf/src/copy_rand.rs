@@ -13,8 +13,8 @@ use rand::Rng;
 #[derive(Block)]
 pub struct CopyRand<
     T: Send + 'static,
-    I: CpuBufferReader<Item = T> = circular::Reader<T>,
-    O: CpuBufferWriter<Item = T> = circular::Writer<T>,
+    I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
+    O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
     max_copy: usize,
     #[input]

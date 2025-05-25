@@ -3,10 +3,10 @@ use futuresdr::prelude::*;
 
 #[derive(Block)]
 pub struct PreambleDetector<
-    IS = circular::Reader<f32>,
-    IN = circular::Reader<f32>,
-    IP = circular::Reader<f32>,
-    O = circular::Writer<f32>,
+    IS = DefaultCpuReader<f32>,
+    IN = DefaultCpuReader<f32>,
+    IP = DefaultCpuReader<f32>,
+    O = DefaultCpuWriter<f32>,
 > where
     IS: CpuBufferReader<Item = f32>,
     IN: CpuBufferReader<Item = f32>,

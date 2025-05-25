@@ -26,7 +26,7 @@ use std::path;
 /// Runtime::new().run(fg);
 /// ```
 #[derive(Block)]
-pub struct WavSink<T, I = circular::Reader<T>>
+pub struct WavSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static + hound::Sample + Copy,
     I: CpuBufferReader<Item = T>,

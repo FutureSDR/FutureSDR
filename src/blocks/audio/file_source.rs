@@ -9,7 +9,7 @@ use crate::prelude::*;
 
 /// Read an audio file and output its samples.
 #[derive(Block)]
-pub struct FileSource<O = circular::Writer<f32>>
+pub struct FileSource<O = DefaultCpuWriter<f32>>
 where
     O: CpuBufferWriter<Item = f32>,
 {

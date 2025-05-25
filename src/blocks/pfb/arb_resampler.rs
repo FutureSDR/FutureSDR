@@ -6,8 +6,8 @@ use std::cmp::min;
 /// Polyphase Arbitrary Rate Resampler
 #[derive(Block)]
 pub struct PfbArbResampler<
-    I: CpuBufferReader<Item = Complex32> = circular::Reader<Complex32>,
-    O: CpuBufferWriter<Item = Complex32> = circular::Writer<Complex32>,
+    I: CpuBufferReader<Item = Complex32> = DefaultCpuReader<Complex32>,
+    O: CpuBufferWriter<Item = Complex32> = DefaultCpuWriter<Complex32>,
 > {
     rate: f32,
     /* The number of filters is specified by the user as the

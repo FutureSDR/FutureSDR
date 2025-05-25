@@ -28,7 +28,7 @@ use crate::prelude::*;
 /// ```
 #[allow(clippy::type_complexity)]
 #[derive(Block)]
-pub struct Filter<A, B, I = circular::Reader<A>, O = circular::Writer<B>>
+pub struct Filter<A, B, I = DefaultCpuReader<A>, O = DefaultCpuWriter<B>>
 where
     A: 'static,
     B: 'static,

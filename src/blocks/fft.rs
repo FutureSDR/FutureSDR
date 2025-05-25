@@ -27,7 +27,7 @@ use std::sync::Arc;
 /// ```
 #[derive(Block)]
 #[message_inputs(fft_size)]
-pub struct Fft<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct Fft<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,

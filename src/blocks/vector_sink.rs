@@ -1,14 +1,8 @@
-use crate::runtime::buffer::circular;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Store received samples in vector.
 #[derive(Block)]
-pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     items: Vec<T>,
     #[input]
     input: I,

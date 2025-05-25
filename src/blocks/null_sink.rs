@@ -21,7 +21,7 @@ use crate::prelude::*;
 /// let sink = fg.add_block(NullSink::<Complex<f32>>::new());
 /// ```
 #[derive(Block)]
-pub struct NullSink<T: CpuSample, I: CpuBufferReader<Item = T> = circular::Reader<T>> {
+pub struct NullSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     n_received: usize,
     #[input]
     input: I,

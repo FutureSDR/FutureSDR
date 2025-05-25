@@ -18,7 +18,7 @@ use crate::prelude::*;
 /// let source = Source::<_, _>::new(|| { 0.0f32 });
 /// ```
 #[derive(Block)]
-pub struct Source<F, A, O = circular::Writer<A>>
+pub struct Source<F, A, O = DefaultCpuWriter<A>>
 where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,

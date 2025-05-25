@@ -103,7 +103,7 @@ fn main() -> Result<()> {
     let complex_to_mag_2: Apply<_, _, _> = Apply::new(|i: &Complex32| i.norm_sqr());
     let nf_est_block = FirBuilder::fir::<f32, f32, _>(vec![1.0f32 / 32.0; 32]);
     let preamble_taps: Vec<f32> =
-        PreambleDetector::<circular::Reader<f32>>::preamble_correlator_taps();
+        PreambleDetector::<DefaultCpuReader<f32>>::preamble_correlator_taps();
     let preamble_corr_block = FirBuilder::fir::<f32, f32, _>(preamble_taps);
     let preamble_detector = PreambleDetector::new(args.preamble_threshold);
     let adsb_demod = Demodulator::new();

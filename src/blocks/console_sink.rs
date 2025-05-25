@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 /// Log stream data with [log::info!].
 #[derive(Block)]
-pub struct ConsoleSink<T, I = circular::Reader<T>>
+pub struct ConsoleSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static + Debug,
     I: CpuBufferReader<Item = T>,

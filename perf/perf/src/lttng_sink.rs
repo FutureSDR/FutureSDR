@@ -5,7 +5,7 @@ import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null sink that calls an [lttng](https://lttng.org/) tracepoint for every batch of received samples.
 #[derive(Block)]
-pub struct LttngSink<T, I = circular::Reader<T>>
+pub struct LttngSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,

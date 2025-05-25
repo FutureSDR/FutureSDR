@@ -14,7 +14,7 @@ use crate::PolarDecoder;
 use crate::Xorshift32;
 
 #[derive(Block)]
-pub struct DecoderBlock<I = circular::Reader<f32>>
+pub struct DecoderBlock<I = DefaultCpuReader<f32>>
 where
     I: CpuBufferReader<Item = f32>,
 {

@@ -3,7 +3,7 @@ use std::cmp::min;
 use std::ops::Add;
 
 #[derive(Block)]
-pub struct StreamAdder<D, I = circular::Reader<D>, O = circular::Writer<D>>
+pub struct StreamAdder<D, I = DefaultCpuReader<D>, O = DefaultCpuWriter<D>>
 where
     D: CpuSample + Add<Output = D>,
     I: CpuBufferReader<Item = D>,

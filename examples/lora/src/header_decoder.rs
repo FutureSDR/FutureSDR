@@ -36,7 +36,7 @@ const HEADER_LEN: usize = 5; // size of the header in nibbles
 
 #[derive(Block)]
 #[message_outputs(out, frame_info)]
-pub struct HeaderDecoder<I = circular::Reader<u8>>
+pub struct HeaderDecoder<I = DefaultCpuReader<u8>>
 where
     I: CpuBufferReader<Item = u8>,
 {

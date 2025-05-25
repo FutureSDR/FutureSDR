@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 #[derive(Block)]
-pub struct GrayMapping<I = circular::Reader<u16>, O = circular::Writer<u16>>
+pub struct GrayMapping<I = DefaultCpuReader<u16>, O = DefaultCpuWriter<u16>>
 where
     I: CpuBufferReader<Item = u16>,
     O: CpuBufferWriter<Item = u16>,

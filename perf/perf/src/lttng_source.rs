@@ -5,7 +5,7 @@ import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);
 
 /// Null source that calls an [lttng](https://lttng.org/) tracepoint for every batch of produced samples.
 #[derive(Block)]
-pub struct LttngSource<T, O = circular::Writer<T>>
+pub struct LttngSource<T, O = DefaultCpuWriter<T>>
 where
     T: Send + Clone + 'static,
     O: CpuBufferWriter<Item = T>,

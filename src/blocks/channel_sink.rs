@@ -20,7 +20,7 @@ use crate::prelude::*;
 /// // start flowgraph
 /// ```
 #[derive(Block)]
-pub struct ChannelSink<T, I = circular::Reader<T>>
+pub struct ChannelSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + Clone + 'static,
     I: CpuBufferReader<Item = T>,

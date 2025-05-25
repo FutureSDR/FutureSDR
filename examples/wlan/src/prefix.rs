@@ -1,7 +1,7 @@
 use futuresdr::prelude::*;
 
 #[derive(Block)]
-pub struct Prefix<I = circular::Reader<Complex32>, O = circular::Writer<Complex32>>
+pub struct Prefix<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,
