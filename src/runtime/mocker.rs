@@ -229,6 +229,12 @@ where
 {
     type Item = T;
 
+    fn slice(&mut self) -> &[Self::Item] {
+        self.data.as_slice()
+    }
+    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
+        (self.data.as_slice(), &self.tags)
+    }
     fn consume(&mut self, n: usize) {
         self.data = self.data.split_off(n);
         self.tags.retain(|x| x.index >= n);
@@ -237,12 +243,6 @@ where
             t.index -= n;
         }
     }
-    fn slice(&mut self) -> &[Self::Item] {
-        self.data.as_slice()
-    }
-    fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        (self.data.as_slice(), &self.tags)
-    }
 
     fn set_min_items(&mut self, _n: usize) {
         warn!("set_min_items has no effect in with mocker");
@@ -250,6 +250,10 @@ where
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
         warn!("set_min_buffer_size_in_items has no effect in a mocker");
+    }
+
+    fn max_items(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -328,12 +332,6 @@ where
             )
         }
     }
-    fn produce(&mut self, n: usize) {
-        let curr_len = self.data.len();
-        unsafe {
-            self.data.set_len(curr_len + n);
-        }
-    }
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         let s = unsafe {
             std::slice::from_raw_parts_mut(
@@ -343,6 +341,12 @@ where
         };
         (s, Tags::new(&mut self.tags, self.data.len()))
     }
+    fn produce(&mut self, n: usize) {
+        let curr_len = self.data.len();
+        unsafe {
+            self.data.set_len(curr_len + n);
+        }
+    }
 
     fn set_min_items(&mut self, _n: usize) {
         warn!("set_min_items has no effect in with mocker");
@@ -350,5 +354,9 @@ where
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
         warn!("set_min_buffer_size_in_items has no effect in a mocker");
+    }
+
+    fn max_items(&self) -> usize {
+        self.data.len()
     }
 }

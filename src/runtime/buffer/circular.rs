@@ -151,6 +151,9 @@ where
                 buffer_size += page_size;
             }
 
+            self.min_buffer_size_in_items = Some(buffer_size / size_of::<D>());
+            dest.min_buffer_size_in_items = Some(buffer_size / size_of::<D>());
+
             self.writer = Some(generic::Circular::with_capacity(buffer_size).unwrap());
         } else if dest.min_items.is_some() || dest.min_buffer_size_in_items.is_some() {
             warn!("circular buffer is already created, size constraints of reader are not considered.");
@@ -223,6 +226,9 @@ where
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_buffer_size_in_items = Some(n);
+    }
+    fn max_items(&self) -> usize {
+        self.min_buffer_size_in_items.unwrap_or(usize::MAX)
     }
 }
 
@@ -353,6 +359,9 @@ where
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_buffer_size_in_items = Some(n);
+    }
+    fn max_items(&self) -> usize {
+        self.min_buffer_size_in_items.unwrap_or(usize::MAX)
     }
 }
 

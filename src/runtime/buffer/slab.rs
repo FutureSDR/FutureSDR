@@ -143,6 +143,9 @@ where
             });
         }
 
+        self.min_buffer_size_in_items = Some(min_items - reserved_items);
+        dest.min_buffer_size_in_items = Some(min_items - reserved_items);
+
         self.reader_inbox = dest.reader_inbox.clone();
         self.reader_input_id = dest.port_id();
         self.reserved_items = reserved_items;
@@ -262,6 +265,9 @@ where
             );
         }
         self.min_buffer_size_in_items = Some(n);
+    }
+    fn max_items(&self) -> usize {
+        self.min_buffer_size_in_items.unwrap_or(usize::MAX)
     }
 }
 
@@ -461,5 +467,8 @@ where
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_buffer_size_in_items = Some(n);
+    }
+    fn max_items(&self) -> usize {
+        self.min_buffer_size_in_items.unwrap_or(usize::MAX)
     }
 }

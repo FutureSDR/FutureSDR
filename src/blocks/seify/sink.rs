@@ -40,6 +40,7 @@ where
     dev: Device<D>,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
+    max_input_samples: usize,
 }
 
 impl<D, IN> Sink<D, IN>
@@ -61,6 +62,7 @@ where
             dev,
             start_time,
             streamer: None,
+            max_input_samples: 0,
         }
     }
 
@@ -195,6 +197,12 @@ where
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, len);
                     ret
+                } else if len > self.max_input_samples {
+                    warn!("input buffers of seify sink too small to fit complete frame. sending in non-burst mode");
+                    let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
+                    let ret = streamer.write(&bufs, None, true, 2_000_000)?;
+                    debug_assert_eq!(ret, n);
+                    ret
                 } else {
                     // wait for more samples
                     0
@@ -236,6 +244,12 @@ where
     }
 
     async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+        self.max_input_samples = self
+            .inputs
+            .iter_mut()
+            .map(|i| i.slice().len())
+            .min()
+            .unwrap_or(0);
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);
         self.streamer
             .as_mut()

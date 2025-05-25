@@ -132,6 +132,8 @@ pub trait CpuBufferReader: BufferReader + Default + Send {
     ///
     /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
     fn set_min_buffer_size_in_items(&mut self, n: usize);
+    /// Maximum number of items that fit in the buffer
+    fn max_items(&self) -> usize;
 }
 
 /// A generic CPU buffer writer (out-of-place)
@@ -162,6 +164,8 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
     ///
     /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
     fn set_min_buffer_size_in_items(&mut self, n: usize);
+    /// Maximum number of items that fit in the buffer
+    fn max_items(&self) -> usize;
 }
 
 /// Output Tags

@@ -214,6 +214,10 @@ where
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
         warn!("set_min_buffer_size_in_items not yet implemented for Vulkan buffers");
     }
+    fn max_items(&self) -> usize {
+        warn!("max_items not yet implemented for Vulkan buffers");
+        usize::MAX
+    }
 }
 
 // ====================== READER ============================

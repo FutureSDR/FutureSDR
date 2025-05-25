@@ -321,10 +321,14 @@ where
     }
 
     fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not yet implemented for Vulkan buffers");
+        warn!("set_min_items not yet implemented for wgpu buffers");
     }
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not yet implemented for Vulkan buffers");
+        warn!("set_min_buffer_size_in_items not yet implemented for wgpu buffers");
+    }
+    fn max_items(&self) -> usize {
+        warn!("max_items not yet implemented for wgpu buffers");
+        usize::MAX
     }
 }
