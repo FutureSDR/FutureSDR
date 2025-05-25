@@ -82,9 +82,14 @@ where
         };
         let scratch_size = plan.get_outofplace_scratch_len();
 
+        let mut input = I::default();
+        input.set_min_items(len);
+        let mut output = O::default();
+        output.set_min_items(len);
+
         Self {
-            input: I::default(),
-            output: O::default(),
+            input,
+            output,
             len,
             plan,
             direction,

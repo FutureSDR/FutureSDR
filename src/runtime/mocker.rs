@@ -243,6 +243,14 @@ where
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         (self.data.as_slice(), &self.tags)
     }
+
+    fn set_min_items(&mut self, _n: usize) {
+        warn!("set_min_items has no effect in with mocker");
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
+        warn!("set_min_buffer_size_in_items has no effect in a mocker");
+    }
 }
 
 #[derive(Debug)]
@@ -334,5 +342,13 @@ where
             )
         };
         (s, Tags::new(&mut self.tags, self.data.len()))
+    }
+
+    fn set_min_items(&mut self, _n: usize) {
+        warn!("set_min_items has no effect in with mocker");
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
+        warn!("set_min_buffer_size_in_items has no effect in a mocker");
     }
 }

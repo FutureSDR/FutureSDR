@@ -32,8 +32,11 @@ where
         gain_mu: f32,
         omega_relative_limit: f32,
     ) -> Self {
+        let look_ahead = (omega + omega * omega_relative_limit + gain_mu).ceil() as usize;
+        let mut input = I::default();
+        input.set_min_items(look_ahead + 1);
         Self {
-            input: I::default(),
+            input,
             output: O::default(),
             omega,
             omega_mid: omega,
@@ -42,7 +45,7 @@ where
             mu,
             gain_mu,
             last_sample: 0.0,
-            look_ahead: (omega + omega * omega_relative_limit + gain_mu).ceil() as usize,
+            look_ahead,
         }
     }
 }

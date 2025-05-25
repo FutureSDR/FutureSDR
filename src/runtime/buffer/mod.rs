@@ -119,6 +119,19 @@ pub trait CpuBufferReader: BufferReader + Default + Send {
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
     /// Consume Items
     fn consume(&mut self, n: usize);
+    /// Configure the minimum numer of items required in [work()](futuresdr::runtime::Kernel::work)
+    ///
+    /// This defines the minimum number of samples that the block needs to proceed. For example, an
+    /// FFT block requires samples correspoding to the FFT size.
+    fn set_min_items(&mut self, n: usize);
+    /// Configure the minimum buffer size
+    ///
+    /// This sets the minimum number of samples that the buffer can take. This is independent from
+    /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
+    /// defines the tradeoff between throughput and latency.
+    ///
+    /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
+    fn set_min_buffer_size_in_items(&mut self, n: usize);
 }
 
 /// A generic CPU buffer writer (out-of-place)
@@ -134,8 +147,21 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
     }
     /// Available buffer space and tags.
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags);
-    /// samples produced
+    /// Produce items
     fn produce(&mut self, n: usize);
+    /// Configure the minimum numer of items required in [work()](futuresdr::runtime::Kernel::work)
+    ///
+    /// This defines the minimum number of samples that the block needs to proceed. For example, an
+    /// FFT block requires samples correspoding to the FFT size.
+    fn set_min_items(&mut self, n: usize);
+    /// Configure the minimum buffer size
+    ///
+    /// This sets the minimum number of samples that the buffer can take. This is independent from
+    /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
+    /// defines the tradeoff between throughput and latency.
+    ///
+    /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
+    fn set_min_buffer_size_in_items(&mut self, n: usize);
 }
 
 /// Output Tags

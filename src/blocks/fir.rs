@@ -49,8 +49,10 @@ where
 {
     /// Create FIR block
     pub fn new(filter: Core) -> Self {
+        let mut input = IN::default();
+        input.set_min_items(filter.length());
         Self {
-            input: IN::default(),
+            input,
             output: OUT::default(),
             filter,
             _tap_type: std::marker::PhantomData,

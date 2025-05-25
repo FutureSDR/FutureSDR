@@ -58,6 +58,8 @@ pub struct Writer<D: CpuSample> {
     port_id: PortId,
     block_id: BlockId,
     tags: Vec<ItemTag>,
+    min_items: usize,
+    min_buffer_size_in_items: Option<usize>,
 }
 
 impl<D> Writer<D>
@@ -80,6 +82,8 @@ where
             port_id: PortId::default(),
             block_id: BlockId(0),
             tags: Vec::new(),
+            min_items: 0,
+            min_buffer_size_in_items: None,
         }
     }
 }
@@ -117,20 +121,34 @@ where
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        let buffer_size = config::config().buffer_size / std::mem::size_of::<D>();
+        let buffer_size_configured =
+            self.min_buffer_size_in_items.is_some() || dest.min_buffer_size_in_items.is_some();
+
+        let reserved_items = dest.min_items.unwrap_or(0);
+
+        let mut min_items = if buffer_size_configured {
+            let min_self = self.min_buffer_size_in_items.unwrap_or(0);
+            let min_reader = dest.min_buffer_size_in_items.unwrap_or(0);
+            std::cmp::max(min_self, min_reader)
+        } else {
+            config::config().buffer_size / size_of::<D>()
+        };
+
+        min_items = std::cmp::max(min_items, reserved_items + 1);
+
         let mut s = self.state.lock().unwrap();
         for _ in 0..4 {
             s.writer_input.push_back(BufferEmpty {
-                buffer: vec![D::default(); buffer_size].into_boxed_slice(),
+                buffer: vec![D::default(); min_items].into_boxed_slice(),
             });
         }
 
         self.reader_inbox = dest.reader_inbox.clone();
         self.reader_input_id = dest.port_id();
-        self.reserved_items = std::cmp::max(self.reserved_items, dest.reserved_items);
+        self.reserved_items = reserved_items;
 
         dest.state = self.state.clone();
-        dest.reserved_items = self.reserved_items;
+        dest.reserved_items = reserved_items;
         dest.writer_inbox = self.inbox.clone();
         dest.writer_output_id = self.port_id();
     }
@@ -211,13 +229,13 @@ where
         }
         c.tags.append(&mut self.tags);
         c.offset += n;
-        if c.offset == c.end_offset {
+        if (c.end_offset - c.offset) < self.min_items {
             let c = self.current.take().unwrap();
             let mut state = self.state.lock().unwrap();
 
             state.reader_input.push_back(BufferFull {
                 buffer: c.buffer,
-                items: c.end_offset - self.reserved_items,
+                items: c.offset - self.reserved_items,
                 tags: c.tags,
             });
 
@@ -228,6 +246,22 @@ where
                 let _ = self.inbox.try_send(BlockMessage::Notify);
             }
         }
+    }
+
+    fn set_min_items(&mut self, n: usize) {
+        if !self.reader_inbox.is_closed() {
+            warn!("set_min_items called after buffer is created. this has no effect");
+        }
+        self.min_items = n;
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        if !self.reader_inbox.is_closed() {
+            warn!(
+                "set_min_buffer_size_in_items called after buffer is created. this has no effect"
+            );
+        }
+        self.min_buffer_size_in_items = Some(n);
     }
 }
 
@@ -243,6 +277,8 @@ pub struct Reader<D: CpuSample> {
     writer_inbox: Sender<BlockMessage>,
     writer_output_id: PortId,
     finished: bool,
+    min_items: Option<usize>,
+    min_buffer_size_in_items: Option<usize>,
 }
 
 impl<D> Reader<D>
@@ -266,6 +302,8 @@ where
             block_id: BlockId(0),
             port_id: PortId::default(),
             writer_output_id: PortId::default(),
+            min_items: None,
+            min_buffer_size_in_items: None,
         }
     }
 }
@@ -409,5 +447,19 @@ where
                 let _ = self.reader_inbox.try_send(BlockMessage::Notify);
             }
         }
+    }
+
+    fn set_min_items(&mut self, n: usize) {
+        if !self.writer_inbox.is_closed() {
+            warn!("buffer size configured after buffer is connected. This has no effect");
+        }
+        self.min_items = Some(n);
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, n: usize) {
+        if !self.writer_inbox.is_closed() {
+            warn!("buffer size configured after buffer is connected. This has no effect");
+        }
+        self.min_buffer_size_in_items = Some(n);
     }
 }

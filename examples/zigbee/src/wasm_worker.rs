@@ -60,10 +60,6 @@ impl gloo_worker::Worker for Worker {
                 let scope = scope.clone();
                 spawn_local(async move {
                     async move {
-                        futuresdr::runtime::init();
-                        futuresdr::runtime::config::set("slab_reserved", 128);
-                        futuresdr::runtime::config::set("buffer_size", 64128);
-                        info!("config {:?}", futuresdr::runtime::config::config());
                         let mut fg = Flowgraph::new();
 
                         let src = HackRf::new();

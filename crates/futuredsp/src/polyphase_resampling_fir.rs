@@ -135,6 +135,9 @@ impl<TA: Taps<TapType = f32>> Filter<f32, f32, f32> for PolyphaseResamplingFir<f
             |accum, sample, tap| accum + sample * tap,
         )
     }
+    fn length(&self) -> usize {
+        self.taps.num_taps()
+    }
 }
 
 impl<TA: Taps<TapType = f32>> Filter<Complex<f32>, Complex<f32>, f32>
@@ -157,6 +160,9 @@ impl<TA: Taps<TapType = f32>> Filter<Complex<f32>, Complex<f32>, f32>
                 im: accum.im + sample.im * tap,
             },
         )
+    }
+    fn length(&self) -> usize {
+        self.taps.num_taps()
     }
 }
 

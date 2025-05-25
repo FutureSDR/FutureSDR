@@ -69,4 +69,7 @@ where
 
         (ii, oo, status)
     }
+    fn length(&self) -> usize {
+        FirInterpolator::<T>::lookahead() + 1
+    }
 }

@@ -98,8 +98,10 @@ where
 {
     /// Create IIR filter block
     pub fn with_core(core: Core) -> Self {
+        let mut input = I::default();
+        input.set_min_items(core.length());
         Self {
-            input: I::default(),
+            input,
             output: O::default(),
             core,
             _tap_type: std::marker::PhantomData,

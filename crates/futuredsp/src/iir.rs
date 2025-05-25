@@ -59,6 +59,9 @@ impl<TapsType: Taps<TapType = f32>> StatefulFilter<f32, f32, f32>
     fn filter(&mut self, input: &[f32], output: &mut [f32]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
     }
+    fn length(&self) -> usize {
+        self.b_taps.num_taps()
+    }
 }
 
 impl<TapsType: Taps<TapType = f64>> StatefulFilter<f64, f64, f64>
@@ -66,6 +69,9 @@ impl<TapsType: Taps<TapType = f64>> StatefulFilter<f64, f64, f64>
 {
     fn filter(&mut self, input: &[f64], output: &mut [f64]) -> (usize, usize, ComputationStatus) {
         taps_accessor_work(&mut self.memory, &self.a_taps, &self.b_taps, input, output)
+    }
+    fn length(&self) -> usize {
+        self.b_taps.num_taps()
     }
 }
 

@@ -298,4 +298,12 @@ where
             let _ = self.inbox.try_send(BlockMessage::Notify);
         }
     }
+
+    fn set_min_items(&mut self, _n: usize) {
+        warn!("set_min_items not yet implemented for Vulkan buffers");
+    }
+
+    fn set_min_buffer_size_in_items(&mut self, _n: usize) {
+        warn!("set_min_buffer_size_in_items not yet implemented for Vulkan buffers");
+    }
 }
