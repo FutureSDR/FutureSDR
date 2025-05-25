@@ -25,26 +25,10 @@ use wlan::Prefix;
 use wlan::SyncLong;
 use wlan::SyncShort;
 
-// use wlan::MAX_SYM;
 const PAD_FRONT: usize = 10000;
 const PAD_TAIL: usize = 10000;
 
 fn main() -> Result<()> {
-    // let mut size = 4096;
-    // let prefix_in_size = loop {
-    //     if size / 8 >= MAX_SYM * 64 {
-    //         break size;
-    //     }
-    //     size += 4096
-    // };
-    // let mut size = 4096;
-    // let prefix_out_size = loop {
-    //     if size / 8 >= PAD_FRONT + std::cmp::max(PAD_TAIL, 1) + 320 + MAX_SYM * 80 {
-    //         break size;
-    //     }
-    //     size += 4096
-    // };
-
     let mut fg = Flowgraph::new();
     let mac = Mac::new([0x42; 6], [0x23; 6], [0xff; 6]);
     let encoder: Encoder = Encoder::new(Mcs::Qpsk_1_2);

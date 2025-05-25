@@ -20,9 +20,29 @@ where
     O: CpuBufferWriter<Item = Complex32>,
 {
     pub fn new(pad_front: usize, pad_tail: usize) -> Self {
+        let mut size = 4096;
+        let in_size = loop {
+            if size / 8 >= crate::MAX_SYM * 64 {
+                break size;
+            }
+            size += 4096
+        };
+        let mut size = 4096;
+        let out_size = loop {
+            if size / 8 >= pad_front + std::cmp::max(pad_tail, 1) + 320 + crate::MAX_SYM * 80 {
+                break size;
+            }
+            size += 4096
+        };
+
+        let mut input = I::default();
+        input.set_min_items(in_size);
+        let mut output = O::default();
+        output.set_min_items(out_size);
+
         Self {
-            input: I::default(),
-            output: O::default(),
+            input,
+            output,
             pad_front,
             pad_tail,
         }
