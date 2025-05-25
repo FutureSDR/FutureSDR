@@ -82,7 +82,7 @@ where
             port_id: PortId::default(),
             block_id: BlockId(0),
             tags: Vec::new(),
-            min_items: 0,
+            min_items: 1,
             min_buffer_size_in_items: None,
         }
     }

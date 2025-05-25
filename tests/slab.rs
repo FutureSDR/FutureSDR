@@ -46,11 +46,6 @@ fn fg_rand_vec() -> Result<()> {
 
     connect!(fg, src > copy > snk);
 
-    futuresdr::runtime::init();
-    debug!("src {:?}", src);
-    debug!("copy {:?}", copy);
-    debug!("snk {:?}", snk);
-
     Runtime::new().run(fg)?;
 
     let snk = snk.get();
