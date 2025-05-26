@@ -69,9 +69,6 @@ jobs:
       - name: Run cargo fmt (examples/adsb)
         run: cargo fmt --all --manifest-path=examples/adsb/Cargo.toml -- --check
 
-      - name: Run cargo fmt (examples/android)
-        run: cargo fmt --all --manifest-path=examples/android/Cargo.toml -- --check
-
       - name: Run cargo fmt (examples/android-hw)
         run: cargo fmt --all --manifest-path=examples/android-hw/Cargo.toml -- --check
 
@@ -83,9 +80,6 @@ jobs:
 
       - name: Run cargo fmt (examples/cw)
         run: cargo fmt --all --manifest-path=examples/cw/Cargo.toml -- --check
-
-      - name: Run cargo fmt (examples/debug)
-        run: cargo fmt --all --manifest-path=examples/debug/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/egui)
         run: cargo fmt --all --manifest-path=examples/egui/Cargo.toml -- --check
@@ -137,6 +131,10 @@ jobs:
 
       - name: Run cargo fmt (examples/zigbee)
         run: cargo fmt --all --manifest-path=examples/zigbee/Cargo.toml -- --check
+
+      - name: Run cargo fmt (examples/zynq)
+        run: cargo fmt --all --manifest-path=examples/zynq/Cargo.toml -- --check
+
 
   clippy_main:
     name: Clippy Main
@@ -226,7 +224,7 @@ jobs:
         run: cargo clippy --all-targets --manifest-path=perf/null_rand_latency/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/perf)
-        run: cargo clippy --all-targets --all-features --manifest-path=perf/null_rand_latency/Cargo.toml -- -D warnings
+        run: cargo clippy --all-targets --all-features --manifest-path=perf/perf/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/vulkan)
         run: cargo clippy --all-targets --manifest-path=perf/vulkan/Cargo.toml -- -D warnings
@@ -267,9 +265,6 @@ jobs:
       - name: Run cargo clippy (examples/adsb)
         run: cargo clippy --all-targets --manifest-path=examples/adsb/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy (examples/android)
-        run: cargo clippy --all-targets --manifest-path=examples/android/Cargo.toml -- -D warnings
-
       - name: Run cargo clippy (examples/android-hw)
         run: cargo clippy --all-targets --manifest-path=examples/android-hw/Cargo.toml -- -D warnings
 
@@ -281,9 +276,6 @@ jobs:
 
       - name: Run cargo clippy (examples/cw)
         run: cargo clippy --all-targets --manifest-path=examples/cw/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy (examples/debug)
-        run: cargo clippy --all-targets --manifest-path=examples/debug/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/egui)
         run: cargo clippy --all-targets --manifest-path=examples/egui/Cargo.toml -- -D warnings
@@ -336,12 +328,15 @@ jobs:
       - name: Run cargo clippy (examples/zigbee)
         run: cargo clippy --all-targets --manifest-path=examples/zigbee/Cargo.toml -- -D warnings
 
+      - name: Run cargo clippy (examples/zynq)
+        run: cargo clippy --all-targets --manifest-path=examples/zynq/Cargo.toml -- -D warnings
+
+
   clippy_wasm:
     name: Clippy Wasm
     runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: full
-      RUSTFLAGS: '--cfg=web_sys_unstable_apis'
     steps:
       - uses: actions/checkout@v4
 
@@ -353,8 +348,14 @@ jobs:
       - name: Run cargo clippy for wasm32-unknown-unknown (main)
         run: cargo clippy --lib --workspace --features=audio,seify_dummy,wgpu --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Run cargo clippy for wasm32-unknown-unknown (macros)
+        run: cargo clippy --lib --manifest-path=crates/macros/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
       - name: Run cargo clippy for wasm32-unknown-unknown (prophecy)
         run: cargo clippy --lib --manifest-path=crates/prophecy/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run cargo clippy for wasm32-unknown-unknown (types)
+        run: cargo clippy --lib --manifest-path=crates/types/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Run cargo clippy for wasm32-unknown-unknown (perf/wgpu)
         run: cargo clippy --lib --manifest-path=perf/wgpu/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
