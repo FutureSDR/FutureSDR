@@ -66,6 +66,8 @@ where
         let (output, mut out_tags) = self.output.slice_with_tags();
         let output_len = output.len();
 
+        // debug!("finished {finished}  input_len {input_len}  output_len {output_len}");
+
         if let Some((index, len)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
@@ -80,13 +82,10 @@ where
             _ => None,
         }) {
             assert_eq!(*index, 0);
-            debug!(
-                "finished {finished}   len {len}   input_len {input_len}  output_len {output_len}"
-            );
-            debug!(
-                "required output size {}",
-                self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
-            );
+            // debug!(
+            //     "len {len}   required output size {}",
+            //     self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+            // );
 
             if output_len >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
                 && input_len >= len * 64
@@ -131,6 +130,8 @@ where
             } else if finished && (input_len < len * 64) {
                 io.finished = true;
             }
+        } else if finished {
+            io.finished = true;
         } else {
             // if there are samples, there should also be a tag
             debug_assert_eq!(input_len, 0);

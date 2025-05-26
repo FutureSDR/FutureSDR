@@ -10,9 +10,6 @@ use wlan::Mapper;
 use wlan::Mcs;
 use wlan::Prefix;
 
-const PAD_FRONT: usize = 5000;
-const PAD_TAIL: usize = 5000;
-
 #[test]
 fn tags_vs_prefix() -> Result<()> {
     let mut fg = Flowgraph::new();
@@ -30,7 +27,7 @@ fn tags_vs_prefix() -> Result<()> {
         Some((1.0f32 / 52.0).sqrt() * 0.6),
     );
     connect!(fg, mapper > fft);
-    let prefix: Prefix = Prefix::new(PAD_FRONT, PAD_TAIL);
+    let prefix: Prefix = Prefix::new(0, 0);
     connect!(fg, fft > prefix);
     let snk = NullSink::<Complex32>::new();
     connect!(fg, prefix > snk);
