@@ -1171,9 +1171,15 @@ where
 
         let fft_detect = FftPlanner::new().plan_fft(m_number_of_bins_tmp, FftDirection::Forward);
 
+        let mut input = I::default();
+        input.set_min_items(m_samples_per_symbol_tmp * 2 + os_factor / 2);
+
+        let mut output = O::default();
+        output.set_min_items(m_number_of_bins_tmp);
+
         Self {
-            input: I::default(),
-            output: O::default(),
+            input,
+            output,
             s: State {
                 m_state: DecoderState::Detect, //< Current state of the synchronization
                 m_center_freq: center_freq,    //< RF center frequency

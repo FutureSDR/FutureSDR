@@ -240,6 +240,7 @@ where
     #[output]
     output: O,
     s: State,
+    frame_info: Option<HashMap<String, Pmt>>,
 }
 
 impl<I, O> FftDemod<I, O>
@@ -250,9 +251,13 @@ where
     pub fn new(soft_decoding: bool, sf_initial: usize) -> Self {
         let m_samples_per_symbol = 1_usize << sf_initial;
         let fft_plan = FftPlanner::new().plan_fft_forward(m_samples_per_symbol);
+
+        let mut input = I::default();
+        input.set_min_items(m_samples_per_symbol);
         Self {
-            input: I::default(),
+            input,
             output: O::default(),
+            frame_info: None,
             s: State {
                 m_sf: sf_initial,
                 m_cr: 0, // initial value irrelevant, set from tag before read
@@ -314,7 +319,7 @@ where
             })
             .collect();
 
-        let tag_tmp = if !tags.is_empty() {
+        if !tags.is_empty() {
             if tags[0].0 != 0 {
                 nitems_to_process = nitems_to_process.min(tags[0].0);
                 if nitems_to_process < self.s.m_samples_per_symbol {
@@ -323,7 +328,6 @@ where
                     io.call_again = true;
                     return Ok(());
                 }
-                None
             } else {
                 if tags.len() >= 2 {
                     nitems_to_process = nitems_to_process.min(tags[1].0);
@@ -401,11 +405,9 @@ where
                         panic!()
                     };
                 }
-                Some(tag.clone())
+                self.frame_info = Some(tag.clone());
             }
-        } else {
-            None
-        };
+        }
 
         let block_size = 4 + if self.s.is_header { 4 } else { self.s.m_cr };
 
@@ -413,12 +415,6 @@ where
             .s
             .next_iteration_possible(nitems_to_process, output_len)
         {
-            if let Some(tag) = tag_tmp {
-                out_tags.add_tag(
-                    0,
-                    Tag::NamedAny("frame_info".to_string(), Box::new(Pmt::MapStrPmt(tag))),
-                );
-            }
             // if self.m_soft_decoding {
             //     self.compute_llrs(&input[..self.m_samples_per_symbol]);
             //     self.llrs_block.push(self.llrs); // Store 'sf' LLRs
@@ -434,10 +430,18 @@ where
             );
             // }
 
-            let produced = if output_len == block_size {
+            let produced = if self.s.out.len() == block_size {
                 output[0..block_size].clone_from_slice(&self.s.out);
                 self.s.out.clear();
+                if let Some(tag) = self.frame_info.take() {
+                    debug!("DEMOD writing tag");
+                    out_tags.add_tag(
+                        0,
+                        Tag::NamedAny("frame_info".to_string(), Box::new(Pmt::MapStrPmt(tag))),
+                    );
+                }
                 block_size
+
             // } else if self.m_soft_decoding && self.llrs_block.len() == block_size {
             //     let out_buf = sio.output(0).slice::<[LLR; MAX_SF]>();
             //     out_buf[0..block_size].copy_from_slice(&self.llrs_block);

@@ -102,16 +102,16 @@ where
         //     let input = sio.input(0).slice::<[LLR; MAX_SF]>();
         //     let output = sio.output(0).slice::<[LLR; MAX_SF]>();
         // No gray mapping , it has as been done directly in fft_demod block => block "bypass"
-        output[0..nitems_to_process].copy_from_slice(&input[0..nitems_to_process]);
+        // output[0..nitems_to_process].copy_from_slice(&input[0..nitems_to_process]);
         // } else {
-        //     let input = sio.input(0).slice::<u16>();
-        //     let output = sio.output(0).slice::<u16>();
-        //     output[0..nitems_to_process].copy_from_slice(
-        //         &input[0..nitems_to_process]
-        //             .iter()
-        //             .map(|x| *x ^ (*x >> 1))
-        //             .collect::<Vec<u16>>(), // Gray Demap
-        //     );
+        let input = self.input.slice();
+        let output = self.output.slice();
+        output[0..nitems_to_process].copy_from_slice(
+            &input[0..nitems_to_process]
+                .iter()
+                .map(|x| *x ^ (*x >> 1))
+                .collect::<Vec<u16>>(), // Gray Demap
+        );
         // }
 
         self.input.consume(nitems_to_process);
