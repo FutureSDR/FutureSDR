@@ -23,8 +23,10 @@ struct MyNotifier {
 }
 
 impl generic::Notifier for MyNotifier {
+    // we never arm the notifier
     fn arm(&mut self) {}
 
+    // we notify blocks for every change to the buffer
     fn notify(&mut self) {
         let _ = self.sender.try_send(BlockMessage::Notify);
     }
@@ -155,8 +157,15 @@ where
             dest.min_buffer_size_in_items = Some(buffer_size / size_of::<D>());
 
             self.writer = Some(generic::Circular::with_capacity(buffer_size).unwrap());
-        } else if dest.min_items.is_some() || dest.min_buffer_size_in_items.is_some() {
-            warn!("circular buffer is already created, size constraints of reader are not considered.");
+        } else {
+            if self.min_buffer_size_in_items.unwrap_or(0) < dest.min_buffer_size_in_items.unwrap_or(0) {
+                warn!("circular buffer is already created, size constraints of reader are not considered.");
+                warn!("buffer size is {:?}, reader requirement {:?}", self.min_buffer_size_in_items, dest.min_buffer_size_in_items);
+            }
+            if self.min_buffer_size_in_items.unwrap_or(0) - self.min_items.unwrap_or(0) + 1 < dest.min_items.unwrap_or(1) {
+                warn!("circular buffer is already created, size constraints of reader are not considered.");
+                warn!("buffer size is {:?}, writer min items {:?}", self.min_buffer_size_in_items, self.min_items);
+            }
         }
 
         let writer_notifier = MyNotifier {
