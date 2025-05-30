@@ -1,8 +1,8 @@
 //! Decimating FIR Filters
 use core::cmp::Ordering;
-#[cfg(not(RUSTC_IS_STABLE))]
+#[cfg(RUSTC_IS_NIGHTLY)]
 use core::intrinsics::fadd_fast;
-#[cfg(not(RUSTC_IS_STABLE))]
+#[cfg(RUSTC_IS_NIGHTLY)]
 use core::intrinsics::fmul_fast;
 use num_complex::Complex;
 use num_traits::Float;
@@ -98,7 +98,7 @@ where
     (n * decimation, n, status)
 }
 
-#[cfg(not(RUSTC_IS_STABLE))]
+#[cfg(RUSTC_IS_NIGHTLY)]
 mod inner {
     use super::*;
 
@@ -165,7 +165,7 @@ mod inner {
     }
 }
 
-#[cfg(RUSTC_IS_STABLE)]
+#[cfg(not(RUSTC_IS_NIGHTLY))]
 mod inner {
     use super::*;
 
