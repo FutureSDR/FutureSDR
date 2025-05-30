@@ -2,7 +2,7 @@
 #![warn(missing_docs)]
 #![no_std]
 #![allow(internal_features)]
-#![cfg_attr(not(RUSTC_IS_STABLE), feature(core_intrinsics))]
+#![cfg_attr(RUSTC_IS_NIGHTLY, feature(core_intrinsics))]
 
 #[macro_use]
 extern crate alloc;
