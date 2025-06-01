@@ -60,7 +60,7 @@ mod foo {
 
     pub fn main() -> Result<()> {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-        leptos::task::Executor::init_wasm_bindgen().unwrap();
+        any_spawner::Executor::init_wasm_bindgen().unwrap();
         mount_to_body(|| view! { <Gui /> });
         Ok(())
     }

@@ -223,7 +223,6 @@ where
     }
 
     fn produce(&mut self, n: usize) {
-        debug_assert!(n > 0);
         if n == 0 {
             return;
         }
