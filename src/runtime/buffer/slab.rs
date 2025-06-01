@@ -4,8 +4,13 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
+use crate::channel::mpsc::channel;
+use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
+use crate::runtime::Error;
+use crate::runtime::ItemTag;
+use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
@@ -13,11 +18,6 @@ use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config;
-use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
-use crate::runtime::Error;
-use crate::runtime::ItemTag;
-use crate::runtime::PortId;
 
 #[derive(Debug)]
 struct BufferEmpty<D: CpuSample> {
@@ -201,16 +201,19 @@ where
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
         if self.current.is_none() {
             let mut state = self.state.lock().unwrap();
-            if let Some(b) = state.writer_input.pop_front() {
-                let end_offset = b.buffer.len();
-                self.current = Some(CurrentBuffer {
-                    buffer: b.buffer,
-                    offset: self.reserved_items,
-                    end_offset,
-                    tags: Vec::new(),
-                });
-            } else {
-                return (&mut [], Tags::new(&mut self.tags, 0));
+            match state.writer_input.pop_front() {
+                Some(b) => {
+                    let end_offset = b.buffer.len();
+                    self.current = Some(CurrentBuffer {
+                        buffer: b.buffer,
+                        offset: self.reserved_items,
+                        end_offset,
+                        tags: Vec::new(),
+                    });
+                }
+                _ => {
+                    return (&mut [], Tags::new(&mut self.tags, 0));
+                }
             }
         }
 
@@ -405,17 +408,20 @@ where
             }
         } else {
             let mut state = self.state.lock().unwrap();
-            if let Some(b) = state.reader_input.pop_front() {
-                let end_offset = b.items + self.reserved_items;
-                self.current = Some(CurrentBuffer {
-                    buffer: b.buffer,
-                    offset: self.reserved_items,
-                    end_offset,
-                    tags: b.tags,
-                });
-            } else {
-                static V: Vec<ItemTag> = vec![];
-                return (&[], &V);
+            match state.reader_input.pop_front() {
+                Some(b) => {
+                    let end_offset = b.items + self.reserved_items;
+                    self.current = Some(CurrentBuffer {
+                        buffer: b.buffer,
+                        offset: self.reserved_items,
+                        end_offset,
+                        tags: b.tags,
+                    });
+                }
+                _ => {
+                    static V: Vec<ItemTag> = vec![];
+                    return (&[], &V);
+                }
             }
         }
 

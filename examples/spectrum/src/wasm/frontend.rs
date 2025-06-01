@@ -1,14 +1,8 @@
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::FlowgraphId;
 use futuresdr::runtime::Pmt;
-use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
-use prophecy::leptos::html::Span;
-use prophecy::leptos::logging::*;
-use prophecy::leptos::prelude::*;
-use prophecy::leptos::task::spawn_local;
-use prophecy::leptos::wasm_bindgen::JsCast;
-use prophecy::leptos::web_sys::HtmlInputElement;
+use gloo_net::websocket::futures::WebSocket;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::RadioSelector;
@@ -17,6 +11,12 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::logging::*;
+use prophecy::leptos::prelude::*;
+use prophecy::leptos::task::spawn_local;
+use prophecy::leptos::wasm_bindgen::JsCast;
+use prophecy::leptos::web_sys::HtmlInputElement;
 
 #[component]
 /// Spectrum Widget

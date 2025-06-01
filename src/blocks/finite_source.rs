@@ -45,12 +45,15 @@ where
         let o_len = o.len();
 
         for (i, v) in o.iter_mut().enumerate() {
-            if let Some(x) = (self.f)() {
-                *v = x;
-            } else {
-                self.output.produce(i);
-                io.finished = true;
-                return Ok(());
+            match (self.f)() {
+                Some(x) => {
+                    *v = x;
+                }
+                _ => {
+                    self.output.produce(i);
+                    io.finished = true;
+                    return Ok(());
+                }
             }
         }
 

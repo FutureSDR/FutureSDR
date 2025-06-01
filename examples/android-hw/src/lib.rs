@@ -1,11 +1,11 @@
 use anyhow::Result;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use std::env;
 
@@ -48,10 +48,10 @@ pub fn run_fg() -> Result<()> {
 #[cfg(target_os = "android")]
 mod android {
     use super::*;
+    use jni::JNIEnv;
     use jni::objects::JClass;
     use jni::objects::JString;
     use jni::sys::jint;
-    use jni::JNIEnv;
 
     #[allow(non_snake_case)]
     #[no_mangle]

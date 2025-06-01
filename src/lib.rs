@@ -71,9 +71,9 @@ pub mod macros {
     #[doc(hidden)]
     pub use async_trait::async_trait as async_trait_orig;
 
+    pub use futuresdr_macros::Block;
     pub use futuresdr_macros::async_trait;
     pub use futuresdr_macros::connect;
-    pub use futuresdr_macros::Block;
 }
 
 /// Prelude with common structs and traits
@@ -81,19 +81,9 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use futuresdr::channel::mpsc;
     pub use futuresdr::channel::oneshot;
+    pub use futuresdr::macros::Block;
     pub use futuresdr::macros::async_trait;
     pub use futuresdr::macros::connect;
-    pub use futuresdr::macros::Block;
-    #[cfg(not(target_arch = "wasm32"))]
-    pub use futuresdr::runtime::buffer::circular;
-    pub use futuresdr::runtime::buffer::slab;
-    pub use futuresdr::runtime::buffer::BufferReader;
-    pub use futuresdr::runtime::buffer::BufferWriter;
-    pub use futuresdr::runtime::buffer::CpuBufferReader;
-    pub use futuresdr::runtime::buffer::CpuBufferWriter;
-    pub use futuresdr::runtime::buffer::CpuSample;
-    pub use futuresdr::runtime::buffer::DefaultCpuReader;
-    pub use futuresdr::runtime::buffer::DefaultCpuWriter;
     pub use futuresdr::runtime::BlockId;
     pub use futuresdr::runtime::BlockMeta;
     pub use futuresdr::runtime::BlockRef;
@@ -110,6 +100,16 @@ pub mod prelude {
     pub use futuresdr::runtime::RuntimeHandle;
     pub use futuresdr::runtime::Tag;
     pub use futuresdr::runtime::WorkIo;
+    pub use futuresdr::runtime::buffer::BufferReader;
+    pub use futuresdr::runtime::buffer::BufferWriter;
+    pub use futuresdr::runtime::buffer::CpuBufferReader;
+    pub use futuresdr::runtime::buffer::CpuBufferWriter;
+    pub use futuresdr::runtime::buffer::CpuSample;
+    pub use futuresdr::runtime::buffer::DefaultCpuReader;
+    pub use futuresdr::runtime::buffer::DefaultCpuWriter;
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use futuresdr::runtime::buffer::circular;
+    pub use futuresdr::runtime::buffer::slab;
     pub use futuresdr::tracing::debug;
     pub use futuresdr::tracing::error;
     pub use futuresdr::tracing::info;

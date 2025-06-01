@@ -1,5 +1,5 @@
-use futuredsp::prelude::*;
 use futuredsp::FirFilter;
+use futuredsp::prelude::*;
 use num_integer::Integer;
 use rustfft::Fft;
 use rustfft::FftDirection;

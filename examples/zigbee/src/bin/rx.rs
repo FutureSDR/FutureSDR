@@ -1,16 +1,16 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::NullSink;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
-use zigbee::parse_channel;
 use zigbee::ClockRecoveryMm;
 use zigbee::Decoder;
 use zigbee::Mac;
+use zigbee::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

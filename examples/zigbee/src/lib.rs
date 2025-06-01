@@ -19,8 +19,8 @@ pub mod wasm_gui;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_worker;
 
-use anyhow::bail;
 use anyhow::Result;
+use anyhow::bail;
 
 pub fn channel_to_freq(chan: u32) -> Result<f64> {
     if (11..=26).contains(&chan) {

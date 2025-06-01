@@ -1,17 +1,17 @@
 use clap::Parser;
 use futuresdr::async_io::Timer;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use std::time::Duration;
 
-use wlan::parse_channel;
 use wlan::Encoder;
 use wlan::Mac;
 use wlan::Mapper;
 use wlan::Mcs;
 use wlan::Prefix;
+use wlan::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

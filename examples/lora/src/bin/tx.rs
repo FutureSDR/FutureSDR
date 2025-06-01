@@ -5,10 +5,10 @@ use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use std::time::Duration;
 
+use lora::Transmitter;
 use lora::utils::Bandwidth;
 use lora::utils::CodeRate;
 use lora::utils::SpreadingFactor;
-use lora::Transmitter;
 
 #[derive(Parser, Debug)]
 struct Args {

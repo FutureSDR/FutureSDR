@@ -2,11 +2,11 @@ use xilinx_dma::AxiDmaAsync;
 use xilinx_dma::DmaBuffer;
 
 use crate::prelude::*;
+use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
 use crate::runtime::buffer::zynq::D2HWriter;
 use crate::runtime::buffer::zynq::H2DReader;
-use crate::runtime::buffer::CpuSample;
 
 /// Interface Zynq FPGA w/ AXI DMA (async mode).
 ///

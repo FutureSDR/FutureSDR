@@ -1,11 +1,11 @@
 use async_io::Async;
-use async_tungstenite::tungstenite::Message;
 use async_tungstenite::WebSocketStream;
+use async_tungstenite::tungstenite::Message;
+use futures::Stream;
 use futures::future;
 use futures::future::Either;
 use futures::sink::Sink;
 use futures::sink::SinkExt;
-use futures::Stream;
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::net::SocketAddr;
@@ -138,28 +138,33 @@ where
                     }
                 }
             }
-        } else if let Ok((stream, socket)) = self
-            .listener
-            .as_ref()
-            .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
-            .get_ref()
-            .accept()
-        {
-            debug!("Websocket Accepted client: {}", socket);
-            self.conn = Some(WsStream {
-                inner: async_tungstenite::accept_async(Async::new(stream)?).await?,
-            });
-            io.call_again = true;
         } else {
-            if let WebsocketSinkMode::FixedDropping(block_size) = &self.mode {
-                let n = i_len / block_size;
-                self.input.consume(n * block_size);
-            }
+            match self
+                .listener
+                .as_ref()
+                .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
+                .get_ref()
+                .accept()
+            {
+                Ok((stream, socket)) => {
+                    debug!("Websocket Accepted client: {}", socket);
+                    self.conn = Some(WsStream {
+                        inner: async_tungstenite::accept_async(Async::new(stream)?).await?,
+                    });
+                    io.call_again = true;
+                }
+                _ => {
+                    if let WebsocketSinkMode::FixedDropping(block_size) = &self.mode {
+                        let n = i_len / block_size;
+                        self.input.consume(n * block_size);
+                    }
 
-            let l = self.listener.as_ref().unwrap().clone();
-            io.block_on(async move {
-                l.readable().await.unwrap();
-            });
+                    let l = self.listener.as_ref().unwrap().clone();
+                    io.block_on(async move {
+                        l.readable().await.unwrap();
+                    });
+                }
+            }
         }
 
         Ok(())

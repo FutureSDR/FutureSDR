@@ -1,11 +1,11 @@
 use futuresdr::prelude::*;
 
 use crate::FrameParam;
+use crate::LONG;
 use crate::Mcs;
 use crate::Modulation;
-use crate::ViterbiDecoder;
-use crate::LONG;
 use crate::POLARITY;
+use crate::ViterbiDecoder;
 
 const INTERLEAVER_PATTERN: [usize; 48] = [
     0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 1, 4, 7, 10, 13, 16, 19, 22, 25,
@@ -321,7 +321,7 @@ where
                         self.state = State::Skip;
                     }
                 }
-                State::Copy(mut n_sym, all_sym, modulation) => {
+                &mut State::Copy(mut n_sym, ref mut all_sym, ref mut modulation) => {
                     if o < max_o {
                         self.equalizer.equalize(
                             &self.sym_in,

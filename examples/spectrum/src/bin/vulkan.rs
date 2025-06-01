@@ -1,11 +1,11 @@
 use anyhow::Result;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::Vulkan;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::buffer::vulkan::Instance;

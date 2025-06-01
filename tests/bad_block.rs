@@ -1,5 +1,5 @@
-use anyhow::bail;
 use anyhow::Result;
+use anyhow::bail;
 use futuresdr::async_io::block_on;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;

@@ -1,11 +1,11 @@
 #![allow(clippy::type_complexity)]
-use futuredsp::firdes;
-use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::DecimatingFirFilter;
 use futuredsp::FirFilter;
 use futuredsp::MmseResampler;
 use futuredsp::PolyphaseResamplingFir;
+use futuredsp::firdes;
+use futuredsp::prelude::*;
 use num_traits::Num;
 use std::iter::Sum;
 use std::ops::Mul;

@@ -19,10 +19,13 @@ fn main() {
     println!("FutureSDR Config: {c:?}");
 
     if let Some(v) = config::get_value("my") {
-        if let Ok(v) = v.try_deserialize::<MyConfig>() {
-            println!("MyConfig: {:?}", &v);
-        } else {
-            println!("MyConfig could not be deserialized");
+        match v.try_deserialize::<MyConfig>() {
+            Ok(v) => {
+                println!("MyConfig: {:?}", &v);
+            }
+            _ => {
+                println!("MyConfig could not be deserialized");
+            }
         }
     } else {
         println!("MyConfig not found");

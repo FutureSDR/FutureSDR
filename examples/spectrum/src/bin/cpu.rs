@@ -1,11 +1,11 @@
 use anyhow::Result;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
 const FFT_SIZE: usize = 2048;

@@ -3,12 +3,12 @@ use async_io::block_on;
 use async_lock::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
-use futures::channel::mpsc::channel;
+use futures::FutureExt;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures::prelude::*;
-use futures::FutureExt;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -16,13 +16,6 @@ use std::task;
 use std::task::Poll;
 
 use crate::runtime;
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::scheduler::SmolScheduler;
-use crate::runtime::scheduler::Task;
-#[cfg(target_arch = "wasm32")]
-use crate::runtime::scheduler::WasmScheduler;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
@@ -34,6 +27,13 @@ use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::scheduler::SmolScheduler;
+use crate::runtime::scheduler::Task;
+#[cfg(target_arch = "wasm32")]
+use crate::runtime::scheduler::WasmScheduler;
 
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
@@ -276,8 +276,8 @@ trait Spawn {
 #[async_trait]
 impl<S: Scheduler + Sync + 'static> Spawn for S {
     async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
-        use crate::runtime::runtime::run_flowgraph;
         use crate::runtime::FlowgraphMessage;
+        use crate::runtime::runtime::run_flowgraph;
         use futures::channel::mpsc::channel;
         use futures::channel::oneshot;
 

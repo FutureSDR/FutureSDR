@@ -8,9 +8,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::channel::mpsc::Sender;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::scheduler::Scheduler;
 
 /// WASM Scheduler
 #[derive(Clone, Debug)]

@@ -1,12 +1,12 @@
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
-use cpal::traits::StreamTrait;
 use cpal::BufferSize;
 use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
-use futures::channel::mpsc;
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 use futures::StreamExt;
+use futures::channel::mpsc;
 
 use crate::prelude::*;
 

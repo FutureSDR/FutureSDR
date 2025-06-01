@@ -1,6 +1,6 @@
 use anyhow::Result;
-use futuresdr::blocks::zeromq::SubSourceBuilder;
 use futuresdr::blocks::FileSink;
+use futuresdr::blocks::zeromq::SubSourceBuilder;
 use futuresdr::prelude::*;
 
 fn main() -> Result<()> {

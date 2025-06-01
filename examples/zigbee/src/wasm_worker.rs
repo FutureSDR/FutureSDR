@@ -1,12 +1,12 @@
 use any_spawner::Executor;
 use anyhow::Result;
-use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
-use futuresdr::futures::channel::mpsc::Receiver;
+use futuresdr::blocks::wasm::HackRf;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures::StreamExt;
+use futuresdr::futures::channel::mpsc::Receiver;
 use futuresdr::prelude::*;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;

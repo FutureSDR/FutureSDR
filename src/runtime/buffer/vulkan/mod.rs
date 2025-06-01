@@ -1,27 +1,27 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
-use vulkano::buffer::subbuffer::BufferContents;
+use vulkano::DeviceSize;
+use vulkano::VulkanLibrary;
 use vulkano::buffer::BufferCreateInfo;
 use vulkano::buffer::BufferUsage;
 use vulkano::buffer::Subbuffer;
-use vulkano::device::physical::PhysicalDeviceType;
+use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
 use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
+use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::instance;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::memory::allocator::AllocationCreateInfo;
 use vulkano::memory::allocator::MemoryTypeFilter;
 use vulkano::memory::allocator::StandardMemoryAllocator;
-use vulkano::DeviceSize;
-use vulkano::VulkanLibrary;
 
-use futuresdr::runtime::buffer::vulkan;
 use futuresdr::runtime::Error;
+use futuresdr::runtime::buffer::vulkan;
 
 mod d2h;
 pub use d2h::Reader as D2HReader;

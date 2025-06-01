@@ -1,15 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::async_io::block_on;
 use futuresdr::async_io::Timer;
+use futuresdr::async_io::block_on;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use std::time::Duration;
 
-use zigbee::modulator;
-use zigbee::parse_channel;
 use zigbee::IqDelay;
 use zigbee::Mac;
+use zigbee::modulator;
+use zigbee::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

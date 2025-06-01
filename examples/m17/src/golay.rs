@@ -42,11 +42,7 @@ impl Golay {
     fn div16(a: u16, b: u16) -> u16 {
         let aa = (a as u32) << 16;
         let r = aa / b as u32;
-        if r <= 0xFFFF {
-            r as u16
-        } else {
-            0xFFFF
-        }
+        if r <= 0xFFFF { r as u16 } else { 0xFFFF }
     }
 
     fn mul16(a: u16, b: u16) -> u16 {

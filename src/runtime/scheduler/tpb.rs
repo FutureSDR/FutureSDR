@@ -10,10 +10,10 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
 
 static TPB: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
 

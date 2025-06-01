@@ -1,8 +1,8 @@
 //! Frequency Xlating FIR
-use futuredsp::firdes;
-use futuredsp::prelude::*;
 use futuredsp::DecimatingFirFilter;
 use futuredsp::Rotator;
+use futuredsp::firdes;
+use futuredsp::prelude::*;
 
 use crate::prelude::*;
 

@@ -6,9 +6,6 @@ use futuresdr::prelude::*;
 use std::fmt::Debug;
 use std::time::Duration;
 
-use lora::utils::Bandwidth;
-use lora::utils::CodeRate;
-use lora::utils::SpreadingFactor;
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;
@@ -18,6 +15,9 @@ use lora::HammingDec;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 use lora::Transmitter;
+use lora::utils::Bandwidth;
+use lora::utils::CodeRate;
+use lora::utils::SpreadingFactor;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

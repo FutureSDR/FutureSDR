@@ -1,19 +1,12 @@
-use futures::channel::mpsc::channel;
 use futures::channel::mpsc::Receiver;
 use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::channel;
 use futuresdr_types::BlockId;
 use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::Tags;
-use crate::runtime::config::config;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -23,6 +16,13 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::WorkIo;
 use crate::runtime::WrappedKernel;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::Tags;
+use crate::runtime::config::config;
 
 /// Mocker for a block
 ///

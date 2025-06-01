@@ -7,20 +7,20 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
 
-use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
-use crate::runtime::buffer::zynq::BufferEmpty;
-use crate::runtime::buffer::zynq::BufferFull;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::Tags;
+use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::zynq::BufferEmpty;
+use crate::runtime::buffer::zynq::BufferFull;
 
 #[derive(Debug)]
 struct CurrentBuffer {

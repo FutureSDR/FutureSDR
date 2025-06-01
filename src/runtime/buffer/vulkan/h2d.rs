@@ -4,23 +4,23 @@ use std::any::Any;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::sync::Mutex;
-use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::buffer::BufferWriteGuard;
 use vulkano::buffer::Subbuffer;
+use vulkano::buffer::subbuffer::BufferContents;
 
-use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
-use crate::runtime::buffer::vulkan::Buffer;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CpuBufferWriter;
-use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::Tags;
+use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CpuBufferWriter;
+use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::vulkan::Buffer;
 
 use super::d2h;
 

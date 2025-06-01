@@ -5,8 +5,8 @@ use futuresdr::prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;
-use rand::distr::Uniform;
 use rand::Rng;
+use rand::distr::Uniform;
 
 #[test]
 fn multi_input_mock() {

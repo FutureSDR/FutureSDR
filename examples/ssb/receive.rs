@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::num_integer::gcd;
 use futuresdr::prelude::*;
 

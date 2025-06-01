@@ -11,11 +11,7 @@ fn apply_const_fn() -> Result<()> {
     let orig: Vec<u32> = vec![1u32, 2, 3, 4];
     let src = VectorSource::<u32>::new(orig);
     let filter: Filter<_, _> = Filter::new(|i: &u32| -> Option<u32> {
-        if *i % 2 == 0 {
-            Some(*i)
-        } else {
-            None
-        }
+        if *i % 2 == 0 { Some(*i) } else { None }
     });
     let snk = VectorSink::<u32>::new(4);
 
@@ -44,11 +40,7 @@ fn apply_mut_fn() -> Result<()> {
     let mut output = false;
     let filter: Filter<_, _> = Filter::new(move |i: &u32| -> Option<u32> {
         output = !output;
-        if output {
-            Some(*i)
-        } else {
-            None
-        }
+        if output { Some(*i) } else { None }
     });
     let snk = VectorSink::<u32>::new(4);
 

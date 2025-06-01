@@ -3,9 +3,9 @@ use futures::channel::mpsc::Sender;
 use futures::future::Future;
 use std::sync::Arc;
 
-use crate::runtime::scheduler::Task;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::scheduler::Task;
 
 /// Scheduler trait
 ///
@@ -22,7 +22,7 @@ pub trait Scheduler: Clone + Send + 'static {
 
     /// Spawn a task
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static)
-        -> Task<T>;
+    -> Task<T>;
 
     /// Spawn a blocking task in a separate thread
     fn spawn_blocking<T: Send + 'static>(

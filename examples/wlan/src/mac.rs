@@ -1,8 +1,8 @@
 use futuresdr::prelude::*;
 
-use crate::Mcs;
 use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;
+use crate::Mcs;
 
 #[derive(Block)]
 #[message_inputs(tx)]

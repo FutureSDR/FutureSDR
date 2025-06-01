@@ -13,10 +13,10 @@
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io;
-use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::audio::AudioSink;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::futuredsp::firdes;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;

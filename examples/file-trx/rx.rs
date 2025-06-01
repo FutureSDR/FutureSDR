@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::Head;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use std::time::Instant;
 

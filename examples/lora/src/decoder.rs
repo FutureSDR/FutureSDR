@@ -1,8 +1,8 @@
 use futuresdr::prelude::*;
 use std::collections::HashMap;
 
-use crate::utils::*;
 use crate::Frame;
+use crate::utils::*;
 
 #[derive(Block)]
 #[message_inputs(r#in)]

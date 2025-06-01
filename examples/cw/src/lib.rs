@@ -1,8 +1,8 @@
-use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::ApplyIntoIter;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::VectorSource;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::prelude::*;
 use std::fmt;
 

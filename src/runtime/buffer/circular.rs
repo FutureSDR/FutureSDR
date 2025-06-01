@@ -4,19 +4,19 @@ use std::fmt;
 use std::mem::size_of;
 use vmcircbuffer::generic;
 
-use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
+use crate::channel::mpsc::channel;
+use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
+use crate::runtime::Error;
+use crate::runtime::ItemTag;
+use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
-use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
-use crate::runtime::Error;
-use crate::runtime::ItemTag;
-use crate::runtime::PortId;
 
 struct MyNotifier {
     sender: Sender<BlockMessage>,
@@ -158,13 +158,27 @@ where
 
             self.writer = Some(generic::Circular::with_capacity(buffer_size).unwrap());
         } else {
-            if self.min_buffer_size_in_items.unwrap_or(0) < dest.min_buffer_size_in_items.unwrap_or(0) {
-                warn!("circular buffer is already created, size constraints of reader are not considered.");
-                warn!("buffer size is {:?}, reader requirement {:?}", self.min_buffer_size_in_items, dest.min_buffer_size_in_items);
+            if self.min_buffer_size_in_items.unwrap_or(0)
+                < dest.min_buffer_size_in_items.unwrap_or(0)
+            {
+                warn!(
+                    "circular buffer is already created, size constraints of reader are not considered."
+                );
+                warn!(
+                    "buffer size is {:?}, reader requirement {:?}",
+                    self.min_buffer_size_in_items, dest.min_buffer_size_in_items
+                );
             }
-            if self.min_buffer_size_in_items.unwrap_or(0) - self.min_items.unwrap_or(0) + 1 < dest.min_items.unwrap_or(1) {
-                warn!("circular buffer is already created, size constraints of reader are not considered.");
-                warn!("buffer size is {:?}, writer min items {:?}", self.min_buffer_size_in_items, self.min_items);
+            if self.min_buffer_size_in_items.unwrap_or(0) - self.min_items.unwrap_or(0) + 1
+                < dest.min_items.unwrap_or(1)
+            {
+                warn!(
+                    "circular buffer is already created, size constraints of reader are not considered."
+                );
+                warn!(
+                    "buffer size is {:?}, writer min items {:?}",
+                    self.min_buffer_size_in_items, self.min_items
+                );
             }
         }
 
@@ -344,12 +358,15 @@ where
     type Item = D;
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        if let Some((s, tags)) = self.reader.as_mut().unwrap().slice(false) {
-            self.tags = tags;
-            (s, &self.tags)
-        } else {
-            debug_assert!(self.tags.is_empty());
-            (&[], &self.tags)
+        match self.reader.as_mut().unwrap().slice(false) {
+            Some((s, tags)) => {
+                self.tags = tags;
+                (s, &self.tags)
+            }
+            _ => {
+                debug_assert!(self.tags.is_empty());
+                (&[], &self.tags)
+            }
         }
     }
     fn consume(&mut self, amount: usize) {

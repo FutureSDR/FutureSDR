@@ -75,19 +75,24 @@ where
         let mut produced = 0;
 
         while produced < o_len {
-            if let Some(v) = self.current_it.next() {
-                o[produced] = v;
-                produced += 1;
-            } else if let Some(v) = i_iter.next() {
-                self.current_it = Box::new(((self.f)(v)).into_iter());
-                if let Some(ItemTag { tag, .. }) =
-                    tags.iter().find(|x| x.index == consumed).cloned()
-                {
-                    o_tags.add_tag(produced, tag);
+            match self.current_it.next() {
+                Some(v) => {
+                    o[produced] = v;
+                    produced += 1;
                 }
-                consumed += 1;
-            } else {
-                break;
+                _ => {
+                    if let Some(v) = i_iter.next() {
+                        self.current_it = Box::new(((self.f)(v)).into_iter());
+                        if let Some(ItemTag { tag, .. }) =
+                            tags.iter().find(|x| x.index == consumed).cloned()
+                        {
+                            o_tags.add_tag(produced, tag);
+                        }
+                        consumed += 1;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
 

@@ -1,6 +1,6 @@
 use futures::StreamExt;
-use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
+use gloo_net::websocket::futures::WebSocket;
 use leptos::html::Canvas;
 use leptos::logging::*;
 use leptos::prelude::*;

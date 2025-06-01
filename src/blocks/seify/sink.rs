@@ -198,7 +198,9 @@ where
                     debug_assert_eq!(ret, len);
                     ret
                 } else if len > self.max_input_samples {
-                    warn!("input buffers of seify sink too small to fit complete frame. sending in non-burst mode");
+                    warn!(
+                        "input buffers of seify sink too small to fit complete frame. sending in non-burst mode"
+                    );
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, n);

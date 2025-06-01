@@ -1,12 +1,6 @@
 //! Macros to make working with FutureSDR a bit nicer.
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::bracketed;
-use syn::parse::Parse;
-use syn::parse::ParseStream;
-use syn::parse_macro_input;
-use syn::punctuated::Punctuated;
-use syn::token;
 use syn::Attribute;
 use syn::Data;
 use syn::DeriveInput;
@@ -19,6 +13,12 @@ use syn::PathArguments;
 use syn::Result;
 use syn::Token;
 use syn::Type;
+use syn::bracketed;
+use syn::parse::Parse;
+use syn::parse::ParseStream;
+use syn::parse_macro_input;
+use syn::punctuated::Punctuated;
+use syn::token;
 
 /// Avoid boilerplate when setting up the flowgraph.
 ///
@@ -940,7 +940,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         {
                             message_input_names.push(s.value());
                         } else {
-                            panic!("message handlers have to be an identifier or identifier = \"port name\"");
+                            panic!(
+                                "message handlers have to be an identifier or identifier = \"port name\""
+                            );
                         }
                     }
                     Meta::Path(p) => {

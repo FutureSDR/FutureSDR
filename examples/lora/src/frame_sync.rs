@@ -470,11 +470,11 @@ impl State {
             .collect();
         self.preamble_upchirps =
             volk_32fc_x2_multiply_32fc(&self.preamble_upchirps, &cfo_int_correc); // count: up_symb_to_use * m_number_of_bins
-                                                                                  // correct SFO in the preamble upchirps
-                                                                                  // SFO times symbol duration = number of samples we need to compensate the symbol duration by
-                                                                                  // small, as m_cfo_int+self.m_cfo_frac bounded by ]-(self.m_number_of_bins/4+0.5),+(self.m_number_of_bins/4+0.5)[
-                                                                                  // BW/s_f = 1/6400 @ 125kHz, 800mHz
-                                                                                  // -> sfo_hat ~ ]-1/250,+1/250[
+        // correct SFO in the preamble upchirps
+        // SFO times symbol duration = number of samples we need to compensate the symbol duration by
+        // small, as m_cfo_int+self.m_cfo_frac bounded by ]-(self.m_number_of_bins/4+0.5),+(self.m_number_of_bins/4+0.5)[
+        // BW/s_f = 1/6400 @ 125kHz, 800mHz
+        // -> sfo_hat ~ ]-1/250,+1/250[
         self.sfo_hat = (m_cfo_int as f32 + self.m_cfo_frac as f32) * self.m_bw as f32
             / self.m_center_freq as f32;
         // CFO normalized to carrier frequency / SFO times t_samp
@@ -658,7 +658,9 @@ impl State {
         if net_id_off.unsigned_abs() as usize > MAX_UNKNOWN_NET_ID_OFFSET
             && !self.known_valid_net_ids[self.net_id[0] as usize][self.net_id[1] as usize]
         {
-            info!("FrameSync: bad sync: previously unknown NetID and offset > {MAX_UNKNOWN_NET_ID_OFFSET}");
+            info!(
+                "FrameSync: bad sync: previously unknown NetID and offset > {MAX_UNKNOWN_NET_ID_OFFSET}"
+            );
             self.reset(true);
             return (0, 0);
         }
@@ -690,7 +692,9 @@ impl State {
             } else if !self.known_valid_net_ids_reverse[self.net_id[0] as usize]
                 [(net_id_1_tmp & 0xF8) as usize]
             {
-                info!("FrameSync: bad sync: different offset for original net_id[0] and net_id[1] and no match for recovered net_id[0]");
+                info!(
+                    "FrameSync: bad sync: different offset for original net_id[0] and net_id[1] and no match for recovered net_id[0]"
+                );
                 self.reset(true);
                 return (items_to_consume, 0);
             } else {
@@ -1149,9 +1153,13 @@ where
         collect_receive_statistics: bool,
         startup_timestamp: Option<SystemTime>,
     ) -> Self {
-        let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(net_id_caching_policy.unwrap_or("header_crc_ok")) {
+        let net_id_caching_policy_tmp = match NetIdCachingPolicy::from_str(
+            net_id_caching_policy.unwrap_or("header_crc_ok"),
+        ) {
             Ok(tmp) => tmp,
-            Err(_) => panic!("Supplied invalid value for parameter net_id_caching_policy. Possible values: 'none', 'seen', 'header_crc_ok', 'payload_crc_ok'"),
+            Err(_) => panic!(
+                "Supplied invalid value for parameter net_id_caching_policy. Possible values: 'none', 'seen', 'header_crc_ok', 'payload_crc_ok'"
+            ),
         };
         let preamble_len_tmp = preamble_len.unwrap_or(8);
         if preamble_len_tmp < 5 {

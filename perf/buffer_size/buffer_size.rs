@@ -4,9 +4,9 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::WrappedKernel;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::WrappedKernel;
 use perf::CopyRand;
 use std::time;
 

@@ -3,29 +3,29 @@ use async_lock::Barrier;
 use async_task::Runnable;
 use async_task::Task;
 use concurrent_queue::ConcurrentQueue;
+use futures::Future;
 use futures::channel::oneshot;
 use futures::future;
-use futures::Future;
 use futures_lite::future::FutureExt;
 use slab::Slab;
 use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::task::Poll;
 use std::task::Waker;
 use std::thread;
 
 use crate::channel::mpsc::Sender;
-use crate::runtime::config;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
 
 /// Flow scheduler
 ///
@@ -508,7 +508,7 @@ impl Sleepers {
             .wakers
             .iter()
             .enumerate()
-            .find(|item| item.1 .2 == queue_index)
+            .find(|item| item.1.2 == queue_index)
         {
             return Some(self.wakers.remove(index).1);
         }

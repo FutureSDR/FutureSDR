@@ -1,10 +1,10 @@
 use anyhow::Result;
 use float_cmp::assert_approx_eq;
 use futuresdr::async_io::block_on;
-use futuresdr::blocks::seify::*;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::blocks::seify::*;
 use futuresdr::prelude::*;
 use futuresdr::seify::Direction::*;
 use std::collections::HashMap;

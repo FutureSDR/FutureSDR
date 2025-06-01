@@ -3,15 +3,15 @@ use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
 
-use crate::get_be_bit;
-use crate::util::FROZEN_2048_1056;
-use crate::util::FROZEN_2048_1392;
-use crate::util::FROZEN_2048_712;
 use crate::Mls;
 use crate::OperationMode;
 use crate::OrderedStatisticsDecoder;
 use crate::PolarDecoder;
 use crate::Xorshift32;
+use crate::get_be_bit;
+use crate::util::FROZEN_2048_712;
+use crate::util::FROZEN_2048_1056;
+use crate::util::FROZEN_2048_1392;
 
 #[derive(Block)]
 pub struct DecoderBlock<I = DefaultCpuReader<f32>>

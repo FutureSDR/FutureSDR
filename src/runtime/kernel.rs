@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use futuresdr::channel::mpsc::Sender;
-use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
@@ -11,6 +10,7 @@ use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
+use futuresdr::runtime::buffer::BufferReader;
 
 /// Kernal
 ///

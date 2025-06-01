@@ -15,11 +15,7 @@ fn decode(seq: u32, threshold: u32) -> Option<u8> {
         .enumerate()
         .min_by_key(|(_, item)| **item)
         .unwrap();
-    if *v < threshold {
-        Some(i as u8)
-    } else {
-        None
-    }
+    if *v < threshold { Some(i as u8) } else { None }
 }
 
 #[derive(Debug)]

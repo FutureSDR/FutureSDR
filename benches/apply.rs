@@ -1,6 +1,6 @@
+use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use criterion::Criterion;
 use std::iter::repeat_with;
 
 use futuresdr::blocks::Apply;

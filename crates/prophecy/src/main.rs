@@ -3,8 +3,8 @@ use any_spawner::Executor;
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
 use futuresdr_types::FlowgraphId;
-use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
+use gloo_net::websocket::futures::WebSocket;
 use leptos::html::Input;
 use leptos::html::Span;
 use leptos::logging::*;
@@ -16,7 +16,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use web_sys::HtmlInputElement;
 
-use prophecy::poll_periodically;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
@@ -31,6 +30,7 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::poll_periodically;
 
 #[component]
 /// Textual Flowgraph Description
@@ -139,14 +139,17 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
 
     let connect_flowgraph = move |rt_handle: Signal<RuntimeHandle>, id: FlowgraphId| {
         spawn_local(async move {
-            if let Ok(fg) = rt_handle.get_untracked().get_flowgraph(id).await {
-                fg_handle_set(Some(fg));
-            } else {
-                warn!(
-                    "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
-                    rt_handle(),
-                    id
-                );
+            match rt_handle.get_untracked().get_flowgraph(id).await {
+                Ok(fg) => {
+                    fg_handle_set(Some(fg));
+                }
+                _ => {
+                    warn!(
+                        "failed to get flowgraph handle (runtime {:?}, flowgraph id {})",
+                        rt_handle(),
+                        id
+                    );
+                }
             }
         });
     };

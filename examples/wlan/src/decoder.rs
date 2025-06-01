@@ -1,11 +1,11 @@
 use futuresdr::prelude::*;
 
 use crate::FrameParam;
-use crate::Mcs;
-use crate::ViterbiDecoder;
 use crate::MAX_ENCODED_BITS;
 use crate::MAX_PSDU_SIZE;
 use crate::MAX_SYM;
+use crate::Mcs;
+use crate::ViterbiDecoder;
 
 #[derive(Block)]
 #[message_outputs(rx_frames, rftap)]

@@ -1,8 +1,8 @@
 use anyhow::Result;
-use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::audio::FileSource;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::audio::AudioSink;
+use futuresdr::blocks::audio::FileSource;
 use futuresdr::prelude::*;
 
 const GAIN_L: f32 = 1.0;

@@ -102,20 +102,22 @@ where
                     if left == 0 && consumed == i.len() {
                         break;
                     } else if left == 0 {
-                        if let Some(ItemTag {
-                            tag: Tag::Id(id), ..
-                        }) = tags.iter().find(|x| x.index == consumed).cloned()
-                        {
-                            self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
-                            otags.add_tag(
-                                produced,
-                                Tag::NamedUsize(
-                                    "burst_start".to_string(),
-                                    2 * PADDING + id as usize * 2 * 16 * 4 + 2,
-                                ),
-                            );
-                        } else {
-                            panic!("no frame start tag");
+                        match tags.iter().find(|x| x.index == consumed).cloned() {
+                            Some(ItemTag {
+                                tag: Tag::Id(id), ..
+                            }) => {
+                                self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
+                                otags.add_tag(
+                                    produced,
+                                    Tag::NamedUsize(
+                                        "burst_start".to_string(),
+                                        2 * PADDING + id as usize * 2 * 16 * 4 + 2,
+                                    ),
+                                );
+                            }
+                            _ => {
+                                panic!("no frame start tag");
+                            }
                         }
                     } else {
                         let n = std::cmp::min(o.len() - produced, left);

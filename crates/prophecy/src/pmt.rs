@@ -64,10 +64,13 @@ pub fn PmtInput(
     let parse_pmt = move || {
         let input = input_ref.get().unwrap();
         let v = input.value();
-        if let Ok(p) = v.parse::<Pmt>() {
-            set_pmt(p);
-        } else {
-            set_error(true);
+        match v.parse::<Pmt>() {
+            Ok(p) => {
+                set_pmt(p);
+            }
+            _ => {
+                set_error(true);
+            }
         }
     };
 

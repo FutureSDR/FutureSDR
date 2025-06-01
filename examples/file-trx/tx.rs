@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSource;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
 #[derive(Parser, Debug)]

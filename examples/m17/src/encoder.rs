@@ -1,6 +1,6 @@
 use crate::Golay;
-use crate::LinkSetupFrame;
 use crate::INTERLEAVER;
+use crate::LinkSetupFrame;
 use crate::PUNCTERING_1;
 use crate::PUNCTERING_2;
 use crate::RAND_SEQ;

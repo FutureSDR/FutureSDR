@@ -5,22 +5,22 @@ use std::collections::VecDeque;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
-use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::buffer::BufferReadGuard;
 use vulkano::buffer::Subbuffer;
+use vulkano::buffer::subbuffer::BufferContents;
 
-use crate::channel::mpsc::channel;
 use crate::channel::mpsc::Sender;
-use crate::runtime::buffer::vulkan::Buffer;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuSample;
+use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CpuBufferReader;
+use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::vulkan::Buffer;
 
 #[self_referencing]
 #[derive(Debug)]

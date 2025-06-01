@@ -1,5 +1,5 @@
-use rustc_version::version_meta;
 use rustc_version::Channel;
+use rustc_version::version_meta;
 
 fn main() {
     match version_meta().unwrap().channel {

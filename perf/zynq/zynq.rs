@@ -7,8 +7,8 @@ use futuresdr::blocks::ZynqSync;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::zynq::D2HReader;
 use futuresdr::runtime::buffer::zynq::H2DWriter;
-use rand::distr::Uniform;
 use rand::Rng;
+use rand::distr::Uniform;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]

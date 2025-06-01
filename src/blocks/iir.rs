@@ -1,8 +1,8 @@
 #![allow(clippy::type_complexity)]
 use crate::prelude::*;
-use futuredsp::prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
+use futuredsp::prelude::*;
 
 /// IIR filter.
 #[derive(Block)]

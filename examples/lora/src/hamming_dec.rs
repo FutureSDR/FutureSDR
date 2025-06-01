@@ -187,7 +187,7 @@ where
                 let codeword = int2bool(input[i] as u16, cr_app + 4);
                 let mut data_nibble: Vec<bool> = codeword[0..4].to_vec();
                 data_nibble.reverse(); // reorganized msb-first
-                                       // match cr_app {
+                // match cr_app {
                 if cr_app == 3 {
                     // 3 => {
                     // get syndrom

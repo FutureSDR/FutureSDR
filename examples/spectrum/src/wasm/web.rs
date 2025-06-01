@@ -1,21 +1,21 @@
-use futuresdr::blocks::wasm::HackRf;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
+use futuresdr::blocks::wasm::HackRf;
 use futuresdr::prelude::*;
 use leptos::web_sys::HtmlInputElement;
-use prophecy::leptos;
-use prophecy::leptos::html::Span;
-use prophecy::leptos::prelude::*;
-use prophecy::leptos::task::spawn_local;
-use prophecy::leptos::wasm_bindgen::JsCast;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::leptos;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::prelude::*;
+use prophecy::leptos::task::spawn_local;
+use prophecy::leptos::wasm_bindgen::JsCast;
 
 const FFT_SIZE: usize = 2048;
 

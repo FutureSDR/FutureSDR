@@ -9,11 +9,11 @@ use std::future::Future;
 use std::sync::Arc;
 use std::thread;
 
-use crate::runtime::config;
-use crate::runtime::scheduler::flow::FlowExecutor;
-use crate::runtime::scheduler::Scheduler;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::config;
+use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::flow::FlowExecutor;
 
 type CpuPins = HashMap<usize, usize>;
 

@@ -2,7 +2,7 @@
 name = "futuresdr-macros"
 version = "0.0.7"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"

@@ -1,19 +1,19 @@
 use clap::Parser;
-use futuresdr::blocks::seify::Builder;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
-use wlan::parse_channel;
 use wlan::Decoder;
 use wlan::FrameEqualizer;
 use wlan::MovingAverage;
 use wlan::SyncLong;
 use wlan::SyncShort;
+use wlan::parse_channel;
 
 #[derive(Parser, Debug)]
 #[clap(version)]

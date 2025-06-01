@@ -1,6 +1,6 @@
+use futures::SinkExt;
 use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
-use futures::SinkExt;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 

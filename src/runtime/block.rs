@@ -1,7 +1,7 @@
-use futures::future::Either;
 use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::future::Either;
 use std::any::Any;
 use std::fmt;
 use std::ops::Deref;
@@ -9,8 +9,6 @@ use std::ops::DerefMut;
 
 use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
-use futuresdr::runtime::buffer::BufferReader;
-use futuresdr::runtime::config;
 use futuresdr::runtime::BlockDescription;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockMessage;
@@ -24,6 +22,8 @@ use futuresdr::runtime::MessageOutputs;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
+use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::config;
 
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
@@ -140,17 +140,20 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                 .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
             {
                 BlockMessage::Initialize => {
-                    if let Err(e) = kernel.init(mio, meta).await {
-                        error!(
-                            "{}: Error during initialization. Terminating.",
-                            meta.instance_name().unwrap()
-                        );
-                        return Err(Error::RuntimeError(e.to_string()));
-                    } else {
-                        main_inbox
-                            .send(FlowgraphMessage::Initialized)
-                            .await
-                            .map_err(|e| Error::RuntimeError(e.to_string()))?;
+                    match kernel.init(mio, meta).await {
+                        Err(e) => {
+                            error!(
+                                "{}: Error during initialization. Terminating.",
+                                meta.instance_name().unwrap()
+                            );
+                            return Err(Error::RuntimeError(e.to_string()));
+                        }
+                        _ => {
+                            main_inbox
+                                .send(FlowgraphMessage::Initialized)
+                                .await
+                                .map_err(|e| Error::RuntimeError(e.to_string()))?;
+                        }
                     }
                     break;
                 }
@@ -270,21 +273,24 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
 
             // ================== blocking
             if !work_io.call_again {
-                if let Some(f) = work_io.block_on.take() {
-                    let p = inbox.as_mut().peek();
+                match work_io.block_on.take() {
+                    Some(f) => {
+                        let p = inbox.as_mut().peek();
 
-                    match futures::future::select(f, p).await {
-                        Either::Left(_) => {
-                            work_io.call_again = true;
-                        }
-                        Either::Right((_, f)) => {
-                            work_io.block_on = Some(f);
-                            continue;
-                        }
-                    };
-                } else {
-                    inbox.as_mut().peek().await;
-                    continue;
+                        match futures::future::select(f, p).await {
+                            Either::Left(_) => {
+                                work_io.call_again = true;
+                            }
+                            Either::Right((_, f)) => {
+                                work_io.block_on = Some(f);
+                                continue;
+                            }
+                        };
+                    }
+                    _ => {
+                        inbox.as_mut().peek().await;
+                        continue;
+                    }
                 }
             }
 

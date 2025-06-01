@@ -1,5 +1,5 @@
-use futuredsp::prelude::*;
 use futuredsp::FirFilter;
+use futuredsp::prelude::*;
 use futuresdr::prelude::*;
 use std::cmp::min;
 
