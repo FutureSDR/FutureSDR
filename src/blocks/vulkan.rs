@@ -115,7 +115,7 @@ where
                 [],
             )?;
 
-            let dispatch = (buffer.offset as u32 + self.work_group_size - 1) / self.work_group_size;
+            let dispatch = (buffer.offset as u32).div_ceil(self.work_group_size);
 
             let future = {
                 let mut builder = AutoCommandBufferBuilder::primary(

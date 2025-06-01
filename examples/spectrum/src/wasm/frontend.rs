@@ -26,10 +26,10 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let fg_desc = LocalResource::new(move || {
         let rt_handle = rt_handle.clone();
         async move {
-            if let Ok(mut fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await {
-                if let Ok(desc) = fg.description().await {
-                    return Some(desc);
-                }
+            if let Ok(mut fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await
+                && let Ok(desc) = fg.description().await
+            {
+                return Some(desc);
             }
             None
         }

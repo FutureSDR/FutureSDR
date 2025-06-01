@@ -17,4 +17,4 @@ clap = { version = "4", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-leptos = { version = "0.7", features = ["csr", "nightly"] }
+leptos = { version = "0.8", features = ["csr", "nightly"] }

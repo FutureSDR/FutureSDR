@@ -11,8 +11,8 @@ fn apply_into_iter() -> Result<()> {
     let orig: Vec<f32> = vec![1.0, 2.0, 3.0];
     let src = VectorSource::<f32>::new(orig.clone());
     let apply: ApplyIntoIter<_, _, _> =
-        ApplyIntoIter::new(move |i: &f32| -> std::iter::Take<std::iter::Repeat<f32>> {
-            std::iter::repeat(*i).take(multiplier)
+        ApplyIntoIter::new(move |i: &f32| -> std::iter::RepeatN<f32> {
+            std::iter::repeat_n(*i, multiplier)
         });
     let snk = VectorSink::<f32>::new(orig.len() * multiplier);
 

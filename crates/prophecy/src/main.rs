@@ -126,12 +126,11 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
     let res_fgs = {
         LocalResource::new(move || async move {
             let fgs = rt_handle.get().get_flowgraphs().await;
-            if let Ok(ref fgs) = fgs {
-                if !fgs.is_empty() {
-                    if let Ok(fg) = rt_handle.get_untracked().get_flowgraph(fgs[0]).await {
-                        fg_handle_set(Some(fg));
-                    }
-                }
+            if let Ok(ref fgs) = fgs
+                && !fgs.is_empty()
+                && let Ok(fg) = rt_handle.get_untracked().get_flowgraph(fgs[0]).await
+            {
+                fg_handle_set(Some(fg));
             }
             fgs
         })

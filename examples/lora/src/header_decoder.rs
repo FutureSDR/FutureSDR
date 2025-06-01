@@ -269,13 +269,8 @@ where
                     return Ok(());
                 }
             }
-        } else {
-            match annotations.take() {
-                Some(a) => {
-                    self.frame.annotations.extend(a);
-                }
-                _ => {}
-            }
+        } else if let Some(a) = annotations.take() {
+            self.frame.annotations.extend(a);
         }
 
         if self.left > 0 {
