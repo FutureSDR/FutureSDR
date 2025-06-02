@@ -14,43 +14,40 @@ use burn::nn::conv::Conv2dConfig;
 use burn::prelude::*;
 use burn::tensor::activation::relu;
 
-/// McldnnBurn: replicates the Keras MCLDNN topology in Burn 0.18.
+/// Mcldnn: replicates the Keras MCLDNN topology
 ///
 ///  - Branch 1: Conv2D on “[batch, 1, 2, 128]”  
 ///  - Branch 2: two Conv1D’s followed by a small Conv2D  
 ///  - Fuse → big Conv2D → reshape → two LSTMs → SELU+Dense head
-///
 #[derive(Module, Debug)]
-pub struct McldnnBurn<B: Backend> {
+pub struct Mcldnn<B: Backend> {
     // Branch 1 (I/Q 2×128 → Conv2D)
     conv1_1: Conv2d<B>,
-
     // Branch 2a/2b (each 1D on real/imag)
     conv1_2: Conv1d<B>,
     conv1_3: Conv1d<B>,
-
     // After merging branch 2 vertically, small Conv2D
     conv2: Conv2d<B>,
-
     // After channel-concat with branch 1, big Conv2D
     conv4: Conv2d<B>,
-
     // Two LSTM layers
     lstm1: Lstm<B>,
     lstm2: Lstm<B>,
-
     // Dense head
     fc1: Linear<B>,
     fc2: Linear<B>,
     dropout: Dropout,
 }
 
-// If you derive Module, Burn 0.18 will automatically generate the associated types:
-//   type Record = …, type Storage = …
-// and also implement `fn forward(&self, input: Self::Input) -> Self::Output` once you write that.
+#[derive(Config, Debug)]
+pub struct McldnnConfig {
+    #[config(default = "11")]
+    num_classes: usize,
+}
 
-impl<B: Backend> McldnnBurn<B> {
-    pub fn new(device: &B::Device, num_classes: usize) -> Self {
+impl McldnnConfig {
+    /// Returns the initialized model.
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
         // ──────── Branch 1 Conv2D ────────
         // input1: [batch, 1, 2, 128]
         let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
@@ -85,10 +82,10 @@ impl<B: Backend> McldnnBurn<B> {
 
         // ──────── Dense head ────────
         let fc1 = LinearConfig::new(128, 128).init(device);
-        let fc2 = LinearConfig::new(128, num_classes).init(device);
+        let fc2 = LinearConfig::new(128, self.num_classes).init(device);
         let dropout = DropoutConfig::new(0.5).init();
 
-        McldnnBurn {
+        Mcldnn {
             conv1_1,
             conv1_2,
             conv1_3,
@@ -110,8 +107,8 @@ impl<B: Backend> McldnnBurn<B> {
 /// where α ≈ 1.67326324 and λ ≈ 1.05070098.
 pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
     // 1) Create scalar tensors for α and λ on the same device as `x`.
-    let alpha = Tensor::from_data([1.67326324f32], &x.device());
-    let lambda = Tensor::from_data([1.05070098f32], &x.device());
+    let alpha = Tensor::from_data([1.6732632f32], &x.device());
+    let lambda = Tensor::from_data([1.050701f32], &x.device());
 
     // 2) Build a “zero” tensor to compare x > 0.
     let zero = Tensor::from_data([0.0f32], &x.device());
@@ -133,7 +130,7 @@ pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
     pos.mask_where(mask_pos, neg)
 }
 
-impl<B: Backend> McldnnBurn<B> {
+impl<B: Backend> Mcldnn<B> {
     pub fn forward(&self, inputs: (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>)) -> Tensor<B, 2> {
         let (input1, input2, input3) = inputs;
 
@@ -180,8 +177,6 @@ impl<B: Backend> McldnnBurn<B> {
         let mut x = self.fc1.forward(h2.clone()); // [batch,128]
         x = selu(x);
         x = self.dropout.forward(x); // Dropout only in “train” mode
-        let x = self.fc2.forward(x); // [batch, num_classes]
-
-        x
+        self.fc2.forward(x) // [batch, num_classes]
     }
 }
