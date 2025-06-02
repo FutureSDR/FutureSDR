@@ -6,9 +6,8 @@ edition = "2024"
 [workspace]
 
 [dependencies]
-burn = { version = "0.17.0", features = ["ndarray", "tui", "train"] }
+burn = { version = "0.17.0", features = ["ndarray", "tui", "train", "wgpu"] }
 ndarray = "0.16"
 serde = { version = "1.0", features = ["derive"] }
-npy = "0.4"
 anyhow = "1.0"
 ndarray-npy = "0.9"

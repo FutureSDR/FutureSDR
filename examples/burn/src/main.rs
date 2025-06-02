@@ -1,13 +1,14 @@
+#![recursion_limit = "256"]
 pub mod dataset;
 mod model;
 use model::McldnnConfig;
 
-use dataset::RadioDatasetBatcher;
 use dataset::RadioDataset;
+use dataset::RadioDatasetBatcher;
 
 use burn::backend::Autodiff;
-use burn::backend::ndarray::NdArray;
-use burn::backend::ndarray::NdArrayDevice;
+use burn::backend::wgpu::Wgpu;
+use burn::backend::wgpu::WgpuDevice;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::module::Module;
 use burn::optim::AdamConfig;
@@ -35,7 +36,6 @@ pub struct TrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
     std::fs::remove_dir_all(artifact_dir).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
@@ -85,25 +85,15 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 }
 
 fn main() -> anyhow::Result<()> {
-    // 1) Choose the backend (CPU/ndarray)
-    type B = NdArray<f32>;
-    let device = NdArrayDevice::default();
-
-    // 2) Instantiate the model & optimizer
-    let num_classes = 11;
-    let model = McldnnConfig::new()
-        .with_num_classes(num_classes)
-        .init::<B>(&device);
-    println!("{model}");
-
-    type MyBackend = NdArray<f32, i32>;
+    type MyBackend = Wgpu<f32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
+    let device = WgpuDevice::default();
 
-    let device = NdArrayDevice::Cpu;
-    let artifact_dir = "model";
     train::<MyAutodiffBackend>(
-        artifact_dir,
-        TrainingConfig::new(McldnnConfig::new(), AdamConfig::new()),
+        "model",
+        TrainingConfig::new(McldnnConfig::new(), AdamConfig::new())
+            .with_num_workers(1)
+            .with_batch_size(400),
         device,
     );
 

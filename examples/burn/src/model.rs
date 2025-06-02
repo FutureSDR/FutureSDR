@@ -56,32 +56,40 @@ pub struct McldnnConfig {
 impl McldnnConfig {
     /// Returns the initialized model.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
-        // ──────── Branch 1 Conv2D ────────
-        // Using [3, 9] for conv1_1 since we need odd kernel size, will pad explicitly in forward
+       // ──────── Branch 1 Conv2D ────────
+        // Use odd kernel [3,9], then Same padding → preserves [2,128]
         let conv1_1 = Conv2dConfig::new([1, 50], [3, 9])
-            .with_padding(PaddingConfig2d::Valid)
+            .with_padding(PaddingConfig2d::Same)
             .init(device);
+        // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
 
         // ──────── Branch 2 Conv1D ────────
-        // Using kernel size 8 to match Keras exactly
-        let conv1d_cfg = Conv1dConfig::new(1, 50, 8).with_padding(PaddingConfig1d::Valid);
-        let conv1_2 = conv1d_cfg.init(device);
+        // Use odd kernel 9 with Same padding → preserves length 128
+        let conv1d_cfg = Conv1dConfig::new(1, 50, 9)
+            .with_padding(PaddingConfig1d::Same);
+        let conv1_2 = conv1d_cfg.init(device);  // Input: [batch, 1, 128] → [batch, 50, 128]
         let conv1_3 = conv1d_cfg.init(device);
 
         // ──────── Small Conv2D on merged Branch 2 ────────
-        let conv2 = Conv2dConfig::new([1, 50], [1, 8])
-            .with_padding(PaddingConfig2d::Valid)
+        // After unsqueeze & vertical cat: [batch, 50, 2, 128]
+        // Use [1,9], Same padding → preserves [2,128]
+        let conv2 = Conv2dConfig::new([50, 50], [1, 9])
+            .with_padding(PaddingConfig2d::Same)
             .init(device);
+        // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
 
         // ──────── Big Conv2D after channel–concat ────────
-        let conv4 = Conv2dConfig::new([1, 100], [2, 5])
+        // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
+        // Use [2,5], Valid padding → height 2→1, width 128→124
+        let conv4 = Conv2dConfig::new([100, 100], [2, 5])
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
+        // [batch,100,2,128] → [batch,100,1,124]
 
         let lstm1 = LstmConfig::new(100, 128, true).init(device);
         let lstm2 = LstmConfig::new(128, 128, true).init(device);
-        let fc1 = LinearConfig::new(128, 128).init(device);
-        let fc2 = LinearConfig::new(128, self.num_classes).init(device);
+        let fc1   = LinearConfig::new(128, 128).init(device);
+        let fc2   = LinearConfig::new(128, self.num_classes).init(device);
         let dropout = DropoutConfig::new(0.5).init();
 
         Mcldnn {
@@ -106,11 +114,11 @@ impl McldnnConfig {
 /// where α ≈ 1.67326324 and λ ≈ 1.05070098.
 pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
     // 1) Create scalar tensors for α and λ on the same device as `x`.
-    let alpha = Tensor::from_data([1.6732632f32], &x.device());
-    let lambda = Tensor::from_data([1.050701f32], &x.device());
+    let alpha = Tensor::from_data([[1.6732632f32]], &x.device());
+    let lambda = Tensor::from_data([[1.050701f32]], &x.device());
 
     // 2) Build a “zero” tensor to compare x > 0.
-    let zero = Tensor::from_data([0.0f32], &x.device());
+    let zero = Tensor::from_data([[0.0f32]], &x.device());
     let mask_pos = x.clone().greater(zero.clone());
     //    mask_pos: a boolean‐mask Tensor<B, 2> where true = x>0
 

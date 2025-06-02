@@ -58,13 +58,13 @@ print("  X_test: ", X_test.shape,  "y_test: ",  y_test.shape)
 os.makedirs("preprocessed_npy", exist_ok=True)
 
 np.save("preprocessed_npy/X_train.npy", X_train)  # float32, shape (N_train, 2, 128)
-np.save("preprocessed_npy/y_train.npy", y_train)  # uint8, shape (N_train,)
+np.save("preprocessed_npy/Y_train.npy", y_train)  # uint8, shape (N_train,)
 
 np.save("preprocessed_npy/X_val.npy", X_val)
-np.save("preprocessed_npy/y_val.npy", y_val)
+np.save("preprocessed_npy/Y_val.npy", y_val)
 
 np.save("preprocessed_npy/X_test.npy", X_test)
-np.save("preprocessed_npy/y_test.npy", y_test)
+np.save("preprocessed_npy/Y_test.npy", y_test)
 
 print("Saved six files under ./preprocessed_npy/")
 

@@ -7,7 +7,6 @@ use ndarray::Array1;
 use ndarray::Array2;
 use ndarray::Array3;
 use ndarray::Axis;
-use npy::NpyData;
 
 #[derive(Clone, Debug)]
 pub struct RadioDatasetItem {
@@ -23,24 +22,14 @@ pub struct RadioDataset {
 
 impl RadioDataset {
     pub fn train() -> Self {
-        let x_bytes = std::fs::read("preprocessed_npy/X_train").unwrap();
-        let x_data: NpyData<f32> = NpyData::from_bytes(&x_bytes).unwrap();
-        let x_arr: Array1<f32> = Array1::<f32>::from_iter(x_data.to_vec());
-        let x: Array3<f32> = x_arr.into_shape_with_order((158400, 2, 128)).unwrap();
-        let y_bytes = std::fs::read("preprocessed_npy/Y_train").unwrap();
-        let y_data: NpyData<u8> = NpyData::from_bytes(&y_bytes).unwrap();
-        let y: Array1<u8> = Array1::<u8>::from_iter(y_data.to_vec());
+        let x: Array3<f32> = ndarray_npy::read_npy("preprocessed_npy/X_train.npy").unwrap();
+        let y: Array1<u8> = ndarray_npy::read_npy("preprocessed_npy/Y_train.npy").unwrap();
 
         Self { x, y }
     }
     pub fn test() -> Self {
-        let x_bytes = std::fs::read("preprocessed_npy/X_test").unwrap();
-        let x_data: NpyData<f32> = NpyData::from_bytes(&x_bytes).unwrap();
-        let x_arr: Array1<f32> = Array1::<f32>::from_iter(x_data.to_vec());
-        let x: Array3<f32> = x_arr.into_shape_with_order((22000, 2, 128)).unwrap();
-        let y_bytes = std::fs::read("preprocessed_npy/Y_test").unwrap();
-        let y_data: NpyData<u8> = NpyData::from_bytes(&y_bytes).unwrap();
-        let y: Array1<u8> = Array1::<u8>::from_iter(y_data.to_vec());
+        let x: Array3<f32> = ndarray_npy::read_npy("preprocessed_npy/X_test.npy").unwrap();
+        let y: Array1<u8> = ndarray_npy::read_npy("preprocessed_npy/Y_test.npy").unwrap();
 
         Self { x, y }
     }
@@ -88,7 +77,7 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             .iter()
             .map(|item| {
                 let data = item.iq_samples.index_axis(Axis(0), 0).to_vec();
-                let shape = vec![1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
+                let shape = vec![1, 1, item.iq_samples.shape()[1]];
                 let d = TensorData::new(data, shape);
                 Tensor::<B, 3>::from_data(d, device)
             })
@@ -98,7 +87,7 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             .iter()
             .map(|item| {
                 let data = item.iq_samples.index_axis(Axis(0), 1).to_vec();
-                let shape = vec![1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
+                let shape = vec![1, 1, item.iq_samples.shape()[1]];
                 let d = TensorData::new(data, shape);
                 Tensor::<B, 3>::from_data(d, device)
             })
@@ -115,9 +104,7 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             .collect();
 
         let real = Tensor::cat(real, 0);
-        let real = real.unsqueeze_dim(1);
         let imag = Tensor::cat(imag, 0);
-        let imag = imag.unsqueeze_dim(1);
         let iq_samples = Tensor::cat(iq_samples, 0);
         let iq_samples = iq_samples.unsqueeze_dim(1);
         let modulation = Tensor::cat(modulation, 0);
