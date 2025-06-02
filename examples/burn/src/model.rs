@@ -49,38 +49,30 @@ impl McldnnConfig {
     /// Returns the initialized model.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
         // ──────── Branch 1 Conv2D ────────
-        // input1: [batch, 1, 2, 128]
-        let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
-            .with_padding(PaddingConfig2d::Same)
+        // Using [3, 9] for conv1_1 since we need odd kernel size, will pad explicitly in forward
+        let conv1_1 = Conv2dConfig::new([1, 50], [3, 9])
+            .with_padding(PaddingConfig2d::Valid)
             .init(device);
 
         // ──────── Branch 2 Conv1D ────────
-        // input2/input3: [batch, 1, 128]
-        // We'll approximate “causal” by padding = kernel_size−1 on the left only (optional),
-        // but here we just do “same” for simplicity.
-        let conv1d_cfg = Conv1dConfig::new(8, 1, 50).with_padding(PaddingConfig1d::Same); // same=⌊8/2⌋
+        // Using kernel size 8 to match Keras exactly
+        let conv1d_cfg = Conv1dConfig::new(8, 1, 50)
+            .with_padding(PaddingConfig1d::Valid);
         let conv1_2 = conv1d_cfg.init(device);
         let conv1_3 = conv1d_cfg.init(device);
 
         // ──────── Small Conv2D on merged Branch 2 ────────
-        // After stacking real & imag on “height” we have [batch, 50, 2, 128]
         let conv2 = Conv2dConfig::new([1, 50], [1, 8])
-            .with_padding(PaddingConfig2d::Same)
-            .init(device); // pad width=3 on each side = same
+            .with_padding(PaddingConfig2d::Valid)
+            .init(device);
 
         // ──────── Big Conv2D after channel–concat ────────
-        // Input shape: [batch, 100, 2, 128]
         let conv4 = Conv2dConfig::new([1, 100], [2, 5])
             .with_padding(PaddingConfig2d::Valid)
-            .init(device); // “valid”
+            .init(device);
 
-        // ──────── LSTM stack ────────
-        // After conv4+ReLU, shape = [batch, 100, 1, 124] → squeeze → [batch, 100, 124]
-        // → permute to [batch, 124, 100]
         let lstm1 = LstmConfig::new(100, 128, true).init(device);
         let lstm2 = LstmConfig::new(128, 128, true).init(device);
-
-        // ──────── Dense head ────────
         let fc1 = LinearConfig::new(128, 128).init(device);
         let fc2 = LinearConfig::new(128, self.num_classes).init(device);
         let dropout = DropoutConfig::new(0.5).init();
@@ -112,7 +104,7 @@ pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
 
     // 2) Build a “zero” tensor to compare x > 0.
     let zero = Tensor::from_data([0.0f32], &x.device());
-    let mask_pos = x.clone().greater(zero.clone()); 
+    let mask_pos = x.clone().greater(zero.clone());
     //    mask_pos: a boolean‐mask Tensor<B, 2> where true = x>0
 
     // 3) Positive branch: λ * x
@@ -120,10 +112,10 @@ pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
 
     // 4) Negative branch: λ * (α * exp(x) − α)
     let neg = {
-        let exp_x = x.clone().exp();             // eˣ
-        let a_exp_x = alpha.clone() * exp_x;     // α·eˣ
-        let inner  = a_exp_x - alpha.clone();    // α·eˣ − α
-        lambda.clone() * inner                   // λ * (α·eˣ − α)
+        let exp_x = x.clone().exp(); // eˣ
+        let a_exp_x = alpha.clone() * exp_x; // α·eˣ
+        let inner = a_exp_x - alpha.clone(); // α·eˣ − α
+        lambda.clone() * inner // λ * (α·eˣ − α)
     };
 
     // 5) Combine the two branches using mask_pos:
