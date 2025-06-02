@@ -12,14 +12,7 @@ use burn::nn::conv::Conv1dConfig;
 use burn::nn::conv::Conv2d;
 use burn::nn::conv::Conv2dConfig;
 use burn::prelude::*;
-// use burn::record::Record;
-// use burn::record::RecordError;
-// use ndarray::Data;
-// use burn::tensor::ElementConversion;
-// use burn::tensor::Tensor;
-// use burn::tensor::TensorBackend;
 use burn::tensor::activation::relu;
-// use burn::tensor::activation::selu;
 
 /// McldnnBurn: replicates the Keras MCLDNN topology in Burn 0.18.
 ///
@@ -110,19 +103,38 @@ impl<B: Backend> McldnnBurn<B> {
     }
 }
 
-// Now we implement `Module<B>` manually. The derive( Module ) macro already gave us the
-// associated‐type boilerplate for `Record` and `Storage`, so we only need to write `forward(...)`.
-impl<B: Backend> McldnnBurn<B> {
-    // Input  = (input1, input2, input3)
-    //   input1: Tensor<[batch,1,2,128]>
-    //   input2: Tensor<[batch,1,128]>
-    //   input3: Tensor<[batch,1,128]>
-    //
-    // Output = Tensor<[batch,num_classes]>
-    // type Input = (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>);
-    // type Output = Tensor<B, 2>;
+/// Applies the “SELU” activation to `x`:
+///   SELU(x) = λ * x,                     if x > 0
+///           = λ * (α * exp(x) − α),      if x ≤ 0
+///
+/// where α ≈ 1.67326324 and λ ≈ 1.05070098.
+pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
+    // 1) Create scalar tensors for α and λ on the same device as `x`.
+    let alpha = Tensor::from_data([1.67326324f32], &x.device());
+    let lambda = Tensor::from_data([1.05070098f32], &x.device());
 
-    fn forward(&self, inputs: (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>)) -> Tensor<B, 2> {
+    // 2) Build a “zero” tensor to compare x > 0.
+    let zero = Tensor::from_data([0.0f32], &x.device());
+    let mask_pos = x.clone().greater(zero.clone()); 
+    //    mask_pos: a boolean‐mask Tensor<B, 2> where true = x>0
+
+    // 3) Positive branch: λ * x
+    let pos = x.clone() * lambda.clone();
+
+    // 4) Negative branch: λ * (α * exp(x) − α)
+    let neg = {
+        let exp_x = x.clone().exp();             // eˣ
+        let a_exp_x = alpha.clone() * exp_x;     // α·eˣ
+        let inner  = a_exp_x - alpha.clone();    // α·eˣ − α
+        lambda.clone() * inner                   // λ * (α·eˣ − α)
+    };
+
+    // 5) Combine the two branches using mask_pos:
+    pos.mask_where(mask_pos, neg)
+}
+
+impl<B: Backend> McldnnBurn<B> {
+    pub fn forward(&self, inputs: (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>)) -> Tensor<B, 2> {
         let (input1, input2, input3) = inputs;
 
         // ──────── Branch 1: Conv2D(I/Q) ────────
@@ -157,12 +169,12 @@ impl<B: Backend> McldnnBurn<B> {
         let x = x.permute([0, 2, 1]); // [batch,124,100]
 
         // ──────── LSTM #1 ────────
-        let (x, (_, _)) = self.lstm1.forward(x.clone()); // [batch,124,128]
+        let (x, _) = self.lstm1.forward(x.clone(), None); // [batch,124,128]
         // ──────── LSTM #2 ────────
-        let (x, (h2, _)) = self.lstm2.forward(x); // [batch,124,128], h2: [1, batch, 128]
+        let (_, h2) = self.lstm2.forward(x, None); // [batch,124,128], h2: [1, batch, 128]
 
         // Grab layer-0’s hidden state (first dimension of h2)
-        let h2 = h2.index([0]); // [batch,128]
+        let h2 = h2.hidden;
 
         // ──────── Dense→SELU→Dropout→Dense head ────────
         let mut x = self.fc1.forward(h2.clone()); // [batch,128]
