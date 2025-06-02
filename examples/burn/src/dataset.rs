@@ -67,9 +67,9 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             .iter()
             .map(|item| {
                 let data = item.iq_samples.as_slice().unwrap().to_vec();
-                let shape = vec![1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
+                let shape = vec![1, 1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
                 let d = TensorData::new(data, shape);
-                Tensor::<B, 3>::from_data(d, device)
+                Tensor::<B, 4>::from_data(d, device)
             })
             .collect();
 
@@ -106,8 +106,12 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
         let real = Tensor::cat(real, 0);
         let imag = Tensor::cat(imag, 0);
         let iq_samples = Tensor::cat(iq_samples, 0);
-        let iq_samples = iq_samples.unsqueeze_dim(1);
         let modulation = Tensor::cat(modulation, 0);
+
+        // println!("→ real.shape() = {:?}", real.clone().into_data().shape);
+        // println!("→ imag.shape() = {:?}", imag.clone().into_data().shape);
+        // println!("→ iq_samples.shape() = {:?}", iq_samples.clone().into_data().shape);
+        // println!("→ modulation.shape() = {:?}", modulation.clone().into_data().shape);
 
         RadioDatasetBatch {
             real,

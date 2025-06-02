@@ -1,6 +1,7 @@
 use burn::module::Module;
 use burn::nn::Dropout;
 use burn::nn::DropoutConfig;
+use burn::nn::Initializer;
 use burn::nn::Linear;
 use burn::nn::LinearConfig;
 use burn::nn::Lstm;
@@ -14,6 +15,7 @@ use burn::nn::conv::Conv2dConfig;
 use burn::nn::loss::CrossEntropyLossConfig;
 use burn::prelude::*;
 use burn::tensor::activation::relu;
+use burn::tensor::activation::softmax;
 use burn::tensor::backend::AutodiffBackend;
 use burn::train::ClassificationOutput;
 use burn::train::TrainOutput;
@@ -21,91 +23,6 @@ use burn::train::TrainStep;
 use burn::train::ValidStep;
 
 use crate::dataset::RadioDatasetBatch;
-
-/// Mcldnn: replicates the Keras MCLDNN topology
-///
-///  - Branch 1: Conv2D on “[batch, 1, 2, 128]”  
-///  - Branch 2: two Conv1D’s followed by a small Conv2D  
-///  - Fuse → big Conv2D → reshape → two LSTMs → SELU+Dense head
-#[derive(Module, Debug)]
-pub struct Mcldnn<B: Backend> {
-    // Branch 1 (I/Q 2×128 → Conv2D)
-    conv1_1: Conv2d<B>,
-    // Branch 2a/2b (each 1D on real/imag)
-    conv1_2: Conv1d<B>,
-    conv1_3: Conv1d<B>,
-    // After merging branch 2 vertically, small Conv2D
-    conv2: Conv2d<B>,
-    // After channel-concat with branch 1, big Conv2D
-    conv4: Conv2d<B>,
-    // Two LSTM layers
-    lstm1: Lstm<B>,
-    lstm2: Lstm<B>,
-    // Dense head
-    fc1: Linear<B>,
-    fc2: Linear<B>,
-    dropout: Dropout,
-}
-
-#[derive(Config, Debug)]
-pub struct McldnnConfig {
-    #[config(default = "11")]
-    num_classes: usize,
-}
-
-impl McldnnConfig {
-    /// Returns the initialized model.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
-       // ──────── Branch 1 Conv2D ────────
-        // Use odd kernel [3,9], then Same padding → preserves [2,128]
-        let conv1_1 = Conv2dConfig::new([1, 50], [3, 9])
-            .with_padding(PaddingConfig2d::Same)
-            .init(device);
-        // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
-
-        // ──────── Branch 2 Conv1D ────────
-        // Use odd kernel 9 with Same padding → preserves length 128
-        let conv1d_cfg = Conv1dConfig::new(1, 50, 9)
-            .with_padding(PaddingConfig1d::Same);
-        let conv1_2 = conv1d_cfg.init(device);  // Input: [batch, 1, 128] → [batch, 50, 128]
-        let conv1_3 = conv1d_cfg.init(device);
-
-        // ──────── Small Conv2D on merged Branch 2 ────────
-        // After unsqueeze & vertical cat: [batch, 50, 2, 128]
-        // Use [1,9], Same padding → preserves [2,128]
-        let conv2 = Conv2dConfig::new([50, 50], [1, 9])
-            .with_padding(PaddingConfig2d::Same)
-            .init(device);
-        // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
-
-        // ──────── Big Conv2D after channel–concat ────────
-        // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
-        // Use [2,5], Valid padding → height 2→1, width 128→124
-        let conv4 = Conv2dConfig::new([100, 100], [2, 5])
-            .with_padding(PaddingConfig2d::Valid)
-            .init(device);
-        // [batch,100,2,128] → [batch,100,1,124]
-
-        let lstm1 = LstmConfig::new(100, 128, true).init(device);
-        let lstm2 = LstmConfig::new(128, 128, true).init(device);
-        let fc1   = LinearConfig::new(128, 128).init(device);
-        let fc2   = LinearConfig::new(128, self.num_classes).init(device);
-        let dropout = DropoutConfig::new(0.5).init();
-
-        Mcldnn {
-            conv1_1,
-            conv1_2,
-            conv1_3,
-            conv2,
-            conv4,
-            lstm1,
-            lstm2,
-            fc1,
-            fc2,
-            dropout,
-        }
-    }
-}
 
 /// Applies the “SELU” activation to `x`:
 ///   SELU(x) = λ * x,                     if x > 0
@@ -137,6 +54,98 @@ pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
     pos.mask_where(mask_pos, neg)
 }
 
+/// Mcldnn: replicates the Keras MCLDNN topology
+///
+///  - Branch 1: Conv2D on “[batch, 1, 2, 128]”  
+///  - Branch 2: two Conv1D’s followed by a small Conv2D  
+///  - Fuse → big Conv2D → reshape → two LSTMs → SELU+Dense head
+#[derive(Module, Debug)]
+pub struct Mcldnn<B: Backend> {
+    // Branch 1 (I/Q 2×128 → Conv2D)
+    conv1_1: Conv2d<B>,
+    // Branch 2a/2b (each 1D on real/imag)
+    conv1_2: Conv1d<B>,
+    conv1_3: Conv1d<B>,
+    // After merging branch 2 vertically, small Conv2D
+    conv2: Conv2d<B>,
+    // After channel-concat with branch 1, big Conv2D
+    conv4: Conv2d<B>,
+    // Two LSTM layers
+    lstm1: Lstm<B>,
+    lstm2: Lstm<B>,
+    // Dense head
+    fc1: Linear<B>,
+    fc2: Linear<B>,
+    fc3: Linear<B>,
+    dropout: Dropout,
+}
+
+#[derive(Config, Debug)]
+pub struct McldnnConfig {
+    #[config(default = "11")]
+    num_classes: usize,
+}
+
+impl McldnnConfig {
+    /// Returns the initialized model.
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
+        // ──────── Branch 1 Conv2D ────────
+        // Use odd kernel [3,9], then Same padding → preserves [2,128]
+        let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
+            .with_padding(PaddingConfig2d::Valid)
+            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
+
+        // ──────── Branch 2 Conv1D ────────
+        // Use odd kernel 9 with Same padding → preserves length 128
+        let conv1d_cfg = Conv1dConfig::new(1, 50, 8)
+            .with_padding(PaddingConfig1d::Valid);
+            // .with_initializer(Initializer::XavierUniform { gain: 1.0 });
+        let conv1_2 = conv1d_cfg.init(device); // Input: [batch, 1, 128] → [batch, 50, 128]
+        let conv1_3 = conv1d_cfg.init(device);
+
+        // ──────── Small Conv2D on merged Branch 2 ────────
+        // After unsqueeze & vertical cat: [batch, 50, 2, 128]
+        // Use [1,9], Same padding → preserves [2,128]
+        let conv2 = Conv2dConfig::new([50, 50], [1, 8])
+            .with_padding(PaddingConfig2d::Valid)
+            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
+
+        // ──────── Big Conv2D after channel–concat ────────
+        // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
+        // Use [2,5], Valid padding → height 2→1, width 128→124
+        let conv4 = Conv2dConfig::new([100, 100], [2, 8])
+            .with_padding(PaddingConfig2d::Valid)
+            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        // [batch,100,2,128] → [batch,100,1,124]
+
+        let lstm1 = LstmConfig::new(100, 128, true).init(device);
+        let lstm2 = LstmConfig::new(128, 128, true).init(device);
+        let fc1 = LinearConfig::new(128, 128).init(device);
+        let fc2 = LinearConfig::new(128, 128).init(device);
+        let fc3 = LinearConfig::new(128, self.num_classes).init(device);
+        let dropout = DropoutConfig::new(0.5).init();
+
+        Mcldnn {
+            conv1_1,
+            conv1_2,
+            conv1_3,
+            conv2,
+            conv4,
+            lstm1,
+            lstm2,
+            fc1,
+            fc2,
+            fc3,
+            dropout,
+        }
+    }
+}
+
 impl<B: Backend> Mcldnn<B> {
     pub fn forward(&self, inputs: (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>)) -> Tensor<B, 2> {
         let (input1, input2, input3) = inputs;
@@ -154,10 +163,13 @@ impl<B: Backend> Mcldnn<B> {
         let mut x3 = self.conv1_3.forward(input3); // [batch,50,128]
         x3 = relu(x3);
         let x3 = x3.unsqueeze_dim(2); // → [batch,50,1,128]
+  
+        // Stack x2 and x3 vertically
+        let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,128,2,50]
 
         // ──────── Merge Branch 2 vertically ────────
         // Stack on height axis (dim=2)
-        let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,50,2,128]
+        // let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,50,2,128]
         x23 = self.conv2.forward(x23); // [batch,50,2,128]
         x23 = relu(x23);
 
@@ -169,22 +181,29 @@ impl<B: Backend> Mcldnn<B> {
         x = relu(x);
 
         // ──────── Reshape → LSTM input ────────
-        let x = x.squeeze_dims(&[2]); // [batch,100,124]
-        let x = x.permute([0, 2, 1]); // [batch,124,100]
+        let x: Tensor<B, 3> = x.squeeze_dims(&[2]); // [batch,100,124]
+        // let x = x.permute([0, 2, 1]); // [batch,124,100]
 
-        // ──────── LSTM #1 ────────
+        let batch_size = x.shape().dims[0];
+        let x = x.reshape([batch_size, 124, 100]);
+        // First LSTM - return full sequence
         let (x, _) = self.lstm1.forward(x.clone(), None); // [batch,124,128]
-        // ──────── LSTM #2 ────────
-        let (_, h2) = self.lstm2.forward(x, None); // [batch,124,128], h2: [1, batch, 128]
 
-        // Grab layer-0’s hidden state (first dimension of h2)
-        let h2 = h2.hidden;
+        // Second LSTM - need only final output
+        let (_, h2) = self.lstm2.forward(x, None); // h2: [1,batch,128]
+        let h2 = h2.hidden; // Get hidden state
 
-        // ──────── Dense→SELU→Dropout→Dense head ────────
-        let mut x = self.fc1.forward(h2.clone()); // [batch,128]
+        // ──────── Dense→SELU→Dropout→Dense→SELU→Dropout→Dense+Softmax head ────────
+        let mut x = self.fc1.forward(h2); // [batch,128]
         x = selu(x);
-        x = self.dropout.forward(x); // Dropout only in “train” mode
-        self.fc2.forward(x) // [batch, num_classes]
+        x = self.dropout.forward(x);
+
+        let mut x = self.fc2.forward(x); // [batch,128]
+        x = selu(x);
+        x = self.dropout.forward(x);
+
+        let x = self.fc3.forward(x); // [batch,num_classes]
+        softmax(x, 1)
     }
 
     pub fn forward_classification(

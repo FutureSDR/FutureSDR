@@ -93,6 +93,7 @@ fn main() -> anyhow::Result<()> {
         "model",
         TrainingConfig::new(McldnnConfig::new(), AdamConfig::new())
             .with_num_workers(1)
+            .with_num_epochs(1000)
             .with_batch_size(400),
         device,
     );
