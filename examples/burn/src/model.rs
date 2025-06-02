@@ -14,7 +14,13 @@ use burn::nn::conv::Conv2dConfig;
 use burn::nn::loss::CrossEntropyLossConfig;
 use burn::prelude::*;
 use burn::tensor::activation::relu;
+use burn::tensor::backend::AutodiffBackend;
 use burn::train::ClassificationOutput;
+use burn::train::TrainOutput;
+use burn::train::TrainStep;
+use burn::train::ValidStep;
+
+use crate::dataset::RadioDatasetBatch;
 
 /// Mcldnn: replicates the Keras MCLDNN topology
 ///
@@ -58,7 +64,7 @@ impl McldnnConfig {
 
         // ──────── Branch 2 Conv1D ────────
         // Using kernel size 8 to match Keras exactly
-        let conv1d_cfg = Conv1dConfig::new(8, 1, 50).with_padding(PaddingConfig1d::Valid);
+        let conv1d_cfg = Conv1dConfig::new(1, 50, 8).with_padding(PaddingConfig1d::Valid);
         let conv1_2 = conv1d_cfg.init(device);
         let conv1_3 = conv1d_cfg.init(device);
 
@@ -175,14 +181,31 @@ impl<B: Backend> Mcldnn<B> {
 
     pub fn forward_classification(
         &self,
-        iq_samples: Tensor<B, 3>,
+        real: Tensor<B, 3>,
+        imag: Tensor<B, 3>,
+        iq_samples: Tensor<B, 4>,
         modulations: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
-        let output = self.forward(iq_samples);
+        let output = self.forward((iq_samples, real, imag));
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
             .forward(output.clone(), modulations.clone());
 
         ClassificationOutput::new(loss, output, modulations)
+    }
+}
+
+impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
+    fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+        let item =
+            self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation);
+
+        TrainOutput::new(self, item.loss.backward(), item)
+    }
+}
+
+impl<B: Backend> ValidStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
+    fn step(&self, batch: RadioDatasetBatch<B>) -> ClassificationOutput<B> {
+        self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation)
     }
 }
