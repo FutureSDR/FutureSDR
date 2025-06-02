@@ -11,8 +11,10 @@ use burn::nn::conv::Conv1d;
 use burn::nn::conv::Conv1dConfig;
 use burn::nn::conv::Conv2d;
 use burn::nn::conv::Conv2dConfig;
+use burn::nn::loss::CrossEntropyLossConfig;
 use burn::prelude::*;
 use burn::tensor::activation::relu;
+use burn::train::ClassificationOutput;
 
 /// Mcldnn: replicates the Keras MCLDNN topology
 ///
@@ -56,8 +58,7 @@ impl McldnnConfig {
 
         // ──────── Branch 2 Conv1D ────────
         // Using kernel size 8 to match Keras exactly
-        let conv1d_cfg = Conv1dConfig::new(8, 1, 50)
-            .with_padding(PaddingConfig1d::Valid);
+        let conv1d_cfg = Conv1dConfig::new(8, 1, 50).with_padding(PaddingConfig1d::Valid);
         let conv1_2 = conv1d_cfg.init(device);
         let conv1_3 = conv1d_cfg.init(device);
 
@@ -170,5 +171,18 @@ impl<B: Backend> Mcldnn<B> {
         x = selu(x);
         x = self.dropout.forward(x); // Dropout only in “train” mode
         self.fc2.forward(x) // [batch, num_classes]
+    }
+
+    pub fn forward_classification(
+        &self,
+        iq_samples: Tensor<B, 3>,
+        modulations: Tensor<B, 1, Int>,
+    ) -> ClassificationOutput<B> {
+        let output = self.forward(iq_samples);
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), modulations.clone());
+
+        ClassificationOutput::new(loss, output, modulations)
     }
 }
