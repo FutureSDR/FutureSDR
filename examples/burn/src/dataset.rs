@@ -10,8 +10,8 @@ use ndarray::Axis;
 
 #[derive(Clone, Debug)]
 pub struct RadioDatasetItem {
-    iq_samples: Array2<f32>,
-    modulation: u8,
+    pub iq_samples: Array2<f32>,
+    pub modulation: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -96,10 +96,7 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
         let modulation = items
             .iter()
             .map(|item| {
-                Tensor::<B, 1, Int>::from_data(
-                    [(item.modulation as i64).elem::<B::IntElem>()],
-                    device,
-                )
+                Tensor::<B, 1, Int>::from_data([item.modulation.elem::<B::IntElem>()], device)
             })
             .collect();
 
@@ -107,11 +104,6 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
         let imag = Tensor::cat(imag, 0);
         let iq_samples = Tensor::cat(iq_samples, 0);
         let modulation = Tensor::cat(modulation, 0);
-
-        // println!("→ real.shape() = {:?}", real.clone().into_data().shape);
-        // println!("→ imag.shape() = {:?}", imag.clone().into_data().shape);
-        // println!("→ iq_samples.shape() = {:?}", iq_samples.clone().into_data().shape);
-        // println!("→ modulation.shape() = {:?}", modulation.clone().into_data().shape);
 
         RadioDatasetBatch {
             real,

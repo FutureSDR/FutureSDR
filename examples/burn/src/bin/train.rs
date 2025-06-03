@@ -1,13 +1,10 @@
-#![recursion_limit = "256"]
-pub mod dataset;
-mod model;
-use model::McldnnConfig;
-
-use dataset::RadioDataset;
-use dataset::RadioDatasetBatcher;
+#![recursion_limit = "512"]
+use futuresdr_burn::model::McldnnConfig;
+use futuresdr_burn::dataset::RadioDataset;
+use futuresdr_burn::dataset::RadioDatasetBatcher;
 
 use burn::backend::Autodiff;
-use burn::backend::wgpu::Wgpu;
+use burn::backend::WebGpu;
 use burn::backend::wgpu::WgpuDevice;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::module::Module;
@@ -85,16 +82,17 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 }
 
 fn main() -> anyhow::Result<()> {
-    type MyBackend = Wgpu<f32>;
-    type MyAutodiffBackend = Autodiff<MyBackend>;
+    type MyAutodiffBackend = Autodiff<WebGpu<f32>>;
     let device = WgpuDevice::default();
 
     train::<MyAutodiffBackend>(
         "model",
         TrainingConfig::new(McldnnConfig::new(), AdamConfig::new())
             .with_num_workers(1)
-            .with_num_epochs(1000)
-            .with_batch_size(400),
+            .with_num_epochs(10)
+            .with_seed(123)
+            .with_learning_rate(0.001)
+            .with_batch_size(100),
         device,
     );
 

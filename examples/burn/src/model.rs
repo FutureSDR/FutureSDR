@@ -1,21 +1,19 @@
 use burn::module::Module;
 use burn::nn::Dropout;
 use burn::nn::DropoutConfig;
-use burn::nn::Initializer;
 use burn::nn::Linear;
 use burn::nn::LinearConfig;
 use burn::nn::Lstm;
 use burn::nn::LstmConfig;
 use burn::nn::PaddingConfig1d;
 use burn::nn::PaddingConfig2d;
+use burn::nn::Relu;
 use burn::nn::conv::Conv1d;
 use burn::nn::conv::Conv1dConfig;
 use burn::nn::conv::Conv2d;
 use burn::nn::conv::Conv2dConfig;
 use burn::nn::loss::CrossEntropyLossConfig;
 use burn::prelude::*;
-use burn::tensor::activation::relu;
-use burn::tensor::activation::softmax;
 use burn::tensor::backend::AutodiffBackend;
 use burn::train::ClassificationOutput;
 use burn::train::TrainOutput;
@@ -30,24 +28,22 @@ use crate::dataset::RadioDatasetBatch;
 ///
 /// where α ≈ 1.67326324 and λ ≈ 1.05070098.
 pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
-    // 1) Create scalar tensors for α and λ on the same device as `x`.
-    let alpha = Tensor::from_data([[1.6732632f32]], &x.device());
-    let lambda = Tensor::from_data([[1.050701f32]], &x.device());
+    let alpha = 1.6732632f32;
+    let lambda = 1.050701f32;
 
     // 2) Build a “zero” tensor to compare x > 0.
-    let zero = Tensor::from_data([[0.0f32]], &x.device());
-    let mask_pos = x.clone().greater(zero.clone());
-    //    mask_pos: a boolean‐mask Tensor<B, 2> where true = x>0
+    let zero = x.zeros_like();
+    let mask_pos = x.clone().greater(zero).bool_not();
 
     // 3) Positive branch: λ * x
-    let pos = x.clone() * lambda.clone();
+    let pos = x.clone() * lambda;
 
     // 4) Negative branch: λ * (α * exp(x) − α)
     let neg = {
-        let exp_x = x.clone().exp(); // eˣ
-        let a_exp_x = alpha.clone() * exp_x; // α·eˣ
-        let inner = a_exp_x - alpha.clone(); // α·eˣ − α
-        lambda.clone() * inner // λ * (α·eˣ − α)
+        let exp_x = x.exp(); // eˣ
+        let a_exp_x = exp_x * alpha; // α·eˣ
+        let inner = a_exp_x - alpha; // α·eˣ − α
+        inner * lambda // λ * (α·eˣ − α)
     };
 
     // 5) Combine the two branches using mask_pos:
@@ -78,6 +74,7 @@ pub struct Mcldnn<B: Backend> {
     fc2: Linear<B>,
     fc3: Linear<B>,
     dropout: Dropout,
+    relu: Relu,
 }
 
 #[derive(Config, Debug)]
@@ -88,38 +85,36 @@ pub struct McldnnConfig {
 
 impl McldnnConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
+    pub fn init<B: AutodiffBackend>(&self, device: &B::Device) -> Mcldnn<B> {
         // ──────── Branch 1 Conv2D ────────
         // Use odd kernel [3,9], then Same padding → preserves [2,128]
         let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
             .with_padding(PaddingConfig2d::Valid)
-            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
             .init(device);
         // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
 
         // ──────── Branch 2 Conv1D ────────
         // Use odd kernel 9 with Same padding → preserves length 128
-        let conv1d_cfg = Conv1dConfig::new(1, 50, 8)
-            .with_padding(PaddingConfig1d::Valid);
-            // .with_initializer(Initializer::XavierUniform { gain: 1.0 });
-        let conv1_2 = conv1d_cfg.init(device); // Input: [batch, 1, 128] → [batch, 50, 128]
-        let conv1_3 = conv1d_cfg.init(device);
+        let conv1_2 = Conv1dConfig::new(1, 50, 8)
+            .with_padding(PaddingConfig1d::Valid)
+            .init(device);
+        let conv1_3 = Conv1dConfig::new(1, 50, 8)
+            .with_padding(PaddingConfig1d::Valid)
+            .init(device);
 
         // ──────── Small Conv2D on merged Branch 2 ────────
         // After unsqueeze & vertical cat: [batch, 50, 2, 128]
         // Use [1,9], Same padding → preserves [2,128]
         let conv2 = Conv2dConfig::new([50, 50], [1, 8])
             .with_padding(PaddingConfig2d::Valid)
-            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
             .init(device);
         // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
 
         // ──────── Big Conv2D after channel–concat ────────
         // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
         // Use [2,5], Valid padding → height 2→1, width 128→124
-        let conv4 = Conv2dConfig::new([100, 100], [2, 8])
+        let conv4 = Conv2dConfig::new([100, 100], [2, 5])
             .with_padding(PaddingConfig2d::Valid)
-            // .with_initializer(Initializer::XavierUniform { gain: 1.0 })
             .init(device);
         // [batch,100,2,128] → [batch,100,1,124]
 
@@ -129,6 +124,7 @@ impl McldnnConfig {
         let fc2 = LinearConfig::new(128, 128).init(device);
         let fc3 = LinearConfig::new(128, self.num_classes).init(device);
         let dropout = DropoutConfig::new(0.5).init();
+        let relu = Relu::new();
 
         Mcldnn {
             conv1_1,
@@ -142,6 +138,7 @@ impl McldnnConfig {
             fc2,
             fc3,
             dropout,
+            relu,
         }
     }
 }
@@ -151,47 +148,53 @@ impl<B: Backend> Mcldnn<B> {
         let (input1, input2, input3) = inputs;
 
         // ──────── Branch 1: Conv2D(I/Q) ────────
-        let mut x1 = self.conv1_1.forward(input1); // [batch,50,2,128]
-        x1 = relu(x1);
+        let mut x1 = self.conv1_1.forward(input1.pad((7, 0, 0, 1), 0.0)); // [batch,50,2,128]
+        x1 = self.relu.forward(x1);
 
         // ──────── Branch 2a: Conv1D on “real” ────────
-        let mut x2 = self.conv1_2.forward(input2); // [batch,50,128]
-        x2 = relu(x2);
+        let mut x2 = self.conv1_2.forward(input2.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        x2 = self.relu.forward(x2);
         let x2 = x2.unsqueeze_dim(2); // → [batch,50,1,128]
+        log::info!("x2 {:?}", x2.shape());
 
         // ──────── Branch 2b: Conv1D on “imag” ────────
-        let mut x3 = self.conv1_3.forward(input3); // [batch,50,128]
-        x3 = relu(x3);
+        let mut x3 = self.conv1_3.forward(input3.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        x3 = self.relu.forward(x3);
         let x3 = x3.unsqueeze_dim(2); // → [batch,50,1,128]
-  
+        log::info!("x3 {:?}", x3.shape());
+
         // Stack x2 and x3 vertically
         let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,128,2,50]
+        log::info!("x23 after cat {:?}", x23.shape());
 
         // ──────── Merge Branch 2 vertically ────────
         // Stack on height axis (dim=2)
-        // let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,50,2,128]
-        x23 = self.conv2.forward(x23); // [batch,50,2,128]
-        x23 = relu(x23);
+        x23 = self.conv2.forward(x23.pad((7, 0, 0, 0), 0.0)); // [batch,50,2,128]
+        log::info!("x23 after conv {:?}", x23.shape());
+        x23 = self.relu.forward(x23);
 
         // ──────── Fuse Branch 1 & Branch 2 on channel axis ────────
         let x = Tensor::cat(vec![x1, x23], 1); // [batch,100,2,128]
+        log::info!("x after cat {:?}", x.shape());
 
         // ──────── Big Conv2D ────────
         let mut x = self.conv4.forward(x); // [batch,100,1,124]
-        x = relu(x);
+        x = self.relu.forward(x);
+        log::info!("x after conv4 {:?}", x.shape());
 
         // ──────── Reshape → LSTM input ────────
         let x: Tensor<B, 3> = x.squeeze_dims(&[2]); // [batch,100,124]
-        // let x = x.permute([0, 2, 1]); // [batch,124,100]
+        log::info!("x after squeeze {:?}", x.shape());
+        let x = x.permute([0, 2, 1]); // [batch,124,100]
+        log::info!("x after permute {:?}", x.shape());
 
-        let batch_size = x.shape().dims[0];
-        let x = x.reshape([batch_size, 124, 100]);
         // First LSTM - return full sequence
-        let (x, _) = self.lstm1.forward(x.clone(), None); // [batch,124,128]
+        let (x, _) = self.lstm1.forward(x, None); // [batch,124,128]
 
         // Second LSTM - need only final output
         let (_, h2) = self.lstm2.forward(x, None); // h2: [1,batch,128]
         let h2 = h2.hidden; // Get hidden state
+        log::info!("h2 {:?}", h2.shape());
 
         // ──────── Dense→SELU→Dropout→Dense→SELU→Dropout→Dense+Softmax head ────────
         let mut x = self.fc1.forward(h2); // [batch,128]
@@ -202,8 +205,7 @@ impl<B: Backend> Mcldnn<B> {
         x = selu(x);
         x = self.dropout.forward(x);
 
-        let x = self.fc3.forward(x); // [batch,num_classes]
-        softmax(x, 1)
+        self.fc3.forward(x) // [batch,num_classes]
     }
 
     pub fn forward_classification(
@@ -227,7 +229,8 @@ impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>
         let item =
             self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation);
 
-        TrainOutput::new(self, item.loss.backward(), item)
+        let grads = item.loss.backward();
+        TrainOutput::new(self, grads, item)
     }
 }
 

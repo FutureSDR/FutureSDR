@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 
 # ─── 1) Load the pickled AMR‐Benchmark dict with Latin‐1 encoding ───
 with open("/home/basti/Downloads/radioml2016-deepsigcom/RML2016.10a_dict.pkl", "rb") as f:
-    data_dict = pickle.load(f, encoding="latin1")
+    data_dict = pickle.load(f, encoding='iso-8859-1')
 
 # data_dict’s keys look like (“BPSK”, 0), (“BPSK”, 2), (“QPSK”, 0), … 
 # and each value is an ndarray of shape (n_samples, 2, 128).
@@ -17,6 +17,12 @@ all_mods = sorted({mod for (mod, snr) in data_dict.keys()})
 mod_to_idx = {mod: idx for idx, mod in enumerate(all_mods)}
 num_classes = len(all_mods)
 print(f"Found {num_classes} modulation classes: {all_mods}")
+print(f"Mapping {mod_to_idx}")
+
+print(f"dict keys n {len(data_dict.keys())} {data_dict.keys()}")
+
+a = data_dict[('GFSK', 14)]
+print(f"a shape {a.shape}  content {a}")
 
 # ─── 3) Flatten everything into one big X_all and one big y_all ───
 X_list = []
@@ -34,10 +40,10 @@ y_all = np.concatenate(Y_list)  # shape: (N_total,)
 print("After stacking:", X_all.shape, y_all.shape)
 
 # ─── 4) Shuffle + stratify by label ───
-rng = np.random.RandomState(42)
-perm = rng.permutation(len(X_all))
-X_all = X_all[perm]
-y_all = y_all[perm]
+# rng = np.random.RandomState(42)
+# perm = rng.permutation(len(X_all))
+# X_all = X_all[perm]
+# y_all = y_all[perm]
 
 # ─── 5) Split off 10% for test ───
 X_tmp, X_test, y_tmp, y_test = train_test_split(
@@ -53,6 +59,10 @@ print("After split:")
 print("  X_train:", X_train.shape, "y_train:", y_train.shape)
 print("  X_val:  ", X_val.shape,   "y_val:  ",   y_val.shape)
 print("  X_test: ", X_test.shape,  "y_test: ",  y_test.shape)
+
+a = X_train[0, :, :]
+print(f"first {a}")
+print(f"first mod {y_train[0]}")
 
 # ─── 7) Save each split (no trailing “1” dim yet) ───
 os.makedirs("preprocessed_npy", exist_ok=True)
