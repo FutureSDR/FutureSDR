@@ -224,12 +224,19 @@ impl<B: Backend> Mcldnn<B> {
     }
 }
 
+struct PrintGrads;
+impl<B: Backend> burn::module::ModuleVisitor<B> for PrintGrads {
+    fn visit_float<const D: usize>(&mut self, _id: burn::module::ParamId, tensor: &Tensor<B, D>) {
+        log::info!("Grads {tensor}");
+    }
+}
+
 impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
     fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item =
             self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation);
-
         let grads = item.loss.backward();
+        self.visit(&mut PrintGrads);
         TrainOutput::new(self, grads, item)
     }
 }
