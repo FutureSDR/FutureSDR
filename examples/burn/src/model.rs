@@ -155,38 +155,38 @@ impl<B: Backend> Mcldnn<B> {
         let mut x2 = self.conv1_2.forward(input2.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x2 = self.relu.forward(x2);
         let x2 = x2.unsqueeze_dim(2); // → [batch,50,1,128]
-        log::info!("x2 {:?}", x2.shape());
+        // log::info!("x2 {:?}", x2.shape());
 
         // ──────── Branch 2b: Conv1D on “imag” ────────
         let mut x3 = self.conv1_3.forward(input3.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x3 = self.relu.forward(x3);
         let x3 = x3.unsqueeze_dim(2); // → [batch,50,1,128]
-        log::info!("x3 {:?}", x3.shape());
+        // log::info!("x3 {:?}", x3.shape());
 
         // Stack x2 and x3 vertically
         let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,128,2,50]
-        log::info!("x23 after cat {:?}", x23.shape());
+        // log::info!("x23 after cat {:?}", x23.shape());
 
         // ──────── Merge Branch 2 vertically ────────
         // Stack on height axis (dim=2)
         x23 = self.conv2.forward(x23.pad((7, 0, 0, 0), 0.0)); // [batch,50,2,128]
-        log::info!("x23 after conv {:?}", x23.shape());
+        // log::info!("x23 after conv {:?}", x23.shape());
         x23 = self.relu.forward(x23);
 
         // ──────── Fuse Branch 1 & Branch 2 on channel axis ────────
         let x = Tensor::cat(vec![x1, x23], 1); // [batch,100,2,128]
-        log::info!("x after cat {:?}", x.shape());
+        // log::info!("x after cat {:?}", x.shape());
 
         // ──────── Big Conv2D ────────
         let mut x = self.conv4.forward(x); // [batch,100,1,124]
         x = self.relu.forward(x);
-        log::info!("x after conv4 {:?}", x.shape());
+        // log::info!("x after conv4 {:?}", x.shape());
 
         // ──────── Reshape → LSTM input ────────
         let x: Tensor<B, 3> = x.squeeze_dims(&[2]); // [batch,100,124]
-        log::info!("x after squeeze {:?}", x.shape());
+        // log::info!("x after squeeze {:?}", x.shape());
         let x = x.permute([0, 2, 1]); // [batch,124,100]
-        log::info!("x after permute {:?}", x.shape());
+        // log::info!("x after permute {:?}", x.shape());
 
         // First LSTM - return full sequence
         let (x, _) = self.lstm1.forward(x, None); // [batch,124,128]
@@ -194,7 +194,7 @@ impl<B: Backend> Mcldnn<B> {
         // Second LSTM - need only final output
         let (_, h2) = self.lstm2.forward(x, None); // h2: [1,batch,128]
         let h2 = h2.hidden; // Get hidden state
-        log::info!("h2 {:?}", h2.shape());
+        // log::info!("h2 {:?}", h2.shape());
 
         // ──────── Dense→SELU→Dropout→Dense→SELU→Dropout→Dense+Softmax head ────────
         let mut x = self.fc1.forward(h2); // [batch,128]
@@ -219,24 +219,35 @@ impl<B: Backend> Mcldnn<B> {
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
             .forward(output.clone(), modulations.clone());
-
         ClassificationOutput::new(loss, output, modulations)
     }
 }
 
-struct PrintGrads;
-impl<B: Backend> burn::module::ModuleVisitor<B> for PrintGrads {
-    fn visit_float<const D: usize>(&mut self, _id: burn::module::ParamId, tensor: &Tensor<B, D>) {
-        log::info!("Grads {tensor}");
-    }
-}
+// struct PrintGrads<'a, B: AutodiffBackend> {
+//     grads: &'a B::Gradients,
+// }
+//
+// impl<'a, B: AutodiffBackend> burn::module::ModuleVisitor<B> for PrintGrads<'a, B> {
+//     fn visit_float<const D: usize>(
+//         &mut self,
+//         id: burn::module::ParamId,
+//         tensor: &Tensor<B, D>,
+//     ) {
+//         if let Some(grad_tensor) = tensor.grad(self.grads) {
+//             log::info!("Grad for parameter {id:?}: {grad_tensor}");
+//         } else {
+//             log::warn!("No gradient found for parameter {id:?}");
+//         }
+//     }
+// }
 
 impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
     fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item =
             self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation);
+
         let grads = item.loss.backward();
-        self.visit(&mut PrintGrads);
+        // self.visit(&mut PrintGrads { grads: &grads });
         TrainOutput::new(self, grads, item)
     }
 }

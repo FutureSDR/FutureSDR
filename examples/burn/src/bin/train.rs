@@ -1,7 +1,9 @@
 #![recursion_limit = "512"]
-use futuresdr_burn::model::McldnnConfig;
 use futuresdr_burn::dataset::RadioDataset;
 use futuresdr_burn::dataset::RadioDatasetBatcher;
+use futuresdr_burn::model::McldnnConfig;
+// use futuresdr_burn::simple_cnn::SimpleCNNConfig;
+// use futuresdr_burn::simple_model::SimpleConfig;
 
 use burn::backend::Autodiff;
 use burn::backend::WebGpu;
@@ -19,6 +21,8 @@ use burn::train::metric::LossMetric;
 #[derive(Config)]
 pub struct TrainingConfig {
     pub model: McldnnConfig,
+    // pub model: SimpleConfig,
+    // pub model: SimpleCNNConfig,
     pub optimizer: AdamConfig,
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -28,7 +32,7 @@ pub struct TrainingConfig {
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    #[config(default = 0.001)]
+    #[config(default = 0.0001)]
     pub learning_rate: f64,
 }
 
@@ -89,9 +93,9 @@ fn main() -> anyhow::Result<()> {
         "model",
         TrainingConfig::new(McldnnConfig::new(), AdamConfig::new())
             .with_num_workers(1)
-            .with_num_epochs(10)
+            .with_num_epochs(100)
             .with_seed(123)
-            .with_learning_rate(0.001)
+            .with_learning_rate(0.0001)
             .with_batch_size(100),
         device,
     );
