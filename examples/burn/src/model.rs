@@ -87,57 +87,55 @@ pub struct McldnnConfig {
 impl McldnnConfig {
     /// Returns the initialized model.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
-        // ──────── Branch 1 Conv2D ────────
-        // Use odd kernel [3,9], then Same padding → preserves [2,128]
+        // iq
         let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
             .with_initializer(Initializer::KaimingUniform {
                 gain: 1.0,
                 fan_out_only: false,
             })
+            .with_bias(true)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
-        // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
 
-        // ──────── Branch 2 Conv1D ────────
-        // Use odd kernel 9 with Same padding → preserves length 128
+        // real
         let conv1_2 = Conv1dConfig::new(1, 50, 8)
             .with_initializer(Initializer::KaimingUniform {
                 gain: 1.0,
                 fan_out_only: false,
             })
+            .with_bias(true)
             .with_padding(PaddingConfig1d::Valid)
             .init(device);
+
+        // imag
         let conv1_3 = Conv1dConfig::new(1, 50, 8)
             .with_initializer(Initializer::KaimingUniform {
                 gain: 1.0,
                 fan_out_only: false,
             })
+            .with_bias(true)
             .with_padding(PaddingConfig1d::Valid)
             .init(device);
 
-        // ──────── Small Conv2D on merged Branch 2 ────────
-        // After unsqueeze & vertical cat: [batch, 50, 2, 128]
-        // Use [1,9], Same padding → preserves [2,128]
+        // real + imag
         let conv2 = Conv2dConfig::new([50, 50], [1, 8])
             .with_initializer(Initializer::KaimingUniform {
                 gain: 1.0,
                 fan_out_only: false,
             })
+            .with_bias(true)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
-        // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
 
-        // ──────── Big Conv2D after channel–concat ────────
-        // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
-        // Use [2,5], Valid padding → height 2→1, width 128→124
+        // iq + real + imag
         let conv4 = Conv2dConfig::new([100, 100], [2, 5])
             .with_initializer(Initializer::KaimingUniform {
                 gain: 1.0,
                 fan_out_only: false,
             })
+            .with_bias(true)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
-        // [batch,100,2,128] → [batch,100,1,124]
 
         let lstm1 = LstmConfig::new(100, 128, true).init(device);
         let lstm2 = LstmConfig::new(128, 128, true).init(device);
@@ -170,56 +168,46 @@ impl<B: Backend> Mcldnn<B> {
         let imag = samples.clone().slice(s![.., 1, ..]);
         let samples = samples.unsqueeze_dim(1);
 
-        // ──────── Branch 1: Conv2D(I/Q) ────────
+        // Conv2D on IQ samples
         let mut x1 = self.conv1_1.forward(samples.pad((7, 0, 0, 1), 0.0)); // [batch,50,2,128]
         x1 = self.relu.forward(x1);
 
-        // ──────── Branch 2a: Conv1D on “real” ────────
+        // Conv1D on real
         let mut x2 = self.conv1_2.forward(real.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x2 = self.relu.forward(x2);
-        let x2 = x2.unsqueeze_dim(2); // → [batch,50,1,128]
-        // log::info!("x2 {:?}", x2.shape());
+        let x2 = x2.unsqueeze_dim(2); // [batch,50,1,128]
 
-        // ──────── Branch 2b: Conv1D on “imag” ────────
+        // Conv1D on imag
         let mut x3 = self.conv1_3.forward(imag.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x3 = self.relu.forward(x3);
-        let x3 = x3.unsqueeze_dim(2); // → [batch,50,1,128]
-        // log::info!("x3 {:?}", x3.shape());
+        let x3 = x3.unsqueeze_dim(2); // [batch,50,1,128]
 
-        // Stack x2 and x3 vertically
-        let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,128,2,50]
-        // log::info!("x23 after cat {:?}", x23.shape());
+        // Stack real and imag
+        let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,50,2,128]
 
-        // ──────── Merge Branch 2 vertically ────────
-        // Stack on height axis (dim=2)
+        // Conv2D on real and imag separately (why?)
         x23 = self.conv2.forward(x23.pad((7, 0, 0, 0), 0.0)); // [batch,50,2,128]
-        // log::info!("x23 after conv {:?}", x23.shape());
         x23 = self.relu.forward(x23);
 
-        // ──────── Fuse Branch 1 & Branch 2 on channel axis ────────
+        // Stack iq + real + imag
         let x = Tensor::cat(vec![x1, x23], 1); // [batch,100,2,128]
-        // log::info!("x after cat {:?}", x.shape());
 
-        // ──────── Big Conv2D ────────
+        // Conv2D on iq + real + imag
         let mut x = self.conv4.forward(x); // [batch,100,1,124]
         x = self.relu.forward(x);
-        // log::info!("x after conv4 {:?}", x.shape());
 
-        // ──────── Reshape → LSTM input ────────
+        // Reshape and reorder for LSTM
         let x: Tensor<B, 3> = x.squeeze_dims(&[2]); // [batch,100,124]
-        // log::info!("x after squeeze {:?}", x.shape());
         let x = x.permute([0, 2, 1]); // [batch,124,100]
-        // log::info!("x after permute {:?}", x.shape());
 
         // First LSTM - return full sequence
         let (x, _) = self.lstm1.forward(x, None); // [batch,124,128]
 
         // Second LSTM - need only final output
-        let (_, h2) = self.lstm2.forward(x, None); // h2: [1,batch,128]
-        let h2 = h2.hidden; // Get hidden state
-        // log::info!("h2 {:?}", h2.shape());
+        let (_, h2) = self.lstm2.forward(x, None);
+        let h2 = h2.hidden; // h2: [batch,128]
 
-        // ──────── Dense→SELU→Dropout→Dense→SELU→Dropout→Dense+Softmax head ────────
+        // Dense layers
         let mut x = self.fc1.forward(h2); // [batch,128]
         x = selu(x);
         x = self.dropout.forward(x);

@@ -54,6 +54,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .grads_accumulation(4)
         .summary()
         .build(
             config.model.init::<B>(&device),
@@ -78,7 +79,7 @@ fn main() -> anyhow::Result<()> {
             .with_num_workers(1)
             .with_num_epochs(103)
             .with_seed(123)
-            .with_learning_rate(0.0001)
+            .with_learning_rate(0.001)
             .with_batch_size(100),
         device,
     );
