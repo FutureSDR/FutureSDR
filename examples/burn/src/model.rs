@@ -137,11 +137,25 @@ impl McldnnConfig {
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
 
-        let lstm1 = LstmConfig::new(100, 128, true).init(device);
-        let lstm2 = LstmConfig::new(128, 128, true).init(device);
-        let fc1 = LinearConfig::new(128, 128).init(device);
-        let fc2 = LinearConfig::new(128, 128).init(device);
-        let fc3 = LinearConfig::new(128, self.num_classes).init(device);
+        let lstm1 = LstmConfig::new(100, 128, true)
+            .with_initializer(Initializer::XavierUniform {
+                gain: 1.0,
+            })
+            .init(device);
+        let lstm2 = LstmConfig::new(128, 128, true)
+            .with_initializer(Initializer::XavierUniform {
+                gain: 1.0,
+            })
+            .init(device);
+        let fc1 = LinearConfig::new(128, 128)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let fc2 = LinearConfig::new(128, 128)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let fc3 = LinearConfig::new(128, self.num_classes)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
         let dropout = DropoutConfig::new(0.5).init();
         let relu = Relu::new();
 
@@ -202,10 +216,12 @@ impl<B: Backend> Mcldnn<B> {
 
         // First LSTM - return full sequence
         let (x, _) = self.lstm1.forward(x, None); // [batch,124,128]
+        let x = burn::tensor::activation::tanh(x);
 
         // Second LSTM - need only final output
         let (_, h2) = self.lstm2.forward(x, None);
         let h2 = h2.hidden; // h2: [batch,128]
+        let h2 = burn::tensor::activation::tanh(h2);
 
         // Dense layers
         let mut x = self.fc1.forward(h2); // [batch,128]

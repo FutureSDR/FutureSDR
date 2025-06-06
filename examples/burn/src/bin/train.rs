@@ -46,6 +46,9 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(RadioDataset::test());
 
+    let model = config.model.init::<B>(&device);
+    println!("model {model}");
+
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
@@ -57,7 +60,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .grads_accumulation(4)
         .summary()
         .build(
-            config.model.init::<B>(&device),
+            model,
             config.optimizer.init(),
             config.learning_rate,
         );
