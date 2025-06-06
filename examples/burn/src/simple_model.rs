@@ -30,7 +30,7 @@ pub struct SimpleConfig {
 }
 
 impl SimpleConfig {
-    pub fn init<B: AutodiffBackend>(&self, device: &B::Device) -> Simple<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Simple<B> {
         Simple {
             layer1: LinearConfig::new(self.input_dim, self.hidden_dim).init(device),
             relu: Relu::new(),
@@ -48,7 +48,7 @@ impl<B: Backend> Simple<B> {
 
     pub fn forward_classification(
         &self,
-        iq_samples: Tensor<B, 4>,
+        iq_samples: Tensor<B, 3>,
         modulations: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let batch_size = iq_samples.dims()[0];

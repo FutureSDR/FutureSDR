@@ -55,9 +55,7 @@ pub struct RadioDatasetBatcher {}
 
 #[derive(Clone, Debug)]
 pub struct RadioDatasetBatch<B: Backend> {
-    pub real: Tensor<B, 3>,
-    pub imag: Tensor<B, 3>,
-    pub iq_samples: Tensor<B, 4>,
+    pub iq_samples: Tensor<B, 3>,
     pub modulation: Tensor<B, 1, Int>,
 }
 
@@ -67,27 +65,7 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             .iter()
             .map(|item| {
                 let data = item.iq_samples.as_slice().unwrap().to_vec();
-                let shape = vec![1, 1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
-                let d = TensorData::new(data, shape);
-                Tensor::<B, 4>::from_data(d, device)
-            })
-            .collect();
-
-        let real = items
-            .iter()
-            .map(|item| {
-                let data = item.iq_samples.index_axis(Axis(0), 0).to_vec();
-                let shape = vec![1, 1, item.iq_samples.shape()[1]];
-                let d = TensorData::new(data, shape);
-                Tensor::<B, 3>::from_data(d, device)
-            })
-            .collect();
-
-        let imag = items
-            .iter()
-            .map(|item| {
-                let data = item.iq_samples.index_axis(Axis(0), 1).to_vec();
-                let shape = vec![1, 1, item.iq_samples.shape()[1]];
+                let shape = vec![1, item.iq_samples.shape()[0], item.iq_samples.shape()[1]];
                 let d = TensorData::new(data, shape);
                 Tensor::<B, 3>::from_data(d, device)
             })
@@ -100,14 +78,10 @@ impl<B: Backend> Batcher<B, RadioDatasetItem, RadioDatasetBatch<B>> for RadioDat
             })
             .collect();
 
-        let real = Tensor::cat(real, 0);
-        let imag = Tensor::cat(imag, 0);
         let iq_samples = Tensor::cat(iq_samples, 0);
         let modulation = Tensor::cat(modulation, 0);
 
         RadioDatasetBatch {
-            real,
-            imag,
             iq_samples,
             modulation,
         }

@@ -47,7 +47,7 @@ pub struct SimpleCNNConfig {
 }
 
 impl SimpleCNNConfig {
-    pub fn init<B: AutodiffBackend>(&self, device: &B::Device) -> SimpleCNN<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> SimpleCNN<B> {
         // conv1: in_channels=2, out_channels=64, kernel_size=3, padding=1 → preserves seq_len
         let conv1 = Conv1dConfig::new(self.in_channels, self.conv_channels1, 5)
             .with_padding(PaddingConfig1d::Same)
@@ -111,11 +111,10 @@ impl<B: Backend> SimpleCNN<B> {
 
     pub fn forward_classification(
         &self,
-        iq_samples: Tensor<B, 4>,
+        iq_samples: Tensor<B, 3>,
         modulations: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
-        let x: Tensor<B, 3> = iq_samples.squeeze(1); // -> [batch, 2, 128]
-        let output = self.forward(x);
+        let output = self.forward(iq_samples);
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
             .forward(output.clone(), modulations.clone());

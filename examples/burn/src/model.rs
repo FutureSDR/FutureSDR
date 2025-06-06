@@ -1,6 +1,7 @@
 use burn::module::Module;
 use burn::nn::Dropout;
 use burn::nn::DropoutConfig;
+use burn::nn::Initializer;
 use burn::nn::Linear;
 use burn::nn::LinearConfig;
 use burn::nn::Lstm;
@@ -85,10 +86,14 @@ pub struct McldnnConfig {
 
 impl McldnnConfig {
     /// Returns the initialized model.
-    pub fn init<B: AutodiffBackend>(&self, device: &B::Device) -> Mcldnn<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
         // ──────── Branch 1 Conv2D ────────
         // Use odd kernel [3,9], then Same padding → preserves [2,128]
         let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
         // Input1: [batch, 1, 2, 128] → Output: [batch, 50, 2, 128]
@@ -96,9 +101,17 @@ impl McldnnConfig {
         // ──────── Branch 2 Conv1D ────────
         // Use odd kernel 9 with Same padding → preserves length 128
         let conv1_2 = Conv1dConfig::new(1, 50, 8)
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
             .with_padding(PaddingConfig1d::Valid)
             .init(device);
         let conv1_3 = Conv1dConfig::new(1, 50, 8)
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
             .with_padding(PaddingConfig1d::Valid)
             .init(device);
 
@@ -106,6 +119,10 @@ impl McldnnConfig {
         // After unsqueeze & vertical cat: [batch, 50, 2, 128]
         // Use [1,9], Same padding → preserves [2,128]
         let conv2 = Conv2dConfig::new([50, 50], [1, 8])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
         // [batch, 50, 2, 128] → stays [batch, 50, 2, 128]
@@ -114,6 +131,10 @@ impl McldnnConfig {
         // Now x1 & x23 both [batch, 50, 2, 128] ⇒ concatenated → [batch,100,2,128]
         // Use [2,5], Valid padding → height 2→1, width 128→124
         let conv4 = Conv2dConfig::new([100, 100], [2, 5])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
         // [batch,100,2,128] → [batch,100,1,124]
@@ -144,21 +165,23 @@ impl McldnnConfig {
 }
 
 impl<B: Backend> Mcldnn<B> {
-    pub fn forward(&self, inputs: (Tensor<B, 4>, Tensor<B, 3>, Tensor<B, 3>)) -> Tensor<B, 2> {
-        let (input1, input2, input3) = inputs;
+    pub fn forward(&self, samples: Tensor<B, 3>) -> Tensor<B, 2> {
+        let real = samples.clone().slice(s![.., 0, ..]);
+        let imag = samples.clone().slice(s![.., 1, ..]);
+        let samples = samples.unsqueeze_dim(1);
 
         // ──────── Branch 1: Conv2D(I/Q) ────────
-        let mut x1 = self.conv1_1.forward(input1.pad((7, 0, 0, 1), 0.0)); // [batch,50,2,128]
+        let mut x1 = self.conv1_1.forward(samples.pad((7, 0, 0, 1), 0.0)); // [batch,50,2,128]
         x1 = self.relu.forward(x1);
 
         // ──────── Branch 2a: Conv1D on “real” ────────
-        let mut x2 = self.conv1_2.forward(input2.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        let mut x2 = self.conv1_2.forward(real.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x2 = self.relu.forward(x2);
         let x2 = x2.unsqueeze_dim(2); // → [batch,50,1,128]
         // log::info!("x2 {:?}", x2.shape());
 
         // ──────── Branch 2b: Conv1D on “imag” ────────
-        let mut x3 = self.conv1_3.forward(input3.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        let mut x3 = self.conv1_3.forward(imag.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
         x3 = self.relu.forward(x3);
         let x3 = x3.unsqueeze_dim(2); // → [batch,50,1,128]
         // log::info!("x3 {:?}", x3.shape());
@@ -210,12 +233,10 @@ impl<B: Backend> Mcldnn<B> {
 
     pub fn forward_classification(
         &self,
-        real: Tensor<B, 3>,
-        imag: Tensor<B, 3>,
-        iq_samples: Tensor<B, 4>,
+        iq_samples: Tensor<B, 3>,
         modulations: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
-        let output = self.forward((iq_samples, real, imag));
+        let output = self.forward(iq_samples);
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
             .forward(output.clone(), modulations.clone());
@@ -243,8 +264,7 @@ impl<B: Backend> Mcldnn<B> {
 
 impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
     fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
-        let item =
-            self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation);
+        let item = self.forward_classification(batch.iq_samples, batch.modulation);
 
         let grads = item.loss.backward();
         // self.visit(&mut PrintGrads { grads: &grads });
@@ -254,6 +274,6 @@ impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>
 
 impl<B: Backend> ValidStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
     fn step(&self, batch: RadioDatasetBatch<B>) -> ClassificationOutput<B> {
-        self.forward_classification(batch.real, batch.imag, batch.iq_samples, batch.modulation)
+        self.forward_classification(batch.iq_samples, batch.modulation)
     }
 }

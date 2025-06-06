@@ -1,30 +1,61 @@
+#![recursion_limit = "512"]
 use anyhow::Result;
 use burn::backend::WebGpu;
-use burn::data::dataloader::Dataset;
-use burn::data::dataloader::batcher::Batcher;
-use futuresdr_burn::dataset::RadioDataset;
-use futuresdr_burn::dataset::RadioDatasetBatch;
-use futuresdr_burn::dataset::RadioDatasetBatcher;
+use burn::prelude::*;
+use burn::record::CompactRecorder;
+use burn::record::Recorder;
+use futuresdr_burn::TrainingConfig;
+use ndarray::Array1;
+use ndarray::Array3;
+
+pub fn infer<B: Backend>(
+    artifact_dir: &str,
+    device: B::Device,
+    samples: Tensor<B, 3>,
+    snrs: Array1<f32>,
+    mods: Array1<u8>,
+) {
+    let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
+        .expect("Config should exist for the model; run train first");
+    let record = CompactRecorder::new()
+        .load(format!("{artifact_dir}/model").into(), &device)
+        .expect("Trained model should exist; run train first");
+    let model = config.model.init::<B>(&device).load_record(record);
+
+    eprintln!("samples {:?}", samples.shape());
+    println!("snr, mod, pred");
+
+    let chunk_size = 1000;
+
+    for start in (0..samples.clone().dims()[0]).step_by(chunk_size) {
+        let end = (start + chunk_size).min(samples.dims()[0]);
+
+        let samples = samples.clone().slice(s![start..end, .., ..]);
+
+        let output = model.forward(samples);
+        let predicted = output.argmax(1).flatten::<1>(0, 1);
+
+        for (i, p) in predicted.into_data().iter::<B::FloatElem>().enumerate() {
+            println!("{}, {}, {}", snrs[start + i], mods[start + i], p);
+        }
+    }
+}
 
 fn main() -> Result<()> {
-    type MyBackend = WebGpu<f32, i32>;
+    type B = WebGpu<f32, i32>;
     let device = burn::backend::wgpu::WgpuDevice::default();
 
-    let ds = RadioDataset::train();
-    let item = ds.get(0).unwrap();
-    println!("modulation {}", item.modulation);
-    println!("samples {:?}", item.iq_samples);
-    let item2 = ds.get(1).unwrap();
-    println!("modulation {}", item2.modulation);
-    println!("samples {:?}", item2.iq_samples);
+    let samples = {
+        let samples: Array3<f32> = ndarray_npy::read_npy("preprocessed_npy/samples.npy").unwrap();
+        let shape = samples.shape();
+        let samples = TensorData::new(samples.as_slice().unwrap().to_vec(), shape);
+        Tensor::from_data(samples, &device)
+    };
 
-    let batcher = RadioDatasetBatcher::default();
-    let batch: RadioDatasetBatch<MyBackend> = batcher.batch(vec![item, item2], &device);
+    let snrs: Array1<f32> = ndarray_npy::read_npy("preprocessed_npy/snrs.npy").unwrap();
+    let mods: Array1<u8> = ndarray_npy::read_npy("preprocessed_npy/mods.npy").unwrap();
 
-    println!("real {}", batch.real);
-    println!("imag {}", batch.imag);
-    println!("samples {}", batch.iq_samples);
-    println!("modulation {}", batch.modulation);
+    infer::<B>("model", device, samples, snrs, mods);
 
     Ok(())
 }

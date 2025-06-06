@@ -1,4 +1,5 @@
 #![recursion_limit = "512"]
+use futuresdr_burn::TrainingConfig;
 use futuresdr_burn::dataset::RadioDataset;
 use futuresdr_burn::dataset::RadioDatasetBatcher;
 use futuresdr_burn::model::McldnnConfig;
@@ -17,24 +18,6 @@ use burn::tensor::backend::AutodiffBackend;
 use burn::train::LearnerBuilder;
 use burn::train::metric::AccuracyMetric;
 use burn::train::metric::LossMetric;
-
-#[derive(Config)]
-pub struct TrainingConfig {
-    pub model: McldnnConfig,
-    // pub model: SimpleConfig,
-    // pub model: SimpleCNNConfig,
-    pub optimizer: AdamConfig,
-    #[config(default = 10)]
-    pub num_epochs: usize,
-    #[config(default = 32)]
-    pub batch_size: usize,
-    #[config(default = 4)]
-    pub num_workers: usize,
-    #[config(default = 42)]
-    pub seed: u64,
-    #[config(default = 0.0001)]
-    pub learning_rate: f64,
-}
 
 fn create_artifact_dir(artifact_dir: &str) {
     std::fs::remove_dir_all(artifact_dir).ok();
@@ -93,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         "model",
         TrainingConfig::new(McldnnConfig::new(), AdamConfig::new())
             .with_num_workers(1)
-            .with_num_epochs(100)
+            .with_num_epochs(103)
             .with_seed(123)
             .with_learning_rate(0.0001)
             .with_batch_size(100),
