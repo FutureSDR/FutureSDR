@@ -109,7 +109,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
         RunMode::Run => Runtime::new().run(fg),
         RunMode::Terminate => {
             let rt = Runtime::new();
-            let (fg_task, mut fg_handle) = rt.start_sync(fg);
+            let (fg_task, mut fg_handle) = rt.start_sync(fg)?;
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
@@ -154,7 +154,7 @@ fn run_work_err() -> Result<()> {
 #[ignore]
 #[should_panic(expected = "BadBlock!")]
 fn run_work_panic() {
-    //FIXME: (#89) this currently hangs the runtime
+    // this currently hangs the runtime
     let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
     let _ = run_badblock(bb, RunMode::Run);
@@ -183,8 +183,6 @@ fn terminate_no_err() -> Result<()> {
 /// BadBlock returns work error, terminate msg is sent later.
 #[test]
 fn terminate_work_err() -> Result<()> {
-    // panics `Err` value: send failed because receiver is gone
-    // FIXME: should probably return some sort of flowgraph not running error
     let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Terminate)? {
@@ -200,10 +198,7 @@ fn terminate_work_err() -> Result<()> {
 #[ignore]
 // #[should_panic(expected = "BadBlock!")]
 fn terminate_work_panic() -> Result<()> {
-    // This sometimes returns a flowgraph terminated error instead of panicking.
-    // Other times it panics in various channel/scheduler locations (send or drop)
-    // Assume race condition.
-    // TODO: can we do *something* reliably here?
+    // not much we can do here, I guess
     let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate)? {
@@ -221,9 +216,6 @@ fn terminate_work_panic() -> Result<()> {
 #[test]
 #[should_panic(expected = "BadBlock!")]
 fn terminate_drop_panic() {
-    //TODO: try to make consistent
-    //      Intermittently panics with "task has failed", sometimes Error("Flowgraph was terminated")
-    //      Assume race condition.
     let mut bb = BadBlock::<f32>::new();
     bb.drop_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate) {

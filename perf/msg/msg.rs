@@ -60,7 +60,7 @@ fn main() -> Result<()> {
         let elapsed = now.elapsed();
 
         for s in snks {
-            assert_eq!(s.get().received(), burst_size);
+            assert_eq!(s.get()?.received(), burst_size);
         }
 
         println!(

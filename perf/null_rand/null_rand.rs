@@ -42,19 +42,19 @@ fn main() -> Result<()> {
     for _ in 0..pipes {
         let src = fg.add_block(NullSource::<f32>::new());
         let head = fg.add_block(Head::<f32>::new(samples as u64));
-        fg.connect_stream(src.get().output(), head.get().input());
+        fg.connect_stream(src.get()?.output(), head.get()?.input());
 
         let mut last = fg.add_block(CopyRand::<f32>::new(max_copy));
-        fg.connect_stream(head.get().output(), last.get().input());
+        fg.connect_stream(head.get()?.output(), last.get()?.input());
 
         for _ in 1..stages {
             let block = fg.add_block(CopyRand::<f32>::new(max_copy));
-            fg.connect_stream(last.get().output(), block.get().input());
+            fg.connect_stream(last.get()?.output(), block.get()?.input());
             last = block;
         }
 
         let snk = fg.add_block(NullSink::<f32>::new());
-        fg.connect_stream(last.get().output(), snk.get().input());
+        fg.connect_stream(last.get()?.output(), snk.get()?.input());
         snks.push(snk);
     }
 
@@ -85,7 +85,7 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let v = s.get().n_received();
+        let v = s.get()?.n_received();
         assert_eq!(v, samples);
     }
 

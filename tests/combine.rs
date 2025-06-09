@@ -18,7 +18,7 @@ fn combine_const_fn() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];
@@ -44,7 +44,7 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];
@@ -70,7 +70,7 @@ fn combine_const_fn_diff_len_second() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];

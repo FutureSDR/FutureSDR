@@ -101,7 +101,7 @@ impl gloo_worker::Worker for Worker {
 
                         let rt = Runtime::new();
 
-                        let (_task, handle) = rt.start(fg).await;
+                        let (_task, handle) = rt.start(fg).await?;
                         set_handler.send(handle).await.unwrap();
 
                         futuresdr::tracing::info!("waiting for frames");

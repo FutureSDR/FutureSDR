@@ -232,7 +232,7 @@ where
             .unwrap()
             .produce(items, std::mem::take(&mut self.tags));
     }
-    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         let s = self.writer.as_mut().unwrap().slice(false);
         (s, Tags::new(&mut self.tags, 0))
     }

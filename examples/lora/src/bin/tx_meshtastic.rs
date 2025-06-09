@@ -74,7 +74,7 @@ fn main() -> Result<()> {
     let transmitter = transmitter.into();
 
     let rt = Runtime::new();
-    let (_fg, handle) = rt.start_sync(fg);
+    let (_fg, handle) = rt.start_sync(fg)?;
 
     let channel = MeshtasticChannel::new(&args.name, &args.key);
     loop {

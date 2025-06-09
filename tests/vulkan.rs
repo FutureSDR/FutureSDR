@@ -54,7 +54,7 @@ fn fg_vulkan() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

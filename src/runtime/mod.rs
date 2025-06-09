@@ -1,4 +1,5 @@
 //! ## SDR Runtime
+use futuresdr::channel::mpsc;
 use futuresdr::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;
@@ -213,24 +214,50 @@ pub enum Error {
     /// PMT Conversion Error
     #[error("PMT conversion error")]
     PmtConversionError,
-    /// Seify Args Conversion Error
-    #[error("Seify Args conversion error")]
-    SeifyArgsConversionError,
-    /// Seify Error
-    #[error("Seify error ({0})")]
-    SeifyError(String),
     /// Duplicate block name
     #[error("A Block with an instance name of '{0}' already exists")]
     DuplicateBlockName(String),
-    /// Error returned from a Receiver when the corresponding Sender is dropped
-    #[error(transparent)]
-    ChannelCanceled(#[from] oneshot::Canceled),
+    /// Error while locking a Mutex that should not be contended or poisoned
+    #[error("Error while locking a Mutex that should not be contended or poisoned")]
+    LockError,
+    /// Seify Args Conversion Error
+    #[cfg(feature = "seify")]
+    #[error("Seify Args conversion error")]
+    SeifyArgsConversionError,
+    /// Seify Error
+    #[cfg(feature = "seify")]
+    #[error("Seify error ({0})")]
+    SeifyError(String),
 }
 
 #[cfg(feature = "seify")]
 impl From<seify::Error> for Error {
     fn from(value: seify::Error) -> Self {
         Error::SeifyError(value.to_string())
+    }
+}
+
+impl From<oneshot::Canceled> for Error {
+    fn from(_value: oneshot::Canceled) -> Self {
+        Error::RuntimeError(
+            "Couldn't receive from oneshot channel, sender dropped unexpectedly".to_string(),
+        )
+    }
+}
+
+impl From<mpsc::SendError> for Error {
+    fn from(_value: mpsc::SendError) -> Self {
+        Error::RuntimeError(
+            "Couldn't send to mpsc channel, receiver dropped unexpectedly".to_string(),
+        )
+    }
+}
+
+impl<T> From<mpsc::TrySendError<T>> for Error {
+    fn from(_value: mpsc::TrySendError<T>) -> Self {
+        Error::RuntimeError(
+            "Couldn't send to mpsc channel, receiver dropped unexpectedly".to_string(),
+        )
     }
 }
 

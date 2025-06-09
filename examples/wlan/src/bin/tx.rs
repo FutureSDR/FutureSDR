@@ -65,10 +65,10 @@ fn main() -> Result<()> {
 
     connect!(fg, prefix > inputs[0].snk);
 
-    let mac = mac.get().id;
+    let mac = mac.get()?.id;
 
     let rt = Runtime::new();
-    let (_fg, mut handle) = rt.start_sync(fg);
+    let (_fg, mut handle) = rt.start_sync(fg)?;
 
     let mut seq = 0u64;
     rt.block_on(async move {

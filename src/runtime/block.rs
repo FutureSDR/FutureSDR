@@ -28,7 +28,7 @@ use futuresdr::runtime::config;
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
 pub trait Block: Send + Any {
-    /// for downcasting
+    /// required for downcasting
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // ##### BLOCK
@@ -115,6 +115,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
     }
 
     async fn run_impl(&mut self, mut main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
+        let instance_name = self.instance_name().unwrap_or(self.type_name()).to_owned();
         let WrappedKernel {
             meta,
             mio,
@@ -144,7 +145,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                         Err(e) => {
                             error!(
                                 "{}: Error during initialization. Terminating.",
-                                meta.instance_name().unwrap()
+                                instance_name
                             );
                             return Err(Error::RuntimeError(e.to_string()));
                         }
@@ -157,11 +158,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                     }
                     break;
                 }
-                t => warn!(
-                    "{} unhandled message during init {:?}",
-                    meta.instance_name().unwrap(),
-                    t
-                ),
+                t => warn!("{} unhandled message during init {:?}", instance_name, t),
             }
         }
 
@@ -185,14 +182,16 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                         let description = BlockDescription {
                             id: self.id,
                             type_name: K::type_name().to_string(),
-                            instance_name: meta.instance_name().unwrap().to_string(),
+                            instance_name: instance_name.clone(),
                             stream_inputs,
                             stream_outputs,
                             message_inputs,
                             message_outputs,
                             blocking: K::is_blocking(),
                         };
-                        tx.send(description).unwrap();
+                        if tx.send(description).is_err() {
+                            warn!("failed to return BlockDescription, oneshot receiver dropped");
+                        }
                     }
                     Some(Some(BlockMessage::StreamInputDone { input_id })) => {
                         kernel.stream_input_finish(input_id)?;
@@ -208,13 +207,13 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                             Err(Error::InvalidMessagePort(_, port_id)) => {
                                 error!(
                                     "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                             }
                             Err(e @ Error::HandlerError(..)) => {
                                 error!(
                                     "{}: BlockMessage::Call -> {e}. Terminating.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                                 return Err(e);
                             }
@@ -229,7 +228,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                             Err(e @ Error::HandlerError(..)) => {
                                 error!(
                                     "{}: BlockMessage::Callback -> {e}. Terminating.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                                 let _ = tx.send(Err(Error::InvalidMessagePort(
                                     BlockPortCtx::Id(self.id),
@@ -252,7 +251,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
 
             // ================== shutdown
             if work_io.finished {
-                debug!("{} terminating ", meta.instance_name().unwrap());
+                debug!("{} terminating ", instance_name);
                 kernel.stream_ports_notify_finished().await;
                 mio.notify_finished().await;
 
@@ -263,8 +262,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                     Err(e) => {
                         error!(
                             "{}: Error in deinit (). Terminating. ({:?})",
-                            meta.instance_name().unwrap_or("<unknown block>"),
-                            e
+                            instance_name, e
                         );
                         return Err(Error::RuntimeError(e.to_string()));
                     }
@@ -297,11 +295,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             // ================== work
             work_io.call_again = false;
             if let Err(e) = kernel.work(&mut work_io, mio, meta).await {
-                error!(
-                    "{}: Error in work(). Terminating. ({:?})",
-                    meta.instance_name().unwrap(),
-                    e
-                );
+                error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(Error::RuntimeError(e.to_string()));
             }
 
@@ -378,7 +372,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
             Err(e) => {
                 let instance_name = self
                     .instance_name()
-                    .unwrap_or("<broken instance name>")
+                    .unwrap_or("<instance name not set>")
                     .to_string();
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox

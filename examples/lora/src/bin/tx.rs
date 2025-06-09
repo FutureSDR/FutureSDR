@@ -79,7 +79,7 @@ fn main() -> Result<()> {
 
     let rt = Runtime::new();
 
-    let (_fg, mut handle) = rt.start_sync(fg);
+    let (_fg, mut handle) = rt.start_sync(fg)?;
     rt.block_on(async move {
         let mut counter: usize = 0;
         loop {

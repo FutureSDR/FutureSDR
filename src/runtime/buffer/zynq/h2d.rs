@@ -151,7 +151,7 @@ where
 {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         if self.current.is_none() {
             if let Some(b) = self.inbound.lock().unwrap().pop() {
                 self.current = Some(CurrentBuffer {

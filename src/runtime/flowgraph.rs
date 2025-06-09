@@ -27,8 +27,8 @@ impl<K: Kernel> BlockRef<K> {
     ///
     /// Since [WrappedKernel] implements [Deref](std::ops::Deref) and
     /// [DerefMut](std::ops::DerefMut), one can directly access the block.
-    pub fn get(&self) -> MutexGuard<WrappedKernel<K>> {
-        self.block.try_lock().unwrap()
+    pub fn get(&self) -> Result<MutexGuard<'_, WrappedKernel<K>>, Error> {
+        self.block.try_lock().ok_or(Error::LockError)
     }
 }
 impl<K: Kernel> Clone for BlockRef<K> {
@@ -45,7 +45,12 @@ impl<K: Kernel> Debug for BlockRef<K> {
             .field("id", &self.id)
             .field(
                 "instance_name",
-                &self.block.try_lock().unwrap().meta.instance_name(),
+                &self.block.try_lock().map(|b| {
+                    b.meta
+                        .instance_name()
+                        .map(String::from)
+                        .unwrap_or("<unknown>".to_string())
+                }),
             )
             .finish()
     }
@@ -151,7 +156,7 @@ impl Flowgraph {
     /// Make a stream connection
     ///
     /// This is the prefered way to connect stream ports. Usually, this function is not called
-    /// directly but used through the [connect](futuresdr::macros::connect) macro.
+    /// directly but used under-the-hood by the [connect](futuresdr::macros::connect) macro.
     ///
     /// ```
     /// use anyhow::Result;
@@ -243,12 +248,12 @@ impl Flowgraph {
             .get(src_id.0)
             .ok_or(Error::InvalidBlock(src_id))?;
         let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
-        let mut tmp = dst.try_lock().unwrap();
+        let mut tmp = dst.try_lock().ok_or(Error::LockError)?;
         let reader = tmp
             .stream_input(dst_port.name())
             .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
         src.try_lock()
-            .unwrap()
+            .ok_or(Error::LockError)?
             .connect_stream_output(src_port.name(), reader)
     }
 

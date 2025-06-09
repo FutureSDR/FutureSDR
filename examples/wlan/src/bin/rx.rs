@@ -113,7 +113,7 @@ fn main() -> Result<()> {
                  decoder.rx_frames | udp1;
                  decoder.rftap | udp2);
 
-    let (_fg, _handle) = rt.start_sync(fg);
+    let (_fg, _handle) = rt.start_sync(fg)?;
     rt.block_on(async move {
         while let Some(x) = rx_frame.next().await {
             match x {

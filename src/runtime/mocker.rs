@@ -332,7 +332,7 @@ where
             )
         }
     }
-    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         let s = unsafe {
             std::slice::from_raw_parts_mut(
                 self.data.as_mut_ptr().add(self.data.len()),

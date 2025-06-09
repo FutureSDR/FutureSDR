@@ -24,7 +24,7 @@ fn flowgraph() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -48,7 +48,7 @@ fn flowgraph_flow() -> Result<()> {
 
     Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -70,7 +70,7 @@ fn fg_terminate() -> Result<()> {
     connect!(fg, src > throttle > snk);
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg);
+    let (fg, mut handle) = rt.start_sync(fg)?;
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
         handle.terminate().await.unwrap();
@@ -95,7 +95,7 @@ fn fg_rand_vec() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);
@@ -130,7 +130,7 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
     Runtime::new().run(fg)?;
 
     for s in &snks {
-        let snk = s.get();
+        let snk = s.get()?;
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);
@@ -150,8 +150,8 @@ fn flowgraph_instance_name() -> Result<()> {
     let src = NullSource::<f32>::new();
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
-    snk.get().meta.set_instance_name(name);
-    let (_th, mut fg) = rt.start_sync(fg);
+    snk.get()?.meta.set_instance_name(name);
+    let (_th, mut fg) = rt.start_sync(fg)?;
 
     let desc = rt.block_on(async move { fg.description().await })?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);

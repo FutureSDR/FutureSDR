@@ -132,11 +132,11 @@ fn main() -> Result<()> {
 
     // Add all the blocks to the `Flowgraph`...
     connect!(fg, src.outputs[0] > shift > resamp1 > demod > resamp2 > snk);
-    let src = src.get().id;
+    let src = src.get()?.id;
 
     // Start the flowgraph and save the handle
     let rt = Runtime::new();
-    let (_res, mut handle) = rt.start_sync(fg);
+    let (_res, mut handle) = rt.start_sync(fg)?;
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

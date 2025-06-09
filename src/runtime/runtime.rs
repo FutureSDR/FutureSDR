@@ -17,7 +17,6 @@ use std::task::Poll;
 
 use crate::runtime;
 use crate::runtime::BlockDescription;
-use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
 use crate::runtime::Error;
@@ -36,21 +35,25 @@ use crate::runtime::scheduler::Task;
 use crate::runtime::scheduler::WasmScheduler;
 
 pub struct TaskHandle<'a, T> {
-    task: Option<Task<T>>,
+    task: std::mem::ManuallyDrop<Task<T>>,
     _p: std::marker::PhantomData<&'a ()>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<T> Drop for TaskHandle<'_, T> {
     fn drop(&mut self) {
-        self.task.take().unwrap().detach()
+        // SAFETY: We take ownership of the `Task<T>`
+        // and then call `detach`. Because `task` is in a ManuallyDrop,
+        // the compiler won’t automatically drop it afterwards.
+        let task = unsafe { std::ptr::read(&*self.task) };
+        task.detach();
     }
 }
 
 impl<T> TaskHandle<'_, T> {
     fn new(task: Task<T>) -> Self {
         TaskHandle {
-            task: Some(task),
+            task: std::mem::ManuallyDrop::new(task),
             _p: std::marker::PhantomData,
         }
     }
@@ -59,11 +62,11 @@ impl<T> TaskHandle<'_, T> {
 impl<T> std::future::Future for TaskHandle<'_, T> {
     type Output = T;
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.task.as_mut().unwrap().poll_unpin(cx)
+        self.task.poll_unpin(cx)
     }
 }
 
-/// This is the [Runtime] that runs a [Flowgraph] to completion.
+/// The [Runtime] runs [Flowgraph]s and async tasks
 ///
 /// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
 pub struct Runtime<'a, S> {
@@ -80,7 +83,7 @@ impl Runtime<'_, SmolScheduler> {
         Self::with_custom_routes(Router::new())
     }
 
-    /// Set custom routes for the control port Axum webserver
+    /// Set custom routes for the integrated webserver
     pub fn with_custom_routes(routes: Router) -> Self {
         runtime::init();
         let scheduler = SmolScheduler::default();
@@ -140,7 +143,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         Self::with_config(scheduler, Router::new())
     }
 
-    /// Create runtime with given scheduler and Axum routes
+    /// Create runtime with given scheduler and custom routes for the integrated webserver
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_config(scheduler: S, routes: Router) -> Self {
         runtime::init();
@@ -158,7 +161,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         }
     }
 
-    /// Spawn task on runtime
+    /// Spawn an async task on the runtime
     pub fn spawn<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
@@ -175,7 +178,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
         block_on(self.scheduler.spawn(future))
     }
 
-    /// Spawn task on runtime in background, detaching the handle
+    /// Spawn async task on the runtime, detaching the handle
     #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_background<T: Send + 'static>(
         &self,
@@ -209,7 +212,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     pub async fn start<'b>(
         &'a self,
         fg: Flowgraph,
-    ) -> (TaskHandle<'b, Result<Flowgraph, Error>>, FlowgraphHandle)
+    ) -> Result<(TaskHandle<'b, Result<Flowgraph, Error>>, FlowgraphHandle), Error>
     where
         'a: 'b,
     {
@@ -224,10 +227,14 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
             fg_inbox_rx,
             tx,
         ));
-        rx.await.expect("run_flowgraph crashed").unwrap();
+        rx.await
+            .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
         let handle = FlowgraphHandle::new(fg_inbox);
-        self.flowgraphs.try_lock().unwrap().push(handle.clone());
-        (TaskHandle::new(task), handle)
+        self.flowgraphs
+            .try_lock()
+            .ok_or(Error::LockError)?
+            .push(handle.clone());
+        Ok((TaskHandle::new(task), handle))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`]
@@ -237,20 +244,20 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     pub fn start_sync(
         &self,
         fg: Flowgraph,
-    ) -> (TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle) {
+    ) -> Result<(TaskHandle<'_, Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
         block_on(self.start(fg))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let (handle, _) = block_on(self.start(fg));
+        let (handle, _) = block_on(self.start(fg))?;
         block_on(handle)
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let (handle, _) = self.start(fg).await;
+        let (handle, _) = self.start(fg).await?;
         handle.await
     }
 
@@ -326,28 +333,28 @@ impl RuntimeHandle {
     pub async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
         let handle = self.scheduler.start(fg).await?;
 
-        self.add_flowgraph(handle.clone());
+        self.add_flowgraph(handle.clone()).await;
         Ok(handle)
     }
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers
-    fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
-        let mut v = self.flowgraphs.try_lock().unwrap();
+    async fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
+        let mut v = self.flowgraphs.lock().await;
         let l = v.len();
         v.push(handle);
         FlowgraphId(l)
     }
 
     /// Get handle to a running flowgraph
-    pub fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        self.flowgraphs.try_lock().unwrap().get(id.0).cloned()
+    pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
+        self.flowgraphs.lock().await.get(id.0).cloned()
     }
 
     /// Get list of flowgraph IDs
-    pub fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
+    pub async fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
-            .try_lock()
-            .unwrap()
+            .lock()
+            .await
             .iter()
             .enumerate()
             .map(|x| FlowgraphId(x.0))
@@ -364,23 +371,22 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 ) -> Result<Flowgraph, Error> {
     debug!("in run_flowgraph");
 
-    let mut inboxes: Vec<Sender<BlockMessage>> = fg
-        .blocks
-        .iter()
-        .map(|b| b.try_lock().unwrap().inbox())
-        .collect();
-    let ids: Vec<BlockId> = fg
-        .blocks
-        .iter()
-        .map(|b| b.try_lock().unwrap().id())
-        .collect();
+    let mut inboxes = vec![];
+    for b in fg.blocks.iter() {
+        inboxes.push(b.lock().await.inbox())
+    }
+    let mut ids = vec![];
+    for b in fg.blocks.iter() {
+        ids.push(b.lock().await.id());
+    }
+
     scheduler.run_flowgraph(fg.blocks.clone(), &main_channel);
 
     debug!("init blocks");
     // init blocks
     let mut active_blocks = 0u32;
     for inbox in inboxes.iter_mut() {
-        inbox.send(BlockMessage::Initialize).await.unwrap();
+        inbox.send(BlockMessage::Initialize).await?;
         active_blocks += 1;
     }
 
@@ -394,7 +400,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             break;
         }
 
-        let m = main_rx.next().await.unwrap();
+        let m = main_rx.next().await.ok_or_else(|| {
+            Error::RuntimeError("no reply from blocks during init phase".to_string())
+        })?;
         match m {
             FlowgraphMessage::Initialized => i -= 1,
             FlowgraphMessage::BlockError { .. } => {
@@ -420,19 +428,15 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     }
 
     for m in queue.into_iter() {
-        main_channel
-            .try_send(m)
-            .expect("main inbox exceeded capacity during startup");
+        main_channel.try_send(m)?;
     }
 
     initialized
         .send(Ok(()))
-        .expect("failed to signal flowgraph startup complete.");
+        .map_err(|_| Error::RuntimeError("main thread panic during flowgraph init".to_string()))?;
 
     if block_error {
-        main_channel
-            .try_send(FlowgraphMessage::Terminate)
-            .expect("main inbox exceeded capacity during startup");
+        main_channel.try_send(FlowgraphMessage::Terminate)?;
     }
 
     let mut terminated = false;
@@ -443,7 +447,9 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             break;
         }
 
-        let m = main_rx.next().await.unwrap();
+        let m = main_rx.next().await.ok_or_else(|| {
+            Error::RuntimeError("all senders to flowgraph inbox dropped".to_string())
+        })?;
         match m {
             FlowgraphMessage::BlockCall {
                 block_id,
@@ -532,7 +538,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                             .await
                             .is_ok()
                         {
-                            blocks.push(rx.await.unwrap());
+                            blocks.push(rx.await?);
                         }
                     }
                 }

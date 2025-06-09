@@ -19,7 +19,7 @@ fn apply_const_fn() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = vec![2u32, 4];
@@ -48,7 +48,7 @@ fn apply_mut_fn() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = vec![1u32, 3];

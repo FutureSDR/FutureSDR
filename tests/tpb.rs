@@ -19,7 +19,7 @@ fn flowgraph_tpb() -> Result<()> {
 
     Runtime::with_scheduler(TpbScheduler::new()).run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);

@@ -87,7 +87,7 @@ fn main() -> Result<()> {
     let mac = mac.into();
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg);
+    let (fg, mut handle) = rt.start_sync(fg)?;
 
     // send a message every 0.8 seconds
     let mut seq = 0u64;

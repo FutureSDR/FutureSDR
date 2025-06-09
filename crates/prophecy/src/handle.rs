@@ -135,14 +135,14 @@ impl RuntimeHandle {
                 .await?
                 .json()
                 .await?),
-            Self::Web(h) => Ok(h.get_flowgraphs()),
+            Self::Web(h) => Ok(h.get_flowgraphs().await),
         }
     }
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Result<FlowgraphHandle, Error> {
         match self {
             Self::Remote(u) => Ok(FlowgraphHandle::Remote(format!("{}api/fg/{}/", u, id.0))),
             Self::Web(h) => Ok(FlowgraphHandle::Web(
-                h.get_flowgraph(id).ok_or(Error::FlowgraphId(id))?,
+                h.get_flowgraph(id).await.ok_or(Error::FlowgraphId(id))?,
             )),
         }
     }

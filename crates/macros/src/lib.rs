@@ -125,7 +125,7 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #fg.connect_stream(#src_block.get().#src_port, #dst_block.get().#dst_port);
+                        #fg.connect_stream(#src_block.get()?.#src_port, #dst_block.get()?.#dst_port);
                     }
                 }
                 ConnectionType::Circuit => {
@@ -159,7 +159,7 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #src_block.get().#src_port.close_circuit(#dst_block.get().#dst_port);
+                        #src_block.get()?.#src_port.close_circuit(#dst_block.get()?.#dst_port);
                     }
                 }
                 ConnectionType::Message => {

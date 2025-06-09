@@ -20,7 +20,7 @@ fn apply_into_iter() -> Result<()> {
 
     Runtime::new().run(fg)?;
 
-    let snk = snk.get();
+    let snk = snk.get()?;
     let v = snk.items();
 
     assert_eq!(v.len(), multiplier * orig.len());

@@ -198,7 +198,7 @@ where
 {
     type Item = D;
 
-    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags) {
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         if self.current.is_none() {
             let mut state = self.state.lock().unwrap();
             match state.writer_input.pop_front() {

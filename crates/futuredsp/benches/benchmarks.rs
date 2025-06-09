@@ -2,11 +2,11 @@ extern crate alloc;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 use criterion::Criterion;
-use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use num_complex::Complex;
 use rand::Rng;
+use std::hint::black_box;
 
 use futuredsp::FirFilter;
 use futuredsp::IirFilter;
@@ -18,34 +18,34 @@ trait Generatable {
 
 impl Generatable for f32 {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
-        rng.r#gen::<f32>() * 2.0 - 1.0
+        let mut rng = rand::rng();
+        rng.random::<f32>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f32> {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Complex {
-            re: rng.r#gen::<f32>() * 2.0 - 1.0,
-            im: rng.r#gen::<f32>() * 2.0 - 1.0,
+            re: rng.random::<f32>() * 2.0 - 1.0,
+            im: rng.random::<f32>() * 2.0 - 1.0,
         }
     }
 }
 
 impl Generatable for f64 {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
-        rng.r#gen::<f64>() * 2.0 - 1.0
+        let mut rng = rand::rng();
+        rng.random::<f64>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f64> {
     fn generate() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Complex {
-            re: rng.r#gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
-            im: rng.r#gen::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            re: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            im: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
         }
     }
 }

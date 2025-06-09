@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use axum::routing::get_service;
 use futures::channel::oneshot;
+use std::net::SocketAddr;
 use std::path;
 use std::thread::JoinHandle;
 use tokio::net::TcpListener;
@@ -33,7 +34,7 @@ macro_rules! relative {
 }
 
 async fn flowgraphs(State(rt): State<RuntimeHandle>) -> Json<Vec<FlowgraphId>> {
-    Json::from(rt.get_flowgraphs())
+    Json::from(rt.get_flowgraphs().await)
 }
 
 async fn flowgraph_description(
@@ -41,7 +42,7 @@ async fn flowgraph_description(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg {
+    if let Some(mut fg) = fg.await {
         if let Ok(d) = fg.description().await {
             return Ok(Json::from(d));
         }
@@ -54,7 +55,7 @@ async fn block_description(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg {
+    if let Some(mut fg) = fg.await {
         if let Ok(d) = fg.block_description(blk).await {
             return Ok(Json::from(d));
         }
@@ -68,7 +69,7 @@ async fn handler_id(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg {
+    if let Some(mut fg) = fg.await {
         if let Ok(ret) = fg.callback(blk, handler, Pmt::Null).await {
             return Ok(Json::from(ret));
         }
@@ -83,7 +84,7 @@ async fn handler_id_post(
     Json(pmt): Json<Pmt>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg {
+    if let Some(mut fg) = fg.await {
         if let Ok(ret) = fg.callback(blk, handler, pmt).await {
             return Ok(Json::from(ret));
         }
@@ -152,17 +153,23 @@ impl ControlPort {
                 .unwrap();
 
             runtime.spawn(async move {
-                let addr = config::config().ctrlport_bind.unwrap();
-                match TcpListener::bind(&addr).await {
-                    Ok(listener) => {
-                        debug!("Listening on {}", addr);
-                        axum::serve(listener, app.into_make_service())
-                            .await
-                            .unwrap();
+                if let Ok(addr) = config::config().ctrlport_bind.parse::<SocketAddr>() {
+                    match TcpListener::bind(&addr).await {
+                        Ok(listener) => {
+                            debug!("Listening on {}", addr);
+                            axum::serve(listener, app.into_make_service())
+                                .await
+                                .unwrap();
+                        }
+                        _ => {
+                            warn!("CtrlPort address {} already in use", addr);
+                        }
                     }
-                    _ => {
-                        warn!("CtrlPort address {} already in use", addr);
-                    }
+                } else {
+                    warn!(
+                        "failed to parse socket addr {}",
+                        config::config().ctrlport_bind
+                    );
                 }
             });
 

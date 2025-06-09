@@ -57,7 +57,7 @@ fn main() -> Result<()> {
     let mac = mac.into();
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg);
+    let (fg, mut handle) = rt.start_sync(fg)?;
 
     let mut seq = 0u64;
     rt.spawn_background(async move {

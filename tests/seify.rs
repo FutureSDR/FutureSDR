@@ -69,7 +69,7 @@ fn builder_config() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    rt.start_sync(fg);
+    rt.start_sync(fg)?;
 
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 100e6);
@@ -94,7 +94,7 @@ fn config_freq_gain_ports() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_task, mut fg_handle) = rt.start_sync(fg);
+    let (_task, mut fg_handle) = rt.start_sync(fg)?;
 
     // Freq
     block_on(async {
@@ -136,7 +136,7 @@ fn src_config_cmd_map() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_, mut fg_handle) = rt.start_sync(fg);
+    let (_, mut fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
         let src = src.clone();
@@ -182,7 +182,7 @@ fn sink_config_cmd_map() -> Result<()> {
     connect!(fg, src > inputs[0].snk);
 
     let rt = Runtime::new();
-    let (_, mut fg_handle) = rt.start_sync(fg);
+    let (_, mut fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
         let snk = snk.clone();
