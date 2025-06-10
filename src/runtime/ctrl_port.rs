@@ -147,22 +147,28 @@ impl ControlPort {
         let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
 
         let handle = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
+            let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
-                .unwrap();
+            {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    warn!("failed to start Tokio runtime {e:?}");
+                    return;
+                }
+            };
 
             runtime.spawn(async move {
                 if let Ok(addr) = config::config().ctrlport_bind.parse::<SocketAddr>() {
                     match TcpListener::bind(&addr).await {
                         Ok(listener) => {
                             debug!("Listening on {}", addr);
-                            axum::serve(listener, app.into_make_service())
-                                .await
-                                .unwrap();
+                            if let Err(e) = axum::serve(listener, app.into_make_service()).await {
+                                warn!("axum server failed {e:?}");
+                            }
                         }
                         _ => {
-                            warn!("CtrlPort address {} already in use", addr);
+                            warn!("CtrlPort address {addr} already in use");
                         }
                     }
                 } else {
