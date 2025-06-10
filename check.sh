@@ -42,6 +42,7 @@ cd ${SCRIPTPATH}/examples/egui && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/file-trx && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/firdes && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/fm-receiver && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/inplace && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/keyfob && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/logging && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/lora && ${CARGO_FMT} --check
@@ -90,6 +91,7 @@ cd ${SCRIPTPATH}/examples/egui && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/file-trx && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/inplace && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
@@ -150,6 +152,7 @@ cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/egui && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/inplace && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
