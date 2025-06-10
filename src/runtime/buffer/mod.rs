@@ -1,5 +1,8 @@
 //! Buffer Implementations for CPU and Accelerator Memory
 
+/// In-place circuit buffer
+pub mod circuit;
+
 /// Double-mapped circular buffer
 #[cfg(not(target_arch = "wasm32"))]
 pub mod circular;
@@ -160,6 +163,57 @@ pub trait CpuBufferWriter: BufferWriter + Default + Send {
     fn set_min_buffer_size_in_items(&mut self, n: usize);
     /// Maximum number of items that fit in the buffer
     fn max_items(&self) -> usize;
+}
+
+/// In-Place Buffer
+pub trait InplaceBuffer {
+    /// Type of the samples in the buffer
+    type Item: CpuSample;
+    /// Items in the buffer
+    fn slice(&mut self) -> &mut [Self::Item];
+    /// Items in the buffer and tags
+    fn slice_with_tags(&mut self) -> (&mut [Self::Item], &mut Vec<ItemTag>);
+}
+
+/// In-Place Reader
+pub trait InplaceReader {
+    /// Items in the reader
+    type Item: CpuSample;
+    /// Buffer type
+    type Buffer: InplaceBuffer<Item = Self::Item>;
+
+    /// Get next buffer
+    fn get_full_buffer(&mut self) -> Option<Self::Buffer>;
+    /// Put an empty buffer to circle it back to the beginning of the circuit
+    fn put_empty_buffer(&mut self, buffer: Self::Buffer);
+    /// Has more full buffers
+    fn has_more_buffers(&mut self) -> bool;
+}
+
+/// In-Place Writer
+pub trait InplaceWriter {
+    /// Items in the reader
+    type Item: CpuSample;
+    /// Buffer type
+    type Buffer: InplaceBuffer<Item = Self::Item>;
+
+    /// Put full buffer
+    fn put_full_buffer(&mut self, buffer: Self::Buffer);
+
+    /// Get empty buffer
+    ///
+    /// This is typically used in sources, i.e., when there is no inplace reader
+    fn get_empty_buffer(&mut self) -> Option<Self::Buffer>;
+    /// Has more empty buffers
+    fn has_more_buffers(&mut self) -> bool;
+    /// Inject new buffers
+    fn inject_buffers(&mut self, n_buffers: usize) {
+        let n_items =
+            futuresdr::runtime::config::config().buffer_size / std::mem::size_of::<Self::Item>();
+        self.inject_buffers_with_items(n_buffers, n_items);
+    }
+    /// Inject new buffers
+    fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize);
 }
 
 #[cfg(not(target_arch = "wasm32"))]

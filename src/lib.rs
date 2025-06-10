@@ -95,6 +95,7 @@ pub mod prelude {
     pub use futuresdr::runtime::Kernel;
     pub use futuresdr::runtime::MessageOutputs;
     pub use futuresdr::runtime::Pmt;
+    pub use futuresdr::runtime::PortId;
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::Runtime;
     pub use futuresdr::runtime::RuntimeHandle;
@@ -107,6 +108,10 @@ pub mod prelude {
     pub use futuresdr::runtime::buffer::CpuSample;
     pub use futuresdr::runtime::buffer::DefaultCpuReader;
     pub use futuresdr::runtime::buffer::DefaultCpuWriter;
+    pub use futuresdr::runtime::buffer::InplaceBuffer;
+    pub use futuresdr::runtime::buffer::InplaceReader;
+    pub use futuresdr::runtime::buffer::InplaceWriter;
+    pub use futuresdr::runtime::buffer::circuit;
     #[cfg(not(target_arch = "wasm32"))]
     pub use futuresdr::runtime::buffer::circular;
     pub use futuresdr::runtime::buffer::slab;
