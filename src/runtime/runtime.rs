@@ -236,7 +236,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     pub fn start_sync(
         &self,
         fg: Flowgraph,
-    ) -> (TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle) {
+    ) -> (TaskHandle<'_, Result<Flowgraph, Error>>, FlowgraphHandle) {
         block_on(self.start(fg))
     }
 

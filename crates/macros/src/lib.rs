@@ -674,10 +674,10 @@ pub fn message_handler_external(
 }
 
 fn get_parameter_ident(arg: &syn::FnArg) -> Option<syn::Ident> {
-    if let syn::FnArg::Typed(syn::PatType { pat, .. }) = arg {
-        if let syn::Pat::Ident(ref i) = **pat {
-            return Some(i.ident.clone());
-        }
+    if let syn::FnArg::Typed(syn::PatType { pat, .. }) = arg
+        && let syn::Pat::Ident(ref i) = **pat
+    {
+        return Some(i.ident.clone());
     }
     None
 }
