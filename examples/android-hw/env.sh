@@ -1,4 +1,4 @@
-export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/24.0.8215888
+export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/28.0.12433566
 export HOST_ARCH=linux-x86_64
 export BUILD_ROOT=/home/basti/src/gnuradio-android
 

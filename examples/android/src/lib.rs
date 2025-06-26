@@ -57,17 +57,19 @@ mod android {
     use jni::objects::JString;
 
     #[allow(non_snake_case)]
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub extern "system" fn Java_net_bastibl_futuresdr_MainActivity_runFg(
-        env: JNIEnv,
+        mut env: JNIEnv,
         _class: JClass,
         tmp_dir: JString,
     ) {
         let dir: String = env
-            .get_string(tmp_dir)
+            .get_string(&tmp_dir)
             .expect("Couldn't get java string!")
             .into();
-        std::env::set_var("FUTURESDR_tmp_dir", dir);
+        unsafe {
+            std::env::set_var("FUTURESDR_tmp_dir", dir);
+        }
         run_fg().unwrap();
     }
 }

@@ -149,7 +149,7 @@ zmq = { version = "0.10", optional = true }
 xilinx-dma = { version = "0.0.10", features = ["async"], optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
-android_logger = "0.15"
+tracing-android = "0.2"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"

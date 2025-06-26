@@ -1,7 +1,7 @@
-use log::LevelFilter;
-
-use android_logger::Config;
+use tracing_android::layer;
+use tracing_subscriber::prelude::*;
 
 pub fn init() {
-    android_logger::init_once(Config::default().with_max_level(LevelFilter::Debug));
+    let android_layer = layer("FutureSDR").expect("failed to initialize Android tracing layer");
+    tracing_subscriber::registry().with(android_layer).init();
 }
