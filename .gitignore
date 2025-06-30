@@ -7,6 +7,7 @@ package-lock.json
 logs/
 terrain/
 results/
+.vscode/
 
 eeprom.bin
 dd
