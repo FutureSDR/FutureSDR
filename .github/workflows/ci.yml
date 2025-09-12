@@ -72,8 +72,8 @@ jobs:
       - name: Run cargo fmt (examples/adsb)
         run: cargo fmt --all --manifest-path=examples/adsb/Cargo.toml -- --check
 
-      - name: Run cargo fmt (examples/android-hw)
-        run: cargo fmt --all --manifest-path=examples/android-hw/Cargo.toml -- --check
+      - name: Run cargo fmt (examples/android)
+        run: cargo fmt --all --manifest-path=examples/android/Cargo.toml -- --check
 
       - name: Run cargo fmt (examples/audio)
         run: cargo fmt --all --manifest-path=examples/audio/Cargo.toml -- --check
@@ -277,8 +277,8 @@ jobs:
       - name: Run cargo clippy (examples/adsb)
         run: cargo clippy --all-targets --manifest-path=examples/adsb/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy (examples/android-hw)
-        run: cargo clippy --all-targets --manifest-path=examples/android-hw/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (examples/android)
+        run: cargo clippy --all-targets --manifest-path=examples/android/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (examples/audio)
         run: cargo clippy --all-targets --manifest-path=examples/audio/Cargo.toml -- -D warnings

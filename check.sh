@@ -35,7 +35,7 @@ cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/examples/android-hw && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/android && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/audio && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/burn && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/custom-routes && ${CARGO_FMT} --check
@@ -88,7 +88,7 @@ fi
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/android && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/burn && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
@@ -156,7 +156,7 @@ fi
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/burn && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
