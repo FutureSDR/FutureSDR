@@ -7,7 +7,6 @@ apply plugin: 'kotlin-android-extensions'
 
 android {
     compileSdkVersion 30
-    buildToolsVersion "30.0.2"
 
     defaultConfig {
         applicationId "net.bastibl.futuresdr"
@@ -39,6 +38,7 @@ android {
             jniLibs.srcDirs = ['./src/main/jni', '/home/basti/Android/Sdk/ndk/21.3.6528147/sources/cxx-stl/llvm-libc++/libs']
         }
     }
+    namespace 'net.bastibl.futuresdrhw'
 }
 
 dependencies {
