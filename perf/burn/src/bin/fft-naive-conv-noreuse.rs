@@ -7,10 +7,10 @@ use burn_fusion::Fusion;
 use futuresdr::blocks::FileSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
-use futuresdr_burn::BATCH_SIZE;
-use futuresdr_burn::Convert;
-use futuresdr_burn::FFT_SIZE;
-use futuresdr_burn::TimeIt;
+use perf_burn::BATCH_SIZE;
+use perf_burn::Convert;
+use perf_burn::FFT_SIZE;
+use perf_burn::TimeIt;
 
 pub type Cube = CubeBackend<WgpuRuntime, f32, i32, u32>;
 pub type B = Fusion<Cube>;

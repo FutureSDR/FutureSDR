@@ -1,18 +1,18 @@
 #![recursion_limit = "512"]
 use anyhow::Result;
 use burn::prelude::*;
-use futuresdr::blocks::FileSource;
+use futuresdr::blocks::WebsocketSink;
+use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
-use futuresdr_burn::BATCH_SIZE;
-use futuresdr_burn::FFT_SIZE;
-use futuresdr_burn::TimeIt;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;
+use perf_burn::BATCH_SIZE;
+use perf_burn::FFT_SIZE;
 
-pub type B = burn::backend::Cuda;
-// pub type B = burn::backend::Vulkan;
+type B = burn::backend::Wgpu<f32, i32>;
 
 #[derive(Block)]
 struct Fft {
@@ -52,6 +52,7 @@ impl Fft {
             TensorData::new((1024..2048).chain(0..1024).collect(), [FFT_SIZE]),
             device,
         );
+
         Self {
             input: Default::default(),
             output: Default::default(),
@@ -87,11 +88,6 @@ impl Kernel for Fft {
                 io.call_again = true;
             }
         }
-
-        if self.input.finished() && !self.input.has_more_buffers() {
-            io.finished = true;
-        }
-
         Ok(())
     }
 }
@@ -101,22 +97,25 @@ fn main() -> Result<()> {
     let device = Default::default();
     let mut fg = Flowgraph::new();
 
-    let mut src = FileSource::<Complex32, burn_buffer::Writer<B, Float, Complex32, f32>>::new(
-        "data.cf32",
-        false,
-    );
-    src.output().set_device(&device);
-    src.output()
-        .inject_buffers_with_items(4, BATCH_SIZE * FFT_SIZE * 2);
+    let mut src = Builder::new("")?
+        .frequency(100e6)
+        .sample_rate(3.2e6)
+        .gain(34.0)
+        .build_source_with_buffer::<burn_buffer::Writer<B, Float, Complex32, f32>>()?;
+    src.outputs()[0].set_device(&device);
+    src.outputs()[0].inject_buffers_with_items(32, BATCH_SIZE * FFT_SIZE * 2);
 
     let mut fft = Fft::new(&device);
     fft.output().set_device(&device);
-    fft.output().inject_buffers_with_items(4, FFT_SIZE);
+    fft.output().inject_buffers_with_items(8, FFT_SIZE);
 
-    let snk = TimeIt::new();
+    let snk = WebsocketSink::<f32, burn_buffer::Reader<B>>::new(
+        9001,
+        WebsocketSinkMode::FixedBlocking(FFT_SIZE),
+    );
 
-    connect!(fg, src > fft > snk);
-    connect!(fg, src < fft);
+    connect!(fg, src.outputs[0] > fft > snk);
+    connect!(fg, src.outputs[0] < fft);
     connect!(fg, fft < snk);
 
     Runtime::new().run(fg)?;

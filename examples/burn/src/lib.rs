@@ -1,13 +1,9 @@
 #![recursion_limit = "512"]
-mod convert;
 pub mod dataset;
+pub mod fft;
 pub mod model;
 pub mod simple_cnn;
 pub mod simple_model;
-mod time_it;
-pub use convert::Convert;
-pub use time_it::TimeIt;
-pub mod fft;
 
 use burn::optim::AdamConfig;
 use burn::prelude::*;

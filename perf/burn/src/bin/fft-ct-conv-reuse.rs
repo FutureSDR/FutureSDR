@@ -19,13 +19,13 @@ use cubecl_wgpu::WgpuServer;
 use futuresdr::blocks::FileSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
-use futuresdr_burn::BATCH_SIZE;
-use futuresdr_burn::Convert;
-use futuresdr_burn::FFT_SIZE;
-use futuresdr_burn::TimeIt;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;
+use perf_burn::BATCH_SIZE;
+use perf_burn::Convert;
+use perf_burn::FFT_SIZE;
+use perf_burn::TimeIt;
 
 pub type Cube = CubeBackend<WgpuRuntime, f32, i32, u32>;
 pub type B = Fusion<Cube>;

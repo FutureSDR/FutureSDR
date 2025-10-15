@@ -1,0 +1,3 @@
+ctrlport_enable = true
+ctrlport_bind = "0.0.0.0:1337"
+frontend_path = "../../examples/spectrum/dist"

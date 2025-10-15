@@ -39,6 +39,9 @@ jobs:
       - name: Run cargo fmt (perf/buffer_size)
         run: cargo fmt --all --manifest-path=perf/buffer_size/Cargo.toml -- --check
 
+      - name: Run cargo fmt (perf/burn)
+        run: cargo fmt --all --manifest-path=perf/burn/Cargo.toml -- --check
+
       - name: Run cargo fmt (perf/fir)
         run: cargo fmt --all --manifest-path=perf/fir/Cargo.toml -- --check
 
@@ -213,6 +216,9 @@ jobs:
 
       - name: Run cargo clippy (perf/buffer_size)
         run: cargo clippy --all-targets --manifest-path=perf/buffer_size/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy (perf/burn)
+        run: cargo clippy --all-targets --manifest-path=perf/burn/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/fir)
         run: cargo clippy --all-targets --manifest-path=perf/fir/Cargo.toml -- -D warnings

@@ -1,11 +1,13 @@
+#![recursion_limit = "512"]
 use anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::FileSource;
-use futuresdr::blocks::NullSink;
+use futuresdr::blocks::WebsocketSink;
+use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
-use futuresdr_burn::BATCH_SIZE;
-use futuresdr_burn::FFT_SIZE;
+use perf_burn::BATCH_SIZE;
+use perf_burn::FFT_SIZE;
 
 #[derive(Block)]
 struct Avg {
@@ -65,22 +67,23 @@ impl Kernel for Avg {
         Ok(())
     }
 }
-
 fn main() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<Complex32>::new("data.cf32", false);
+    let mut src = Builder::new("")?
+        .frequency(100e6)
+        .sample_rate(3.2e6)
+        .gain(34.0)
+        .build_source()?;
+    src.outputs()[0].set_min_buffer_size_in_items(1 << 15);
+
     let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new();
-    let snk = NullSink::<f32>::new();
+    let snk = WebsocketSink::<f32>::new(9001, WebsocketSinkMode::FixedBlocking(FFT_SIZE));
 
-    connect!(fg, src > fft > avg > snk);
+    connect!(fg, src.outputs[0] > fft > avg > snk);
 
-    let now = std::time::Instant::now();
     Runtime::new().run(fg)?;
-    let elapsed = now.elapsed();
-    println!("took {elapsed:?}");
-
     Ok(())
 }
