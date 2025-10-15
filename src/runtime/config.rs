@@ -6,46 +6,49 @@ use config::Source;
 use config::Value;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 use tracing::level_filters::LevelFilter;
 
 /// Get global configuration
 pub fn config() -> Config {
-    CONFIG.lock().unwrap().clone()
+    get_config().clone()
+}
+
+// helper to deal with poisoned Mutex
+fn get_config() -> MutexGuard<'static, Config> {
+    CONFIG.lock().unwrap_or_else(|poison| {
+        warn!("config poisoned, restoring initial config");
+        let mut c = poison.into_inner();
+        *c = init_config();
+        CONFIG.clear_poison();
+        c
+    })
 }
 
 /// Set config value
 pub fn set<V: Into<config::Value>>(name: impl Into<String>, value: V) {
-    let mut c = CONFIG.lock().unwrap();
-    c.set_value(name, value);
+    get_config().set_value(name, value);
 }
 
 /// Get value from config
 pub fn get_value(name: &str) -> Option<Value> {
-    CONFIG.lock().unwrap().misc.get(name).cloned()
+    get_config().misc.get(name).cloned()
 }
 
 /// Try to parse value from config string
 pub fn get<T: FromStr>(name: &str) -> Option<T> {
-    CONFIG
-        .lock()
-        .unwrap()
+    get_config()
         .misc
         .get(name)
         .and_then(|v| v.clone().into_string().ok())
         .and_then(|v| v.parse::<T>().ok())
 }
 
-/// Get config value or return default
-pub fn get_or_default<T: FromStr>(name: &str, default: T) -> T {
-    get(name).unwrap_or(default)
-}
-
 #[cfg(not(target_arch = "wasm32"))]
-static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| {
+fn init_config() -> Config {
     let mut settings = ::config::Config::builder();
 
     // user config
@@ -66,46 +69,54 @@ static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| {
     // start from default config
     let mut c = Config::default();
 
-    if let Ok(config) = settings.build().unwrap().collect() {
-        for (k, v) in config.iter() {
-            match k.as_str() {
-                "queue_size" => {
-                    c.queue_size = config_parse::<usize>(v);
-                }
-                "buffer_size" => {
-                    c.buffer_size = config_parse::<usize>(v);
-                }
-                "stack_size" => {
-                    c.stack_size = config_parse::<usize>(v);
-                }
-                "slab_reserved" => {
-                    c.slab_reserved = config_parse::<usize>(v);
-                }
-                "log_level" => {
-                    c.log_level = config_parse::<LevelFilter>(v);
-                }
-                "ctrlport_enable" => {
-                    c.ctrlport_enable = config_parse::<bool>(v);
-                }
-                "ctrlport_bind" => {
-                    c.ctrlport_bind = Some(config_parse::<SocketAddr>(v));
-                }
-                "frontend_path" => {
-                    c.frontend_path = Some(config_parse::<PathBuf>(v));
-                }
-                _ => {
-                    c.misc.insert(k.clone(), v.clone());
+    match settings.build() {
+        Ok(settings) => match settings.collect() {
+            Ok(config) => {
+                for (k, v) in config.iter() {
+                    match k.as_str() {
+                        "queue_size" => {
+                            c.queue_size = config_parse::<usize>(v);
+                        }
+                        "buffer_size" => {
+                            c.buffer_size = config_parse::<usize>(v);
+                        }
+                        "stack_size" => {
+                            c.stack_size = config_parse::<usize>(v);
+                        }
+                        "slab_reserved" => {
+                            c.slab_reserved = config_parse::<usize>(v);
+                        }
+                        "log_level" => {
+                            c.log_level = config_parse::<LevelFilter>(v);
+                        }
+                        "ctrlport_enable" => {
+                            c.ctrlport_enable = config_parse::<bool>(v);
+                        }
+                        "ctrlport_bind" => {
+                            c.ctrlport_bind = v.to_string();
+                        }
+                        "frontend_path" => {
+                            c.frontend_path = Some(config_parse::<PathBuf>(v));
+                        }
+                        _ => {
+                            c.misc.insert(k.clone(), v.clone());
+                        }
+                    }
                 }
             }
-        }
+            Err(e) => warn!("error parsing config {e:?}"),
+        },
+        Err(e) => warn!("error reading config {e:?}"),
     }
-    assert!(c.validate(), "invalid config");
-
-    Mutex::new(c)
-});
+    c
+}
 
 #[cfg(target_arch = "wasm32")]
-static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(Config::default()));
+fn init_config() -> Config {
+    Config::default()
+}
+
+static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(init_config()));
 
 /// Configuration
 #[derive(Debug, Clone)]
@@ -123,22 +134,13 @@ pub struct Config {
     /// Enable control port
     pub ctrlport_enable: bool,
     /// Control port socket address
-    pub ctrlport_bind: Option<SocketAddr>,
+    pub ctrlport_bind: String,
     /// Frontend path for Webserver
     pub frontend_path: Option<PathBuf>,
     misc: HashMap<String, Value>,
 }
 
 impl Config {
-    fn validate(&self) -> bool {
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.ctrlport_enable && self.ctrlport_bind.is_none() {
-            println!("ctrlport enabled but socket not set");
-            return false;
-        }
-        true
-    }
-
     fn set_value<V: Into<config::Value>>(&mut self, name: impl Into<String>, value: V) {
         let name = name.into();
         let value = value.into();
@@ -163,7 +165,7 @@ impl Config {
                 self.ctrlport_enable = config_parse::<bool>(&value);
             }
             "ctrlport_bind" => {
-                self.ctrlport_bind = Some(config_parse::<SocketAddr>(&value));
+                self.ctrlport_bind = value.to_string();
             }
             "frontend_path" => {
                 self.frontend_path = Some(config_parse::<PathBuf>(&value));
@@ -172,7 +174,6 @@ impl Config {
                 self.misc.insert(name, value);
             }
         }
-        assert!(self.validate());
     }
 }
 
@@ -183,10 +184,10 @@ impl Default for Config {
             queue_size: 8192,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
-            slab_reserved: 128,
+            slab_reserved: 0,
             log_level: LevelFilter::DEBUG,
             ctrlport_enable: true,
-            ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
+            ctrlport_bind: "127.0.0.1:1337".to_string(),
             frontend_path: None,
             misc: HashMap::new(),
         }
@@ -201,7 +202,7 @@ impl Default for Config {
             slab_reserved: 0,
             log_level: LevelFilter::INFO,
             ctrlport_enable: true,
-            ctrlport_bind: "127.0.0.1:1337".parse::<SocketAddr>().ok(),
+            ctrlport_bind: "127.0.0.1:1337".to_string(),
             frontend_path: None,
             misc: HashMap::new(),
         }

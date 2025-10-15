@@ -8,10 +8,7 @@ use futuresdr::blocks::Combine;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 use m17::DecoderBlock;
 use m17::MovingAverage;
@@ -109,15 +106,16 @@ fn main() -> Result<()> {
     // let downsample = FirBuilder::resampling::<Complex32, Complex32>(1, 4);
     // expects 48000 hz
     let mut last = Complex32::new(0.0, 0.0);
-    let demod = Apply::new(move |v: &Complex32| -> f32 {
+    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
         let arg = (v * last.conj()).arg();
         last = *v;
         arg * DEMOD_GAIN
     });
-    let moving_average = MovingAverage::new(4800);
-    let subtract = Combine::new(|i1: &f32, i2: &f32| i1 - i2);
-    let rrc = FirBuilder::new::<f32, f32, _>(TAPS);
-    let symbol_sync = SymbolSync::new(10.0, 2.0 * std::f32::consts::PI * 0.0015, 1.0, 1.0, 0.05, 1);
+    let moving_average: MovingAverage = MovingAverage::new(4800);
+    let subtract = Combine::<_, _, _, _>::new(|i1: &f32, i2: &f32| i1 - i2);
+    let rrc = FirBuilder::fir::<f32, f32, _>(TAPS);
+    let symbol_sync: SymbolSync =
+        SymbolSync::new(10.0, 2.0 * std::f32::consts::PI * 0.0015, 1.0, 1.0, 0.05, 1);
     let decoder = DecoderBlock::new();
     let mut c2 = Codec2::new(Codec2Mode::MODE_3200);
     assert_eq!(c2.samples_per_frame(), 160);
@@ -126,12 +124,12 @@ fn main() -> Result<()> {
         ApplyNM::<_, _, _, { 64_usize.div_ceil(8) }, 160>::new(move |i: &[u8], o: &mut [i16]| {
             c2.decode(o, i);
         });
-    let conv = Apply::new(|i: &i16| (*i as f32) / i16::MAX as f32);
+    let conv = Apply::<_, _, _>::new(|i: &i16| (*i as f32) / i16::MAX as f32);
     let upsample = FirBuilder::resampling::<f32, f32>(6, 1);
     let snk = AudioSink::new(48000, 1);
 
-    connect!(fg, src > demod > subtract.0;
-                 demod > moving_average > subtract.1;
+    connect!(fg, src > demod > in0.subtract;
+                 demod > moving_average > in1.subtract;
                  subtract > rrc > symbol_sync > decoder > codec > conv > upsample > snk);
 
     Runtime::new().run(fg)?;

@@ -1,10 +1,10 @@
+use async_lock::Mutex;
 use futures::channel::mpsc::Sender;
 use futures::future::Future;
-use slab::Slab;
+use std::sync::Arc;
 
-use crate::runtime::BlockMessage;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 use crate::runtime::scheduler::Task;
 
 /// Scheduler trait
@@ -14,11 +14,11 @@ use crate::runtime::scheduler::Task;
 pub trait Scheduler: Clone + Send + 'static {
     /// Run a whole [`Flowgraph`](crate::runtime::Flowgraph) on the
     /// [`Runtime`](crate::runtime::Runtime)
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>>;
+    );
 
     /// Spawn a task
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static)
@@ -38,11 +38,11 @@ pub trait Scheduler: Clone + Send + 'static {
 pub trait Scheduler: Clone + Send + 'static {
     /// Run a whole [`Flowgraph`](crate::runtime::Flowgraph) on the
     /// [`Runtime`](crate::runtime::Runtime)
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>>;
+    );
 
     /// Spawn a task
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T>;

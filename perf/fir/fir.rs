@@ -1,16 +1,16 @@
-use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use perf::CopyRandBuilder;
+use perf::CopyRand;
 use std::iter::repeat_with;
 use std::time;
 
@@ -50,24 +50,28 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new())?;
-        let head = fg.add_block(Head::<f32>::new(samples as u64))?;
-        fg.connect_stream(src, "out", head, "in")?;
+        let src = fg.add_block(NullSource::<f32>::new());
+        let head = fg.add_block(Head::<f32>::new(samples as u64));
+        fg.connect_dyn(src, "output", &head, "input")?;
 
-        let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build())?;
-        let mut last = fg.add_block(FirBuilder::new::<f32, f32, _>(taps.to_owned()))?;
-        fg.connect_stream(head, "out", copy, "in")?;
-        fg.connect_stream(copy, "out", last, "in")?;
+        let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
+        let mut last: BlockId = fg
+            .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
+            .into();
+        fg.connect_dyn(head, "output", &copy, "input")?;
+        fg.connect_dyn(copy, "output", last, "input")?;
 
         for _ in 1..stages {
-            let copy = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build())?;
-            fg.connect_stream(last, "out", copy, "in")?;
-            last = fg.add_block(FirBuilder::new::<f32, f32, _>(taps.to_owned()))?;
-            fg.connect_stream(copy, "out", last, "in")?;
+            let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
+            fg.connect_dyn(last, "output", &copy, "input")?;
+            last = fg
+                .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
+                .into();
+            fg.connect_dyn(copy, "output", last, "input")?;
         }
 
-        let snk = fg.add_block(NullSink::<f32>::new())?;
-        fg.connect_stream(last, "out", snk, "in")?;
+        let snk = fg.add_block(NullSink::<f32>::new());
+        fg.connect_dyn(last, "output", &snk, "input")?;
         snks.push(snk);
     }
 
@@ -76,29 +80,29 @@ fn main() -> Result<()> {
     if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "tpb" {
         let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else {
         panic!("unknown scheduler");
     }
 
     for s in snks {
-        let snk = fg.kernel::<NullSink<f32>>(s).context("no block")?;
+        let snk = s.get()?;
         let v = snk.n_received();
         assert_eq!(v, samples - (stages * 63));
     }

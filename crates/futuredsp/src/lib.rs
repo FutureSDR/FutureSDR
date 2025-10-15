@@ -67,6 +67,9 @@ pub trait Filter<InputType, OutputType, TapType> {
         input: &[InputType],
         output: &mut [OutputType],
     ) -> (usize, usize, ComputationStatus);
+    /// Returns the filter length, i.e., the number of input samples required to compute an
+    /// output.
+    fn length(&self) -> usize;
 }
 
 /// Trait for a stateful filter
@@ -87,6 +90,9 @@ pub trait StatefulFilter<InputType, OutputType, TapType> {
         input: &[InputType],
         output: &mut [OutputType],
     ) -> (usize, usize, ComputationStatus);
+    /// Returns the filter length, i.e., the number of input samples required to compute an
+    /// output.
+    fn length(&self) -> usize;
 }
 
 /// Prelude with common traits

@@ -23,7 +23,7 @@
 //! |---|---|---|
 //! | [Fft](Fft) | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
-//! | [Iir](IirBuilder) | IIR filter. | ✅ |
+//! | [Iir](Iir) | IIR filter. | ✅ |
 //! | [PfbArbResampler](PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
 //! | [PfbChannelizer](PfbChannelizer) | Polyphase Channelizer | ✅ |
 //! | [PfbSynthesizer](PfbSynthesizer) | Polyphase Synthesizer | ✅ |
@@ -116,6 +116,7 @@ mod applyintoiter;
 pub use applyintoiter::ApplyIntoIter;
 mod applynm;
 pub use applynm::ApplyNM;
+#[cfg(feature = "audio")]
 pub mod audio;
 #[cfg(not(target_arch = "wasm32"))]
 mod blob_to_udp;
@@ -156,8 +157,6 @@ mod head;
 pub use head::Head;
 mod iir;
 pub use iir::Iir;
-pub use iir::IirBuilder;
-
 mod message_annotator;
 pub use message_annotator::MessageAnnotator;
 mod message_apply;
@@ -187,13 +186,14 @@ pub use pfb::arb_resampler::PfbArbResampler;
 pub use pfb::channelizer::PfbChannelizer;
 pub use pfb::synthesizer::PfbSynthesizer;
 /// Seify hardware driver blocks
-#[cfg(feature = "seify")]
+#[cfg(all(feature = "seify", not(target_arch = "wasm32")))]
 pub mod seify;
 mod selector;
 pub use selector::DropPolicy as SelectorDropPolicy;
 pub use selector::Selector;
 pub mod signal_source;
 pub use signal_source::FixedPointPhase;
+pub use signal_source::SignalSource;
 pub use signal_source::SignalSourceBuilder;
 mod sink;
 pub use sink::Sink;
@@ -223,15 +223,12 @@ mod udp_source;
 pub use udp_source::UdpSource;
 mod vector_sink;
 pub use vector_sink::VectorSink;
-pub use vector_sink::VectorSinkBuilder;
 mod vector_source;
 pub use vector_source::VectorSource;
 #[cfg(feature = "vulkan")]
 mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::Vulkan;
-#[cfg(feature = "vulkan")]
-pub use vulkan::VulkanBuilder;
 /// WASM-specfici blocks (target wasm32-unknown-unknown)
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -249,19 +246,17 @@ pub use websocket_sink::WebsocketSinkBuilder;
 pub use websocket_sink::WebsocketSinkMode;
 pub mod xlating_fir;
 pub use xlating_fir::XlatingFir;
-pub use xlating_fir::XlatingFirBuilder;
 #[cfg(feature = "wgpu")]
 mod wgpu;
 #[cfg(feature = "wgpu")]
 pub use self::wgpu::Wgpu;
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
-#[cfg(feature = "zynq")]
+#[cfg(all(feature = "zynq", target_os = "linux"))]
 mod zynq;
-#[cfg(feature = "zynq")]
+#[cfg(all(feature = "zynq", target_os = "linux"))]
 pub use zynq::Zynq;
-#[cfg(feature = "zynq")]
+#[cfg(all(feature = "zynq", target_os = "linux"))]
 mod zynq_sync;
-
-#[cfg(feature = "zynq")]
+#[cfg(all(feature = "zynq", target_os = "linux"))]
 pub use zynq_sync::ZynqSync;

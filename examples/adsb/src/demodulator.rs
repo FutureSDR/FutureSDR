@@ -1,19 +1,7 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
 use crate::SYMBOL_ONE_TAPS;
 use crate::SYMBOL_ZERO_TAPS;
-use futuresdr::macros::async_trait;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct DemodPacket {
@@ -22,34 +10,50 @@ pub struct DemodPacket {
     pub bits: Vec<u8>,
 }
 
-pub struct Demodulator {
+#[derive(Block)]
+#[message_outputs(out)]
+pub struct Demodulator<I = DefaultCpuReader<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    #[input]
+    input: I,
     n_received: u64,
 }
 
-impl Demodulator {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Demodulator").build(),
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().add_output("out").build(),
-            Self { n_received: 0 },
-        )
+impl<I> Demodulator<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            n_received: 0,
+        }
     }
 }
 
-#[async_trait]
-impl Kernel for Demodulator {
+impl<I> Default for Demodulator<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I> Kernel for Demodulator<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let samples = sio.input(0).slice::<f32>();
-        let tags = sio.input(0).tags();
-        let out = mio.output_mut(0);
+        let (samples, tags) = self.input.slice_with_tags();
+        let samples_len = samples.len();
 
         let max_packet_len_samples: usize = 120 * 2 * N_SAMPLES_PER_HALF_SYM;
         let max_packet_data_len_bits: usize = 112;
@@ -91,17 +95,17 @@ impl Kernel for Demodulator {
                     _ => None,
                 };
                 if let Some(r) = result {
-                    out.post(Pmt::Any(Box::new(r))).await;
+                    mio.post("out", Pmt::Any(Box::new(r))).await?;
                 }
             }
         }
 
         if samples.len() >= max_packet_len_samples {
-            sio.input(0).consume(samples.len() - max_packet_len_samples);
-            self.n_received += (samples.len() - max_packet_len_samples) as u64;
+            self.input.consume(samples_len - max_packet_len_samples);
+            self.n_received += (samples_len - max_packet_len_samples) as u64;
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

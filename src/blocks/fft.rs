@@ -1,19 +1,7 @@
+use futuresdr::prelude::*;
 use rustfft::FftPlanner;
-use rustfft::num_complex::Complex32;
 use std::cmp;
 use std::sync::Arc;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 /// Compute an FFT.
 ///
@@ -34,18 +22,26 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Fft;
-/// use futuresdr::runtime::Flowgraph;
 ///
-/// let mut fg = Flowgraph::new();
-///
-/// let fft = fg.add_block(Fft::new(2048));
+/// let fft: Fft<> = Fft::new(2048);
 /// ```
-pub struct Fft {
+#[derive(Block)]
+#[message_inputs(fft_size)]
+pub struct Fft<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     len: usize,
     fft_shift: bool,
     direction: FftDirection,
     normalize: Option<f32>,
     plan: Arc<dyn rustfft::Fft<f32>>,
+    buff: Box<[Complex32]>,
     scratch: Box<[Complex32]>,
 }
 
@@ -57,13 +53,19 @@ pub enum FftDirection {
     Inverse,
 }
 
-impl Fft {
+const BUFF_FFTS: usize = 32;
+
+impl<I, O> Fft<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     /// Create FFT block
-    pub fn new(len: usize) -> TypedBlock<Self> {
+    pub fn new(len: usize) -> Self {
         Self::with_direction(len, FftDirection::Forward)
     }
     /// Create FFT block with [`FftDirection`]
-    pub fn with_direction(len: usize, direction: FftDirection) -> TypedBlock<Self> {
+    pub fn with_direction(len: usize, direction: FftDirection) -> Self {
         Self::with_options(len, direction, false, None)
     }
     /// Create FFT block with options (direction, shift, normalization)
@@ -72,39 +74,37 @@ impl Fft {
         direction: FftDirection,
         fft_shift: bool,
         normalize: Option<f32>,
-    ) -> TypedBlock<Self> {
+    ) -> Self {
         let mut planner = FftPlanner::<f32>::new();
         let plan = match direction {
             FftDirection::Forward => planner.plan_fft_forward(len),
             FftDirection::Inverse => planner.plan_fft_inverse(len),
         };
+        let scratch_size = plan.get_outofplace_scratch_len();
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("Fft").build(),
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::<Fft>::new()
-                .add_input("fft_size", Self::fft_size_handler)
-                .build(),
-            Fft {
-                len,
-                plan,
-                direction,
-                fft_shift,
-                normalize,
-                scratch: vec![Complex32::new(0.0, 0.0); len * 10].into_boxed_slice(),
-            },
-        )
+        let mut input = I::default();
+        input.set_min_items(len);
+        let mut output = O::default();
+        output.set_min_items(len);
+
+        Self {
+            input,
+            output,
+            len,
+            plan,
+            direction,
+            fft_shift,
+            normalize,
+            buff: vec![Complex32::new(0.0, 0.0); len * BUFF_FFTS].into_boxed_slice(),
+            scratch: vec![Complex32::new(0.0, 0.0); scratch_size].into_boxed_slice(),
+        }
     }
 
     /// Handle incoming messages to change FFT size
-    #[message_handler]
-    fn fft_size_handler(
+    async fn fft_size(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -132,34 +132,43 @@ impl Fft {
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl Kernel for Fft {
+impl<I, O> Kernel for Fft<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = unsafe { sio.input(0).slice_mut::<Complex32>() };
-        let o = sio.output(0).slice::<Complex32>();
+        let (i, in_tags) = self.input.slice_with_tags();
+        let (o, mut out_tags) = self.output.slice_with_tags();
 
         let m = cmp::min(i.len(), o.len());
         let m = (m / self.len) * self.len;
+        let m = cmp::min(m, self.len * BUFF_FFTS);
 
         if m > 0 {
+            in_tags
+                .iter()
+                .filter(|t| t.index < m)
+                .for_each(|t| out_tags.add_tag(t.index, t.tag.clone()));
+
             if matches!(self.direction, FftDirection::Inverse) && self.fft_shift {
                 for f in 0..(m / self.len) {
-                    let mut sym = vec![Complex32::new(0.0, 0.0); self.len];
-                    sym.copy_from_slice(&i[f * self.len..(f + 1) * self.len]);
                     for k in 0..self.len {
-                        i[f * self.len + k] = sym[(k + self.len / 2) % self.len]
+                        self.buff[f * self.len + k] =
+                            i[f * self.len + ((k + self.len / 2) % self.len)]
                     }
                 }
+            } else {
+                self.buff[0..m].copy_from_slice(&i[0..m]);
             }
 
             self.plan.process_outofplace_with_scratch(
-                &mut i[0..m],
+                &mut self.buff[0..m],
                 &mut o[0..m],
                 &mut self.scratch,
             );
@@ -180,11 +189,11 @@ impl Kernel for Fft {
                 }
             }
 
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == (m / self.len) * self.len {
+        if self.input.finished() && m == (m / self.len) * self.len {
             io.finished = true;
         }
 

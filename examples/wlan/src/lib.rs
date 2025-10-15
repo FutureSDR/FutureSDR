@@ -1,6 +1,6 @@
-#![allow(clippy::new_ret_no_self)]
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::excessive_precision)]
+#![allow(clippy::neg_multiply)]
 use futuresdr::num_complex::Complex32;
 
 mod channels;
@@ -79,7 +79,6 @@ impl Modulation {
                 ];
                 QPSK[i as usize]
             }
-            #[allow(clippy::neg_multiply)]
             Modulation::Qam16 => {
                 const LEVEL: f32 = 0.31622776601683794;
                 const QAM16: [Complex32; 16] = [
@@ -102,7 +101,6 @@ impl Modulation {
                 ];
                 QAM16[i as usize]
             }
-            #[allow(clippy::neg_multiply)]
             Modulation::Qam64 => {
                 const LEVEL: f32 = 0.1543033499620919;
                 const QAM64: [Complex32; 64] = [
@@ -327,7 +325,7 @@ impl FrameParam {
         // n_symbols
         let bits = 16 + 8 * psdu_size + 6;
         let mut n_symbols = bits / mcs.n_dbps();
-        if bits % mcs.n_dbps() > 0 {
+        if !bits.is_multiple_of(mcs.n_dbps()) {
             n_symbols += 1;
         }
 

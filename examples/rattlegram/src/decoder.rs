@@ -1,16 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;
@@ -25,33 +13,49 @@ use crate::util::FROZEN_2048_712;
 use crate::util::FROZEN_2048_1056;
 use crate::util::FROZEN_2048_1392;
 
-pub struct DecoderBlock {
+#[derive(Block)]
+pub struct DecoderBlock<I = DefaultCpuReader<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    #[input]
+    input: I,
     decoder: Box<Decoder>,
 }
 
-impl DecoderBlock {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("RattegramDecoder").build(),
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                decoder: Box::new(Decoder::new()),
-            },
-        )
+impl<I> DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            decoder: Box::new(Decoder::new()),
+        }
     }
 }
 
-#[async_trait]
-impl Kernel for DecoderBlock {
+impl<I> Default for DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I> Kernel for DecoderBlock<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<f32>();
+        let input = self.input.slice();
+        let input_len = input.len();
 
         for s in input.chunks_exact(960) {
             if !self.decoder.feed(s) {
@@ -104,9 +108,9 @@ impl Kernel for DecoderBlock {
             }
         }
 
-        sio.input(0).consume(input.len() / (960) * (960));
+        self.input.consume(input_len / (960) * (960));
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
@@ -1307,5 +1311,11 @@ impl Decoder {
     fn mod_soft(b: &mut [i8], c: Complex32, precision: f32) {
         b[0] = Self::quantize(precision, c.re);
         b[1] = Self::quantize(precision, c.im);
+    }
+}
+
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -1,7 +1,11 @@
 //! Vulkan custom buffers
 use std::sync::Arc;
+use vulkano::DeviceSize;
 use vulkano::VulkanLibrary;
+use vulkano::buffer::BufferCreateInfo;
+use vulkano::buffer::BufferUsage;
 use vulkano::buffer::Subbuffer;
+use vulkano::buffer::subbuffer::BufferContents;
 use vulkano::device::Device;
 use vulkano::device::DeviceCreateInfo;
 use vulkano::device::DeviceExtensions;
@@ -9,49 +13,46 @@ use vulkano::device::Queue;
 use vulkano::device::QueueCreateInfo;
 use vulkano::device::QueueFlags;
 use vulkano::device::physical::PhysicalDeviceType;
-use vulkano::instance::Instance;
+use vulkano::instance;
 use vulkano::instance::InstanceCreateFlags;
 use vulkano::instance::InstanceCreateInfo;
+use vulkano::memory::allocator::AllocationCreateInfo;
+use vulkano::memory::allocator::MemoryTypeFilter;
+use vulkano::memory::allocator::StandardMemoryAllocator;
+
+use futuresdr::runtime::Error;
+use futuresdr::runtime::buffer::vulkan;
 
 mod d2h;
-pub use d2h::D2H;
-pub use d2h::ReaderD2H;
-pub use d2h::WriterD2H;
+pub use d2h::Reader as D2HReader;
+pub use d2h::Writer as D2HWriter;
 mod h2d;
-pub use h2d::H2D;
-pub use h2d::ReaderH2D;
-pub use h2d::WriterH2D;
+pub use h2d::Reader as H2DReader;
+pub use h2d::Writer as H2DWriter;
 
-// ================== VULKAN MESSAGE ============================
-/// Full buffer
 #[derive(Debug)]
-pub struct BufferFull {
-    /// Buffer
-    pub buffer: Subbuffer<[u8]>,
-    /// Used bytes
-    pub used_bytes: usize,
+/// Vulkan Buffer
+pub struct Buffer<T: BufferContents> {
+    /// Subbuffer
+    pub buffer: Subbuffer<[T]>,
+    /// Valid data in buffer
+    pub offset: usize,
 }
 
-/// Empty buffer
-#[derive(Debug)]
-pub struct BufferEmpty {
-    /// Buffer
-    pub buffer: Subbuffer<[u8]>,
-}
-
-// ================== VULKAN BROKER ============================
+// ================== VULKAN INSTANCE ============================
 /// Vulkan broker
-#[derive(Debug)]
-pub struct Broker {
+#[derive(Clone, Debug)]
+pub struct Instance {
     device: Arc<Device>,
     queue: Arc<Queue>,
+    memory_allocator: Arc<StandardMemoryAllocator>,
 }
 
-impl Broker {
+impl Instance {
     /// Create broker
-    pub fn new() -> Broker {
+    pub fn new() -> Self {
         let library = VulkanLibrary::new().unwrap();
-        let instance = Instance::new(
+        let instance = instance::Instance::new(
             library,
             InstanceCreateInfo {
                 flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
@@ -83,10 +84,14 @@ impl Broker {
             })
             .unwrap();
 
-        debug!(
-            "Using device: {} (type: {:?})",
+        info!(
+            "Using device: {} (type: {:?}, subgroup size: {})",
             physical_device.properties().device_name,
-            physical_device.properties().device_type
+            physical_device.properties().device_type,
+            physical_device
+                .properties()
+                .subgroup_size
+                .unwrap_or_default()
         );
 
         let (device, mut queues) = Device::new(
@@ -104,7 +109,13 @@ impl Broker {
 
         let queue = queues.next().unwrap();
 
-        Broker { device, queue }
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+
+        Self {
+            device,
+            queue,
+            memory_allocator,
+        }
     }
 
     /// Vulkan device
@@ -116,9 +127,31 @@ impl Broker {
     pub fn queue(&self) -> Arc<Queue> {
         self.queue.clone()
     }
+
+    /// Create a Buffer
+    pub fn create_buffer<T: BufferContents>(
+        &self,
+        capacity: DeviceSize,
+    ) -> Result<Buffer<T>, Error> {
+        let buffer = vulkano::buffer::Buffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::STORAGE_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            capacity,
+        )
+        .map_err(|e| Error::RuntimeError(e.to_string()))?;
+        Ok(vulkan::Buffer { buffer, offset: 0 })
+    }
 }
 
-impl Default for Broker {
+impl Default for Instance {
     fn default() -> Self {
         Self::new()
     }

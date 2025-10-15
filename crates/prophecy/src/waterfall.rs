@@ -5,9 +5,9 @@ use leptos::html::Canvas;
 use leptos::logging::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos::wasm_bindgen::JsCast;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use web_sys::WebGl2RenderingContext as GL;
 use web_sys::WebGlProgram;
@@ -217,23 +217,24 @@ fn render(
 
                 let view = unsafe { f32::view(samples) };
                 gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
-                    GL::TEXTURE_2D,
-                    0,
-                    0,
-                    *texture_offset,
-                    fft_size_val as i32,
-                    1,
-                    GL::RED,
-                    GL::FLOAT,
-                    &view,
-                    0,
-                )
-                .unwrap();
+                        GL::TEXTURE_2D,
+                        0,
+                        0,
+                        *texture_offset,
+                        fft_size_val as i32,
+                        1,
+                        GL::RED,
+                        GL::FLOAT,
+                        &view,
+                        0,
+                    )
+                    .unwrap();
 
                 let loc = gl.get_uniform_location(shader, "yoffset");
                 gl.uniform1f(loc.as_ref(), *texture_offset as f32 / SHADER_HEIGHT as f32);
                 *texture_offset = (*texture_offset + 1) % SHADER_HEIGHT as i32;
             }
+
             gl.draw_elements_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_SHORT, 0);
         }
         request_animation_frame(render(state, data, fft_size_val))

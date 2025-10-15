@@ -1,27 +1,9 @@
+use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::wasm::HackRf;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::connect;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::FlowgraphHandle;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use leptos::html::Span;
-use leptos::prelude::*;
-use leptos::task::spawn_local;
-use leptos::wasm_bindgen::JsCast;
+use futuresdr::prelude::*;
 use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphMermaid;
 use prophecy::ListSelector;
@@ -29,6 +11,11 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::leptos;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::prelude::*;
+use prophecy::leptos::task::spawn_local;
+use prophecy::leptos::wasm_bindgen::JsCast;
 
 const FFT_SIZE: usize = 2048;
 
@@ -134,7 +121,7 @@ pub fn Spectrum(
                                 let p = Pmt::F64(freq * 1e6);
                                 let mut handle = handle.clone();
                                 spawn_local(async move {
-                                    let _ = handle.call(0, "freq", p).await;
+                                    let _ = handle.call(4, "freq", p).await;
                                 });
                             }
                         }
@@ -147,7 +134,7 @@ pub fn Spectrum(
                     <span class="m-2 text-white">Amp</span>
                     <ListSelector
                         fg_handle=handle.clone()
-                        block_id=0
+                        block_id=4
                         handler="amp"
                         values=[
                             ("Disable".to_string(), Pmt::Bool(false)),
@@ -159,7 +146,7 @@ pub fn Spectrum(
                     <span class="m-2 text-white">LNA Gain</span>
                     <ListSelector
                         fg_handle=handle.clone()
-                        block_id=0
+                        block_id=4
                         handler="lna"
                         values=[
                             ("0".to_string(), Pmt::U32(0)),
@@ -175,7 +162,7 @@ pub fn Spectrum(
                     <span class="m-2 text-white">VGA Gain</span>
                     <ListSelector
                         fg_handle=handle.clone()
-                        block_id=0
+                        block_id=4
                         handler="vga"
                         values=[
                             ("0".to_string(), Pmt::U32(0)),
@@ -193,7 +180,7 @@ pub fn Spectrum(
                     <span class="m-2 text-white">Sample Rate</span>
                     <ListSelector
                         fg_handle=handle.clone()
-                        block_id=0
+                        block_id=4
                         handler="sample_rate"
                         values=[
                             ("2 MHz".to_string(), Pmt::F64(2e6)),
@@ -222,7 +209,7 @@ pub fn Spectrum(
             {move || {
                 fg_desc
                     .get()
-                    .map(|x| x.take().unwrap())
+                    .map(|x| x.unwrap())
                     .map(|x| view! { <FlowgraphMermaid fg=x /> }.into_any())
                     .unwrap_or(().into_any());
             }}
@@ -280,7 +267,10 @@ pub fn web() {
     mount_to_body(|| view! { <Gui /> })
 }
 
+#[derive(Block)]
 pub struct Sink {
+    #[input]
+    input: slab::Reader<f32>,
     time_data: WriteSignal<Vec<u8>>,
     waterfall_data: WriteSignal<Vec<u8>>,
 }
@@ -288,33 +278,24 @@ pub struct Sink {
 unsafe impl Send for Sink {}
 
 impl Sink {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(
-        time_data: WriteSignal<Vec<u8>>,
-        waterfall_data: WriteSignal<Vec<u8>>,
-    ) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Sink").build(),
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                time_data,
-                waterfall_data,
-            },
-        )
+    pub fn new(time_data: WriteSignal<Vec<u8>>, waterfall_data: WriteSignal<Vec<u8>>) -> Self {
+        Self {
+            input: slab::Reader::default(),
+            time_data,
+            waterfall_data,
+        }
     }
 }
 
-#[async_trait]
 impl Kernel for Sink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<f32>();
+        let input = self.input.slice();
+        let input_len = input.len();
         // log!("sink len {} io {:?}", input.len(), &io);
 
         if input.len() >= 2048 {
@@ -326,12 +307,12 @@ impl Kernel for Sink {
             };
             self.time_data.set(Vec::from(bytes));
             self.waterfall_data.set(Vec::from(bytes));
-            sio.input(0).consume(2048);
+            self.input.consume(2048);
         }
 
-        if input.len() >= 2048 * 2 {
+        if input_len >= 2048 * 2 {
             io.call_again = true;
-        } else if sio.input(0).finished() {
+        } else if self.input.finished() {
             io.finished = true;
         }
 
@@ -347,16 +328,15 @@ async fn run(
     let mut fg = Flowgraph::new();
 
     let src = HackRf::new();
-    let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
-    let mag_sqr = crate::power_block();
+    let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+    let mag_sqr = Apply::<_, _, _>::new(|x: &Complex32| x.norm_sqr());
     let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
     let snk = Sink::new(set_time_data, set_waterfall_data);
 
-    futuresdr::runtime::config::set("slab_reserved", 0);
     connect!(fg, src > fft > mag_sqr > keep > snk);
 
     let rt = Runtime::new();
-    let (task, handle) = rt.start(fg).await;
+    let (task, handle) = rt.start(fg).await?;
     set_handle.set(Some(handle));
 
     let _ = task.await;

@@ -1,10 +1,8 @@
 use anyhow::Result;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::VectorSink;
-use futuresdr::blocks::VectorSinkBuilder;
 use futuresdr::blocks::VectorSource;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 #[test]
 fn fir_f32() -> Result<()> {
@@ -13,16 +11,15 @@ fn fir_f32() -> Result<()> {
     let orig = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
     let taps = [1.0f32, 1.0, 1.0];
 
-    let src = fg.add_block(VectorSource::<f32>::new(orig))?;
-    let fir = fg.add_block(FirBuilder::new::<f32, f32, _>(taps))?;
-    let snk = fg.add_block(VectorSinkBuilder::<f32>::new().build())?;
+    let src = VectorSource::<f32>::new(orig);
+    let fir = FirBuilder::fir::<f32, f32, _>(taps);
+    let snk = VectorSink::<f32>::new(6);
 
-    fg.connect_stream(src, "out", fir, "in")?;
-    fg.connect_stream(fir, "out", snk, "in")?;
+    connect!(fg, src > fir > snk);
 
-    fg = Runtime::new().run(fg)?;
+    Runtime::new().run(fg)?;
 
-    let snk = fg.kernel::<VectorSink<f32>>(snk).unwrap();
+    let snk = snk.get()?;
     let v = snk.items();
 
     let res = vec![6.0f32, 9.0, 12.0, 15.0];

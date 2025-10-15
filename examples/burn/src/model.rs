@@ -1,0 +1,279 @@
+use burn::module::Module;
+use burn::nn::Dropout;
+use burn::nn::DropoutConfig;
+use burn::nn::Initializer;
+use burn::nn::Linear;
+use burn::nn::LinearConfig;
+use burn::nn::Lstm;
+use burn::nn::LstmConfig;
+use burn::nn::PaddingConfig1d;
+use burn::nn::PaddingConfig2d;
+use burn::nn::Relu;
+use burn::nn::conv::Conv1d;
+use burn::nn::conv::Conv1dConfig;
+use burn::nn::conv::Conv2d;
+use burn::nn::conv::Conv2dConfig;
+use burn::nn::loss::CrossEntropyLossConfig;
+use burn::prelude::*;
+use burn::tensor::backend::AutodiffBackend;
+use burn::train::ClassificationOutput;
+use burn::train::TrainOutput;
+use burn::train::TrainStep;
+use burn::train::ValidStep;
+
+use crate::dataset::RadioDatasetBatch;
+
+/// Applies the “SELU” activation to `x`:
+///   SELU(x) = λ * x,                     if x > 0
+///           = λ * (α * exp(x) − α),      if x ≤ 0
+///
+/// where α ≈ 1.67326324 and λ ≈ 1.05070098.
+pub fn selu<B: Backend>(x: Tensor<B, 2>) -> Tensor<B, 2> {
+    let alpha = 1.6732632f32;
+    let lambda = 1.050701f32;
+
+    // 2) Build a “zero” tensor to compare x > 0.
+    let zero = x.zeros_like();
+    let mask_pos = x.clone().greater(zero).bool_not();
+
+    // 3) Positive branch: λ * x
+    let pos = x.clone() * lambda;
+
+    // 4) Negative branch: λ * (α * exp(x) − α)
+    let neg = {
+        let exp_x = x.exp(); // eˣ
+        let a_exp_x = exp_x * alpha; // α·eˣ
+        let inner = a_exp_x - alpha; // α·eˣ − α
+        inner * lambda // λ * (α·eˣ − α)
+    };
+
+    // 5) Combine the two branches using mask_pos:
+    pos.mask_where(mask_pos, neg)
+}
+
+/// Mcldnn: replicates the Keras MCLDNN topology
+///
+///  - Branch 1: Conv2D on “[batch, 1, 2, 128]”  
+///  - Branch 2: two Conv1D’s followed by a small Conv2D  
+///  - Fuse → big Conv2D → reshape → two LSTMs → SELU+Dense head
+#[derive(Module, Debug)]
+pub struct Mcldnn<B: Backend> {
+    // Branch 1 (I/Q 2×128 → Conv2D)
+    conv1_1: Conv2d<B>,
+    // Branch 2a/2b (each 1D on real/imag)
+    conv1_2: Conv1d<B>,
+    conv1_3: Conv1d<B>,
+    // After merging branch 2 vertically, small Conv2D
+    conv2: Conv2d<B>,
+    // After channel-concat with branch 1, big Conv2D
+    conv4: Conv2d<B>,
+    // Two LSTM layers
+    lstm1: Lstm<B>,
+    lstm2: Lstm<B>,
+    // Dense head
+    fc1: Linear<B>,
+    fc2: Linear<B>,
+    fc3: Linear<B>,
+    dropout: Dropout,
+    relu: Relu,
+}
+
+#[derive(Config, Debug)]
+pub struct McldnnConfig {
+    #[config(default = "11")]
+    num_classes: usize,
+}
+
+impl McldnnConfig {
+    /// Returns the initialized model.
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Mcldnn<B> {
+        // iq
+        let conv1_1 = Conv2dConfig::new([1, 50], [2, 8])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
+            .with_bias(true)
+            .with_padding(PaddingConfig2d::Valid)
+            .init(device);
+
+        // real
+        let conv1_2 = Conv1dConfig::new(1, 50, 8)
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
+            .with_bias(true)
+            .with_padding(PaddingConfig1d::Valid)
+            .init(device);
+
+        // imag
+        let conv1_3 = Conv1dConfig::new(1, 50, 8)
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
+            .with_bias(true)
+            .with_padding(PaddingConfig1d::Valid)
+            .init(device);
+
+        // real + imag
+        let conv2 = Conv2dConfig::new([50, 50], [1, 8])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
+            .with_bias(true)
+            .with_padding(PaddingConfig2d::Valid)
+            .init(device);
+
+        // iq + real + imag
+        let conv4 = Conv2dConfig::new([100, 100], [2, 5])
+            .with_initializer(Initializer::KaimingUniform {
+                gain: 1.0,
+                fan_out_only: false,
+            })
+            .with_bias(true)
+            .with_padding(PaddingConfig2d::Valid)
+            .init(device);
+
+        let lstm1 = LstmConfig::new(100, 128, true)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let lstm2 = LstmConfig::new(128, 128, true)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let fc1 = LinearConfig::new(128, 128)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let fc2 = LinearConfig::new(128, 128)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let fc3 = LinearConfig::new(128, self.num_classes)
+            .with_initializer(Initializer::XavierUniform { gain: 1.0 })
+            .init(device);
+        let dropout = DropoutConfig::new(0.5).init();
+        let relu = Relu::new();
+
+        Mcldnn {
+            conv1_1,
+            conv1_2,
+            conv1_3,
+            conv2,
+            conv4,
+            lstm1,
+            lstm2,
+            fc1,
+            fc2,
+            fc3,
+            dropout,
+            relu,
+        }
+    }
+}
+
+impl<B: Backend> Mcldnn<B> {
+    pub fn forward(&self, samples: Tensor<B, 3>) -> Tensor<B, 2> {
+        let real = samples.clone().slice(s![.., 0, ..]);
+        let imag = samples.clone().slice(s![.., 1, ..]);
+        let samples = samples.unsqueeze_dim(1);
+
+        // Conv2D on IQ samples
+        let mut x1 = self.conv1_1.forward(samples.pad((7, 0, 0, 1), 0.0)); // [batch,50,2,128]
+        x1 = self.relu.forward(x1);
+
+        // Conv1D on real
+        let mut x2 = self.conv1_2.forward(real.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        x2 = self.relu.forward(x2);
+        let x2 = x2.unsqueeze_dim(2); // [batch,50,1,128]
+
+        // Conv1D on imag
+        let mut x3 = self.conv1_3.forward(imag.pad((7, 0, 0, 0), 0.0)); // [batch,50,128]
+        x3 = self.relu.forward(x3);
+        let x3 = x3.unsqueeze_dim(2); // [batch,50,1,128]
+
+        // Stack real and imag
+        let mut x23 = Tensor::cat(vec![x2, x3], 2); // [batch,50,2,128]
+
+        // Conv2D on real and imag separately (why?)
+        x23 = self.conv2.forward(x23.pad((7, 0, 0, 0), 0.0)); // [batch,50,2,128]
+        x23 = self.relu.forward(x23);
+
+        // Stack iq + real + imag
+        let x = Tensor::cat(vec![x1, x23], 1); // [batch,100,2,128]
+
+        // Conv2D on iq + real + imag
+        let mut x = self.conv4.forward(x); // [batch,100,1,124]
+        x = self.relu.forward(x);
+
+        // Reshape and reorder for LSTM
+        let x: Tensor<B, 3> = x.squeeze_dims(&[2]); // [batch,100,124]
+        let x = x.permute([0, 2, 1]); // [batch,124,100]
+
+        // First LSTM - return full sequence
+        let (x, _) = self.lstm1.forward(x, None); // [batch,124,128]
+        let x = burn::tensor::activation::tanh(x);
+
+        // Second LSTM - need only final output
+        let (_, h2) = self.lstm2.forward(x, None);
+        let h2 = h2.hidden; // h2: [batch,128]
+        let h2 = burn::tensor::activation::tanh(h2);
+
+        // Dense layers
+        let mut x = self.fc1.forward(h2); // [batch,128]
+        x = selu(x);
+        x = self.dropout.forward(x);
+
+        let mut x = self.fc2.forward(x); // [batch,128]
+        x = selu(x);
+        x = self.dropout.forward(x);
+
+        self.fc3.forward(x) // [batch,num_classes]
+    }
+
+    pub fn forward_classification(
+        &self,
+        iq_samples: Tensor<B, 3>,
+        modulations: Tensor<B, 1, Int>,
+    ) -> ClassificationOutput<B> {
+        let output = self.forward(iq_samples);
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), modulations.clone());
+        ClassificationOutput::new(loss, output, modulations)
+    }
+}
+
+// struct PrintGrads<'a, B: AutodiffBackend> {
+//     grads: &'a B::Gradients,
+// }
+//
+// impl<'a, B: AutodiffBackend> burn::module::ModuleVisitor<B> for PrintGrads<'a, B> {
+//     fn visit_float<const D: usize>(
+//         &mut self,
+//         id: burn::module::ParamId,
+//         tensor: &Tensor<B, D>,
+//     ) {
+//         if let Some(grad_tensor) = tensor.grad(self.grads) {
+//             log::info!("Grad for parameter {id:?}: {grad_tensor}");
+//         } else {
+//             log::warn!("No gradient found for parameter {id:?}");
+//         }
+//     }
+// }
+
+impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
+    fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+        let item = self.forward_classification(batch.iq_samples, batch.modulation);
+
+        let grads = item.loss.backward();
+        // self.visit(&mut PrintGrads { grads: &grads });
+        TrainOutput::new(self, grads, item)
+    }
+}
+
+impl<B: Backend> ValidStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for Mcldnn<B> {
+    fn step(&self, batch: RadioDatasetBatch<B>) -> ClassificationOutput<B> {
+        self.forward_classification(batch.iq_samples, batch.modulation)
+    }
+}

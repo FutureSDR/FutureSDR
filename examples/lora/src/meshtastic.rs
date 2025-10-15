@@ -288,6 +288,7 @@ impl MeshtasticChannel {
             request_id: 0,
             reply_id: 0,
             emoji: 0,
+            bitfield: None,
         };
 
         let mut bytes = data.encode_to_vec();

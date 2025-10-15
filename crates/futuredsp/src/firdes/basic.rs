@@ -153,7 +153,7 @@ pub fn bandpass<T: FromPrimitive>(lower_cutoff: f64, higher_cutoff: f64, window:
 /// let taps = firdes::root_raised_cosine::<f32>(span, sps, roll_off);
 /// ```
 pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f64) -> Vec<T> {
-    assert!((span * sps) % 2 == 0, "span * sps must be even");
+    assert!((span * sps).is_multiple_of(2), "span * sps must be even");
     assert!(
         roll_off > 0.0 && roll_off <= 1.0,
         "roll_off must be in (0,1]"
@@ -201,7 +201,7 @@ pub fn root_raised_cosine<T: FromPrimitive>(span: usize, sps: usize, roll_off: f
 /// ```
 pub fn hilbert<T: FromPrimitive>(window: &[f64]) -> Vec<T> {
     let ntaps = window.len();
-    assert!(ntaps % 2 != 0, "Must be an odd number");
+    assert!(!ntaps.is_multiple_of(2), "Must be an odd number");
 
     let mut taps = vec![0.0; ntaps];
     let h = (ntaps - 1) / 2;

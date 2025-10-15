@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+use std::f32::consts::TAU;
 use std::fmt;
 use std::ops::Add;
 use std::ops::AddAssign;
@@ -17,7 +19,7 @@ pub struct FixedPointPhase {
 
 impl From<&FixedPointPhase> for f32 {
     fn from(x: &FixedPointPhase) -> Self {
-        (x.value as f32) * (FixedPointPhase::PI / FixedPointPhase::TWO_TO_THE_31)
+        (x.value as f32) * (PI / FixedPointPhase::TWO_TO_THE_31)
     }
 }
 
@@ -67,21 +69,15 @@ impl FixedPointPhase {
     const NBITS: u32 = 10;
     const ACCUM_MASK: u32 = ((1 << (FixedPointPhase::WORDBITS - FixedPointPhase::NBITS)) - 1);
 
-    // Should we use use core::f32::consts::PI?
-    // As of now, define things as in GNU Radio
-    #[allow(clippy::excessive_precision)]
-    const PI: f32 = 3.14159265358979323846;
-    #[allow(clippy::excessive_precision)]
-    const TAU: f32 = 2.0 * 3.14159265358979323846;
     const TWO_TO_THE_31: f32 = 2147483648.0;
 
     /// Create FixedPointPhase
     pub fn new(x: f32) -> Self {
         // Fold x into -PI to PI.
-        let d = (x / FixedPointPhase::TAU + 0.5).floor() as i32;
-        let x = x - (d as f32) * FixedPointPhase::TAU;
+        let d = (x / TAU + 0.5).floor() as i32;
+        let x = x - (d as f32) * TAU;
         // And convert to an integer.
-        let value = (x * FixedPointPhase::TWO_TO_THE_31 / FixedPointPhase::PI) as i32;
+        let value = (x * FixedPointPhase::TWO_TO_THE_31 / PI) as i32;
         FixedPointPhase { value }
     }
 

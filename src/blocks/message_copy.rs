@@ -1,35 +1,26 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
+use crate::runtime::Result;
 use crate::runtime::WorkIo;
 
 /// Forward messages.
-pub struct MessageCopy {}
+#[derive(Block)]
+#[message_inputs(r#in)]
+#[message_outputs(out)]
+#[null_kernel]
+pub struct MessageCopy;
 
 impl MessageCopy {
     /// Create MessageCopy block
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("MessageCopy").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_output("out")
-                .add_input("in", MessageCopy::handler)
-                .build(),
-            MessageCopy {},
-        )
+    pub fn new() -> Self {
+        Self
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -38,13 +29,15 @@ impl MessageCopy {
                 io.finished = true;
             }
             p => {
-                mio.post(0, p).await;
+                mio.post("out", p).await?;
             }
         }
         Ok(Pmt::Ok)
     }
 }
 
-#[doc(hidden)]
-#[async_trait]
-impl Kernel for MessageCopy {}
+impl Default for MessageCopy {
+    fn default() -> Self {
+        Self::new()
+    }
+}

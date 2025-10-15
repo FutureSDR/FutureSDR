@@ -7,29 +7,38 @@ use ::wgpu::CommandEncoderDescriptor;
 use ::wgpu::ComputePassDescriptor;
 use ::wgpu::ComputePipeline;
 use ::wgpu::ComputePipelineDescriptor;
-use ::wgpu::Maintain;
 use ::wgpu::MapMode;
 use ::wgpu::PipelineCompilationOptions;
+use ::wgpu::PollType;
 use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
 use std::borrow::Cow;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-use crate::runtime::buffer::BufferReaderCustom;
+use crate::prelude::*;
 use crate::runtime::buffer::wgpu;
+use crate::runtime::buffer::wgpu::D2HWriter;
+use crate::runtime::buffer::wgpu::H2DReader;
+
+const SHADER: &str = r#"
+    @group(0)
+    @binding(0)
+    var<storage, read_write> v_indices: array<f32>;
+
+    @compute
+    @workgroup_size(64)
+    fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+        v_indices[global_id.x] = 12.0 * v_indices[global_id.x];
+    }
+"#;
 
 /// Interface GPU w/ native API.
+#[derive(Block)]
 pub struct Wgpu {
-    broker: wgpu::Broker,
+    #[input]
+    input: H2DReader<f32>,
+    #[output]
+    output: D2HWriter<f32>,
+    instance: wgpu::Instance,
     buffer_items: u64,
     pipeline: Option<ComputePipeline>,
     output_buffers: Vec<Buffer>,
@@ -43,59 +52,37 @@ unsafe impl Send for Wgpu {}
 impl Wgpu {
     /// Create Wgpu block
     pub fn new(
-        broker: wgpu::Broker,
+        instance: wgpu::Instance,
         buffer_items: u64,
         n_input_buffers: usize,
         n_output_buffers: usize,
-    ) -> TypedBlock<Self> {
-        let storage_buffer = broker.device.create_buffer(&BufferDescriptor {
+    ) -> Self {
+        let storage_buffer = instance.device.create_buffer(&BufferDescriptor {
             label: None,
             size: buffer_items * 4,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("Wgpu").build(),
-            StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<f32>("out")
-                .build(),
-            MessageIoBuilder::<Wgpu>::new().build(),
-            Wgpu {
-                broker,
-                buffer_items,
-                pipeline: None,
-                output_buffers: Vec::new(),
-                storage_buffer,
-                n_input_buffers,
-                n_output_buffers,
-            },
-        )
+        Self {
+            input: H2DReader::new(),
+            output: D2HWriter::new(),
+            instance,
+            buffer_items,
+            pipeline: None,
+            output_buffers: Vec::new(),
+            storage_buffer,
+            n_input_buffers,
+            n_output_buffers,
+        }
     }
 }
 
-#[inline]
-fn o(sio: &mut StreamIo, id: usize) -> &mut wgpu::WriterD2H {
-    sio.output(id).try_as::<wgpu::WriterD2H>().unwrap()
-}
-
-#[inline]
-fn i(sio: &mut StreamIo, id: usize) -> &mut wgpu::ReaderH2D {
-    sio.input(id).try_as::<wgpu::ReaderH2D>().unwrap()
-}
-
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for Wgpu {
-    async fn init(
-        &mut self,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         for _ in 0..self.n_output_buffers {
-            let output_buffer = self.broker.device.create_buffer(&BufferDescriptor {
+            let output_buffer = self.instance.device.create_buffer(&BufferDescriptor {
                 label: None,
                 size: self.buffer_items * 4,
                 usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
@@ -106,28 +93,29 @@ impl Kernel for Wgpu {
 
         for _ in 0..self.n_input_buffers {
             let input_buffer = wgpu::InputBufferEmpty {
-                buffer: vec![0; self.buffer_items as usize * 4].into_boxed_slice(),
+                buffer: vec![0.0f32; self.buffer_items as usize].into_boxed_slice(),
             };
-            i(sio, 0).submit(input_buffer);
+            self.input.submit(input_buffer);
         }
 
         let cs_module = self
-            .broker
+            .instance
             .device
             .create_shader_module(ShaderModuleDescriptor {
                 label: None,
-                source: ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+                source: ShaderSource::Wgsl(Cow::Borrowed(SHADER)),
             });
 
         let compute_pipeline =
-            self.broker
+            self.instance
                 .device
                 .create_compute_pipeline(&ComputePipelineDescriptor {
                     label: None,
                     layout: None,
                     module: &cs_module,
-                    entry_point: "main",
+                    entry_point: Some("main"),
                     compilation_options: PipelineCompilationOptions::default(),
+                    cache: None,
                 });
 
         self.pipeline = Some(compute_pipeline);
@@ -138,48 +126,53 @@ impl Kernel for Wgpu {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        for m in o(sio, 0).buffers().into_iter() {
+        for m in self.output.buffers().into_iter() {
             info!("**** Empty Output Buffer is added to output_buffers");
             self.output_buffers.push(m.buffer);
         }
 
         for _ in 0..self.output_buffers.len() {
-            let m = i(sio, 0).get_buffer();
+            let m = self.input.get_buffer();
             if m.is_none() {
                 break;
             }
             let m = m.unwrap();
             let output = self.output_buffers.pop().unwrap();
 
-            info!("Processing Input Buffer, used_bytes {:?}", &m.used_bytes);
+            info!("Processing Input Buffer, n_items {:?}", m.n_items);
 
             // Instantiates the bind group, once again specifying the binding of buffers.
             let bind_group_layout = self.pipeline.as_ref().unwrap().get_bind_group_layout(0);
-            let bind_group = self.broker.device.create_bind_group(&BindGroupDescriptor {
-                label: None,
-                layout: &bind_group_layout,
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: self.storage_buffer.as_entire_binding(),
-                }],
-            });
+            let bind_group = self
+                .instance
+                .device
+                .create_bind_group(&BindGroupDescriptor {
+                    label: None,
+                    layout: &bind_group_layout,
+                    entries: &[BindGroupEntry {
+                        binding: 0,
+                        resource: self.storage_buffer.as_entire_binding(),
+                    }],
+                });
 
-            let mut dispatch = m.used_bytes as u32 / 4 / 64; // 4: item size, 64: work group size
-            if m.used_bytes as u32 / 4 % 64 > 0 {
+            let mut dispatch = m.n_items as u32 / 64; // 64: work group size
+            if m.n_items as u32 % 64 > 0 {
                 dispatch += 1;
             }
 
             {
-                self.broker
+                let byte_buffer = unsafe {
+                    std::slice::from_raw_parts(m.buffer.as_ptr() as *const u8, m.n_items * 4)
+                };
+                self.instance
                     .queue
-                    .write_buffer(&self.storage_buffer, 0, &m.buffer[0..m.used_bytes]);
+                    .write_buffer(&self.storage_buffer, 0, byte_buffer);
 
                 let mut encoder = self
-                    .broker
+                    .instance
                     .device
                     .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
@@ -199,31 +192,33 @@ impl Kernel for Wgpu {
                     0,
                     &output,
                     0,
-                    m.used_bytes as u64,
+                    (m.n_items * 4) as u64,
                 );
 
-                self.broker.queue.submit(Some(encoder.finish()));
+                self.instance.queue.submit(Some(encoder.finish()));
             }
 
-            let buffer_slice = output.slice(0..m.used_bytes as u64);
+            let buffer_slice = output.slice(0..(m.n_items * 4) as u64);
             let (sender, receiver) = futures::channel::oneshot::channel();
             buffer_slice.map_async(MapMode::Read, move |v| sender.send(v).unwrap());
 
-            self.broker.device.poll(Maintain::Wait);
+            self.instance.device.poll(PollType::Wait)?;
 
             if let Ok(Ok(())) = receiver.await {
-                o(sio, 0).submit(wgpu::OutputBufferFull {
+                self.output.submit(wgpu::OutputBufferFull {
                     buffer: output,
-                    used_bytes: m.used_bytes,
+                    used_bytes: m.n_items * 4,
+                    _p: std::marker::PhantomData,
                 });
             } else {
                 panic!("failed to map result buffer")
             }
 
-            i(sio, 0).submit(wgpu::InputBufferEmpty { buffer: m.buffer });
+            self.input
+                .submit(wgpu::InputBufferEmpty { buffer: m.buffer });
         }
 
-        if i(sio, 0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

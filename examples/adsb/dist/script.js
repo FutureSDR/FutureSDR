@@ -164,8 +164,7 @@ function update_aircrafts(register) {
 }
 
 function fetch_aircrafts(tracker_block) {
-    let ctrl_port = tracker_block.message_inputs.indexOf("ctrl_port");
-    let url = `/api/fg/0/block/${tracker_block.id}/call/${ctrl_port}/`;
+    let url = `/api/fg/0/block/${tracker_block.id}/call/ctrl_port/`;
     let promise = fetch(url).then((response) => {
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);

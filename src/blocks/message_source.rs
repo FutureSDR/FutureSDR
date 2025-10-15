@@ -3,18 +3,15 @@ use std::time::Duration;
 use web_time::Instant;
 
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
 use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
 use crate::runtime::WorkIo;
 
 /// Output the same message periodically.
+#[derive(Block)]
+#[message_outputs(out)]
 pub struct MessageSource {
     message: Pmt,
     interval: Duration,
@@ -24,18 +21,13 @@ pub struct MessageSource {
 
 impl MessageSource {
     /// Create MessageSource block
-    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("MessageSource").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().add_output("out").build(),
-            MessageSource {
-                message,
-                interval,
-                t_last: Instant::now(),
-                n_messages,
-            },
-        )
+    pub fn new(message: Pmt, interval: Duration, n_messages: Option<usize>) -> Self {
+        Self {
+            message,
+            interval,
+            t_last: Instant::now(),
+            n_messages,
+        }
     }
 
     async fn sleep(dur: Duration) {
@@ -44,19 +36,17 @@ impl MessageSource {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for MessageSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
 
         if now >= self.t_last + self.interval {
-            mio.post(0, self.message.clone()).await;
+            mio.post("out", self.message.clone()).await?;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
                 *n -= 1;
@@ -73,12 +63,7 @@ impl Kernel for MessageSource {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())
     }
@@ -112,7 +97,6 @@ impl Kernel for MessageSource {
 ///     .build()
 /// );
 /// ```
-#[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct MessageSourceBuilder {
     message: Pmt,
     duration: Duration,
@@ -135,7 +119,7 @@ impl MessageSourceBuilder {
         self
     }
     /// Build Message Source block
-    pub fn build(self) -> TypedBlock<MessageSource> {
+    pub fn build(self) -> MessageSource {
         MessageSource::new(self.message, self.duration, self.n_messages)
     }
 }

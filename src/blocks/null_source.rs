@@ -1,13 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Generate a stream of zeroes.
 ///
@@ -22,49 +13,57 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::NullSource;
-/// use futuresdr::runtime::Flowgraph;
-/// use num_complex::Complex;
-///
-/// let mut fg = Flowgraph::new();
-///
-/// let source = fg.add_block(NullSource::<Complex<f32>>::new());
+/// let src = NullSource::<u8>::new();
 /// ```
-pub struct NullSource<T: Send + 'static> {
-    _type: std::marker::PhantomData<T>,
+#[derive(Block)]
+pub struct NullSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
+    #[output]
+    output: O,
 }
 
-impl<T: Send + 'static> NullSource<T> {
+impl<T, O> NullSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create Null Source block
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("NullSource").build(),
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            NullSource::<T> {
-                _type: std::marker::PhantomData,
-            },
-        )
+    pub fn new() -> Self {
+        Self {
+            output: O::default(),
+        }
+    }
+}
+
+impl<T, O> Default for NullSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for NullSource<T> {
+impl<T, O> Kernel for NullSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice_unchecked::<u8>();
-        debug_assert_eq!(0, o.len() % std::mem::size_of::<T>());
+        let o = self.output().slice();
+        let o_len = o.len();
 
         unsafe {
             std::ptr::write_bytes(o.as_mut_ptr(), 0, o.len());
         }
 
-        sio.output(0).produce(o.len() / std::mem::size_of::<T>());
+        self.output().produce(o_len);
 
         Ok(())
     }

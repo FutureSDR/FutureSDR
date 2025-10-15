@@ -1,37 +1,18 @@
+use futuresdr::prelude::*;
 use std::collections::HashMap;
-
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::info;
 
 use crate::Frame;
 use crate::utils::*;
 
+#[derive(Block)]
+#[message_inputs(r#in)]
+#[message_outputs(out, out_annotated, rftap, crc_check)]
+#[null_kernel]
 pub struct Decoder;
 
 impl Decoder {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::handler)
-                .add_output("out")
-                .add_output("out_annotated")
-                .add_output("rftap")
-                .add_output("crc_check")
-                .build(),
-            Decoder,
-        )
+    pub fn new() -> Self {
+        Self
     }
 
     fn crc16(data: &[u8]) -> u16 {
@@ -50,7 +31,7 @@ impl Decoder {
         crc
     }
 
-    async fn decode(frame: &Frame, mio: &mut MessageIo<Self>) -> Option<Vec<u8>> {
+    async fn decode(frame: &Frame, mio: &mut MessageOutputs) -> Option<Vec<u8>> {
         let mut dewhitened: Vec<u8> = vec![];
         let start = if frame.implicit_header { 0 } else { 5 };
         let end = if frame.has_crc {
@@ -89,7 +70,7 @@ impl Decoder {
                 let crc_valid: bool =
                     ((dewhitened[l - 2] as u16) + ((dewhitened[l - 1] as u16) << 8)) as i32
                         == crc as i32;
-                mio.output_mut(3).post(Pmt::Bool(crc_valid)).await;
+                mio.post("crc_check", Pmt::Bool(crc_valid)).await.unwrap();
                 if !crc_valid {
                     info!("crc check failed");
                     false
@@ -120,7 +101,7 @@ impl Decoder {
             rftap[25] = 0; // net_id_caching
             rftap[26] = 0x12; // sync word
             rftap[27..].copy_from_slice(&dewhitened);
-            mio.output_mut(2).post(Pmt::Blob(rftap.clone())).await;
+            mio.post("rftap", Pmt::Blob(rftap.clone())).await.unwrap();
 
             // let data = String::from_utf8_lossy(&dewhitened[..dewhitened.len() - 2]);
             // info!("received frame: {}", data);
@@ -131,11 +112,10 @@ impl Decoder {
         }
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         pmt: Pmt,
     ) -> Result<Pmt> {
@@ -156,10 +136,9 @@ impl Decoder {
                             String::from("implicit_header"),
                             Pmt::Bool(frame.implicit_header),
                         );
-                        mio.output_mut(0).post(Pmt::Blob(dewhitened)).await;
-                        mio.output_mut(1)
-                            .post(Pmt::MapStrPmt(annotated_payload))
-                            .await;
+                        mio.post("out", Pmt::Blob(dewhitened)).await?;
+                        mio.post("out_annotated", Pmt::MapStrPmt(annotated_payload))
+                            .await?;
                     }
                     Pmt::Ok
                 } else {
@@ -176,5 +155,8 @@ impl Decoder {
     }
 }
 
-#[async_trait]
-impl Kernel for Decoder {}
+impl Default for Decoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

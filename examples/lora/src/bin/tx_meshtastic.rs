@@ -1,12 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::seify::SinkBuilder;
-use futuresdr::macros::connect;
-use futuresdr::runtime::BlockT;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 use std::io::BufRead;
 use std::io::Write;
 
@@ -56,15 +51,14 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let sink = SinkBuilder::new()
+    let sink = Builder::new(args.args)?
         .sample_rate(1e6)
         .frequency(freq as f64)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_sink()?;
 
-    let transmitter = Transmitter::new(
+    let transmitter: Transmitter = Transmitter::new(
         code_rate.into(),
         HAS_CRC,
         spreading_factor.into(),
@@ -75,14 +69,12 @@ fn main() -> Result<()> {
         PREAMBLE_LEN,
         PAD,
     );
-    let fg_tx_port = transmitter
-        .message_input_name_to_id("msg")
-        .expect("No message_in port found!");
 
-    connect!(fg, transmitter > sink);
+    connect!(fg, transmitter > inputs[0].sink);
+    let transmitter = transmitter.into();
 
     let rt = Runtime::new();
-    let (_fg, handle) = rt.start_sync(fg);
+    let (_fg, handle) = rt.start_sync(fg)?;
 
     let channel = MeshtasticChannel::new(&args.name, &args.key);
     loop {
@@ -99,7 +91,7 @@ fn main() -> Result<()> {
 
         rt.block_on(async move {
             handle
-                .call(transmitter, fg_tx_port, Pmt::Blob(data))
+                .call(transmitter, "msg", Pmt::Blob(data))
                 .await
                 .unwrap();
             info!("sent frame");

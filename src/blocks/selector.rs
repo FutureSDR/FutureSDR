@@ -1,20 +1,10 @@
 use anyhow::anyhow;
+use std::array::from_fn;
 use std::cmp;
 use std::fmt;
-use std::ptr;
 use std::str::FromStr;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Drop Policy for [`Selector`] block
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,43 +60,43 @@ impl fmt::Display for DropPolicy {
 
 /// Forward the input stream with a given index to the output stream with a
 /// given index.
-pub struct Selector<A, const N: usize, const M: usize>
-where
+#[derive(Block)]
+#[message_inputs(input_index, output_index)]
+pub struct Selector<
+    A,
+    const N: usize,
+    const M: usize,
+    IN = DefaultCpuReader<A>,
+    OUT = DefaultCpuWriter<A>,
+> where
     A: Send + 'static + Copy,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = A>,
 {
+    #[input]
+    inputs: [IN; N],
+    #[output]
+    outputs: [OUT; M],
     input_index: usize,
     output_index: usize,
     drop_policy: DropPolicy,
-    _p1: std::marker::PhantomData<A>,
 }
 
-impl<A, const N: usize, const M: usize> Selector<A, N, M>
+impl<A, const N: usize, const M: usize, IN, OUT> Selector<A, N, M, IN, OUT>
 where
     A: Send + 'static + Copy,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = A>,
 {
     /// Create Selector block
-    pub fn new(drop_policy: DropPolicy) -> TypedBlock<Self> {
-        let mut stream_builder = StreamIoBuilder::new();
-        for i in 0..N {
-            stream_builder = stream_builder.add_input::<A>(format!("in{i}").as_str());
+    pub fn new(drop_policy: DropPolicy) -> Self {
+        Selector {
+            inputs: from_fn(|_| IN::default()),
+            outputs: from_fn(|_| OUT::default()),
+            input_index: 0,
+            output_index: 0,
+            drop_policy,
         }
-        for i in 0..M {
-            stream_builder = stream_builder.add_output::<A>(format!("out{i}").as_str());
-        }
-        TypedBlock::new(
-            BlockMetaBuilder::new(format!("Selector<{N}, {M}>")).build(),
-            stream_builder.build(),
-            MessageIoBuilder::<Self>::new()
-                .add_input("input_index", Self::input_index)
-                .add_input("output_index", Self::output_index)
-                .build(),
-            Selector {
-                input_index: 0,
-                output_index: 0,
-                drop_policy,
-                _p1: std::marker::PhantomData,
-            },
-        )
     }
 
     fn pmt_to_index(p: &Pmt) -> Result<Option<usize>> {
@@ -119,11 +109,10 @@ where
         }
     }
 
-    #[message_handler]
     async fn input_index(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -133,11 +122,10 @@ where
         Ok(Pmt::U32(self.input_index as u32))
     }
 
-    #[message_handler]
     async fn output_index(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -149,51 +137,45 @@ where
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<A, const N: usize, const M: usize> Kernel for Selector<A, N, M>
+impl<A, const N: usize, const M: usize, IN, OUT> Kernel for Selector<A, N, M, IN, OUT>
 where
     A: Send + 'static + Copy,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = A>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(self.input_index).slice_unchecked::<u8>();
-        let o = sio.output(self.output_index).slice_unchecked::<u8>();
-        let item_size = std::mem::size_of::<A>();
+        let i = self.inputs[self.input_index].slice();
+        let o = self.outputs[self.output_index].slice();
 
-        let m = cmp::min(i.len(), o.len());
-        if m > 0 {
-            unsafe {
-                ptr::copy_nonoverlapping(i.as_ptr(), o.as_mut_ptr(), m);
-            }
-            //     for (v, r) in i.iter().zip(o.iter_mut()) {
-            //         *r = *v;
-            //     }
-
-            sio.input(self.input_index).consume(m / item_size);
-            sio.output(self.output_index).produce(m / item_size);
+        let i_len = i.len();
+        let m = cmp::min(i_len, o.len());
+        for (v, r) in i.iter().zip(o.iter_mut()) {
+            *r = *v;
         }
+
+        self.inputs[self.input_index].consume(m);
+        self.outputs[self.output_index].produce(m);
 
         if self.drop_policy != DropPolicy::NoDrop {
             let nb_drop = if self.drop_policy == DropPolicy::SameRate {
-                m / item_size // Drop at the same rate as the selected one
+                m // Drop at the same rate as the selected one
             } else {
                 usize::MAX // Drops all other inputs
             };
             for i in 0..N {
                 if i != self.input_index {
-                    let input = sio.input(i).slice::<A>();
-                    sio.input(i).consume(input.len().min(nb_drop));
+                    let l = self.inputs[i].slice().len();
+                    self.inputs[i].consume(l.min(nb_drop));
                 }
             }
         }
 
-        // Maybe this should be configurable behaviour? finish on current finish? when all input have finished?
-        if sio.input(self.input_index).finished() && m == i.len() {
+        if self.inputs[self.input_index].finished() && m == i_len {
             io.finished = true;
         }
 

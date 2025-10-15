@@ -1,13 +1,8 @@
 use futuresdr::futures::StreamExt;
+use futuresdr::runtime::FlowgraphId;
 use futuresdr::runtime::Pmt;
 use gloo_net::websocket::Message;
 use gloo_net::websocket::futures::WebSocket;
-use leptos::html::Span;
-use leptos::logging::*;
-use leptos::prelude::*;
-use leptos::task::spawn_local;
-use leptos::wasm_bindgen::JsCast;
-use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphMermaid;
 use prophecy::RadioSelector;
@@ -16,6 +11,12 @@ use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
 use prophecy::WaterfallMode;
+use prophecy::leptos::html::Span;
+use prophecy::leptos::logging::*;
+use prophecy::leptos::prelude::*;
+use prophecy::leptos::task::spawn_local;
+use prophecy::leptos::wasm_bindgen::JsCast;
+use prophecy::leptos::web_sys::HtmlInputElement;
 
 #[component]
 /// Spectrum Widget
@@ -25,7 +26,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let fg_desc = LocalResource::new(move || {
         let rt_handle = rt_handle.clone();
         async move {
-            if let Ok(mut fg) = rt_handle.get_flowgraph(0).await
+            if let Ok(mut fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await
                 && let Ok(desc) = fg.description().await
             {
                 return Some(desc);
@@ -33,6 +34,21 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
             None
         }
     });
+
+    let block_id = move || {
+        fg_desc
+            .map(|fg| {
+                fg.as_ref()
+                    .and_then(|fg| {
+                        fg.blocks
+                            .iter()
+                            .find(|b| b.type_name == "SeifySource")
+                            .map(|b| b.id.0)
+                    })
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    };
 
     let (time_data, set_time_data) = signal(vec![]);
     let (waterfall_data, set_waterfall_data) = signal(vec![]);
@@ -146,7 +162,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 let p = Pmt::F64(freq * 1e6);
                                 let mut fg_handle = fg_handle.clone();
                                 spawn_local(async move {
-                                    let _ = fg_handle.call(0, "freq", p).await;
+                                    let _ = fg_handle.call(block_id(), "freq", p).await;
                                 });
                             }
                         }
@@ -175,7 +191,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 let p = Pmt::F64(gain);
                                 let mut fg_handle = fg_handle.clone();
                                 spawn_local(async move {
-                                    let _ = fg_handle.call(0, "gain", p).await;
+                                    let _ = fg_handle.call(block_id(), "gain", p).await;
                                 });
                             }
                         }
@@ -187,7 +203,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                 <div class="text-white basis-1/2">
                     <RadioSelector
                         fg_handle=fg_handle.clone()
-                        block_id=0
+                        block_id= { block_id() }
                         handler="sample_rate"
                         values=[
                             ("3.2 MHz".to_string(), Pmt::F64(3.2e6)),
@@ -215,12 +231,13 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         </div>
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
-                if let Some(wrapped) = fg_desc.get() && let Some(desc) = wrapped.take() {
+                if let Some(Some(desc)) = fg_desc.get() {
                     return view! { <FlowgraphMermaid fg=desc /> }.into_any();
                 }
                 ().into_any()
             }}
         </div>
+        "foo"
     }
 }
 
@@ -232,13 +249,13 @@ pub fn Gui() -> impl IntoView {
 
     let fg_handle = LocalResource::new(move || {
         let rt_handle = rt_handle.clone();
-        async move { rt_handle.get_flowgraph(0).await.ok() }
+        async move { rt_handle.get_flowgraph(FlowgraphId(0)).await.ok() }
     });
 
     view! {
         <h1 class="m-4 text-xl text-white">FutureSDR Spectrum</h1>
         {move || {
-            if let Some(wrapper) = fg_handle.get() && let Some(handle) = wrapper.take() {
+            if let Some(Some(handle)) = fg_handle.get() {
                 return view! { <Spectrum fg_handle=handle /> }.into_any();
             }
             view! { <div>"Connecting"</div> }.into_any()
@@ -248,5 +265,6 @@ pub fn Gui() -> impl IntoView {
 
 pub fn frontend() {
     console_error_panic_hook::set_once();
+    futuresdr::runtime::init();
     mount_to_body(|| view! { <Gui /> })
 }

@@ -5,19 +5,13 @@ use eframe::egui::mutex::Mutex;
 use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
+use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
-use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::futures::StreamExt;
-use futuresdr::futures::channel::mpsc::Receiver;
-use futuresdr::futures::channel::mpsc::Sender;
-use futuresdr::futures::channel::mpsc::channel;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::FlowgraphHandle;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use std::sync::Arc;
 use std::thread;
 
@@ -44,14 +38,17 @@ enum GuiAction {
 }
 
 async fn process_gui_actions(
-    mut rx: Receiver<GuiAction>,
+    mut rx: mpsc::Receiver<GuiAction>,
     mut handle: FlowgraphHandle,
+    seify_src: BlockId,
 ) -> anyhow::Result<()> {
     while let Some(m) = rx.next().await {
         match m {
             GuiAction::SetFreq(f) => {
                 println!("setting frequency to {f}MHz");
-                handle.call(0, 0, Pmt::U64(f * 1000000)).await?
+                handle
+                    .call(seify_src, "freq", Pmt::U64(f * 1000000))
+                    .await?
             }
         };
     }
@@ -62,33 +59,34 @@ struct MyApp {
     freq: u64,
     min: f32,
     max: f32,
-    actions: Sender<GuiAction>,
+    actions: mpsc::Sender<GuiAction>,
     spectrum: Arc<Mutex<Spectrum>>,
 }
 
 impl MyApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (tx, rx) = channel(10);
-        let (tx_samples, rx_samples) = channel(10);
+        let (tx, rx) = mpsc::channel(10);
+        let (tx_samples, rx_samples) = mpsc::channel(10);
         thread::spawn(move || -> Result<()> {
             let mut fg = Flowgraph::new();
 
-            let src = SourceBuilder::new()
+            let src = Builder::new("")?
                 .frequency(100e6)
                 .sample_rate(3.2e6)
                 .gain(34.0)
-                .build()?;
-            let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
-            let mag_sqr = futuresdr_egui::power_block();
+                .build_source()?;
+            let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+            let mag_sqr = Apply::<_, _, _>::new(|x: &Complex32| x.norm_sqr());
             let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
             let snk = ChannelSink::new(tx_samples);
 
-            connect!(fg, src > fft > mag_sqr > keep > snk);
+            connect!(fg, src.outputs[0] > fft > mag_sqr > keep > snk);
+            let src_id = src.get()?.id;
 
             let rt = Runtime::new();
-            let (_task, handle) = rt.start_sync(fg);
+            let (_task, handle) = rt.start_sync(fg)?;
 
-            let _ = futuresdr::async_io::block_on(process_gui_actions(rx, handle));
+            let _ = futuresdr::async_io::block_on(process_gui_actions(rx, handle, src_id));
 
             Ok(())
         });
@@ -173,7 +171,7 @@ impl eframe::App for MyApp {
 }
 
 struct Spectrum {
-    rx_samples: Receiver<Box<[f32; FFT_SIZE]>>,
+    rx_samples: mpsc::Receiver<Box<[f32; FFT_SIZE]>>,
     program: glow::Program,
     vertex_array: glow::VertexArray,
     array_buffer: glow::NativeBuffer,
@@ -183,7 +181,7 @@ struct Spectrum {
 }
 
 impl Spectrum {
-    fn new(gl: &glow::Context, rx_samples: Receiver<Box<[f32; FFT_SIZE]>>) -> Self {
+    fn new(gl: &glow::Context, rx_samples: mpsc::Receiver<Box<[f32; FFT_SIZE]>>) -> Self {
         use glow::HasContext as _;
 
         let shader_version = if cfg!(target_arch = "wasm32") {

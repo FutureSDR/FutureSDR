@@ -1,6 +1,5 @@
 use futuresdr::blocks::ApplyIntoIter;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Block;
+use futuresdr::prelude::*;
 
 const DSSS: [[Complex32; 16]; 16] = [
     //  0
@@ -335,6 +334,9 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
         .map(|(x, y)| x * y)
 }
 
-pub fn modulator() -> Block {
-    ApplyIntoIter::new(|i: &u8| make_nibble(i & 0x0F).chain(make_nibble(i >> 4))).into()
+pub fn modulator(fg: &mut Flowgraph) -> BlockId {
+    fg.add_block(ApplyIntoIter::<_, _, _>::new(|i: &u8| {
+        make_nibble(i & 0x0F).chain(make_nibble(i >> 4))
+    }))
+    .into()
 }

@@ -1,18 +1,15 @@
 //! WASM Scheduler
-use futures::channel::mpsc::Sender;
-use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures::future::Future;
 use futures::task::Context;
 use futures::task::Poll;
 use futures_lite::FutureExt;
-use slab::Slab;
 use std::pin::Pin;
+use std::sync::Arc;
 
-use crate::runtime::BlockMessage;
+use crate::channel::mpsc::Sender;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
-use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 
 /// WASM Scheduler
@@ -27,33 +24,28 @@ impl WasmScheduler {
 }
 
 impl Scheduler for WasmScheduler {
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
+    ) {
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
-
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender);
-
-            if block.is_blocking() {
-                self.spawn_blocking(block.run(id, main_channel.clone(), receiver));
+        for block in blocks.iter() {
+            let block = Arc::clone(block);
+            let main_channel = main_channel.clone();
+            let blocking = block.try_lock().unwrap().is_blocking();
+            if blocking {
+                self.spawn_blocking(async move {
+                    let mut block = block.lock().await;
+                    block.run(main_channel).await;
+                });
             } else {
-                self.spawn(block.run(id, main_channel.clone(), receiver));
+                self.spawn(async move {
+                    let mut block = block.lock().await;
+                    block.run(main_channel).await;
+                });
             }
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {

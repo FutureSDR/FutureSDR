@@ -5,17 +5,8 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
-use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::futures::StreamExt;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockT;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::copy_tag_propagation;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 
 use wlan::Decoder;
 use wlan::FrameEqualizer;
@@ -54,62 +45,65 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let src = SourceBuilder::new()
+    let src = Builder::new(args.args)?
         .frequency(args.channel)
         .sample_rate(args.sample_rate)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_source()?;
 
     connect!(fg, src);
 
-    let prev = if args.dc_offset {
+    let (prev, output): (BlockId, _) = if args.dc_offset {
         let mut avg_real = 0.0;
         let mut avg_img = 0.0;
         let ratio = 1.0e-5;
-        let dc = Apply::new(move |c: &Complex32| -> Complex32 {
+        let dc = Apply::<_, _, _>::new(move |c: &Complex32| -> Complex32 {
             avg_real = ratio * (c.re - avg_real) + avg_real;
             avg_img = ratio * (c.im - avg_img) + avg_img;
             Complex32::new(c.re - avg_real, c.im - avg_img)
         });
 
-        connect!(fg, src > dc);
-        dc
+        connect!(fg, src.outputs[0] > dc);
+        (dc.into(), "output")
     } else {
-        src
+        (src.into(), "outputs[0]")
     };
 
-    let delay = Delay::<Complex32>::new(16);
-    connect!(fg, prev > delay);
+    let delay = fg.add_block(Delay::<Complex32>::new(16));
+    fg.connect_dyn(prev, output, &delay, "input")?;
 
-    let complex_to_mag_2 = Apply::new(|i: &Complex32| i.norm_sqr());
+    let complex_to_mag_2 = fg.add_block(Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr()));
     let float_avg = MovingAverage::<f32>::new(64);
-    connect!(fg, prev > complex_to_mag_2 > float_avg);
+    fg.connect_dyn(prev, output, &complex_to_mag_2, "input")?;
+    connect!(fg, complex_to_mag_2 > float_avg);
 
-    let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
+    let mult_conj = fg.add_block(Combine::<_, _, _, _>::new(
+        |a: &Complex32, b: &Complex32| a * b.conj(),
+    ));
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    connect!(fg, prev > in0.mult_conj.out > complex_avg;
-                 delay > mult_conj.in1);
+    fg.connect_dyn(prev, output, &mult_conj, "in0")?;
+    connect!(fg, mult_conj > complex_avg;
+                 delay > in1.mult_conj);
 
-    let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
-    connect!(fg, complex_avg > divide_mag.in0; float_avg > divide_mag.in1);
+    let divide_mag = Combine::<_, _, _, _>::new(|a: &Complex32, b: &f32| a.norm() / b);
+    connect!(fg, complex_avg > in0.divide_mag; float_avg > in1.divide_mag);
 
-    let sync_short = SyncShort::new();
-    connect!(fg, delay > sync_short.in_sig;
-                 complex_avg > sync_short.in_abs;
-                 divide_mag > sync_short.in_cor);
+    let sync_short: SyncShort = SyncShort::new();
+    connect!(fg, delay > in_sig.sync_short;
+                 complex_avg > in_abs.sync_short;
+                 divide_mag > in_cor.sync_short);
 
-    let sync_long = SyncLong::new();
+    let sync_long: SyncLong = SyncLong::new();
     connect!(fg, sync_short > sync_long);
 
-    let mut fft = Fft::new(64);
-    fft.set_tag_propagation(Box::new(copy_tag_propagation));
-    let frame_equalizer = FrameEqualizer::new();
+    let fft: Fft = Fft::new(64);
+    // fft.set_tag_propagation(Box::new(copy_tag_propagation));
+    let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
     let decoder = Decoder::new();
     let symbol_sink = WebsocketPmtSink::new(9002);
     connect!(fg, sync_long > fft > frame_equalizer > decoder;
-        frame_equalizer.symbols | symbol_sink.in);
+        frame_equalizer.symbols | r#in.symbol_sink);
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = MessagePipe::new(tx_frame);
@@ -119,7 +113,7 @@ fn main() -> Result<()> {
                  decoder.rx_frames | udp1;
                  decoder.rftap | udp2);
 
-    let (_fg, _handle) = rt.start_sync(fg);
+    let (_fg, _handle) = rt.start_sync(fg)?;
     rt.block_on(async move {
         while let Some(x) = rx_frame.next().await {
             match x {

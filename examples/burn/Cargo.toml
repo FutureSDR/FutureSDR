@@ -1,0 +1,46 @@
+[package]
+name = "futuresdr-burn"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+burn = { version = "0.18", features = [
+  "std",
+  "ndarray",
+  "tui",
+  "train",
+  "cuda",
+  "vulkan",
+  "wgpu",
+  "webgpu",
+  "autotune",
+  "fusion",
+] }
+cubecl = "0.6"
+cubecl-runtime = "0.6"
+cubecl-wgpu = "0.6"
+burn-fusion = "0.18"
+burn-cubecl = "0.18"
+burn-wgpu = "0.18"
+bytemuck = "1.24"
+clap = { version = "4", features = ["derive"] }
+futuresdr = { path = "../..", features = [
+  "audio",
+  "burn",
+  "seify",
+  "soapy",
+  "flow_scheduler",
+] }
+inplace = { path = "../inplace" }
+log = "0.4"
+ndarray = "0.16" # has to align w/ the version from ndarray-npy
+ndarray-npy = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+whisper-burn = { git = "https://github.com/bastibl/whisper-burn.git" }
+wgpu = "25.0"
+
+[profile.release]
+debug = true

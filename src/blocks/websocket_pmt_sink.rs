@@ -15,20 +15,11 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Error;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push Samples from PMTs in a WebSocket.
+#[derive(Block)]
+#[message_inputs(r#in)]
 pub struct WebsocketPmtSink {
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
@@ -38,27 +29,19 @@ pub struct WebsocketPmtSink {
 
 impl WebsocketPmtSink {
     /// Create WebsocketPmtSink block
-    pub fn new(port: u32) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("WebsocketPmtSink").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::<Self>::new()
-                .add_input("in", Self::handler)
-                .build(),
-            WebsocketPmtSink {
-                port,
-                listener: None,
-                conn: None,
-                pmts: VecDeque::new(),
-            },
-        )
+    pub fn new(port: u32) -> Self {
+        Self {
+            port,
+            listener: None,
+            conn: None,
+            pmts: VecDeque::new(),
+        }
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -75,13 +58,11 @@ impl WebsocketPmtSink {
 }
 
 #[doc(hidden)]
-#[async_trait]
 impl Kernel for WebsocketPmtSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(ref mut conn) = self.conn {
@@ -197,12 +178,7 @@ impl Kernel for WebsocketPmtSink {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
             format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));

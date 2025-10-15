@@ -1,27 +1,31 @@
-<!DOCTYPE html><html><head>
-    <meta charset="utf-8">
-    <link rel="icon" href="/favicon-baad1291935ce574.ico" integrity="sha384-dFl6ag_qXmQ5UAh-4iLD-ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS">
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon-baad1291935ce574.ico" integrity="sha384-dFl6ag/qXmQ5UAh+4iLD+ODkQW60lrE2V6Ue2SOAPXWQWTpzhlbvj5pxMA3aNUJS"/>
     
 <script type="module">
-import init, * as bindings from '/loopback-f6c331fcd4518f9c.js';
-init('/loopback-f6c331fcd4518f9c_bg.wasm');
+import init, * as bindings from '/loopback-65daf9cf8bd0f5a7.js';
+const wasm = await init({ module_or_path: '/loopback-65daf9cf8bd0f5a7_bg.wasm' });
+
+
 window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
     <title>FutureSDR :: WebGPU Demo</title>
-  
-<link rel="preload" href="/loopback-f6c331fcd4518f9c_bg.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" integrity="sha384-DD-vXGC0hxqcKjmSsct5IkwJsZIS3hvnXZm9glhYemkc8LebiJnRzv1YC3N3y6_H">
-<link rel="modulepreload" href="/loopback-f6c331fcd4518f9c.js" crossorigin="anonymous" integrity="sha384-GZRTwIeNzo2x29AV9WQoeziDfChuEkJpYzdP0ya5ayv89f96xdVFz7WtCiNDoyOZ"></head>
+  <link rel="modulepreload" href="/loopback-65daf9cf8bd0f5a7.js" crossorigin="anonymous" integrity="sha384-OcVJsNfEebm+eRrQaQjz1RPR3z9jOLbYRJY/kXLMtbnYBHuSDVbtfq5fF0xrUpbM"><link rel="preload" href="/loopback-65daf9cf8bd0f5a7_bg.wasm" crossorigin="anonymous" integrity="sha384-RKfJEMFvdQnUidcSjvYjLYTyDQBH2QVzsSIf/OoPROOor7F7r0wB24J7VYxHb4eg" as="fetch" type="application/wasm"></head>
     <body>
         <h1>FutureSDR</h1>
         Check console for flowgraph output.
-    
-
-<script>"use strict";
+    <script>"use strict";
 
 (function () {
 
     const address = '{{__TRUNK_ADDRESS__}}';
+    const base = '{{__TRUNK_WS_BASE__}}';
     let protocol = '';
     protocol =
         protocol
@@ -29,7 +33,7 @@ window.wasmBindings = bindings;
             : window.location.protocol === 'https:'
                 ? 'wss'
                 : 'ws';
-    const url = protocol + '://' + address + '/_trunk/ws';
+    const url = protocol + '://' + address + base + '.well-known/trunk/ws';
 
     class Overlay {
         constructor() {
@@ -108,7 +112,7 @@ window.wasmBindings = bindings;
                         break;
                 }
             };
-            ws.onclose = this.onclose;
+            ws.onclose = () => this.onclose();
         }
 
         onclose() {
@@ -120,7 +124,7 @@ window.wasmBindings = bindings;
                     // rebuilt on restart)
                     const ws = new WebSocket(this.url);
                     ws.onopen = () => window.location.reload();
-                    ws.onclose = this.onclose;
+                    ws.onclose = () => this.onclose();
                 },
                 this.poll_interval);
         }
@@ -145,4 +149,5 @@ window.wasmBindings = bindings;
     new Client(url).start();
 
 })()
-</script></body></html>
+</script></body>
+</html>

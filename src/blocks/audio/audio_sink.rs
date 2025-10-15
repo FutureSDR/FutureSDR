@@ -9,20 +9,16 @@ use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Audio Sink.
-#[allow(clippy::type_complexity)]
-pub struct AudioSink {
+#[derive(Block)]
+pub struct AudioSink<I = DefaultCpuReader<f32>>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    #[input]
+    input: I,
     sample_rate: u32,
     channels: u16,
     stream: Option<Stream>,
@@ -34,30 +30,31 @@ pub struct AudioSink {
 
 // cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl Send for AudioSink {}
+unsafe impl<I> Send for AudioSink<I> where I: CpuBufferReader<Item = f32> {}
 
 const QUEUE_SIZE: usize = 5;
 const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
-impl AudioSink {
+impl<I> AudioSink<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
     /// Create AudioSink block
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(sample_rate: u32, channels: u16) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("AudioSink").build(),
-            StreamIoBuilder::new().add_input::<f32>("in").build(),
-            MessageIoBuilder::new().build(),
-            AudioSink {
-                sample_rate,
-                channels,
-                stream: None,
-                min_buffer_size: 2048,
-                vec: Vec::new(),
-                terminated: None,
-                tx: None,
-            },
-        )
+    pub fn new(sample_rate: u32, channels: u16) -> Self {
+        AudioSink {
+            input: I::default(),
+            sample_rate,
+            channels,
+            stream: None,
+            min_buffer_size: 2048,
+            vec: Vec::new(),
+            terminated: None,
+            tx: None,
+        }
     }
+}
+
+impl AudioSink<DefaultCpuReader<f32>> {
     /// Get default sample rate
     pub fn default_sample_rate() -> Option<u32> {
         Some(
@@ -96,14 +93,11 @@ impl AudioSink {
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl Kernel for AudioSink {
-    async fn init(
-        &mut self,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+impl<I> Kernel for AudioSink<I>
+where
+    I: CpuBufferReader<Item = f32>,
+{
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -169,12 +163,7 @@ impl Kernel for AudioSink {
         Ok(())
     }
 
-    async fn deinit(
-        &mut self,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
         if let Some(t) = self.terminated.take() {
             _ = t.await;
@@ -185,14 +174,14 @@ impl Kernel for AudioSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<f32>();
+        let i = self.input.slice();
+        let i_len = i.len();
 
         self.vec.extend_from_slice(i);
-        if self.vec.len() >= self.min_buffer_size || sio.input(0).finished() {
+        if self.vec.len() >= self.min_buffer_size || self.input.finished() {
             self.tx
                 .as_mut()
                 .unwrap()
@@ -200,9 +189,9 @@ impl Kernel for AudioSink {
                 .await?;
         }
 
-        sio.input(0).consume(i.len());
+        self.input.consume(i_len);
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

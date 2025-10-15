@@ -1,21 +1,14 @@
 use futuredsp::FirFilter;
 use futuredsp::prelude::*;
-use num_complex::Complex32;
+use futuresdr::prelude::*;
 use std::cmp::min;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-
 /// Polyphase Arbitrary Rate Resampler
-pub struct PfbArbResampler {
+#[derive(Block)]
+pub struct PfbArbResampler<
+    I: CpuBufferReader<Item = Complex32> = DefaultCpuReader<Complex32>,
+    O: CpuBufferWriter<Item = Complex32> = DefaultCpuWriter<Complex32>,
+> {
     rate: f32,
     /* The number of filters is specified by the user as the
        filter size; this is also the interpolation rate of the
@@ -41,9 +34,17 @@ pub struct PfbArbResampler {
     // residual rate for the linear interpolation
     flt_rate: f32,
     buff: [Complex32; 2],
+    #[input]
+    input: I,
+    #[output]
+    output: O,
 }
 
-impl PfbArbResampler {
+impl<I, O> PfbArbResampler<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     fn taps_per_filter(num_taps: usize, num_filts: usize) -> usize {
         (num_taps as f32 / num_filts as f32).ceil() as usize
     }
@@ -93,8 +94,7 @@ impl PfbArbResampler {
     }
 
     /// Create Arbitrary Rate Resampler.
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(rate: f32, taps: &[f32], num_filters: usize) -> TypedBlock<Self> {
+    pub fn new(rate: f32, taps: &[f32], num_filters: usize) -> Self {
         let (filters, diff_filters) = Self::build_filterbank(taps, num_filters);
         let n_taps_per_filter = Self::taps_per_filter(taps.len(), num_filters);
 
@@ -103,43 +103,36 @@ impl PfbArbResampler {
 
         let starting_filter = (taps.len() / 2) % num_filters;
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("PfbArbResampler").build(),
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            PfbArbResampler {
-                rate,
-                num_filters,
-                n_taps_per_filter,
-                fir_filters: filters,
-                diff_filters,
-                filter_index: starting_filter,
-                dec_rate: dec_rate as usize,
-                accum: 0.0,
-                flt_rate,
-                buff: [Complex32::new(0., 0.); 2],
-            },
-        )
+        Self {
+            rate,
+            num_filters,
+            n_taps_per_filter,
+            fir_filters: filters,
+            diff_filters,
+            filter_index: starting_filter,
+            dec_rate: dec_rate as usize,
+            accum: 0.0,
+            flt_rate,
+            buff: [Complex32::new(0., 0.); 2],
+            input: I::default(),
+            output: O::default(),
+        }
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for PfbArbResampler {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<Complex32>();
+        let input = self.input.slice();
         let ninput_items = input
             .len()
             .saturating_sub(self.rate as usize + self.n_taps_per_filter - 1);
-        let out = sio.output(0).slice::<Complex32>();
+        let out = self.output.slice();
         let noutput_items = out.len();
         let nitem_to_process = min(ninput_items, (noutput_items as f32 / self.rate) as usize);
         if nitem_to_process > 0 {
@@ -171,10 +164,10 @@ impl Kernel for PfbArbResampler {
                 self.filter_index %= self.num_filters;
             }
 
-            sio.input(0).consume(i_in);
-            sio.output(0).produce(i_out);
+            self.input.consume(i_in);
+            self.output.produce(i_out);
         }
-        if ninput_items - nitem_to_process < self.n_taps_per_filter && sio.input(0).finished() {
+        if ninput_items - nitem_to_process < self.n_taps_per_filter && self.input.finished() {
             io.finished = true;
         }
         Ok(())

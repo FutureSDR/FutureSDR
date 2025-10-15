@@ -34,16 +34,16 @@ cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/examples/android && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/android-hw && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/audio && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/burn && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/custom-routes && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/cw && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/examples/debug && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/egui && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/file-trx && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/firdes && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/fm-receiver && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/inplace && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/keyfob && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/logging && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/lora && ${CARGO_FMT} --check
@@ -57,12 +57,13 @@ cd ${SCRIPTPATH}/examples/wgpu && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/wlan && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zeromq && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/examples/zigbee && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/examples/zynq && ${CARGO_FMT} --check
 
 ###########################################################
 # CLIPPY
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=burn,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
@@ -72,27 +73,29 @@ cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/buffer_size && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/fir && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/msg && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/null_rand && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/perf && cargo clippy --all-targets --all-features -- -D warnings
 cd ${SCRIPTPATH}/perf/vulkan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
+if [[ "$OSTYPE" == linux* ]]; then
+  cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
+  cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
+  cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
+fi
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/android && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/android-hw && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/audio && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/burn && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/custom-routes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/cw && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/examples/debug && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/egui && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/file-trx && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/firdes && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/examples/inplace && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/keyfob && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/logging && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/lora && cargo clippy --all-targets -- -D warnings
@@ -106,9 +109,12 @@ cd ${SCRIPTPATH}/examples/wgpu && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/wlan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zeromq && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --all-targets -- -D warnings
+if [[ "$OSTYPE" == linux* ]]; then
+  cd ${SCRIPTPATH}/examples/zynq && cargo clippy --all-targets -- -D warnings
+fi
 
 # WASM
-cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=audio,seify_dummy,wgpu --target=wasm32-unknown-unknown -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --lib --workspace --features=burn,audio,seify_dummy,wgpu --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/prophecy && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets --target=wasm32-unknown-unknown -- -D warnings
@@ -124,7 +130,7 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-u
 # Test
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,zynq,wgpu -j 4
+cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,wgpu,zynq -j 4
 cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
@@ -134,26 +140,28 @@ cd ${SCRIPTPATH}/crates/types && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/buffer_rand && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/buffer_size && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/null_rand && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/null_rand_latency && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
 cd ${SCRIPTPATH}/perf/vulkan && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/wgpu && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
+if [[ "$OSTYPE" == linux* ]]; then
+  cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
+  cd ${SCRIPTPATH}/perf/null_rand_latency && cargo test --all-targets
+  cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
+fi
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/android && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/android-hw && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/audio && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/burn && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/custom-routes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/cw && cargo test --all-targets
-cd ${SCRIPTPATH}/examples/debug && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/egui && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/firdes && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/fm-receiver && cargo test --all-targets
+cd ${SCRIPTPATH}/examples/inplace && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/keyfob && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/logging && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/lora && cargo test --all-targets
@@ -168,3 +176,6 @@ cd ${SCRIPTPATH}/examples/wgpu && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/wlan && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/zeromq && cargo test --all-targets
 cd ${SCRIPTPATH}/examples/zigbee && cargo test --all-targets
+if [[ "$OSTYPE" == linux* ]]; then
+  cd ${SCRIPTPATH}/examples/zynq && cargo test --all-targets
+fi

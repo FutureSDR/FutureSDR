@@ -1,119 +1,63 @@
 use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
-use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::Sender;
 use futures::future::Either;
-use futures::future::join_all;
 use std::any::Any;
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
-use crate::runtime::BlockDescription;
-use crate::runtime::BlockMessage;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockPortCtx;
-use crate::runtime::Error;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageOutput;
-use crate::runtime::Pmt;
-use crate::runtime::PortId;
-use crate::runtime::Result;
-use crate::runtime::StreamInput;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamOutput;
-
-/// Work IO
-///
-/// Communicate between `work()` and the runtime.
-pub struct WorkIo {
-    /// Call block immediately again
-    pub call_again: bool,
-    /// Mark block as finished
-    pub finished: bool,
-    /// Block on future
-    ///
-    /// The block will be called (1) if somehting happens or (2) if the future resolves
-    #[cfg(not(target_arch = "wasm32"))]
-    pub block_on: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    /// The block will be called (1) if somehting happens or (2) if the future resolves
-    #[cfg(target_arch = "wasm32")]
-    pub block_on: Option<Pin<Box<dyn Future<Output = ()>>>>,
-}
-
-impl WorkIo {
-    /// Helper to set the future of the Work IO
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn block_on<F: Future<Output = ()> + Send + 'static>(&mut self, f: F) {
-        self.block_on = Some(Box::pin(f));
-    }
-    /// Helper to set the future of the Work IO
-    #[cfg(target_arch = "wasm32")]
-    pub fn block_on<F: Future<Output = ()> + 'static>(&mut self, f: F) {
-        self.block_on = Some(Box::pin(f));
-    }
-}
-
-impl fmt::Debug for WorkIo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("WorkIo")
-            .field("call_again", &self.call_again)
-            .field("finished", &self.finished)
-            .finish()
-    }
-}
-
-/// Kernal
-///
-/// Central trait to implement a block
-#[async_trait]
-pub trait Kernel: Send {
-    /// Processes stream data
-    async fn work(
-        &mut self,
-        _io: &mut WorkIo,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
-    }
-    /// Initialize kernel
-    async fn init(
-        &mut self,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
-    }
-    /// De-initialize kernel
-    async fn deinit(
-        &mut self,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
-        Ok(())
-    }
-}
+use futuresdr::channel::mpsc;
+use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::BlockDescription;
+use futuresdr::runtime::BlockId;
+use futuresdr::runtime::BlockMessage;
+use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockPortCtx;
+use futuresdr::runtime::Error;
+use futuresdr::runtime::FlowgraphMessage;
+use futuresdr::runtime::Kernel;
+use futuresdr::runtime::KernelInterface;
+use futuresdr::runtime::MessageOutputs;
+use futuresdr::runtime::PortId;
+use futuresdr::runtime::Result;
+use futuresdr::runtime::WorkIo;
+use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::config;
 
 #[async_trait]
-/// Block interface, implemented for [TypedBlock]s
-pub trait BlockT: Send + Any {
-    // ##### BLOCK
-    /// Cast block to [std::any::Any].
-    fn as_any(&self) -> &dyn Any;
-    /// Cast block to [std::any::Any] mutably.
+/// Block interface, implemented for [WrappedKernel]s
+pub trait Block: Send + Any {
+    /// required for downcasting
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    // ##### BLOCK
     /// Run the block.
-    async fn run(
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
+    /// Get the inbox of the block
+    fn inbox(&self) -> Sender<BlockMessage>;
+    /// Get the ID of the block
+    fn id(&self) -> BlockId;
+
+    // ##### Stream Ports
+    /// Get dyn reference to stream input
+    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader>;
+    /// Connect dyn BufferReader by downcasting it
+    fn connect_stream_output(
         &mut self,
-        block_id: usize,
-        main_inbox: Sender<FlowgraphMessage>,
-        inbox: Receiver<BlockMessage>,
+        name: &str,
+        reader: &mut dyn BufferReader,
+    ) -> Result<(), Error>;
+
+    // ##### Message Ports
+    /// Message inputs of the block
+    fn message_inputs(&self) -> &'static [&'static str];
+    /// Connect message output port
+    fn connect(
+        &mut self,
+        src_port: &PortId,
+        sender: Sender<BlockMessage>,
+        dst_port: &PortId,
     ) -> Result<(), Error>;
 
     // ##### META
@@ -127,108 +71,60 @@ pub trait BlockT: Send + Any {
     ///
     /// Blocking blocks will be spawned in a separate thread.
     fn is_blocking(&self) -> bool;
-
-    // ##### STREAM IO
-    #[allow(clippy::type_complexity)]
-    /// Set tag propagation function
-    fn set_tag_propagation(
-        &mut self,
-        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
-    );
-    /// Get stream input ports
-    fn stream_inputs(&self) -> &Vec<StreamInput>;
-    /// Get stream input port
-    fn stream_input(&self, id: usize) -> &StreamInput;
-    /// Map stream input port name ot id
-    fn stream_input_name_to_id(&self, name: &str) -> Option<usize>;
-    /// Get stream output ports
-    fn stream_outputs(&self) -> &Vec<StreamOutput>;
-    /// Get stream output port
-    fn stream_output(&self, id: usize) -> &StreamOutput;
-    /// Map stream output port name to id
-    fn stream_output_name_to_id(&self, name: &str) -> Option<usize>;
-
-    // ##### MESSAGE IO
-    /// Map message input port name to id
-    fn message_input_name_to_id(&self, name: &str) -> Option<usize>;
-    /// Get message output ports
-    fn message_outputs(&self) -> &Vec<MessageOutput>;
-    /// Map message output port name to id
-    fn message_output_name_to_id(&self, name: &str) -> Option<usize>;
 }
 
+impl fmt::Debug for dyn Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Block")
+            .field("type_name", &self.type_name().to_string())
+            .finish()
+    }
+}
 /// Typed Block
-pub struct TypedBlock<T> {
+pub struct WrappedKernel<K: Kernel> {
     /// Block metadata
     pub meta: BlockMeta,
-    /// Stream IO
-    pub sio: StreamIo,
     /// Message IO
-    pub mio: MessageIo<T>,
+    pub mio: MessageOutputs,
     /// Kernel
-    pub kernel: T,
+    pub kernel: K,
+    /// Block ID
+    pub id: BlockId,
+    /// Inbox for Actor Model
+    pub inbox: mpsc::Receiver<BlockMessage>,
+    /// Sending-side of Inbox
+    pub inbox_tx: mpsc::Sender<BlockMessage>,
 }
 
-impl<T: Kernel + Send + 'static> TypedBlock<T> {
+impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
     /// Create Typed Block
-    pub fn new(meta: BlockMeta, sio: StreamIo, mio: MessageIo<T>, kernel: T) -> Self {
+    pub fn new(mut kernel: K, id: BlockId) -> Self {
+        let (tx, rx) = mpsc::channel(config::config().queue_size);
+        kernel.stream_ports_init(id, tx.clone());
         Self {
-            meta,
-            sio,
-            mio,
+            meta: BlockMeta::new(),
+            mio: MessageOutputs::new(
+                id,
+                K::message_outputs().iter().map(|x| x.to_string()).collect(),
+            ),
             kernel,
+            id,
+            inbox: rx,
+            inbox_tx: tx,
         }
     }
 
-    async fn call_handler(
-        io: &mut WorkIo,
-        mio: &mut MessageIo<T>,
-        meta: &mut BlockMeta,
-        kernel: &mut T,
-        id: PortId,
-        p: Pmt,
-    ) -> Result<Pmt, Error> {
-        let id = match id {
-            PortId::Index(i) => {
-                if i < mio.inputs().len() {
-                    i
-                } else {
-                    return Err(Error::InvalidMessagePort(
-                        BlockPortCtx::None,
-                        PortId::Index(i),
-                    ));
-                }
-            }
-            PortId::Name(n) => match mio.input_name_to_id(&n) {
-                Some(s) => s,
-                None => {
-                    return Err(Error::InvalidMessagePort(
-                        BlockPortCtx::None,
-                        PortId::Name(n),
-                    ));
-                }
-            },
-        };
-        if matches!(p, Pmt::Finished) {
-            mio.input_mut(id).finish();
-        }
-        let h = mio.input(id).get_handler();
-        let f = (h)(kernel, io, mio, meta, p);
-        f.await.map_err(|e| Error::HandlerError(e.to_string()))
-    }
-
-    async fn run_impl(
-        &mut self,
-        block_id: usize,
-        mut main_inbox: Sender<FlowgraphMessage>,
-        mut inbox: Receiver<BlockMessage>,
-    ) -> Result<(), Error> {
-        let TypedBlock {
+    async fn run_impl(&mut self, mut main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
+        let instance_name = self.instance_name().unwrap_or(self.type_name()).to_owned();
+        let WrappedKernel {
             meta,
-            sio,
             mio,
             kernel,
+            inbox,
+            ..
         } = self;
+
+        kernel.stream_ports_validate()?;
 
         // init work io
         let mut work_io = WorkIo {
@@ -245,11 +141,11 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                 .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
             {
                 BlockMessage::Initialize => {
-                    match kernel.init(sio, mio, meta).await {
+                    match kernel.init(mio, meta).await {
                         Err(e) => {
                             error!(
                                 "{}: Error during initialization. Terminating.",
-                                meta.instance_name().unwrap()
+                                instance_name
                             );
                             return Err(Error::RuntimeError(e.to_string()));
                         }
@@ -262,24 +158,7 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                     }
                     break;
                 }
-                BlockMessage::StreamOutputInit { src_port, writer } => {
-                    sio.output(src_port).init(writer);
-                }
-                BlockMessage::StreamInputInit { dst_port, reader } => {
-                    sio.input(dst_port).set_reader(reader);
-                }
-                BlockMessage::MessageOutputConnect {
-                    src_port,
-                    dst_port,
-                    dst_inbox,
-                } => {
-                    mio.output_mut(src_port).connect(dst_port, dst_inbox);
-                }
-                t => warn!(
-                    "{} unhandled message during init {:?}",
-                    meta.instance_name().unwrap(),
-                    t
-                ),
+                t => warn!("{} unhandled message during init {:?}", instance_name, t),
             }
         }
 
@@ -293,46 +172,48 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                 match inbox.next().now_or_never() {
                     Some(Some(BlockMessage::Notify)) => {}
                     Some(Some(BlockMessage::BlockDescription { tx })) => {
-                        let stream_inputs: Vec<String> =
-                            sio.inputs().iter().map(|x| x.name().to_string()).collect();
-                        let stream_outputs: Vec<String> =
-                            sio.outputs().iter().map(|x| x.name().to_string()).collect();
-                        let message_inputs: Vec<String> = mio.input_names();
-                        let message_outputs: Vec<String> =
-                            mio.outputs().iter().map(|x| x.name().to_string()).collect();
+                        let stream_inputs = kernel.stream_inputs();
+                        let stream_outputs = kernel.stream_outputs();
+                        let message_inputs =
+                            K::message_inputs().iter().map(|n| n.to_string()).collect();
+                        let message_outputs =
+                            K::message_outputs().iter().map(|n| n.to_string()).collect();
 
                         let description = BlockDescription {
-                            id: block_id,
-                            type_name: meta.type_name().to_string(),
-                            instance_name: meta.instance_name().unwrap().to_string(),
+                            id: self.id,
+                            type_name: K::type_name().to_string(),
+                            instance_name: instance_name.clone(),
                             stream_inputs,
                             stream_outputs,
                             message_inputs,
                             message_outputs,
-                            blocking: meta.is_blocking(),
+                            blocking: K::is_blocking(),
                         };
-                        tx.send(description).unwrap();
+                        if tx.send(description).is_err() {
+                            warn!("failed to return BlockDescription, oneshot receiver dropped");
+                        }
                     }
                     Some(Some(BlockMessage::StreamInputDone { input_id })) => {
-                        sio.input(input_id).finish();
+                        kernel.stream_input_finish(input_id)?;
                     }
                     Some(Some(BlockMessage::StreamOutputDone { .. })) => {
                         work_io.finished = true;
                     }
                     Some(Some(BlockMessage::Call { port_id, data })) => {
-                        match Self::call_handler(&mut work_io, mio, meta, kernel, port_id, data)
+                        match kernel
+                            .call_handler(&mut work_io, mio, meta, port_id, data)
                             .await
                         {
                             Err(Error::InvalidMessagePort(_, port_id)) => {
                                 error!(
                                     "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                             }
                             Err(e @ Error::HandlerError(..)) => {
                                 error!(
                                     "{}: BlockMessage::Call -> {e}. Terminating.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                                 return Err(e);
                             }
@@ -340,23 +221,17 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
                         }
                     }
                     Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
-                        match Self::call_handler(
-                            &mut work_io,
-                            mio,
-                            meta,
-                            kernel,
-                            port_id.clone(),
-                            data,
-                        )
-                        .await
+                        match kernel
+                            .call_handler(&mut work_io, mio, meta, port_id.clone(), data)
+                            .await
                         {
                             Err(e @ Error::HandlerError(..)) => {
                                 error!(
                                     "{}: BlockMessage::Callback -> {e}. Terminating.",
-                                    meta.instance_name().unwrap(),
+                                    instance_name
                                 );
                                 let _ = tx.send(Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::Id(block_id),
+                                    BlockPortCtx::Id(self.id),
                                     port_id,
                                 )));
                                 return Err(e);
@@ -376,20 +251,18 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
 
             // ================== shutdown
             if work_io.finished {
-                debug!("{} terminating ", meta.instance_name().unwrap());
-                join_all(sio.inputs_mut().iter_mut().map(|i| i.notify_finished())).await;
-                join_all(sio.outputs_mut().iter_mut().map(|o| o.notify_finished())).await;
-                join_all(mio.outputs_mut().iter_mut().map(|o| o.notify_finished())).await;
+                debug!("{} terminating ", instance_name);
+                kernel.stream_ports_notify_finished().await;
+                mio.notify_finished().await;
 
-                match kernel.deinit(sio, mio, meta).await {
+                match kernel.deinit(mio, meta).await {
                     Ok(_) => {
                         break;
                     }
                     Err(e) => {
                         error!(
                             "{}: Error in deinit (). Terminating. ({:?})",
-                            meta.instance_name().unwrap(),
-                            e
+                            instance_name, e
                         );
                         return Err(Error::RuntimeError(e.to_string()));
                     }
@@ -421,17 +294,12 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
 
             // ================== work
             work_io.call_again = false;
-            if let Err(e) = kernel.work(&mut work_io, sio, mio, meta).await {
-                error!(
-                    "{}: Error in work(). Terminating. ({:?})",
-                    meta.instance_name().unwrap(),
-                    e
-                );
+            if let Err(e) = kernel.work(&mut work_io, mio, meta).await {
+                error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(Error::RuntimeError(e.to_string()));
             }
-            sio.commit();
 
-            futures_lite::future::yield_now().await;
+            futuresdr::runtime::futures::yield_now().await;
         }
 
         Ok(())
@@ -439,13 +307,41 @@ impl<T: Kernel + Send + 'static> TypedBlock<T> {
 }
 
 #[async_trait]
-impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
-    // ##### Block
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+    // ##### Block
+    fn inbox(&self) -> Sender<BlockMessage> {
+        self.inbox_tx.clone()
+    }
+    fn id(&self) -> BlockId {
+        self.id
+    }
+
+    // ##### Stream Ports
+    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader> {
+        self.kernel.stream_input(name)
+    }
+    fn connect_stream_output(
+        &mut self,
+        name: &str,
+        reader: &mut dyn BufferReader,
+    ) -> Result<(), Error> {
+        self.kernel.connect_stream_output(name, reader)
+    }
+
+    // ##### Message Ports
+    fn message_inputs(&self) -> &'static [&'static str] {
+        K::message_inputs()
+    }
+    fn connect(
+        &mut self,
+        src_port: &PortId,
+        dst_box: Sender<BlockMessage>,
+        dst_port: &PortId,
+    ) -> Result<(), Error> {
+        self.mio.connect(src_port, dst_box, dst_port)
     }
 
     // ##### META
@@ -456,208 +352,48 @@ impl<T: Kernel + Send + 'static> BlockT for TypedBlock<T> {
         self.meta.set_instance_name(name)
     }
     fn type_name(&self) -> &str {
-        self.meta.type_name()
+        K::type_name()
     }
     fn is_blocking(&self) -> bool {
-        self.meta.is_blocking()
+        K::is_blocking()
     }
 
     // ##### KERNEL
-    async fn run(
-        &mut self,
-        block_id: usize,
-        main_inbox: Sender<FlowgraphMessage>,
-        inbox: Receiver<BlockMessage>,
-    ) -> Result<(), Error> {
-        self.run_impl(block_id, main_inbox, inbox).await
-    }
-
-    // ##### STREAM IO
-    fn set_tag_propagation(
-        &mut self,
-        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
-    ) {
-        self.sio.set_tag_propagation(f)
-    }
-    fn stream_inputs(&self) -> &Vec<StreamInput> {
-        self.sio.inputs()
-    }
-    fn stream_input(&self, id: usize) -> &StreamInput {
-        self.sio.input_ref(id)
-    }
-    fn stream_input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.sio.input_name_to_id(name)
-    }
-    fn stream_outputs(&self) -> &Vec<StreamOutput> {
-        self.sio.outputs()
-    }
-    fn stream_output(&self, id: usize) -> &StreamOutput {
-        self.sio.output_ref(id)
-    }
-    fn stream_output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.sio.output_name_to_id(name)
-    }
-
-    // ##### MESSAGE IO
-    fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.mio.input_name_to_id(name)
-    }
-    fn message_outputs(&self) -> &Vec<MessageOutput> {
-        self.mio.outputs()
-    }
-    fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.mio.output_name_to_id(name)
-    }
-}
-
-/// Block
-///
-/// Generic wrapper around a [`TypedBlock`].
-#[derive(Debug)]
-pub struct Block(pub(crate) Box<dyn BlockT>);
-
-impl Block {
-    /// Create Block
-    pub fn new<T: Kernel + Send + 'static>(
-        meta: BlockMeta,
-        sio: StreamIo,
-        mio: MessageIo<T>,
-        kernel: T,
-    ) -> Block {
-        Self(Box::new(TypedBlock {
-            meta,
-            sio,
-            mio,
-            kernel,
-        }))
-    }
-    /// Create block by wrapping a [`TypedBlock`].
-    pub fn from_typed<T: Kernel + Send + 'static>(b: TypedBlock<T>) -> Block {
-        Self(Box::new(b))
-    }
-    /// Try to cast to a given kernel type
-    pub fn kernel<T: Kernel + Send + 'static>(&self) -> Option<&T> {
-        self.0
-            .as_any()
-            .downcast_ref::<TypedBlock<T>>()
-            .map(|b| &b.kernel)
-    }
-    /// Try to mutably cast to a given kernel type
-    pub fn kernel_mut<T: Kernel + Send + 'static>(&mut self) -> Option<&T> {
-        self.0
-            .as_any_mut()
-            .downcast_mut::<TypedBlock<T>>()
-            .map(|b| &b.kernel)
-    }
-
-    // ##### META
-    /// Get instance name (see [`BlockMeta::instance_name`])
-    pub fn instance_name(&self) -> Option<&str> {
-        self.0.instance_name()
-    }
-    /// Set instance name (see [`BlockMeta::set_instance_name`])
-    pub fn set_instance_name(&mut self, name: impl AsRef<str>) {
-        self.0.set_instance_name(name.as_ref())
-    }
-    /// Get type name (see [`BlockMeta::type_name`])
-    pub fn type_name(&self) -> &str {
-        self.0.type_name()
-    }
-    /// Is block blocking (see [`BlockMeta::is_blocking`])
-    pub fn is_blocking(&self) -> bool {
-        self.0.is_blocking()
-    }
-
-    pub(crate) async fn run(
-        mut self,
-        block_id: usize,
-        mut main_inbox: Sender<FlowgraphMessage>,
-        inbox: Receiver<BlockMessage>,
-    ) {
-        match self.0.run(block_id, main_inbox.clone(), inbox).await {
+    async fn run(&mut self, mut main_inbox: Sender<FlowgraphMessage>) {
+        match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone {
-                        block_id,
-                        block: self,
+                        block_id: self.id(),
                     })
                     .await;
+                return;
             }
             Err(e) => {
                 let instance_name = self
                     .instance_name()
-                    .unwrap_or("<broken instance name>")
+                    .unwrap_or("<instance name not set>")
                     .to_string();
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockError {
-                        block_id,
-                        block: self,
+                        block_id: self.id(),
                     })
                     .await;
             }
         }
     }
-
-    // ##### STREAM IO
-    /// Set tag propagation function
-    #[allow(clippy::type_complexity)]
-    pub fn set_tag_propagation(
-        &mut self,
-        f: Box<dyn FnMut(&mut [StreamInput], &mut [StreamOutput]) + Send + 'static>,
-    ) {
-        self.0.set_tag_propagation(f);
-    }
-    /// Get stream input ports
-    pub fn stream_inputs(&self) -> &Vec<StreamInput> {
-        self.0.stream_inputs()
-    }
-    /// Get stream input port
-    pub fn stream_input(&self, id: usize) -> &StreamInput {
-        self.0.stream_input(id)
-    }
-    /// Map stream input port name ot id
-    pub fn stream_input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.0.stream_input_name_to_id(name)
-    }
-    /// Get stream output ports
-    pub fn stream_outputs(&self) -> &Vec<StreamOutput> {
-        self.0.stream_outputs()
-    }
-    /// Get stream output port
-    pub fn stream_output(&self, id: usize) -> &StreamOutput {
-        self.0.stream_output(id)
-    }
-    /// Map stream output port name to id
-    pub fn stream_output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.0.stream_output_name_to_id(name)
-    }
-
-    // ##### MESSAGE IO
-    /// Map message input port name to id
-    pub fn message_input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.0.message_input_name_to_id(name)
-    }
-    /// Get message output ports
-    pub fn message_outputs(&self) -> &Vec<MessageOutput> {
-        self.0.message_outputs()
-    }
-    /// Map message output port name to id
-    pub fn message_output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.0.message_output_name_to_id(name)
-    }
 }
 
-impl<T: Kernel + 'static> From<TypedBlock<T>> for Block {
-    fn from(value: TypedBlock<T>) -> Self {
-        Block::from_typed(value)
+impl<K: Kernel> Deref for WrappedKernel<K> {
+    type Target = K;
+
+    fn deref(&self) -> &Self::Target {
+        &self.kernel
     }
 }
-
-impl fmt::Debug for dyn BlockT {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlockT")
-            .field("type_name", &self.type_name().to_string())
-            .finish()
+impl<K: Kernel> DerefMut for WrappedKernel<K> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.kernel
     }
 }

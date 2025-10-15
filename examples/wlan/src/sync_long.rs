@@ -1,17 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 const SEARCH_WINDOW: usize = 320;
 
@@ -22,29 +9,12 @@ enum State {
     Copy(usize, f32),
 }
 
-pub struct SyncLong {
+struct Correlator {
     cor: [Complex32; SEARCH_WINDOW],
     cor_index: Vec<(usize, f32)>,
-    state: State,
 }
 
-impl SyncLong {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("SyncLong").build(),
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                cor: [Complex32::new(0.0, 0.0); SEARCH_WINDOW],
-                cor_index: Vec::with_capacity(SEARCH_WINDOW),
-                state: State::Broken,
-            },
-        )
-    }
-
+impl Correlator {
     fn sync(&mut self, input: &[Complex32]) -> (usize, f32) {
         debug_assert_eq!(input.len(), SEARCH_WINDOW + 63);
 
@@ -77,23 +47,67 @@ impl SyncLong {
     }
 }
 
-#[async_trait]
-impl Kernel for SyncLong {
+#[derive(Block)]
+pub struct SyncLong<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
+    corr: Correlator,
+    state: State,
+}
+
+impl<I, O> SyncLong<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            corr: Correlator {
+                cor: [Complex32::new(0.0, 0.0); SEARCH_WINDOW],
+                cor_index: Vec::with_capacity(SEARCH_WINDOW),
+            },
+            state: State::Broken,
+        }
+    }
+}
+
+impl<I, O> Default for SyncLong<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I, O> Kernel for SyncLong<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<Complex32>();
-        let out = sio.output(0).slice::<Complex32>();
+        let (input, in_tags) = self.input.slice_with_tags();
+        let input_len = input.len();
+        let (out, mut out_tags) = self.output.slice_with_tags();
 
         let mut m = std::cmp::min(input.len(), out.len());
 
-        let tags = sio.input(0).tags();
         // println!("long tags {:?}", &tags);
-        if let Some((index, freq)) = tags.iter().find_map(|x| match x {
+        if let Some((index, freq)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedF32(n, f),
@@ -111,7 +125,7 @@ impl Kernel for SyncLong {
             } else {
                 m = std::cmp::min(m, *index);
                 if m < 80 {
-                    sio.input(0).consume(m);
+                    self.input.consume(m);
                     return Ok(());
                 }
             }
@@ -125,20 +139,20 @@ impl Kernel for SyncLong {
             }
             State::Sync(freq_offset_short) => {
                 if m >= SEARCH_WINDOW + 128 {
-                    let (offset, freq_offset) = self.sync(&input[0..SEARCH_WINDOW + 63]);
+                    let (offset, freq_offset) = self.corr.sync(&input[0..SEARCH_WINDOW + 63]);
                     // debug!("long start: offset {}   freq {}", offset, freq_offset);
 
                     for i in 0..128 {
                         out[i] =
                             input[offset + i] * Complex32::from_polar(1.0, i as f32 * freq_offset);
                     }
-                    sio.output(0).add_tag(
+                    out_tags.add_tag(
                         0,
                         Tag::NamedF32("wifi_start".to_string(), freq_offset_short + freq_offset),
                     );
 
-                    sio.input(0).consume(offset + 128);
-                    sio.output(0).produce(128);
+                    self.input.consume(offset + 128);
+                    self.output.produce(128);
                     io.call_again = true;
 
                     self.state = State::Copy(0, freq_offset);
@@ -155,13 +169,13 @@ impl Kernel for SyncLong {
                             );
                     }
                 }
-                sio.input(0).consume(syms * 80);
-                sio.output(0).produce(syms * 64);
+                self.input.consume(syms * 80);
+                self.output.produce(syms * 64);
                 self.state = State::Copy(n_copied + syms * 80, freq_offset);
             }
         }
 
-        if sio.input(0).finished() && input.len() - m < 80 {
+        if self.input.finished() && input_len - m < 80 {
             io.finished = true;
         }
 

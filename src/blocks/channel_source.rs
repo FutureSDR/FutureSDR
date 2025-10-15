@@ -1,16 +1,5 @@
 use crate::futures::StreamExt;
-use crate::futures::channel::mpsc::Receiver;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push samples through a channel into a stream connection.
 ///
@@ -31,37 +20,46 @@ use crate::runtime::WorkIo;
 /// // start flowgraph
 /// tx.try_send(vec![0, 1, 2].into_boxed_slice());
 /// ```
-pub struct ChannelSource<T: Send + 'static> {
-    receiver: Receiver<Box<[T]>>,
+#[derive(Block)]
+pub struct ChannelSource<T, O = DefaultCpuWriter<T>>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[output]
+    output: O,
+    receiver: mpsc::Receiver<Box<[T]>>,
     current: Option<(Box<[T]>, usize)>,
 }
 
-impl<T: Send + 'static> ChannelSource<T> {
+impl<T, O> ChannelSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create ChannelSource block
-    pub fn new(receiver: Receiver<Box<[T]>>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("ChannelSource").build(),
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            ChannelSource::<T> {
-                receiver,
-                current: None,
-            },
-        )
+    pub fn new(receiver: mpsc::Receiver<Box<[T]>>) -> Self {
+        Self {
+            output: O::default(),
+            receiver,
+            current: None,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for ChannelSource<T> {
+impl<T, O> Kernel for ChannelSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<T>();
+        let out = self.output.slice();
         if out.is_empty() {
             return Ok(());
         }
@@ -85,7 +83,7 @@ impl<T: Send + 'static> Kernel for ChannelSource<T> {
             unsafe {
                 std::ptr::copy_nonoverlapping(data.as_ptr().add(*index), out.as_mut_ptr(), n);
             };
-            sio.output(0).produce(n);
+            self.output.produce(n);
             *index += n;
             if *index == data.len() {
                 self.current = None;

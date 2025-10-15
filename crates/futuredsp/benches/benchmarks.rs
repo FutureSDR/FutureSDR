@@ -2,11 +2,11 @@ extern crate alloc;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 use criterion::Criterion;
-use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use num_complex::Complex;
 use rand::Rng;
+use std::hint::black_box;
 
 use futuredsp::FirFilter;
 use futuredsp::IirFilter;

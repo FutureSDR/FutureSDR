@@ -1,13 +1,13 @@
 //! WGPU custom buffers
 mod d2h;
-pub use d2h::D2H;
-pub use d2h::ReaderD2H;
-pub use d2h::WriterD2H;
+pub use d2h::Reader as D2HReader;
+pub use d2h::Writer as D2HWriter;
 mod h2d;
-pub use h2d::H2D;
-pub use h2d::ReaderH2D;
-pub use h2d::WriterH2D;
+pub use h2d::Reader as H2DReader;
+pub use h2d::Writer as H2DWriter;
 
+use crate::runtime::buffer::CpuSample;
+use std::marker::PhantomData;
 use wgpu::Adapter;
 use wgpu::Buffer;
 use wgpu::Device;
@@ -16,39 +16,55 @@ use wgpu::Queue;
 // ================== WGPU MESSAGE ============================
 /// Full input buffer
 #[derive(Debug)]
-pub struct InputBufferFull {
+pub struct InputBufferFull<D>
+where
+    D: CpuSample,
+{
     /// Buffer
-    pub buffer: Box<[u8]>,
+    pub buffer: Box<[D]>,
     /// Used bytes
-    pub used_bytes: usize,
+    pub n_items: usize,
 }
 
 /// Empty input buffer
 #[derive(Debug)]
-pub struct InputBufferEmpty {
+pub struct InputBufferEmpty<D>
+where
+    D: CpuSample,
+{
     /// Buffer
-    pub buffer: Box<[u8]>,
+    pub buffer: Box<[D]>,
 }
 
 /// Full output buffer
 #[derive(Debug)]
-pub struct OutputBufferFull {
+pub struct OutputBufferFull<D>
+where
+    D: CpuSample,
+{
     /// Buffer
     pub buffer: Buffer,
     /// Used bytes
     pub used_bytes: usize,
+    /// Marker for sample type
+    pub _p: PhantomData<D>,
 }
 
 /// Empty output buffer
 #[derive(Debug)]
-pub struct OutputBufferEmpty {
+pub struct OutputBufferEmpty<D>
+where
+    D: CpuSample,
+{
     /// Buffer
     pub buffer: Buffer,
+    /// Marker for sample type
+    _p: PhantomData<D>,
 }
 
 /// WGPU broker
 #[derive(Debug)]
-pub struct Broker {
+pub struct Instance {
     /// WGPU adapter
     pub adapter: Adapter,
     /// WGPU device
@@ -57,33 +73,39 @@ pub struct Broker {
     pub queue: Queue,
 }
 
-impl Broker {
+impl Instance {
     /// Create broker
-    pub async fn new() -> Broker {
+    pub async fn new() -> Self {
         let instance = wgpu::Instance::default();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await
             .expect("Failed to find an appropriate adapter");
+
         let downlevel_capabilities = adapter.get_downlevel_capabilities();
+        if !downlevel_capabilities
+            .flags
+            .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS)
+        {
+            panic!("Adapter does not support compute shaders");
+        }
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("device queue failed");
 
         info!("WGPU adapter {:?}", adapter.get_info());
         info!("WGPU downlevel capabilities: {:?}", downlevel_capabilities);
 
-        Broker {
+        Self {
             adapter,
             device,
             queue,

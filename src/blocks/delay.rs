@@ -1,14 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-use futuresdr_types::Pmt;
+use crate::prelude::*;
 
 #[derive(Debug)]
 enum State {
@@ -37,42 +27,46 @@ enum State {
 ///
 /// let sink = fg.add_block(Delay::<Complex<f32>>::new(42));
 /// ```
-pub struct Delay<T: Copy + Send + 'static> {
+#[derive(Block)]
+#[message_inputs(new_value)]
+pub struct Delay<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
+where
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     state: State,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Copy + Send + 'static> Delay<T> {
+impl<T, I, O> Delay<T, I, O>
+where
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Creates a new Dealy block which will delay samples by the specified samples.
-    pub fn new(n: isize) -> TypedBlock<Self> {
+    pub fn new(n: isize) -> Self {
         let state = if n > 0 {
             State::Pad(n.try_into().unwrap())
         } else {
             State::Skip((-n).try_into().unwrap())
         };
-
-        TypedBlock::new(
-            BlockMetaBuilder::new("Delay").build(),
-            StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
-                .build(),
-            MessageIoBuilder::new()
-                .add_input("new_value", Self::new_value_handler)
-                .build(),
-            Self {
-                state,
-                _type: std::marker::PhantomData,
-            },
-        )
+        Self {
+            input: I::default(),
+            output: O::default(),
+            state,
+        }
     }
 
-    #[message_handler]
-    pub fn new_value_handler<'a>(
-        &'a mut self,
-        _io: &'a mut WorkIo,
-        _mio: &'a mut MessageIo<Self>,
-        _meta: &'a mut BlockMeta,
+    async fn new_value(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::MapStrPmt(new_value) = p {
@@ -108,29 +102,33 @@ impl<T: Copy + Send + 'static> Delay<T> {
     }
 }
 
-#[async_trait]
-impl<T: Copy + Send + 'static> Kernel for Delay<T> {
+impl<T, I, O> Kernel for Delay<T, I, O>
+where
+    T: Copy + Send + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
-        let o = sio.output(0).slice::<T>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
+        let o_len = o.len();
 
         match self.state {
             State::Pad(n) => {
-                let m = std::cmp::min(o.len(), n);
-                let o = sio.output(0).slice_unchecked::<u8>();
-                o[0..m * std::mem::size_of::<T>()].fill(0);
-                sio.output(0).produce(m);
+                let m = std::cmp::min(o_len, n);
+                o[0..m].fill(unsafe { std::mem::zeroed() });
+                self.output.produce(m);
 
                 if m == n {
                     self.state = State::Copy;
                     io.call_again = true;
-                    if sio.input(0).finished() {
+                    if self.input.finished() {
                         io.finished = true;
                     }
                 } else {
@@ -138,8 +136,8 @@ impl<T: Copy + Send + 'static> Kernel for Delay<T> {
                 }
             }
             State::Skip(n) => {
-                let m = std::cmp::min(i.len(), n);
-                sio.input(0).consume(m);
+                let m = std::cmp::min(i_len, n);
+                self.input.consume(m);
 
                 if n == m {
                     self.state = State::Copy;
@@ -148,18 +146,18 @@ impl<T: Copy + Send + 'static> Kernel for Delay<T> {
                     self.state = State::Skip(n - m);
                 }
 
-                if sio.input(0).finished() {
+                if self.input.finished() {
                     io.finished = true;
                 }
             }
             State::Copy => {
-                let m = std::cmp::min(i.len(), o.len());
+                let m = std::cmp::min(i_len, o_len);
                 if m > 0 {
                     o[..m].copy_from_slice(&i[..m]);
                 }
-                sio.input(0).consume(m);
-                sio.output(0).produce(m);
-                if sio.input(0).finished() && m == i.len() {
+                self.input.consume(m);
+                self.output.produce(m);
+                if self.input.finished() && m == i_len {
                     io.finished = true;
                 }
             }

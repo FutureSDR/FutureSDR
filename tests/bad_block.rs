@@ -5,23 +5,8 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::connect;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Error;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
+use futuresdr::prelude::*;
 use std::cmp;
-use std::marker::PhantomData;
 
 pub enum FailType {
     Panic,
@@ -29,35 +14,39 @@ pub enum FailType {
 }
 
 /// Intentionally generate errors to test the runtime.
-#[derive(Default)]
-pub struct BadBlock<T> {
+#[derive(Block)]
+pub struct BadBlock<T: CpuSample> {
     pub work_fail: Option<FailType>,
     pub drop_fail: Option<FailType>,
-    _phantom: PhantomData<T>,
+    #[input]
+    input: circular::Reader<T>,
+    #[output]
+    output: circular::Writer<T>,
 }
 
-impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> BadBlock<T> {
-    pub fn to_block(self) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("BadBlock").build(),
-            StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
-                .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            self,
-        )
+impl<T: CpuSample> BadBlock<T> {
+    pub fn new() -> Self {
+        Self {
+            work_fail: None,
+            drop_fail: None,
+            input: Default::default(),
+            output: Default::default(),
+        }
+    }
+}
+
+impl<T: CpuSample> Default for BadBlock<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
+impl<T: CpuSample> Kernel for BadBlock<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         meta: &mut BlockMeta,
     ) -> Result<()> {
         match self.work_fail {
@@ -72,17 +61,18 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
             _ => {}
         }
 
-        let i = sio.input(0).slice::<T>();
-        let o = sio.output(0).slice::<T>();
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
 
-        let m = cmp::min(i.len(), o.len());
+        let m = cmp::min(i_len, o.len());
         if m > 0 {
-            o[..m].copy_from_slice(&i[..m]);
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            o[..m].clone_from_slice(&i[..m]);
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        if self.input.finished() && m == i_len {
             io.finished = true;
         }
 
@@ -90,7 +80,7 @@ impl<T: Copy + std::fmt::Debug + Send + Sync + 'static> Kernel for BadBlock<T> {
     }
 }
 
-impl<T> Drop for BadBlock<T> {
+impl<T: CpuSample> Drop for BadBlock<T> {
     fn drop(&mut self) {
         debug!("In BadBlock::drop()");
         if let Some(FailType::Panic) = self.drop_fail {
@@ -113,15 +103,13 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
     let head = Head::<f32>::new(10);
     let null_sink = NullSink::<f32>::new();
 
-    let bb = bb.to_block();
-
     connect!(fg, null_source > throttle > head > bb > null_sink);
 
     let rt_ret = match mode {
         RunMode::Run => Runtime::new().run(fg),
         RunMode::Terminate => {
             let rt = Runtime::new();
-            let (fg_task, mut fg_handle) = rt.start_sync(fg);
+            let (fg_task, mut fg_handle) = rt.start_sync(fg)?;
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
@@ -142,7 +130,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
 
 #[test]
 fn run_no_err() -> Result<()> {
-    let bb = BadBlock::<f32>::default();
+    let bb = BadBlock::<f32>::new();
     match run_badblock(bb, RunMode::Run)? {
         None => Ok(()),
         Some(e) => bail!("Expected None, got: {}", e),
@@ -151,7 +139,7 @@ fn run_no_err() -> Result<()> {
 
 #[test]
 fn run_work_err() -> Result<()> {
-    let mut bb = BadBlock::<f32>::default();
+    let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Run)? {
         None => bail!("Expected Error, got: None"),
@@ -166,8 +154,8 @@ fn run_work_err() -> Result<()> {
 #[ignore]
 #[should_panic(expected = "BadBlock!")]
 fn run_work_panic() {
-    //FIXME: (#89) this currently hangs the runtime
-    let mut bb = BadBlock::<f32>::default();
+    // this currently hangs the runtime
+    let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
     let _ = run_badblock(bb, RunMode::Run);
 }
@@ -175,7 +163,7 @@ fn run_work_panic() {
 #[test]
 #[should_panic(expected = "BadBlock!")]
 fn run_drop_panic() {
-    let mut bb = BadBlock::<f32>::default();
+    let mut bb = BadBlock::<f32>::new();
     bb.drop_fail = Some(FailType::Panic);
     let _ = run_badblock(bb, RunMode::Run);
 }
@@ -185,7 +173,7 @@ fn run_drop_panic() {
 
 #[test]
 fn terminate_no_err() -> Result<()> {
-    let bb = BadBlock::<f32>::default();
+    let bb = BadBlock::<f32>::new();
     match run_badblock(bb, RunMode::Terminate)? {
         None => Ok(()),
         Some(e) => bail!("Expected None, got: {}", e),
@@ -195,9 +183,7 @@ fn terminate_no_err() -> Result<()> {
 /// BadBlock returns work error, terminate msg is sent later.
 #[test]
 fn terminate_work_err() -> Result<()> {
-    // panics `Err` value: send failed because receiver is gone
-    // FIXME: should probably return some sort of flowgraph not running error
-    let mut bb = BadBlock::<f32>::default();
+    let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Error);
     match run_badblock(bb, RunMode::Terminate)? {
         None => bail!("Expected Error, got: None"),
@@ -212,11 +198,8 @@ fn terminate_work_err() -> Result<()> {
 #[ignore]
 // #[should_panic(expected = "BadBlock!")]
 fn terminate_work_panic() -> Result<()> {
-    // This sometimes returns a flowgraph terminated error instead of panicking.
-    // Other times it panics in various channel/scheduler locations (send or drop)
-    // Assume race condition.
-    // TODO: can we do *something* reliably here?
-    let mut bb = BadBlock::<f32>::default();
+    // not much we can do here, I guess
+    let mut bb = BadBlock::<f32>::new();
     bb.work_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate)? {
         None => bail!("Expected Error, got: None"),
@@ -233,10 +216,7 @@ fn terminate_work_panic() -> Result<()> {
 #[test]
 #[should_panic(expected = "BadBlock!")]
 fn terminate_drop_panic() {
-    //TODO: try to make consistent
-    //      Intermittently panics with "task has failed", sometimes Error("Flowgraph was terminated")
-    //      Assume race condition.
-    let mut bb = BadBlock::<f32>::default();
+    let mut bb = BadBlock::<f32>::new();
     bb.drop_fail = Some(FailType::Panic);
     match run_badblock(bb, RunMode::Terminate) {
         Ok(None) => panic!("Expected Error, got: None"),

@@ -1,15 +1,5 @@
+use crate::prelude::*;
 use std::path;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 /// Write samples to a WAV file.
 ///
@@ -35,44 +25,48 @@ use crate::runtime::WorkIo;
 /// let snk = fg.add_block(WavSink::<f32>::new(path, spec));
 /// Runtime::new().run(fg);
 /// ```
-pub struct WavSink<T>
+#[derive(Block)]
+pub struct WavSink<T, I = DefaultCpuReader<T>>
 where
     T: Send + 'static + hound::Sample + Copy,
+    I: CpuBufferReader<Item = T>,
 {
+    #[input]
+    input: I,
     writer: hound::WavWriter<std::io::BufWriter<std::fs::File>>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static + hound::Sample + Copy> WavSink<T> {
+impl<T, I> WavSink<T, I>
+where
+    T: Send + 'static + hound::Sample + Copy,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create WAV Sink block
     pub fn new<P: AsRef<path::Path> + std::marker::Send + Copy>(
         file_name: P,
         spec: hound::WavSpec,
-    ) -> TypedBlock<Self> {
+    ) -> Self {
         let writer = hound::WavWriter::create(file_name, spec).unwrap();
-        TypedBlock::new(
-            BlockMetaBuilder::new("WavSink").build(),
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            WavSink::<T> {
-                writer,
-                _type: std::marker::PhantomData,
-            },
-        )
+        Self {
+            input: I::default(),
+            writer,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static + hound::Sample + Copy> Kernel for WavSink<T> {
+impl<T, I> Kernel for WavSink<T, I>
+where
+    T: Send + 'static + hound::Sample + Copy,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
+        let i = self.input.slice();
         let items = i.len();
         if items > 0 {
             for t in i {
@@ -80,11 +74,11 @@ impl<T: Send + 'static + hound::Sample + Copy> Kernel for WavSink<T> {
             }
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        sio.input(0).consume(items);
+        self.input.consume(items);
         Ok(())
     }
 }

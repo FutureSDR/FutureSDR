@@ -1,71 +1,67 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
-pub struct PubSink<T: Send + 'static> {
+#[derive(Block)]
+pub struct PubSink<T, I = DefaultCpuReader<T>>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
+    #[input]
+    input: I,
     address: String,
     publisher: Option<zmq::Socket>,
-    _type: std::marker::PhantomData<T>,
     min_item: usize,
 }
 
-impl<T: Send + 'static> PubSink<T> {
+impl<T, I> PubSink<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create PubSink
-    pub fn new(address: impl Into<String>, min_item: usize) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("PubSink").blocking().build(),
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            PubSink {
-                address: address.into(),
-                publisher: None,
-                _type: std::marker::PhantomData::<T>,
-                min_item,
-            },
-        )
+    pub fn new(address: impl Into<String>, min_item: usize) -> Self {
+        Self {
+            input: I::default(),
+            address: address.into(),
+            publisher: None,
+            min_item,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for PubSink<T> {
+impl<T, I> Kernel for PubSink<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
+        let i = self.input.slice();
 
         let n = i.len();
         if n > 0 && n > self.min_item {
-            let i = sio.input(0).slice_unchecked::<u8>();
-            self.publisher.as_mut().unwrap().send(i, 0).unwrap();
-            sio.input(0).consume(n);
+            let i = self.input.slice();
+            let ptr = i.as_ptr() as *const u8;
+            let byte_len = std::mem::size_of_val(i);
+            let data = unsafe { std::slice::from_raw_parts(ptr, byte_len) };
+            self.publisher.as_mut().unwrap().send(data, 0).unwrap();
+            self.input.consume(n);
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         let context = zmq::Context::new();
         let publisher = context.socket(zmq::PUB)?;
         info!("SubSource Binding to {:?}", self.address);
@@ -77,16 +73,24 @@ impl<T: Send + 'static> Kernel for PubSink<T> {
 }
 
 /// Build a ZeroMQ [PubSink].
-pub struct PubSinkBuilder<T: Send + 'static> {
+pub struct PubSinkBuilder<T, I = DefaultCpuReader<T>>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     address: String,
-    _type: std::marker::PhantomData<T>,
+    _type: std::marker::PhantomData<I>,
     /// Minimum number of items per send
     min_item: usize,
 }
 
-impl<T: Send + 'static> PubSinkBuilder<T> {
+impl<T, I> PubSinkBuilder<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create PubSink builder
-    pub fn new() -> PubSinkBuilder<T> {
+    pub fn new() -> Self {
         PubSinkBuilder {
             address: "tcp://*:5555".into(),
             _type: std::marker::PhantomData,
@@ -96,24 +100,28 @@ impl<T: Send + 'static> PubSinkBuilder<T> {
 
     /// Remote socket address
     #[must_use]
-    pub fn address(mut self, address: &str) -> PubSinkBuilder<T> {
+    pub fn address(mut self, address: &str) -> Self {
         self.address = address.to_string();
         self
     }
 
     /// Set minimum number of items in send buffer
-    pub fn min_item_per_send(mut self, min_item: usize) -> PubSinkBuilder<T> {
+    pub fn min_item_per_send(mut self, min_item: usize) -> Self {
         self.min_item = min_item;
         self
     }
 
     /// Build PubSink
-    pub fn build(self) -> TypedBlock<PubSink<T>> {
-        PubSink::<T>::new(self.address, self.min_item)
+    pub fn build(self) -> PubSink<T, I> {
+        PubSink::<T, I>::new(self.address, self.min_item)
     }
 }
 
-impl<T: Send + 'static> Default for PubSinkBuilder<T> {
+impl<T, I> Default for PubSinkBuilder<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     fn default() -> Self {
         Self::new()
     }

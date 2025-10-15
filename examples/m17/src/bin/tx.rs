@@ -7,10 +7,8 @@ use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FiniteSource;
 use futuresdr::blocks::FirBuilder;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::hound;
+use futuresdr::prelude::*;
 
 use m17::CallSign;
 use m17::EncoderBlock;
@@ -29,7 +27,7 @@ fn main() -> Result<()> {
     let data: Vec<i16> = reader.into_samples::<i16>().map(|v| v.unwrap()).collect();
 
     let mut i = 0;
-    let src = FiniteSource::new(move || {
+    let src = FiniteSource::<_, _>::new(move || {
         if i >= data.len() {
             None
         } else {
@@ -48,17 +46,17 @@ fn main() -> Result<()> {
         });
 
     let lsf = LinkSetupFrame::new(CallSign::new_id("DF1BBL"), CallSign::new_broadcast());
-    let encoder = EncoderBlock::new(lsf);
+    let encoder: EncoderBlock = EncoderBlock::new(lsf);
     let pulse = ApplyNM::<_, _, _, 1, 10>::new(move |i: &[f32], o: &mut [f32]| {
         o.fill(0.0);
         o[0] = i[0];
     });
 
-    let rrc = FirBuilder::new::<f32, f32, _>(RRC_TAPS);
+    let rrc = FirBuilder::fir::<f32, f32, _>(RRC_TAPS);
 
     let mut curr = Complex32::new(0.8, 0.0);
     let sensitivity = 2.0 * std::f32::consts::PI * 800.0 / 48000.0;
-    let fm = Apply::new(move |i: &f32| {
+    let fm = Apply::<_, _, _>::new(move |i: &f32| {
         let c = Complex32::from_polar(1.0, i * 3.3 * sensitivity);
         curr *= c;
         curr

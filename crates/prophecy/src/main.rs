@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
+use any_spawner::Executor;
 use futuresdr::futures::StreamExt;
 use futuresdr::runtime::Pmt;
+use futuresdr_types::FlowgraphId;
 use gloo_net::websocket::Message;
 use gloo_net::websocket::futures::WebSocket;
 use leptos::html::Input;
@@ -86,8 +88,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         // </div>
         {move || match fg_desc.get() {
             Some(wrapped) => {
-                let data = wrapped.take();
-                match data {
+                match wrapped {
                     Some(data) => {
                         view! {
                             <div>
@@ -135,7 +136,7 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
         })
     };
 
-    let connect_flowgraph = move |rt_handle: Signal<RuntimeHandle>, id: usize| {
+    let connect_flowgraph = move |rt_handle: Signal<RuntimeHandle>, id: FlowgraphId| {
         spawn_local(async move {
             match rt_handle.get_untracked().get_flowgraph(id).await {
                 Ok(fg) => {
@@ -154,8 +155,7 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
 
     view! {
         {move || match res_fgs.get() {
-            Some(wrapper) => {
-                let fgs = wrapper.take();
+            Some(fgs) => {
                 match fgs {
                     Ok(data) => {
                         view! {
@@ -165,7 +165,7 @@ pub fn FlowgraphSelector(rt_handle: Signal<RuntimeHandle>) -> impl IntoView {
                                     .map(|n| {
                                         view! {
                                             <li>
-                                                {n}
+                                                {n.0}
                                                 <button
                                                     on:click=move |_| {
                                                         let rt_handle = rt_handle;
@@ -202,10 +202,10 @@ pub fn Prophecy() -> impl IntoView {
     let rt_handle = RuntimeHandle::from_url(rt_url);
     // let (rt_handle, rt_handle_set) = signal(rt_handle);
 
-    // let input_ref = NodeRef::<Input>::new();
-    // let min_label = NodeRef::<Span>::new();
-    // let max_label = NodeRef::<Span>::new();
-    // let freq_label = NodeRef::<Span>:new();
+    // let input_ref = create_node_ref::<Input>();
+    // let min_label = create_node_ref::<Span>();
+    // let max_label = create_node_ref::<Span>();
+    // let freq_label = create_node_ref::<Span>();
 
     // let connect_runtime = move || {
     //     let input = input_ref.get().unwrap();
@@ -277,5 +277,6 @@ pub fn Prophecy() -> impl IntoView {
 
 pub fn main() {
     console_error_panic_hook::set_once();
+    Executor::init_wasm_bindgen().unwrap();
     mount_to_body(|| view! { <Prophecy /> })
 }

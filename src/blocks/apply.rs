@@ -1,13 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 /// Apply a function to each sample.
 ///
@@ -28,91 +19,97 @@ use crate::runtime::WorkIo;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Double each sample
-/// let doubler = fg.add_block(Apply::new(|i: &f32| i * 2.0));
+/// let doubler = Apply::<_, _, _>::new(|i: &f32| i * 2.0);
 ///
 /// // Note that the closure can also hold state
 /// let mut last_value = 0.0;
-/// let moving_average = fg.add_block(Apply::new(move |i: &f32| {
+/// let moving_average = Apply::<_, _, _>::new(move |i: &f32| {
 ///     let new_value = (last_value + i) / 2.0;
 ///     last_value = *i;
 ///     new_value
-/// }));
+/// });
 ///
 /// // Additionally, the closure can change the type of the sample
-/// let to_complex = fg.add_block(Apply::new(|i: &f32| {
+/// let to_complex = Apply::<_, _, _>::new(|i: &f32| {
 ///     Complex {
 ///         re: 0.0,
 ///         im: *i,
 ///     }
-/// }));
+/// });
 /// ```
-pub struct Apply<F, A, B>
+#[derive(Block)]
+pub struct Apply<F, A, B, IN = DefaultCpuReader<A>, OUT = DefaultCpuWriter<B>>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     f: F,
-    _p1: std::marker::PhantomData<A>,
-    _p2: std::marker::PhantomData<B>,
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
 }
 
-impl<F, A, B> Apply<F, A, B>
+impl<F, A, B, IN, OUT> Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
-    B: Send + 'static,
+    B: Send + Sync + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     /// Create [`Apply`] block
     ///
     /// ## Parameter
     /// - `f`: Function to apply on each sample
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Apply").build(),
-            StreamIoBuilder::new()
-                .add_input::<A>("in")
-                .add_output::<B>("out")
-                .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Self {
-                f,
-                _p1: std::marker::PhantomData,
-                _p2: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            f,
+            input: IN::default(),
+            output: OUT::default(),
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<F, A, B> Kernel for Apply<F, A, B>
+impl<F, A, B, IN, OUT> Kernel for Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<A>();
-        let o = sio.output(0).slice::<B>();
+        let (i, i_tags) = self.input.slice_with_tags();
+        let (o, mut o_tags) = self.output.slice_with_tags();
+        let i_len = i.len();
 
-        let m = std::cmp::min(i.len(), o.len());
+        let m = std::cmp::min(i_len, o.len());
         if m > 0 {
             for (v, r) in i.iter().zip(o.iter_mut()) {
                 *r = (self.f)(v);
             }
 
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
+            i_tags.iter().for_each(|t| {
+                if t.index < m {
+                    o_tags.add_tag(t.index, t.tag.clone())
+                }
+            });
+
+            self.input.consume(m);
+            self.output.produce(m);
         }
 
-        if sio.input(0).finished() && m == i.len() {
+        if self.input.finished() && m == i_len {
             io.finished = true;
         }
 

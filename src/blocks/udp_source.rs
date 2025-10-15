@@ -1,54 +1,56 @@
 use anyhow::Context;
 use async_net::UdpSocket;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Read samples from a UDP socket.
-pub struct UdpSource<T: Send + 'static> {
+#[derive(Block)]
+pub struct UdpSource<T, O = DefaultCpuWriter<T>>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[output]
+    output: O,
     bind: String,
     max_packet_bytes: usize,
     socket: Option<UdpSocket>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> UdpSource<T> {
+impl<T, O> UdpSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create UDP Source block
-    pub fn new(bind: impl Into<String>, max_packet_bytes: usize) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("UdpSource").build(),
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            UdpSource {
-                bind: bind.into(),
-                max_packet_bytes,
-                socket: None,
-                _type: std::marker::PhantomData::<T>,
-            },
-        )
+    pub fn new(bind: impl Into<String>, max_packet_bytes: usize) -> Self {
+        Self {
+            output: O::default(),
+            bind: bind.into(),
+            max_packet_bytes,
+            socket: None,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for UdpSource<T> {
+impl<T, O> Kernel for UdpSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice_unchecked::<u8>();
-        if out.len() < self.max_packet_bytes {
+        let out = self.output.slice();
+        let ptr = out.as_mut_ptr() as *mut u8;
+        let byte_len = std::mem::size_of_val(out);
+        let data = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
+
+        if byte_len < self.max_packet_bytes {
             return Ok(());
         }
 
@@ -56,12 +58,12 @@ impl<T: Send + 'static> Kernel for UdpSource<T> {
             .socket
             .as_ref()
             .context("no socket")?
-            .recv_from(out)
+            .recv_from(data)
             .await
         {
             Ok((s, _)) => {
                 debug!("udp source read bytes {}", s);
-                sio.output(0).produce(s / std::mem::size_of::<T>());
+                self.output.produce(s / std::mem::size_of::<T>());
             }
             Err(_) => {
                 debug!("udp source socket closed");
@@ -72,12 +74,7 @@ impl<T: Send + 'static> Kernel for UdpSource<T> {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.socket = Some(UdpSocket::bind(self.bind.clone()).await?);
         Ok(())
     }

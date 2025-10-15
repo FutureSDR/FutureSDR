@@ -16,17 +16,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Error;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Operation mode for [WebsocketSink].
 pub enum WebsocketSinkMode {
@@ -39,7 +29,10 @@ pub enum WebsocketSinkMode {
 }
 
 /// Push samples in a WebSocket.
-pub struct WebsocketSink<T> {
+#[derive(Block)]
+pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
+    #[input]
+    input: I,
     port: u32,
     listener: Option<Arc<Async<TcpListener>>>,
     conn: Option<WsStream>,
@@ -47,43 +40,42 @@ pub struct WebsocketSink<T> {
     _p: PhantomData<T>,
 }
 
-impl<T: Send + Sync + 'static> WebsocketSink<T> {
+impl<T, I> WebsocketSink<T, I>
+where
+    T: CpuSample,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create WebsocketSink block
-    pub fn new(port: u32, mode: WebsocketSinkMode) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("WebsocketSink").build(),
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            WebsocketSink {
-                port,
-                listener: None,
-                conn: None,
-                mode,
-                _p: PhantomData,
-            },
-        )
+    pub fn new(port: u32, mode: WebsocketSinkMode) -> Self {
+        Self {
+            input: I::default(),
+            port,
+            listener: None,
+            conn: None,
+            mode,
+            _p: PhantomData,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
+impl<T, I> Kernel for WebsocketSink<T, I>
+where
+    T: CpuSample,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
-        debug_assert_eq!(i.len() % size_of::<T>(), 0);
-
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        let item_size = size_of::<T>();
-        let items = i.len() / item_size;
+        let i = self.input.slice();
+        let i_len = i.len();
 
         if let Some(ref mut conn) = self.conn {
             if i.is_empty() {
@@ -95,21 +87,19 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
             match &self.mode {
                 WebsocketSinkMode::Blocking => {
                     v.extend_from_slice(i);
-                    sio.input(0).consume(i.len() / size_of::<T>());
+                    self.input.consume(i_len);
                 }
                 WebsocketSinkMode::FixedBlocking(block_size) => {
-                    if *block_size <= items {
-                        v.extend_from_slice(&i[0..(block_size * item_size)]);
-                        sio.input(0).consume(*block_size);
+                    if *block_size <= i_len {
+                        v.extend_from_slice(&i[0..*block_size]);
+                        self.input.consume(*block_size);
                     }
                 }
                 WebsocketSinkMode::FixedDropping(block_size) => {
-                    let n = items / block_size;
+                    let n = i_len / block_size;
                     if n != 0 {
-                        v.extend_from_slice(
-                            &i[((n - 1) * block_size * item_size)..(n * block_size * item_size)],
-                        );
-                        sio.input(0).consume(n * block_size);
+                        v.extend_from_slice(&i[((n - 1) * block_size)..(n * block_size)]);
+                        self.input.consume(n * block_size);
                     }
                 }
             }
@@ -121,6 +111,15 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
                         .ok_or_else(|| Error::RuntimeError("no listener".to_string()))?
                         .accept(),
                 );
+
+                let len = v.len() * size_of::<T>();
+                let cap = v.capacity() * size_of::<T>();
+                let ptr = v.as_ptr() as *mut u8;
+
+                // prevent original Vec from dropping
+                std::mem::forget(v);
+
+                let v = unsafe { Vec::from_raw_parts(ptr, len, cap) };
                 let send = conn.send(Message::Binary(v.into()));
 
                 match future::select(acc, send).await {
@@ -156,8 +155,8 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
                 }
                 _ => {
                     if let WebsocketSinkMode::FixedDropping(block_size) = &self.mode {
-                        let n = items / block_size;
-                        sio.input(0).consume(n * block_size);
+                        let n = i_len / block_size;
+                        self.input.consume(n * block_size);
                     }
 
                     let l = self.listener.as_ref().unwrap().clone();
@@ -171,12 +170,7 @@ impl<T: Send + Sync + 'static> Kernel for WebsocketSink<T> {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
             format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));
@@ -191,7 +185,7 @@ pub struct WebsocketSinkBuilder<T> {
     _p: PhantomData<T>,
 }
 
-impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
+impl<T: CpuSample> WebsocketSinkBuilder<T> {
     /// Create WebsocketSink builder
     pub fn new(port: u32) -> WebsocketSinkBuilder<T> {
         WebsocketSinkBuilder {
@@ -209,7 +203,7 @@ impl<T: Send + Sync + 'static> WebsocketSinkBuilder<T> {
     }
 
     /// Build WebsocketSink
-    pub fn build(self) -> TypedBlock<WebsocketSink<T>> {
+    pub fn build(self) -> WebsocketSink<T> {
         WebsocketSink::<T>::new(self.port, self.mode)
     }
 }

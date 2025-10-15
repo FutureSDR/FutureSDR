@@ -16,7 +16,7 @@ use futuresdr::async_io;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::blocks::seify::SourceBuilder;
+use futuresdr::blocks::seify::Builder;
 use futuresdr::futuredsp::firdes;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
@@ -87,17 +87,11 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     // Create a new Seify SDR block with the given parameters
-    let src = SourceBuilder::new()
-        .args(args.args)?
+    let src = Builder::new(args.args)?
         .frequency(args.frequency + freq_offset)
         .sample_rate(args.rate)
         .gain(args.gain)
-        .build()?;
-
-    // Store the `freq` port ID for later use
-    let freq_port_id = src
-        .message_input_name_to_id("freq")
-        .expect("No freq port found!");
+        .build_source()?;
 
     // Downsample before demodulation
     let interp = (audio_rate * audio_mult) as usize;
@@ -108,7 +102,7 @@ fn main() -> Result<()> {
     // Demodulation block using the conjugate delay method
     // See https://en.wikipedia.org/wiki/Detector_(radio)#Quadrature_detector
     let mut last = Complex32::new(0.0, 0.0); // store sample x[n-1]
-    let demod = Apply::new(move |v: &Complex32| -> f32 {
+    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
         let arg = (v * last.conj()).arg(); // Obtain phase of x[n] * conj(x[n-1])
         last = *v;
         arg
@@ -119,7 +113,7 @@ fn main() -> Result<()> {
         1.0,
         (2.0 * std::f64::consts::PI * freq_offset / args.rate) as f32,
     );
-    let shift = Apply::new(move |v: &Complex32| -> Complex32 {
+    let shift = Apply::<_, _, _>::new(move |v: &Complex32| -> Complex32 {
         last *= add;
         last * v
     });
@@ -137,11 +131,12 @@ fn main() -> Result<()> {
     let snk = AudioSink::new(audio_rate, 1);
 
     // Add all the blocks to the `Flowgraph`...
-    connect!(fg, src > shift > resamp1 > demod > resamp2 > snk.in;);
+    connect!(fg, src.outputs[0] > shift > resamp1 > demod > resamp2 > snk);
+    let src = src.get()?.id;
 
     // Start the flowgraph and save the handle
     let rt = Runtime::new();
-    let (_res, mut handle) = rt.start_sync(fg);
+    let (_res, mut handle) = rt.start_sync(fg)?;
 
     // Keep asking user for a new frequency and a new sample rate
     loop {
@@ -156,11 +151,7 @@ fn main() -> Result<()> {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_freq) = input.parse::<f64>() {
             println!("Setting frequency to {input}");
-            async_io::block_on(handle.call(
-                src,
-                freq_port_id,
-                Pmt::F64(new_freq * 1e6 + freq_offset),
-            ))?;
+            async_io::block_on(handle.call(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
         } else {
             println!("Input not parsable: {input}");
         }

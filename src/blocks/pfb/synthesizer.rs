@@ -6,20 +6,19 @@ use rustfft::FftPlanner;
 use std::cmp::min;
 use std::sync::Arc;
 
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Polyphase Synthesizer.
-pub struct PfbSynthesizer {
+#[derive(Block)]
+pub struct PfbSynthesizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: Vec<I>,
+    #[output]
+    output: O,
     fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
     taps_per_filter: usize,
     n_channels: usize,
@@ -27,10 +26,16 @@ pub struct PfbSynthesizer {
     fft: Arc<dyn Fft<f32>>,
 }
 
-impl PfbSynthesizer {
+impl<I, O> PfbSynthesizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     /// Create Polyphase Synthesizer.
-    pub fn new(n_channels: usize, taps: &[f32]) -> TypedBlock<Self> {
-        let mut channelizer = PfbSynthesizer {
+    pub fn new(n_channels: usize, taps: &[f32]) -> Self {
+        let mut ret = Self {
+            input: (0..n_channels).map(|_| I::default()).collect(),
+            output: O::default(),
             fir_filters: vec![],
             taps_per_filter: 0,
             n_channels,
@@ -43,21 +48,8 @@ impl PfbSynthesizer {
             ],
             fft: FftPlanner::new().plan_fft(n_channels, FftDirection::Inverse),
         };
-
-        channelizer.set_taps(taps);
-
-        let mut sio = StreamIoBuilder::new();
-        for i in 0..n_channels {
-            sio = sio.add_input::<Complex32>(format!("in{i}").as_str())
-        }
-        sio = sio.add_output::<Complex32>("out");
-
-        TypedBlock::new(
-            BlockMetaBuilder::new("PfbSynthesizer").build(),
-            sio.build(),
-            MessageIoBuilder::new().build(),
-            channelizer,
-        )
+        ret.set_taps(taps);
+        ret
     }
 
     fn set_taps(&mut self, taps: &[f32]) {
@@ -75,25 +67,28 @@ impl PfbSynthesizer {
     }
 }
 
-#[async_trait]
-impl Kernel for PfbSynthesizer {
+#[doc(hidden)]
+impl<I, O> Kernel for PfbSynthesizer<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let n_items_available = sio
-            .inputs_mut()
+        let n_items_available = self
+            .input
             .iter_mut()
-            .map(|x| x.slice::<Complex32>().len())
+            .map(|x| x.slice().len())
             .min()
             .unwrap();
         let n_items_to_consume = n_items_available; // ensure we leave enough samples for "overlapping" FIR filter iterations (ref. "history" property of GNU Radio blocks)
-        let n_items_to_produce = sio.output(0).slice::<Complex32>().len();
+        let out = self.output.slice();
+        let n_items_to_produce = out.len();
         let n_items_to_process = min(n_items_to_produce / self.n_channels, n_items_to_consume);
-        let out = sio.output(0).slice::<Complex32>();
 
         if n_items_to_process > 0 {
             let mut fft_buf: Vec<Complex32> = vec![Complex32::new(0., 0.); self.n_channels];
@@ -106,7 +101,7 @@ impl Kernel for PfbSynthesizer {
             for n in 0..n_items_to_process {
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..self.n_channels {
-                    let input = &sio.input(i).slice::<Complex32>()[0..n_items_to_process];
+                    let input = &self.input[i].slice()[0..n_items_to_process];
                     fft_buf[i] = input[n];
                 }
                 self.fft.process(&mut fft_buf);
@@ -137,13 +132,14 @@ impl Kernel for PfbSynthesizer {
             }
 
             for i in 0..self.n_channels {
-                sio.input(i).consume(n_items_to_process);
+                self.input[i].consume(n_items_to_process);
             }
-            sio.output(0).produce(n_items_to_process * self.n_channels);
+            self.output.produce(n_items_to_process * self.n_channels);
         }
         // each iteration either depletes the available input items or the available space in the out buffer, therefore no manual call_again necessary
         // appropriately propagate flowgraph termination
-        if n_items_to_consume - n_items_to_process == 0 && sio.inputs().iter().all(|x| x.finished())
+        if n_items_to_consume - n_items_to_process == 0
+            && self.input.iter_mut().all(|x| x.finished())
         {
             io.finished = true;
         }

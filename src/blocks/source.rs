@@ -1,13 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Repeatedly apply a function to generate samples.
 ///
@@ -22,63 +13,58 @@ use crate::runtime::WorkIo;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Source;
-/// use futuresdr::runtime::Flowgraph;
-///
-/// let mut fg = Flowgraph::new();
 ///
 /// // Generate zeroes
-/// let source = fg.add_block(Source::new(|| { 0.0f32 }));
+/// let source = Source::<_, _>::new(|| { 0.0f32 });
 /// ```
-pub struct Source<F, A>
+#[derive(Block)]
+pub struct Source<F, A, O = DefaultCpuWriter<A>>
 where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
+    #[output]
+    output: O,
     f: F,
-    _p: std::marker::PhantomData<A>,
 }
 
-impl<F, A> Source<F, A>
+impl<F, A, O> Source<F, A, O>
 where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
     /// Create Source block
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Source").build(),
-            StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Source {
-                f,
-                _p: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            output: O::default(),
+            f,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<F, A> Kernel for Source<F, A>
+impl<F, A, O> Kernel for Source<F, A, O>
 where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<A>();
+        let o = self.output.slice();
+        let o_len = o.len();
 
         for v in o.iter_mut() {
             *v = (self.f)();
         }
 
-        sio.output(0).produce(o.len());
-
+        self.output.produce(o_len);
         Ok(())
     }
 }

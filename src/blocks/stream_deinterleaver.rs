@@ -1,67 +1,63 @@
 use std::cmp::min;
-use std::marker::PhantomData;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Stream Deinterleaver
-pub struct StreamDeinterleaver<T> {
-    num_channels: usize,
-    phantom: PhantomData<T>,
-}
-
-impl<T> StreamDeinterleaver<T>
+#[derive(Block)]
+pub struct StreamDeinterleaver<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where
     T: Copy + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: Vec<O>,
+    num_channels: usize,
+}
+
+impl<T, I, O> StreamDeinterleaver<T, I, O>
+where
+    T: Copy + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
 {
     /// Stream Deinterleaver
-    pub fn new(num_channels: usize) -> TypedBlock<Self> {
-        let mut sio = StreamIoBuilder::new().add_input::<T>("in");
-        for i in 0..num_channels {
-            sio = sio.add_output::<T>(&format!("out{i}"));
+    pub fn new(num_channels: usize) -> Self {
+        Self {
+            input: I::default(),
+            output: (0..num_channels).map(|_| O::default()).collect(),
+            num_channels,
         }
-        TypedBlock::new(
-            BlockMetaBuilder::new("StreamDeinterleaver").build(),
-            sio.build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                num_channels,
-                phantom: PhantomData,
-            },
-        )
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Copy + Send + Sync + 'static> Kernel for StreamDeinterleaver<T> {
+impl<T, I, O> Kernel for StreamDeinterleaver<T, I, O>
+where
+    T: Copy + Send + Sync + 'static,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<T>();
+        let input = self.input.slice();
         let n_items_to_consume = input.len();
-        let n_items_to_produce = sio
-            .outputs_mut()
+        let n_items_to_produce = self
+            .output
             .iter_mut()
-            .map(|x| x.slice::<T>().len())
+            .map(|x| x.slice().len())
             .min()
             .unwrap();
         let nitem_to_process = min(n_items_to_produce, n_items_to_consume / self.num_channels);
         if nitem_to_process > 0 {
             for j in 0..self.num_channels {
-                let out = sio.output(j).slice::<T>();
+                let out = self.output[j].slice();
                 for (out_slot, &in_item) in out[0..nitem_to_process].iter_mut().zip(
                     input[j..]
                         .iter()
@@ -70,12 +66,12 @@ impl<T: Copy + Send + Sync + 'static> Kernel for StreamDeinterleaver<T> {
                 ) {
                     *out_slot = in_item;
                 }
-                sio.output(j).produce(nitem_to_process);
+                self.output[j].produce(nitem_to_process);
             }
-            sio.input(0).consume(nitem_to_process * self.num_channels);
+            self.input.consume(nitem_to_process * self.num_channels);
         }
         if n_items_to_consume - (nitem_to_process * self.num_channels) < self.num_channels
-            && sio.input(0).finished()
+            && self.input.finished()
         {
             io.finished = true;
         }

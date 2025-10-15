@@ -1,21 +1,6 @@
 use crate::DemodPacket;
-use adsb_deku::deku::DekuContainerRead;
 use anyhow::bail;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::info;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use serde::Serialize;
 use std::time::SystemTime;
 
@@ -31,12 +16,28 @@ pub struct DecoderMetaData {
     pub timestamp: SystemTime,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AdsbPacket {
     pub message: adsb_deku::Frame,
     pub decoder_metadata: DecoderMetaData,
 }
 
+impl Clone for AdsbPacket {
+    fn clone(&self) -> Self {
+        Self {
+            message: adsb_deku::Frame {
+                df: self.message.df.clone(),
+                crc: self.message.crc,
+            },
+            decoder_metadata: self.decoder_metadata.clone(),
+        }
+    }
+}
+
+#[derive(Block)]
+#[message_inputs(r#in)]
+#[message_outputs(out)]
+#[null_kernel]
 pub struct Decoder {
     forward_failed_crc: bool,
     n_crc_ok: u64,
@@ -44,21 +45,12 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(forward_failed_crc: bool) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Decoder").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::packet_received)
-                .add_output("out")
-                .build(),
-            Self {
-                forward_failed_crc,
-                n_crc_ok: 0,
-                n_crc_fail: 0,
-            },
-        )
+    pub fn new(forward_failed_crc: bool) -> Self {
+        Self {
+            forward_failed_crc,
+            n_crc_ok: 0,
+            n_crc_fail: 0,
+        }
     }
 
     /// Checks if the CRC is valid
@@ -98,8 +90,8 @@ impl Decoder {
             .step_by(8)
             .map(|i| bin_to_u64(&packet.bits[i..i + 8]) as u8)
             .collect();
-        match adsb_deku::Frame::from_bytes((&bytes, 0)) {
-            Ok((_, message)) => {
+        match adsb_deku::Frame::from_bytes(&bytes) {
+            Ok(message) => {
                 let packet = AdsbPacket {
                     message,
                     decoder_metadata,
@@ -110,11 +102,10 @@ impl Decoder {
         }
     }
 
-    #[message_handler]
-    async fn packet_received(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -140,9 +131,7 @@ impl Decoder {
                     if crc_passed || self.forward_failed_crc {
                         match self.decode_packet(pkt, crc_passed, SystemTime::now()) {
                             Ok(decoded_packet) => {
-                                mio.output_mut(0)
-                                    .post(Pmt::Any(Box::new(decoded_packet)))
-                                    .await
+                                mio.post("out", Pmt::Any(Box::new(decoded_packet))).await?
                             }
                             _ => info!("Could not decode packet despite valid CRC"),
                         }
@@ -159,6 +148,3 @@ impl Decoder {
         Ok(Pmt::Ok)
     }
 }
-
-#[async_trait]
-impl Kernel for Decoder {}

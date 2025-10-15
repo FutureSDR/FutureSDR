@@ -19,23 +19,13 @@ use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
-use futuresdr::futures::SinkExt;
-use futuresdr::futures::channel::mpsc;
-use futuresdr::futures::channel::mpsc::Sender;
-use futuresdr::futures_lite::StreamExt;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::channel::mpsc::Sender;
+use futuresdr::prelude::*;
 
 /// Forward messages.
+#[derive(Block)]
+#[message_inputs(r#in)]
+#[null_kernel]
 pub struct PacketForwarderClient {
     mac_addr: MacAddress,
     shutdown_trigger: Trigger,
@@ -45,7 +35,7 @@ pub struct PacketForwarderClient {
 }
 
 impl PacketForwarderClient {
-    pub fn new(mac_addr: &str, server_addr: &str) -> TypedBlock<Self> {
+    pub fn new(mac_addr: &str, server_addr: &str) -> Self {
         let mac_address = MacAddress::from_str(mac_addr).unwrap();
         let (to_forwarder_sender, mut to_forwarder_receiver) = mpsc::channel::<Packet>(1);
         let host = SocketAddr::from_str(server_addr).unwrap();
@@ -95,26 +85,18 @@ impl PacketForwarderClient {
             });
         });
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("PacketForwarder").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::handler)
-                .build(),
-            PacketForwarderClient {
-                mac_addr: mac_address,
-                shutdown_trigger: shutdown_trigger_tmp,
-                uplink_sender: to_forwarder_sender,
-                udp_client_runtime: rt_tokio,
-            },
-        )
+        Self {
+            mac_addr: mac_address,
+            shutdown_trigger: shutdown_trigger_tmp,
+            uplink_sender: to_forwarder_sender,
+            udp_client_runtime: rt_tokio,
+        }
     }
 
-    #[message_handler]
-    async fn handler(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -241,7 +223,3 @@ impl PacketForwarderClient {
         Ok(Pmt::Ok)
     }
 }
-
-#[doc(hidden)]
-#[async_trait]
-impl Kernel for PacketForwarderClient {}

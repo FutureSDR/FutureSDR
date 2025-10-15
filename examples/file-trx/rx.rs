@@ -4,11 +4,8 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::FileSink;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::num_complex::Complex;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]
@@ -27,8 +24,8 @@ struct Args {
     rate: f64,
 
     /// Seify source args
-    #[clap(short, long)]
-    args: Option<String>,
+    #[clap(short, long, default_value = "")]
+    args: String,
 
     /// File source to load
     #[clap(long)]
@@ -57,59 +54,55 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let src = match (args.args, args.input) {
-        (Some(_), Some(_)) => {
-            panic!("Cannot specify both seify source and input file");
-        }
-        (Some(a), None) => fg.add_block(
-            SourceBuilder::new()
-                .frequency(args.frequency)
-                .sample_rate(args.rate)
-                .gain(args.gain)
-                .args(a)?
-                .build()?,
-        )?,
-        (None, Some(input)) => {
-            let format = args
-                .format_in
-                .or_else(|| {
-                    let parts: Vec<_> = input.split('.').collect();
-                    Some(parts[parts.len() - 1].to_string())
-                })
-                .expect("Input format could not be determined!");
-            match format.as_str() {
-                "cs8" => {
-                    let src = fg.add_block(FileSource::<Complex<i8>>::new(input, false))?;
-                    let typecvt = fg.add_block(Apply::new(|i: &Complex32| Complex {
-                        re: i.re / 127.,
-                        im: i.im / 127.,
-                    }))?;
-                    fg.connect_stream(src, "out", typecvt, "in")?;
-                    typecvt
-                }
-                _ => {
-                    panic!("Unrecognized input format {format}");
-                }
+    let (src, output_name): (BlockId, _) = if let Some(input) = args.input {
+        let format = args
+            .format_in
+            .or_else(|| {
+                let parts: Vec<_> = input.split('.').collect();
+                Some(parts[parts.len() - 1].to_string())
+            })
+            .expect("Input format could not be determined!");
+        match format.as_str() {
+            "cs8" => {
+                let src = FileSource::<Complex<i8>>::new(input, false);
+                let typecvt = Apply::<_, _, _>::new(|i: &Complex<i8>| Complex {
+                    re: i.re as f32 / 127.,
+                    im: i.im as f32 / 127.,
+                });
+                connect!(fg, src > typecvt);
+                (typecvt.into(), "output")
+            }
+            _ => {
+                panic!("Unrecognized input format {format}");
             }
         }
-        (None, None) => {
-            panic!("Must specify one of seify source or input file");
-        }
+    } else {
+        (
+            fg.add_block(
+                Builder::new(args.args)?
+                    .frequency(args.frequency)
+                    .sample_rate(args.rate)
+                    .gain(args.gain)
+                    .build_source()?,
+            )
+            .into(),
+            "outputs[0]",
+        )
     };
 
-    let src = if let Some(samples) = args.samples {
-        let sample_counter = fg.add_block(Head::<Complex<f32>>::new(samples))?;
-        fg.connect_stream(src, "out", sample_counter, "in")?;
-        sample_counter
+    let (src, output_name) = if let Some(samples) = args.samples {
+        let sample_counter = fg.add_block(Head::<Complex<f32>>::new(samples)).into();
+        fg.connect_dyn(src, output_name, sample_counter, "input")?;
+        (sample_counter, "output")
     } else {
-        src
+        (src, output_name)
     };
 
     let mut last_clip_warning = Instant::now();
     let mut last_power_print = Instant::now();
     let mut avgmag = 0.0;
     let mut maxmag = 0.0;
-    let powermeter = fg.add_block(Apply::new(move |i: &Complex32| {
+    let powermeter = fg.add_block(Apply::<_, _, _>::new(move |i: &Complex32| {
         let norm = i.norm();
         if norm > 0.95 && last_clip_warning.elapsed().as_secs_f32() > 0.1 {
             last_clip_warning = Instant::now();
@@ -125,9 +118,9 @@ fn main() -> Result<()> {
             last_power_print = Instant::now();
         }
         *i
-    }))?;
+    }));
 
-    fg.connect_stream(src, "out", powermeter, "in")?;
+    fg.connect_dyn(src, output_name, &powermeter, "input")?;
 
     let format = args
         .format_out
@@ -138,17 +131,16 @@ fn main() -> Result<()> {
         .expect("Output format could not be determined!");
     match format.as_str() {
         "cs8" => {
-            let typecvt = fg.add_block(Apply::new(|i: &Complex32| Complex {
+            let typecvt = Apply::<_, _, _>::new(|i: &Complex32| Complex {
                 re: (i.re * 127.) as i8,
                 im: (i.im * 127.) as i8,
-            }))?;
-            let sink = fg.add_block(FileSink::<Complex<i8>>::new(&args.out))?;
-            fg.connect_stream(powermeter, "out", typecvt, "in")?;
-            fg.connect_stream(typecvt, "out", sink, "in")?;
+            });
+            let sink = FileSink::<Complex<i8>>::new(&args.out);
+            connect!(fg, powermeter > typecvt > sink);
         }
         "cf32" => {
-            let sink = fg.add_block(FileSink::<Complex<f32>>::new(&args.out))?;
-            fg.connect_stream(powermeter, "out", sink, "in")?;
+            let sink = FileSink::<Complex<f32>>::new(&args.out);
+            connect!(fg, powermeter > sink);
         }
         format => {
             panic!("Unknown format {format}! (known formats: cs8, cf32)");

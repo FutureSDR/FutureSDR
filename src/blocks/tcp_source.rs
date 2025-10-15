@@ -3,50 +3,48 @@ use async_net::TcpListener;
 use async_net::TcpStream;
 use futures::AsyncReadExt;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Read samples from a TCP socket.
-pub struct TcpSource<T: Send + 'static> {
+#[derive(Block)]
+pub struct TcpSource<T, O = DefaultCpuWriter<T>>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
+    #[output]
+    output: O,
     bind: String,
     listener: Option<TcpListener>,
     socket: Option<TcpStream>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> TcpSource<T> {
+impl<T, O> TcpSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     /// Create TCP Source block
-    pub fn new(bind: impl Into<String>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("TcpSource").build(),
-            StreamIoBuilder::new().add_output::<T>("out").build(),
-            MessageIoBuilder::new().build(),
-            TcpSource {
-                bind: bind.into(),
-                listener: None,
-                socket: None,
-                _type: std::marker::PhantomData::<T>,
-            },
-        )
+    pub fn new(bind: impl Into<String>) -> Self {
+        Self {
+            output: O::default(),
+            bind: bind.into(),
+            listener: None,
+            socket: None,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for TcpSource<T> {
+impl<T, O> Kernel for TcpSource<T, O>
+where
+    T: Send + 'static,
+    O: CpuBufferWriter<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if self.socket.is_none() {
@@ -60,21 +58,25 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
             debug!("tcp source accepted connection");
         }
 
-        let out = sio.output(0).slice_unchecked::<u8>();
+        let out = self.output.slice();
         if out.is_empty() {
             return Ok(());
         }
+        let out_len = out.len();
+        let ptr = out.as_mut_ptr() as *mut u8;
+        let byte_len = std::mem::size_of_val(out);
+        let data = unsafe { std::slice::from_raw_parts_mut(ptr, byte_len) };
 
         match self
             .socket
             .as_mut()
             .context("no socket")?
-            .read_exact(out)
+            .read_exact(data)
             .await
         {
             Ok(_) => {
                 debug!("tcp source read bytes {}", out.len());
-                sio.output(0).produce(out.len() / std::mem::size_of::<T>());
+                self.output.produce(out_len);
             }
             Err(_) => {
                 debug!("tcp source socket closed");
@@ -85,12 +87,7 @@ impl<T: Send + 'static> Kernel for TcpSource<T> {
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(TcpListener::bind(self.bind.clone()).await?);
         Ok(())
     }

@@ -1,74 +1,75 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Apply a function to split a stream.
-pub struct Split<F, A, B, C>
-where
+#[derive(Block)]
+pub struct Split<
+    F,
+    A,
+    B,
+    C,
+    I = DefaultCpuReader<A>,
+    O0 = DefaultCpuWriter<B>,
+    O1 = DefaultCpuWriter<C>,
+> where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O0: CpuBufferWriter<Item = B>,
+    O1: CpuBufferWriter<Item = C>,
 {
+    #[input]
+    input: I,
+    #[output]
+    output0: O0,
+    #[output]
+    output1: O1,
     f: F,
-    _p1: std::marker::PhantomData<A>,
-    _p2: std::marker::PhantomData<B>,
-    _p3: std::marker::PhantomData<C>,
 }
 
-impl<F, A, B, C> Split<F, A, B, C>
+impl<F, A, B, C, I, O0, O1> Split<F, A, B, C, I, O0, O1>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O0: CpuBufferWriter<Item = B>,
+    O1: CpuBufferWriter<Item = C>,
 {
     /// Create Split block
-    pub fn new(f: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Split").build(),
-            StreamIoBuilder::new()
-                .add_input::<A>("in")
-                .add_output::<B>("out0")
-                .add_output::<C>("out1")
-                .build(),
-            MessageIoBuilder::<Self>::new().build(),
-            Split {
-                f,
-                _p1: std::marker::PhantomData,
-                _p2: std::marker::PhantomData,
-                _p3: std::marker::PhantomData,
-            },
-        )
+    pub fn new(f: F) -> Self {
+        Self {
+            input: I::default(),
+            output0: O0::default(),
+            output1: O1::default(),
+            f,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<F, A, B, C> Kernel for Split<F, A, B, C>
+impl<F, A, B, C, I, O1, O2> Kernel for Split<F, A, B, C, I, O1, O2>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,
     A: Send + 'static,
     B: Send + 'static,
     C: Send + 'static,
+    I: CpuBufferReader<Item = A>,
+    O1: CpuBufferWriter<Item = B>,
+    O2: CpuBufferWriter<Item = C>,
 {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i0 = sio.input(0).slice::<A>();
-        let o0 = sio.output(0).slice::<B>();
-        let o1 = sio.output(1).slice::<C>();
+        let i0 = self.input.slice();
+        let o0 = self.output0.slice();
+        let o1 = self.output1.slice();
+        let i0_len = i0.len();
 
         let m = std::cmp::min(i0.len(), o0.len());
         let m = std::cmp::min(m, o1.len());
@@ -80,12 +81,12 @@ where
                 *y1 = b;
             }
 
-            sio.input(0).consume(m);
-            sio.output(0).produce(m);
-            sio.output(1).produce(m);
+            self.input.consume(m);
+            self.output0.produce(m);
+            self.output1.produce(m);
         }
 
-        if sio.input(0).finished() && m == i0.len() {
+        if self.input.finished() && m == i0_len {
             io.finished = true;
         }
 

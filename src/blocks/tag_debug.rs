@@ -1,13 +1,4 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 /// Drop samples, printing tags.
 ///
@@ -31,59 +22,62 @@ use crate::runtime::WorkIo;
 ///
 /// let sink = fg.add_block(TagDebug::<Complex32>::new("foo"));
 /// ```
-pub struct TagDebug<T: Send + 'static> {
+#[derive(Block)]
+pub struct TagDebug<T, I = DefaultCpuReader<T>>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
+    #[input]
+    input: I,
     name: String,
     n_received: usize,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> TagDebug<T> {
+impl<T, I> TagDebug<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     /// Create Tag Debug block
-    pub fn new(name: impl Into<String>) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("TagDebug").build(),
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            TagDebug::<T> {
-                _type: std::marker::PhantomData,
-                name: name.into(),
-                n_received: 0,
-            },
-        )
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            input: I::default(),
+            name: name.into(),
+            n_received: 0,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for TagDebug<T> {
+impl<T, I> Kernel for TagDebug<T, I>
+where
+    T: Send + 'static,
+    I: CpuBufferReader<Item = T>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<T>();
-
+        let (i, tags) = self.input.slice_with_tags();
         let n = i.len();
-        sio.input(0)
-            .tags()
-            .iter()
-            .filter(|x| x.index < n)
-            .for_each(|x| {
-                println!(
-                    "TagDebug {}: buf {}/abs {} -- {:?}",
-                    &self.name,
-                    x.index,
-                    self.n_received + x.index,
-                    x.tag
-                )
-            });
 
-        sio.input(0).consume(n);
+        tags.iter().filter(|x| x.index < n).for_each(|x| {
+            println!(
+                "TagDebug {}: buf {}/abs {} -- {:?}",
+                &self.name,
+                x.index,
+                self.n_received + x.index,
+                x.tag
+            )
+        });
+
+        self.input.consume(n);
         self.n_received += n;
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 

@@ -1,16 +1,12 @@
-mod fft_shift;
 use anyhow::Result;
-use fft_shift::FftShift;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Fft;
+use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
-use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
-use futuresdr::tracing::info;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 use std::env;
 
 pub fn run_fg() -> Result<()> {
@@ -29,30 +25,21 @@ pub fn run_fg() -> Result<()> {
     let args = args.join(",");
     info!("device args {}", &args);
 
-    let src = SourceBuilder::new()
-        .args(args)?
+    let src = Builder::new(args)?
         .frequency(100e6)
         .sample_rate(3.2e6)
         .gain(34.0)
-        .build()?;
+        .build_source()?;
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedDropping(2048))
         .build();
 
-    let src = fg.add_block(src)?;
-    let fft = fg.add_block(Fft::new(2048))?;
-    let power = fg.add_block(Apply::new(|x: &Complex32| x.norm()))?;
-    let log = fg.add_block(Apply::new(|x: &f32| 10.0 * x.log10()))?;
-    let shift = fg.add_block(FftShift::<f32>::new())?;
-    let keep = fg.add_block(MovingAvg::<2048>::new(0.1, 10))?;
-    let snk = fg.add_block(snk)?;
+    let fft: Fft = Fft::with_options(2048, FftDirection::Forward, true, None);
+    let power = Apply::<_, _, _>::new(|x: &Complex32| x.norm());
+    let log = Apply::<_, _, _>::new(|x: &f32| 10.0 * x.log10());
+    let keep = MovingAvg::<2048>::new(0.1, 10);
 
-    fg.connect_stream(src, "out", fft, "in")?;
-    fg.connect_stream(fft, "out", power, "in")?;
-    fg.connect_stream(power, "out", log, "in")?;
-    fg.connect_stream(log, "out", shift, "in")?;
-    fg.connect_stream(shift, "out", keep, "in")?;
-    fg.connect_stream(keep, "out", snk, "in")?;
+    connect!(fg, src.outputs[0] > fft > power > log > keep > snk);
 
     Runtime::new().run(fg)?;
     Ok(())

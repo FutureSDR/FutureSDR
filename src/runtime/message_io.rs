@@ -1,102 +1,19 @@
 //! Message/Event/RPC-based Ports
-use futures::channel::mpsc::Sender;
-use futures::prelude::*;
-use std::pin::Pin;
-use std::sync::Arc;
+use futures::SinkExt;
+use futuresdr::channel::mpsc::Sender;
+use futuresdr_types::BlockId;
 
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockMeta;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::Result;
-use crate::runtime::WorkIo;
-
-#[cfg(not(target_arch = "wasm32"))]
-type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + Send + 'a>>;
-#[cfg(target_arch = "wasm32")]
-type HandlerFuture<'a> = Pin<Box<dyn Future<Output = Result<Pmt>> + 'a>>;
-
-/// Message input port
-pub struct MessageInput<T: ?Sized> {
-    name: String,
-    finished: bool,
-    #[allow(clippy::type_complexity)]
-    handler: Arc<
-        dyn for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync,
-    >,
-}
-
-impl<T: Send + ?Sized> MessageInput<T> {
-    /// Create message input port
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        name: &str,
-        handler: Arc<
-            dyn for<'a> Fn(
-                    &'a mut T,
-                    &'a mut WorkIo,
-                    &'a mut MessageIo<T>,
-                    &'a mut BlockMeta,
-                    Pmt,
-                ) -> HandlerFuture<'a>
-                + Send
-                + Sync,
-        >,
-    ) -> MessageInput<T> {
-        MessageInput {
-            name: name.to_string(),
-            finished: false,
-            handler,
-        }
-    }
-
-    /// Get a copy of the handler function
-    #[allow(clippy::type_complexity)]
-    pub fn get_handler(
-        &self,
-    ) -> Arc<
-        dyn for<'a> Fn(
-                &'a mut T,
-                &'a mut WorkIo,
-                &'a mut MessageIo<T>,
-                &'a mut BlockMeta,
-                Pmt,
-            ) -> HandlerFuture<'a>
-            + Send
-            + Sync,
-    > {
-        self.handler.clone()
-    }
-
-    /// Get name of port
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Mark port as finished
-    pub fn finish(&mut self) {
-        self.finished = true;
-    }
-
-    /// Check, if port is marked finished
-    pub fn finished(&self) -> bool {
-        self.finished
-    }
-}
 
 /// Message output port
 #[derive(Debug)]
 pub struct MessageOutput {
     name: String,
-    handlers: Vec<(usize, Sender<BlockMessage>)>,
+    handlers: Vec<(PortId, Sender<BlockMessage>)>,
 }
 
 impl MessageOutput {
@@ -114,7 +31,7 @@ impl MessageOutput {
     }
 
     /// Connect port to downstream message input
-    pub fn connect(&mut self, port: usize, sender: Sender<BlockMessage>) {
+    pub fn connect(&mut self, port: PortId, sender: Sender<BlockMessage>) {
         self.handlers.push((port, sender));
     }
 
@@ -123,7 +40,7 @@ impl MessageOutput {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
-                    port_id: PortId::Index(*port_id),
+                    port_id: port_id.clone(),
                     data: Pmt::Finished,
                 })
                 .await;
@@ -135,7 +52,7 @@ impl MessageOutput {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
-                    port_id: PortId::Index(*port_id),
+                    port_id: port_id.clone(),
                     data: p.clone(),
                 })
                 .await;
@@ -143,134 +60,51 @@ impl MessageOutput {
     }
 }
 
-/// Message IO
-pub struct MessageIo<T: ?Sized> {
-    inputs: Vec<MessageInput<T>>,
+/// Message Outputs
+#[derive(Debug)]
+pub struct MessageOutputs {
+    block_id: BlockId,
     outputs: Vec<MessageOutput>,
 }
 
-impl<T: Send + ?Sized> MessageIo<T> {
-    fn new(inputs: Vec<MessageInput<T>>, outputs: Vec<MessageOutput>) -> Self {
-        MessageIo { inputs, outputs }
+impl MessageOutputs {
+    /// Create message outputs with given names
+    pub fn new(block_id: BlockId, outputs: Vec<String>) -> Self {
+        let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
+        MessageOutputs { block_id, outputs }
     }
-
-    /// Get input port Id, given its name
-    pub fn input_name_to_id(&self, name: &str) -> Option<usize> {
-        self.inputs
-            .iter()
-            .enumerate()
-            .find(|item| item.1.name() == name)
-            .map(|(i, _)| i)
-    }
-
-    /// Get input port
-    pub fn input(&self, id: usize) -> &MessageInput<T> {
-        &self.inputs[id]
-    }
-
-    /// Get input port mutable
-    pub fn input_mut(&mut self, id: usize) -> &mut MessageInput<T> {
-        &mut self.inputs[id]
-    }
-
-    /// Get all input port
-    pub fn inputs(&self) -> &Vec<MessageInput<T>> {
-        &self.inputs
-    }
-
-    /// Get input port names
-    pub fn input_names(&self) -> Vec<String> {
-        self.inputs.iter().map(|x| x.name().to_string()).collect()
-    }
-
-    /// Get all outputs
-    pub fn outputs(&self) -> &Vec<MessageOutput> {
-        &self.outputs
-    }
-
-    /// Get all outputs mutable
-    pub fn outputs_mut(&mut self) -> &mut Vec<MessageOutput> {
-        &mut self.outputs
-    }
-
-    /// Get output port
-    pub fn output(&self, id: usize) -> &MessageOutput {
-        &self.outputs[id]
-    }
-
-    /// Get output port mutable
-    pub fn output_mut(&mut self, id: usize) -> &mut MessageOutput {
-        &mut self.outputs[id]
-    }
-
-    /// Get output port Id, given its name
-    pub fn output_name_to_id(&self, name: &str) -> Option<usize> {
-        self.outputs
-            .iter()
-            .enumerate()
-            .find(|item| item.1.name() == name)
-            .map(|(i, _)| i)
-    }
-
     /// Post data to connected downstream ports
-    pub async fn post(&mut self, id: usize, p: Pmt) {
-        self.output_mut(id).post(p).await;
+    pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
+        let id = id.into();
+        self.output_mut(&id)
+            .ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?
+            .post(p)
+            .await;
+        Ok(())
     }
-}
-
-/// Message IO builder
-pub struct MessageIoBuilder<T> {
-    inputs: Vec<MessageInput<T>>,
-    outputs: Vec<MessageOutput>,
-}
-
-impl<T: Send> MessageIoBuilder<T> {
-    /// Create Message IO builder
-    pub fn new() -> MessageIoBuilder<T> {
-        MessageIoBuilder {
-            inputs: Vec::new(),
-            outputs: Vec::new(),
+    /// Connect Message Output Port
+    pub fn connect(
+        &mut self,
+        src_port: &PortId,
+        dst_block_inbox: Sender<BlockMessage>,
+        dst_port: &PortId,
+    ) -> Result<(), Error> {
+        let block_id = self.block_id;
+        self.output_mut(src_port)
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
+            .connect(dst_port.clone(), dst_block_inbox);
+        Ok(())
+    }
+    /// Tell all downstream message receivers that we are done.
+    pub async fn notify_finished(&mut self) {
+        for o in self.outputs.iter_mut() {
+            o.notify_finished().await;
         }
     }
-
-    /// Add input port
-    ///
-    /// Use the [`message_handler`](crate::message_handler) macro to define the handler
-    /// function
-    #[must_use]
-    pub fn add_input(
-        mut self,
-        name: &str,
-        c: impl for<'a> Fn(
-            &'a mut T,
-            &'a mut WorkIo,
-            &'a mut MessageIo<T>,
-            &'a mut BlockMeta,
-            Pmt,
-        ) -> HandlerFuture<'a>
-        + Send
-        + Sync
-        + 'static,
-    ) -> MessageIoBuilder<T> {
-        self.inputs.push(MessageInput::new(name, Arc::new(c)));
-        self
-    }
-
-    /// Add output port
-    #[must_use]
-    pub fn add_output(mut self, name: &str) -> MessageIoBuilder<T> {
-        self.outputs.push(MessageOutput::new(name));
-        self
-    }
-
-    /// Build Message IO
-    pub fn build(self) -> MessageIo<T> {
-        MessageIo::new(self.inputs, self.outputs)
-    }
-}
-
-impl<T: Send> Default for MessageIoBuilder<T> {
-    fn default() -> Self {
-        Self::new()
+    /// Get output port Id, given its name
+    fn output_mut(&mut self, port: &PortId) -> Option<&mut MessageOutput> {
+        self.outputs
+            .iter_mut()
+            .find(|item| item.name() == port.name())
     }
 }

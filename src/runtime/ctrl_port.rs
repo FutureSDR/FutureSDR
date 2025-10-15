@@ -4,12 +4,10 @@ use axum::Router;
 use axum::extract::Path;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::http::Uri;
-use axum::response::Redirect;
-use axum::routing::any;
 use axum::routing::get;
 use axum::routing::get_service;
 use futures::channel::oneshot;
+use std::net::SocketAddr;
 use std::path;
 use std::thread::JoinHandle;
 use tokio::net::TcpListener;
@@ -17,7 +15,9 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockId;
 use crate::runtime::FlowgraphDescription;
+use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::RuntimeHandle;
@@ -33,16 +33,16 @@ macro_rules! relative {
     };
 }
 
-async fn flowgraphs(State(rt): State<RuntimeHandle>) -> Json<Vec<usize>> {
-    Json::from(rt.get_flowgraphs())
+async fn flowgraphs(State(rt): State<RuntimeHandle>) -> Json<Vec<FlowgraphId>> {
+    Json::from(rt.get_flowgraphs().await)
 }
 
 async fn flowgraph_description(
     Path(fg): Path<usize>,
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
-    let fg = rt.get_flowgraph(fg);
-    if let Some(mut fg) = fg {
+    let fg = rt.get_flowgraph(FlowgraphId(fg));
+    if let Some(mut fg) = fg.await {
         if let Ok(d) = fg.description().await {
             return Ok(Json::from(d));
         }
@@ -51,11 +51,11 @@ async fn flowgraph_description(
 }
 
 async fn block_description(
-    Path((fg, blk)): Path<(usize, usize)>,
+    Path((fg, blk)): Path<(usize, BlockId)>,
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
-    let fg = rt.get_flowgraph(fg);
-    if let Some(mut fg) = fg {
+    let fg = rt.get_flowgraph(FlowgraphId(fg));
+    if let Some(mut fg) = fg.await {
         if let Ok(d) = fg.block_description(blk).await {
             return Ok(Json::from(d));
         }
@@ -65,15 +65,11 @@ async fn block_description(
 }
 
 async fn handler_id(
-    Path((fg, blk, handler)): Path<(usize, usize, String)>,
+    Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
-    let fg = rt.get_flowgraph(fg);
-    let handler = match handler.parse::<usize>() {
-        Ok(i) => PortId::Index(i),
-        Err(_) => PortId::Name(handler),
-    };
-    if let Some(mut fg) = fg {
+    let fg = rt.get_flowgraph(FlowgraphId(fg));
+    if let Some(mut fg) = fg.await {
         if let Ok(ret) = fg.callback(blk, handler, Pmt::Null).await {
             return Ok(Json::from(ret));
         }
@@ -83,16 +79,12 @@ async fn handler_id(
 }
 
 async fn handler_id_post(
-    Path((fg, blk, handler)): Path<(usize, usize, String)>,
+    Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
     State(rt): State<RuntimeHandle>,
     Json(pmt): Json<Pmt>,
 ) -> Result<Json<Pmt>, StatusCode> {
-    let fg = rt.get_flowgraph(fg);
-    let handler = match handler.parse::<usize>() {
-        Ok(i) => PortId::Index(i),
-        Err(_) => PortId::Name(handler),
-    };
-    if let Some(mut fg) = fg {
+    let fg = rt.get_flowgraph(FlowgraphId(fg));
+    if let Some(mut fg) = fg.await {
         if let Ok(ret) = fg.callback(blk, handler, pmt).await {
             return Ok(Json::from(ret));
         }
@@ -133,13 +125,6 @@ impl ControlPort {
                 "/api/fg/{fg}/block/{blk}/call/{handler}/",
                 get(handler_id).post(handler_id_post),
             )
-            .route(
-                "/api/block/{*foo}",
-                any(|uri: Uri| async move {
-                    let u = uri.to_string().split_off(11);
-                    Redirect::permanent(&format!("/api/fg/0/block/{u}/"))
-                }),
-            )
             .layer(CorsLayer::permissive())
             .with_state(self.handle.clone());
 
@@ -162,23 +147,35 @@ impl ControlPort {
         let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
 
         let handle = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
+            let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
-                .unwrap();
+            {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    warn!("failed to start Tokio runtime {e:?}");
+                    return;
+                }
+            };
 
             runtime.spawn(async move {
-                let addr = config::config().ctrlport_bind.unwrap();
-                match TcpListener::bind(&addr).await {
-                    Ok(listener) => {
-                        debug!("Listening on {}", addr);
-                        axum::serve(listener, app.into_make_service())
-                            .await
-                            .unwrap();
+                if let Ok(addr) = config::config().ctrlport_bind.parse::<SocketAddr>() {
+                    match TcpListener::bind(&addr).await {
+                        Ok(listener) => {
+                            debug!("Listening on {}", addr);
+                            if let Err(e) = axum::serve(listener, app.into_make_service()).await {
+                                warn!("axum server failed {e:?}");
+                            }
+                        }
+                        _ => {
+                            warn!("CtrlPort address {addr} already in use");
+                        }
                     }
-                    _ => {
-                        warn!("CtrlPort address {} already in use", addr);
-                    }
+                } else {
+                    warn!(
+                        "failed to parse socket addr {}",
+                        config::config().ctrlport_bind
+                    );
                 }
             });
 

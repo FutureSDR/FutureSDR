@@ -1,17 +1,7 @@
+use crate::prelude::*;
 use async_fs::File;
 use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
-
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
 
 /// Write samples to a file.
 ///
@@ -38,65 +28,56 @@ use crate::runtime::WorkIo;
 ///
 /// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
 /// ```
-pub struct FileSink<T: Send + 'static> {
+#[derive(Block)]
+pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
+    #[input]
+    input: I,
     file_name: String,
     file: Option<File>,
-    _type: std::marker::PhantomData<T>,
 }
 
-impl<T: Send + 'static> FileSink<T> {
+impl<T: Send + 'static, I: CpuBufferReader<Item = T>> FileSink<T, I> {
     /// Create FileSink block
-    pub fn new<S: Into<String>>(file_name: S) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("FileSink").build(),
-            StreamIoBuilder::new().add_input::<T>("in").build(),
-            MessageIoBuilder::new().build(),
-            FileSink::<T> {
-                file_name: file_name.into(),
-                file: None,
-                _type: std::marker::PhantomData,
-            },
-        )
+    pub fn new<S: Into<String>>(file_name: S) -> Self {
+        Self {
+            input: I::default(),
+            file_name: file_name.into(),
+            file: None,
+        }
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<T: Send + 'static> Kernel for FileSink<T> {
+impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice_unchecked::<u8>();
+        let i = self.input.slice();
 
-        let item_size = std::mem::size_of::<T>();
-        let items = i.len() / item_size;
-
+        let items = i.len();
         if items > 0 {
-            let i = &i[..items * item_size];
-            match self.file.as_mut().unwrap().write_all(i).await {
+            let byte_slice = unsafe {
+                std::slice::from_raw_parts(i.as_ptr() as *const u8, std::mem::size_of_val(i))
+            };
+
+            match self.file.as_mut().unwrap().write_all(byte_slice).await {
                 Ok(()) => {}
                 Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_name),
             }
         }
 
-        if sio.input(0).finished() {
+        if self.input.finished() {
             io.finished = true;
         }
 
-        sio.input(0).consume(items);
+        self.input.consume(items);
         Ok(())
     }
 
-    async fn init(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         let file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -107,12 +88,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
         Ok(())
     }
 
-    async fn deinit(
-        &mut self,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn deinit(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.file.as_mut().unwrap().sync_all().await?;
         Ok(())
     }

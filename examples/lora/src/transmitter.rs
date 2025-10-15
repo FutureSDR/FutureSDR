@@ -1,24 +1,18 @@
 use anyhow::Result;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
 use crate::Encoder;
 use crate::Modulator;
 
-pub struct Transmitter {
+#[derive(Block)]
+#[message_inputs(msg)]
+pub struct Transmitter<O = DefaultCpuWriter<Complex32>>
+where
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[output]
+    output: O,
     frames: VecDeque<Vec<u8>>,
     current_frame: Vec<Complex32>,
     current_offset: usize,
@@ -27,7 +21,10 @@ pub struct Transmitter {
     modulator: Modulator,
 }
 
-impl Transmitter {
+impl<O> Transmitter<O>
+where
+    O: CpuBufferWriter<Item = Complex32>,
+{
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         code_rate: u8,
@@ -39,43 +36,34 @@ impl Transmitter {
         sync_words: Vec<usize>,
         preamble_len: usize,
         pad: usize,
-    ) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Transmitter").build(),
-            StreamIoBuilder::new()
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::new()
-                .add_input("msg", Self::msg_handler)
-                .build(),
-            Transmitter {
-                frames: VecDeque::new(),
-                current_frame: Vec::new(),
-                current_offset: 0,
-                finished: false,
-                encoder: Encoder::new(
-                    code_rate,
-                    spreading_factor,
-                    has_crc,
-                    low_data_rate,
-                    implicit_header,
-                ),
-                modulator: Modulator::new(
-                    spreading_factor.into(),
-                    oversampling,
-                    sync_words,
-                    preamble_len,
-                    pad,
-                ),
-            },
-        )
+    ) -> Self {
+        Self {
+            output: O::default(),
+            frames: VecDeque::new(),
+            current_frame: Vec::new(),
+            current_offset: 0,
+            finished: false,
+            encoder: Encoder::new(
+                code_rate,
+                spreading_factor,
+                has_crc,
+                low_data_rate,
+                implicit_header,
+            ),
+            modulator: Modulator::new(
+                spreading_factor.into(),
+                oversampling,
+                sync_words,
+                preamble_len,
+                pad,
+            ),
+        }
     }
 
-    #[message_handler]
-    fn msg_handler(
+    async fn msg(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -92,16 +80,17 @@ impl Transmitter {
     }
 }
 
-#[async_trait]
-impl Kernel for Transmitter {
+impl<O> Kernel for Transmitter<O>
+where
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let out = sio.output(0).slice::<Complex32>();
+        let out = self.output.slice();
 
         if self.current_offset == self.current_frame.len() {
             if let Some(frame) = self.frames.pop_front() {
@@ -129,7 +118,7 @@ impl Kernel for Transmitter {
         }
 
         self.current_offset += n;
-        sio.output(0).produce(n);
+        self.output.produce(n);
 
         Ok(())
     }

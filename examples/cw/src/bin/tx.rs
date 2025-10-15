@@ -30,14 +30,15 @@ mod foo {
     use leptos::html::Input;
     use leptos::prelude::*;
     use leptos::task::spawn_local;
+    use leptos::web_sys;
 
     const ENTER_KEY: u32 = 13;
 
     #[component]
     fn Gui() -> impl IntoView {
-        let input_ref = create_node_ref::<Input>();
+        let input_ref = NodeRef::<Input>::new();
         let tx_cw = move || {
-            let input = input_ref().unwrap();
+            let input = input_ref.get().unwrap();
             let v = input.value();
             spawn_local(async move { cw::run_fg(v).await.unwrap() });
         };
@@ -59,6 +60,7 @@ mod foo {
 
     pub fn main() -> Result<()> {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        any_spawner::Executor::init_wasm_bindgen().unwrap();
         mount_to_body(|| view! { <Gui /> });
         Ok(())
     }

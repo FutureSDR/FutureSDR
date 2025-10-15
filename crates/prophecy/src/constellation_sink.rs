@@ -5,9 +5,9 @@ use leptos::html::Canvas;
 use leptos::logging::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos::wasm_bindgen::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use web_sys::WebGlProgram;
 use web_sys::WebGlRenderingContext as GL;
@@ -25,21 +25,24 @@ pub fn ConstellationSink(
     #[prop(into)] width: Signal<f32>,
     #[prop(optional, into, default = "ws://127.0.0.1:9002".to_string())] websocket: String,
 ) -> impl IntoView {
-    let (data, set_data) = signal(vec![]);
-    spawn_local(async move {
-        let mut ws = WebSocket::open(&websocket).unwrap();
-        while let Some(msg) = ws.next().await {
-            match msg {
-                Ok(Message::Bytes(b)) => {
-                    set_data(b);
-                }
-                _ => {
-                    log!("ConstellationSink: WebSocket {:?}", msg);
+    let data = Rc::new(RefCell::new(None));
+    {
+        let data = data.clone();
+        spawn_local(async move {
+            let mut ws = WebSocket::open(&websocket).unwrap();
+            while let Some(msg) = ws.next().await {
+                match msg {
+                    Ok(Message::Bytes(b)) => {
+                        *data.borrow_mut() = Some(b);
+                    }
+                    _ => {
+                        log!("ConstellationSink: WebSocket {:?}", msg);
+                    }
                 }
             }
-        }
-        log!("ConstellationSink: WebSocket Closed");
-    });
+            log!("ConstellationSink: WebSocket Closed");
+        });
+    }
 
     let canvas_ref = NodeRef::<Canvas>::new();
     Effect::new(move || {
@@ -97,14 +100,17 @@ pub fn ConstellationSink(
                 shader,
                 vertex_len: 0,
             }));
-            request_animation_frame(render(state, data))
+            request_animation_frame(render(state, data.clone()))
         }
     });
 
     view! { <canvas node_ref=canvas_ref style="width: 100%; height: 100%" /> }
 }
 
-fn render(state: Rc<RefCell<RenderState>>, data: ReadSignal<Vec<u8>>) -> impl FnOnce() + 'static {
+fn render(
+    state: Rc<RefCell<RenderState>>,
+    data: Rc<RefCell<Option<Vec<u8>>>>,
+) -> impl FnOnce() + 'static {
     move || {
         {
             let RenderState {
@@ -125,9 +131,9 @@ fn render(state: Rc<RefCell<RenderState>>, data: ReadSignal<Vec<u8>>) -> impl Fn
                 gl.viewport(0, 0, display_width as i32, display_height as i32);
             }
 
-            let bytes = &*data.read_untracked();
-            if !bytes.is_empty() {
-                gl.buffer_data_with_u8_array(GL::ARRAY_BUFFER, bytes, GL::DYNAMIC_DRAW);
+            if let Some(bytes) = data.borrow_mut().take() {
+                gl.buffer_data_with_u8_array(GL::ARRAY_BUFFER, &bytes, GL::DYNAMIC_DRAW);
+
                 *vertex_len = bytes.len() as i32 / 8;
             };
 

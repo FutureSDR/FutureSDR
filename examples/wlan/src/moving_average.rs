@@ -1,16 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use std::marker::PhantomData;
+use futuresdr::prelude::*;
 
 const MAX_ITER: usize = 4000;
 
@@ -36,55 +24,67 @@ impl MovingAverageType for f32 {
     }
 }
 
-pub struct MovingAverage<T: MovingAverageType + Send + 'static> {
+#[derive(Block)]
+pub struct MovingAverage<D, I = DefaultCpuReader<D>, O = DefaultCpuWriter<D>>
+where
+    D: MovingAverageType + CpuSample,
+    I: CpuBufferReader<Item = D>,
+    O: CpuBufferWriter<Item = D>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     len: usize,
     pad: usize,
-    _type: PhantomData<T>,
 }
 
-impl<T: MovingAverageType + Send + 'static> MovingAverage<T> {
-    pub fn new(len: usize) -> TypedBlock<Self> {
+impl<D, I, O> MovingAverage<D, I, O>
+where
+    D: MovingAverageType + CpuSample,
+    I: CpuBufferReader<Item = D>,
+    O: CpuBufferWriter<Item = D>,
+{
+    pub fn new(len: usize) -> Self {
         assert!(len > 0);
-        TypedBlock::new(
-            BlockMetaBuilder::new("MovingAverage").build(),
-            StreamIoBuilder::new()
-                .add_input::<T>("in")
-                .add_output::<T>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                len,
-                pad: len - 1,
-                _type: PhantomData,
-            },
-        )
+        Self {
+            input: I::default(),
+            output: O::default(),
+            len,
+            pad: len - 1,
+        }
     }
 }
 
-#[async_trait]
-impl<T: MovingAverageType + Send + 'static> Kernel for MovingAverage<T> {
+impl<D, I, O> Kernel for MovingAverage<D, I, O>
+where
+    D: MovingAverageType + CpuSample,
+    I: CpuBufferReader<Item = D>,
+    O: CpuBufferWriter<Item = D>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<T>();
-        let out = sio.output(0).slice::<T>();
+        let input = self.input.slice();
+        let input_len = input.len();
+        let out = self.output.slice();
+        let out_len = out.len();
 
         if self.pad > 0 {
             let m = std::cmp::min(self.pad, out.len());
-            out[0..m].fill(T::zero());
+            out[0..m].fill(D::zero());
             self.pad -= m;
-            sio.output(0).produce(m);
+            self.output.produce(m);
 
-            if m < out.len() {
+            if m < out_len {
                 io.call_again = true;
             }
         } else {
             let m = std::cmp::min(
-                std::cmp::min(MAX_ITER, (input.len() + 1).saturating_sub(self.len)),
+                std::cmp::min(MAX_ITER, (input_len + 1).saturating_sub(self.len)),
                 out.len(),
             );
 
@@ -95,11 +95,11 @@ impl<T: MovingAverageType + Send + 'static> Kernel for MovingAverage<T> {
                     out[i] = sum;
                     sum -= input[i];
                 }
-                sio.input(0).consume(m);
-                sio.output(0).produce(m);
+                self.input.consume(m);
+                self.output.produce(m);
             }
 
-            if sio.input(0).finished() && m == (input.len() + 1).saturating_sub(self.len) {
+            if self.input.finished() && m == (input_len + 1).saturating_sub(self.len) {
                 io.finished = true;
             };
         }
@@ -110,38 +110,45 @@ impl<T: MovingAverageType + Send + 'static> Kernel for MovingAverage<T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use futuresdr::runtime::Mocker;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
 
     #[test]
     fn mov_avg_one() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
-        mocker.input(0, vec![1.0f32, 2.0]);
-        mocker.init_output::<f32>(0, 64);
+        let mut block = MovingAverage::<f32, Reader<_>, Writer<_>>::new(2);
+        block.input().set(vec![1.0f32, 2.0]);
+        block.output().reserve(2);
+        let mut mocker = Mocker::new(block);
         mocker.run();
-        let output = mocker.output::<f32>(0);
+        let (output, _) = mocker.output.get();
 
-        assert_eq!(output.0, vec![0.0, 3.0]);
+        assert_eq!(output, vec![0.0, 3.0]);
     }
 
     #[test]
     fn mov_avg_no_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(3));
-        mocker.input(0, vec![1.0f32, 2.0]);
-        mocker.init_output::<f32>(0, 64);
-        mocker.run();
-        let output = mocker.output::<f32>(0);
+        let mut block = MovingAverage::<f32, Reader<_>, Writer<_>>::new(3);
+        block.input().set(vec![1.0f32, 2.0]);
+        block.output().reserve(2);
 
-        assert_eq!(output.0, vec![0.0, 0.0]);
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+        let (output, _) = mocker.output.get();
+
+        assert_eq!(output, vec![0.0, 0.0]);
     }
 
     #[test]
     fn mov_avg_data() {
-        let mut mocker = Mocker::new(MovingAverage::<f32>::new(2));
-        mocker.input(0, vec![1.0f32, 2.0, 3.0, 4.0]);
-        mocker.init_output::<f32>(0, 64);
-        mocker.run();
-        let output = mocker.output::<f32>(0);
+        let mut block = MovingAverage::<f32, Reader<_>, Writer<_>>::new(2);
+        block.input().set(vec![1.0f32, 2.0, 3.0, 4.0]);
+        block.output().reserve(4);
 
-        assert_eq!(output.0, vec![0.0, 3.0, 5.0, 7.0]);
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+        let (output, _) = mocker.output.get();
+
+        assert_eq!(output, vec![0.0, 3.0, 5.0, 7.0]);
     }
 }

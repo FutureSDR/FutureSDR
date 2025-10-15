@@ -1,263 +1,352 @@
-use futures::SinkExt;
-use futures::channel::mpsc::Sender;
-use futures::channel::oneshot;
-use std::cmp::PartialEq;
+use async_lock::Mutex;
+use async_lock::MutexGuard;
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::sync::Arc;
 
 use crate::runtime::Block;
-use crate::runtime::BlockDescription;
-use crate::runtime::BlockMessage;
+use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::BufferReader;
+use crate::runtime::BufferWriter;
 use crate::runtime::Error;
-use crate::runtime::FlowgraphDescription;
-use crate::runtime::FlowgraphMessage;
 use crate::runtime::Kernel;
-use crate::runtime::Pmt;
+use crate::runtime::KernelInterface;
 use crate::runtime::PortId;
-use crate::runtime::Topology;
-use crate::runtime::buffer::BufferBuilder;
-use crate::runtime::buffer::BufferWriter;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::runtime::buffer::circular::Circular;
-#[cfg(target_arch = "wasm32")]
-use crate::runtime::buffer::slab::Slab;
+use crate::runtime::WrappedKernel;
 
-/// The main component of any FutureSDR program.
+/// Reference to a [Block] that was added to the [Flowgraph].
 ///
-/// A [Flowgraph] is what drives the entire program. It is composed of a set of blocks and connections between them.
-/// There is at least one source and one sink in every Flowgraph.
+/// Internally, it keeps an `Arc<Mutex<WrappedKernel<K>>>`, where `K` is the struct implementing
+/// the block.
+pub struct BlockRef<K: Kernel> {
+    id: BlockId,
+    block: Arc<Mutex<WrappedKernel<K>>>,
+}
+impl<K: Kernel> BlockRef<K> {
+    /// Get a mutable, typed handle to [WrappedKernel]
+    ///
+    /// Since [WrappedKernel] implements [Deref](std::ops::Deref) and
+    /// [DerefMut](std::ops::DerefMut), one can directly access the block.
+    pub fn get(&self) -> Result<MutexGuard<'_, WrappedKernel<K>>, Error> {
+        self.block.try_lock().ok_or(Error::LockError)
+    }
+}
+impl<K: Kernel> Clone for BlockRef<K> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            block: self.block.clone(),
+        }
+    }
+}
+impl<K: Kernel> Debug for BlockRef<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockRef")
+            .field("id", &self.id)
+            .field(
+                "instance_name",
+                &self.block.try_lock().map(|b| {
+                    b.meta
+                        .instance_name()
+                        .map(String::from)
+                        .unwrap_or("<unknown>".to_string())
+                }),
+            )
+            .finish()
+    }
+}
+impl<K: Kernel> From<BlockRef<K>> for BlockId {
+    fn from(value: BlockRef<K>) -> Self {
+        value.id
+    }
+}
+impl<K: Kernel> From<&BlockRef<K>> for BlockId {
+    fn from(value: &BlockRef<K>) -> Self {
+        value.id
+    }
+}
+
+/// The main component of any FutureSDR application.
+///
+/// A [Flowgraph] is composed of a set of blocks and connections between them. It is typically set
+/// up with the [connect](futuresdr::macros::connect) macro. Once it is configure, the [Flowgraph]
+/// is executed on a [Runtime](futuresdr::runtime::Runtime).
+///
+/// ```
+/// use anyhow::Result;
+/// use futuresdr::blocks::Head;
+/// use futuresdr::blocks::NullSink;
+/// use futuresdr::blocks::NullSource;
+/// use futuresdr::prelude::*;
+///
+/// fn main() -> Result<()> {
+///     let mut fg = Flowgraph::new();
+///
+///     let src = NullSource::<u8>::new();
+///     let head = Head::<u8>::new(1234);
+///     let snk = NullSink::<u8>::new();
+///
+///     connect!(fg, src > head > snk);
+///     Runtime::new().run(fg)?;
+///
+///     Ok(())
+/// }
+/// ```
 pub struct Flowgraph {
-    pub(crate) topology: Option<Topology>,
+    pub(crate) blocks: Vec<Arc<Mutex<dyn Block>>>,
+    pub(crate) stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    pub(crate) message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
 impl Flowgraph {
-    /// Creates a new [Flowgraph] with an empty [Topology]
+    /// Create a [Flowgraph].
     pub fn new() -> Flowgraph {
         Flowgraph {
-            topology: Some(Topology::new()),
+            blocks: Vec::new(),
+            stream_edges: vec![],
+            message_edges: vec![],
         }
     }
 
-    /// Add [`Block`] to flowgraph
-    pub fn add_block(&mut self, block: impl Into<Block>) -> Result<usize, Error> {
-        self.topology.as_mut().unwrap().add_block(block.into())
+    /// Add a [`Block`] to the [Flowgraph]
+    ///
+    /// The returned reference is typed and can be used to access the block before and after the
+    /// flowgraph ran.
+    ///
+    /// Usually, this is done under the hood by the [connect](futuresdr::macros::connect) macro.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     connect!(fg, src > head > snk);
+    ///     Runtime::new().run(fg)?;
+    ///
+    ///     // typed-access to the block
+    ///     let snk = snk.get();
+    ///     let n = snk.n_received();
+    ///     assert_eq!(n, 1234);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn add_block<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
+        let block_id = BlockId(self.blocks.len());
+        let mut b = WrappedKernel::new(block, block_id);
+        let block_name = b.type_name();
+        b.set_instance_name(&format!("{}-{}", block_name, block_id.0));
+        let b = Arc::new(Mutex::new(b));
+        self.blocks.push(b.clone());
+        BlockRef {
+            id: block_id,
+            block: b,
+        }
     }
 
-    /// Make stream connection
-    pub fn connect_stream(
-        &mut self,
-        src_block: usize,
-        src_port: impl Into<PortId>,
-        dst_block: usize,
-        dst_port: impl Into<PortId>,
-    ) -> Result<(), Error> {
-        self.topology.as_mut().unwrap().connect_stream(
-            src_block,
-            src_port.into(),
-            dst_block,
-            dst_port.into(),
-            DefaultBuffer::new(),
-        )
+    /// Make a stream connection
+    ///
+    /// This is the prefered way to connect stream ports. Usually, this function is not called
+    /// directly but used under-the-hood by the [connect](futuresdr::macros::connect) macro.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     // here, it is used under the hood
+    ///     connect!(fg, src > head);
+    ///     // explicit use
+    ///     let snk = fg.add_block(snk);
+    ///     fg.connect_stream(head.get().output(), snk.get().input());
+    ///
+    ///     Runtime::new().run(fg)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn connect_stream<B: BufferWriter>(&mut self, src_port: &mut B, dst_port: &mut B::Reader) {
+        self.stream_edges.push((
+            src_port.block_id(),
+            src_port.port_id(),
+            dst_port.block_id(),
+            dst_port.port_id(),
+        ));
+        src_port.connect(dst_port);
     }
 
-    /// Make stream connection, using the given buffer
-    pub fn connect_stream_with_type<B: BufferBuilder + Debug + Eq + Hash>(
+    /// Connect stream ports non-type-safe
+    ///
+    /// This function only does runtime checks. If the stream ports exist and have compatible
+    /// types and sample types, will only be checked during runtime.
+    ///
+    /// If possible, it is, therefore, recommneded to use the typed version ([Flowgraph::connect_stream]).
+    ///
+    /// This function can be helpful when using types is not practical. For example, when a runtime
+    /// option switches between different block types, which is often used to switch between
+    /// reading samples from hardware or a file.
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     // type erasure for src
+    ///     let src = fg.add_block(src);
+    ///     let src: BlockId = src.into();
+    ///
+    ///     let head = fg.add_block(head);
+    ///
+    ///     // untyped connect
+    ///     fg.connect_dyn(src, "output", &head, "input")?;
+    ///     // typed connect
+    ///     connect!(fg, head > snk);
+    ///
+    ///     Runtime::new().run(fg)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn connect_dyn(
         &mut self,
-        src_block: usize,
+        src: impl Into<BlockId>,
         src_port: impl Into<PortId>,
-        dst_block: usize,
+        dst: impl Into<BlockId>,
         dst_port: impl Into<PortId>,
-        buffer: B,
     ) -> Result<(), Error> {
-        self.topology.as_mut().unwrap().connect_stream(
-            src_block,
-            src_port.into(),
-            dst_block,
-            dst_port.into(),
-            buffer,
-        )
+        let src_id = src.into();
+        let src_port = src_port.into();
+        let dst = dst.into();
+        let dst_port: PortId = dst_port.into();
+        let src = self
+            .blocks
+            .get(src_id.0)
+            .ok_or(Error::InvalidBlock(src_id))?;
+        let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
+        let mut tmp = dst.try_lock().ok_or(Error::LockError)?;
+        let reader = tmp
+            .stream_input(dst_port.name())
+            .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
+        src.try_lock()
+            .ok_or(Error::LockError)?
+            .connect_stream_output(src_port.name(), reader)
     }
 
     /// Make message connection
     pub fn connect_message(
         &mut self,
-        src_block: usize,
+        src_block: impl Into<BlockId>,
         src_port: impl Into<PortId>,
-        dst_block: usize,
+        dst_block: impl Into<BlockId>,
         dst_port: impl Into<PortId>,
     ) -> Result<(), Error> {
-        self.topology.as_mut().unwrap().connect_message(
-            src_block,
-            src_port.into(),
-            dst_block,
-            dst_port.into(),
-        )
+        let src_id = src_block.into();
+        let dst_id = dst_block.into();
+        let src_port = src_port.into();
+        let dst_port = dst_port.into();
+        debug_assert_ne!(src_id, dst_id);
+
+        let mut src_block = self
+            .blocks
+            .get(src_id.0)
+            .ok_or(Error::InvalidBlock(src_id))?
+            .try_lock()
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {src_id:?}")))?;
+        let dst_block = self
+            .blocks
+            .get(dst_id.0)
+            .ok_or(Error::InvalidBlock(dst_id))?
+            .try_lock()
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {dst_id:?}")))?;
+        let dst_box = dst_block.inbox();
+
+        src_block.connect(&src_port, dst_box, &dst_port)?;
+        if !dst_block.message_inputs().contains(&dst_port.name()) {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(dst_id),
+                dst_port,
+            ));
+        }
+        self.message_edges
+            .push((src_id, src_port, dst_id, dst_port));
+        Ok(())
     }
 
-    /// Try to get kernel from given block
-    pub fn kernel<T: Kernel + 'static>(&self, id: usize) -> Option<&T> {
-        self.topology
-            .as_ref()
-            .and_then(|t| t.block_ref(id))
-            .and_then(|b| b.kernel())
-    }
-
-    /// Try to get kernel mutably from given block
-    pub fn kernel_mut<T: Kernel + 'static>(&mut self, id: usize) -> Option<&T> {
-        self.topology
-            .as_mut()
-            .and_then(|t| t.block_mut(id))
-            .and_then(|b| b.kernel_mut())
+    /// Get dyn reference to [Block]
+    ///
+    /// This should only be used when a [BlockRef], i.e., a typed reference to the block is not
+    /// available.
+    ///
+    /// A dyn Block reference can be downcasted to a typed refrence, e.g.:
+    ///
+    /// ```rust
+    /// use anyhow::Result;
+    /// use futuresdr::blocks::Head;
+    /// use futuresdr::blocks::NullSink;
+    /// use futuresdr::blocks::NullSource;
+    /// use futuresdr::prelude::*;
+    /// use futuresdr::runtime::WrappedKernel;
+    ///
+    /// fn main() -> Result<()> {
+    ///     let mut fg = Flowgraph::new();
+    ///
+    ///     let src = NullSource::<u8>::new();
+    ///     let head = Head::<u8>::new(1234);
+    ///     let snk = NullSink::<u8>::new();
+    ///
+    ///     connect!(fg, src > head > snk);
+    ///
+    ///     // Let's assume this is required.
+    ///     let snk: BlockId = snk.into();
+    ///     fg = Runtime::new().run(fg)?;
+    ///
+    ///     let mut blk = fg.get_block(snk)?.lock_arc_blocking();
+    ///     let snk = blk
+    ///         .as_any_mut()
+    ///         .downcast_mut::<WrappedKernel<NullSink<u8>>>()
+    ///         .unwrap();
+    ///     let v = snk.n_received();
+    ///     assert_eq!(v, 1234);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn get_block(&self, id: BlockId) -> Result<Arc<Mutex<dyn Block>>, Error> {
+        Ok(self
+            .blocks
+            .get(id.0)
+            .ok_or(Error::InvalidBlock(id))?
+            .clone())
     }
 }
 
 impl Default for Flowgraph {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl AsMut<Flowgraph> for Flowgraph {
-    fn as_mut(&mut self) -> &mut Flowgraph {
-        self
-    }
-}
-
-/// Handle to interact with running [`Flowgraph`]
-#[derive(Debug, Clone)]
-pub struct FlowgraphHandle {
-    inbox: Sender<FlowgraphMessage>,
-}
-
-impl PartialEq for FlowgraphHandle {
-    fn eq(&self, other: &Self) -> bool {
-        self.inbox.same_receiver(&other.inbox)
-    }
-}
-
-impl FlowgraphHandle {
-    pub(crate) fn new(inbox: Sender<FlowgraphMessage>) -> FlowgraphHandle {
-        FlowgraphHandle { inbox }
-    }
-
-    /// Call message handler, ignoring the result
-    pub async fn call(
-        &mut self,
-        block_id: usize,
-        port_id: impl Into<PortId>,
-        data: Pmt,
-    ) -> Result<(), Error> {
-        let (tx, rx) = oneshot::channel::<Result<(), Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockCall {
-                block_id,
-                port_id: port_id.into(),
-                data,
-                tx,
-            })
-            .await
-            .or(Err(Error::InvalidBlock(block_id)))?;
-        rx.await?
-    }
-
-    /// Call message handler
-    pub async fn callback(
-        &mut self,
-        block_id: usize,
-        port_id: impl Into<PortId>,
-        data: Pmt,
-    ) -> Result<Pmt, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockCallback {
-                block_id,
-                port_id: port_id.into(),
-                data,
-                tx,
-            })
-            .await
-            .map_err(|_| Error::InvalidBlock(block_id))?;
-        rx.await?
-    }
-
-    /// Get [`FlowgraphDescription`]
-    pub async fn description(&mut self) -> Result<FlowgraphDescription, Error> {
-        let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
-        self.inbox
-            .send(FlowgraphMessage::FlowgraphDescription { tx })
-            .await
-            .or(Err(Error::FlowgraphTerminated))?;
-        let d = rx.await.or(Err(Error::FlowgraphTerminated))?;
-        Ok(d)
-    }
-
-    /// Get [`BlockDescription`]
-    pub async fn block_description(&mut self, block_id: usize) -> Result<BlockDescription, Error> {
-        let (tx, rx) = oneshot::channel::<Result<BlockDescription, Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockDescription { block_id, tx })
-            .await
-            .map_err(|_| Error::InvalidBlock(block_id))?;
-        let d = rx.await.map_err(|_| Error::InvalidBlock(block_id))??;
-        Ok(d)
-    }
-
-    /// Send a terminate message to the [`Flowgraph`]
-    ///
-    /// Does not wait until the [`Flowgraph`] is actually terminated.
-    pub async fn terminate(&mut self) -> Result<(), Error> {
-        self.inbox
-            .send(FlowgraphMessage::Terminate)
-            .await
-            .map_err(|_| Error::FlowgraphTerminated)?;
-        Ok(())
-    }
-
-    /// Terminate the [`Flowgraph`]
-    ///
-    /// Send a terminate message to the [`Flowgraph`] and wait until it is shutdown.
-    pub async fn terminate_and_wait(&mut self) -> Result<(), Error> {
-        self.terminate()
-            .await
-            .map_err(|_| Error::FlowgraphTerminated)?;
-        while !self.inbox.is_closed() {
-            #[cfg(not(target_arch = "wasm32"))]
-            async_io::Timer::after(std::time::Duration::from_millis(200)).await;
-            #[cfg(target_arch = "wasm32")]
-            gloo_timers::future::sleep(std::time::Duration::from_millis(200)).await;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, PartialEq, Hash)]
-pub struct DefaultBuffer;
-
-impl Eq for DefaultBuffer {}
-
-impl DefaultBuffer {
-    fn new() -> DefaultBuffer {
-        DefaultBuffer
-    }
-}
-
-impl BufferBuilder for DefaultBuffer {
-    #[cfg(not(target_arch = "wasm32"))]
-    fn build(
-        &self,
-        item_size: usize,
-        writer_inbox: Sender<BlockMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        Circular::new().build(item_size, writer_inbox, writer_output_id)
-    }
-    #[cfg(target_arch = "wasm32")]
-    fn build(
-        &self,
-        item_size: usize,
-        writer_inbox: Sender<BlockMessage>,
-        writer_output_id: usize,
-    ) -> BufferWriter {
-        Slab::new().build(item_size, writer_inbox, writer_output_id)
     }
 }

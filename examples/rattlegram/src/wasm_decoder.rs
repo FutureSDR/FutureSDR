@@ -1,6 +1,5 @@
 use futuresdr::tracing::info;
-use web_sys::wasm_bindgen;
-use web_sys::wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::*;
 
 use crate::Decoder;
 use crate::DecoderResult;

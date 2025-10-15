@@ -11,6 +11,8 @@ clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = ["vulkan"] }
 rand = "0.9"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
+vulkano = { version = "0.35" }
+vulkano-shaders = { version = "0.35" }
 
 [[bin]]
 name = "vulkan"

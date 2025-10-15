@@ -1,28 +1,19 @@
+use futuresdr::prelude::*;
+
 use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;
 use crate::Mcs;
 
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::warn;
-
+#[derive(Block)]
+#[message_inputs(tx)]
+#[message_outputs(tx)]
 pub struct Mac {
     current_frame: [u8; MAX_PSDU_SIZE],
     sequence_number: u16,
 }
 
 impl Mac {
-    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6]) -> TypedBlock<Self> {
+    pub fn new(src_mac: [u8; 6], dst_mac: [u8; 6], bss_mac: [u8; 6]) -> Self {
         let mut current_frame = [0; MAX_PSDU_SIZE];
 
         // frame control
@@ -34,25 +25,16 @@ impl Mac {
         current_frame[10..16].copy_from_slice(&dst_mac);
         current_frame[16..22].copy_from_slice(&bss_mac);
 
-        TypedBlock::new(
-            BlockMetaBuilder::new("Mac").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("tx", Self::transmit)
-                .add_output("tx")
-                .build(),
-            Mac {
-                current_frame,
-                sequence_number: 0,
-            },
-        )
+        Mac {
+            current_frame,
+            sequence_number: 0,
+        }
     }
 
-    #[message_handler]
-    async fn transmit(
+    async fn tx(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -69,9 +51,8 @@ impl Mac {
                     debug!("mac frame {:?}", &self.current_frame[0..len]);
                     let mut vec = vec![0; len];
                     vec.copy_from_slice(&self.current_frame[0..len]);
-                    mio.output_mut(0)
-                        .post(Pmt::Any(Box::new((vec, None as Option<Mcs>))))
-                        .await;
+                    mio.post("tx", Pmt::Any(Box::new((vec, None as Option<Mcs>))))
+                        .await?;
                 }
             }
             Pmt::Any(a) => {
@@ -87,9 +68,8 @@ impl Mac {
                         debug!("mac frame {:?}", &self.current_frame[0..len]);
                         let mut vec = vec![0; len];
                         vec.copy_from_slice(&self.current_frame[0..len]);
-                        mio.output_mut(0)
-                            .post(Pmt::Any(Box::new((vec, Some(*mcs)))))
-                            .await;
+                        mio.post("tx", Pmt::Any(Box::new((vec, Some(*mcs)))))
+                            .await?;
                     }
                 }
             }
@@ -124,5 +104,4 @@ impl Mac {
     }
 }
 
-#[async_trait]
 impl Kernel for Mac {}

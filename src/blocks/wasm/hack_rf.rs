@@ -4,18 +4,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::WorkerGlobalScope;
 
-use crate::num_complex::Complex32;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
+use crate::prelude::*;
 
 const TRANSFER_SIZE: usize = 262144;
 
@@ -103,7 +92,11 @@ impl From<JsValue> for Error {
 }
 
 /// WASM-native HackRf Source
+#[derive(Block)]
+#[message_inputs(freq, vga, lna, amp, sample_rate)]
 pub struct HackRf {
+    #[output]
+    output: slab::Writer<Complex32>,
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
     device: Option<web_sys::UsbDevice>,
@@ -111,34 +104,27 @@ pub struct HackRf {
 
 unsafe impl Send for HackRf {}
 
+impl Default for HackRf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HackRf {
     /// Create HackRf Source
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("HackRf").build(),
-            StreamIoBuilder::new()
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::<Self>::new()
-                .add_input("freq", Self::freq_handler)
-                .add_input("vga", Self::vga_handler)
-                .add_input("lna", Self::lna_handler)
-                .add_input("amp", Self::amp_handler)
-                .add_input("sample_rate", Self::sample_rate_handler)
-                .build(),
-            Self {
-                buffer: [0; TRANSFER_SIZE],
-                offset: TRANSFER_SIZE,
-                device: None,
-            },
-        )
+    pub fn new() -> Self {
+        Self {
+            output: slab::Writer::default(),
+            buffer: [0; TRANSFER_SIZE],
+            offset: TRANSFER_SIZE,
+            device: None,
+        }
     }
 
-    #[message_handler]
-    fn freq_handler(
+    async fn freq(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -156,11 +142,10 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn lna_handler(
+    async fn lna(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -178,11 +163,10 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn vga_handler(
+    async fn vga(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -200,11 +184,10 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn amp_handler(
+    async fn amp(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -219,11 +202,10 @@ impl HackRf {
         }
     }
 
-    #[message_handler]
-    fn sample_rate_handler(
+    async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -468,14 +450,9 @@ impl HackRf {
     }
 }
 
-#[async_trait]
+#[doc(hidden)]
 impl Kernel for HackRf {
-    async fn init(
-        &mut self,
-        _s: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
-        _b: &mut BlockMeta,
-    ) -> Result<()> {
+    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let usb = {
             if let Some(window) = web_sys::window() {
                 let navigator: web_sys::Navigator = window.navigator();
@@ -548,11 +525,10 @@ impl Kernel for HackRf {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<Complex32>();
+        let o = self.output.slice();
 
         let n = std::cmp::min(o.len(), (TRANSFER_SIZE - self.offset) / 2);
 
@@ -563,7 +539,7 @@ impl Kernel for HackRf {
             );
         }
 
-        sio.output(0).produce(n);
+        self.output.produce(n);
         self.offset += n * 2;
         if self.offset == TRANSFER_SIZE {
             self.fill_buffer().await.unwrap();

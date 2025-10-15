@@ -1,18 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::warn;
+use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
 use crate::FrameParam;
@@ -23,13 +9,8 @@ use crate::Mcs;
 /// Maximum number of frames to queue for transmission
 const MAX_FRAMES: usize = 1000;
 
-pub struct Encoder {
-    tx_frames: VecDeque<(Vec<u8>, Mcs)>,
-    default_mcs: Mcs,
-    current_len: usize,
-    current_index: usize,
+struct Enc {
     scrambler_seed: u8,
-
     bits: [u8; MAX_ENCODED_BITS],
     scrambled: [u8; MAX_ENCODED_BITS],
     encoded: [u8; 2 * MAX_ENCODED_BITS],
@@ -38,90 +19,7 @@ pub struct Encoder {
     symbols: [u8; 2 * MAX_ENCODED_BITS],
 }
 
-impl Encoder {
-    pub fn new(default_mcs: Mcs) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Encoder").build(),
-            StreamIoBuilder::new().add_output::<u8>("out").build(),
-            MessageIoBuilder::new()
-                .add_input("tx", Self::transmit)
-                .build(),
-            Encoder {
-                tx_frames: VecDeque::new(),
-                default_mcs,
-                current_len: 0,
-                current_index: 0,
-                scrambler_seed: 1,
-
-                bits: [0; MAX_ENCODED_BITS],
-                scrambled: [0; MAX_ENCODED_BITS],
-                encoded: [0; 2 * MAX_ENCODED_BITS],
-                punctured: [0; 2 * MAX_ENCODED_BITS],
-                interleaved: [0; 2 * MAX_ENCODED_BITS],
-                symbols: [0; 2 * MAX_ENCODED_BITS],
-            },
-        )
-    }
-
-    #[message_handler]
-    async fn transmit(
-        &mut self,
-        io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-        p: Pmt,
-    ) -> Result<Pmt> {
-        match p {
-            Pmt::Blob(data) => {
-                if self.tx_frames.len() >= MAX_FRAMES {
-                    warn!(
-                        "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
-                        MAX_FRAMES
-                    );
-                } else if data.len() > MAX_PSDU_SIZE {
-                    warn!(
-                        "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
-                        data.len(),
-                        MAX_PSDU_SIZE
-                    );
-                } else {
-                    self.tx_frames.push_back((data, self.default_mcs));
-                }
-            }
-            Pmt::Any(a) => {
-                if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Option<Mcs>)>() {
-                    let data = data.clone();
-                    if self.tx_frames.len() >= MAX_FRAMES {
-                        warn!(
-                            "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
-                            MAX_FRAMES
-                        );
-                    } else if data.len() > MAX_PSDU_SIZE {
-                        warn!(
-                            "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
-                            data.len(),
-                            MAX_PSDU_SIZE
-                        );
-                    } else if let Some(m) = mcs {
-                        self.tx_frames.push_back((data, *m));
-                    } else {
-                        self.tx_frames.push_back((data, self.default_mcs));
-                    }
-                }
-            }
-            Pmt::Finished => {
-                io.finished = true;
-            }
-            x => {
-                warn!(
-                    "WLAN Encoder: received wrong PMT type in TX callback. {:?}",
-                    x
-                );
-            }
-        }
-        Ok(Pmt::Null)
-    }
-
+impl Enc {
     fn generate_bits(&mut self, data: &[u8]) {
         for i in 0..data.len() {
             for b in 0..8 {
@@ -233,17 +131,115 @@ impl Encoder {
     }
 }
 
-#[async_trait]
-impl Kernel for Encoder {
+#[derive(Block)]
+#[message_inputs(tx)]
+pub struct Encoder<O = DefaultCpuWriter<u8>>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
+    #[output]
+    output: O,
+    tx_frames: VecDeque<(Vec<u8>, Mcs)>,
+    default_mcs: Mcs,
+    current_len: usize,
+    current_index: usize,
+    enc: Enc,
+}
+
+impl<O> Encoder<O>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
+    pub fn new(default_mcs: Mcs) -> Self {
+        Self {
+            output: O::default(),
+            tx_frames: VecDeque::new(),
+            default_mcs,
+            current_len: 0,
+            current_index: 0,
+            enc: Enc {
+                scrambler_seed: 1,
+                bits: [0; MAX_ENCODED_BITS],
+                scrambled: [0; MAX_ENCODED_BITS],
+                encoded: [0; 2 * MAX_ENCODED_BITS],
+                punctured: [0; 2 * MAX_ENCODED_BITS],
+                interleaved: [0; 2 * MAX_ENCODED_BITS],
+                symbols: [0; 2 * MAX_ENCODED_BITS],
+            },
+        }
+    }
+
+    async fn tx(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        match p {
+            Pmt::Blob(data) => {
+                if self.tx_frames.len() >= MAX_FRAMES {
+                    warn!(
+                        "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
+                        MAX_FRAMES
+                    );
+                } else if data.len() > MAX_PSDU_SIZE {
+                    warn!(
+                        "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
+                        data.len(),
+                        MAX_PSDU_SIZE
+                    );
+                } else {
+                    self.tx_frames.push_back((data, self.default_mcs));
+                }
+            }
+            Pmt::Any(a) => {
+                if let Some((data, mcs)) = a.downcast_ref::<(Vec<u8>, Option<Mcs>)>() {
+                    let data = data.clone();
+                    if self.tx_frames.len() >= MAX_FRAMES {
+                        warn!(
+                            "WLAN Encoder: max number of frames already in TX queue ({}). Dropping.",
+                            MAX_FRAMES
+                        );
+                    } else if data.len() > MAX_PSDU_SIZE {
+                        warn!(
+                            "WLAN Encoder: TX frame too large ({}, max {}). Dropping.",
+                            data.len(),
+                            MAX_PSDU_SIZE
+                        );
+                    } else if let Some(m) = mcs {
+                        self.tx_frames.push_back((data, *m));
+                    } else {
+                        self.tx_frames.push_back((data, self.default_mcs));
+                    }
+                }
+            }
+            Pmt::Finished => {
+                io.finished = true;
+            }
+            x => {
+                warn!(
+                    "WLAN Encoder: received wrong PMT type in TX callback. {:?}",
+                    x
+                );
+            }
+        }
+        Ok(Pmt::Null)
+    }
+}
+
+impl<O> Kernel for Encoder<O>
+where
+    O: CpuBufferWriter<Item = u8>,
+{
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {
-            let out = sio.output(0).slice::<u8>();
+            let (out, mut out_tags) = self.output.slice_with_tags();
             if out.is_empty() {
                 break;
             }
@@ -251,11 +247,10 @@ impl Kernel for Encoder {
             if self.current_len == 0 {
                 if let Some((data, mcs)) = self.tx_frames.pop_front() {
                     let frame = FrameParam::new(mcs, data.len());
-                    self.encode(&data, &frame);
+                    self.enc.encode(&data, &frame);
                     self.current_len = frame.n_symbols() * 48;
                     self.current_index = 0;
-                    sio.output(0)
-                        .add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
+                    out_tags.add_tag(0, Tag::NamedAny("wifi_start".to_string(), Box::new(frame)));
                 } else {
                     break;
                 }
@@ -263,13 +258,13 @@ impl Kernel for Encoder {
                 let n = std::cmp::min(out.len(), self.current_len - self.current_index);
                 unsafe {
                     std::ptr::copy_nonoverlapping(
-                        self.symbols.as_ptr().add(self.current_index),
+                        self.enc.symbols.as_ptr().add(self.current_index),
                         out.as_mut_ptr(),
                         n,
                     );
                 }
 
-                sio.output(0).produce(n);
+                self.output.produce(n);
                 self.current_index += n;
 
                 if self.current_index == self.current_len {

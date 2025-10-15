@@ -90,7 +90,7 @@ fn create_dense_grid(
      * Similar to above, if odd symmetry, last grid point can't be .5
      *  - but, if there are even taps, leave the last grid point at .5
      */
-    if (symmetry == NEGATIVE) && (grid[gridsize - 1] > (0.5 - delf)) && (numtaps % 2) != 0 {
+    if (symmetry == NEGATIVE) && (grid[gridsize - 1] > (0.5 - delf)) && !numtaps.is_multiple_of(2) {
         grid[gridsize - 1] = 0.5 - delf;
     }
     (grid, d, w)
@@ -421,7 +421,7 @@ fn search(r: usize, ext: &mut [usize], gridsize: usize, e: &[f64]) -> i8 {
 fn freq_sample(n_coeffs: usize, a: &[f64], symm: bool) -> Vec<f64> {
     let m = (n_coeffs - 1) as f64 / 2.0;
     if symm == POSITIVE {
-        if (n_coeffs % 2) != 0 {
+        if !n_coeffs.is_multiple_of(2) {
             (0..n_coeffs)
                 .map(|n| {
                     let mut val = a[0];
@@ -444,7 +444,7 @@ fn freq_sample(n_coeffs: usize, a: &[f64], symm: bool) -> Vec<f64> {
                 })
                 .collect()
         }
-    } else if (n_coeffs % 2) != 0 {
+    } else if !n_coeffs.is_multiple_of(2) {
         (0..n_coeffs)
             .map(|n| {
                 let mut val = 0.;
@@ -539,7 +539,7 @@ fn remez(
         NEGATIVE
     };
     let mut r = numtaps / 2; /* number of extrema */
-    if (numtaps % 2) != 0 && (symmetry == POSITIVE) {
+    if !numtaps.is_multiple_of(2) && (symmetry == POSITIVE) {
         r += 1;
     }
 
@@ -602,14 +602,14 @@ fn remez(
      * D[] and W[] according to Parks McClellan
      */
     if symmetry == POSITIVE {
-        if numtaps % 2 == 0 {
+        if numtaps.is_multiple_of(2) {
             for i in 0..gridsize {
                 let c = (PI * grid[i]).cos();
                 d[i] /= c;
                 w[i] *= c;
             }
         }
-    } else if numtaps % 2 != 0 {
+    } else if !numtaps.is_multiple_of(2) {
         for i in 0..gridsize {
             let c = (2. * PI * grid[i]).sin();
             d[i] /= c;
@@ -653,12 +653,12 @@ fn remez(
     let taps: Vec<f64> = (0..(numtaps / 2))
         .map(|i| {
             let c: f64 = if symmetry == POSITIVE {
-                if numtaps % 2 != 0 {
+                if !numtaps.is_multiple_of(2) {
                     1.
                 } else {
                     (PI * i as f64 / numtaps as f64).cos()
                 }
-            } else if numtaps % 2 != 0 {
+            } else if !numtaps.is_multiple_of(2) {
                 (2. * PI * i as f64 / numtaps as f64).sin()
             } else {
                 (PI * i as f64 / numtaps as f64).sin()

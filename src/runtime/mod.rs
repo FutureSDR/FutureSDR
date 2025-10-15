@@ -1,7 +1,6 @@
 //! ## SDR Runtime
-
-use futures::channel::mpsc;
-use futures::channel::oneshot;
+use futuresdr::channel::mpsc;
+use futuresdr::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
@@ -30,44 +29,38 @@ mod logging;
 mod logging;
 
 mod flowgraph;
-pub mod message_io;
+mod flowgraph_handle;
+mod kernel;
+mod message_io;
 #[cfg(not(target_arch = "wasm32"))]
-mod mocker;
+/// Mocker for unit testing and benchmarking
+pub mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
-pub mod stream_io;
 mod tag;
-mod topology;
+mod work_io;
 
 pub use block::Block;
-pub use block::BlockT;
-pub use block::Kernel;
-pub use block::TypedBlock;
-pub use block::WorkIo;
+pub use block::WrappedKernel;
 pub use block_meta::BlockMeta;
-pub use block_meta::BlockMetaBuilder;
+pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
-pub use flowgraph::FlowgraphHandle;
-pub use message_io::MessageInput;
-pub use message_io::MessageIo;
-pub use message_io::MessageIoBuilder;
+pub use flowgraph_handle::FlowgraphHandle;
+pub use kernel::Kernel;
+pub use kernel::KernelInterface;
 pub use message_io::MessageOutput;
-#[cfg(not(target_arch = "wasm32"))]
-pub use mocker::Mocker;
+pub use message_io::MessageOutputs;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
-pub use stream_io::StreamInput;
-pub use stream_io::StreamIo;
-pub use stream_io::StreamIoBuilder;
-pub use stream_io::StreamOutput;
 pub use tag::ItemTag;
 pub use tag::Tag;
-pub use tag::copy_tag_propagation;
-pub use topology::Topology;
+pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
+pub use futuresdr_types::BlockId;
 pub use futuresdr_types::FlowgraphDescription;
+pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
@@ -99,24 +92,20 @@ pub enum FlowgraphMessage {
     Terminate,
     /// Initialize
     Initialized,
-    /// Block is done
+    /// Block is Done
     BlockDone {
-        /// Block Id
-        block_id: usize,
-        /// Block
-        block: Block,
+        /// The Block that is done.
+        block_id: BlockId,
     },
-    /// Block encountered an error
+    /// Block Error
     BlockError {
-        /// BlockId
-        block_id: usize,
-        /// Block
-        block: Block,
+        /// The Block that ran into an error.
+        block_id: BlockId,
     },
     /// Call handler of block (ignoring result)
     BlockCall {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Message handler Id
         port_id: PortId,
         /// Input data
@@ -127,7 +116,7 @@ pub enum FlowgraphMessage {
     /// Call handler of block
     BlockCallback {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Message handler Id
         port_id: PortId,
         /// Input data
@@ -143,7 +132,7 @@ pub enum FlowgraphMessage {
     /// Get [`BlockDescription`]
     BlockDescription {
         /// Block Id
-        block_id: usize,
+        block_id: BlockId,
         /// Back channel for result
         tx: oneshot::Sender<Result<BlockDescription, Error>>,
     },
@@ -163,38 +152,15 @@ pub enum BlockMessage {
         /// Channel for return value
         tx: oneshot::Sender<BlockDescription>,
     },
-    /// Initialize [`StreamOutput`]
-    StreamOutputInit {
-        /// Stream output ID
-        src_port: usize,
-        /// [`BufferWriter`]
-        writer: BufferWriter,
-    },
-    /// Initialize [`StreamInput`]
-    StreamInputInit {
-        /// Stream input Id
-        dst_port: usize,
-        /// [`BufferReader`]
-        reader: BufferReader,
-    },
     /// Stream input port is done
     StreamInputDone {
         /// Stream input Id
-        input_id: usize,
+        input_id: PortId,
     },
     /// Stream output port is done
     StreamOutputDone {
         /// Stream output Id
-        output_id: usize,
-    },
-    /// Connect message output
-    MessageOutputConnect {
-        /// Message output port Id
-        src_port: usize,
-        /// Destination input port Id
-        dst_port: usize,
-        /// Destination block inbox
-        dst_inbox: mpsc::Sender<BlockMessage>,
+        output_id: PortId,
     },
     /// Call handler (return value is ignored)
     Call {
@@ -219,23 +185,20 @@ pub enum BlockMessage {
 #[non_exhaustive]
 pub enum Error {
     /// Block does not exist
-    #[error("Block {0} does not exist")]
-    InvalidBlock(usize),
+    #[error("Block {:?} does not exist", 0)]
+    InvalidBlock(BlockId),
     /// Flowgraph does not exist or terminated
     #[error("Flowgraph terminated")]
     FlowgraphTerminated,
     /// Message port does not exist
-    #[error("Block '{0}' does not have message port '{1}'")]
+    #[error("Block '{0}' does not have message port '{1:?}'")]
     InvalidMessagePort(BlockPortCtx, PortId),
     /// Stream port does not exist
-    #[error("Block '{0}' does not have stream port '{1}'")]
+    #[error("Block '{0}' does not have stream port '{1:?}'")]
     InvalidStreamPort(BlockPortCtx, PortId),
     /// Invalid Parameter
     #[error("Invalid Parameter")]
     InvalidParameter,
-    /// Connect Error
-    #[error("Connect error: {0}")]
-    ConnectError(Box<ConnectCtx>),
     /// Error in handler
     #[error("Error in message handler: {0}")]
     HandlerError(String),
@@ -251,18 +214,20 @@ pub enum Error {
     /// PMT Conversion Error
     #[error("PMT conversion error")]
     PmtConversionError,
-    /// Seify Args Conversion Error
-    #[error("Seify Args conversion error")]
-    SeifyArgsConversionError,
-    /// Seify Error
-    #[error("Seify error ({0})")]
-    SeifyError(String),
     /// Duplicate block name
     #[error("A Block with an instance name of '{0}' already exists")]
     DuplicateBlockName(String),
-    /// Error returned from a Receiver when the corresponding Sender is dropped
-    #[error(transparent)]
-    ChannelCanceled(#[from] oneshot::Canceled),
+    /// Error while locking a Mutex that should not be contended or poisoned
+    #[error("Error while locking a Mutex that should not be contended or poisoned")]
+    LockError,
+    /// Seify Args Conversion Error
+    #[cfg(feature = "seify")]
+    #[error("Seify Args conversion error")]
+    SeifyArgsConversionError,
+    /// Seify Error
+    #[cfg(feature = "seify")]
+    #[error("Seify error ({0})")]
+    SeifyError(String),
 }
 
 #[cfg(feature = "seify")]
@@ -272,70 +237,33 @@ impl From<seify::Error> for Error {
     }
 }
 
+impl From<oneshot::Canceled> for Error {
+    fn from(_value: oneshot::Canceled) -> Self {
+        Error::RuntimeError(
+            "Couldn't receive from oneshot channel, sender dropped unexpectedly".to_string(),
+        )
+    }
+}
+
+impl From<mpsc::SendError> for Error {
+    fn from(_value: mpsc::SendError) -> Self {
+        Error::RuntimeError(
+            "Couldn't send to mpsc channel, receiver dropped unexpectedly".to_string(),
+        )
+    }
+}
+
+impl<T> From<mpsc::TrySendError<T>> for Error {
+    fn from(_value: mpsc::TrySendError<T>) -> Self {
+        Error::RuntimeError(
+            "Couldn't send to mpsc channel, receiver dropped unexpectedly".to_string(),
+        )
+    }
+}
+
 impl From<PmtConversionError> for Error {
     fn from(_value: PmtConversionError) -> Self {
         Error::PmtConversionError
-    }
-}
-
-/// Container for information supporting `ConnectError`
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConnectCtx {
-    /// Source block ID
-    pub src_block_id: usize,
-    /// Source block name
-    pub src_block_name: String,
-    /// Source block output port
-    pub src_port: String,
-    /// Source port item type
-    pub src_type: String,
-    /// Destination block ID
-    pub dst_block_id: usize,
-    /// Destination block name
-    pub dst_block_name: String,
-    /// Destination input port
-    pub dst_port: String,
-    /// Destination port item type
-    pub dst_type: String,
-}
-
-impl ConnectCtx {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        src_block_id: usize,
-        src: &Block,
-        src_port: &PortId,
-        src_output: &StreamOutput,
-        dst_block_id: usize,
-        dst: &Block,
-        dst_port: &PortId,
-        dst_input: &StreamInput,
-    ) -> Self {
-        Self {
-            src_block_id,
-            src_block_name: src.instance_name().unwrap_or(src.type_name()).to_string(),
-            src_port: src_port.to_string(),
-            src_type: src_output.type_name().to_string(),
-            dst_block_id,
-            dst_block_name: dst.instance_name().unwrap_or(src.type_name()).to_string(),
-            dst_port: dst_port.to_string(),
-            dst_type: dst_input.type_name().to_string(),
-        }
-    }
-}
-
-impl Display for ConnectCtx {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "incompatible ports: {}.{}<{}> -> {}.{}<{}>",
-            self.src_block_name,
-            self.src_port,
-            self.src_type,
-            self.dst_block_name,
-            self.dst_port,
-            self.dst_type
-        )
     }
 }
 
@@ -346,13 +274,13 @@ pub enum BlockPortCtx {
     /// BlockId is not specified
     None,
     /// Block is identified by its ID in the [`Flowgraph`]
-    Id(usize),
+    Id(BlockId),
     /// Block is identified by its `type_name`
     Name(String),
 }
 
-impl From<&Block> for BlockPortCtx {
-    fn from(value: &Block) -> Self {
+impl From<&dyn Block> for BlockPortCtx {
+    fn from(value: &dyn Block) -> Self {
         BlockPortCtx::Name(value.type_name().into())
     }
 }
@@ -361,8 +289,43 @@ impl Display for BlockPortCtx {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             BlockPortCtx::None => write!(f, "<None>"),
-            BlockPortCtx::Id(id) => write!(f, "ID {id}"),
+            BlockPortCtx::Id(id) => write!(f, "{id:?}"),
             BlockPortCtx::Name(name) => write!(f, "{name}"),
+        }
+    }
+}
+
+mod futures {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::task::Context;
+    use std::task::Poll;
+
+    /// Wakes the current task and returns [`Poll::Pending`] once.
+    ///
+    /// This function is useful when we want to cooperatively give time to the task scheduler. It is
+    /// generally a good idea to yield inside loops because that way we make sure long-running tasks
+    /// don't prevent other tasks from running.
+    pub fn yield_now() -> YieldNow {
+        YieldNow(false)
+    }
+
+    /// Future for the [`yield_now()`] function.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct YieldNow(bool);
+
+    impl Future for YieldNow {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            if !self.0 {
+                self.0 = true;
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            } else {
+                Poll::Ready(())
+            }
         }
     }
 }

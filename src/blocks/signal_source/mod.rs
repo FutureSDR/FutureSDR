@@ -1,254 +1,198 @@
 //! SignalSource using Lookup Tables
-use crate::num_complex::Complex32;
-use crate::runtime::Block;
-use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
-use crate::runtime::Result;
-use crate::runtime::StreamIo;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
-use crate::runtime::WorkIo;
-
 mod fxpt_phase;
 pub use fxpt_phase::FixedPointPhase;
-
 mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
+use crate::prelude::*;
+use std::marker::PhantomData;
+
 /// Signal Source block
-pub struct SignalSource<F, A>
+#[derive(Block)]
+pub struct SignalSource<A, F, O = DefaultCpuWriter<A>>
 where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     A: Send + 'static,
+    F: FnMut(FixedPointPhase) -> A + Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
+    #[output]
+    output: O,
     nco: NCO,
     phase_to_amplitude: F,
-    amplitude: A,
-    offset: A,
+    amplitude: f32,
 }
 
-impl<F, A> SignalSource<F, A>
+impl<A, F, O> SignalSource<A, F, O>
 where
-    F: FnMut(FixedPointPhase) -> A + Send + 'static,
     A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    F: FnMut(FixedPointPhase) -> A + Send + 'static,
+    O: CpuBufferWriter<Item = A>,
 {
     /// Create SignalSource block
-    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: A, offset: A) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("SignalSource").build(),
-            StreamIoBuilder::new().add_output::<A>("out").build(),
-            MessageIoBuilder::<Self>::new().build(),
-            SignalSource {
-                nco,
-                phase_to_amplitude,
-                amplitude,
-                offset,
-            },
-        )
+    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: f32) -> Self {
+        Self {
+            output: O::default(),
+            nco,
+            phase_to_amplitude,
+            amplitude,
+        }
+    }
+
+    /// Set amplitude
+    pub fn set_amplitude(&mut self, amplitude: f32) {
+        self.amplitude = amplitude;
     }
 }
 
 #[doc(hidden)]
-#[async_trait]
-impl<F, A> Kernel for SignalSource<F, A>
+impl<A, F, O> Kernel for SignalSource<A, F, O>
 where
+    A: Copy
+        + Send
+        + 'static
+        + std::ops::Mul<f32, Output = A>
+        + std::ops::Mul<Output = A>
+        + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
-    A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    O: CpuBufferWriter<Item = A>,
 {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let o = sio.output(0).slice::<A>();
+        let o = self.output.slice();
+        let o_len = o.len();
 
         for v in o.iter_mut() {
             let a = (self.phase_to_amplitude)(self.nco.phase);
             let a = a * self.amplitude;
-            let a = a + self.offset;
             *v = a;
             self.nco.step();
         }
 
-        sio.output(0).produce(o.len());
+        self.output.produce(o_len);
 
         Ok(())
     }
 }
 
-enum WaveForm {
-    Sin,
-    Cos,
-    Square,
-}
-
 /// Build a SignalSource block
-pub struct SignalSourceBuilder<A> {
-    offset: A,
-    amplitude: A,
-    sample_rate: f32,
-    frequency: f32,
-    initial_phase: f32,
-    wave_form: WaveForm,
+pub struct SignalSourceBuilder<T, O = DefaultCpuWriter<T>>
+where
+    O: CpuBufferWriter<Item = T>,
+{
+    _t: PhantomData<T>,
+    _o: PhantomData<O>,
 }
 
-impl<A> SignalSourceBuilder<A> {
-    /// Set y-offset (i.e., a DC component)
-    pub fn offset(mut self, offset: A) -> SignalSourceBuilder<A> {
-        self.offset = offset;
-        self
-    }
-    /// Set amplitude
-    pub fn amplitude(mut self, amplitude: A) -> SignalSourceBuilder<A> {
-        self.amplitude = amplitude;
-        self
-    }
-    /// Set initial phase
-    pub fn initial_phase(mut self, initial_phase: f32) -> SignalSourceBuilder<A> {
-        self.initial_phase = initial_phase;
-        self
-    }
-}
-
-impl SignalSourceBuilder<f32> {
+impl<O> SignalSourceBuilder<f32, O>
+where
+    O: CpuBufferWriter<Item = f32>,
+{
     /// Create cosine wave
-    pub fn cos(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Cos,
-        }
+    pub fn cos(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(|phase: FixedPointPhase| phase.cos(), nco, amplitude)
     }
     /// Create sine wave
-    pub fn sin(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Sin,
-        }
+    pub fn sin(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(|phase: FixedPointPhase| phase.sin(), nco, amplitude)
     }
     /// Create square wave
-    pub fn square(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<f32> {
-        SignalSourceBuilder {
-            offset: 0.0,
-            amplitude: 1.0,
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Square,
-        }
-    }
-    /// Create Signal Source block
-    pub fn build(self) -> Block {
+    pub fn square(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<f32, impl FnMut(FixedPointPhase) -> f32 + Send + 'static, O> {
         let nco = NCO::new(
-            self.initial_phase,
-            2.0 * core::f32::consts::PI * self.frequency / self.sample_rate,
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        match self.wave_form {
-            WaveForm::Cos => SignalSource::new(
-                |phase: FixedPointPhase| phase.cos(),
-                nco,
-                self.amplitude,
-                self.offset,
-            )
-            .into(),
-            WaveForm::Sin => SignalSource::new(
-                |phase: FixedPointPhase| phase.sin(),
-                nco,
-                self.amplitude,
-                self.offset,
-            )
-            .into(),
-            WaveForm::Square => SignalSource::new(
-                |phase: FixedPointPhase| {
-                    if phase.value < 0 { 1.0 } else { 0.0 }
-                },
-                nco,
-                self.amplitude,
-                self.offset,
-            )
-            .into(),
-        }
+        SignalSource::new(
+            |phase: FixedPointPhase| {
+                if phase.value < 0 { 1.0 } else { 0.0 }
+            },
+            nco,
+            amplitude,
+        )
     }
 }
 
-impl SignalSourceBuilder<Complex32> {
+impl<O> SignalSourceBuilder<Complex32, O>
+where
+    O: CpuBufferWriter<Item = Complex32>,
+{
     /// Create cosine signal
-    pub fn cos(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Cos,
-        }
+    pub fn cos(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
+        Self::sin(frequency, sample_rate, amplitude, initial_phase)
     }
-    /// Create sine signal
-    pub fn sin(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Sin,
-        }
+    ///Create sine signal
+    pub fn sin(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
+        let nco = NCO::new(
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
+        );
+        SignalSource::new(
+            |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
+            nco,
+            amplitude,
+        )
     }
 
     /// Create square wave signal
-    pub fn square(frequency: f32, sample_rate: f32) -> SignalSourceBuilder<Complex32> {
-        SignalSourceBuilder {
-            offset: Complex32::new(0.0, 0.0),
-            amplitude: Complex32::new(1.0, 0.0),
-            sample_rate,
-            frequency,
-            initial_phase: 0.0,
-            wave_form: WaveForm::Square,
-        }
-    }
-
-    /// Create Signal Source block
-    pub fn build(self) -> Block {
+    pub fn square(
+        frequency: f32,
+        sample_rate: f32,
+        amplitude: f32,
+        initial_phase: f32,
+    ) -> SignalSource<Complex32, impl FnMut(FixedPointPhase) -> Complex32 + Send + 'static, O> {
         let nco = NCO::new(
-            self.initial_phase,
-            2.0 * core::f32::consts::PI * self.frequency / self.sample_rate,
+            initial_phase,
+            2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        match self.wave_form {
-            WaveForm::Cos | WaveForm::Sin => SignalSource::new(
-                |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
-                nco,
-                self.amplitude,
-                self.offset,
-            )
-            .into(),
-            WaveForm::Square => SignalSource::new(
-                |phase: FixedPointPhase| {
-                    let t = phase.value >> 30;
-                    match t {
-                        -2 => Complex32::new(1.0, 0.0),
-                        -1 => Complex32::new(1.0, 1.0),
-                        0 => Complex32::new(0.0, 1.0),
-                        1 => Complex32::new(0.0, 0.0),
-                        _ => unreachable!(),
-                    }
-                },
-                nco,
-                self.amplitude,
-                self.offset,
-            )
-            .into(),
-        }
+        SignalSource::new(
+            |phase: FixedPointPhase| {
+                let t = phase.value >> 30;
+                match t {
+                    -2 => Complex32::new(1.0, 0.0),
+                    -1 => Complex32::new(1.0, 1.0),
+                    0 => Complex32::new(0.0, 1.0),
+                    1 => Complex32::new(0.0, 0.0),
+                    _ => unreachable!(),
+                }
+            },
+            nco,
+            amplitude,
+        )
     }
 }

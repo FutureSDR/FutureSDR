@@ -2,13 +2,8 @@ use anyhow::Result;
 use anyhow::anyhow;
 use clap::Parser;
 use futuresdr::blocks::BlobToUdp;
-use futuresdr::blocks::seify::SourceBuilder;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::buffer::circular::Circular;
-use futuresdr::tracing::error;
-use futuresdr::tracing::info;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 
 use lora::Decoder;
 use lora::Deinterleaver;
@@ -53,15 +48,14 @@ fn main() -> Result<()> {
     let args = Args::parse();
     info!("args {:?}", &args);
 
-    let src = SourceBuilder::new()
+    let src = Builder::new(args.args)?
         .sample_rate(Into::<f64>::into(args.bandwidth) * OVERSAMPLING as f64)
         .frequency(args.freq)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_source()?;
 
-    let frame_sync = FrameSync::new(
+    let frame_sync: FrameSync = FrameSync::new(
         args.freq as u32,
         args.bandwidth.into(),
         args.spreading_factor.into(),
@@ -73,10 +67,10 @@ fn main() -> Result<()> {
         false,
         None,
     );
-    let fft_demod = FftDemod::new(SOFT_DECODING, args.spreading_factor.into());
-    let gray_mapping = GrayMapping::new(SOFT_DECODING);
-    let deinterleaver = Deinterleaver::new(SOFT_DECODING);
-    let hamming_dec = HammingDec::new(SOFT_DECODING);
+    let fft_demod: FftDemod = FftDemod::new(SOFT_DECODING, args.spreading_factor.into());
+    let gray_mapping: GrayMapping = GrayMapping::new(SOFT_DECODING);
+    let deinterleaver: Deinterleaver = Deinterleaver::new(SOFT_DECODING);
+    let hamming_dec: HammingDec = HammingDec::new(SOFT_DECODING);
     let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, false);
     let decoder = Decoder::new();
     let udp_data = BlobToUdp::new("127.0.0.1:55555");
@@ -84,10 +78,10 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     connect!(fg,
-        src [Circular::with_size(2 * 4 * 8192 * 4)] frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-        header_decoder.frame_info | frame_sync.frame_info;
+        src.outputs[0] > frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
+        header_decoder.frame_info | frame_info.frame_sync;
         header_decoder | decoder;
-        decoder.out | udp_data;
+        decoder | udp_data;
         decoder.rftap | udp_rftap;
     );
 

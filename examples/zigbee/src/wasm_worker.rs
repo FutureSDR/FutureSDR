@@ -1,3 +1,4 @@
+use any_spawner::Executor;
 use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessagePipe;
@@ -5,15 +6,8 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::wasm::HackRf;
 use futuresdr::futures::SinkExt;
 use futuresdr::futures::StreamExt;
-use futuresdr::futures::channel::mpsc;
 use futuresdr::futures::channel::mpsc::Receiver;
-use futuresdr::macros::connect;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::FlowgraphHandle;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::buffer::slab::Slab;
+use futuresdr::prelude::*;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;
 use leptos::task::spawn_local;
@@ -45,6 +39,7 @@ impl gloo_worker::Worker for Worker {
     type Output = Frame;
 
     fn create(_scope: &WorkerScope<Self>) -> Self {
+        Executor::init_wasm_bindgen().unwrap();
         Self {
             started: false,
             handle: Handle::None,
@@ -72,7 +67,7 @@ impl gloo_worker::Worker for Worker {
                         let mut last: Complex32 = Complex32::new(0.0, 0.0);
                         let mut iir: f32 = 0.0;
                         let alpha = 0.00016;
-                        let avg = Apply::new(move |i: &Complex32| -> f32 {
+                        let avg = Apply::<_, _, _>::new(move |i: &Complex32| -> f32 {
                             let phase = (last.conj() * i).arg();
                             last = *i;
                             iir = (1.0 - alpha) * iir + alpha * phase;
@@ -84,7 +79,7 @@ impl gloo_worker::Worker for Worker {
                         let mu = 0.5;
                         let gain_mu = 0.03;
                         let omega_relative_limit = 0.0002;
-                        let mm = ClockRecoveryMm::new(
+                        let mm: ClockRecoveryMm = ClockRecoveryMm::new(
                             omega,
                             gain_omega,
                             mu,
@@ -93,26 +88,28 @@ impl gloo_worker::Worker for Worker {
                         );
 
                         let decoder = Decoder::new(6);
-                        let mac = Mac::new();
+                        let mac: Mac = Mac::new();
                         let snk = NullSink::<u8>::new();
 
                         let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
                         let message_pipe = MessagePipe::new(tx_frame);
 
-                        connect!(fg, src > avg [Slab::with_config(32768, 2, 128)] mm > decoder;
+                        connect!(fg, src > avg > mm > decoder;
                                      mac > snk;
-                                     decoder | mac.rx;
+                                     decoder | rx.mac;
                                      mac.rxed | message_pipe);
 
                         let rt = Runtime::new();
 
-                        let (_task, handle) = rt.start(fg).await;
+                        let (_task, handle) = rt.start(fg).await?;
                         set_handler.send(handle).await.unwrap();
 
+                        futuresdr::tracing::info!("waiting for frames");
                         while let Some(x) = rx_frame.next().await {
+                            info!("rxed {:?}", x);
                             match x {
                                 Pmt::Blob(data) => scope.respond(id, Frame::new(data)),
-                                _ => break,
+                                e => futuresdr::tracing::info!("rx_frame broke {:?}", e),
                             }
                         }
                         Result::<()>::Ok(())
@@ -127,14 +124,14 @@ impl gloo_worker::Worker for Worker {
                     if let Ok(Some(mut h)) = r.try_next() {
                         self.handle = Handle::Flowgraph(h.clone());
                         spawn_local(async move {
-                            h.call(0, "freq", Pmt::U64(f)).await.unwrap();
+                            h.call(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
                         });
                     }
                 }
                 Handle::Flowgraph(h) => {
                     let mut h = h.clone();
                     spawn_local(async move {
-                        h.call(0, "freq", Pmt::U64(f)).await.unwrap();
+                        h.call(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
                     });
                 }
             },

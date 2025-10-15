@@ -1,19 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
-use futuresdr::tracing::debug;
-use futuresdr::tracing::info;
+use futuresdr::prelude::*;
 use std::cmp::min;
 use std::collections::HashMap;
 
@@ -49,39 +34,42 @@ pub enum HeaderMode {
 
 const HEADER_LEN: usize = 5; // size of the header in nibbles
 
-pub struct HeaderDecoder {
+#[derive(Block)]
+#[message_outputs(out, frame_info)]
+pub struct HeaderDecoder<I = DefaultCpuReader<u8>>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    #[input]
+    input: I,
     mode: HeaderMode,
     left: usize,
     frame: Frame,
     ldro_mode: bool,
 }
 
-impl HeaderDecoder {
-    pub fn new(mode: HeaderMode, ldro_mode: bool) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("HeaderDecoder").build(),
-            StreamIoBuilder::new().add_input::<u8>("in").build(),
-            MessageIoBuilder::new()
-                .add_output("out")
-                .add_output("frame_info")
-                .build(),
-            HeaderDecoder {
-                mode,
-                left: 0,
-                frame: Frame::default(),
-                ldro_mode,
-            },
-        )
+impl<I> HeaderDecoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
+    pub fn new(mode: HeaderMode, ldro_mode: bool) -> Self {
+        Self {
+            input: I::default(),
+            mode,
+            left: 0,
+            frame: Frame::default(),
+            ldro_mode,
+        }
     }
 
     async fn publish_frame_info(
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         cr: usize,
         pay_len: usize,
         crc: bool,
         ldro_mode: bool,
         err: bool,
-    ) {
+    ) -> Result<()> {
         let mut header_content: HashMap<String, Pmt> = HashMap::new();
 
         header_content.insert("cr".to_string(), Pmt::Usize(cr));
@@ -89,29 +77,28 @@ impl HeaderDecoder {
         header_content.insert("crc".to_string(), Pmt::Bool(crc));
         header_content.insert("ldro_mode".to_string(), Pmt::Bool(ldro_mode));
         header_content.insert("err".to_string(), Pmt::Bool(err));
-        mio.output_mut(1)
-            .post(Pmt::MapStrPmt(header_content.clone()))
-            .await;
+        mio.post("frame_info", Pmt::MapStrPmt(header_content.clone()))
+            .await?;
+        Ok(())
     }
 }
 
-#[async_trait]
-impl Kernel for HeaderDecoder {
+impl<I> Kernel for HeaderDecoder<I>
+where
+    I: CpuBufferReader<Item = u8>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<u8>();
+        let (input, in_tags) = self.input.slice_with_tags();
         let mut nitem_to_consume = input.len();
         let n_input = input.len();
         let mut is_header = false;
 
-        let tags: Vec<(usize, &HashMap<String, Pmt>)> = sio
-            .input(0)
-            .tags()
+        let tags: Vec<(usize, &HashMap<String, Pmt>)> = in_tags
             .iter()
             .filter_map(|x| match x {
                 ItemTag {
@@ -134,7 +121,7 @@ impl Kernel for HeaderDecoder {
             if tags[0].0 != 0 {
                 nitem_to_consume = tags[0].0;
                 if self.left == 0 {
-                    sio.input(0).consume(nitem_to_consume);
+                    self.input.consume(nitem_to_consume);
                     io.call_again = true;
                     return Ok(());
                 }
@@ -163,8 +150,8 @@ impl Kernel for HeaderDecoder {
         if input.is_empty()
             || (is_header && input.len() < 5 && matches!(self.mode, HeaderMode::Explicit))
         {
-            if sio.input(0).finished() {
-                mio.output_mut(0).post(Pmt::Finished).await;
+            if self.input.finished() {
+                mio.post("out", Pmt::Finished).await?;
                 io.finished = true;
             }
             return Ok(());
@@ -196,7 +183,7 @@ impl Kernel for HeaderDecoder {
                     self.ldro_mode,
                     false,
                 )
-                .await;
+                .await?;
 
                 self.left = payload_len * 2 + if has_crc { 4 } else { 0 };
             } else {
@@ -264,7 +251,7 @@ impl Kernel for HeaderDecoder {
                     self.ldro_mode,
                     head_err,
                 )
-                .await;
+                .await?;
 
                 if !head_err {
                     self.frame = Frame {
@@ -277,7 +264,7 @@ impl Kernel for HeaderDecoder {
 
                     self.left = HEADER_LEN + payload_len * 2 + if has_crc { 4 } else { 0 };
                 } else {
-                    sio.input(0).consume(HEADER_LEN);
+                    self.input.consume(HEADER_LEN);
                     io.call_again = true;
                     return Ok(());
                 }
@@ -294,16 +281,15 @@ impl Kernel for HeaderDecoder {
             self.left -= nitem_to_consume;
 
             if self.left == 0 {
-                mio.output_mut(0)
-                    .post(Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
-                    .await;
+                mio.post("out", Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
+                    .await?;
             }
             io.call_again = true;
-            sio.input(0).consume(nitem_to_consume);
+            self.input.consume(nitem_to_consume);
         }
 
-        if sio.input(0).finished() && nitem_to_consume == n_input {
-            mio.output_mut(0).post(Pmt::Finished).await;
+        if self.input.finished() && nitem_to_consume == n_input {
+            mio.post("out", Pmt::Finished).await?;
             io.finished = true;
         }
 

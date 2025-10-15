@@ -2,10 +2,8 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::async_io::block_on;
-use futuresdr::blocks::seify::SinkBuilder;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
+use futuresdr::blocks::seify::Builder;
+use futuresdr::prelude::*;
 use std::time::Duration;
 
 use zigbee::IqDelay;
@@ -39,26 +37,27 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let mac = fg.add_block(Mac::new())?;
-    let modulator = fg.add_block(modulator())?;
-    let iq_delay = fg.add_block(IqDelay::new())?;
+    let mac: Mac = Mac::new();
+    let mac = fg.add_block(mac);
+    let modulator = modulator(&mut fg);
+    let iq_delay: IqDelay = IqDelay::new();
+    let iq_delay = fg.add_block(iq_delay);
 
-    let snk = SinkBuilder::new()
+    let snk = Builder::new(args.args)?
         .frequency(args.freq)
         .sample_rate(args.sample_rate)
         .gain(args.gain)
         .antenna(args.antenna)
-        .args(args.args)?
-        .build()?;
+        .build_sink()?;
+    let snk = fg.add_block(snk);
 
-    let snk = fg.add_block(snk)?;
-
-    fg.connect_stream(mac, "out", modulator, "in")?;
-    fg.connect_stream(modulator, "out", iq_delay, "in")?;
-    fg.connect_stream(iq_delay, "out", snk, "in")?;
+    fg.connect_dyn(&mac, "output", modulator, "input")?;
+    fg.connect_dyn(modulator, "output", &iq_delay, "input")?;
+    fg.connect_dyn(iq_delay, "output", snk, "inputs[0]")?;
+    let mac = mac.into();
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg);
+    let (fg, mut handle) = rt.start_sync(fg)?;
 
     let mut seq = 0u64;
     rt.spawn_background(async move {
@@ -66,8 +65,8 @@ fn main() -> Result<()> {
             Timer::after(Duration::from_secs_f32(0.8)).await;
             handle
                 .call(
-                    0,
-                    1,
+                    mac,
+                    "tx",
                     Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
                 )
                 .await

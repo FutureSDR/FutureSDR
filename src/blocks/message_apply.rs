@@ -1,21 +1,24 @@
 use crate::runtime::BlockMeta;
-use crate::runtime::BlockMetaBuilder;
-use crate::runtime::Kernel;
-use crate::runtime::MessageIo;
-use crate::runtime::MessageIoBuilder;
+use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
-use crate::runtime::StreamIoBuilder;
-use crate::runtime::TypedBlock;
+use crate::runtime::Result;
 use crate::runtime::WorkIo;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
-pub struct MessageApply<F> {
+#[derive(Block)]
+#[message_inputs(msg_handler)]
+#[message_outputs(out)]
+#[null_kernel]
+pub struct MessageApply<F>
+where
+    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static,
+{
     callback: F,
 }
 
 impl<F> MessageApply<F>
 where
-    F: FnMut(Pmt) -> crate::runtime::Result<Option<Pmt>> + Send + 'static,
+    F: FnMut(Pmt) -> Result<Option<Pmt>> + Send + 'static,
 {
     /// Apply a function to each incoming message.
     ///
@@ -25,32 +28,21 @@ where
     ///
     /// * `callback`: Function to apply to each incoming message, filtering `None` values.
     ///
-    pub fn new(callback: F) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("MessageApply").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("in", Self::msg_handler)
-                .add_output("out")
-                .build(),
-            Self { callback },
-        )
+    pub fn new(callback: F) -> Self {
+        Self { callback }
     }
 
-    #[message_handler]
     async fn msg_handler(
         &mut self,
         _io: &mut WorkIo,
-        mio: &mut MessageIo<Self>,
+        mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let r = (self.callback)(p)?;
         if let Some(r) = r {
-            mio.output_mut(0).post(r).await;
+            mio.post("out", r).await?;
         }
         Ok(Pmt::Ok)
     }
 }
-
-impl<F: Send> Kernel for MessageApply<F> {}

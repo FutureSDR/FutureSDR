@@ -8,13 +8,20 @@ homepage = "https://www.futuresdr.org"
 repository = "https://github.com/futuresdr/futuresdr/"
 description = "Macros for FutureSDR"
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
-categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
+categories = [
+  "asynchronous",
+  "concurrency",
+  "hardware-support",
+  "science",
+  "wasm",
+]
 
 [lib]
 proc-macro = true
 
 [dependencies]
-indexmap = "2.9"
+indexmap = "2.11"
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = {version="2.0", features=["full", "extra-traits"]}
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+prettyplease = "0.2"

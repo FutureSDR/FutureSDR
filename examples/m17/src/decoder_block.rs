@@ -1,48 +1,54 @@
-use futuresdr::macros::async_trait;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 use crate::Decoder;
 
-pub struct DecoderBlock {
+#[derive(Block)]
+pub struct DecoderBlock<I = DefaultCpuReader<f32>, O = DefaultCpuWriter<u8>>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     decoder: Decoder,
 }
 
-impl DecoderBlock {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("M17Decoder").build(),
-            StreamIoBuilder::new()
-                .add_input::<f32>("in")
-                .add_output::<u8>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                decoder: Decoder::new(),
-            },
-        )
+impl<I, O> DecoderBlock<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            decoder: Decoder::new(),
+        }
     }
 }
 
-#[async_trait]
+impl<I, O> Default for DecoderBlock<I, O>
+where
+    I: CpuBufferReader<Item = f32>,
+    O: CpuBufferWriter<Item = u8>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Kernel for DecoderBlock {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<f32>();
-        let output = sio.output(0).slice::<u8>();
+        let input = self.input.slice();
+        let output = self.output.slice();
+        let input_len = input.len();
 
         let mut ii = 0;
         let mut oo = 0;
@@ -55,10 +61,10 @@ impl Kernel for DecoderBlock {
             ii += 1;
         }
 
-        sio.input(0).consume(ii);
-        sio.output(0).produce(oo);
+        self.input.consume(ii);
+        self.output.produce(oo);
 
-        if sio.input(0).finished() && ii == input.len() {
+        if self.input.finished() && ii == input_len {
             io.finished = true;
         }
 

@@ -106,6 +106,9 @@ mod inner {
                 |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
             )
         }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
     }
 
     impl<TA: Taps<TapType = f64>> Filter<f64, f64, f64> for FirFilter<f64, f64, TA> {
@@ -117,6 +120,9 @@ mod inner {
                 || 0.0,
                 |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
             )
+        }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
         }
     }
 
@@ -144,6 +150,9 @@ mod inner {
                 },
             )
         }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
     }
 }
 
@@ -161,6 +170,9 @@ mod inner {
                 |accum, sample, tap| accum + sample * tap,
             )
         }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
     }
 
     impl<TA: Taps<TapType = f64>> Filter<f64, f64, f64> for FirFilter<f64, f64, TA> {
@@ -172,6 +184,9 @@ mod inner {
                 || 0.0,
                 |accum, sample, tap| accum + sample * tap,
             )
+        }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
         }
     }
 
@@ -199,6 +214,9 @@ mod inner {
                 },
             )
         }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
     }
 }
 
@@ -217,6 +235,9 @@ impl<TA: Taps<TapType = Complex<f32>>> Filter<Complex<f32>, Complex<f32>, Comple
             || Complex { re: 0.0, im: 0.0 },
             |accum, sample, tap| accum + sample * tap,
         )
+    }
+    fn length(&self) -> usize {
+        self.taps.num_taps()
     }
 }
 

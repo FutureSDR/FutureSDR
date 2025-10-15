@@ -5,6 +5,8 @@ FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".jo
 
 REPETITIONS=10
 
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=6-11 -d
+
 .PHONY: setup all clean
 
 all: setup $(GRRESULTS) $(FSRESULTS)
@@ -14,9 +16,8 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../create_cpuset.sh
-	../cpugov.sh performance
-	../irq_affinity.sh
+	# ../create_cpuset.sh
+	# ../cpugov.sh performance
 
 build/msg_flowgraph: msg_flowgraph.cpp msg_flowgraph.hpp
 	rm -rf build
@@ -35,7 +36,7 @@ perf-data/gr%.csv: build/msg_flowgraph
 	@echo STAGES=$(STAGES)
 	@echo BURST_SIZE=$(BURST_SIZE)
 
-	cset shield --userset=sdr --exec -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) | grep -v cset > $@
+	$(SHIELD) -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) > $@
 
 perf-data/fs%.csv: msg.rs
 	mkdir -p perf-data
@@ -49,7 +50,7 @@ perf-data/fs%.csv: msg.rs
 	@echo STAGES=$(STAGES)
 	@echo BURST_SIZE=$(BURST_SIZE)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst-size=$(BURST_SIZE) | grep -v cset > $@
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst-size=$(BURST_SIZE) > $@
 
 clean:
 	rm -rf build

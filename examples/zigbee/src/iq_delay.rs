@@ -1,17 +1,4 @@
-use futuresdr::macros::async_trait;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
 #[derive(PartialEq, Eq)]
@@ -23,39 +10,59 @@ enum State {
 
 const PADDING: usize = 40000;
 
-pub struct IqDelay {
+#[derive(Block)]
+pub struct IqDelay<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     state: State,
     buf: VecDeque<f32>,
 }
 
-impl IqDelay {
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("IQ Delay").build(),
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            Self {
-                state: State::Tail(0),
-                buf: VecDeque::new(),
-            },
-        )
+impl<I, O> IqDelay<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new() -> Self {
+        Self {
+            input: I::default(),
+            output: O::default(),
+            state: State::Tail(0),
+            buf: VecDeque::new(),
+        }
     }
 }
 
-#[async_trait]
-impl Kernel for IqDelay {
+impl<I, O> Default for IqDelay<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<I, O> Kernel for IqDelay<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let i = sio.input(0).slice::<Complex32>();
-        let o = sio.output(0).slice::<Complex32>();
+        let (i, tags) = self.input.slice_with_tags();
+        let (o, mut otags) = self.output.slice_with_tags();
+        let i_len = i.len();
 
         let mut consumed = 0;
         let mut produced = 0;
@@ -95,18 +102,12 @@ impl Kernel for IqDelay {
                     if left == 0 && consumed == i.len() {
                         break;
                     } else if left == 0 {
-                        match sio
-                            .input(0)
-                            .tags()
-                            .iter()
-                            .find(|x| x.index == consumed)
-                            .cloned()
-                        {
+                        match tags.iter().find(|x| x.index == consumed).cloned() {
                             Some(ItemTag {
                                 tag: Tag::Id(id), ..
                             }) => {
                                 self.state = State::Front(PADDING, id as usize * 2 * 16 * 4);
-                                sio.output(0).add_tag(
+                                otags.add_tag(
                                     produced,
                                     Tag::NamedUsize(
                                         "burst_start".to_string(),
@@ -128,9 +129,9 @@ impl Kernel for IqDelay {
             }
         }
 
-        sio.input(0).consume(consumed);
-        sio.output(0).produce(produced);
-        if sio.input(0).finished() && consumed == i.len() && self.state == State::Tail(0) {
+        self.input.consume(consumed);
+        self.output.produce(produced);
+        if self.input.finished() && consumed == i_len && self.state == State::Tail(0) {
             io.finished = true;
         }
 

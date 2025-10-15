@@ -3,14 +3,11 @@ use async_lock::Barrier;
 use async_task::Runnable;
 use async_task::Task;
 use concurrent_queue::ConcurrentQueue;
-use futures::channel::mpsc::Sender;
-use futures::channel::mpsc::channel;
+use futures::Future;
 use futures::channel::oneshot;
-use futures_lite::future::Future;
+use futures::future;
 use futures_lite::future::FutureExt;
-use futures_lite::future::{self};
 use slab::Slab;
-// use std::cmp;
 use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
@@ -24,9 +21,9 @@ use std::task::Poll;
 use std::task::Waker;
 use std::thread;
 
-use crate::runtime::BlockMessage;
+use crate::channel::mpsc::Sender;
+use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Topology;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 
@@ -107,87 +104,64 @@ impl FlowScheduler {
         }
     }
 
-    // fn map_block(block: usize, n_blocks: usize, n_cores: usize) -> usize {
-    //     let n = n_blocks / n_cores;
-    //     let r = n_blocks % n_cores;
-    //
-    //     for x in 1..n_cores {
-    //         if block < ((x) * n) + cmp::min(x, r) {
-    //             return x - 1;
-    //         }
-    //     }
-    //
-    //     n_cores - 1
-    // }
-    fn map_block(block: usize, _n_blocks: usize, _n_cores: usize) -> Option<usize> {
-        match block {
-            0..=2 => None,
-            3..=45 => Some(0),
-            46..=88 => Some(0),
-            89..=131 => Some(1),
-            132..=175 => Some(1),
-            176..=218 => Some(2),
-            219..=261 => Some(2),
-            262..=304 => Some(3),
-            305..=347 => Some(3),
-            _ => None,
+    fn map_block(block: usize, n_blocks: usize, n_cores: usize) -> usize {
+        let n = n_blocks / n_cores;
+        let r = n_blocks % n_cores;
+
+        for x in 1..n_cores {
+            if block < ((x) * n) + std::cmp::min(x, r) {
+                return x - 1;
+            }
         }
+
+        n_cores - 1
     }
 }
 
 impl Scheduler for FlowScheduler {
-    fn run_topology(
+    fn run_flowgraph(
         &self,
-        topology: &mut Topology,
+        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) -> Slab<Option<Sender<BlockMessage>>> {
-        let mut inboxes = Slab::new();
-        let max = topology.blocks.iter().map(|(i, _)| i).max().unwrap_or(0);
-        for _ in 0..=max {
-            inboxes.insert(None);
-        }
-        let queue_size = config::config().queue_size;
-
-        let _n_blocks = topology.blocks.len();
-        let _n_cores = self.inner.workers.len();
+    ) {
+        let n_blocks = blocks.len();
+        let n_cores = self.inner.workers.len();
 
         // spawn block executors
-        for (id, block_o) in topology.blocks.iter_mut() {
-            let block = block_o.take().unwrap();
+        for block in blocks.iter() {
+            let block = Arc::clone(block);
+            let id = block.lock_blocking().id();
+            let main_channel = main_channel.clone();
+            let blocking = block.lock_blocking().is_blocking();
             // println!("{}: {}", id, block.instance_name().unwrap());
 
-            let (sender, receiver) = channel::<BlockMessage>(queue_size);
-            inboxes[id] = Some(sender.clone());
-
-            if block.is_blocking() {
-                let main = main_channel.clone();
+            if blocking {
                 debug!("spawing block on executor");
-
-                if let Some(c) = FlowScheduler::map_block(id, 0, 0) {
-                    self.inner
-                        .executor
-                        .spawn_executor(
-                            blocking::unblock(move || block_on(block.run(id, main, receiver))),
-                            c,
-                        )
-                        .detach();
-                } else {
-                    panic!("foo");
-                }
-            } else if let Some(c) = FlowScheduler::map_block(id, 0, 0) {
                 self.inner
                     .executor
-                    .spawn_executor(block.run(id, main_channel.clone(), receiver), c)
+                    .spawn_executor(
+                        blocking::unblock(move || {
+                            block_on(async move {
+                                let mut block = block.lock().await;
+                                block.run(main_channel).await;
+                            })
+                        }),
+                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
+                    )
                     .detach();
             } else {
                 self.inner
                     .executor
-                    .spawn(block.run(id, main_channel.clone(), receiver))
+                    .spawn_executor(
+                        async move {
+                            let mut block = block.lock_blocking();
+                            block.run(main_channel).await;
+                        },
+                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
+                    )
                     .detach();
             }
         }
-
-        inboxes
     }
 
     fn spawn<T: Send + 'static>(
@@ -214,29 +188,6 @@ impl Default for FlowScheduler {
 }
 
 /// An async executor.
-///
-/// # Examples
-///
-/// A multi-threaded executor:
-///
-/// ```
-/// use async_channel::unbounded;
-/// use async_executor::Executor;
-/// use easy_parallel::Parallel;
-/// use futures_lite::future;
-///
-/// let ex = Executor::new();
-/// let (signal, shutdown) = unbounded::<()>();
-///
-/// Parallel::new()
-///     // Run four executor threads.
-///     .each(0..4, |_| future::block_on(ex.run(shutdown.recv())))
-///     // Run the main future on the current thread.
-///     .finish(|| future::block_on(async {
-///         println!("Hello world!");
-///         drop(signal);
-///     }));
-/// ```
 pub struct FlowExecutor {
     /// The executor state.
     state: once_cell::sync::OnceCell<Arc<State>>,
@@ -331,20 +282,6 @@ impl FlowExecutor {
     }
 
     /// Runs the executor until the given future completes.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use async_executor::Executor;
-    /// use futures_lite::future;
-    ///
-    /// let ex = Executor::new();
-    ///
-    /// let task = ex.spawn(async { 1 + 2 });
-    /// let res = future::block_on(ex.run(async { task.await * 2 }));
-    ///
-    /// assert_eq!(res, 6);
-    /// ```
     pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
         let runner = Runner::new(self.state());
 

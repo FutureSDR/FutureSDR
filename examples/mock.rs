@@ -1,8 +1,9 @@
+use futuresdr::blocks::Apply;
+use futuresdr::runtime::mocker::Mocker;
+use futuresdr::runtime::mocker::Reader;
+use futuresdr::runtime::mocker::Writer;
 use rand::Rng;
 use rand::distr::Uniform;
-
-use futuresdr::blocks::Apply;
-use futuresdr::runtime::Mocker;
 
 fn main() {
     let input: Vec<u32> = rand::rng()
@@ -10,13 +11,13 @@ fn main() {
         .take(64)
         .collect();
 
-    let block = Apply::new(|x: &u32| x + 1);
+    let mut block = Apply::<_, _, _, Reader<_>, Writer<_>>::new(|x: &u32| x + 1);
+    block.input().set(input.clone());
+    block.output().reserve(64);
 
     let mut mocker = Mocker::new(block);
-    mocker.input(0, input.clone());
-    mocker.init_output::<u32>(0, 64);
     mocker.run();
-    let (output, _) = mocker.output::<u32>(0);
+    let (output, _) = mocker.output().get();
 
     assert_eq!(input.len(), output.len());
     for (a, b) in input.iter().zip(output.iter()) {

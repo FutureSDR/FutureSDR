@@ -1,4 +1,3 @@
-use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::Head;
@@ -7,7 +6,7 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use futuresdr::runtime::scheduler::TpbScheduler;
-use perf::CopyRandBuilder;
+use perf::CopyRand;
 use perf::LttngSink;
 use perf::LttngSource;
 use std::time;
@@ -44,21 +43,21 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(LttngSource::<f32>::new(GRANULARITY))?;
-        let head = fg.add_block(Head::<f32>::new(samples as u64))?;
-        fg.connect_stream(src, "out", head, "in")?;
+        let src = fg.add_block(LttngSource::<f32>::new(GRANULARITY));
+        let head = fg.add_block(Head::<f32>::new(samples as u64));
+        fg.connect_stream(src.get()?.output(), head.get()?.input());
 
-        let mut last = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build())?;
-        fg.connect_stream(head, "out", last, "in")?;
+        let mut last = fg.add_block(CopyRand::<f32>::new(max_copy));
+        fg.connect_stream(head.get()?.output(), last.get()?.input());
 
         for _ in 1..stages {
-            let block = fg.add_block(CopyRandBuilder::<f32>::new().max_copy(max_copy).build())?;
-            fg.connect_stream(last, "out", block, "in")?;
+            let block = fg.add_block(CopyRand::<f32>::new(max_copy));
+            fg.connect_stream(last.get()?.output(), block.get()?.input());
             last = block;
         }
 
-        let snk = fg.add_block(LttngSink::<f32>::new(GRANULARITY))?;
-        fg.connect_stream(last, "out", snk, "in")?;
+        let snk = fg.add_block(LttngSink::<f32>::new(GRANULARITY));
+        fg.connect_stream(last.get()?.output(), snk.get()?.input());
         snks.push(snk);
     }
 
@@ -67,29 +66,29 @@ fn main() -> Result<()> {
     if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "tpb" {
         let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        runtime.run(fg)?;
         elapsed = now.elapsed();
     } else {
         panic!("unknown scheduler");
     }
 
     for s in snks {
-        let snk = fg.kernel::<LttngSink<f32>>(s).context("no block")?;
+        let snk = s.get()?;
         let v = snk.n_received();
         assert_eq!(v, samples as u64);
     }

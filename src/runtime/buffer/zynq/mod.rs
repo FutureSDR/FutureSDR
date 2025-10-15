@@ -2,13 +2,12 @@
 use xilinx_dma::DmaBuffer;
 
 mod d2h;
-pub use d2h::D2H;
-pub use d2h::ReaderD2H;
-pub use d2h::WriterD2H;
+pub use d2h::Reader as D2HReader;
+pub use d2h::Writer as D2HWriter;
+
 mod h2d;
-pub use h2d::H2D;
-pub use h2d::ReaderH2D;
-pub use h2d::WriterH2D;
+pub use h2d::Reader as H2DReader;
+pub use h2d::Writer as H2DWriter;
 
 // ================== ZYNQ MESSAGE ============================
 /// Full buffer

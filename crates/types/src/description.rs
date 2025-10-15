@@ -1,6 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::BlockId;
+use crate::PortId;
+
 /// Description of a `Flowgraph`.
 ///
 /// This struct can be serialized to be used with the REST API.
@@ -9,9 +12,9 @@ pub struct FlowgraphDescription {
     /// Blocks
     pub blocks: Vec<BlockDescription>,
     /// Stream edges
-    pub stream_edges: Vec<(usize, usize, usize, usize)>,
+    pub stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     /// Message edges
-    pub message_edges: Vec<(usize, usize, usize, usize)>,
+    pub message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
 /// Description of a `Block`.
@@ -20,7 +23,7 @@ pub struct FlowgraphDescription {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockDescription {
     /// Id
-    pub id: usize,
+    pub id: BlockId,
     /// Type name
     pub type_name: String,
     /// Instance name

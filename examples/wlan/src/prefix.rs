@@ -1,60 +1,80 @@
-use futuresdr::macros::async_trait;
-use futuresdr::num_complex::Complex32;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::ItemTag;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::Tag;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
-pub struct Prefix {
+#[derive(Block)]
+pub struct Prefix<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    #[input]
+    input: I,
+    #[output]
+    output: O,
     pad_front: usize,
     pad_tail: usize,
 }
 
-impl Prefix {
-    pub fn new(pad_front: usize, pad_tail: usize) -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Prefix").build(),
-            StreamIoBuilder::new()
-                .add_input::<Complex32>("in")
-                .add_output::<Complex32>("out")
-                .build(),
-            MessageIoBuilder::new().build(),
-            Prefix {
-                pad_front,
-                pad_tail,
-            },
-        )
+impl<I, O> Prefix<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    pub fn new(pad_front: usize, pad_tail: usize) -> Self {
+        let mut size = 4096;
+        let in_size = loop {
+            if size / 8 >= crate::MAX_SYM * 64 {
+                break size;
+            }
+            size += 4096
+        };
+        let mut size = 4096;
+        let out_size = loop {
+            if size / 8 >= pad_front + std::cmp::max(pad_tail, 1) + 320 + crate::MAX_SYM * 80 {
+                break size;
+            }
+            size += 4096
+        };
+
+        let mut input = I::default();
+        input.set_min_items(in_size / 8);
+        let mut output = O::default();
+        output.set_min_items(out_size / 8);
+
+        Self {
+            input,
+            output,
+            pad_front,
+            pad_tail,
+        }
     }
 }
 
-#[async_trait]
-impl Kernel for Prefix {
+impl<I, O> Kernel for Prefix<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        sio: &mut StreamIo,
-        _m: &mut MessageIo<Self>,
+        _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let input = sio.input(0).slice::<Complex32>();
-        let output = sio.output(0).slice::<Complex32>();
+        let finished = self.input.finished();
+        let (input, in_tags) = self.input.slice_with_tags();
+        let input_len = input.len();
+        let (output, mut out_tags) = self.output.slice_with_tags();
+        let output_len = output.len();
 
-        let tags = sio.input(0).tags().clone();
-        if let Some((index, len)) = tags.iter().find_map(|x| match x {
+        // debug!("finished {finished}  input_len {input_len}  output_len {output_len}");
+
+        if let Some((index, len)) = in_tags.iter().find_map(|x| match x {
             ItemTag {
                 index,
                 tag: Tag::NamedUsize(n, len),
             } => {
                 if n == "wifi_start" {
-                    Some((index, len))
+                    Some((index, *len))
                 } else {
                     None
                 }
@@ -62,13 +82,18 @@ impl Kernel for Prefix {
             _ => None,
         }) {
             assert_eq!(*index, 0);
-            if output.len() >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
-                && input.len() >= len * 64
+            // debug!(
+            //     "len {len}   required output size {}",
+            //     self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+            // );
+
+            if output_len >= self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320
+                && input_len >= len * 64
             {
                 output[0..self.pad_front].fill(Complex32::new(0.0, 0.0));
                 output[self.pad_front..self.pad_front + 320].copy_from_slice(&SYNC_WORDS);
 
-                for k in 0..*len {
+                for k in 0..len {
                     let in_offset = k * 64;
                     let out_offset = self.pad_front + 320 + k * 80;
                     output[out_offset..out_offset + 16]
@@ -80,7 +105,7 @@ impl Kernel for Prefix {
                 // windowing
                 let out_offset = self.pad_front + 320;
                 output[out_offset] = 0.5 * (output[out_offset] + SYNC_WORDS[320 - 64]);
-                for k in 0..*len {
+                for k in 0..len {
                     output[out_offset + (k + 1) * 80] = 0.5
                         * (output[out_offset + (k + 1) * 80] + output[out_offset + k * 80 + 16]);
                 }
@@ -89,21 +114,27 @@ impl Kernel for Prefix {
                 output[out_offset + 1..out_offset + std::cmp::max(self.pad_tail, 1)]
                     .fill(Complex32::new(0.0, 0.0));
 
-                sio.input(0).consume(len * 64);
+                self.input.consume(len * 64);
                 let produce = self.pad_front + std::cmp::max(self.pad_tail, 1) + len * 80 + 320;
 
                 output[0..produce].iter_mut().for_each(|v| *v *= 0.6);
 
-                sio.output(0)
-                    .add_tag(0, Tag::NamedUsize("burst_start".to_string(), produce));
-                sio.output(0).produce(produce);
+                out_tags.add_tag(0, Tag::NamedUsize("burst_start".to_string(), produce));
+                self.output.produce(produce);
 
-                if sio.input(0).finished() && input.len() < len * 64 {
+                if input_len > len * 64 {
+                    io.call_again = true;
+                } else if finished {
                     io.finished = true;
                 }
+            } else if finished && (input_len < len * 64) {
+                io.finished = true;
             }
-        } else if sio.input(0).finished() {
+        } else if finished {
             io.finished = true;
+        } else {
+            // if there are samples, there should also be a tag
+            debug_assert_eq!(input_len, 0);
         }
 
         Ok(())

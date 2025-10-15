@@ -4,27 +4,12 @@ use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::macros::async_trait;
-use futuresdr::macros::connect;
-use futuresdr::macros::message_handler;
-use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockMetaBuilder;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Kernel;
-use futuresdr::runtime::MessageIo;
-use futuresdr::runtime::MessageIoBuilder;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Result;
-use futuresdr::runtime::Runtime;
-use futuresdr::runtime::StreamIo;
-use futuresdr::runtime::StreamIoBuilder;
-use futuresdr::runtime::TypedBlock;
-use futuresdr::runtime::WorkIo;
+use futuresdr::prelude::*;
 
 fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = VectorSource::new(vec![0u32, 1, 2, 3]);
+    let src = VectorSource::<_>::new(vec![0u32, 1, 2, 3]);
     let cpy0 = Copy::<u32>::new();
     let cpy1 = Copy::<u32>::new();
     let cpy2 = Copy::<u32>::new();
@@ -32,12 +17,12 @@ fn main() -> anyhow::Result<()> {
     let snk = NullSink::<u32>::new();
 
     // > indicates stream connections
-    // default port names (out/in) can be omitted
+    // default port names (output/input) can be omitted
     // blocks can be chained
     connect!(fg,
-             src.out > cpy0.in;
+             src.output > input.cpy0;
              cpy0 > cpy1;
-             cpy1 > cpy2 > cpy3 > snk
+             cpy1 > input.cpy2.output > cpy3 > snk
     );
 
     let msg_source = MessageSourceBuilder::new(
@@ -49,49 +34,39 @@ fn main() -> anyhow::Result<()> {
     let msg_copy0 = MessageCopy::new();
     let msg_copy1 = MessageCopy::new();
     let msg_sink = MessageSink::new();
+    let handler = Handler::new();
 
     // | indicates message connections
     connect!(fg,
              msg_source | msg_copy0;
-             msg_copy0 | msg_copy1 | msg_sink
+             msg_copy0 | msg_copy1 | msg_sink;
+             msg_copy1 | r#in.handler;
     );
 
     // add a block with no inputs or outputs
     let dummy = Dummy::new();
     connect!(fg, dummy);
 
-    // add a block with space in the port name
-    let strange = Strange::new();
-    let snk = NullSink::<u8>::new();
-    connect!(fg,
-             strange."foo bar" > snk);
-
     Runtime::new().run(fg)?;
 
     Ok(())
 }
 
+#[derive(Block)]
 pub struct Dummy;
 
 impl Dummy {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Dummy").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new().build(),
-            Self,
-        )
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self
     }
 }
 
-#[async_trait]
 impl Kernel for Dummy {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;
@@ -99,84 +74,27 @@ impl Kernel for Dummy {
     }
 }
 
-pub struct Strange;
-
-impl Strange {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Strange").build(),
-            StreamIoBuilder::new().add_output::<u8>("foo bar").build(),
-            MessageIoBuilder::new().build(),
-            Self,
-        )
-    }
-}
-
-#[async_trait]
-impl Kernel for Strange {
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        io.finished = true;
-        Ok(())
-    }
-}
-
+#[derive(Block)]
+#[message_inputs(r#in)]
+#[null_kernel]
 pub struct Handler;
 
 impl Handler {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> TypedBlock<Self> {
-        TypedBlock::new(
-            BlockMetaBuilder::new("Handler").build(),
-            StreamIoBuilder::new().build(),
-            MessageIoBuilder::new()
-                .add_input("handler", Self::my_handler)
-                .add_input("other", Self::my_other_handler)
-                .build(),
-            Self,
-        )
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self
     }
 
-    #[message_handler]
-    async fn my_handler(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-        _p: Pmt,
-    ) -> Result<Pmt> {
-        println!("asdf");
-        Ok(Pmt::Null)
-    }
-
-    #[message_handler]
-    async fn my_other_handler(
-        &mut self,
-        _io: &mut WorkIo,
-        _mio: &mut MessageIo<Self>,
-        _meta: &mut BlockMeta,
-        _p: Pmt,
-    ) -> Result<Pmt> {
-        Ok(Pmt::U32(0))
-    }
-}
-
-#[async_trait]
-impl Kernel for Handler {
-    async fn work(
+    async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _sio: &mut StreamIo,
-        _mio: &mut MessageIo<Self>,
+        _mio: &mut MessageOutputs,
         _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        io.finished = true;
-        Ok(())
+        p: Pmt,
+    ) -> Result<Pmt> {
+        if let Pmt::Finished = p {
+            io.finished = true
+        }
+        Ok(Pmt::Null)
     }
 }
