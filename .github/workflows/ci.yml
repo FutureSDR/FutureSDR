@@ -424,7 +424,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,tpb_scheduler,wgpu
+      - run: brew install shaderc glslang spirv-tools
+      - name: Build
+        run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,tpb_scheduler,wgpu
+        env:
+          SHADERC_LIB_DIR: /opt/homebrew/lib
+          SHADERC_INCLUDE_DIR: /opt/homebrew/include
 
   test-windows:
     name: Unit Test Windows
