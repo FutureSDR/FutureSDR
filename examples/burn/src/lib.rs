@@ -10,7 +10,7 @@ use burn::prelude::*;
 use model::McldnnConfig;
 
 pub const FFT_SIZE: usize = 2048;
-pub const BATCH_SIZE: usize = 8000;
+pub const BATCH_SIZE: usize = 256;
 
 #[derive(Config)]
 pub struct TrainingConfig {
