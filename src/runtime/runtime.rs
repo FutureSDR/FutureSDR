@@ -85,13 +85,16 @@ impl Runtime<'_, SmolScheduler> {
 
     /// Set custom routes for the integrated webserver
     pub fn with_custom_routes(routes: Router) -> Self {
+        info!("before init in runtime");
         runtime::init();
+        info!("after init in runtime");
         let scheduler = SmolScheduler::default();
         let flowgraphs = Arc::new(Mutex::new(Vec::new()));
         let handle = RuntimeHandle {
             flowgraphs: flowgraphs.clone(),
             scheduler: Arc::new(scheduler.clone()),
         };
+        info!("runtime constructed");
         Runtime {
             scheduler,
             flowgraphs,

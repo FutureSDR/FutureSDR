@@ -1,5 +1,5 @@
 [package]
-name = "androidhw"
+name = "futuresdr-android"
 version = "0.1.0"
 edition = "2024"
 
@@ -12,3 +12,7 @@ crate-type = ["cdylib", "rlib"]
 anyhow = "1.0"
 futuresdr = { path = "../..", features = ["soapy"] }
 jni = { version = "0.21" }
+
+# upstream has bogus cast that avoid Android build
+[patch.crates-io]
+soapysdr = { git = "https://github.com/bastibl/rust-soapysdr.git" }

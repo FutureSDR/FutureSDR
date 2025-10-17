@@ -1,0 +1,5 @@
+
+[target.aarch64-linux-android]
+rustflags = ["-Ctarget-cpu=generic"]
+ar = "/home/basti/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+linker = "/home/basti/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang"

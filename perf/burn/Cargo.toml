@@ -22,5 +22,5 @@ cubecl = "0.6"
 cubecl-wgpu = "0.6"
 futuresdr = { path = "../..", features = ["burn", "seify"] }
 futuresdr-burn = { path = "../../examples/burn" }
-ndarray = "0.17"
+ndarray = "0.16"
 tracing = { version = "0.1", features = ["release_max_level_off"] }

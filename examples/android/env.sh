@@ -1,11 +1,12 @@
-export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/24.0.8215888
+export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/28.2.13676358
 export HOST_ARCH=linux-x86_64
 export BUILD_ROOT=/home/basti/src/gnuradio-android
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 #############################################################
 ### DERIVED CONFIG
 #############################################################
-export SYS_ROOT=${TOOLCHAIN_ROOT}/sysroot
+export SYS_ROOT=${TOOLCHAIN_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
 # the variable has to be set to allow cross-compilation
 # but the paths in .pc files are absolute
 export PKG_CONFIG_SYSROOT_DIR=/

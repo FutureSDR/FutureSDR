@@ -39,8 +39,7 @@ log = "0.4"
 ndarray = "0.16" # has to align w/ the version from ndarray-npy
 ndarray-npy = "0.9"
 serde = { version = "1.0", features = ["derive"] }
-# whisper-burn = { git = "https://github.com/bastibl/whisper-burn.git" }
-whisper-burn = { path = "/home/basti/src/whisper-burn/" }
+whisper-burn = { git = "https://github.com/bastibl/whisper-burn.git" }
 wgpu = "25.0"
 
 [profile.release]

@@ -112,7 +112,9 @@ class MainActivity : AppCompatActivity() {
 
         thread(start = true) {
             try {
-                runFg(fd, usbfsPath, cacheDir.absolutePath)
+                Log.d("futuresdr", "bblcache ${cacheDir.absolutePath}")
+//                runFg(fd, usbfsPath, cacheDir.absolutePath)
+                runFg(fd, cacheDir.absolutePath, cacheDir.absolutePath)
             } catch (e: InterruptedException) {
                 Log.d("futuresdr", "crashed $e")
                 this@MainActivity.runOnUiThread(java.lang.Runnable {
@@ -134,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                val freq = 800e6 + progress * 1e6;
                 freqText.text = "%.2f MHz".format(freq / 1e6);
 
-                val url = "http://127.0.0.1:1337/api/block/0/call/0/"
+                val url = "http://127.0.0.1:1337/api/fg/0/block/5/call/freq/"
                 val pmt = JSONObject("""{"U32": %d}""".format(freq.toInt()))
                 val request = JsonObjectRequest(Request.Method.POST, url, pmt, Response.Listener {}, Response.ErrorListener {} )
 
@@ -152,7 +154,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         init {
-            System.loadLibrary("androidhw")
+            System.loadLibrary("futuresdr_android")
             System.loadLibrary("SoapySDR")
             System.loadLibrary("rtlsdrSupport")
         }
