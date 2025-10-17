@@ -4,6 +4,7 @@ set -xe
 
 source ./env.sh
 
-ln -s ${HOME}/.cargo/target/aarch64-linux-android/debug/libfuturesdr_android.so ${PREFIX}/lib/ || true
+rm -f ${PREFIX}/lib/libfuturesdr_android.so
+ln -s ${HOME}/.cargo/target/aarch64-linux-android/release/libfuturesdr_android.so ${PREFIX}/lib/
 
-cargo build --target aarch64-linux-android --lib
+cargo build --target aarch64-linux-android --lib --release

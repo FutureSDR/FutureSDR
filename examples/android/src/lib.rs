@@ -1,11 +1,10 @@
 use anyhow::Result;
 use futuresdr::blocks::Apply;
-use futuresdr::blocks::Fft;
-use futuresdr::blocks::FftDirection;
-use futuresdr::blocks::MovingAvg;
-use futuresdr::blocks::WebsocketSinkBuilder;
-use futuresdr::blocks::WebsocketSinkMode;
+use futuresdr::blocks::FirBuilder;
+use futuresdr::blocks::XlatingFir;
+use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::seify::Builder;
+use futuresdr::futuredsp::firdes;
 use futuresdr::prelude::*;
 
 pub fn run_fg(fd: u32) -> Result<()> {
@@ -15,21 +14,27 @@ pub fn run_fg(fd: u32) -> Result<()> {
     info!("device args {}", &args);
 
     let src = Builder::new(args)?
-        .frequency(100e6)
+        .frequency(105.3e6 - 0.3e6)
         .sample_rate(3.2e6)
-        .gain(34.0)
+        .gain(40.0)
         .build_source()?;
-    let snk = WebsocketSinkBuilder::<f32>::new(9001)
-        .mode(WebsocketSinkMode::FixedDropping(2048))
-        .build();
-    let fft: Fft = Fft::with_options(2048, FftDirection::Forward, true, None);
-    let power = Apply::<_, _, _>::new(|x: &Complex32| x.norm());
-    let log = Apply::<_, _, _>::new(|x: &f32| 10.0 * x.log10());
-    let keep = MovingAvg::<2048>::new(0.1, 10);
-    info!("blocks constructed");
 
-    connect!(fg, src.outputs[0] > fft > power > log > keep > snk);
-    info!("connected, starting");
+    let xlate: XlatingFir = XlatingFir::new(10, 0.3e6, 3.2e6);
+
+    let mut last = Complex32::new(1.0, 0.0);
+    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
+        let arg = (v * last.conj()).arg();
+        last = *v;
+        arg / 8.0
+    });
+
+    let cutoff = 4000.0 / 3.2e5;
+    let transition = 2000.0 / 3.2e5;
+    let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
+    let resamp2 = FirBuilder::resampling_with_taps::<f32, f32, _>(1, 10, audio_filter_taps);
+    let snk = AudioSink::new(32000, 1);
+
+    connect!(fg, src.outputs[0] > xlate > demod > resamp2 > snk);
 
     Runtime::new().run(fg)?;
     Ok(())
