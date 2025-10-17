@@ -20,6 +20,8 @@
         android:id="@+id/freqBar"
         android:layout_width="228dp"
         android:layout_height="48dp"
+        android:max="200"
+        android:progress="173"
         tools:layout_editor_absoluteX="91dp"
         tools:layout_editor_absoluteY="225dp" />
 

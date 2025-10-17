@@ -74,8 +74,6 @@ class MainActivity : AppCompatActivity() {
         val deviceList: HashMap<String, UsbDevice> = manager.deviceList
         deviceList.values.forEach { device ->
             if(device.vendorId == 0x0bda && device.productId == 0x2838) {
-            // if(device.vendorId == 0x1d50) {
-            // if(device.vendorId == 0x2500) {
                 val permissionIntent = PendingIntent.getBroadcast(this, 0, Intent(ACTION_USB_PERMISSION), 0)
                 val filter = IntentFilter(ACTION_USB_PERMISSION)
                 registerReceiver(usbReceiver, filter)
@@ -128,10 +126,10 @@ class MainActivity : AppCompatActivity() {
 
         freqBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-               val freq = 800e6 + progress * 1e6;
-                freqText.text = "%.2f MHz".format(freq / 1e6);
+                val freq = 88e6 + progress * 0.1e6;
+                freqText.text = "%.1f MHz".format(freq / 1e6);
 
-                val url = "http://127.0.0.1:1337/api/fg/0/block/5/call/freq/"
+                val url = "http://127.0.0.1:1337/api/fg/0/block/3/call/freq/"
                 val pmt = JSONObject("""{"U32": %d}""".format(freq.toInt()))
                 val request = JsonObjectRequest(Request.Method.POST, url, pmt, Response.Listener {}, Response.ErrorListener {} )
 
@@ -141,8 +139,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(seekBar: SeekBar) {}
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
         })
-
-        freqBar.progress = 11;
     }
 
     private external fun runFg(fd: Int): Void
