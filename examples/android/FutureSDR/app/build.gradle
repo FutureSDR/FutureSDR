@@ -35,7 +35,7 @@ android {
 
     sourceSets {
         main {
-            jniLibs.srcDirs = ['./src/main/jni', '/home/basti/Android/Sdk/ndk/21.3.6528147/sources/cxx-stl/llvm-libc++/libs']
+            jniLibs.srcDirs = ['./src/main/jni']
         }
     }
     namespace 'net.bastibl.futuresdrhw'

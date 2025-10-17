@@ -100,21 +100,16 @@ class MainActivity : AppCompatActivity() {
         val connection: UsbDeviceConnection = manager.openDevice(usbDevice)
 
         val fd = connection.fileDescriptor
-
-        val usbfsPath = usbDevice.deviceName
-
         val vid = usbDevice.vendorId
         val pid = usbDevice.productId
 
         Log.d("futuresdr", "#################### NEW RUN ###################")
-        Log.d("futuresdr", "Found fd: $fd  usbfs_path: $usbfsPath")
+        Log.d("futuresdr", "Found fd: $fd")
         Log.d("futuresdr", "Found vid: $vid  pid: $pid")
 
         thread(start = true) {
             try {
-                Log.d("futuresdr", "bblcache ${cacheDir.absolutePath}")
-//                runFg(fd, usbfsPath, cacheDir.absolutePath)
-                runFg(fd, cacheDir.absolutePath, cacheDir.absolutePath)
+                runFg(fd)
             } catch (e: InterruptedException) {
                 Log.d("futuresdr", "crashed $e")
                 this@MainActivity.runOnUiThread(java.lang.Runnable {
@@ -150,7 +145,7 @@ class MainActivity : AppCompatActivity() {
         freqBar.progress = 11;
     }
 
-    private external fun runFg(fd: Int, usbfsPath: String, tmpDir: String): Void
+    private external fun runFg(fd: Int): Void
 
     companion object {
         init {

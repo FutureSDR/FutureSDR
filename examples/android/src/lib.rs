@@ -7,21 +7,11 @@ use futuresdr::blocks::WebsocketSinkBuilder;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
-use std::env;
 
-pub fn run_fg() -> Result<()> {
+pub fn run_fg(fd: u32) -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let mut args = Vec::new();
-    if let Ok(s) = env::var("FUTURESDR_usbfs_dir") {
-        args.push(format!("usbfs={s}"));
-    }
-
-    if let Ok(s) = env::var("FUTURESDR_usb_fd") {
-        args.push(format!("fd={s}"));
-    }
-
-    let args = args.join(",");
+    let args = format!("fd={fd}");
     info!("device args {}", &args);
 
     let src = Builder::new(args)?
@@ -29,21 +19,16 @@ pub fn run_fg() -> Result<()> {
         .sample_rate(3.2e6)
         .gain(34.0)
         .build_source()?;
-    // let snk = futuresdr::blocks::NullSink::<f32>::new();
-
     let snk = WebsocketSinkBuilder::<f32>::new(9001)
         .mode(WebsocketSinkMode::FixedDropping(2048))
         .build();
-
     let fft: Fft = Fft::with_options(2048, FftDirection::Forward, true, None);
     let power = Apply::<_, _, _>::new(|x: &Complex32| x.norm());
     let log = Apply::<_, _, _>::new(|x: &f32| 10.0 * x.log10());
     let keep = MovingAvg::<2048>::new(0.1, 10);
-
     info!("blocks constructed");
 
     connect!(fg, src.outputs[0] > fft > power > log > keep > snk);
-
     info!("connected, starting");
 
     Runtime::new().run(fg)?;
@@ -55,40 +40,23 @@ mod android {
     use super::*;
     use jni::JNIEnv;
     use jni::objects::JClass;
-    use jni::objects::JString;
     use jni::sys::jint;
 
     #[allow(non_snake_case)]
     #[unsafe(no_mangle)]
     pub extern "system" fn Java_net_bastibl_futuresdrhw_MainActivity_runFg(
-        mut env: JNIEnv,
+        _env: JNIEnv,
         _class: JClass,
         fd: jint,
-        usbfs_dir: JString,
-        tmp_dir: JString,
     ) {
         futuresdr::runtime::init();
-        info!("in run_fg");
-
-        let tmp_dir: String = env
-            .get_string(&tmp_dir)
-            .expect("Couldn't get java string!")
-            .into();
         unsafe {
-            std::env::set_var("FUTURESDR_tmp_dir", &tmp_dir);
-            std::env::set_var("TMPDIR", tmp_dir);
-            let usbfs_dir: String = env
-                .get_string(&usbfs_dir)
-                .expect("Couldn't get java string!")
-                .into();
-            std::env::set_var("FUTURESDR_usbfs_dir", usbfs_dir);
-            std::env::set_var("FUTURESDR_usb_fd", format!("{}", fd as i32));
             std::env::set_var("FUTURESDR_ctrlport_enable", "true");
             std::env::set_var("FUTURESDR_ctrlport_bind", "0.0.0.0:1337");
         }
 
         info!("calling run_fg");
-        let ret = run_fg();
+        let ret = run_fg(fd as u32);
         info!("run_fg returned {:?}", ret);
     }
 }

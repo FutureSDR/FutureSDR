@@ -1,6 +1,6 @@
 export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/28.2.13676358
 export HOST_ARCH=linux-x86_64
-export BUILD_ROOT=/home/basti/src/gnuradio-android
+export BUILD_ROOT=/home/basti/src/android-sdr-toolchain/
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 #############################################################
