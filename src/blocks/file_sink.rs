@@ -1,6 +1,8 @@
 use async_fs::File;
 use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::runtime::BlockMeta;
 use crate::runtime::BlockMetaBuilder;
@@ -39,20 +41,20 @@ use crate::runtime::WorkIo;
 /// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
 /// ```
 pub struct FileSink<T: Send + 'static> {
-    file_name: String,
+    file_path: PathBuf,
     file: Option<File>,
     _type: std::marker::PhantomData<T>,
 }
 
 impl<T: Send + 'static> FileSink<T> {
     /// Create FileSink block
-    pub fn new<S: Into<String>>(file_name: S) -> TypedBlock<Self> {
+    pub fn new(file_path: impl AsRef<Path>) -> TypedBlock<Self> {
         TypedBlock::new(
             BlockMetaBuilder::new("FileSink").build(),
             StreamIoBuilder::new().add_input::<T>("in").build(),
             MessageIoBuilder::new().build(),
             FileSink::<T> {
-                file_name: file_name.into(),
+                file_path: file_path.as_ref().to_path_buf(),
                 file: None,
                 _type: std::marker::PhantomData,
             },
@@ -79,7 +81,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
             let i = &i[..items * item_size];
             match self.file.as_mut().unwrap().write_all(i).await {
                 Ok(()) => {}
-                Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_name),
+                Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_path),
             }
         }
 
@@ -101,7 +103,7 @@ impl<T: Send + 'static> Kernel for FileSink<T> {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(&self.file_name)?;
+            .open(&self.file_path)?;
 
         self.file = Some(file.into());
         Ok(())

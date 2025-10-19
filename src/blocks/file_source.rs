@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::path::PathBuf;
+
 use futures::AsyncReadExt;
 
 use crate::runtime::BlockMeta;
@@ -38,7 +41,7 @@ use crate::runtime::WorkIo;
 /// ```
 #[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]
 pub struct FileSource<T: Send + 'static> {
-    file_name: String,
+    file_path: PathBuf,
     file: Option<async_fs::File>,
     repeat: bool,
     _type: std::marker::PhantomData<T>,
@@ -46,13 +49,13 @@ pub struct FileSource<T: Send + 'static> {
 
 impl<T: Send + 'static> FileSource<T> {
     /// Create FileSource block
-    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> TypedBlock<Self> {
+    pub fn new(file_path: impl AsRef<Path>, repeat: bool) -> TypedBlock<Self> {
         TypedBlock::new(
             BlockMetaBuilder::new("FileSource").build(),
             StreamIoBuilder::new().add_output::<T>("out").build(),
             MessageIoBuilder::new().build(),
             FileSource::<T> {
-                file_name: file_name.into(),
+                file_path: file_path.as_ref().to_path_buf(),
                 file: None,
                 repeat,
                 _type: std::marker::PhantomData,
@@ -83,7 +86,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
                 Ok(0) => {
                     if self.repeat {
                         self.file =
-                            Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+                            Some(async_fs::File::open(self.file_path.clone()).await.unwrap());
                     } else {
                         io.finished = true;
                         break;
@@ -107,7 +110,7 @@ impl<T: Send + 'static> Kernel for FileSource<T> {
         _mio: &mut MessageIo<Self>,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
-        self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+        self.file = Some(async_fs::File::open(self.file_path.clone()).await.unwrap());
         Ok(())
     }
 }
