@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use std::path::Path;
+use std::path::PathBuf;
 
 /// Read samples from a file.
 ///
@@ -27,7 +29,7 @@ use crate::prelude::*;
 /// ```
 #[derive(Block)]
 pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
-    file_name: String,
+    file_path: PathBuf,
     file: Option<async_fs::File>,
     repeat: bool,
     #[output]
@@ -36,9 +38,9 @@ pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultC
 
 impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> FileSource<T, O> {
     /// Create FileSource block
-    pub fn new<S: Into<String>>(file_name: S, repeat: bool) -> Self {
+    pub fn new(file_path: impl AsRef<Path>, repeat: bool) -> Self {
         Self {
-            file_name: file_name.into(),
+            file_path: file_path.as_ref().to_path_buf(),
             file: None,
             repeat,
             output: O::default(),
@@ -68,7 +70,7 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O
                 Ok(0) => {
                     if self.repeat {
                         self.file =
-                            Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+                            Some(async_fs::File::open(self.file_path.clone()).await.unwrap());
                     } else {
                         io.finished = true;
                         break;
@@ -87,7 +89,7 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O
     }
 
     async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
-        self.file = Some(async_fs::File::open(self.file_name.clone()).await.unwrap());
+        self.file = Some(async_fs::File::open(self.file_path.clone()).await.unwrap());
         Ok(())
     }
 }

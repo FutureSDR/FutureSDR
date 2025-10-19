@@ -2,6 +2,8 @@ use crate::prelude::*;
 use async_fs::File;
 use futures::io::AsyncWriteExt;
 use std::fs::OpenOptions;
+use std::path::Path;
+use std::path::PathBuf;
 
 /// Write samples to a file.
 ///
@@ -32,16 +34,16 @@ use std::fs::OpenOptions;
 pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     #[input]
     input: I,
-    file_name: String,
+    file_path: PathBuf,
     file: Option<File>,
 }
 
 impl<T: Send + 'static, I: CpuBufferReader<Item = T>> FileSink<T, I> {
     /// Create FileSink block
-    pub fn new<S: Into<String>>(file_name: S) -> Self {
+    pub fn new(file_path: impl AsRef<Path>) -> Self {
         Self {
             input: I::default(),
-            file_name: file_name.into(),
+            file_path: file_path.as_ref().to_path_buf(),
             file: None,
         }
     }
@@ -65,7 +67,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
 
             match self.file.as_mut().unwrap().write_all(byte_slice).await {
                 Ok(()) => {}
-                Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_name),
+                Err(e) => panic!("FileSink: writing to {:?} failed: {e:?}", self.file_path),
             }
         }
 
@@ -82,7 +84,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
             .write(true)
             .create(true)
             .truncate(true)
-            .open(&self.file_name)?;
+            .open(&self.file_path)?;
 
         self.file = Some(file.into());
         Ok(())
