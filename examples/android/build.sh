@@ -7,7 +7,7 @@ set -xe
 #############################################################
 export TOOLCHAIN_ROOT=${HOME}/Android/Sdk/ndk/28.2.13676358
 export HOST_ARCH=linux-x86_64
-export PREFIX=${HOME}/src/android-sdr-toolchain/out/arm64-v8a
+export PREFIX=${HOME}/src/android-sdr-toolchain/toolchain/arm64-v8a
 export API_LEVEL=29
 
 #############################################################
