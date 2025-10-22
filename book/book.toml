@@ -10,6 +10,11 @@ edition = "2024"
 [output.html]
 mathjax-support = true
 additional-css = ["./mdbook-admonish.css"]
+git-repository-url = "https://github.com/futuresdr/futuresdr"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/futuresdr/futuresdr/edit/main/book/{path}"
+site-url = "/learn/"
+cname = "futuresdr.org"
 
 [output.html.playground]
 runnable = false
