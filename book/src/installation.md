@@ -1,5 +1,8 @@
 # Installation
 
+Compiling and running FutureSDR application requires at least a Rust toolchain.
+
+
 ## Install Rust
 
 To install Rust, we recommend following the [instructions](https://www.rust-lang.org/tools/install) on their website.
@@ -7,14 +10,13 @@ To install Rust, we recommend following the [instructions](https://www.rust-lang
 FutureSDR works with `stable` and `nightly` Rust versions.
 However, `nightly` allows for a few more performance optimizations and might, therefore, be preferred.
 
-In addition, working on the web GUI (i.e., extending and recompiling the frontend) requires nightly.
-This is due to [Leptos](https://leptos.dev/), our GUI framework of choice.
-It offers a nicer syntax with `nightly`, which we use in our frontend code.
-
-You can switch to `nightly` globally
+In addition, working on the web UI (i.e., extending and recompiling the frontend) requires nightly, since [Leptos](https://leptos.dev/), our GUI framework of choice, offers a [nicer syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax) with `nightly`, which we use in our frontend code.
 
 ```admonish info
+We recommend using the `nightly` Rust toolchain.
 ```
+
+You can switch to `nightly` globally
 
 ```bash
 rustup toolchain install nightly

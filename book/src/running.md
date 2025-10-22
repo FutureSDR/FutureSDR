@@ -1,14 +1,75 @@
 # Running Flowgraphs
 
-## FutureSDR Runtime Configuration
+## Configuration
 
-## Debug Output
+FutureSDR offers runtime options that can be configured through a `config.toml` or environment variables.
 
+It will search for a global user config at `~/.config/futuresdr/config.toml`, a project `config.toml` in the local directory and environment variables.
+The user config has the lowest precedence, while the environment variables have the highest precedence.
+
+The available options are:
+
+- `queue_size`: the number of messages that fit into the inbox of blocks
+- `buffer_size`: the default minimum size of a stream buffer in bytes
+- `stack_size`: the stack size of the binary
+- `slab_reserved`: 
+- `log_level`:
+- `ctrlport_enable`:
+- `ctrlport_bind`:
+- `frontend_path`:
+
+An example `config.toml`:
+```toml
+log_level = "debug"
+buffer_size = 32768
+queue_size = 8192
+ctrlport_enable = true
+ctrlport_bind = "127.0.0.1:1337"
+```
+
+## Rust Features
+
+Some examples use Rust features to selectively enable functionality like SDR drivers or GPU backends.
+See the `[features]` section in the `Cargo.toml` of the example for a list of supported features.
+
+```toml
+[features]
+default = ["soapy"]
+aaronia_http = ["futuresdr/aaronia_http"]
+soapy = ["futuresdr/soapy"]
+```
+
+In this example `soapy` is enabled by default and the Aaronia HTTP driver can be enabled by enabling the corresponding feature.
+
+```bash
+cargo run --release --bin rx --features=aaronia_http
+```
+
+Default features can be disabled with
+
+```bash
+cargo run --release --bin rx --no-default-features
+```
+
+
+## Log and Debug Messages
+
+FutureSDR uses the [`tracing`](https://docs.rs/tracing/) library for log and debug messages.
+
+~~~admonish warning
+By default, FutureSDR sets feature flags that disable `tracing` level log messages in debug mode and everything more detailed than `info` in release mode. This is a *compile time* filter!
+
+Also, these flags are transitive! If you want more detailed logs in your application, disable default features for the FutureSDR dependency.
+```rustc
+[dependencies]
+futuresdr = { version = ..., default-features=false, features = ["foo", "bar"] }
+```
+~~~
 
 ## Command Line Arguments
 
-Many examples support command line arguments.
-When running the application with `cargo`, use `--` to separate command line parameters of Cargo and the application.
+Most examples allow passing command line arguments.
+When running the application with `cargo`, use `--` to separate command line arguments of Cargo and the application.
 
 To check which arguments are available pass the `-h/--help` flag.
 
