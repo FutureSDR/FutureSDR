@@ -2,15 +2,14 @@
 
 Compiling and running FutureSDR application requires at least a Rust toolchain.
 
-
 ## Install Rust
 
-To install Rust, we recommend following the [instructions](https://www.rust-lang.org/tools/install) on their website.
+To install Rust, follow the [instructions](https://www.rust-lang.org/tools/install) on their website.
 
-FutureSDR works with `stable` and `nightly` Rust versions.
-However, `nightly` allows for a few more performance optimizations and might, therefore, be preferred.
+FutureSDR works with `stable` and `nightly` Rust.
+`nightly` allows for a few performance optimizations and might, therefore, be preferred.
 
-In addition, working on the web UI (i.e., extending and recompiling the frontend) requires nightly, since [Leptos](https://leptos.dev/), our GUI framework of choice, offers a [nicer syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax) with `nightly`, which we use in our frontend code.
+In addition, working on the web UI (i.e., extending and recompiling the frontend) requires `nightly`, since [Leptos](https://leptos.dev/), our GUI framework of choice, offers a [nicer syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax) with `nightly`, which we use in our frontend code.
 
 ```admonish info
 We recommend using the `nightly` Rust toolchain.
@@ -33,15 +32,16 @@ rustup override set nightly
 
 ## Web GUI and Web SDR Applications
 
-To compile the web frontend and web SDR applications, the `wasm32-unknown-unknown` target is required.
-You can install it with
+FutureSDR comes with pre-compiled web UIs. Using them requires no further tooling.
+If you want to extend or adapt the web UIs, you need to install the `wasm32-unknown-unknown` target.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
 
-All web frontends and examples are compiled with [Trunk](https://trunkrs.dev/), a build and packaging tool for Rust WebAssembly projects.
-You can install it with
+And, in addition, [Trunk](https://trunkrs.dev/), a build and packaging tool for Rust WebAssembly projects.
+Which can be installed with
+
 
 ```bash
 cargo install --locked trunk
@@ -50,7 +50,7 @@ cargo install --locked trunk
 or one of the [other options](https://trunkrs.dev/#install) documented on their website.
 
 
-## Linux (Ubuntu 23.10)
+## Linux (Ubuntu)
 
 - Clone the FutureSDR repository<br/>`git clone https://github.com/FutureSDR/FutureSDR.git`
 - Optionally, install SoapySDR<br/>`sudo apt install -y libsoapysdr-dev soapysdr-module-all soapysdr-tools`
