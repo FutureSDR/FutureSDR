@@ -131,15 +131,11 @@ Soapy might select the wrong device even if only one SDR is plugged into your PC
 Use the `-a/--argument` to select the Soapy driver, e.g., `-a soapy_driver=rtlsdr`.
 ```
 
-## Web UI
-
-
 
 ## REST API
 
-When *control port* is enabled, FutureSDR will expose a REST API to expose the flowgraph structure and enable remote interaction.
-
-Control port can be enabled either through the [configuration](#configuration), e.g.:
+*Control port* provides a REST API to expose the flowgraph structure and enable remote interaction.
+It is enabled by default, but can be configured explicityly through the [configuration](#configuration), e.g.:
 
 ```toml
 ctrlport_enable = true
@@ -237,12 +233,37 @@ curl http://127.0.0.1:1337/api/fg/0/block/0/ | jq
 }
 ```
 
-All message handler of a block are exposed through the REST API.
+All message handlers of a block are exposed automatically through the REST API.
 Assuming block `0` is the SDR source or sink, one can set the frequency by posting a JSON serialized PMT to the corresponding message handler.
 
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{ "U32": 123 }'  http://127.0.0.1:1337/api/fg/0/block/0/call/freq/
 ```
 
+Here are some more examples for serialized PMTs.
+
+```json
+{ "U32": 123 }
+{ "U64": 5}
+{ "F32": 123 }
+{ "Bool": true }
+{ "VecU64": [ 1, 2, 3] }
+"Ok"
+"Null"
+{ "String": "foo" }
+```
+
+
+## Web UI
+
+FutureSDR comes with a very minimal, work-in-progress Web UI, implemented in the *prophecy* crate.
+It comes pre-compiled at `crates/prophecy/dist`.
+When FutureSDR is started with control port enabled, one can specify the `frontend_path` [configuration](#configuration) option to set the path to the frontend, which wwill be served at the root path the control port URL, e.g., `127.0.0.1:1337`.
+
+Using the REST API, it is straightforward to build custom UIs.
+
+- A web UI served by an independent server
+- A web UI served through FutureSDR control port (see WLAN and ADS-B examples)
+- A UI using arbitrary technology (GTK, QT, etc) running as separate process (see Egui exmaple)
 
 
