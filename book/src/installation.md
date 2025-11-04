@@ -1,6 +1,6 @@
 # Installation
 
-Compiling and running FutureSDR application requires at least a Rust toolchain.
+Compiling and running FutureSDR applications requires at least a Rust toolchain.
 
 ## Install Rust
 
@@ -54,7 +54,7 @@ or one of the [other options](https://trunkrs.dev/#install) documented on their 
 
 - Clone the FutureSDR repository<br/>`git clone https://github.com/FutureSDR/FutureSDR.git`
 - Optionally, install SoapySDR<br/>`sudo apt install -y libsoapysdr-dev soapysdr-module-all soapysdr-tools`
-- Check, if your setup is working by running `cargo build` in the FutureSDR directory.
+- Check if your setup is working by running `cargo build` in the FutureSDR directory.
 - Continue, for example, with the included [applications](/learn/examples).
 
 ## macOS

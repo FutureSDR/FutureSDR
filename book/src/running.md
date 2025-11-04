@@ -11,12 +11,12 @@ The available options are:
 
 - `queue_size`: the number of messages that fit into the inbox of blocks
 - `buffer_size`: the default minimum size of a stream buffer in bytes
-- `stack_size`: the stack size of the binary
-- `slab_reserved`: 
-- `log_level`:
-- `ctrlport_enable`:
-- `ctrlport_bind`:
-- `frontend_path`:
+- `stack_size`: the stack size
+- `slab_reserved`: the default number of items a Slab buffer will copy over to the next buffer
+- `log_level`: one of `off`, `info`, `warn`, `error`, `debug`, `trace`
+- `ctrlport_enable`: shout control port be enabled (`true` or `false`)
+- `ctrlport_bind`: the endpoint that the web server for control port should bind to (e.g., `127.0.0.1:1337`)
+- `frontend_path`: the path to a web UI that will be served as the root URL of the control port server
 
 An example `config.toml`:
 ```toml
@@ -135,7 +135,7 @@ Use the `-a/--argument` to select the Soapy driver, e.g., `-a soapy_driver=rtlsd
 ## REST API
 
 *Control port* provides a REST API to expose the flowgraph structure and enable remote interaction.
-It is enabled by default, but can be configured explicityly through the [configuration](#configuration), e.g.:
+It is enabled by default, but can be configured explicitly through the [configuration](#configuration), e.g.:
 
 ```toml
 ctrlport_enable = true
@@ -156,7 +156,7 @@ export FUTURESDR_ctrlport_enable="true"
 export FUTURESDR_ctrlport_bind="0.0.0.0:1337"
 ```
 
-Control port can be access with the browser or programmatically (e.g., using Curl, Python `requests` library, etc.).
+Control port can be accessed with the browser or programmatically (e.g., using Curl, Python `requests` library, etc.).
 FutureSDR also provides a [support library](https://crates.io/crates/futuresdr-remote) to ease remote interaction from Rust.
 
 To get a JSON description of the first flowgraph that is executed on a runtime, you can visit `127.0.0.1:1337/api/fg/0/` with your browser or use Curl to query it.
@@ -258,12 +258,12 @@ Here are some more examples for serialized PMTs.
 
 FutureSDR comes with a very minimal, work-in-progress Web UI, implemented in the *prophecy* crate.
 It comes pre-compiled at `crates/prophecy/dist`.
-When FutureSDR is started with control port enabled, one can specify the `frontend_path` [configuration](#configuration) option to set the path to the frontend, which wwill be served at the root path the control port URL, e.g., `127.0.0.1:1337`.
+When FutureSDR is started with control port enabled, one can specify the `frontend_path` [configuration](#configuration) option to set the path to the frontend, which will be served at the root path the control port URL, e.g., `127.0.0.1:1337`.
 
 Using the REST API, it is straightforward to build custom UIs.
 
 - A web UI served by an independent server
-- A web UI served through FutureSDR control port (see WLAN and ADS-B examples)
-- A UI using arbitrary technology (GTK, QT, etc) running as separate process (see Egui exmaple)
+- A web UI served through FutureSDR control port (see the WLAN and ADS-B examples)
+- A UI using arbitrary technology (GTK, QT, etc.) running as separate process (see the Egui example)
 
 
