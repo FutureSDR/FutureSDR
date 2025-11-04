@@ -27,6 +27,13 @@ ctrlport_enable = true
 ctrlport_bind = "127.0.0.1:1337"
 ```
 
+Alternatively, these options can be passed through environment variables, e.g.:
+
+```bash
+export FUTURESDR_ctrlport_enable="true"
+export FUTURESDR_ctrlport_bind="0.0.0.0:1337"
+```
+
 ## Rust Features
 
 Some examples use Rust features to selectively enable functionality like SDR drivers or GPU backends.
@@ -123,3 +130,119 @@ Seify will forward all arguments to Soapy. Only the `driver` argument has to be 
 Soapy might select the wrong device even if only one SDR is plugged into your PC.
 Use the `-a/--argument` to select the Soapy driver, e.g., `-a soapy_driver=rtlsdr`.
 ```
+
+## Web UI
+
+
+
+## REST API
+
+When *control port* is enabled, FutureSDR will expose a REST API to expose the flowgraph structure and enable remote interaction.
+
+Control port can be enabled either through the [configuration](#configuration), e.g.:
+
+```toml
+ctrlport_enable = true
+ctrlport_bind = "127.0.0.1:1337"
+```
+
+If you want to allow remote hosts to access control port, you can bind it to a network or allow access from arbitrary networks
+
+```toml
+ctrlport_enable = true
+ctrlport_bind = "0.0.0.0:1337"
+```
+
+Alternatively, these options can be passed through environment variables, which always take precedence.
+
+```bash
+export FUTURESDR_ctrlport_enable="true"
+export FUTURESDR_ctrlport_bind="0.0.0.0:1337"
+```
+
+Control port can be access with the browser or programmatically (e.g., using Curl, Python `requests` library, etc.).
+FutureSDR also provides a [support library](https://crates.io/crates/futuresdr-remote) to ease remote interaction from Rust.
+
+To get a JSON description of the first flowgraph that is executed on a runtime, you can visit `127.0.0.1:1337/api/fg/0/` with your browser or use Curl to query it.
+
+```bash
+curl http://127.0.0.1:1337/api/fg/0/ | jq
+{
+  "blocks": [
+    {
+      "id": 0,
+      "type_name": "Encoder",
+      "instance_name": "Encoder-0",
+      "stream_inputs": [],
+      "stream_outputs": [
+        "output"
+      ],
+      "message_inputs": [
+        "tx"
+      ],
+      "message_outputs": [],
+      "blocking": false
+    },
+    {
+      "id": 1,
+      "type_name": "Mac",
+      "instance_name": "Mac-1",
+      "stream_inputs": [],
+      "stream_outputs": [],
+      "message_inputs": [
+        "tx"
+      ],
+      "message_outputs": [
+        "tx"
+      ],
+      "blocking": false
+    },
+  ],
+  "stream_edges": [
+    [
+      0,
+      "output",
+      2,
+      "input"
+    ],
+  ],
+  "message_edges": [
+    [
+      1,
+      "tx",
+      0,
+      "tx"
+    ],
+  ]
+}
+```
+
+It is also possible to get information about a particular block.
+
+```bash
+curl http://127.0.0.1:1337/api/fg/0/block/0/ | jq
+{
+  "id": 0,
+  "type_name": "Encoder",
+  "instance_name": "Encoder-0",
+  "stream_inputs": [],
+  "stream_outputs": [
+    "output"
+  ],
+  "message_inputs": [
+    "tx"
+  ],
+  "message_outputs": [],
+  "blocking": false
+}
+```
+
+All message handler of a block are exposed through the REST API.
+Assuming block `0` is the SDR source or sink, one can set the frequency by posting a JSON serialized PMT to the corresponding message handler.
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{ "U32": 123 }'  http://127.0.0.1:1337/api/fg/0/block/0/call/freq/
+```
+
+
+
