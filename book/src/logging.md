@@ -1,6 +1,4 @@
-# App Development
-
-## Log and Debug Messages
+# Logging
 
 ~~~admonish warning
 By default, FutureSDR sets feature flags that disable `tracing` level log messages in debug mode and everything more detailed than `info` in release mode. This is a *compile time* filter!
