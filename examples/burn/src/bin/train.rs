@@ -30,7 +30,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     let batcher = RadioDatasetBatcher::default();
 
@@ -55,15 +55,16 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device.clone()])
+        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .grads_accumulation(4)
         .summary()
         .build(model, config.optimizer.init(), config.learning_rate);
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_test);
 
-    model_trained
+    result
+        .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }

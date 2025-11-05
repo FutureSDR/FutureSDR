@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-burn = { version = "0.18", features = [
+burn = { version = "0.19", features = [
   "std",
   "ndarray",
   "tui",
@@ -19,12 +19,14 @@ burn = { version = "0.18", features = [
   "autotune",
   "fusion",
 ] }
-cubecl = "0.6"
-cubecl-runtime = "0.6"
-cubecl-wgpu = "0.6"
-burn-fusion = "0.18"
-burn-cubecl = "0.18"
-burn-wgpu = "0.18"
+# delete when cubecl-cuda issue is fixed
+cudarc = { version = "0.17.7", features = ["nvrtc"] }
+cubecl = "0.8"
+cubecl-runtime = "0.8"
+cubecl-wgpu = "0.8"
+burn-fusion = "0.19"
+burn-cubecl = "0.19"
+burn-wgpu = "0.19"
 bytemuck = "1.24"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { path = "../..", features = [
@@ -40,7 +42,8 @@ ndarray = "0.16" # has to align w/ the version from ndarray-npy
 ndarray-npy = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 whisper-burn = { git = "https://github.com/bastibl/whisper-burn.git" }
-wgpu = "25.0"
+# keep in sync with burn
+wgpu = "26.0"
 
 [profile.release]
 debug = true
