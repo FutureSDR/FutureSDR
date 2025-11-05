@@ -133,7 +133,7 @@ Here are some more examples of serialized PMTs:
 
 ## Web UI
 
-FutureSDR comes with a very minimal, work-in-progress web UI, implemented in the *prophecy* crate.
+FutureSDR comes with a minimal, work-in-progress web UI, implemented in the *prophecy* crate.
 It comes pre-compiled at `crates/prophecy/dist`.
 When FutureSDR is started with control port enabled, you can specify the
 `frontend_path` [configuration](./running.md#configuration) option to serve a custom
