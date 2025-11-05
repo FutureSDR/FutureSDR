@@ -1,28 +1,31 @@
 # Installation
 
 Compiling and running FutureSDR applications requires at least a Rust toolchain.
+The sections below walk you through setting up Rust and the additional tooling
+needed for building native binaries and the web user interface.
 
 ## Install Rust
 
-To install Rust, follow the [instructions](https://www.rust-lang.org/tools/install) on their website.
+To install Rust, follow the [official instructions](https://www.rust-lang.org/tools/install).
 
-FutureSDR works with `stable` and `nightly` Rust.
-`nightly` allows for a few performance optimizations and might, therefore, be preferred.
-
-In addition, working on the web UI (i.e., extending and recompiling the frontend) requires `nightly`, since [Leptos](https://leptos.dev/), our GUI framework of choice, offers a [nicer syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax) with `nightly`, which we use in our frontend code.
+FutureSDR works with both the `stable` and `nightly` toolchains. The `nightly`
+compiler enables a few performance optimizations and is required when you build
+or modify the web UI, since it uses [Leptos](https://leptos.dev/), which
+provides an [ergonomic syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax)
+behind a `nightly` feature flag.
 
 ```admonish info
 We recommend using the `nightly` Rust toolchain.
 ```
 
-You can switch to `nightly` globally
+You can switch to `nightly` globally:
 
 ```bash
 rustup toolchain install nightly
 rustup default nightly
-  ```
+```
 
-or only for your FutureSDR project
+or only for your FutureSDR project:
 
 ```bash
 rustup toolchain install nightly
@@ -32,22 +35,21 @@ rustup override set nightly
 
 ## Web GUI and Web SDR Applications
 
-FutureSDR comes with pre-compiled web UIs. Using them requires no further tooling.
-If you want to extend or adapt the web UIs, you need to install the `wasm32-unknown-unknown` target.
+FutureSDR ships with pre-compiled web UIs, so you can use them without extra
+tooling. If you want to extend or adapt the web UIs, install the
+`wasm32-unknown-unknown` target:
 
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
 
-And, in addition, [Trunk](https://trunkrs.dev/), a build and packaging tool for Rust WebAssembly projects.
-Which can be installed with
-
+Install [Trunk](https://trunkrs.dev/), a build and packaging tool for Rust
+WebAssembly projects, with Cargo or one of the
+[other options](https://trunkrs.dev/#install) listed in their documentation:
 
 ```bash
 cargo install --locked trunk
 ```
-
-or one of the [other options](https://trunkrs.dev/#install) documented on their website.
 
 
 ## Linux (Ubuntu)
@@ -55,16 +57,15 @@ or one of the [other options](https://trunkrs.dev/#install) documented on their 
 - Clone the FutureSDR repository<br/>`git clone https://github.com/FutureSDR/FutureSDR.git`
 - Optionally, install SoapySDR<br/>`sudo apt install -y libsoapysdr-dev soapysdr-module-all soapysdr-tools`
 - Check if your setup is working by running `cargo build` in the FutureSDR directory.
-- Continue, for example, with the included [applications](/learn/examples).
 
 ## macOS
 
-These instructions assume that you use the [Homebrew](https://brew.sh) as package manager.
+These instructions assume that you use [Homebrew](https://brew.sh) as your
+package manager.
 - Clone the FutureSDR repository<br/>`git clone https://github.com/FutureSDR/FutureSDR.git`
 - Optionally, install SoapySDR<br/>`brew install soapysdr`
 - Additional drivers are available in the [Pothos Homebrew tap](https://github.com/pothosware/homebrew-pothos/wiki).
-- Check, if your setup is working by running `cargo build` in the FutureSDR directory.
-- Continue, for example, with the included [applications](/learn/examples).
+- Check if your setup is working by running `cargo build` in the FutureSDR directory.
 
 ## Windows
 
@@ -85,5 +86,4 @@ If you run into this issue, either (1) use a filter to specify the driver manual
 The libraries are, by default, at `C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8`.
 If, for example, SDRplay or UHD causes issues, move `sdrPlaySupport.dll` or `uhdSupport.dll` to a backup folder.
 
-- Check, if your setup is working by running `cargo build` in the FutureSDR directory.
-- Continue, for example, with the included [applications](/learn/examples).
+- Check if your setup is working by running `cargo build` in the FutureSDR directory.
