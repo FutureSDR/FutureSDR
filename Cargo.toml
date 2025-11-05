@@ -32,7 +32,6 @@ rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
-tpb_scheduler = []
 tracing_max_level_debug = ["tracing/max_level_debug"]
 tracing_release_max_level_info = ["tracing/release_max_level_info"]
 vulkan = ["dep:vulkano", "dep:ouroboros"]
@@ -59,10 +58,6 @@ required-features = ["flow_scheduler"]
 [[test]]
 name = "vulkan"
 required-features = ["vulkan"]
-
-[[test]]
-name = "tpb"
-required-features = ["tpb_scheduler"]
 
 [[test]]
 name = "seify"

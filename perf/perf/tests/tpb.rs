@@ -1,10 +1,9 @@
-use anyhow::Result;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::prelude::*;
-use futuresdr::runtime::scheduler::TpbScheduler;
+use perf::TpbScheduler;
 
 #[test]
 fn flowgraph_tpb() -> Result<()> {

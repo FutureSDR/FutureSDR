@@ -8,7 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
-futuresdr = { path = "../..", features = ["flow_scheduler", "tpb_scheduler"] }
+futuresdr = { path = "../..", features = ["flow_scheduler"] }
 perf = { path = "../perf" }
 rand = "0.9"
 tracing = { version = "0.1", features = ["release_max_level_off"] }

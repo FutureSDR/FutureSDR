@@ -5,10 +5,10 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::scheduler::TpbScheduler;
 use perf::CopyRand;
 use perf::LttngSink;
 use perf::LttngSource;
+use perf::TpbScheduler;
 use std::time;
 
 const GRANULARITY: u64 = 32768;
