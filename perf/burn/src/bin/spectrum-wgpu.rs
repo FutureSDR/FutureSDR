@@ -8,12 +8,10 @@ use burn_cubecl::CubeBackend;
 use burn_cubecl::fusion::FusionCubeRuntime;
 use burn_cubecl::tensor::CubeTensor;
 use burn_fusion::Fusion;
-use burn_fusion::client::FusionClient;
-use burn_fusion::client::MutexFusionClient;
+use burn_fusion::client::GlobalFusionClient;
 use burn_fusion::stream::StreamId;
 use burn_wgpu::WgpuDevice;
 use bytemuck::cast_slice;
-use cubecl::channel::MutexComputeChannel;
 use cubecl::client::ComputeClient;
 use cubecl_wgpu::WgpuServer;
 use futuresdr::blocks::WebsocketSink;
@@ -35,8 +33,8 @@ struct Fft {
     output: burn_buffer::Writer<B>,
     wr: Tensor<B, 2>,
     wi: Tensor<B, 2>,
-    fusion_client: MutexFusionClient<FusionCubeRuntime<WgpuRuntime, u32>>,
-    cubecl_client: ComputeClient<WgpuServer, MutexComputeChannel<WgpuServer>>,
+    fusion_client: GlobalFusionClient<FusionCubeRuntime<WgpuRuntime, u32>>,
+    cubecl_client: ComputeClient<WgpuServer>,
     wgpu_device_type: WgpuDevice,
 }
 
@@ -84,22 +82,22 @@ impl Kernel for Fft {
         {
             let data = b.slice();
             let byte_data: &[u8] = cast_slice(data);
-            let (handle, strides) =
+            let allocation =
                 self.cubecl_client
                     .create_tensor(byte_data, &[BATCH_SIZE * FFT_SIZE * 2], 4);
 
             let cube_tensor = CubeTensor::new(
                 self.cubecl_client.clone(),
-                handle,
+                allocation.handle,
                 [BATCH_SIZE * FFT_SIZE * 2].into(),
                 self.wgpu_device_type.clone(),
-                strides,
+                allocation.strides,
                 DType::F32,
             );
 
             let fusion_prim = self.fusion_client.register_tensor(
                 cube_tensor.into(),
-                vec![BATCH_SIZE * FFT_SIZE * 2],
+                vec![BATCH_SIZE * FFT_SIZE * 2].into(),
                 StreamId::current(),
                 DType::F32,
             );

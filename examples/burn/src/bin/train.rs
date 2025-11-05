@@ -16,6 +16,7 @@ use burn::prelude::*;
 use burn::record::CompactRecorder;
 use burn::tensor::backend::AutodiffBackend;
 use burn::train::LearnerBuilder;
+use burn::train::LearningStrategy;
 use burn::train::metric::AccuracyMetric;
 use burn::train::metric::LossMetric;
 
