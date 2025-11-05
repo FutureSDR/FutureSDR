@@ -8,6 +8,7 @@ use futures::channel::oneshot;
 use futures::future;
 use futures_lite::future::FutureExt;
 use slab::Slab;
+use std::collections::HashMap;
 use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
@@ -38,6 +39,7 @@ pub struct FlowScheduler {
 struct FlowSchedulerInner {
     executor: Arc<FlowExecutor>,
     workers: Vec<(thread::JoinHandle<()>, oneshot::Sender<()>)>,
+    pinned_blocks: HashMap<usize, usize>,
 }
 
 impl fmt::Debug for FlowSchedulerInner {
@@ -62,6 +64,11 @@ impl Drop for FlowSchedulerInner {
 impl FlowScheduler {
     /// Create Flow scheduler
     pub fn new() -> FlowScheduler {
+        FlowScheduler::with_pinned_blocks(HashMap::new())
+    }
+
+    /// Create Flow scheduler with pinned blocks
+    pub fn with_pinned_blocks(pinned_blocks: HashMap<usize, usize>) -> FlowScheduler {
         let executor = Arc::new(FlowExecutor::new());
         let mut workers = Vec::new();
 
@@ -100,7 +107,11 @@ impl FlowScheduler {
         async_io::block_on(barrier.wait());
 
         FlowScheduler {
-            inner: Arc::new(FlowSchedulerInner { executor, workers }),
+            inner: Arc::new(FlowSchedulerInner {
+                executor,
+                workers,
+                pinned_blocks,
+            }),
         }
     }
 
@@ -149,12 +160,23 @@ impl Scheduler for FlowScheduler {
                         FlowScheduler::map_block(id.0, n_blocks, n_cores),
                     )
                     .detach();
+            } else if let Some(&c) = self.inner.pinned_blocks.get(&id.0) {
+                self.inner
+                    .executor
+                    .spawn_executor(
+                        async move {
+                            let mut block = block.lock().await;
+                            block.run(main_channel).await;
+                        },
+                        c,
+                    )
+                    .detach();
             } else {
                 self.inner
                     .executor
                     .spawn_executor(
                         async move {
-                            let mut block = block.lock_blocking();
+                            let mut block = block.lock().await;
                             block.run(main_channel).await;
                         },
                         FlowScheduler::map_block(id.0, n_blocks, n_cores),
