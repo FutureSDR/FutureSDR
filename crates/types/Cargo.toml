@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-types"
-version = "0.0.14"
+version = "0.0.15-dev"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 license = "Apache-2.0"

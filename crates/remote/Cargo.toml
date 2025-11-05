@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-remote"
-version = "0.0.6"
+version = "0.0.7-dev"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 license = "Apache-2.0"
@@ -16,7 +16,7 @@ categories = ["asynchronous", "concurrency", "hardware-support", "science", "was
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-futuresdr-types = { version = "0.0.14", path = "../types/" }
+futuresdr-types = { version = "0.0.15-dev", path = "../types/" }
 reqwest = { version = "0.12", features = ["json"] }
 serde = "1.0"
 serde_json = "1.0"

@@ -1,6 +1,6 @@
 [package]
 name = "futuredsp"
-version = "0.0.8"
+version = "0.0.9-dev"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 license = "Apache-2.0"

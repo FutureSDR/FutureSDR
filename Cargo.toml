@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.39"
+version = "0.0.40-dev"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -78,9 +78,9 @@ dirs = "6.0"
 dyn-clone = "1.0"
 futures = "0.3"
 futures-lite = "2.6"
-futuredsp = { path = "crates/futuredsp", version = "0.0.8" }
-futuresdr-macros = { path = "crates/macros", version = "0.0.8" }
-futuresdr-types = { path = "crates/types", version = "0.0.14" }
+futuredsp = { path = "crates/futuredsp", version = "0.0.9-dev" }
+futuresdr-macros = { path = "crates/macros", version = "0.0.9-dev" }
+futuresdr-types = { path = "crates/types", version = "0.0.15-dev" }
 num-complex = "0.4"
 num-integer = "0.1"
 num_cpus = "1.17"
