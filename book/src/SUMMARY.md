@@ -5,8 +5,9 @@
 # User Documentation
 - [Installation](installation.md)
 - [Running Flowgraphs](running.md)
+- [Flowgraph Interaction](flowgraph_interaction.md)
 
-# SDR Development
+# Developer Documentation
 - [App Development](app_development.md)
 - [Performance Measurement](performance_measurement.md) 
 
