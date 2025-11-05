@@ -111,7 +111,7 @@ curl http://127.0.0.1:1337/api/fg/0/block/0/ | jq
 
 All message handlers of a block are exposed automatically through the REST API.
 Assuming block `0` is the SDR source or sink, you can set the frequency by
-posting a JSON-serialized PMT to the corresponding message handler:
+posting a JSON-serialized [PMT](https://docs.rs/futuresdr-types/latest/futuresdr_types/enum.Pmt.html) to the corresponding message handler:
 
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{ "U32": 123 }'  http://127.0.0.1:1337/api/fg/0/block/0/call/freq/

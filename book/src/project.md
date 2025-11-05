@@ -1,15 +1,15 @@
 # Project Creation
 
-To create a Rust crates that uses FutureSDR initialize the crate and add FutureSDR as a dependency.
+To create a Rust crate that uses FutureSDR initialize the crate and add FutureSDR as a dependency.
 
 ```bash
 cargo init my_project
 cd my_project
 ```
 
-Edit the `Cargo.toml` to add the dependency. There are several options
+Edit the `Cargo.toml` to add the dependency. There are several options:
 
-**Use a specific version** (stable but code might be outdated due to unregular release cycles)
+**Use a specific version** (stable, but code might be outdated due to irregular release cycles)
 ```toml
 [dependencies]
 futuresdr = { version = "0.0.39" }
@@ -18,14 +18,21 @@ futuresdr = { version = "0.0.39" }
 **Track the main branch** (unstable but always up-to-date)
 ```toml
 [dependencies]
-futuresdr = { git = "https://github.com/futuresdr/futuresdr.git", branch = "main" }
+futuresdr = { git = "https://github.com/FutureSDR/FutureSDR.git", branch = "main" }
 ```
 
 **Use a specific commit** (potentially best of both worlds)
 ```toml
 [dependencies]
-futuresdr = { git = "https://github.com/futuresdr/futuresdr.git", rev = "7afd76c6d768ebc6432e705efe13e73543d33668" }
+futuresdr = { git = "https://github.com/FutureSDR/FutureSDR.git", rev = "7afd76c6d768ebc6432e705efe13e73543d33668" }
 ```
+
+**Use a local working tree** (if you work on FutureSDR in parallel)
+```toml
+[dependencies]
+futuresdr = { path = "../FutureSDR" }
+```
+
 
 ## Features
 
@@ -41,13 +48,42 @@ FutureSDR supports several features that you may want to enable.
 - `seify`: enable Seify SDR hardware abstraction
 - `seify_dummy`: enable dummy driver for Seify for use in unit tests
 - `soapy`: enable SoapySDR driver for Seify
-- `tracing_max_level_debug`:
-- `tracing_release_max_level_info`:
+- `tracing_max_level_debug`: disable tracing messages in debug mode (compile-time filter)
+- `tracing_release_max_level_info`: disable debug and tracing messages in release mode (compile-time filter)
 - `vulkan`: enable Vulkan buffers and blocks
-- `wgpu`:
-- `zeromq`:
-- `zynq`:
+- `wgpu`: enable WGPU buffers and blocks
+- `zeromq`: enable ZeroMQ source and sink
+- `zynq`: enable Xilinx Zynq DMA buffers
+
+For example:
+
+```toml
+[dependencies]
+futuresdr = { version = "0.0.39", default-features = false, features = ["audio", "seify"] }
+```
+
 
 ## Minimal Example
 
-To check whether
+To test if everything is working, you can paste the following minimal example in `src/main.rs` and execute it with `cargo run`.
+
+```rust
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
+use futuresdr::prelude::*;
+
+fn main() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let src = NullSource::<u8>::new();
+    let head = Head::<u8>::new(123);
+    let snk = NullSink::<u8>::new();
+
+    connect!(fg, src > head > snk);
+
+    Runtime::new().run(fg)?;
+
+    Ok(())
+}
+```

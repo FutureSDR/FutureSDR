@@ -13,12 +13,9 @@
 //! use futuresdr::blocks::Head;
 //! use futuresdr::blocks::NullSink;
 //! use futuresdr::blocks::NullSource;
-//! use futuresdr::macros::connect;
-//! use futuresdr::runtime::Error;
-//! use futuresdr::runtime::Flowgraph;
-//! use futuresdr::runtime::Runtime;
+//! use futuresdr::prelude::*;
 //!
-//! fn main() -> Result<(), Error> {
+//! fn main() -> Result<()> {
 //!     let mut fg = Flowgraph::new();
 //!
 //!     let src = NullSource::<u8>::new();
