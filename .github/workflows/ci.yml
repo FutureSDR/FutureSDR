@@ -170,7 +170,7 @@ jobs:
         run: sudo apt-get -y install libsoapysdr-dev
 
       - name: Run cargo clippy (main)
-        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,vulkan,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,zynq,wgpu -- -D warnings
+        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,vulkan,zeromq,audio,flow_scheduler,seify_dummy,soapy,zynq,wgpu -- -D warnings
 
       - name: Run cargo clippy (futuredsp)
         run: cargo clippy --lib --manifest-path=crates/futuredsp/Cargo.toml -- -D warnings
@@ -409,7 +409,7 @@ jobs:
       - run: sudo apt-get -y install libasound2-dev
       - run: sudo apt-get -y install liblttng-ust-dev
       - run: sudo apt-get -y install libsoapysdr-dev
-      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,tpb_scheduler,seify_dummy,soapy,zynq,wgpu
+      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,rtlsdr,zeromq,audio,flow_scheduler,seify_dummy,soapy,zynq,wgpu
       - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
       - run: cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
       - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
@@ -426,7 +426,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: brew install shaderc glslang spirv-tools
       - name: Build
-        run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,tpb_scheduler,wgpu
+        run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu
         env:
           SHADERC_LIB_DIR: /opt/homebrew/lib
           SHADERC_INCLUDE_DIR: /opt/homebrew/include
@@ -442,4 +442,4 @@ jobs:
           args: install ninja
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,tpb_scheduler,wgpu
+      - run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu
