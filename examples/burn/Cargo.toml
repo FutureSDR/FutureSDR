@@ -19,8 +19,6 @@ burn = { version = "0.19", features = [
   "autotune",
   "fusion",
 ] }
-# delete when cubecl-cuda issue is fixed
-cudarc = { version = "0.17.7", features = ["nvrtc"] }
 cubecl = "0.8"
 cubecl-runtime = "0.8"
 cubecl-wgpu = "0.8"
