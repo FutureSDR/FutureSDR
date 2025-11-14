@@ -7,7 +7,7 @@ use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
-use perf::TpbScheduler;
+use std::collections::HashMap;
 use std::time;
 
 #[derive(Parser, Debug)]
@@ -38,23 +38,30 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
+    let mut cpu_mapping = HashMap::new();
 
-    for _ in 0..pipes {
+    for p in 0..pipes {
         let src = fg.add_block(NullSource::<f32>::new());
         let head = fg.add_block(Head::<f32>::new(samples as u64));
-        fg.connect_stream(src.get()?.output(), head.get()?.input());
-
         let mut last = fg.add_block(CopyRand::<f32>::new(max_copy));
+
+        fg.connect_stream(src.get()?.output(), head.get()?.input());
         fg.connect_stream(head.get()?.output(), last.get()?.input());
+
+        cpu_mapping.insert(src.get()?.id, p);
+        cpu_mapping.insert(head.get()?.id, p);
+        cpu_mapping.insert(last.get()?.id, p);
 
         for _ in 1..stages {
             let block = fg.add_block(CopyRand::<f32>::new(max_copy));
             fg.connect_stream(last.get()?.output(), block.get()?.input());
+            cpu_mapping.insert(block.get()?.id, p);
             last = block;
         }
 
         let snk = fg.add_block(NullSink::<f32>::new());
         fg.connect_stream(last.get()?.output(), snk.get()?.input());
+        cpu_mapping.insert(snk.get()?.id, p);
         snks.push(snk);
     }
 
@@ -70,13 +77,8 @@ fn main() -> Result<()> {
         let now = time::Instant::now();
         runtime.run(fg)?;
         elapsed = now.elapsed();
-    } else if scheduler == "tpb" {
-        let runtime = Runtime::with_scheduler(TpbScheduler::new());
-        let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime = Runtime::with_scheduler(FlowScheduler::new());
+        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
         let now = time::Instant::now();
         runtime.run(fg)?;
         elapsed = now.elapsed();

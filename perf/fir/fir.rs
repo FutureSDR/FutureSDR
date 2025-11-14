@@ -10,7 +10,6 @@ use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
-use perf::TpbScheduler;
 use std::iter::repeat_with;
 use std::time;
 
@@ -84,11 +83,6 @@ fn main() -> Result<()> {
         elapsed = now.elapsed();
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
-        let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else if scheduler == "tpb" {
-        let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
         runtime.run(fg)?;
         elapsed = now.elapsed();

@@ -16,3 +16,10 @@ tracing = { version = "0.1", features = ["release_max_level_off"] }
 [[bin]]
 name = "fir"
 path = "fir.rs"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
+panic = "abort"
