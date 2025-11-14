@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use futures::SinkExt;
 use futures::StreamExt;
 use futures::future::Either;
@@ -162,16 +161,16 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             }
         }
 
-        let inbox = inbox.peekable();
-        futures::pin_mut!(inbox);
+        let mut peek: Option<BlockMessage> = None;
 
         // main loop
         loop {
             // ================== non blocking
-            loop {
-                match inbox.next().now_or_never() {
-                    Some(Some(BlockMessage::Notify)) => {}
-                    Some(Some(BlockMessage::BlockDescription { tx })) => {
+            let mut msg = peek.take().or_else(|| inbox.try_next().ok().flatten());
+            while let Some(m) = msg {
+                match m {
+                    BlockMessage::Notify => {}
+                    BlockMessage::BlockDescription { tx } => {
                         let stream_inputs = kernel.stream_inputs();
                         let stream_outputs = kernel.stream_outputs();
                         let message_inputs =
@@ -193,13 +192,13 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                             warn!("failed to return BlockDescription, oneshot receiver dropped");
                         }
                     }
-                    Some(Some(BlockMessage::StreamInputDone { input_id })) => {
+                    BlockMessage::StreamInputDone { input_id } => {
                         kernel.stream_input_finish(input_id)?;
                     }
-                    Some(Some(BlockMessage::StreamOutputDone { .. })) => {
+                    BlockMessage::StreamOutputDone { .. } => {
                         work_io.finished = true;
                     }
-                    Some(Some(BlockMessage::Call { port_id, data })) => {
+                    BlockMessage::Call { port_id, data } => {
                         match kernel
                             .call_handler(&mut work_io, mio, meta, port_id, data)
                             .await
@@ -220,7 +219,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                             _ => {}
                         }
                     }
-                    Some(Some(BlockMessage::Callback { port_id, data, tx })) => {
+                    BlockMessage::Callback { port_id, data, tx } => {
                         match kernel
                             .call_handler(&mut work_io, mio, meta, port_id.clone(), data)
                             .await
@@ -241,12 +240,12 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                             }
                         }
                     }
-                    Some(Some(BlockMessage::Terminate)) => work_io.finished = true,
-                    Some(Some(t)) => warn!("block unhandled message in main loop {:?}", t),
-                    _ => break,
+                    BlockMessage::Terminate => work_io.finished = true,
+                    t => warn!("block unhandled message in main loop {:?}", t),
                 };
                 // received at least one message
                 work_io.call_again = true;
+                msg = inbox.try_next().ok().flatten();
             }
 
             // ================== shutdown
@@ -273,20 +272,21 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             if !work_io.call_again {
                 match work_io.block_on.take() {
                     Some(f) => {
-                        let p = inbox.as_mut().peek();
+                        let p = inbox.next();
 
                         match futures::future::select(f, p).await {
                             Either::Left(_) => {
                                 work_io.call_again = true;
                             }
-                            Either::Right((_, f)) => {
+                            Either::Right((p, f)) => {
+                                peek = p;
                                 work_io.block_on = Some(f);
                                 continue;
                             }
                         };
                     }
                     _ => {
-                        inbox.as_mut().peek().await;
+                        peek = inbox.next().await;
                         continue;
                     }
                 }
