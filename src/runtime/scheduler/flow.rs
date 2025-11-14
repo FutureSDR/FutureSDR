@@ -3,10 +3,10 @@ use async_lock::Barrier;
 use async_task::Runnable;
 use async_task::Task;
 use concurrent_queue::ConcurrentQueue;
-use futures::Future;
 use futures::channel::oneshot;
 use futures::future;
-use futures_lite::future::FutureExt;
+use futures::future::Either;
+use futures::future::select;
 use slab::Slab;
 use std::collections::HashMap;
 use std::fmt;
@@ -24,6 +24,7 @@ use std::thread;
 
 use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
+use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
@@ -39,7 +40,7 @@ pub struct FlowScheduler {
 struct FlowSchedulerInner {
     executor: Arc<FlowExecutor>,
     workers: Vec<(thread::JoinHandle<()>, oneshot::Sender<()>)>,
-    pinned_blocks: HashMap<usize, usize>,
+    pinned_blocks: HashMap<BlockId, usize>,
 }
 
 impl fmt::Debug for FlowSchedulerInner {
@@ -68,7 +69,7 @@ impl FlowScheduler {
     }
 
     /// Create Flow scheduler with pinned blocks
-    pub fn with_pinned_blocks(pinned_blocks: HashMap<usize, usize>) -> FlowScheduler {
+    pub fn with_pinned_blocks(pinned_blocks: HashMap<BlockId, usize>) -> FlowScheduler {
         let executor = Arc::new(FlowExecutor::new());
         let mut workers = Vec::new();
 
@@ -160,7 +161,7 @@ impl Scheduler for FlowScheduler {
                         FlowScheduler::map_block(id.0, n_blocks, n_cores),
                     )
                     .detach();
-            } else if let Some(&c) = self.inner.pinned_blocks.get(&id.0) {
+            } else if let Some(&c) = self.inner.pinned_blocks.get(&id) {
                 self.inner
                     .executor
                     .spawn_executor(
@@ -316,8 +317,13 @@ impl FlowExecutor {
             }
         };
 
-        // Run `future` and `run_forever` concurrently until `future` completes.
-        future.or(run_forever).await
+        futures::pin_mut!(future);
+        futures::pin_mut!(run_forever);
+
+        match select(future, run_forever).await {
+            Either::Left((v, _other)) => v,
+            Either::Right((v, _other)) => v,
+        }
     }
 
     /// Returns a function that schedules a runnable task when it gets woken up.

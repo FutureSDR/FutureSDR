@@ -3,7 +3,6 @@ use futures::channel::oneshot;
 use futures::future::Future;
 use futures::task::Context;
 use futures::task::Poll;
-use futures_lite::FutureExt;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -79,10 +78,15 @@ impl<T> Task<T> {
 
 impl<T> std::future::Future for Task<T> {
     type Output = T;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.0.poll(cx) {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let rx = &mut self.get_mut().0;
+
+        match Pin::new(rx).poll(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(x) => Poll::Ready(x.unwrap()),
+            Poll::Ready(Ok(v)) => Poll::Ready(v),
+            Poll::Ready(Err(_)) => {
+                panic!("Task canceled")
+            }
         }
     }
 }
