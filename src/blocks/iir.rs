@@ -47,7 +47,7 @@ where
     /// feed-forward taps and `m` feed-back taps, the equation is:
     /// ```text
     /// y(k) = x[k] * b[0] + x[k-1] * b[1] + ... + x[k-n] * b[n]
-    ///        + x[k-1] * a[0] + x[k-2] * a[1] + ... + x[k-m-1] * a[m]
+    ///        + y[k-1] * a[0] + y[k-2] * a[1] + ... + y[k-m-1] * a[m]
     /// ```
     ///
     /// Uses the `futuredsp` to pick the optimal IIR implementation for the given
