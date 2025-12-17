@@ -24,3 +24,6 @@ semtech-udp = { version = "0.12.0", features = ["client"] }
 structopt = "0.3.26"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 triggered = "0.1.3"
+strum_macros = "0.26.4"
+strum = "0.26.3"
+rand = "0.9.0"

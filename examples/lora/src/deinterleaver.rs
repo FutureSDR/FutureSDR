@@ -4,44 +4,115 @@ use std::collections::HashMap;
 use crate::utils::*;
 
 #[derive(Block)]
-pub struct Deinterleaver<I = DefaultCpuReader<u16>, O = DefaultCpuWriter<u8>>
-where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u8>,
+pub struct Deinterleaver<
+    S = DemodulatedSymbolSoftDecoding,
+    D = DeinterleavedSymbolSoftDecoding,
+    I = DefaultCpuReader<DemodulatedSymbolSoftDecoding>,
+    O = DefaultCpuWriter<DeinterleavedSymbolSoftDecoding>,
+> where
+    S: DemodulatedSymbol,
+    D: DeinterleavedSymbol,
+    I: CpuBufferReader<Item = S>,
+    O: CpuBufferWriter<Item = D>,
 {
     #[input]
     input: I,
     #[output]
     output: O,
-    sf: usize,            // Spreading factor
-    cr: usize,            // Coding rate
+    sf: usize,       // Spreading factor
+    cr: usize,       // Coding rate
     is_header: bool, // Indicate that we need to deinterleave the first block with the default header parameters (cr=4/8, reduced rate)
-    _soft_decoding: bool, // Hard/Soft decoding
     ldro: bool,      // use low datarate optimization mode
 }
 
-impl<I, O> Deinterleaver<I, O>
+impl<S, D, I, O> Deinterleaver<S, D, I, O>
 where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u8>,
+    S: DemodulatedSymbol,
+    D: DeinterleavedSymbol,
+    I: CpuBufferReader<Item = S>,
+    O: CpuBufferWriter<Item = D>,
 {
-    pub fn new(soft_decoding: bool) -> Self {
+    pub fn new(ldro: bool, sf: SpreadingFactor) -> Self {
         Self {
             input: I::default(),
             output: O::default(),
-            _soft_decoding: soft_decoding,
-            sf: 0,
+            sf: Into::<usize>::into(sf),
             cr: 0,
             is_header: false,
-            ldro: false,
+            ldro,
         }
     }
 }
 
-impl<I, O> Kernel for Deinterleaver<I, O>
+trait Deinter<S: DemodulatedSymbol, D: DeinterleavedSymbol>: Send {
+    fn deinterleave_block(&mut self, sf_app: usize, cw_len: usize);
+}
+
+impl<I, O> Deinter<DemodulatedSymbolHardDecoding, DeinterleavedSymbolHardDecoding>
+    for Deinterleaver<DemodulatedSymbolHardDecoding, DeinterleavedSymbolHardDecoding, I, O>
 where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u8>,
+    I: CpuBufferReader<Item = DemodulatedSymbolHardDecoding>,
+    O: CpuBufferWriter<Item = DeinterleavedSymbolHardDecoding>,
+{
+    fn deinterleave_block(&mut self, sf_app: usize, cw_len: usize) {
+        // Hard-Decoding
+        let input = self.input.slice();
+        let output = self.output.slice();
+        let mut inter_bin: Vec<Vec<bool>> = vec![vec![false; sf_app]; cw_len];
+        let mut deinter_bin: Vec<Vec<bool>> = vec![vec![false; cw_len]; sf_app];
+        // convert decimal vector to binary vector of vector
+        for i in 0..cw_len {
+            inter_bin[i] = int2bool(input[i], sf_app);
+        }
+        // do the actual deinterleaving
+        for i in 0..cw_len {
+            for j in 0..sf_app {
+                deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] = inter_bin[i][j];
+            }
+        }
+        // transform codewords from binary vector to dec
+        for i in 0..sf_app {
+            output[i] = bool2int(&deinter_bin[i]) as u8;
+        }
+    }
+}
+
+impl<I, O> Deinter<DemodulatedSymbolSoftDecoding, DeinterleavedSymbolSoftDecoding>
+    for Deinterleaver<DemodulatedSymbolSoftDecoding, DeinterleavedSymbolSoftDecoding, I, O>
+where
+    I: CpuBufferReader<Item = DemodulatedSymbolSoftDecoding>,
+    O: CpuBufferWriter<Item = DeinterleavedSymbolSoftDecoding>,
+{
+    fn deinterleave_block(&mut self, sf_app: usize, cw_len: usize) {
+        // wait for a full block to deinterleave
+        let input = self.input.slice();
+        let output = self.output.slice();
+        let mut inter_bin: Vec<[LLR; MAX_SF]> = vec![[0.; MAX_SF]; cw_len];
+        let mut deinter_bin: Vec<[LLR; 8]> = vec![[0.; 8]; sf_app];
+        for i in 0..cw_len {
+            // take only sf_app bits over the sf bits available
+            let input_offset = self.sf - sf_app;
+            let count = sf_app;
+            inter_bin[i][0..count].copy_from_slice(&input[i][input_offset..(input_offset + count)]);
+        }
+        // Do the actual deinterleaving
+        for i in 0..cw_len {
+            for j in 0..sf_app {
+                deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] = inter_bin[i][j];
+            }
+        }
+        output[0..sf_app].copy_from_slice(&deinter_bin[0..sf_app]);
+        // Write only the cw_len bits over the 8 bits space available
+    }
+}
+
+impl<S, D, I, O> Kernel for Deinterleaver<S, D, I, O>
+where
+    S: DemodulatedSymbol,
+    D: DeinterleavedSymbol,
+    I: CpuBufferReader<Item = S>,
+    O: CpuBufferWriter<Item = D>,
+    Deinterleaver<S, D, I, O>: Deinter<S, D>,
 {
     async fn work(
         &mut self,
@@ -53,6 +124,16 @@ where
         let (output, mut out_tags) = self.output.slice_with_tags();
         let mut input_len = input.len();
         let output_len = output.len();
+        // let mut n_input = if self.soft_decoding {
+        //     sio.input(0).slice::<[LLR; MAX_SF]>().len()
+        // } else {
+        //     sio.input(0).slice::<u16>().len()
+        // };
+        // let n_output = if self.soft_decoding {
+        //     sio.output(0).slice::<[LLR; 8]>().len()
+        // } else {
+        //     sio.output(0).slice::<u8>().len()
+        // };
 
         let tags: Vec<(usize, &HashMap<String, Pmt>)> = in_tags
             .iter()
@@ -128,12 +209,10 @@ where
         };
 
         #[allow(clippy::nonminimal_bool)]
-        let sf_app = if (LEGACY_SF_5_6 && (self.is_header || self.ldro))
-            || (!LEGACY_SF_5_6
-                && ((self.sf >= 7 && (self.is_header || self.ldro))
-                    || (self.sf < 7 && !self.is_header && self.ldro)))
+        let sf_app = if (self.sf >= 7 && (self.is_header || self.ldro))
+            || (self.sf < 7 && !self.is_header && self.ldro)
         {
-            self.sf - 2
+            self.sf - 2 // TODO this can be called w/o ever receiving a header tag, causing overflow if sf is not set explicitly in initializer
         } else {
             self.sf
         };
@@ -150,48 +229,7 @@ where
                     Tag::NamedAny("frame_info".to_string(), Box::new(Pmt::MapStrPmt(tag))),
                 );
             }
-            // wait for a full block to deinterleave
-            // if self.soft_decoding {
-            //     let input = sio.input(0).slice::<[LLR; MAX_SF]>();
-            //     let output = sio.output(0).slice::<[LLR; 8]>();
-            //     let mut inter_bin: Vec<[LLR; MAX_SF]> = vec![[0.; MAX_SF]; cw_len];
-            //     let mut deinter_bin: Vec<[LLR; 8]> = vec![[0.; 8]; sf_app];
-            //     for i in 0..cw_len {
-            //         // take only sf_app bits over the sf bits available
-            //         let input_offset = self.sf - sf_app;
-            //         let count = sf_app;
-            //         inter_bin[i][0..count]
-            //             .copy_from_slice(&input[i][input_offset..(input_offset + count)]);
-            //     }
-            //     // Do the actual deinterleaving
-            //     for i in 0..cw_len {
-            //         for j in 0..sf_app {
-            //             deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
-            //                 inter_bin[i][j];
-            //         }
-            //     }
-            //     output[0..sf_app].copy_from_slice(&deinter_bin[0..sf_app]);
-            //     // Write only the cw_len bits over the 8 bits space available
-            // } else {
-            // Hard-Decoding
-            let mut inter_bin: Vec<Vec<bool>> = vec![vec![false; sf_app]; cw_len];
-            let mut deinter_bin: Vec<Vec<bool>> = vec![vec![false; cw_len]; sf_app];
-            // convert decimal vector to binary vector of vector
-            for i in 0..cw_len {
-                inter_bin[i] = int2bool(input[i], sf_app);
-            }
-            // do the actual deinterleaving
-            for i in 0..cw_len {
-                for j in 0..sf_app {
-                    deinter_bin[my_modulo(i as isize - j as isize - 1, sf_app)][i] =
-                        inter_bin[i][j];
-                }
-            }
-            // transform codewords from binary vector to dec
-            for i in 0..sf_app {
-                output[i] = bool2int(&deinter_bin[i]) as u8;
-            }
-            // }
+            self.deinterleave_block(sf_app, cw_len);
             self.input.consume(cw_len);
             self.output.produce(sf_app);
         }

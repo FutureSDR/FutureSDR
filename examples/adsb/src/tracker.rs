@@ -186,10 +186,10 @@ impl Tracker {
         // and an even frame.
         // Make rec immutable
         let rec = self.aircraft_register.register.get(icao).unwrap();
-        if rec.last_cpr_even.is_some() && rec.last_cpr_odd.is_some() {
+        if let Some(even_cpr_rec) = &rec.last_cpr_even.as_ref()
+            && let Some(odd_cpr_rec) = &rec.last_cpr_odd.as_ref()
+        {
             // The frames must be recent
-            let even_cpr_rec = rec.last_cpr_even.as_ref().unwrap();
-            let odd_cpr_rec = rec.last_cpr_odd.as_ref().unwrap();
             if even_cpr_rec.time < now + ADSB_TIME_RECENT
                 && odd_cpr_rec.time < now + ADSB_TIME_RECENT
             {

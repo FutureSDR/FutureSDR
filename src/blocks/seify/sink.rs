@@ -40,7 +40,7 @@ where
     dev: Device<D>,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
-    max_input_samples: usize,
+    max_input_buffer_size_in_samples: usize,
 }
 
 impl<D, IN> Sink<D, IN>
@@ -48,12 +48,21 @@ where
     D: DeviceTrait + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
-    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
+    pub(super) fn new(
+        dev: Device<D>,
+        channels: Vec<usize>,
+        start_time: Option<i64>,
+        min_buffer_size: Option<usize>,
+    ) -> Self {
         assert!(!channels.is_empty());
 
         let mut inputs = Vec::new();
         for _ in 0..channels.len() {
-            inputs.push(IN::default());
+            let mut input = IN::default();
+            if let Some(min_buffer_size) = min_buffer_size {
+                input.set_min_items(min_buffer_size);
+            }
+            inputs.push(input);
         }
 
         Self {
@@ -62,7 +71,7 @@ where
             dev,
             start_time,
             streamer: None,
-            max_input_samples: 0,
+            max_input_buffer_size_in_samples: 0,
         }
     }
 
@@ -197,9 +206,10 @@ where
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
                     debug_assert_eq!(ret, len);
                     ret
-                } else if len > self.max_input_samples {
+                } else if len > self.max_input_buffer_size_in_samples {
                     warn!(
-                        "input buffers of seify sink too small to fit complete frame. sending in non-burst mode"
+                        "input buffers of seify sink too small ({} samples) to fit complete burst ({len} samples). sending in non-burst mode",
+                        self.max_input_buffer_size_in_samples
                     );
                     let bufs: Vec<&[Complex32]> = bufs.iter().map(|b| &b[0..n]).collect();
                     let ret = streamer.write(&bufs, None, true, 2_000_000)?;
@@ -246,10 +256,10 @@ where
     }
 
     async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
-        self.max_input_samples = self
+        self.max_input_buffer_size_in_samples = self
             .inputs
             .iter_mut()
-            .map(|i| i.slice().len())
+            .map(|i| i.max_items())
             .min()
             .unwrap_or(0);
         self.streamer = Some(self.dev.tx_streamer(&self.channels)?);

@@ -145,8 +145,7 @@ where
                 } else {
                     self.state = State::Skip(n - m);
                 }
-
-                if self.input.finished() {
+                if self.input.finished() && m == i_len {
                     io.finished = true;
                 }
             }

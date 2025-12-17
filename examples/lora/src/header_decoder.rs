@@ -230,7 +230,7 @@ where
                     - ((c4 << 4) + (c3 << 3) + (c2 << 2) + (c1 << 1) + c0) as i16
                     != 0;
                 if head_err || payload_len == 0 {
-                    debug!("Header checksum invalid!");
+                    info!("Header checksum invalid!");
                     if head_err {
                         debug!("Header checksum invalid!");
                     }
@@ -238,6 +238,10 @@ where
                         debug!("Frame can not be empty!");
                         debug!("item to process= {}", nitem_to_consume);
                     }
+                    head_err = true;
+                } else if code_rate > 3 {
+                    info!("Header invalid!");
+                    debug!("Code rate must be within [0, 3]!");
                     head_err = true;
                 } else {
                     debug!("Header checksum valid!");

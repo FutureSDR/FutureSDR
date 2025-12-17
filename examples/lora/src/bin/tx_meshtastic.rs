@@ -2,13 +2,15 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
-use std::io::BufRead;
-use std::io::Write;
-
 use lora::Transmitter;
+use lora::default_values::HAS_CRC;
+use lora::default_values::IMPLICIT_HEADER;
+use lora::default_values::PREAMBLE_LEN;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticConfig;
 use lora::utils::Bandwidth;
+use std::io::BufRead;
+use std::io::Write;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -31,16 +33,12 @@ struct Args {
     #[clap(short, long, default_value = "AQ==")]
     key: String,
 }
-
-const HAS_CRC: bool = true;
-const IMPLICIT_HEADER: bool = false;
-const PREAMBLE_LEN: usize = 8;
 const PAD: usize = 10000;
 
 fn main() -> Result<()> {
     let args = Args::parse();
     info!("args {:?}", &args);
-    let (bandwidth, spreading_factor, code_rate, freq, ldro) = args.meshtastic_config.to_config();
+    let (bandwidth, spreading_factor, code_rate, chan, ldro) = args.meshtastic_config.to_config();
 
     let interpolation = match bandwidth {
         Bandwidth::BW62 => 16,
@@ -53,15 +51,15 @@ fn main() -> Result<()> {
 
     let sink = Builder::new(args.args)?
         .sample_rate(1e6)
-        .frequency(freq as f64)
+        .frequency(Into::<f64>::into(chan))
         .gain(args.gain)
         .antenna(args.antenna)
         .build_sink()?;
 
     let transmitter: Transmitter = Transmitter::new(
-        code_rate.into(),
+        code_rate,
         HAS_CRC,
-        spreading_factor.into(),
+        spreading_factor,
         ldro,
         IMPLICIT_HEADER,
         interpolation,
@@ -84,7 +82,7 @@ fn main() -> Result<()> {
             write!(o, "{}: ", &args.name)?;
             o.flush()?;
             let mut iterator = i.lines();
-            iterator.next().unwrap().unwrap()
+            iterator.next().unwrap()?
         };
         let data = channel.encode(msg);
         let mut handle = handle.clone();

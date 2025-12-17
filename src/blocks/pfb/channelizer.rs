@@ -1,28 +1,52 @@
-use futuredsp::FirFilter;
-use futuredsp::prelude::*;
-use num_integer::Integer;
-use rustfft::Fft;
-use rustfft::FftDirection;
-use rustfft::FftPlanner;
+/*
+ * Derived from the liquid-dsp project.
+ * Original copyright and license:
+ *
+ * Copyright (c) 2007 - 2024 Joseph Gaeddert
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
 use std::cmp::min;
 use std::sync::Arc;
 
+use rustfft::Fft;
+use rustfft::FftDirection;
+use rustfft::FftPlanner;
+
+use futuredsp::FirFilter;
+use futuredsp::prelude::*;
+
 use crate::prelude::*;
 
-fn partition_filter_taps(
-    taps: &[f32],
-    n_filters: usize,
-) -> (Vec<FirFilter<Complex32, Complex32, Vec<f32>>>, usize) {
-    let mut fir_filters = vec![];
-    let taps_per_filter = (taps.len() as f32 / n_filters as f32).ceil() as usize;
-    for i in 0..n_filters {
-        let mut taps_tmp: Vec<f32> = taps[i..].iter().step_by(n_filters).copied().collect();
-        if taps_tmp.len() < taps_per_filter {
-            taps_tmp.push(0.);
-        }
-        fir_filters.push(FirFilter::<Complex32, Complex32, _>::new(taps_tmp));
-    }
-    (fir_filters, taps_per_filter)
+use super::utilities::partition_filter_taps;
+use super::window_buffer::WindowBuffer;
+
+struct State {
+    num_channels: usize,
+    decimation_factor: usize,
+    ifft: Arc<dyn Fft<f32>>,
+    fft_buf: Vec<Complex32>,
+    fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
+    window_buf: Vec<WindowBuffer>,
+    base_index: usize,
+    all_windows_filled: bool,
 }
 
 /// Polyphase Channelizer
@@ -33,18 +57,10 @@ where
     O: CpuBufferWriter<Item = Complex32>,
 {
     #[input]
-    inputs: Vec<I>,
+    input: I,
     #[output]
     outputs: Vec<O>,
-    fir_filters: Vec<FirFilter<Complex32, Complex32, Vec<f32>>>,
-    taps_per_filter: usize,
-    n_filters: usize,
-    os_factor: f32,
-    idx_lut: Vec<usize>,
-    fft: Arc<dyn Fft<f32>>,
-    fft_buf: Vec<Complex32>,
-    rate_ratio: usize,
-    num_filtering_rounds: usize,
+    s: State,
 }
 
 impl<I, O> PfbChannelizer<I, O>
@@ -53,32 +69,49 @@ where
     O: CpuBufferWriter<Item = Complex32>,
 {
     /// Create Polyphase Channelizer.
-    pub fn new(n_filters: usize, taps: &[f32], oversample_rate: f32) -> Self {
-        if oversample_rate == 0. || n_filters as f32 % oversample_rate != 0. {
-            panic!("pfb_channelizer: oversample rate must be N/i for i in [1, N]");
-        }
-        let rate_ratio = (n_filters as f32 / oversample_rate) as usize; // no rounding necessary, since condition above ensures the result is integer
-        let idx_lut = (0..n_filters)
-            .map(|i| n_filters - ((i + rate_ratio) % n_filters) - 1)
-            .collect();
-        // Calculate the number of filtering rounds to do to evenly
-        // align the input vectors with the output channels
-        let num_filtering_rounds = n_filters.lcm(&rate_ratio) / n_filters;
-        let (fir_filters, taps_per_filter) = partition_filter_taps(taps, n_filters);
+    pub fn new(num_channels: usize, taps: &[f32], oversample_rate: f32) -> Self {
+        // validate input
+        assert!(
+            num_channels > 2,
+            "PfbChannelizer: number of channels must be at least 2"
+        );
+        assert!(
+            taps.len() >= num_channels,
+            "PfbChannelizer: prototype filter length must be at least num_channels"
+        );
+        assert!(
+            oversample_rate != 0. && num_channels as f32 % oversample_rate == 0.,
+            "pfb_channelizer: oversample rate must be N/i for i in [1, N]"
+        );
+
+        let decimation_factor = (num_channels as f32 / oversample_rate) as usize;
+        let (partitioned_filters, filter_semi_length) = partition_filter_taps(taps, num_channels);
 
         Self {
-            inputs: (0..n_filters).map(|_| I::default()).collect(),
-            outputs: (0..n_filters).map(|_| O::default()).collect(),
-            fir_filters,
-            taps_per_filter,
-            n_filters,
-            os_factor: oversample_rate,
-            idx_lut,
-            fft: FftPlanner::new().plan_fft(n_filters, FftDirection::Inverse),
-            fft_buf: vec![Complex32::new(0.0, 0.0); n_filters],
-            rate_ratio,
-            num_filtering_rounds,
+            input: I::default(),
+            outputs: (0..num_channels).map(|_| O::default()).collect(),
+            s: State {
+                num_channels,
+                decimation_factor,
+                ifft: FftPlanner::new().plan_fft(num_channels, FftDirection::Inverse),
+                fft_buf: vec![Complex32::default(); num_channels],
+                fir_filters: partitioned_filters,
+                window_buf: vec![WindowBuffer::new(filter_semi_length, false); num_channels],
+                base_index: num_channels - 1,
+                all_windows_filled: false,
+            },
         }
+    }
+}
+
+impl State {
+    fn decrement_base_index(&mut self) {
+        // decrement base index, wrapping around
+        self.base_index = if self.base_index == 0 {
+            self.num_channels - 1
+        } else {
+            self.base_index - 1
+        };
     }
 }
 
@@ -94,87 +127,79 @@ where
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let n_items_available = self
-            .inputs
-            .iter_mut()
-            .map(|x| x.slice().len())
-            .min()
-            .unwrap();
-        let n_items_to_consume = n_items_available.saturating_sub(self.taps_per_filter); // ensure we leave enough samples for "overlapping" FIR filter iterations (ref. "history" property of GNU Radio blocks)
-        let n_items_producable = self
-            .outputs
-            .iter_mut()
-            .map(|x| x.slice().len())
-            .min()
-            .unwrap();
-        let n_items_to_process = min(
-            (n_items_producable as f32 / self.os_factor) as usize,
-            n_items_to_consume,
+        let input = self.input.slice();
+        let n_items_to_consume = input.len();
+        let mut outs: Vec<&mut [Complex32]> = self.outputs.iter_mut().map(|x| x.slice()).collect();
+        let n_items_producible = outs.iter().map(|x| x.len()).min().unwrap();
+        let n_items_to_produce_per_channel = min(
+            n_items_producible,
+            n_items_to_consume / self.s.decimation_factor,
         );
-        // consume in batches of self.rate_ratio, but ensure we are doing full iterations aligned with the number of input buffers (so as not to lose state between calls)
-        let n_items_to_process =
-            (n_items_to_process / self.num_filtering_rounds) * self.num_filtering_rounds;
-        let n_items_to_produce = (n_items_to_process as f32 * self.os_factor) as usize;
-
-        if n_items_to_process > 0 {
-            let mut outs: Vec<&mut [Complex32]> =
-                self.outputs.iter_mut().map(|x| x.slice()).collect();
-            let ins: Vec<&[Complex32]> = self.inputs.iter_mut().map(|x| x.slice()).collect();
-            let mut n = 1;
-            let mut oo = 0;
-            let mut i: isize = -1;
-            while n <= n_items_to_process {
-                let mut j = 0;
-                i = ((i + self.rate_ratio as isize) as usize % self.n_filters) as isize;
-                let last = i;
-                while i >= 0 {
-                    self.fir_filters[i as usize].filter(
-                        &ins[j][n..n + self.taps_per_filter],
-                        &mut self.fft_buf[self.idx_lut[j]..self.idx_lut[j] + 1],
-                    );
-                    j += 1;
-                    i -= 1;
+        // fill the sample windows if we do not yet have sufficient history to produce output
+        if !self.s.all_windows_filled {
+            let mut consumed = 0;
+            // consume as many input samples as the buffer holds or until all windows are filled
+            while !self.s.window_buf.iter().all(|w| w.filled()) {
+                if consumed == n_items_to_consume {
+                    self.input.consume(consumed);
+                    if self.input.finished() {
+                        io.finished = true;
+                    }
+                    return Ok(());
                 }
-
-                i = self.n_filters as isize - 1;
-                while i > last {
-                    self.fir_filters[i as usize].filter(
-                        &ins[j][(n - 1)..(n + self.taps_per_filter - 1)],
-                        &mut self.fft_buf[self.idx_lut[j]..self.idx_lut[j] + 1],
-                    );
-                    j += 1;
-                    i -= 1;
-                }
-
-                if (i as usize + self.rate_ratio) >= self.n_filters {
-                    n += 1;
-                }
-
-                // despin through FFT
-                self.fft.process(&mut self.fft_buf);
-
-                // Send to output channels
-                #[allow(clippy::needless_range_loop)]
-                for nn in 0..self.n_filters {
-                    outs[nn][oo] = self.fft_buf[nn];
-                }
-                oo += 1;
+                self.s.window_buf[self.s.base_index].push(input[consumed]);
+                self.s.decrement_base_index();
+                consumed += 1;
             }
-            assert_eq!(n_items_to_produce, oo);
-
-            for i in 0..self.n_filters {
-                self.inputs[i].consume(n_items_to_process);
-                self.outputs[i].produce(n_items_to_produce);
+            // all windows are filled, possibly call again if still samples left in input
+            self.s.all_windows_filled = true;
+            if n_items_to_consume >= self.s.decimation_factor {
+                io.call_again = true;
+            } else if self.input.finished() {
+                io.finished = true;
             }
+            return Ok(());
+        }
+        // produce one sample per output stream in each iteration
+        for output_sample_index in 0..n_items_to_produce_per_channel {
+            // consume only self.decimation_factor new samples to achieve oversampling
+            for j in 0..self.s.decimation_factor {
+                // push sample into next buffer where we left of in the last iteration
+                self.s.window_buf[self.s.base_index]
+                    .push(input[output_sample_index * self.s.decimation_factor + j]);
+                self.s.decrement_base_index();
+            }
+            // execute filter outputs
+            for i in 0..self.s.num_channels {
+                // match filter index to window and (reversed) output index
+                let buffer_index = (self.s.base_index + i + 1) % self.s.num_channels;
+                // execute fir filter
+                self.s.fir_filters[i].filter(
+                    self.s.window_buf[buffer_index].get_as_slice(),
+                    &mut self.s.fft_buf[buffer_index..buffer_index + 1],
+                );
+            }
+            // de-spin through IFFT
+            self.s.ifft.process(&mut self.s.fft_buf);
+            // Send to output channels
+            #[allow(clippy::needless_range_loop)]
+            for channel_index in 0..self.s.num_channels {
+                outs[channel_index][output_sample_index] = self.s.fft_buf[channel_index];
+            }
+        }
+        // commit sio buffers
+        self.input
+            .consume(n_items_to_produce_per_channel * self.s.decimation_factor);
+        for i in 0..self.s.num_channels {
+            self.outputs[i].produce(n_items_to_produce_per_channel);
         }
         // each iteration either depletes the available input items or the available space in the out buffer, therefore no manual call_again necessary
         // appropriately propagate flowgraph termination
-        if n_items_to_consume - n_items_to_process
-            < self.taps_per_filter + self.num_filtering_rounds
-            && self.inputs.iter_mut().all(|x| x.finished())
+        if n_items_to_consume - n_items_to_produce_per_channel * self.s.decimation_factor
+            < self.s.decimation_factor
+            && self.input.finished()
         {
             io.finished = true;
-            debug!("PfbChannelizer: Terminated.")
         }
         Ok(())
     }
