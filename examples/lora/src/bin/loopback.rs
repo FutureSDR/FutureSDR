@@ -1,21 +1,24 @@
-use anyhow::Result;
+use std::fmt::Debug;
+use std::time::Duration;
+
 use clap::Parser;
+
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::prelude::*;
-use std::fmt::Debug;
-use std::time::Duration;
 
 use lora::Decoder;
 use lora::Deinterleaver;
 use lora::FftDemod;
 use lora::FrameSync;
 use lora::GrayMapping;
-use lora::HammingDec;
+use lora::HammingDecoder;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 use lora::Transmitter;
+use lora::default_values::ldro;
 use lora::utils::Bandwidth;
+use lora::utils::Channel;
 use lora::utils::CodeRate;
 use lora::utils::SpreadingFactor;
 
@@ -60,9 +63,9 @@ fn main() -> Result<()> {
     // TX
     // ==============================================================
     let transmitter: Transmitter = Transmitter::new(
-        args.code_rate.into(),
+        args.code_rate,
         HAS_CRC,
-        args.spreading_factor.into(),
+        args.spreading_factor,
         LOW_DATA_RATE,
         IMPLICIT_HEADER,
         args.oversampling,
@@ -75,9 +78,9 @@ fn main() -> Result<()> {
     // RX
     // ==============================================================
     let frame_sync: FrameSync = FrameSync::new(
-        868_000_000,
-        args.bandwidth.into(),
-        args.spreading_factor.into(),
+        Channel::EU868_1,
+        args.bandwidth,
+        args.spreading_factor,
         IMPLICIT_HEADER,
         vec![vec![args.sync_word]],
         args.oversampling,
@@ -86,14 +89,15 @@ fn main() -> Result<()> {
         false,
         None,
     );
-    let fft_demod: FftDemod = FftDemod::new(args.soft_decoding, args.spreading_factor.into());
-    let gray_mapping: GrayMapping = GrayMapping::new(args.soft_decoding);
-    let deinterleaver: Deinterleaver = Deinterleaver::new(args.soft_decoding);
-    let hamming_dec: HammingDec = HammingDec::new(args.soft_decoding);
+    let fft_demod: FftDemod = FftDemod::new(args.spreading_factor, ldro(args.spreading_factor));
+    let gray_mapping: GrayMapping = GrayMapping::new();
+    let deinterleaver: Deinterleaver =
+        Deinterleaver::new(ldro(args.spreading_factor), args.spreading_factor);
+    let hamming_dec: HammingDecoder = HammingDecoder::new();
     let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, false);
-    let decoder = Decoder::new();
-    let udp_data = BlobToUdp::new("127.0.0.1:55555");
-    let udp_rftap = BlobToUdp::new("127.0.0.1:55556");
+    let decoder: Decoder = Decoder::new();
+    let udp_data: BlobToUdp = BlobToUdp::new("127.0.0.1:55555");
+    let udp_rftap: BlobToUdp = BlobToUdp::new("127.0.0.1:55556");
     connect!(fg,
         transmitter > frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
         header_decoder.frame_info | frame_info.frame_sync;

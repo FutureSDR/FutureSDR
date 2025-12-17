@@ -1,46 +1,88 @@
+use crate::utils::DemodulatedSymbol;
+use crate::utils::DemodulatedSymbolHardDecoding;
+use crate::utils::DemodulatedSymbolSoftDecoding;
 use futuresdr::prelude::*;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
 #[derive(Block)]
-pub struct GrayMapping<I = DefaultCpuReader<u16>, O = DefaultCpuWriter<u16>>
-where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u16>,
+pub struct GrayMapping<
+    T = DemodulatedSymbolSoftDecoding,
+    I = DefaultCpuReader<T>,
+    O = DefaultCpuWriter<T>,
+> where
+    T: DemodulatedSymbol,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
 {
     #[input]
     input: I,
     #[output]
     output: O,
-    _m_soft_decoding: bool, // Hard/Soft decoding
 }
 
-impl<I, O> GrayMapping<I, O>
+impl<T, I, O> Default for GrayMapping<T, I, O>
 where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u16>,
+    T: DemodulatedSymbol,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
 {
-    pub fn new(soft_decoding: bool) -> Self {
-        // if soft_decoding {
-        //     sio = sio.add_input::<[LLR; MAX_SF]>("in");
-        //     sio = sio.add_output::<[LLR; MAX_SF]>("out");
-        // } else {
-        //     sio = sio.add_input::<u16>("in");
-        //     sio = sio.add_output::<u16>("out");
-        // }
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, I, O> GrayMapping<T, I, O>
+where
+    T: DemodulatedSymbol,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+{
+    pub fn new() -> Self {
         Self {
             input: I::default(),
             output: O::default(),
-            _m_soft_decoding: soft_decoding,
         }
     }
 }
 
-impl<I, O> Kernel for GrayMapping<I, O>
+trait GrayMap<T: DemodulatedSymbol>: Send {
+    fn map(samples: &[T]) -> Vec<T>;
+}
+
+impl<I, O> GrayMap<DemodulatedSymbolHardDecoding>
+    for GrayMapping<DemodulatedSymbolHardDecoding, I, O>
 where
-    I: CpuBufferReader<Item = u16>,
-    O: CpuBufferWriter<Item = u16>,
+    I: CpuBufferReader<Item = DemodulatedSymbolHardDecoding>,
+    O: CpuBufferWriter<Item = DemodulatedSymbolHardDecoding>,
+{
+    fn map(samples: &[DemodulatedSymbolHardDecoding]) -> Vec<DemodulatedSymbolHardDecoding> {
+        samples
+            .iter()
+            .map(|x| *x ^ (*x >> 1))
+            .collect::<Vec<DemodulatedSymbolHardDecoding>>()
+    }
+}
+
+impl<I, O> GrayMap<DemodulatedSymbolSoftDecoding>
+    for GrayMapping<DemodulatedSymbolSoftDecoding, I, O>
+where
+    I: CpuBufferReader<Item = DemodulatedSymbolSoftDecoding>,
+    O: CpuBufferWriter<Item = DemodulatedSymbolSoftDecoding>,
+{
+    fn map(samples: &[DemodulatedSymbolSoftDecoding]) -> Vec<DemodulatedSymbolSoftDecoding> {
+        // No gray mapping , it has as been done directly in fft_demod block => block "bypass"
+        samples.to_vec()
+    }
+}
+
+impl<T, I, O> Kernel for GrayMapping<T, I, O>
+where
+    T: DemodulatedSymbol,
+    I: CpuBufferReader<Item = T>,
+    O: CpuBufferWriter<Item = T>,
+    GrayMapping<T, I, O>: GrayMap<T>,
 {
     async fn work(
         &mut self,
@@ -98,21 +140,9 @@ where
             }
         }
 
-        // if self.m_soft_decoding {
-        //     let input = sio.input(0).slice::<[LLR; MAX_SF]>();
-        //     let output = sio.output(0).slice::<[LLR; MAX_SF]>();
-        // No gray mapping , it has as been done directly in fft_demod block => block "bypass"
-        // output[0..nitems_to_process].copy_from_slice(&input[0..nitems_to_process]);
-        // } else {
         let input = self.input.slice();
         let output = self.output.slice();
-        output[0..nitems_to_process].copy_from_slice(
-            &input[0..nitems_to_process]
-                .iter()
-                .map(|x| *x ^ (*x >> 1))
-                .collect::<Vec<u16>>(), // Gray Demap
-        );
-        // }
+        output[0..nitems_to_process].copy_from_slice(&Self::map(&input[0..nitems_to_process]));
 
         self.input.consume(nitems_to_process);
         self.output.produce(nitems_to_process);

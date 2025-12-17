@@ -1,12 +1,13 @@
-use crate::utils::LEGACY_SF_5_6;
+use crate::utils::CodeRate;
+use crate::utils::SpreadingFactor;
 use crate::utils::WHITENING_SEQ;
 use crate::utils::bool2int;
 use crate::utils::int2bool;
 use crate::utils::my_modulo;
 
 pub struct Encoder {
-    code_rate: u8,
-    spreading_factor: u8,
+    code_rate: CodeRate,
+    pub spreading_factor: SpreadingFactor,
     has_crc: bool,
     low_data_rate: bool,
     implicit_header: bool,
@@ -14,8 +15,8 @@ pub struct Encoder {
 
 impl Encoder {
     pub fn new(
-        code_rate: u8,
-        spreading_factor: u8,
+        code_rate: CodeRate,
+        spreading_factor: SpreadingFactor,
         has_crc: bool,
         low_data_rate: bool,
         implicit_header: bool,
@@ -60,14 +61,14 @@ impl Encoder {
         out
     }
 
-    fn header(whitened: Vec<u8>, code_rate: u8, has_crc: bool) -> Vec<u8> {
+    fn header(whitened: Vec<u8>, code_rate: CodeRate, has_crc: bool) -> Vec<u8> {
         let payload_len = whitened.len() / 2;
         let mut out = vec![0; whitened.len() + 5];
 
         out[0] = (payload_len >> 4) as u8;
         out[1] = (payload_len & 0x0F) as u8;
         // coding rate and has_crc
-        out[2] = (code_rate << 1) | (has_crc as u8);
+        out[2] = (Into::<u8>::into(code_rate) << 1) | (has_crc as u8);
         // header checksum
         let c4 = (out[0] & 0b1000) >> 3
             ^ (out[0] & 0b0100) >> 2
@@ -130,22 +131,25 @@ impl Encoder {
         frame
     }
 
-    fn hamming_encode(frame: Vec<u8>, code_rate: u8, spreading_factor: u8) -> Vec<u8> {
+    fn hamming_encode(
+        frame: Vec<u8>,
+        code_rate: CodeRate,
+        spreading_factor: SpreadingFactor,
+    ) -> Vec<u8> {
         let mut out = vec![0; frame.len()];
         for i in 0..frame.len() {
-            let cr_app = if i
-                < (spreading_factor
-                    - if !LEGACY_SF_5_6 && spreading_factor < 7 {
+            let cr_app: u8 = if i
+                < (Into::<usize>::into(spreading_factor)
+                    - if spreading_factor < SpreadingFactor::SF7 {
                         0
                     } else {
                         2
                     })
-                .into()
             //for sf<7 we don'tuse the ldro
             {
                 4
             } else {
-                code_rate
+                code_rate.into()
             };
             let data_bin = int2bool(frame[i] as u16, 4);
             if cr_app != 1 {
@@ -179,36 +183,40 @@ impl Encoder {
 
     fn interleave(
         mut frame: Vec<u8>,
-        code_rate: u8,
-        spreading_factor: u8,
+        code_rate: CodeRate,
+        spreading_factor: SpreadingFactor,
         low_data_rate: bool,
     ) -> Vec<u16> {
-        let mut cnt: u8 = 0;
+        let mut cnt: usize = 0;
         let mut out = Vec::new();
 
         loop {
             // handle the first interleaved block special case
-            let (cw_len, use_ldro): (u8, bool) = if spreading_factor >= 7 || LEGACY_SF_5_6 {
+            let (cw_len, use_ldro): (u8, bool) = if spreading_factor >= SpreadingFactor::SF7 {
                 (
-                    4 + if cnt < spreading_factor - 2 {
+                    4 + if cnt < Into::<usize>::into(spreading_factor) - 2 {
                         4
                     } else {
-                        code_rate
+                        code_rate.into()
                     },
-                    cnt < spreading_factor - 2 || low_data_rate, // header or ldro activated for payload
+                    cnt < Into::<usize>::into(spreading_factor) - 2 || low_data_rate, // header or ldro activated for payload
                 )
             } else
             //sf == 5 or sf ==6 don't use LDRO in header
             {
                 (
-                    4 + if cnt < spreading_factor { 4 } else { code_rate },
-                    cnt >= spreading_factor && low_data_rate, // not header and ldro activated for payload
+                    4 + if cnt < spreading_factor.into() {
+                        4
+                    } else {
+                        code_rate.into()
+                    },
+                    cnt >= spreading_factor.into() && low_data_rate, // not header and ldro activated for payload
                 )
             };
             let sf_app: usize = if use_ldro {
-                spreading_factor.saturating_sub(2).into()
+                Into::<usize>::into(spreading_factor).saturating_sub(2)
             } else {
-                spreading_factor.into()
+                Into::<usize>::into(spreading_factor)
             };
 
             let curr;
@@ -231,7 +239,7 @@ impl Encoder {
                 .map(|x| int2bool(*x as u16, cw_len.into()))
                 .collect();
 
-            cnt += sf_app as u8;
+            cnt += sf_app;
 
             let mut tmp = vec![0; cw_len.into()];
             // do the actual interleaving
@@ -259,15 +267,18 @@ impl Encoder {
         out
     }
 
-    fn gray_demap(frame: Vec<u16>, spreading_factor: u8) -> Vec<u16> {
+    fn gray_demap(frame: Vec<u16>, spreading_factor: SpreadingFactor) -> Vec<u16> {
         let mut out = vec![0; frame.len()];
 
         for i in 0..frame.len() {
             out[i] = frame[i];
-            for j in 1..spreading_factor.into() {
+            for j in 1..Into::<usize>::into(spreading_factor) {
                 out[i] ^= frame[i] >> j as u16;
             }
-            out[i] = my_modulo((out[i] + 1) as isize, 1 << spreading_factor) as u16;
+            out[i] = my_modulo(
+                (out[i] + 1) as isize,
+                1 << Into::<usize>::into(spreading_factor),
+            ) as u16;
         }
         out
     }

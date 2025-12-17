@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+
 use futuredsp::firdes;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::XlatingFir;
@@ -11,7 +12,7 @@ use lora::Deinterleaver;
 use lora::FftDemod;
 use lora::FrameSync;
 use lora::GrayMapping;
-use lora::HammingDec;
+use lora::HammingDecoder;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 use lora::meshtastic::MeshtasticChannel;
@@ -19,7 +20,6 @@ use lora::meshtastic::MeshtasticChannels;
 use lora::meshtastic::MeshtasticConfig;
 use lora::utils::Bandwidth;
 
-const SOFT_DECODING: bool = true;
 const IMPLICIT_HEADER: bool = false;
 const OVERSAMPLING: usize = 4;
 
@@ -46,7 +46,7 @@ fn main() -> Result<()> {
     futuresdr::runtime::init();
     let args = Args::parse();
     info!("args {:?}", &args);
-    let (bandwidth, spreading_factor, _, freq, ldro) = args.meshtastic_config.to_config();
+    let (bandwidth, spreading_factor, _, chan, ldro) = args.meshtastic_config.to_config();
 
     let mut channels = vec![];
     for chan in args.channels.unwrap_or(String::new()).split(",") {
@@ -60,7 +60,7 @@ fn main() -> Result<()> {
 
     let src = Builder::new(args.args)?
         .sample_rate(1e6)
-        .frequency(freq as f64 - 200e3)
+        .frequency(Into::<f64>::into(chan) - 200e3)
         .gain(args.gain)
         .antenna(args.antenna)
         .build_source()?;
@@ -77,9 +77,9 @@ fn main() -> Result<()> {
     let decimation: XlatingFir = XlatingFir::with_taps(taps, decimation, 200e3, 1e6);
 
     let frame_sync: FrameSync = FrameSync::new(
-        freq,
-        bandwidth.into(),
-        spreading_factor.into(),
+        chan,
+        bandwidth,
+        spreading_factor,
         IMPLICIT_HEADER,
         vec![vec![16, 88]],
         OVERSAMPLING,
@@ -88,12 +88,12 @@ fn main() -> Result<()> {
         false,
         None,
     );
-    let fft_demod: FftDemod = FftDemod::new(SOFT_DECODING, spreading_factor.into());
-    let gray_mapping: GrayMapping = GrayMapping::new(SOFT_DECODING);
-    let deinterleaver: Deinterleaver = Deinterleaver::new(SOFT_DECODING);
-    let hamming_dec: HammingDec = HammingDec::new(SOFT_DECODING);
-    let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
-    let decoder = Decoder::new();
+    let fft_demod: FftDemod = FftDemod::new(spreading_factor, ldro);
+    let gray_mapping: GrayMapping = GrayMapping::new();
+    let deinterleaver: Deinterleaver = Deinterleaver::new(ldro, spreading_factor);
+    let hamming_dec: HammingDecoder = HammingDecoder::new();
+    let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
+    let decoder: Decoder = Decoder::new();
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = MessagePipe::new(tx_frame);

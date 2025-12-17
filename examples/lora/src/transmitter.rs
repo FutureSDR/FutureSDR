@@ -4,6 +4,8 @@ use std::collections::VecDeque;
 
 use crate::Encoder;
 use crate::Modulator;
+use crate::utils::CodeRate;
+use crate::utils::SpreadingFactor;
 
 #[derive(Block)]
 #[message_inputs(msg)]
@@ -19,6 +21,7 @@ where
     finished: bool,
     encoder: Encoder,
     modulator: Modulator,
+    tag_pending: Option<Tag>,
 }
 
 impl<O> Transmitter<O>
@@ -27,9 +30,9 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        code_rate: u8,
+        code_rate: CodeRate,
         has_crc: bool,
-        spreading_factor: u8,
+        spreading_factor: SpreadingFactor,
         low_data_rate: bool,
         implicit_header: bool,
         oversampling: usize,
@@ -51,12 +54,13 @@ where
                 implicit_header,
             ),
             modulator: Modulator::new(
-                spreading_factor.into(),
+                spreading_factor,
                 oversampling,
                 sync_words,
                 preamble_len,
                 pad,
             ),
+            tag_pending: None,
         }
     }
 
@@ -90,12 +94,16 @@ where
         _m: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        let out = self.output.slice();
+        let (out, mut out_tags) = self.output.slice_with_tags();
 
         if self.current_offset == self.current_frame.len() {
             if let Some(frame) = self.frames.pop_front() {
                 self.current_frame = self.modulator.modulate(self.encoder.encode(frame));
                 self.current_offset = 0;
+                self.tag_pending = Some(Tag::NamedUsize(
+                    "burst_start".to_string(),
+                    self.current_frame.len(),
+                ));
             } else {
                 if self.finished {
                     io.finished = true;
@@ -116,7 +124,16 @@ where
         if out.len() > n {
             io.call_again = true;
         }
-
+        if n > 0 {
+            if let Some(tag) = self.tag_pending.take() {
+                if let Tag::NamedUsize(_, len) = tag {
+                    debug!("Lora TX: tagging burst_start with length {}", len)
+                }
+                out_tags.add_tag(0, tag);
+            }
+        } else {
+            debug!("produced nothing, out.len() {}", out.len());
+        }
         self.current_offset += n;
         self.output.produce(n);
 

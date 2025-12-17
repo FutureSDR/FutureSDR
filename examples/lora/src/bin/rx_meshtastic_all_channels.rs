@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+
 use futuredsp::firdes;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::XlatingFir;
@@ -11,15 +12,15 @@ use lora::Deinterleaver;
 use lora::FftDemod;
 use lora::FrameSync;
 use lora::GrayMapping;
-use lora::HammingDec;
+use lora::HammingDecoder;
 use lora::HeaderDecoder;
 use lora::HeaderMode;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticChannels;
 use lora::utils::Bandwidth;
+use lora::utils::Channel;
 use lora::utils::SpreadingFactor;
 
-const SOFT_DECODING: bool = true;
 const IMPLICIT_HEADER: bool = false;
 const OVERSAMPLING: usize = 4;
 
@@ -70,7 +71,7 @@ fn main() -> Result<()> {
             vec![
                 (
                     Bandwidth::BW250,
-                    869_525_000,
+                    Channel::Custom(869_525_000),
                     vec![
                         (SpreadingFactor::SF7, false),
                         (SpreadingFactor::SF8, false),
@@ -81,12 +82,12 @@ fn main() -> Result<()> {
                 ),
                 (
                     Bandwidth::BW125,
-                    869_587_500,
+                    Channel::Custom(869_587_500),
                     vec![(SpreadingFactor::SF11, true), (SpreadingFactor::SF12, true)],
                 ),
                 (
                     Bandwidth::BW62,
-                    869_492_500,
+                    Channel::Custom(869_492_500),
                     vec![(SpreadingFactor::SF12, true)],
                 ),
             ],
@@ -97,7 +98,7 @@ fn main() -> Result<()> {
             vec![
                 (
                     Bandwidth::BW250,
-                    906_875_000,
+                    Channel::Custom(906_875_000),
                     vec![
                         (SpreadingFactor::SF7, false),
                         (SpreadingFactor::SF8, false),
@@ -108,12 +109,12 @@ fn main() -> Result<()> {
                 ),
                 (
                     Bandwidth::BW125,
-                    904_437_500,
+                    Channel::Custom(904_437_500),
                     vec![(SpreadingFactor::SF11, true), (SpreadingFactor::SF12, true)],
                 ),
                 (
                     Bandwidth::BW62,
-                    916_218_750,
+                    Channel::Custom(916_218_750),
                     vec![(SpreadingFactor::SF12, true)],
                 ),
             ],
@@ -132,7 +133,7 @@ fn main() -> Result<()> {
     let message_pipe = MessagePipe::new(tx_frame);
     connect!(fg, src; message_pipe);
 
-    for (bandwidth, freq, chains) in configs.into_iter() {
+    for (bandwidth, chan, chains) in configs.into_iter() {
         let decimation = sample_rate / Into::<usize>::into(bandwidth) / OVERSAMPLING;
         let cutoff = Into::<f64>::into(bandwidth) / 2.0 / sample_rate as f64;
         let transition_bw = cutoff;
@@ -140,7 +141,7 @@ fn main() -> Result<()> {
         let decimation: XlatingFir = XlatingFir::with_taps(
             taps,
             decimation,
-            (freq - center_freq) as f32,
+            (Into::<u32>::into(chan) - center_freq) as f32,
             sample_rate as f32,
         );
 
@@ -151,9 +152,9 @@ fn main() -> Result<()> {
             let decimation = decimation.clone();
             let message_pipe = message_pipe.clone();
             let frame_sync: FrameSync = FrameSync::new(
-                freq,
-                bandwidth.into(),
-                spreading_factor.into(),
+                chan,
+                bandwidth,
+                spreading_factor,
                 IMPLICIT_HEADER,
                 vec![vec![16, 88]],
                 OVERSAMPLING,
@@ -162,12 +163,12 @@ fn main() -> Result<()> {
                 false,
                 None,
             );
-            let fft_demod: FftDemod = FftDemod::new(SOFT_DECODING, spreading_factor.into());
-            let gray_mapping: GrayMapping = GrayMapping::new(SOFT_DECODING);
-            let deinterleaver: Deinterleaver = Deinterleaver::new(SOFT_DECODING);
-            let hamming_dec: HammingDec = HammingDec::new(SOFT_DECODING);
+            let fft_demod: FftDemod = FftDemod::new(spreading_factor, ldro);
+            let gray_mapping: GrayMapping = GrayMapping::new();
+            let deinterleaver: Deinterleaver = Deinterleaver::new(ldro, spreading_factor);
+            let hamming_dec: HammingDecoder = HammingDecoder::new();
             let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
-            let decoder = Decoder::new();
+            let decoder: Decoder = Decoder::new();
             connect!(fg,
                 decimation > frame_sync;
                 frame_sync > fft_demod;

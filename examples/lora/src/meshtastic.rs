@@ -5,6 +5,7 @@ use futuresdr::tracing::info;
 use meshtastic::Message;
 
 use crate::utils::Bandwidth;
+use crate::utils::Channel;
 use crate::utils::CodeRate;
 use crate::utils::SpreadingFactor;
 
@@ -39,118 +40,118 @@ pub enum MeshtasticConfig {
 }
 
 impl MeshtasticConfig {
-    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, u32, bool) {
+    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, Channel, bool) {
         match self {
             Self::ShortFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF7,
                 CodeRate::CR_4_5,
-                869525000,
+                Channel::Custom(869525000),
                 false,
             ),
             Self::ShortSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF8,
                 CodeRate::CR_4_5,
-                869525000,
+                Channel::Custom(869525000),
                 false,
             ),
             Self::MediumFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF9,
                 CodeRate::CR_4_5,
-                869525000,
+                Channel::Custom(869525000),
                 false,
             ),
             Self::MediumSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF10,
                 CodeRate::CR_4_5,
-                869525000,
+                Channel::Custom(869525000),
                 false,
             ),
             Self::LongFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_5,
-                869525000,
+                Channel::Custom(869525000),
                 false,
             ),
             Self::LongModerateEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_8,
-                869587500,
+                Channel::Custom(869587500),
                 true,
             ),
             Self::LongSlowEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
-                869587500,
+                Channel::Custom(869587500),
                 true,
             ),
             Self::VeryLongSlowEu => (
                 Bandwidth::BW62,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
-                869492500,
+                Channel::Custom(869492500),
                 true,
             ),
             Self::ShortFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF7,
                 CodeRate::CR_4_5,
-                906875000,
+                Channel::Custom(906875000),
                 false,
             ),
             Self::ShortSlowUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF8,
                 CodeRate::CR_4_5,
-                906875000,
+                Channel::Custom(906875000),
                 false,
             ),
             Self::MediumFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF9,
                 CodeRate::CR_4_5,
-                906875000,
+                Channel::Custom(906875000),
                 false,
             ),
             Self::MediumSlowUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF10,
                 CodeRate::CR_4_5,
-                906875000,
+                Channel::Custom(906875000),
                 false,
             ),
             Self::LongFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_5,
-                906875000,
+                Channel::Custom(906875000),
                 false,
             ),
             Self::LongModerateUs => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_8,
-                904437500,
+                Channel::Custom(904437500),
                 true,
             ),
             Self::LongSlowUs => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
-                904437500,
+                Channel::Custom(904437500),
                 true,
             ),
             Self::VeryLongSlowUs => (
                 Bandwidth::BW62,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
-                916218750,
+                Channel::Custom(916218750),
                 true,
             ),
         }

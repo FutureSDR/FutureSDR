@@ -40,6 +40,7 @@ pub struct Builder<D: DeviceTrait + Clone> {
     config: Config,
     dev: Device<D>,
     start_time: Option<i64>,
+    min_input_buffer_size: Option<usize>,
 }
 
 impl Builder<GenericDevice> {
@@ -52,6 +53,7 @@ impl Builder<GenericDevice> {
             config: Config::new(),
             dev,
             start_time: None,
+            min_input_buffer_size: None,
         })
     }
 }
@@ -64,6 +66,7 @@ impl<D: DeviceTrait + Clone> Builder<D> {
             config: Config::new(),
             dev,
             start_time: None,
+            min_input_buffer_size: None,
         }
     }
     /// Seify device
@@ -73,6 +76,7 @@ impl<D: DeviceTrait + Clone> Builder<D> {
             config: self.config,
             dev,
             start_time: self.start_time,
+            min_input_buffer_size: None,
         }
     }
     /// Channel
@@ -115,6 +119,11 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self.start_time = Some(s);
         self
     }
+    /// Minimum input buffer size to ensure the Sink will not block on bursts -> set to largest expected burst size, in samples
+    pub fn min_in_buffer_size(mut self, s: usize) -> Self {
+        self.min_input_buffer_size = Some(s);
+        self
+    }
     /// Build Typed Seify Source
     pub fn build_source(self) -> Result<Source<D>, Error> {
         self.config
@@ -137,7 +146,12 @@ impl<D: DeviceTrait + Clone> Builder<D> {
     pub fn build_sink(self) -> Result<Sink<D>, Error> {
         self.config
             .apply(&self.dev, &self.channels, Direction::Tx)?;
-        Ok(Sink::new(self.dev, self.channels, self.start_time))
+        Ok(Sink::new(
+            self.dev,
+            self.channels,
+            self.start_time,
+            self.min_input_buffer_size,
+        ))
     }
     /// Builder Typed Seify Sink
     pub fn build_sink_with_buffer<B: CpuBufferReader<Item = Complex32>>(
@@ -145,6 +159,11 @@ impl<D: DeviceTrait + Clone> Builder<D> {
     ) -> Result<Sink<D, B>, Error> {
         self.config
             .apply(&self.dev, &self.channels, Direction::Tx)?;
-        Ok(Sink::<D, B>::new(self.dev, self.channels, self.start_time))
+        Ok(Sink::<D, B>::new(
+            self.dev,
+            self.channels,
+            self.start_time,
+            self.min_input_buffer_size,
+        ))
     }
 }

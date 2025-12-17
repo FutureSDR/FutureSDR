@@ -105,9 +105,10 @@ impl Decoder {
 
             // let data = String::from_utf8_lossy(&dewhitened[..dewhitened.len() - 2]);
             // info!("received frame: {}", data);
-            info!("received frame [bin]: {:02x?}", &dewhitened);
+            info!("DECODER received frame [bin]: {:02x?}", &dewhitened);
             Some(dewhitened)
         } else {
+            info!("DECODER FAILED frame [bin]: {:02x?}", &dewhitened);
             None
         }
     }

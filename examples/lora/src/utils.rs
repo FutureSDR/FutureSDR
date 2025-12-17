@@ -1,18 +1,36 @@
 use std::cmp::Eq;
 use std::collections::HashMap;
 use std::f32::consts::PI;
+use std::ffi::OsStr;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::hash::Hash;
 use std::ops::Mul;
+use std::ops::Rem;
 use std::sync::Arc;
 
+use clap::Arg;
+use clap::Command;
+use clap::Error;
+use clap::ValueEnum;
+use clap::builder::PossibleValue;
+use clap::builder::TypedValueParser;
+use clap::error::ErrorKind;
+use num_traits::Num;
+// use num_traits::Pow;
 use rustfft::Fft;
+use strum::IntoEnumIterator;
+use strum_macros::Display;
+use strum_macros::EnumIter;
 
 use futuredsp::firdes::remez;
 use futuresdr::num_complex::Complex32;
 
+use crate::utils::SpreadingFactor::SF7;
+
 pub type LLR = f64; // Log-Likelihood Ratio type
 
-pub const LEGACY_SF_5_6: bool = false;
+pub const PREAMB_COUNT_DEFAULT: usize = 8;
 
 pub const MAX_SF: usize = 12;
 pub const LDRO_MAX_DURATION_MS: f32 = 16.;
@@ -35,6 +53,203 @@ pub const WHITENING_SEQ: [u8; 255] = [
     0xE5, 0xCA, 0x94, 0x28, 0x50, 0xA1, 0x42, 0x84, 0x09, 0x13, 0x27, 0x4F, 0x9F, 0x3F, 0x7F,
 ];
 
+#[derive(Debug, Clone, Copy, Default, EnumIter, Eq, PartialEq, PartialOrd, Ord)]
+#[allow(non_camel_case_types)]
+#[repr(usize)]
+pub enum Channel {
+    #[default]
+    EU868_1 = 0,
+    EU868_2,
+    EU868_3,
+    EU868_4,
+    EU868_5,
+    EU868_6,
+    EU868_7,
+    EU868_8,
+    EU868_9,
+    EU868_Down,
+    Custom(u32),
+}
+
+impl clap::ValueEnum for Channel {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            Channel::EU868_1,
+            Channel::EU868_2,
+            Channel::EU868_3,
+            Channel::EU868_4,
+            Channel::EU868_5,
+            Channel::EU868_6,
+            Channel::EU868_7,
+            Channel::EU868_8,
+            Channel::EU868_9,
+            Channel::EU868_Down,
+            Channel::Custom(0),
+        ]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input_uppercase = input.to_uppercase();
+        Ok(
+            if let Ok(center_freq) = input.replace("_", "").parse::<u32>() {
+                Self::from(center_freq)
+            } else {
+                match if ignore_case {
+                    input_uppercase.as_str()
+                } else {
+                    input
+                } {
+                    "EU868_1" => Channel::EU868_1,
+                    "EU868_2" => Channel::EU868_2,
+                    "EU868_3" => Channel::EU868_3,
+                    "EU868_4" => Channel::EU868_4,
+                    "EU868_5" => Channel::EU868_5,
+                    "EU868_6" => Channel::EU868_6,
+                    "EU868_7" => Channel::EU868_7,
+                    "EU868_8" => Channel::EU868_8,
+                    "EU868_9" => Channel::EU868_9,
+                    "EU868_Down" => Channel::EU868_Down,
+                    _ => return Err(format!("invalid variant: {input}")),
+                }
+            },
+        )
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Channel::EU868_1 => Some(PossibleValue::new("EU868_1")),
+            Channel::EU868_2 => Some(PossibleValue::new("EU868_2")),
+            Channel::EU868_3 => Some(PossibleValue::new("EU868_3")),
+            Channel::EU868_4 => Some(PossibleValue::new("EU868_4")),
+            Channel::EU868_5 => Some(PossibleValue::new("EU868_5")),
+            Channel::EU868_6 => Some(PossibleValue::new("EU868_6")),
+            Channel::EU868_7 => Some(PossibleValue::new("EU868_7")),
+            Channel::EU868_8 => Some(PossibleValue::new("EU868_8")),
+            Channel::EU868_9 => Some(PossibleValue::new("EU868_9")),
+            Channel::EU868_Down => Some(PossibleValue::new("EU868_Down")),
+            Channel::Custom(_) => {
+                Some(PossibleValue::new("[CustomFrequency]").help("integer center frequency in Hz"))
+            }
+        }
+    }
+}
+
+impl Display for Channel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_possible_value().unwrap().get_name())
+    }
+}
+
+#[derive(Clone)]
+pub struct ChannelEnumParser;
+
+impl TypedValueParser for ChannelEnumParser {
+    type Value = Channel;
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        let ignore_case = arg.map(|a| a.is_ignore_case_set()).unwrap_or(false);
+        match Channel::from_str(value.to_str().unwrap(), ignore_case) {
+            Err(msg) => Err(clap::error::Error::raw(ErrorKind::InvalidValue, msg)),
+            Ok(value) => Ok(value),
+        }
+    }
+}
+
+impl TryFrom<usize> for Channel {
+    type Error = ();
+
+    /// convert an index, NOT the center frequency, to the associated index, channel
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Channel::EU868_1),
+            2 => Ok(Channel::EU868_2),
+            3 => Ok(Channel::EU868_3),
+            4 => Ok(Channel::EU868_4),
+            5 => Ok(Channel::EU868_5),
+            6 => Ok(Channel::EU868_6),
+            7 => Ok(Channel::EU868_7),
+            0 => Ok(Channel::EU868_8),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Channel> for usize {
+    type Error = ();
+
+    /// convert a channel to the associated index, NOT to its center frequency
+    fn try_from(value: Channel) -> Result<Self, Self::Error> {
+        match value {
+            Channel::EU868_1 => Ok(1),
+            Channel::EU868_2 => Ok(2),
+            Channel::EU868_3 => Ok(3),
+            Channel::EU868_4 => Ok(4),
+            Channel::EU868_5 => Ok(5),
+            Channel::EU868_6 => Ok(6),
+            Channel::EU868_7 => Ok(7),
+            Channel::EU868_8 => Ok(0),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<u32> for Channel {
+    fn from(value: u32) -> Self {
+        match value {
+            868_100_000 => Channel::EU868_1,
+            868_300_000 => Channel::EU868_2,
+            868_500_000 => Channel::EU868_3,
+            867_100_000 => Channel::EU868_4,
+            867_300_000 => Channel::EU868_5,
+            867_500_000 => Channel::EU868_6,
+            867_700_000 => Channel::EU868_7,
+            867_900_000 => Channel::EU868_8,
+            869_525_000 => Channel::EU868_Down,
+            _ => Channel::Custom(value),
+        }
+    }
+}
+
+impl From<Channel> for u32 {
+    fn from(value: Channel) -> Self {
+        match value {
+            Channel::EU868_1 => 868_100_000,
+            Channel::EU868_2 => 868_300_000,
+            Channel::EU868_3 => 868_500_000,
+            Channel::EU868_4 => 867_100_000,
+            Channel::EU868_5 => 867_300_000,
+            Channel::EU868_6 => 867_500_000,
+            Channel::EU868_7 => 867_700_000,
+            Channel::EU868_8 => 867_900_000,
+            Channel::EU868_9 => 868_800_000,
+            Channel::EU868_Down => 869_525_000,
+            Channel::Custom(center_freq) => center_freq,
+        }
+    }
+}
+
+impl From<Channel> for u64 {
+    fn from(value: Channel) -> Self {
+        Into::<u32>::into(value) as u64
+    }
+}
+
+impl From<Channel> for f32 {
+    fn from(value: Channel) -> Self {
+        Into::<u32>::into(value) as f32
+    }
+}
+
+impl From<Channel> for f64 {
+    fn from(value: Channel) -> Self {
+        Into::<u32>::into(value) as f64
+    }
+}
+
 #[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
@@ -44,6 +259,20 @@ pub enum Bandwidth {
     BW125,
     BW250,
     BW500,
+}
+
+impl TryFrom<u32> for Bandwidth {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            62_500 => Ok(Bandwidth::BW62),
+            125_000 => Ok(Bandwidth::BW125),
+            250_000 => Ok(Bandwidth::BW250),
+            500_000 => Ok(Bandwidth::BW500),
+            _ => Err(()),
+        }
+    }
 }
 
 impl From<Bandwidth> for u32 {
@@ -81,12 +310,14 @@ impl From<Bandwidth> for f64 {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
+#[derive(
+    Debug, Clone, clap::ValueEnum, Copy, Default, EnumIter, PartialEq, Eq, PartialOrd, Ord, Display,
+)]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum SpreadingFactor {
     #[default]
-    SF5,
+    SF5 = 0,
     SF6,
     SF7,
     SF8,
@@ -94,6 +325,24 @@ pub enum SpreadingFactor {
     SF10,
     SF11,
     SF12,
+}
+
+impl TryFrom<u8> for SpreadingFactor {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            5 => Ok(SpreadingFactor::SF5),
+            6 => Ok(SpreadingFactor::SF6),
+            7 => Ok(SpreadingFactor::SF7),
+            8 => Ok(SpreadingFactor::SF8),
+            9 => Ok(SpreadingFactor::SF9),
+            10 => Ok(SpreadingFactor::SF10),
+            11 => Ok(SpreadingFactor::SF11),
+            12 => Ok(SpreadingFactor::SF12),
+            _ => Err(()),
+        }
+    }
 }
 
 impl From<SpreadingFactor> for u8 {
@@ -141,7 +390,27 @@ impl From<SpreadingFactor> for f64 {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
+impl SpreadingFactor {
+    pub fn variant_count() -> usize {
+        Self::iter().count()
+    }
+
+    pub fn smallest() -> SpreadingFactor {
+        Self::iter().fold(SpreadingFactor::SF5, |acc, e| {
+            if Into::<u8>::into(acc) < Into::<u8>::into(e) {
+                acc
+            } else {
+                e
+            }
+        })
+    }
+
+    pub fn samples_per_symbol(self) -> usize {
+        1 << Into::<usize>::into(self)
+    }
+}
+
+#[derive(Debug, Clone, clap::ValueEnum, Copy, Default, Display)]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum CodeRate {
@@ -150,6 +419,19 @@ pub enum CodeRate {
     CR_4_6,
     CR_4_7,
     CR_4_8,
+}
+
+impl TryFrom<u8> for CodeRate {
+    type Error = ();
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(CodeRate::CR_4_5),
+            2 => Ok(CodeRate::CR_4_6),
+            3 => Ok(CodeRate::CR_4_7),
+            4 => Ok(CodeRate::CR_4_8),
+            _ => Err(()),
+        }
+    }
 }
 
 impl From<CodeRate> for u8 {
@@ -259,9 +541,19 @@ pub fn build_multichannel_polyphase_filter(num_channels: usize, transition_bw: f
  *          The oversampling factor used to generate the upchirp
  */
 #[inline]
-pub fn build_upchirp(id: usize, sf: usize, os_factor: usize) -> Vec<Complex32> {
-    let n = 1 << sf;
-    let n_fold = n * os_factor - id * os_factor;
+pub fn build_upchirp(
+    id: usize,
+    sf: SpreadingFactor,
+    os_factor: usize,
+    preamble: bool,
+) -> Vec<Complex32> {
+    let n = sf.samples_per_symbol();
+    let id = if preamble {
+        id
+    } else {
+        my_modulo(id as isize - 1, n)
+    };
+    let n_fold = (n - id) * os_factor;
     (0..(n * os_factor))
         .map(|j| {
             let osf = os_factor as f32;
@@ -270,15 +562,52 @@ pub fn build_upchirp(id: usize, sf: usize, os_factor: usize) -> Vec<Complex32> {
                 * Complex32::from_polar(
                     1.,
                     if j < n_fold {
-                        let j = j as f32;
-                        2.0 * PI * (j * j / (2. * n) / osf / osf + (id as f32 / n - 0.5) * j / osf)
+                        let t = j as f32 / osf;
+                        2.0 * PI * (t * t / (2. * n) + (id as f32 / n - 0.5) * t)
                     } else {
-                        let j = j as f32;
-                        2.0 * PI * (j * j / (2. * n) / osf / osf + (id as f32 / n - 1.5) * j / osf)
+                        let t = j as f32 / osf;
+                        2.0 * PI * (t * t / (2. * n) + (id as f32 / n - 1.5) * t)
                     },
                 )
         })
         .collect()
+}
+
+#[inline]
+pub fn build_upchirp_phase_coherent(
+    id: usize,
+    sf: usize,
+    os_factor: usize,
+    upchirp: bool,
+    n_samples: Option<usize>,
+    offset_id: bool,
+) -> Vec<f32> {
+    let n = 1 << sf;
+    let n_samples = n_samples.unwrap_or(n * os_factor);
+    let mut phase_increment = vec![0.0_f32; n_samples];
+    let polarity = if upchirp { 1.0 } else { -1.0 };
+    for (t, phase_increment_at_t) in phase_increment.iter_mut().enumerate().take(n_samples) {
+        let t_ds = t as f64 / (n * os_factor) as f64;
+        let tmp = t_ds - 0.5;
+        let mut p = (
+            tmp
+            // tmp - tmp.pow(21)
+        ) as f32
+            + (if offset_id {
+                id as isize - 1
+            } else {
+                id as isize
+            } as f32
+                / n as f32);
+        if p > 0.5 {
+            p -= 1.0;
+        } else if p < -0.5 {
+            p += 1.0;
+        }
+        p *= polarity * (1.0 / os_factor as f32) * (2.0 * PI);
+        *phase_increment_at_t = p;
+    }
+    phase_increment
 }
 
 #[inline]
@@ -288,6 +617,11 @@ pub fn my_modulo(val1: isize, val2: usize) -> usize {
     } else {
         (val2 as isize + (val1 % val2 as isize)) as usize % val2
     }
+}
+
+#[inline]
+pub fn my_mod<T: Num + Rem + Copy>(val1: T, val2: T) -> T {
+    ((val1 % val2) + val2) % val2
 }
 
 #[inline]
@@ -301,28 +635,50 @@ pub fn my_roundf(number: f32) -> isize {
 
 #[allow(clippy::too_many_arguments)]
 pub fn sample_count(
-    sf: usize,
+    sf: SpreadingFactor,
     preamble_len: usize,
     implicit_header: bool,
     payload_len: usize,
     has_crc: bool,
-    code_rate: usize,
+    code_rate: CodeRate,
     os_factor: usize,
     pad: usize,
+    ldro: bool,
 ) -> usize {
-    let preamble_symbol_count: f32 = preamble_len as f32 + 4.25;
+    let preamble_symbol_count: f32 = preamble_len as f32 + 4.25 + if sf < SF7 { 2.0 } else { 0.0 };
     let header_symbol_count_before_interleaving: usize = if implicit_header { 0 } else { 5 };
     let payload_symbol_count_before_interleaving: usize =
         2 * payload_len + if has_crc { 4 } else { 0 };
     ((preamble_symbol_count
-        + 8.
+        + 8.  // header symbol count after interleaving, including the first [(Into::<usize>::into(sf) - if LEGACY_SF_5_6 || sf >= SF7 {2} else {0}))] payload symbols
         + ((payload_symbol_count_before_interleaving + header_symbol_count_before_interleaving
-            - (sf - 2)) as f32
-            / sf as f32)
-            .ceil()
-            * (4 + code_rate) as f32)
-        * ((1 << sf) * os_factor) as f32) as usize
+            - (Into::<usize>::into(sf) - if sf >= SF7 {2} else {0})) as f32
+            / (Into::<usize>::into(sf) - if ldro {2} else {0}) as f32)
+            .ceil()  // 22 -> 21.x
+            * (4 + Into::<usize>::into(code_rate)) as f32)
+        * ((1 << Into::<usize>::into(sf)) * os_factor) as f32) as usize
         + pad * 2
+        - os_factor
+}
+
+pub fn align_at_detection_threshold(sf: SpreadingFactor) -> usize {
+    (2.5 * (1 << Into::<usize>::into(SpreadingFactor::SF12)) as f32
+        - 2.5 * (1 << Into::<usize>::into(sf)) as f32) as usize
+}
+
+pub fn encode_str_as_payload(payload: &str, pad_to_len: Option<usize>) -> Vec<u8> {
+    let payload_bytes = payload.as_bytes();
+    if let Some(frame_len) = pad_to_len {
+        let payload_len = payload_bytes.len();
+        // frame
+        let mut payload: Vec<u8> = (0..(frame_len - payload_len))
+            .map(|_| rand::random::<u8>())
+            .collect();
+        payload.extend(payload_bytes);
+        payload
+    } else {
+        payload_bytes.to_vec()
+    }
 }
 
 /**
@@ -336,8 +692,8 @@ pub fn sample_count(
  *          The spreading factor to use
  */
 #[inline]
-pub fn build_ref_chirps(sf: usize, os_factor: usize) -> (Vec<Complex32>, Vec<Complex32>) {
-    let upchirp = build_upchirp(0, sf, os_factor);
+pub fn build_ref_chirps(sf: SpreadingFactor, os_factor: usize) -> (Vec<Complex32>, Vec<Complex32>) {
+    let upchirp = build_upchirp(0, sf, os_factor, true);
     let downchirp = volk_32fc_conjugate_32fc(&upchirp);
     (upchirp, downchirp)
 }
@@ -437,3 +793,25 @@ pub fn volk_32fc_magnitude_squared_32f(input_slice: &[Complex32]) -> Vec<f32> {
         .map(|x| x.re * x.re + x.im * x.im)
         .collect()
 }
+
+pub type DemodulatedSymbolHardDecoding = u16;
+pub type DemodulatedSymbolSoftDecoding = [LLR; MAX_SF];
+
+pub trait DemodulatedSymbol:
+    Default + Clone + Copy + std::fmt::Debug + Send + Sync + Sized + 'static
+{
+}
+
+impl DemodulatedSymbol for DemodulatedSymbolHardDecoding {}
+impl DemodulatedSymbol for DemodulatedSymbolSoftDecoding {}
+
+pub type DeinterleavedSymbolHardDecoding = u8;
+pub type DeinterleavedSymbolSoftDecoding = [LLR; 8];
+
+pub trait DeinterleavedSymbol:
+    Default + Clone + Copy + std::fmt::Debug + Send + Sync + Sized + 'static
+{
+}
+
+impl DeinterleavedSymbol for DeinterleavedSymbolHardDecoding {}
+impl DeinterleavedSymbol for DeinterleavedSymbolSoftDecoding {}

@@ -1,3 +1,8 @@
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::time::Duration;
+use std::time::SystemTime;
+
 use chrono::prelude::DateTime;
 use chrono::prelude::Utc;
 use semtech_udp::Bandwidth;
@@ -12,10 +17,6 @@ use semtech_udp::push_data::Packet;
 use semtech_udp::push_data::RSig;
 use semtech_udp::push_data::RxPk;
 use semtech_udp::push_data::RxPkV2;
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::time::Duration;
-use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
@@ -112,10 +113,14 @@ impl PacketForwarderClient {
                         Pmt::Usize(2) => CodingRate::_4_6,
                         Pmt::Usize(3) => CodingRate::_4_7,
                         Pmt::Usize(4) => CodingRate::_4_8,
-                        _ => panic!(
-                            "invalid Coding Rate in received msg: {:?}",
-                            m.get("code_rate")
-                        ),
+                        _ => {
+                            warn!(
+                                "invalid Coding Rate in received msg: {:?}, {:?}",
+                                m.get("code_rate"),
+                                m
+                            );
+                            return Ok(Pmt::Ok);
+                        }
                     };
                     let sf: SpreadingFactor = match m.get("sf").unwrap() {
                         Pmt::U32(5) => SpreadingFactor::_5,
@@ -148,7 +153,8 @@ impl PacketForwarderClient {
                     };
                     let mut cfo: f32 = 0.0;
                     if let Some(Pmt::Isize(cfo_int)) = m.get("cfo_int") {
-                        cfo += *cfo_int as f32 * (bw.hz() as f32 / (1 << sf.factor()) as f32);
+                        cfo += *cfo_int as f32
+                            * (bw.hz() as f32 / (1 << Into::<u32>::into(sf)) as f32);
                     }
                     if let Some(Pmt::F64(cfo_frac)) = m.get("cfo_frac") {
                         cfo += *cfo_frac as f32;

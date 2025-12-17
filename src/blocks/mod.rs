@@ -256,6 +256,8 @@ pub mod zeromq;
 mod zynq;
 #[cfg(all(feature = "zynq", target_os = "linux"))]
 pub use zynq::Zynq;
+mod burst_pad;
+pub use burst_pad::BurstPad;
 #[cfg(all(feature = "zynq", target_os = "linux"))]
 mod zynq_sync;
 #[cfg(all(feature = "zynq", target_os = "linux"))]
