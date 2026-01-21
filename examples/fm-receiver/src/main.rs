@@ -24,6 +24,7 @@ use futuresdr::num_integer::gcd;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::Runtime;
+use futuresdr::blocks::FileSink;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -130,30 +131,37 @@ fn main() -> Result<()> {
     // Single-channel `AudioSink` with the downsampled rate (sample_rate / (8*5) = 48_000)
     let snk = AudioSink::new(audio_rate, 1);
 
+    // let snk = FileSink::<f32>::new("d:\\temp_fm\\fm_receiver_test.f32");
+
     // Add all the blocks to the `Flowgraph`...
+    // connect!(fg, src.outputs[0] > shift > resamp1 > demod > resamp2 > snk);
     connect!(fg, src.outputs[0] > shift > resamp1 > demod > resamp2 > snk);
     let src = src.get()?.id;
 
     // Start the flowgraph and save the handle
     let rt = Runtime::new();
-    let (_res, mut handle) = rt.start_sync(fg)?;
+    let (fg, mut handle) = rt.start_sync(fg)?;
 
-    // Keep asking user for a new frequency and a new sample rate
-    loop {
-        println!("Enter a new frequency (in MHz)");
-        // Get input from stdin and remove all whitespace (most importantly '\n' at the end)
-        let mut input = String::new(); // Input buffer
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("error: unable to read user input");
-        input.retain(|c| !c.is_whitespace());
+    // // Keep asking user for a new frequency and a new sample rate
+    // loop {
+    //     println!("Enter a new frequency (in MHz)");
+    //     // Get input from stdin and remove all whitespace (most importantly '\n' at the end)
+    //     let mut input = String::new(); // Input buffer
+    //     std::io::stdin()
+    //         .read_line(&mut input)
+    //         .expect("error: unable to read user input");
+    //     input.retain(|c| !c.is_whitespace());
 
-        // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
-        if let Ok(new_freq) = input.parse::<f64>() {
-            println!("Setting frequency to {input}");
-            async_io::block_on(handle.call(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
-        } else {
-            println!("Input not parsable: {input}");
-        }
-    }
+    //     // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
+    //     if let Ok(new_freq) = input.parse::<f64>() {
+    //         println!("Setting frequency to {input}");
+    //         async_io::block_on(handle.call(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
+    //     } else {
+    //         println!("Input not parsable: {input}");
+    //     }
+    // }
+    futuresdr::async_io::block_on(async move {
+        fg.await.unwrap();
+    });
+    Ok(())
 }

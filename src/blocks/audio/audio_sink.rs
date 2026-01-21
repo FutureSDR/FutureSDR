@@ -102,12 +102,20 @@ where
         let device = host
             .default_output_device()
             .expect("no output device available");
+    
 
-        let config = StreamConfig {
-            channels: self.channels,
-            sample_rate: SampleRate(self.sample_rate),
-            buffer_size: BufferSize::Default,
-        };
+        //let config = StreamConfig {
+        //    channels: self.channels,
+        //    sample_rate: SampleRate(self.sample_rate),
+        //    buffer_size: BufferSize::Default,
+        //};
+        let temp_config: StreamConfig = device.default_output_config()?.into();
+        let hw_channels = temp_config.channels as usize;
+        let app_channels = self.channels as usize;
+
+        let mut config = temp_config.clone();
+        config.sample_rate = SampleRate(self.sample_rate);
+        config.buffer_size = BufferSize::Default;
 
         let (terminate, terminated) = oneshot::channel();
         let mut terminate = Some(terminate);
@@ -130,18 +138,36 @@ where
                             }
                             return;
                         }
-                        let n = std::cmp::min(v.len(), data.len() - i);
-                        data[i..i + n].copy_from_slice(&v[..n]);
-                        i += n;
-
-                        if n < v.len() {
+                        if app_channels == 1 && hw_channels == 2 { 
+                            let n = std::cmp::min(v.len(), (data.len() - i) / 2);
+                            for j in 0..(n) {
+                                data[i + 2*j] = v[j];
+                                data[i + 2*j + 1] = v[j];
+                            }
+                            i += 2*n;
+                            if n < v.len() {
                             iter = Some(v.split_off(n));
                             debug_assert!(!iter.as_ref().unwrap().is_empty());
                             debug_assert_eq!(i, data.len());
                             return;
                         } else if i == data.len() {
                             return;
+                        }   
+                        }else{
+                            let n = std::cmp::min(v.len(), data.len() - i);
+                            data[i..i + n].copy_from_slice(&v[..n]);
+                            i += n;
+                            if n < v.len() {
+                                iter = Some(v.split_off(n));
+                                debug_assert!(!iter.as_ref().unwrap().is_empty());
+                                debug_assert_eq!(i, data.len());
+                                return;
+                            } else if i == data.len() {
+                                return;
+                            }
                         }
+
+                        
                     }
                 },
                 move |err| {
