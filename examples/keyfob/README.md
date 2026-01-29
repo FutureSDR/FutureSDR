@@ -13,7 +13,7 @@ The flowgraph consists of the following blocks:
 * Moving Average: Removes the DC offset and centers the signal.
 * Low Pass Filter: Smooths out the noise.
 * Slicer: Converts analog signal into a stream of digital 0s and 1s.
-* Decoder: Analyze the timing of the pulses. It looks for a specific start sequence (preamble) and then interprets the following bits as a command.
+* Decoder: Analyzes the timing of the pulses. It looks for a specific start sequence (preamble) and then interprets the following bits as a command.
 
 
 ## How to run:
