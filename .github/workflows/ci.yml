@@ -13,6 +13,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: rustfmt
 
       - name: Run cargo fmt (FutureSDR)
@@ -155,6 +156,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -194,6 +196,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -257,6 +260,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -360,6 +364,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly
           components: clippy
           target: wasm32-unknown-unknown
 
