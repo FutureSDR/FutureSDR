@@ -63,3 +63,32 @@ pub struct ItemTag {
     /// [`Tag`] value
     pub tag: Tag,
 }
+
+impl PartialEq for ItemTag {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+            && match &self.tag {
+                Tag::Id(x) => match &other.tag {
+                    Tag::Id(y) => x == y,
+                    _ => false,
+                },
+                Tag::String(x) => match &other.tag {
+                    Tag::String(y) => x == y,
+                    _ => false,
+                },
+                Tag::Data(x) => match &other.tag {
+                    Tag::Data(y) => x == y,
+                    _ => false,
+                },
+                Tag::NamedUsize(k1, v1) => match &other.tag {
+                    Tag::NamedUsize(k2, v2) => k1 == k2 && v1 == v2,
+                    _ => false,
+                },
+                Tag::NamedF32(k1, v1) => match &other.tag {
+                    Tag::NamedF32(k2, v2) => k1 == k2 && v1 == v2,
+                    _ => false,
+                },
+                _ => false,
+            }
+    }
+}
