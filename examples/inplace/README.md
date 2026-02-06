@@ -1,4 +1,4 @@
-In-Place vs. Out-of-Place Processing Performance Example (iplace)
+In-Place vs. Out-of-Place Processing Performance Example (inplace)
 ========================
 
 ## Introduction
