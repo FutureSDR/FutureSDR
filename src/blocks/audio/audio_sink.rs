@@ -102,7 +102,6 @@ where
         let device = host
             .default_output_device()
             .expect("no output device available");
-    
 
         //let config = StreamConfig {
         //    channels: self.channels,
@@ -138,22 +137,22 @@ where
                             }
                             return;
                         }
-                        if app_channels == 1 && hw_channels == 2 { 
+                        if app_channels == 1 && hw_channels == 2 {
                             let n = std::cmp::min(v.len(), (data.len() - i) / 2);
                             for j in 0..(n) {
-                                data[i + 2*j] = v[j];
-                                data[i + 2*j + 1] = v[j];
+                                data[i + 2 * j] = v[j];
+                                data[i + 2 * j + 1] = v[j];
                             }
-                            i += 2*n;
+                            i += 2 * n;
                             if n < v.len() {
-                            iter = Some(v.split_off(n));
-                            debug_assert!(!iter.as_ref().unwrap().is_empty());
-                            debug_assert_eq!(i, data.len());
-                            return;
-                        } else if i == data.len() {
-                            return;
-                        }   
-                        }else{
+                                iter = Some(v.split_off(n));
+                                debug_assert!(!iter.as_ref().unwrap().is_empty());
+                                debug_assert_eq!(i, data.len());
+                                return;
+                            } else if i == data.len() {
+                                return;
+                            }
+                        } else {
                             let n = std::cmp::min(v.len(), data.len() - i);
                             data[i..i + n].copy_from_slice(&v[..n]);
                             i += n;
@@ -166,8 +165,6 @@ where
                                 return;
                             }
                         }
-
-                        
                     }
                 },
                 move |err| {
