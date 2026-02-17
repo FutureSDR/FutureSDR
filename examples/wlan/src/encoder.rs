@@ -143,7 +143,7 @@ where
     default_mcs: Mcs,
     current_len: usize,
     current_index: usize,
-    enc: Enc,
+    enc: Box<Enc>,
 }
 
 impl<O> Encoder<O>
@@ -157,7 +157,7 @@ where
             default_mcs,
             current_len: 0,
             current_index: 0,
-            enc: Enc {
+            enc: Box::new(Enc {
                 scrambler_seed: 1,
                 bits: [0; MAX_ENCODED_BITS],
                 scrambled: [0; MAX_ENCODED_BITS],
@@ -165,7 +165,7 @@ where
                 punctured: [0; 2 * MAX_ENCODED_BITS],
                 interleaved: [0; 2 * MAX_ENCODED_BITS],
                 symbols: [0; 2 * MAX_ENCODED_BITS],
-            },
+            }),
         }
     }
 

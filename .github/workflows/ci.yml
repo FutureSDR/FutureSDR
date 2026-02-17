@@ -413,8 +413,7 @@ jobs:
       - run: cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
       - run: cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
       - run: cargo test --all-targets --manifest-path=crates/remote/Cargo.toml
-      # the buffer size, required for the prefix block is not supported by GitHub CI
-      # - run: cargo test --all-targets --manifest-path=examples/wlan/Cargo.toml
+      - run: cargo test --all-targets --manifest-path=examples/wlan/Cargo.toml
 
   test-macos:
     name: Unit Tests macOS
