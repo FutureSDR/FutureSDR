@@ -121,9 +121,7 @@ where
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
                     let mut i = 0;
 
-                    while let Some(mut v) =
-                        iter.take().or_else(|| rx.try_next().ok().and_then(|x| x))
-                    {
+                    while let Some(mut v) = iter.take().or_else(|| rx.try_recv().ok()) {
                         if v.is_empty() {
                             if let Some(t) = terminate.take() {
                                 t.send(()).unwrap();

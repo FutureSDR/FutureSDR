@@ -323,9 +323,9 @@ impl Spectrum {
                 gl.uniform_1_f32(gl.get_uniform_location(self.program, "u_max").as_ref(), m);
             }
 
-            if let Ok(Some(v)) = self.rx_samples.try_next() {
+            if let Ok(v) = self.rx_samples.try_recv() {
                 let mut samples = *v;
-                while let Ok(Some(v)) = self.rx_samples.try_next() {
+                while let Ok(v) = self.rx_samples.try_recv() {
                     samples = *v;
                 }
 

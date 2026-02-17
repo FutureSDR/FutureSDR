@@ -141,7 +141,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
                 .unwrap();
 
             for (n, r) in self.message_sinks.iter_mut().enumerate() {
-                while let Ok(Some(m)) = r.try_next() {
+                while let Ok(m) = r.try_recv() {
                     match m {
                         BlockMessage::Call { data, .. } => {
                             self.messages[n].push(data);
