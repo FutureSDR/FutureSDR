@@ -9,9 +9,7 @@ edition = "2024"
 
 [output.html]
 mathjax-support = true
-additional-css = ["./mdbook-admonish.css"]
 git-repository-url = "https://github.com/futuresdr/futuresdr"
-git-repository-icon = "fa-github"
 edit-url-template = "https://github.com/futuresdr/futuresdr/edit/main/book/{path}"
 site-url = "/learn/"
 cname = "futuresdr.org"
@@ -19,12 +17,3 @@ cname = "futuresdr.org"
 [output.html.playground]
 runnable = false
 
-[preprocessor]
-
-[preprocessor.admonish]
-command = "mdbook-admonish"
-on_failure = "bail"
-assets_version = "3.1.0" # do not edit: managed by `mdbook-admonish install`
-
-[preprocessor.admonish.renderer.test]
-render_mode = "strip"
