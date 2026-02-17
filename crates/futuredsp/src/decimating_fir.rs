@@ -12,8 +12,7 @@ use crate::ComputationStatus;
 use crate::Filter;
 use crate::Taps;
 
-/// A non-resampling FIR filter. Calling `filter()` on this struct always
-/// produces exactly as many samples as it consumes.
+/// A decimating FIR filter.
 ///
 /// Implementations of this core exist for the following combinations:
 /// - `f32` samples, `f32` taps.
