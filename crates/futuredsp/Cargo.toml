@@ -23,8 +23,8 @@ tracing = "0.1"
 rustc_version = "0.4"
 
 [dev-dependencies]
-criterion = { version = "0.7", features = ["html_reports"] }
-rand = "0.9"
+criterion = { version = "0.8", features = ["html_reports"] }
+rand = "0.10"
 
 [[bench]]
 name = "benchmarks"

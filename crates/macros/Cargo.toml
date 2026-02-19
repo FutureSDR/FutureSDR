@@ -20,7 +20,7 @@ categories = [
 proc-macro = true
 
 [dependencies]
-indexmap = "2.11"
+indexmap = "2.13"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }

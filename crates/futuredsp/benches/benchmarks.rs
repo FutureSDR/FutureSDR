@@ -5,7 +5,6 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use num_complex::Complex;
-use rand::Rng;
 use std::hint::black_box;
 
 use futuredsp::FirFilter;
@@ -18,34 +17,30 @@ trait Generatable {
 
 impl Generatable for f32 {
     fn generate() -> Self {
-        let mut rng = rand::rng();
-        rng.random::<f32>() * 2.0 - 1.0
+        rand::random::<f32>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f32> {
     fn generate() -> Self {
-        let mut rng = rand::rng();
         Complex {
-            re: rng.random::<f32>() * 2.0 - 1.0,
-            im: rng.random::<f32>() * 2.0 - 1.0,
+            re: rand::random::<f32>() * 2.0 - 1.0,
+            im: rand::random::<f32>() * 2.0 - 1.0,
         }
     }
 }
 
 impl Generatable for f64 {
     fn generate() -> Self {
-        let mut rng = rand::rng();
-        rng.random::<f64>() * 2.0 - 1.0
+        rand::random::<f64>() * 2.0 - 1.0
     }
 }
 
 impl Generatable for Complex<f64> {
     fn generate() -> Self {
-        let mut rng = rand::rng();
         Complex {
-            re: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
-            im: rng.random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            re: rand::random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
+            im: rand::random::<f64>() * 2.0 - 1.0 + f64::MIN_POSITIVE,
         }
     }
 }
