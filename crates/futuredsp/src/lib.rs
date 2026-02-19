@@ -14,8 +14,6 @@ pub use num_traits;
 pub use decimating_fir::DecimatingFirFilter;
 pub use fir::FirFilter;
 pub use iir::IirFilter;
-#[cfg(feature = "gpl-code")]
-pub use mmse::MmseResampler;
 pub use polyphase_resampling_fir::PolyphaseResamplingFir;
 pub use rotator::Rotator;
 pub use taps::Taps;
@@ -25,8 +23,6 @@ mod fir;
 pub mod firdes;
 pub mod iir;
 pub mod math;
-#[cfg(feature = "gpl-code")]
-mod mmse;
 mod polyphase_resampling_fir;
 pub mod rotator;
 pub mod taps;

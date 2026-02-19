@@ -2,13 +2,9 @@
 use futuredsp::ComputationStatus;
 use futuredsp::DecimatingFirFilter;
 use futuredsp::FirFilter;
-use futuredsp::MmseResampler;
 use futuredsp::PolyphaseResamplingFir;
 use futuredsp::firdes;
 use futuredsp::prelude::*;
-use num_traits::Num;
-use std::iter::Sum;
-use std::ops::Mul;
 
 use crate::prelude::*;
 
@@ -73,85 +69,6 @@ where
     OutputType: CpuSample,
     TapType: 'static + Send,
     Core: Filter<InputType, OutputType, TapType> + Send + 'static,
-    IN: CpuBufferReader<Item = InputType>,
-    OUT: CpuBufferWriter<Item = OutputType>,
-{
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        let i = self.input.slice();
-        let o = self.output.slice();
-
-        let (consumed, produced, status) = self.filter.filter(i, o);
-
-        self.input.consume(consumed);
-        self.output.produce(produced);
-
-        if self.input.finished() && !matches!(status, ComputationStatus::InsufficientOutput) {
-            io.finished = true;
-        }
-
-        Ok(())
-    }
-}
-
-/// Stateful FIR filter.
-#[derive(Block)]
-pub struct StatefulFir<
-    InputType,
-    OutputType,
-    TapType,
-    Core,
-    IN = DefaultCpuReader<InputType>,
-    OUT = DefaultCpuWriter<OutputType>,
-> where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: StatefulFilter<InputType, OutputType, TapType> + Send,
-    IN: CpuBufferReader<Item = InputType>,
-    OUT: CpuBufferWriter<Item = OutputType>,
-{
-    #[input]
-    input: IN,
-    #[output]
-    output: OUT,
-    filter: Core,
-    _tap_type: std::marker::PhantomData<TapType>,
-}
-
-impl<InputType, OutputType, TapType, Core, IN, OUT>
-    StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
-where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: StatefulFilter<InputType, OutputType, TapType> + Send + 'static,
-    IN: CpuBufferReader<Item = InputType>,
-    OUT: CpuBufferWriter<Item = OutputType>,
-{
-    /// Create FIR block
-    pub fn new(filter: Core) -> Self {
-        Self {
-            input: IN::default(),
-            output: OUT::default(),
-            filter,
-            _tap_type: std::marker::PhantomData,
-        }
-    }
-}
-
-#[doc(hidden)]
-impl<InputType, OutputType, TapType, Core, IN, OUT> Kernel
-    for StatefulFir<InputType, OutputType, TapType, Core, IN, OUT>
-where
-    InputType: 'static + Send,
-    OutputType: 'static + Send,
-    TapType: 'static + Send,
-    Core: StatefulFilter<InputType, OutputType, TapType> + Send + 'static,
     IN: CpuBufferReader<Item = InputType>,
     OUT: CpuBufferWriter<Item = OutputType>,
 {
@@ -315,18 +232,5 @@ impl FirBuilder {
             TapsType::TapType,
             PolyphaseResamplingFir<InputType, OutputType, TapsType>,
         >::new(PolyphaseResamplingFir::new(interp, decim, taps))
-    }
-    /// Create a new MMSE Resampler.
-    pub fn mmse<SampleType>(
-        ratio: f32,
-    ) -> StatefulFir<SampleType, SampleType, f32, MmseResampler<SampleType>>
-    where
-        SampleType:
-            CpuSample + Copy + Num + Sum<SampleType> + Mul<f32, Output = SampleType> + 'static,
-        MmseResampler<SampleType>: StatefulFilter<SampleType, SampleType, f32>,
-    {
-        StatefulFir::<SampleType, SampleType, f32, MmseResampler<SampleType>>::new(
-            MmseResampler::new(ratio),
-        )
     }
 }

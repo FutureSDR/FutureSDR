@@ -12,8 +12,7 @@ keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
 [features]
-default = ["gpl-code"]
-gpl-code = []
+default = []
 
 [dependencies]
 num-complex = "0.4"
