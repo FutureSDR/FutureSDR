@@ -15,8 +15,8 @@ use crate::prelude::*;
 /// let mut fg = Flowgraph::new();
 /// let (mut tx, rx) = mpsc::channel(10);
 /// let vec = vec![0, 1, 2];
-/// let src = fg.add_block(VectorSource::<u32>::new(vec));
-/// let cs = fg.add_block(ChannelSink::<u32>::new(tx));
+/// let src = fg.add(VectorSource::<u32>::new(vec)).unwrap();
+/// let cs = fg.add(ChannelSink::<u32>::new(tx)).unwrap();
 /// // start flowgraph
 /// ```
 #[derive(Block)]

@@ -25,7 +25,7 @@ enum State {
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add_block(Delay::<Complex<f32>>::new(42));
+/// let sink = fg.add(Delay::<Complex<f32>>::new(42)).unwrap();
 /// ```
 #[derive(Block)]
 #[message_inputs(new_value)]

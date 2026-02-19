@@ -52,7 +52,7 @@ fn main() -> Result<()> {
     // To be downloaded from https://www.csun.edu/~skatz/katzpage/sdr_project/sdr/ssb_lsb_256k_complex2.dat.zip
     let file_name = args.filename;
     let src = FileSource::<Complex32>::new(&file_name, true);
-    let src = fg.add_block(src);
+    let src = fg.add(src)?;
 
     const FILE_LEVEL_ADJUSTMENT: f32 = 0.0001;
     let mut osc = Complex32::new(1.0, 0.0);

@@ -16,7 +16,7 @@ use crate::prelude::*;
 /// let mut fg = Flowgraph::new();
 /// let (mut tx, rx) = mpsc::channel(10);
 ///
-/// let cs = fg.add_block(ChannelSource::<u32>::new(rx));
+/// let cs = fg.add(ChannelSource::<u32>::new(rx)).unwrap();
 /// // start flowgraph
 /// tx.try_send(vec![0, 1, 2].into_boxed_slice());
 /// ```

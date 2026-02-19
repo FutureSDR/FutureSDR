@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let (src, output_name): (BlockId, _) = if let Some(input) = args.input {
+    let (src, output_name): (BlockId, &'static str) = if let Some(input) = args.input {
         let format = args
             .format_in
             .or_else(|| {
@@ -78,21 +78,24 @@ fn main() -> Result<()> {
         }
     } else {
         (
-            fg.add_block(
+            fg.add(
                 Builder::new(args.args)?
                     .frequency(args.frequency)
                     .sample_rate(args.rate)
                     .gain(args.gain)
                     .build_source()?,
-            )
+            )?
             .into(),
             "outputs[0]",
         )
     };
 
-    let (src, output_name) = if let Some(samples) = args.samples {
-        let sample_counter = fg.add_block(Head::<Complex<f32>>::new(samples)).into();
-        fg.connect_dyn(src, output_name, sample_counter, "input")?;
+    let (src, output_name): (BlockId, &'static str) = if let Some(samples) = args.samples {
+        let sample_counter: BlockId = fg.add(Head::<Complex<f32>>::new(samples))?.into();
+        fg.connect_dyn(
+            src.dyn_stream_output(output_name)?,
+            sample_counter.dyn_stream_input("input")?,
+        )?;
         (sample_counter, "output")
     } else {
         (src, output_name)
@@ -102,7 +105,7 @@ fn main() -> Result<()> {
     let mut last_power_print = Instant::now();
     let mut avgmag = 0.0;
     let mut maxmag = 0.0;
-    let powermeter = fg.add_block(Apply::<_, _, _>::new(move |i: &Complex32| {
+    let powermeter = fg.add(Apply::<_, _, _>::new(move |i: &Complex32| {
         let norm = i.norm();
         if norm > 0.95 && last_clip_warning.elapsed().as_secs_f32() > 0.1 {
             last_clip_warning = Instant::now();
@@ -118,9 +121,12 @@ fn main() -> Result<()> {
             last_power_print = Instant::now();
         }
         *i
-    }));
+    }))?;
 
-    fg.connect_dyn(src, output_name, &powermeter, "input")?;
+    fg.connect_dyn(
+        src.dyn_stream_output(output_name)?,
+        powermeter.dyn_stream_input("input")?,
+    )?;
 
     let format = args
         .format_out

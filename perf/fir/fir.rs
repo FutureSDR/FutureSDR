@@ -5,6 +5,7 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::BlockId;
+use futuresdr::runtime::DynStreamAccess;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
@@ -49,28 +50,46 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new());
-        let head = fg.add_block(Head::<f32>::new(samples as u64));
-        fg.connect_dyn(src, "output", &head, "input")?;
+        let src = fg.add(NullSource::<f32>::new())?;
+        let head = fg.add(Head::<f32>::new(samples as u64))?;
+        fg.connect_dyn(
+            src.dyn_stream_output("output")?,
+            head.dyn_stream_input("input")?,
+        )?;
 
-        let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
+        let copy = fg.add(CopyRand::<f32>::new(max_copy))?;
         let mut last: BlockId = fg
-            .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
+            .add(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))?
             .into();
-        fg.connect_dyn(head, "output", &copy, "input")?;
-        fg.connect_dyn(copy, "output", last, "input")?;
+        fg.connect_dyn(
+            head.dyn_stream_output("output")?,
+            copy.dyn_stream_input("input")?,
+        )?;
+        fg.connect_dyn(
+            copy.dyn_stream_output("output")?,
+            last.dyn_stream_input("input")?,
+        )?;
 
         for _ in 1..stages {
-            let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
-            fg.connect_dyn(last, "output", &copy, "input")?;
+            let copy = fg.add(CopyRand::<f32>::new(max_copy))?;
+            fg.connect_dyn(
+                last.dyn_stream_output("output")?,
+                copy.dyn_stream_input("input")?,
+            )?;
             last = fg
-                .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
+                .add(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))?
                 .into();
-            fg.connect_dyn(copy, "output", last, "input")?;
+            fg.connect_dyn(
+                copy.dyn_stream_output("output")?,
+                last.dyn_stream_input("input")?,
+            )?;
         }
 
-        let snk = fg.add_block(NullSink::<f32>::new());
-        fg.connect_dyn(last, "output", &snk, "input")?;
+        let snk = fg.add(NullSink::<f32>::new())?;
+        fg.connect_dyn(
+            last.dyn_stream_output("output")?,
+            snk.dyn_stream_input("input")?,
+        )?;
         snks.push(snk);
     }
 

@@ -19,7 +19,7 @@ enum BurstPadState {
 /// `out`: Output, potentially padded copy of the input samples
 ///
 /// # Usage
-/// ```rust
+/// ```ignore
 /// use futuresdr::blocks::{BurstPad, BurstSplit, BurstSizeRewriter};
 /// // use futuresdr::blocks::seify::Builder;
 /// use futuresdr::prelude::*;

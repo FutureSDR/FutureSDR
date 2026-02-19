@@ -41,9 +41,9 @@ fn main() -> Result<()> {
     let mut cpu_mapping = HashMap::new();
 
     for p in 0..pipes {
-        let src = fg.add_block(NullSource::<f32>::new());
-        let head = fg.add_block(Head::<f32>::new(samples as u64));
-        let mut last = fg.add_block(CopyRand::<f32>::new(max_copy));
+        let src = fg.add(NullSource::<f32>::new())?;
+        let head = fg.add(Head::<f32>::new(samples as u64))?;
+        let mut last = fg.add(CopyRand::<f32>::new(max_copy))?;
 
         fg.connect_stream(src.get()?.output(), head.get()?.input());
         fg.connect_stream(head.get()?.output(), last.get()?.input());
@@ -53,13 +53,13 @@ fn main() -> Result<()> {
         cpu_mapping.insert(last.get()?.id, p);
 
         for _ in 1..stages {
-            let block = fg.add_block(CopyRand::<f32>::new(max_copy));
+            let block = fg.add(CopyRand::<f32>::new(max_copy))?;
             fg.connect_stream(last.get()?.output(), block.get()?.input());
             cpu_mapping.insert(block.get()?.id, p);
             last = block;
         }
 
-        let snk = fg.add_block(NullSink::<f32>::new());
+        let snk = fg.add(NullSink::<f32>::new())?;
         fg.connect_stream(last.get()?.output(), snk.get()?.input());
         cpu_mapping.insert(snk.get()?.id, p);
         snks.push(snk);

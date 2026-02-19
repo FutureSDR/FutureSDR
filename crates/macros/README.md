@@ -22,12 +22,12 @@ It generates the following code:
 
 ```rust
 // Add all the blocks to the `Flowgraph`...
-let src = fg.add_block(src);
-let shift = fg.add_block(shift);
-let resamp1 = fg.add_block(resamp1);
-let demod = fg.add_block(demod);
-let resamp2 = fg.add_block(resamp2);
-let snk = fg.add_block(snk);
+let src = fg.add(src)?;
+let shift = fg.add(shift)?;
+let resamp1 = fg.add(resamp1)?;
+let demod = fg.add(demod)?;
+let resamp2 = fg.add(resamp2)?;
+let snk = fg.add(snk)?;
 
 // ... and connect the ports appropriately
 fg.connect_stream(src, "out", shift, "in")?;

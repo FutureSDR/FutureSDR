@@ -5,7 +5,7 @@ fn main() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
-    fg.add_block(CtrlPortDemo::new());
+    fg.add(CtrlPortDemo::new())?;
 
     info!("Ways to interact with the flowgraph:");
     info!("Web GUI: http://127.0.0.1:1337");

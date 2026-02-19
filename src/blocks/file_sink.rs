@@ -28,7 +28,7 @@ use std::path::PathBuf;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add_block(FileSink::<Complex<f32>>::new("my_sink_filename.cf32"));
+/// let sink = fg.add(FileSink::<Complex<f32>>::new("my_sink_filename.cf32")).unwrap();
 /// ```
 #[derive(Block)]
 pub struct FileSink<T: Send + 'static, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {

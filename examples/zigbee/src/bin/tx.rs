@@ -38,10 +38,10 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let mac: Mac = Mac::new();
-    let mac = fg.add_block(mac);
+    let mac = fg.add(mac)?;
     let modulator = modulator(&mut fg);
     let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add_block(iq_delay);
+    let iq_delay = fg.add(iq_delay)?;
 
     let snk = Builder::new(args.args)?
         .frequency(args.freq)
@@ -50,11 +50,20 @@ fn main() -> Result<()> {
         .antenna(args.antenna)
         .min_in_buffer_size(98304)
         .build_sink()?;
-    let snk = fg.add_block(snk);
+    let snk = fg.add(snk)?;
 
-    fg.connect_dyn(&mac, "output", modulator, "input")?;
-    fg.connect_dyn(modulator, "output", &iq_delay, "input")?;
-    fg.connect_dyn(iq_delay, "output", snk, "inputs[0]")?;
+    fg.connect_dyn(
+        mac.dyn_stream_output("output")?,
+        modulator.dyn_stream_input("input")?,
+    )?;
+    fg.connect_dyn(
+        modulator.dyn_stream_output("output")?,
+        iq_delay.dyn_stream_input("input")?,
+    )?;
+    fg.connect_dyn(
+        iq_delay.dyn_stream_output("output")?,
+        snk.dyn_stream_input("inputs[0]")?,
+    )?;
     let mac = mac.into();
 
     let rt = Runtime::new();

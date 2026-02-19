@@ -12,13 +12,16 @@ fn main() -> Result<()> {
     let snk = NullSink::<u8>::new();
 
     // type erasure for src
-    let src = fg.add_block(src);
+    let src = fg.add(src)?;
     let src: BlockId = src.into();
 
-    let head = fg.add_block(head);
+    let head = fg.add(head)?;
 
     // untyped connect
-    fg.connect_dyn(src, "output", &head, "input")?;
+    fg.connect_dyn(
+        src.dyn_stream_output("output")?,
+        head.dyn_stream_input("input")?,
+    )?;
     // typed connect
     connect!(fg, head > snk);
 

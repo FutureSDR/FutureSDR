@@ -2,7 +2,6 @@ use futuresdr::num_integer::Integer;
 use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
-#[derive(Block)]
 struct InterpResampler {
     phase_wrapped: f32,
     phase: f32,

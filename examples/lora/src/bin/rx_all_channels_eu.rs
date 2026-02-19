@@ -81,9 +81,10 @@ fn main() -> Result<()> {
     // streamer start time is relative to function call -> can not be used for precise rx timestamping -> just use the system time when constructing the flowgraph as a reference
     let stream_start_time = SystemTime::now();
 
-    let packet_forwarder = args
-        .forward_addr
-        .map(|addr| fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr)));
+    let packet_forwarder = match args.forward_addr {
+        Some(addr) => Some(fg.add(PacketForwarderClient::new("0200.0000.0403.0201", &addr))?),
+        None => None,
+    };
 
     let src = Builder::new(args.args)?
         .sample_rate((NUM_CHANNELS_PADDED * CHANNEL_SPACING) as f64)
@@ -113,13 +114,11 @@ fn main() -> Result<()> {
     for n_out in 0..NUM_CHANNELS_PADDED {
         let n_chan = map_port(n_out);
         if n_chan.is_none() {
-            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new());
+            let null_sink_extra_channel = fg.add(NullSink::<Complex32>::new())?;
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
             fg.connect_dyn(
-                &channelizer,
-                format!("out{n_out}"),
-                null_sink_extra_channel,
-                "in",
+                channelizer.dyn_stream_output(format!("out{n_out}"))?,
+                null_sink_extra_channel.dyn_stream_input("in")?,
             )?;
             println!("connecting channel {n_out} to NullSink");
             continue;
@@ -140,8 +139,11 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|x| x as f32)
         .collect();
-        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5));
-        fg.connect_dyn(&channelizer, format!("out{n_out}"), &resampler, "in")?;
+        let resampler = fg.add(PfbArbResampler::new(2.5, &resampler_taps, 5))?;
+        fg.connect_dyn(
+            channelizer.dyn_stream_output(format!("out{n_out}"))?,
+            resampler.dyn_stream_input("in")?,
+        )?;
         let channel = CHANNELS[n_chan];
         println!(
             "connecting {:.1}MHz chain to channel {}",

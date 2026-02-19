@@ -10,9 +10,12 @@ use std::time::Duration;
 #[test]
 fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let fft: BlockId = fg.add_block(Fft::new(16) as Fft).into();
-    let sink: BlockId = fg.add_block(NullSink::<[Complex<f32>; 16]>::new()).into();
-    let result = fg.connect_dyn(fft, "output", sink, "input");
+    let fft: BlockId = fg.add(Fft::new(16) as Fft)?.into();
+    let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new())?.into();
+    let result = fg.connect_dyn(
+        fft.dyn_stream_output("output")?,
+        sink.dyn_stream_input("input")?,
+    );
 
     match result {
         Err(Error::ValidationError(_)) => Ok(()),
@@ -24,11 +27,14 @@ fn connect_type_error() -> Result<()> {
 fn message_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add_block(source);
+    let source = fg.add(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add(sink)?;
 
-    let result = fg.connect_message(&source, "out", &sink, "non_existent");
+    let result = fg.connect_message(
+        source.dyn_message_output("out")?,
+        sink.dyn_message_input("non_existent")?,
+    );
     assert!(result.is_err());
 
     let error = result.unwrap_err();
@@ -49,11 +55,14 @@ fn message_invalid_in_port() -> Result<()> {
 fn message_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add_block(source);
+    let source = fg.add(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add(sink)?;
 
-    let result = fg.connect_message(&source, "fictitious", &sink, "in");
+    let result = fg.connect_message(
+        source.dyn_message_output("fictitious")?,
+        sink.dyn_message_input("in")?,
+    );
     assert!(result.is_err());
 
     let error = result.unwrap_err();
@@ -74,11 +83,14 @@ fn message_invalid_out_port() -> Result<()> {
 fn stream_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add_block(source);
+    let source = fg.add(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add(sink)?;
 
-    let result = fg.connect_dyn(source, "output", sink, "non_existent");
+    let result = fg.connect_dyn(
+        source.dyn_stream_output("output")?,
+        sink.dyn_stream_input("non_existent")?,
+    );
     assert!(result.is_err());
 
     let error = result.unwrap_err();
@@ -99,11 +111,14 @@ fn stream_invalid_in_port() -> Result<()> {
 fn stream_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add_block(source);
+    let source = fg.add(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add_block(sink);
+    let sink = fg.add(sink)?;
 
-    let result = fg.connect_dyn(source, "fictitious", sink, "input");
+    let result = fg.connect_dyn(
+        source.dyn_stream_output("fictitious")?,
+        sink.dyn_stream_input("input")?,
+    );
     assert!(result.is_err());
 
     let error = result.unwrap_err();

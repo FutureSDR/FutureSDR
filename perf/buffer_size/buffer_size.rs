@@ -58,25 +58,37 @@ where
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add_block(NullSource::<f32, B::Writer<f32>>::new());
-        let head = fg.add_block(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        let src = fg.add(NullSource::<f32, B::Writer<f32>>::new())?;
+        let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
-        ));
-        fg.connect_dyn(src, "output", &head, "input")?;
+        ))?;
+        fg.connect_dyn(
+            src.dyn_stream_output("output")?,
+            head.dyn_stream_input("input")?,
+        )?;
 
         let mut last: BlockId = fg
-            .add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))
+            .add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))?
             .into();
-        fg.connect_dyn(head, "output", last, "input")?;
+        fg.connect_dyn(
+            head.dyn_stream_output("output")?,
+            last.dyn_stream_input("input")?,
+        )?;
 
         for _ in 1..stages {
-            let block = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024));
-            fg.connect_dyn(last, "output", &block, "input")?;
+            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))?;
+            fg.connect_dyn(
+                last.dyn_stream_output("output")?,
+                block.dyn_stream_input("input")?,
+            )?;
             last = block.into();
         }
 
-        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
-        fg.connect_dyn(last, "output", &snk, "input")?;
+        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
+        fg.connect_dyn(
+            last.dyn_stream_output("output")?,
+            snk.dyn_stream_input("input")?,
+        )?;
         snks.push(snk.into());
     }
 

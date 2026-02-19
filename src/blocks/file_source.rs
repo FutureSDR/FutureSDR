@@ -25,7 +25,7 @@ use std::path::PathBuf;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Loads 8-byte samples from the file
-/// let source = fg.add_block(FileSource::<Complex<f32>>::new("my_filename.cf32", false));
+/// let source = fg.add(FileSource::<Complex<f32>>::new("my_filename.cf32", false)).unwrap();
 /// ```
 #[derive(Block)]
 pub struct FileSource<T: Send + 'static, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {

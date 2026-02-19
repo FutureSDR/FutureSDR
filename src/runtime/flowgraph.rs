@@ -12,6 +12,7 @@ use crate::runtime::Error;
 use crate::runtime::Kernel;
 use crate::runtime::KernelInterface;
 use crate::runtime::PortId;
+use crate::runtime::Result;
 use crate::runtime::WrappedKernel;
 
 /// Reference to a [Block] that was added to the [Flowgraph].
@@ -98,6 +99,138 @@ pub struct Flowgraph {
     pub(crate) message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
+/// Block stream port reference for type-erased stream connections.
+pub struct BlockStreamPort {
+    pub(crate) block: BlockId,
+    pub(crate) port: PortId,
+}
+
+/// Block message port reference for type-erased message connections.
+pub struct BlockMessagePort {
+    pub(crate) block: BlockId,
+    pub(crate) port: PortId,
+}
+
+/// Access stream ports for type-erased connections.
+pub trait DynStreamAccess {
+    /// Get a stream input port.
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error>;
+    /// Get a stream output port.
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error>;
+}
+
+/// Access message ports for type-erased connections.
+pub trait DynMessageAccess {
+    /// Get a message input port.
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error>;
+    /// Get a message output port.
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error>;
+}
+
+impl DynStreamAccess for BlockId {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        Ok(BlockStreamPort {
+            block: *self,
+            port: port.into(),
+        })
+    }
+
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        Ok(BlockStreamPort {
+            block: *self,
+            port: port.into(),
+        })
+    }
+}
+
+impl DynStreamAccess for &BlockId {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_input(port)
+    }
+
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_output(port)
+    }
+}
+
+impl<K: Kernel> DynStreamAccess for BlockRef<K> {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        Ok(BlockStreamPort {
+            block: self.id,
+            port: port.into(),
+        })
+    }
+
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        Ok(BlockStreamPort {
+            block: self.id,
+            port: port.into(),
+        })
+    }
+}
+
+impl<K: Kernel> DynStreamAccess for &BlockRef<K> {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_input(port)
+    }
+
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_output(port)
+    }
+}
+
+impl DynMessageAccess for BlockId {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        Ok(BlockMessagePort {
+            block: *self,
+            port: port.into(),
+        })
+    }
+
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        Ok(BlockMessagePort {
+            block: *self,
+            port: port.into(),
+        })
+    }
+}
+
+impl DynMessageAccess for &BlockId {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_input(port)
+    }
+
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_output(port)
+    }
+}
+
+impl<K: Kernel> DynMessageAccess for BlockRef<K> {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        Ok(BlockMessagePort {
+            block: self.id,
+            port: port.into(),
+        })
+    }
+
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        Ok(BlockMessagePort {
+            block: self.id,
+            port: port.into(),
+        })
+    }
+}
+
+impl<K: Kernel> DynMessageAccess for &BlockRef<K> {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_input(port)
+    }
+
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_output(port)
+    }
+}
+
 impl Flowgraph {
     /// Create a [Flowgraph].
     pub fn new() -> Flowgraph {
@@ -108,39 +241,13 @@ impl Flowgraph {
         }
     }
 
-    /// Add a [`Block`] to the [Flowgraph]
-    ///
-    /// The returned reference is typed and can be used to access the block before and after the
-    /// flowgraph ran.
-    ///
-    /// Usually, this is done under the hood by the [connect](futuresdr::macros::connect) macro.
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futuresdr::blocks::Head;
-    /// use futuresdr::blocks::NullSink;
-    /// use futuresdr::blocks::NullSource;
-    /// use futuresdr::prelude::*;
-    ///
-    /// fn main() -> Result<()> {
-    ///     let mut fg = Flowgraph::new();
-    ///
-    ///     let src = NullSource::<u8>::new();
-    ///     let head = Head::<u8>::new(1234);
-    ///     let snk = NullSink::<u8>::new();
-    ///
-    ///     connect!(fg, src > head > snk);
-    ///     Runtime::new().run(fg)?;
-    ///
-    ///     // typed-access to the block
-    ///     let snk = snk.get();
-    ///     let n = snk.n_received();
-    ///     assert_eq!(n, 1234);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn add_block<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
+    /// Add a regular block, block reference, or MegaBlock-like wrapper to the flowgraph.
+    pub fn add<T: AddToFlowgraph>(&mut self, item: T) -> Result<T::Added, Error> {
+        item.add_to_flowgraph(self)
+    }
+
+    #[doc(hidden)]
+    pub fn add_kernel<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let mut b = WrappedKernel::new(block, block_id);
         let block_name = b.type_name();
@@ -175,8 +282,8 @@ impl Flowgraph {
     ///     // here, it is used under the hood
     ///     connect!(fg, src > head);
     ///     // explicit use
-    ///     let snk = fg.add_block(snk);
-    ///     fg.connect_stream(head.get().output(), snk.get().input());
+    ///     let snk = fg.add(snk)?;
+    ///     fg.connect_stream(head.get()?.output(), snk.get()?.input());
     ///
     ///     Runtime::new().run(fg)?;
     ///     Ok(())
@@ -218,13 +325,13 @@ impl Flowgraph {
     ///     let snk = NullSink::<u8>::new();
     ///
     ///     // type erasure for src
-    ///     let src = fg.add_block(src);
+    ///     let src = fg.add(src)?;
     ///     let src: BlockId = src.into();
     ///
-    ///     let head = fg.add_block(head);
+    ///     let head = fg.add(head)?;
     ///
     ///     // untyped connect
-    ///     fg.connect_dyn(src, "output", &head, "input")?;
+    ///     fg.connect_dyn(src.dyn_stream_output("output")?, head.dyn_stream_input("input")?)?;
     ///     // typed connect
     ///     connect!(fg, head > snk);
     ///
@@ -232,68 +339,63 @@ impl Flowgraph {
     ///     Ok(())
     /// }
     /// ```
-    pub fn connect_dyn(
-        &mut self,
-        src: impl Into<BlockId>,
-        src_port: impl Into<PortId>,
-        dst: impl Into<BlockId>,
-        dst_port: impl Into<PortId>,
-    ) -> Result<(), Error> {
-        let src_id = src.into();
-        let src_port = src_port.into();
-        let dst = dst.into();
-        let dst_port: PortId = dst_port.into();
-        let src = self
+    pub fn connect_dyn(&mut self, src: BlockStreamPort, dst: BlockStreamPort) -> Result<(), Error> {
+        let src_block = self
             .blocks
-            .get(src_id.0)
-            .ok_or(Error::InvalidBlock(src_id))?;
-        let dst = self.blocks.get(dst.0).ok_or(Error::InvalidBlock(dst))?;
-        let mut tmp = dst.try_lock().ok_or(Error::LockError)?;
-        let reader = tmp
-            .stream_input(dst_port.name())
-            .ok_or(Error::InvalidStreamPort(BlockPortCtx::Id(src_id), dst_port))?;
-        src.try_lock()
+            .get(src.block.0)
+            .ok_or(Error::InvalidBlock(src.block))?
+            .clone();
+        let dst_block = self
+            .blocks
+            .get(dst.block.0)
+            .ok_or(Error::InvalidBlock(dst.block))?
+            .clone();
+
+        let mut dst_block = dst_block.try_lock().ok_or(Error::LockError)?;
+        let reader = dst_block
+            .stream_input(dst.port.name())
+            .ok_or(Error::InvalidStreamPort(
+                crate::runtime::BlockPortCtx::Id(dst.block),
+                dst.port.clone(),
+            ))?;
+
+        src_block
+            .try_lock()
             .ok_or(Error::LockError)?
-            .connect_stream_output(src_port.name(), reader)
+            .connect_stream_output(src.port.name(), reader)
     }
 
     /// Make message connection
     pub fn connect_message(
         &mut self,
-        src_block: impl Into<BlockId>,
-        src_port: impl Into<PortId>,
-        dst_block: impl Into<BlockId>,
-        dst_port: impl Into<PortId>,
+        src: BlockMessagePort,
+        dst: BlockMessagePort,
     ) -> Result<(), Error> {
-        let src_id = src_block.into();
-        let dst_id = dst_block.into();
-        let src_port = src_port.into();
-        let dst_port = dst_port.into();
-        debug_assert_ne!(src_id, dst_id);
+        debug_assert_ne!(src.block, dst.block);
 
         let mut src_block = self
             .blocks
-            .get(src_id.0)
-            .ok_or(Error::InvalidBlock(src_id))?
+            .get(src.block.0)
+            .ok_or(Error::InvalidBlock(src.block))?
             .try_lock()
-            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {src_id:?}")))?;
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", src.block)))?;
         let dst_block = self
             .blocks
-            .get(dst_id.0)
-            .ok_or(Error::InvalidBlock(dst_id))?
+            .get(dst.block.0)
+            .ok_or(Error::InvalidBlock(dst.block))?
             .try_lock()
-            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {dst_id:?}")))?;
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", dst.block)))?;
         let dst_box = dst_block.inbox();
 
-        src_block.connect(&src_port, dst_box, &dst_port)?;
-        if !dst_block.message_inputs().contains(&dst_port.name()) {
+        src_block.connect(&src.port, dst_box, &dst.port)?;
+        if !dst_block.message_inputs().contains(&dst.port.name()) {
             return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(dst_id),
-                dst_port,
+                BlockPortCtx::Id(dst.block),
+                dst.port,
             ));
         }
         self.message_edges
-            .push((src_id, src_port, dst_id, dst_port));
+            .push((src.block, src.port, dst.block, dst.port));
         Ok(())
     }
 
@@ -342,6 +444,22 @@ impl Flowgraph {
             .get(id.0)
             .ok_or(Error::InvalidBlock(id))?
             .clone())
+    }
+}
+
+/// Helper trait used by the `connect!` macro to add regular blocks, block refs, and MegaBlocks.
+pub trait AddToFlowgraph {
+    /// Type returned after adding.
+    type Added;
+    /// Add to flowgraph.
+    fn add_to_flowgraph(self, fg: &mut Flowgraph) -> Result<Self::Added, Error>;
+}
+
+impl<K: Kernel> AddToFlowgraph for BlockRef<K> {
+    type Added = BlockRef<K>;
+
+    fn add_to_flowgraph(self, _fg: &mut Flowgraph) -> Result<Self::Added, Error> {
+        Ok(self)
     }
 }
 

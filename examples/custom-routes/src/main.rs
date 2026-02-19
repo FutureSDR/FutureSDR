@@ -20,13 +20,13 @@ struct WebState {
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(
+    fg.add(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
         )
         .build(),
-    );
+    )?;
 
     let state = WebState {
         rt: Arc::new(Mutex::new(None)),
@@ -64,14 +64,15 @@ async fn my_route() -> Html<&'static str> {
 
 async fn start_fg(State(ws): State<WebState>) {
     let mut fg = Flowgraph::new();
-    fg.add_block(
+    fg.add(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
         )
         .n_messages(50)
         .build(),
-    );
+    )
+    .unwrap();
     let rt_handle = ws.rt.lock().unwrap().as_ref().unwrap().clone();
     let mut fg_handle = rt_handle.start(fg).await.unwrap();
     dbg!(fg_handle.description().await.unwrap());

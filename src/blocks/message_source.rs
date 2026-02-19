@@ -88,14 +88,14 @@ impl Kernel for MessageSource {
 /// let mut fg = Flowgraph::new();
 ///
 /// // Repeat the message "foo" every 100ms twenty times
-/// let msg_source = fg.add_block(
+/// let msg_source = fg.add(
 ///     MessageSourceBuilder::new(
 ///         Pmt::String("foo".to_string()),
 ///         time::Duration::from_millis(100),
 ///     )
 ///     .n_messages(20)
 ///     .build()
-/// );
+/// ).unwrap();
 /// ```
 pub struct MessageSourceBuilder {
     message: Pmt,
