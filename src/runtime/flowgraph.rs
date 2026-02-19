@@ -348,7 +348,11 @@ impl Flowgraph {
                     Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
                 }
                 o => o,
-            })
+            })?;
+
+        self.stream_edges
+            .push((src.block, src.port, dst.block, dst.port));
+        Ok(())
     }
 
     /// Make message connection
@@ -359,27 +363,28 @@ impl Flowgraph {
     ) -> Result<(), Error> {
         debug_assert_ne!(src.block, dst.block);
 
-        let mut src_block = self
-            .blocks
-            .get(src.block.0)
-            .ok_or(Error::InvalidBlock(src.block))?
-            .try_lock()
-            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", src.block)))?;
         let dst_block = self
             .blocks
             .get(dst.block.0)
             .ok_or(Error::InvalidBlock(dst.block))?
             .try_lock()
             .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", dst.block)))?;
-        let dst_box = dst_block.inbox();
-
-        src_block.connect(&src.port, dst_box, &dst.port)?;
         if !dst_block.message_inputs().contains(&dst.port.name()) {
             return Err(Error::InvalidMessagePort(
                 BlockPortCtx::Id(dst.block),
                 dst.port,
             ));
         }
+        let dst_box = dst_block.inbox();
+        drop(dst_block);
+
+        let mut src_block = self
+            .blocks
+            .get(src.block.0)
+            .ok_or(Error::InvalidBlock(src.block))?
+            .try_lock()
+            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", src.block)))?;
+        src_block.connect(&src.port, dst_box, &dst.port)?;
         self.message_edges
             .push((src.block, src.port, dst.block, dst.port));
         Ok(())
