@@ -5,7 +5,7 @@ use futuresdr::blocks::Zynq;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::zynq::D2HReader;
 use futuresdr::runtime::buffer::zynq::H2DWriter;
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Uniform;
 
 fn main() -> Result<()> {

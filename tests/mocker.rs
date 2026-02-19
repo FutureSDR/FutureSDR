@@ -5,7 +5,7 @@ use futuresdr::prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Uniform;
 
 #[test]

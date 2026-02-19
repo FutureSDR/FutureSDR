@@ -28,8 +28,8 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 crc32fast = "1.5"
 futuresdr = { path = "../..", features = ["seify"] }
-rand = "0.9"
-rand_distr = "0.5"
+rand = "0.10"
+rand_distr = "0.6"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 any_spawner = { version = "0.3", features = ["wasm-bindgen"] }

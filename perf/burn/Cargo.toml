@@ -18,7 +18,7 @@ burn-cubecl = "0.20"
 burn-fusion = "0.20"
 burn-ir = "0.20"
 burn-wgpu = "0.20"
-bytemuck = "1.24"
+bytemuck = "1.25"
 cubecl = "0.9"
 cubecl-wgpu = "0.9"
 futuresdr = { path = "../..", features = ["burn", "seify"] }

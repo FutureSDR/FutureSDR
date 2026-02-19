@@ -18,7 +18,7 @@ use lora::utils::SpreadingFactor;
 use lora::utils::SynchWord;
 use lora::utils::SynchWordEnumParser;
 use lora::utils::sample_count;
-use rand::RngCore;
+use rand::Rng;
 
 #[derive(Parser, Debug)]
 struct Args {

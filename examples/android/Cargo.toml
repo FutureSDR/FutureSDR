@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 anyhow = "1.0"
 futuresdr = { path = "../..", features = ["audio", "soapy"] }
-jni = { version = "0.21" }
+jni = { version = "0.22" }
 
 # upstream has bogus cast that avoid Android build
 [patch.crates-io]

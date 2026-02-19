@@ -11,9 +11,9 @@ use burn::nn::pool::MaxPool1dConfig;
 use burn::prelude::*;
 use burn::tensor::backend::AutodiffBackend;
 use burn::train::ClassificationOutput;
+use burn::train::InferenceStep;
 use burn::train::TrainOutput;
 use burn::train::TrainStep;
-use burn::train::InferenceStep;
 
 use crate::dataset::RadioDatasetBatch;
 

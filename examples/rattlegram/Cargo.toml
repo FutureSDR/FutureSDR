@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
-crc = "3.3"
+crc = "3.4"
 futuresdr = { path = "../..", features = ["audio"] }
 rustfft = "6.4"
 serde = "1.0"
