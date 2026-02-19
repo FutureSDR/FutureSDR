@@ -1,5 +1,4 @@
 use cpal::BufferSize;
-use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
 use cpal::traits::DeviceTrait;
@@ -92,8 +91,7 @@ impl AudioSink<DefaultCpuReader<f32>> {
                 .default_output_device()?
                 .default_output_config()
                 .ok()?
-                .sample_rate()
-                .0,
+                .sample_rate(),
         )
     }
     /// Get supported sample rates
@@ -102,8 +100,8 @@ impl AudioSink<DefaultCpuReader<f32>> {
             if let Ok(configs) = d.supported_output_configs() {
                 let mut v = Vec::new();
                 for c in configs {
-                    let min = c.min_sample_rate().0;
-                    let max = c.max_sample_rate().0;
+                    let min = c.min_sample_rate();
+                    let max = c.max_sample_rate();
                     if min >= 10000 {
                         v.push(min);
                     }
@@ -135,7 +133,7 @@ where
 
         let config = StreamConfig {
             channels: self.channels,
-            sample_rate: SampleRate(self.sample_rate),
+            sample_rate: self.sample_rate,
             buffer_size: BufferSize::Default,
         };
 

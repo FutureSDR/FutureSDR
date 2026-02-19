@@ -1,5 +1,4 @@
 use cpal::BufferSize;
-use cpal::SampleRate;
 use cpal::Stream;
 use cpal::StreamConfig;
 use cpal::traits::DeviceTrait;
@@ -88,7 +87,7 @@ where
 
         let config = StreamConfig {
             channels: self.channels,
-            sample_rate: SampleRate(self.sample_rate),
+            sample_rate: self.sample_rate,
             buffer_size: BufferSize::Default,
         };
 
