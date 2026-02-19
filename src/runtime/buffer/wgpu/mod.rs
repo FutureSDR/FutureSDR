@@ -96,6 +96,7 @@ impl Instance {
                 label: None,
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::default(),
+                experimental_features: wgpu::ExperimentalFeatures::default(),
                 memory_hints: wgpu::MemoryHints::MemoryUsage,
                 trace: wgpu::Trace::Off,
             })

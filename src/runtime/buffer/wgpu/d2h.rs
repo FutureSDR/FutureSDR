@@ -28,7 +28,7 @@ where
 {
     buffer: *mut BufferFull<D>,
     byte_offset: usize,
-    slice: BufferView<'static>,
+    slice: BufferView,
 }
 
 // Needed for raw pointer `buffer`

@@ -202,7 +202,7 @@ impl Kernel for Wgpu {
             let (sender, receiver) = futures::channel::oneshot::channel();
             buffer_slice.map_async(MapMode::Read, move |v| sender.send(v).unwrap());
 
-            self.instance.device.poll(PollType::Wait)?;
+            self.instance.device.poll(PollType::wait_indefinitely())?;
 
             if let Ok(Ok(())) = receiver.await {
                 self.output.submit(wgpu::OutputBufferFull {
