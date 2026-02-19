@@ -7,20 +7,21 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-burn = { version = "0.19", features = [
+burn = { version = "0.20", features = [
   "cuda",
   "vulkan",
   "webgpu",
   "autotune",
   "fusion",
 ] }
-burn-cubecl = "0.19"
-burn-fusion = "0.19"
-burn-wgpu = "0.19"
+burn-cubecl = "0.20"
+burn-fusion = "0.20"
+burn-ir = "0.20"
+burn-wgpu = "0.20"
 bytemuck = "1.24"
-cubecl = "0.8"
-cubecl-wgpu = "0.8"
+cubecl = "0.9"
+cubecl-wgpu = "0.9"
 futuresdr = { path = "../..", features = ["burn", "seify"] }
 futuresdr-burn = { path = "../../examples/burn" }
-ndarray = "0.16"
+ndarray = "0.17"
 tracing = { version = "0.1", features = ["release_max_level_off"] }

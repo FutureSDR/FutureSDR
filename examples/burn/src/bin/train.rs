@@ -15,8 +15,9 @@ use burn::optim::AdamConfig;
 use burn::prelude::*;
 use burn::record::CompactRecorder;
 use burn::tensor::backend::AutodiffBackend;
-use burn::train::LearnerBuilder;
-use burn::train::LearningStrategy;
+use burn::train::Learner;
+use burn::train::SupervisedTraining;
+use burn::train::TrainingStrategy;
 use burn::train::metric::AccuracyMetric;
 use burn::train::metric::LossMetric;
 
@@ -50,19 +51,17 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let model = config.model.init::<B>(&device);
     println!("model {model}");
 
-    let learner = LearnerBuilder::new(artifact_dir)
+    let result = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
+        .with_training_strategy(TrainingStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
         .grads_accumulation(4)
         .summary()
-        .build(model, config.optimizer.init(), config.learning_rate);
-
-    let result = learner.fit(dataloader_train, dataloader_test);
+        .launch(Learner::new(model, config.optimizer.init(), config.learning_rate));
 
     result
         .model

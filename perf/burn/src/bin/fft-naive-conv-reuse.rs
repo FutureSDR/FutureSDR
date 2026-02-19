@@ -8,12 +8,15 @@ use burn_cubecl::CubeBackend;
 use burn_cubecl::fusion::FusionCubeRuntime;
 use burn_cubecl::tensor::CubeTensor;
 use burn_fusion::Fusion;
+use burn_fusion::NoOp;
 use burn_fusion::client::GlobalFusionClient;
-use burn_fusion::stream::StreamId;
+use burn_fusion::stream::OperationStreams;
+use burn_ir::InitOperationIr;
+use burn_ir::OperationIr;
 use burn_wgpu::WgpuDevice;
 use bytemuck::cast_slice;
+use cubecl::bytes::Bytes;
 use cubecl::client::ComputeClient;
-use cubecl_wgpu::WgpuServer;
 use futuresdr::blocks::FileSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
@@ -34,7 +37,7 @@ struct Fft {
     wr: Tensor<B, 2>,
     wi: Tensor<B, 2>,
     fusion_client: GlobalFusionClient<FusionCubeRuntime<WgpuRuntime, u32>>,
-    cubecl_client: ComputeClient<WgpuServer>,
+    cubecl_client: ComputeClient<WgpuRuntime>,
     wgpu_device_type: WgpuDevice,
 }
 
@@ -84,7 +87,7 @@ impl Kernel for Fft {
             let byte_data: &[u8] = cast_slice(data);
             let allocation =
                 self.cubecl_client
-                    .create_tensor(byte_data, &[BATCH_SIZE * FFT_SIZE * 2], 4);
+                    .create_tensor(Bytes::from_bytes_vec(byte_data.to_vec()), &[BATCH_SIZE * FFT_SIZE * 2], 4);
 
             let cube_tensor = CubeTensor::new(
                 self.cubecl_client.clone(),
@@ -95,13 +98,18 @@ impl Kernel for Fft {
                 DType::F32,
             );
 
-            let fusion_prim = self.fusion_client.register_tensor(
-                cube_tensor.into(),
-                vec![BATCH_SIZE * FFT_SIZE * 2].into(),
-                StreamId::current(),
+            let handle = cube_tensor.into();
+            let desc = InitOperationIr::create(
+                Shape::from([BATCH_SIZE * FFT_SIZE * 2]),
                 DType::F32,
+                || self.fusion_client.register_tensor_handle(handle),
             );
-            let primitive_enum = TensorPrimitive::Float(fusion_prim);
+            let mut outputs = self.fusion_client.register(
+                OperationStreams::default(),
+                OperationIr::Init(desc),
+                NoOp::<Cube>::new(),
+            );
+            let primitive_enum = TensorPrimitive::Float(outputs.remove(0));
             let t = Tensor::<B, 1, Float>::from_primitive(primitive_enum);
             let t = t.reshape([BATCH_SIZE, FFT_SIZE, 2]);
 

@@ -1,5 +1,3 @@
-use crate::BATCH_SIZE;
-use crate::FFT_SIZE;
 use burn::prelude::*;
 use std::f32::consts::PI;
 
@@ -63,18 +61,22 @@ pub fn fft_inplace<B: Backend>(
     rev: Tensor<B, 3, Int>,
     twiddles: &[Tensor<B, 4, Float>],
 ) -> Tensor<B, 3, Float> {
+    let dims = input.shape().dims;
+    let batch_size = dims[0];
+    let fft_size = dims[1];
+
     let mut x = input.gather(1, rev); // shape [batch, N, 2]
 
     // 3) Iterative butterfly stages
     for (s, twiddle) in twiddles.iter().enumerate().skip(1) {
         let m = 1 << s;
         let half = m >> 1;
-        let groups = FFT_SIZE / m;
+        let groups = fft_size / m;
 
         let wm_half = twiddle.clone();
-        let wm_tiled = wm_half.repeat_dim(0, BATCH_SIZE).repeat_dim(1, groups);
+        let wm_tiled = wm_half.repeat_dim(0, batch_size).repeat_dim(1, groups);
 
-        let x_blocks = x.clone().reshape([BATCH_SIZE, groups, m, 2]);
+        let x_blocks = x.clone().reshape([batch_size, groups, m, 2]);
 
         let even = x_blocks.clone().slice(s![.., .., 0..half, ..]);
         let odd = x_blocks.slice(s![.., .., half..m, ..]);
@@ -84,7 +86,7 @@ pub fn fft_inplace<B: Backend>(
         let bottom = even.sub(odd_t);
 
         // flatten the two spatial dims:
-        x = Tensor::cat(vec![top, bottom], 2).reshape([BATCH_SIZE, FFT_SIZE, 2])
+        x = Tensor::cat(vec![top, bottom], 2).reshape([batch_size, fft_size, 2])
     }
     x
 }

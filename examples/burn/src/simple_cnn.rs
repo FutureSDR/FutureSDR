@@ -13,7 +13,7 @@ use burn::tensor::backend::AutodiffBackend;
 use burn::train::ClassificationOutput;
 use burn::train::TrainOutput;
 use burn::train::TrainStep;
-use burn::train::ValidStep;
+use burn::train::InferenceStep;
 
 use crate::dataset::RadioDatasetBatch;
 
@@ -118,7 +118,10 @@ impl<B: Backend> SimpleCNN<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for SimpleCNN<B> {
+impl<B: AutodiffBackend> TrainStep for SimpleCNN<B> {
+    type Input = RadioDatasetBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: RadioDatasetBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.iq_samples, batch.modulation);
         let grads = item.loss.backward();
@@ -126,7 +129,10 @@ impl<B: AutodiffBackend> TrainStep<RadioDatasetBatch<B>, ClassificationOutput<B>
     }
 }
 
-impl<B: Backend> ValidStep<RadioDatasetBatch<B>, ClassificationOutput<B>> for SimpleCNN<B> {
+impl<B: Backend> InferenceStep for SimpleCNN<B> {
+    type Input = RadioDatasetBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: RadioDatasetBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.iq_samples, batch.modulation)
     }

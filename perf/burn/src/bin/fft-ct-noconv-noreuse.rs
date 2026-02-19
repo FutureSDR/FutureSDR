@@ -11,8 +11,8 @@ use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
 use perf_burn::TimeIt;
 
-pub type B = burn::backend::Cuda;
-// pub type B = burn::backend::Vulkan;
+// pub type B = burn::backend::Cuda;
+pub type B = burn::backend::Vulkan;
 
 #[derive(Block)]
 struct Fft {
