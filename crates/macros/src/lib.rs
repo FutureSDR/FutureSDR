@@ -531,7 +531,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return Some(&mut self.#field_name[i]);
+                                        return Ok(&mut self.#field_name[i]);
                                     }
                                 }
                             };
@@ -571,7 +571,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return Some(&mut self.#field_name[i]);
+                                        return Ok(&mut self.#field_name[i]);
                                     }
                                 }
                             };
@@ -628,7 +628,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 let index = syn::Index::from(i);
                                 quote!{
                                     if name == format!("{}.{}", #field_name_str, #index) {
-                                        return Some(&mut self.#field_name.#index);
+                                        return Ok(&mut self.#field_name.#index);
                                     }
                                 }
                             });
@@ -659,7 +659,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             };
                             let get_input_code = quote! {
                                 if name == #field_name_str {
-                                    return Some(&mut self.#field_name)
+                                    return Ok(&mut self.#field_name)
                                 }
                             };
                             Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
@@ -1068,21 +1068,35 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 use ::futuresdr::runtime::BlockPortCtx;
                 let port = port_id.name();
                 #(#stream_inputs_finish)*
-                Err(Error::InvalidMessagePort(BlockPortCtx::None, port_id))
+                Err(Error::InvalidStreamPort(BlockPortCtx::None, port_id))
             }
             async fn stream_ports_notify_finished(&mut self) {
                 #(#stream_inputs_notify)*
                 #(#stream_outputs_notify)*
             }
-            fn stream_input(&mut self, name: &str) -> Option<&mut dyn ::futuresdr::runtime::buffer::BufferReader> {
-                #(#stream_inputs_get)*
-                None
-            }
-            fn connect_stream_output(&mut self, name: &str, reader: &mut dyn ::futuresdr::runtime::buffer::BufferReader) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
+            fn stream_input(
+                &mut self,
+                id: &::futuresdr::runtime::PortId,
+            ) -> ::futuresdr::runtime::Result<
+                &mut dyn ::futuresdr::runtime::buffer::BufferReader,
+                ::futuresdr::runtime::Error,
+            > {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
+                let name = id.name();
+                #(#stream_inputs_get)*
+                Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+            }
+            fn connect_stream_output(
+                &mut self,
+                id: &::futuresdr::runtime::PortId,
+                reader: &mut dyn ::futuresdr::runtime::buffer::BufferReader,
+            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
+                use ::futuresdr::runtime::Error;
+                use ::futuresdr::runtime::BlockPortCtx;
+                let name = id.name();
                 #(#stream_outputs_connect)*
-                Err(Error::InvalidStreamPort(BlockPortCtx::None, name.into()))
+                Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
             }
 
             fn message_inputs() -> &'static[&'static str] {

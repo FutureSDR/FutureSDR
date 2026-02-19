@@ -40,11 +40,11 @@ pub trait Block: Send + Any {
 
     // ##### Stream Ports
     /// Get dyn reference to stream input
-    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader>;
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error>;
     /// Connect dyn BufferReader by downcasting it
     fn connect_stream_output(
         &mut self,
-        name: &str,
+        id: &PortId,
         reader: &mut dyn BufferReader,
     ) -> Result<(), Error>;
 
@@ -320,15 +320,15 @@ impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
     }
 
     // ##### Stream Ports
-    fn stream_input(&mut self, name: &str) -> Option<&mut dyn BufferReader> {
-        self.kernel.stream_input(name)
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error> {
+        self.kernel.stream_input(id)
     }
     fn connect_stream_output(
         &mut self,
-        name: &str,
+        id: &PortId,
         reader: &mut dyn BufferReader,
     ) -> Result<(), Error> {
-        self.kernel.connect_stream_output(name, reader)
+        self.kernel.connect_stream_output(id, reader)
     }
 
     // ##### Message Ports

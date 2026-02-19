@@ -127,6 +127,26 @@ pub trait DynMessageAccess {
     fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error>;
 }
 
+impl<T: DynStreamAccess + ?Sized> DynStreamAccess for &T {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_input(port)
+    }
+
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+        (*self).dyn_stream_output(port)
+    }
+}
+
+impl<T: DynMessageAccess + ?Sized> DynMessageAccess for &T {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_input(port)
+    }
+
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+        (*self).dyn_message_output(port)
+    }
+}
+
 impl DynStreamAccess for BlockId {
     fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
         Ok(BlockStreamPort {
@@ -140,16 +160,6 @@ impl DynStreamAccess for BlockId {
             block: *self,
             port: port.into(),
         })
-    }
-}
-
-impl DynStreamAccess for &BlockId {
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        (*self).dyn_stream_input(port)
-    }
-
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        (*self).dyn_stream_output(port)
     }
 }
 
@@ -169,16 +179,6 @@ impl<K: Kernel> DynStreamAccess for BlockRef<K> {
     }
 }
 
-impl<K: Kernel> DynStreamAccess for &BlockRef<K> {
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        (*self).dyn_stream_input(port)
-    }
-
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        (*self).dyn_stream_output(port)
-    }
-}
-
 impl DynMessageAccess for BlockId {
     fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
         Ok(BlockMessagePort {
@@ -195,16 +195,6 @@ impl DynMessageAccess for BlockId {
     }
 }
 
-impl DynMessageAccess for &BlockId {
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        (*self).dyn_message_input(port)
-    }
-
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        (*self).dyn_message_output(port)
-    }
-}
-
 impl<K: Kernel> DynMessageAccess for BlockRef<K> {
     fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
         Ok(BlockMessagePort {
@@ -218,16 +208,6 @@ impl<K: Kernel> DynMessageAccess for BlockRef<K> {
             block: self.id,
             port: port.into(),
         })
-    }
-}
-
-impl<K: Kernel> DynMessageAccess for &BlockRef<K> {
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        (*self).dyn_message_input(port)
-    }
-
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        (*self).dyn_message_output(port)
     }
 }
 
@@ -352,17 +332,23 @@ impl Flowgraph {
             .clone();
 
         let mut dst_block = dst_block.try_lock().ok_or(Error::LockError)?;
-        let reader = dst_block
-            .stream_input(dst.port.name())
-            .ok_or(Error::InvalidStreamPort(
-                crate::runtime::BlockPortCtx::Id(dst.block),
-                dst.port.clone(),
-            ))?;
+        let reader = dst_block.stream_input(&dst.port).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block), port)
+            }
+            o => o,
+        })?;
 
         src_block
             .try_lock()
             .ok_or(Error::LockError)?
-            .connect_stream_output(src.port.name(), reader)
+            .connect_stream_output(&src.port, reader)
+            .map_err(|e| match e {
+                Error::InvalidStreamPort(_, port) => {
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
+                }
+                o => o,
+            })
     }
 
     /// Make message connection
