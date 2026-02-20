@@ -13,7 +13,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           components: rustfmt
 
       - name: Run cargo fmt (FutureSDR)
@@ -156,7 +155,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -196,7 +194,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -260,7 +257,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           components: clippy
 
       - name: Apt Update
@@ -364,7 +360,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           components: clippy
           target: wasm32-unknown-unknown
 
@@ -409,8 +404,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly 
-        with: 
-          toolchain: nightly
       - run: sudo apt-get -y update
       - run: sudo apt-get -y install libzmq3-dev
       - run: sudo apt-get -y install libasound2-dev
@@ -431,8 +424,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly 
-        with: 
-          toolchain: nightly
       - run: brew install shaderc glslang spirv-tools
       - name: Build
         run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu
@@ -450,7 +441,5 @@ jobs:
         with:
           args: install ninja
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly 
-        with: 
-          toolchain: nightly
+      - uses: dtolnay/rust-toolchain@nightly
       - run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu
