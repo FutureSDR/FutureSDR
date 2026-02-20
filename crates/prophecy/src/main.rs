@@ -98,8 +98,8 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 // .map(|n| view! {<li>{n.instance_name.clone()}</li>})
                                 // .collect::<Vec<_>>()
                                 // } </ul>
-                                <FlowgraphMermaid fg=data.clone() />
-                            // <FlowgraphCanvas fg=data />
+                                // <FlowgraphMermaid fg=data.clone() />
+                                <FlowgraphCanvas fg=data />
                             </div>
                         }
                             .into_any()

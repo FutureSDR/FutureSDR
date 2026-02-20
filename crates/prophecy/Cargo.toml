@@ -29,7 +29,10 @@ uuid = { version = "1.21", features = ["v4", "js"] }
 version = "0.3"
 features = [
     'DomRect',
+    'Element',
     'HtmlCanvasElement',
+    'HtmlElement',
+    'WheelEvent',
     'ImageData',
     'WebGlBuffer',
     'WebGlProgram',
