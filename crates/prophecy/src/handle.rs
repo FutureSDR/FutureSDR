@@ -224,4 +224,28 @@ impl FlowgraphHandle {
             Self::Web(h) => Ok(h.callback(block_id, handler, pmt).await?),
         }
     }
+
+    pub async fn put_message_input(
+        &mut self,
+        block_id: usize,
+        handler: impl Into<PortId>,
+        pmt: Pmt,
+    ) -> Result<(), Error> {
+        match self {
+            Self::Remote(u) => {
+                let _ = gloo_net::http::Request::post(&format!(
+                    "{}block/{}/call/{}/",
+                    u,
+                    block_id,
+                    handler.into().name()
+                ))
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&pmt)?)?
+                .send()
+                .await?;
+                Ok(())
+            }
+            Self::Web(h) => Ok(h.call(block_id.into(), handler, pmt).await?),
+        }
+    }
 }

@@ -542,10 +542,6 @@ video {
   margin: 1rem;
 }
 
-.inline {
-  display: inline;
-}
-
 .flex {
   display: flex;
 }

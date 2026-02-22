@@ -5,7 +5,8 @@ use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::wasm::HackRf;
 use futuresdr::prelude::*;
 use leptos::web_sys::HtmlInputElement;
-use prophecy::FlowgraphMermaid;
+use prophecy::FlowgraphCanvas;
+use prophecy::FlowgraphTable;
 use prophecy::ListSelector;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
@@ -210,7 +211,13 @@ pub fn Spectrum(
                 fg_desc
                     .get()
                     .map(|x| x.unwrap())
-                    .map(|x| view! { <FlowgraphMermaid fg=x /> }.into_any())
+                    .map(|x| {
+                        view! {
+                            <FlowgraphCanvas fg=x.clone() on_message_input_click=Callback::new(|_| ()) />
+                            <FlowgraphTable fg=x on_message_input_click=Callback::new(|_| ()) />
+                        }
+                            .into_any()
+                    })
                     .unwrap_or(().into_any());
             }}
         </div>

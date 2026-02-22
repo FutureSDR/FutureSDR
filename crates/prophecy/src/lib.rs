@@ -25,14 +25,15 @@ pub use handle::poll_periodically;
 mod flowgraph_canvas;
 pub use flowgraph_canvas::FlowgraphCanvas;
 
-mod flowgraph_mermaid;
-pub use flowgraph_mermaid::FlowgraphMermaid;
+mod flowgraph_table;
+pub use flowgraph_table::FlowgraphTable;
 
 mod list_selector;
 pub use list_selector::ListSelector;
 
 mod pmt;
 pub use pmt::Pmt;
+pub use pmt::PmtEditor;
 pub use pmt::PmtInput;
 pub use pmt::PmtInputList;
 

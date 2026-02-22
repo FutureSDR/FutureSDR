@@ -1,8 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 
-use futuresdr_types::{BlockDescription, FlowgraphDescription};
+use futuresdr_types::BlockDescription;
+use futuresdr_types::FlowgraphDescription;
 use leptos::html::Div;
 use leptos::prelude::*;
+use leptos::wasm_bindgen::JsCast;
 
 const BLOCK_WIDTH: f64 = 180.0;
 const TITLE_HEIGHT: f64 = 44.0;
@@ -24,81 +29,401 @@ fn block_height(b: &BlockDescription) -> f64 {
     TITLE_HEIGHT + (stream_rows.max(1) as f64) * PORT_HEIGHT + (msg_rows as f64) * PORT_HEIGHT
 }
 
-fn assign_columns(fg: &FlowgraphDescription) -> HashMap<usize, usize> {
-    let mut cols: HashMap<usize, usize> = fg.blocks.iter().map(|b| (b.id.0, 0)).collect();
-
-    let mut has_stream: HashMap<usize, bool> = fg.blocks.iter().map(|b| (b.id.0, false)).collect();
-    for e in &fg.stream_edges {
-        has_stream.insert(e.0.0, true);
-        has_stream.insert(e.2.0, true);
+fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
+    if fg.blocks.is_empty() {
+        return HashMap::new();
     }
 
-    let n = fg.blocks.len();
-    for _ in 0..n {
-        for e in &fg.stream_edges {
-            let src = e.0.0;
-            let dst = e.2.0;
-            let new_col = cols[&src] + 1;
-            let entry = cols.entry(dst).or_insert(0);
-            if new_col > *entry {
-                *entry = new_col;
+    let node_ids: Vec<usize> = fg.blocks.iter().map(|b| b.id.0).collect();
+    let node_set: HashSet<usize> = node_ids.iter().copied().collect();
+    let node_order_hint: HashMap<usize, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (*id, i))
+        .collect();
+    let block_map: HashMap<usize, &BlockDescription> =
+        fg.blocks.iter().map(|b| (b.id.0, b)).collect();
+    let mut stream_only_edges: Vec<(usize, usize)> = fg
+        .stream_edges
+        .iter()
+        .map(|(src, _, dst, _)| (src.0, dst.0))
+        .filter(|(src, dst)| src != dst && node_set.contains(src) && node_set.contains(dst))
+        .collect();
+    stream_only_edges.sort_unstable();
+    stream_only_edges.dedup();
+
+    let mut layout_edges: Vec<(usize, usize)> = fg
+        .stream_edges
+        .iter()
+        .map(|(src, _, dst, _)| (src.0, dst.0))
+        .chain(
+            fg.message_edges
+                .iter()
+                .map(|(src, _, dst, _)| (src.0, dst.0)),
+        )
+        .filter(|(src, dst)| src != dst && node_set.contains(src) && node_set.contains(dst))
+        .collect();
+    layout_edges.sort_unstable();
+    layout_edges.dedup();
+
+    let mut outgoing: HashMap<usize, Vec<usize>> =
+        node_ids.iter().map(|id| (*id, Vec::new())).collect();
+    let mut indegree: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+
+    for (src, dst) in &layout_edges {
+        outgoing.entry(*src).or_default().push(*dst);
+        *indegree.entry(*dst).or_insert(0) += 1;
+    }
+
+    // Kahn-style ordering with cycle fallback (pick minimum indegree node).
+    let mut remaining: HashSet<usize> = node_ids.iter().copied().collect();
+    let mut queue: VecDeque<usize> = node_ids
+        .iter()
+        .copied()
+        .filter(|id| indegree.get(id).copied().unwrap_or(0) == 0)
+        .collect();
+    let mut order: Vec<usize> = Vec::with_capacity(node_ids.len());
+
+    while !remaining.is_empty() {
+        let next = if let Some(id) = queue.pop_front() {
+            id
+        } else {
+            remaining
+                .iter()
+                .copied()
+                .min_by_key(|id| {
+                    (
+                        indegree.get(id).copied().unwrap_or(usize::MAX),
+                        node_order_hint.get(id).copied().unwrap_or(usize::MAX),
+                    )
+                })
+                .unwrap_or(node_ids[0])
+        };
+
+        if !remaining.remove(&next) {
+            continue;
+        }
+        order.push(next);
+
+        if let Some(dsts) = outgoing.get(&next) {
+            for dst in dsts {
+                if let Some(v) = indegree.get_mut(dst)
+                    && *v > 0
+                {
+                    *v -= 1;
+                    if *v == 0 {
+                        queue.push_back(*dst);
+                    }
+                }
             }
         }
     }
 
-    for b in &fg.blocks {
-        if !has_stream[&b.id.0] {
-            cols.insert(b.id.0, usize::MAX);
+    let order_index: HashMap<usize, usize> =
+        order.iter().enumerate().map(|(i, id)| (*id, i)).collect();
+
+    // Cycle breaking by orienting every edge from earlier to later order.
+    let mut forward_edges: Vec<(usize, usize)> = layout_edges
+        .iter()
+        .map(|(u, v)| {
+            if order_index.get(u).copied().unwrap_or(usize::MAX)
+                <= order_index.get(v).copied().unwrap_or(usize::MAX)
+            {
+                (*u, *v)
+            } else {
+                (*v, *u)
+            }
+        })
+        .filter(|(u, v)| u != v)
+        .collect();
+    forward_edges.sort_unstable();
+    forward_edges.dedup();
+
+    let mut dag_out: HashMap<usize, Vec<usize>> =
+        node_ids.iter().map(|id| (*id, Vec::new())).collect();
+    let mut dag_in: HashMap<usize, Vec<usize>> =
+        node_ids.iter().map(|id| (*id, Vec::new())).collect();
+    for (u, v) in &forward_edges {
+        dag_out.entry(*u).or_default().push(*v);
+        dag_in.entry(*v).or_default().push(*u);
+    }
+
+    // Longest-path layer assignment on the acyclic orientation.
+    let mut layer_of: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+    for u in &order {
+        let lu = layer_of.get(u).copied().unwrap_or(0);
+        if let Some(succ) = dag_out.get(u) {
+            for v in succ {
+                let entry = layer_of.entry(*v).or_insert(0);
+                if *entry < lu + 1 {
+                    *entry = lu + 1;
+                }
+            }
         }
     }
 
-    cols
-}
+    let mut max_layer = layer_of.values().copied().max().unwrap_or(0);
+    if max_layer == 0 && !node_ids.is_empty() {
+        max_layer = 1;
+    }
 
-fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
-    let cols = assign_columns(fg);
-    let block_map: HashMap<usize, &BlockDescription> =
-        fg.blocks.iter().map(|b| (b.id.0, b)).collect();
+    let mut layers: Vec<Vec<usize>> = vec![Vec::new(); max_layer + 1];
+    for id in &order {
+        let l = layer_of.get(id).copied().unwrap_or(0).min(max_layer);
+        layers[l].push(*id);
+    }
 
-    let mut col_blocks: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    let mut msg_only_blocks: Vec<usize> = Vec::new();
+    // Crossing reduction by repeated barycenter sweeps.
+    for _ in 0..4 {
+        let mut pos_map: HashMap<usize, f64> = HashMap::new();
+        for layer in &layers {
+            for (i, id) in layer.iter().enumerate() {
+                pos_map.insert(*id, i as f64);
+            }
+        }
 
-    for b in &fg.blocks {
-        let col = cols[&b.id.0];
-        if col == usize::MAX {
-            msg_only_blocks.push(b.id.0);
+        for (l, layer) in layers.iter_mut().enumerate().skip(1) {
+            let old = layer.clone();
+            let mut scored: Vec<(usize, f64, usize)> = old
+                .iter()
+                .enumerate()
+                .map(|(old_idx, id)| {
+                    let preds = dag_in.get(id).cloned().unwrap_or_default();
+                    let mut sum = 0.0;
+                    let mut cnt = 0usize;
+                    for p in preds {
+                        if layer_of.get(&p).copied().unwrap_or(usize::MAX) < l
+                            && let Some(v) = pos_map.get(&p)
+                        {
+                            sum += *v;
+                            cnt += 1;
+                        }
+                    }
+                    let bary = if cnt > 0 {
+                        sum / cnt as f64
+                    } else {
+                        old_idx as f64
+                    };
+                    (*id, bary, old_idx)
+                })
+                .collect();
+            scored.sort_by(
+                |a, b| match a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal) {
+                    Ordering::Equal => a.2.cmp(&b.2),
+                    other => other,
+                },
+            );
+            *layer = scored.into_iter().map(|(id, _, _)| id).collect();
+        }
+
+        pos_map.clear();
+        for layer in &layers {
+            for (i, id) in layer.iter().enumerate() {
+                pos_map.insert(*id, i as f64);
+            }
+        }
+
+        for l in (0..layers.len().saturating_sub(1)).rev() {
+            let old = layers[l].clone();
+            let mut scored: Vec<(usize, f64, usize)> = old
+                .iter()
+                .enumerate()
+                .map(|(old_idx, id)| {
+                    let succ = dag_out.get(id).cloned().unwrap_or_default();
+                    let mut sum = 0.0;
+                    let mut cnt = 0usize;
+                    for s in succ {
+                        if layer_of.get(&s).copied().unwrap_or(0) > l
+                            && let Some(v) = pos_map.get(&s)
+                        {
+                            sum += *v;
+                            cnt += 1;
+                        }
+                    }
+                    let bary = if cnt > 0 {
+                        sum / cnt as f64
+                    } else {
+                        old_idx as f64
+                    };
+                    (*id, bary, old_idx)
+                })
+                .collect();
+            scored.sort_by(
+                |a, b| match a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal) {
+                    Ordering::Equal => a.2.cmp(&b.2),
+                    other => other,
+                },
+            );
+            layers[l] = scored.into_iter().map(|(id, _, _)| id).collect();
+        }
+    }
+
+    let layer_heights: Vec<f64> = layers
+        .iter()
+        .map(|layer| {
+            if layer.is_empty() {
+                0.0
+            } else {
+                layer
+                    .iter()
+                    .map(|id| block_height(block_map[id]))
+                    .sum::<f64>()
+                    + (layer.len().saturating_sub(1) as f64) * ROW_GAP
+            }
+        })
+        .collect();
+    let max_layer_height = layer_heights.iter().copied().fold(0.0f64, f64::max);
+
+    // For a pure linear stream chain, keep all blocks on one baseline so the
+    // direct connections are rendered horizontally.
+    let simple_stream_chain = if node_ids.len() > 1 && stream_only_edges.len() == node_ids.len() - 1
+    {
+        let mut indeg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+        let mut outdeg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+        let mut succ: HashMap<usize, usize> = HashMap::new();
+        for (u, v) in &stream_only_edges {
+            *indeg.entry(*v).or_insert(0) += 1;
+            *outdeg.entry(*u).or_insert(0) += 1;
+            succ.insert(*u, *v);
+        }
+        let sources: Vec<usize> = node_ids
+            .iter()
+            .copied()
+            .filter(|id| indeg.get(id).copied().unwrap_or(0) == 0)
+            .collect();
+        let sinks: Vec<usize> = node_ids
+            .iter()
+            .copied()
+            .filter(|id| outdeg.get(id).copied().unwrap_or(0) == 0)
+            .collect();
+        let valid_degrees = node_ids.iter().all(|id| {
+            let i = indeg.get(id).copied().unwrap_or(0);
+            let o = outdeg.get(id).copied().unwrap_or(0);
+            (i <= 1) && (o <= 1)
+        });
+        if valid_degrees && sources.len() == 1 && sinks.len() == 1 {
+            let mut visited = HashSet::new();
+            let mut cur = sources[0];
+            loop {
+                if !visited.insert(cur) {
+                    break;
+                }
+                if let Some(n) = succ.get(&cur) {
+                    cur = *n;
+                } else {
+                    break;
+                }
+            }
+            visited.len() == node_ids.len()
         } else {
-            col_blocks.entry(col).or_default().push(b.id.0);
+            false
         }
-    }
+    } else {
+        false
+    };
 
     let mut layouts: HashMap<usize, BlockLayout> = HashMap::new();
-
-    let mut col_x = CANVAS_PADDING;
-    let mut col_xs: BTreeMap<usize, f64> = BTreeMap::new();
-    for col in col_blocks.keys() {
-        col_xs.insert(*col, col_x);
-        col_x += BLOCK_WIDTH + COLUMN_GAP;
-    }
-
-    for (col, block_ids) in &col_blocks {
-        let x = col_xs[col];
-        let mut y = CANVAS_PADDING;
-        for &bid in block_ids {
-            let b = block_map[&bid];
-            let h = block_height(b);
-            layouts.insert(bid, BlockLayout { x, y, height: h });
+    for (l, layer_nodes) in layers.iter().enumerate() {
+        let x = CANVAS_PADDING + (l as f64) * (BLOCK_WIDTH + COLUMN_GAP);
+        let mut y = if simple_stream_chain {
+            CANVAS_PADDING + ROW_GAP
+        } else {
+            CANVAS_PADDING + (max_layer_height - layer_heights[l]) / 2.0
+        };
+        for id in layer_nodes {
+            let h = block_height(block_map[id]);
+            layouts.insert(*id, BlockLayout { x, y, height: h });
             y += h + ROW_GAP;
         }
     }
 
-    let msg_x = col_x;
-    let mut y = CANVAS_PADDING;
-    for bid in msg_only_blocks {
-        let b = block_map[&bid];
-        let h = block_height(b);
-        layouts.insert(bid, BlockLayout { x: msg_x, y, height: h });
-        y += h + ROW_GAP;
+    // Post-pass: for simple one-to-one stream links, align destination block so
+    // source stream output center and destination stream input center are equal.
+    // This yields horizontal stream links for pipeline segments even when block
+    // heights differ (e.g., due to message rows).
+    let mut stream_out_deg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+    let mut stream_in_deg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
+    for (src, _, dst, _) in &fg.stream_edges {
+        *stream_out_deg.entry(src.0).or_insert(0) += 1;
+        *stream_in_deg.entry(dst.0).or_insert(0) += 1;
+    }
+
+    let mut stream_edges_sorted = fg.stream_edges.clone();
+    stream_edges_sorted.sort_by_key(|(src, _, dst, _)| {
+        (
+            layer_of.get(&src.0).copied().unwrap_or(usize::MAX),
+            layer_of.get(&dst.0).copied().unwrap_or(usize::MAX),
+        )
+    });
+
+    for (src, src_port, dst, dst_port) in stream_edges_sorted {
+        let src_id = src.0;
+        let dst_id = dst.0;
+        if stream_out_deg.get(&src_id).copied().unwrap_or(0) != 1
+            || stream_in_deg.get(&dst_id).copied().unwrap_or(0) != 1
+        {
+            continue;
+        }
+        if layer_of.get(&src_id).copied().unwrap_or(usize::MAX)
+            >= layer_of.get(&dst_id).copied().unwrap_or(usize::MAX)
+        {
+            continue;
+        }
+
+        let Some(src_block) = block_map.get(&src_id) else {
+            continue;
+        };
+        let Some(dst_block) = block_map.get(&dst_id) else {
+            continue;
+        };
+        let Some(src_idx) = src_block
+            .stream_outputs
+            .iter()
+            .position(|p| p == src_port.name())
+        else {
+            continue;
+        };
+        let Some(dst_idx) = dst_block
+            .stream_inputs
+            .iter()
+            .position(|p| p == dst_port.name())
+        else {
+            continue;
+        };
+        let Some(src_y) = layouts.get(&src_id).map(|l| l.y) else {
+            continue;
+        };
+        let Some(dst_layout) = layouts.get_mut(&dst_id) else {
+            continue;
+        };
+
+        let src_center_y =
+            src_y + TITLE_HEIGHT + (src_idx as f64) * PORT_HEIGHT + PORT_HEIGHT / 2.0;
+        let dst_center_offset = TITLE_HEIGHT + (dst_idx as f64) * PORT_HEIGHT + PORT_HEIGHT / 2.0;
+        dst_layout.y = src_center_y - dst_center_offset;
+    }
+
+    // Final pass: prevent overlaps inside each layer after alignment nudges.
+    let mut nodes_per_layer: HashMap<usize, Vec<usize>> = HashMap::new();
+    for id in &node_ids {
+        let l = layer_of.get(id).copied().unwrap_or(0);
+        nodes_per_layer.entry(l).or_default().push(*id);
+    }
+    for ids in nodes_per_layer.values_mut() {
+        ids.sort_by(|a, b| {
+            let ya = layouts.get(a).map(|l| l.y).unwrap_or(0.0);
+            let yb = layouts.get(b).map(|l| l.y).unwrap_or(0.0);
+            ya.partial_cmp(&yb).unwrap_or(Ordering::Equal)
+        });
+        let mut min_y = CANVAS_PADDING;
+        for id in ids {
+            if let Some(layout) = layouts.get_mut(id) {
+                if layout.y < min_y {
+                    layout.y = min_y;
+                }
+                min_y = layout.y + layout.height + ROW_GAP;
+            }
+        }
     }
 
     layouts
@@ -124,6 +449,9 @@ fn stream_row_count(b: &BlockDescription) -> usize {
 }
 
 fn bezier_path(x1: f64, y1: f64, x2: f64, y2: f64) -> String {
+    if (y1 - y2).abs() < 0.5 {
+        return format!("M {x1},{y1} L {x2},{y2}");
+    }
     let cx1 = x1 + BEZIER_OFFSET;
     let cx2 = x2 - BEZIER_OFFSET;
     format!("M {x1},{y1} C {cx1},{y1} {cx2},{y2} {x2},{y2}")
@@ -136,9 +464,12 @@ fn render_block_node(
     b: BlockDescription,
     pos: RwSignal<(f64, f64)>,
     dragging: RwSignal<DragState>,
+    on_message_input_click: Callback<(usize, String, String)>,
 ) -> impl IntoView {
     let stream_rows = stream_row_count(&b);
     let has_msg = !b.message_inputs.is_empty() || !b.message_outputs.is_empty();
+    let bid = b.id.0;
+    let block_instance_name = b.instance_name.clone();
 
     let stream_port_rows: Vec<_> = (0..stream_rows)
         .map(|i| {
@@ -193,11 +524,41 @@ fn render_block_node(
             view! {
                 <div style=row_style>
                     {if has_in {
+                        let click_name = in_name.clone();
+                        let click_instance = block_instance_name.clone();
                         view! {
-                            <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
-                                <div style="width: 10px; height: 10px; background: #f59e0b; margin-left: -5px; flex-shrink: 0;"></div>
-                                <span style="font-size: 11px; color: #94a3b8; padding-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{in_name}</span>
-                            </div>
+                            <button
+                                style="display: flex; align-items: center; flex: 1; min-width: 0; color: #f59e0b; font-size: 11px; background: transparent; border: none; cursor: pointer; padding: 0;"
+                                on:mousedown=move |ev| {
+                                    ev.stop_propagation();
+                                }
+                                on:mouseenter=move |ev| {
+                                    let _ = ev
+                                        .target()
+                                        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+                                        .map(|el| {
+                                            let _ = el.style().set_property("color", "#fbbf24");
+                                            let _ = el
+                                                .style()
+                                                .set_property("filter", "drop-shadow(0 0 5px rgba(251,191,36,0.9))");
+                                        });
+                                }
+                                on:mouseleave=move |ev| {
+                                    let _ = ev
+                                        .target()
+                                        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+                                        .map(|el| {
+                                            let _ = el.style().set_property("color", "#f59e0b");
+                                            let _ = el.style().set_property("filter", "none");
+                                        });
+                                }
+                                on:click=move |_| {
+                                    on_message_input_click.run((bid, click_instance.clone(), click_name.clone()))
+                                }
+                            >
+                                <span style="width: 10px; height: 10px; background: currentColor; margin-left: -5px; flex-shrink: 0;"></span>
+                                <span style="padding-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{in_name}</span>
+                            </button>
                         }
                         .into_any()
                     } else {
@@ -206,7 +567,7 @@ fn render_block_node(
                     {if has_out {
                         view! {
                             <div style="display: flex; align-items: center; justify-content: flex-end; flex: 1; min-width: 0;">
-                                <span style="font-size: 11px; color: #94a3b8; padding-right: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{out_name}</span>
+                                <span style="font-size: 11px; color: #f59e0b; padding-right: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{out_name}</span>
                                 <div style="width: 10px; height: 10px; background: #f59e0b; margin-right: -5px; flex-shrink: 0;"></div>
                             </div>
                         }
@@ -220,9 +581,8 @@ fn render_block_node(
         .collect();
 
     let blocking = b.blocking;
-    let instance_name = b.instance_name.clone();
+    let instance_name = block_instance_name;
     let type_name = b.type_name.clone();
-    let bid = b.id.0;
 
     let outer_style = move || {
         let (x, y) = pos.get();
@@ -242,13 +602,7 @@ fn render_block_node(
         ev.prevent_default();
         ev.stop_propagation();
         let (bx, by) = pos.get_untracked();
-        dragging.set(Some((
-            bid,
-            ev.client_x() as f64,
-            ev.client_y() as f64,
-            bx,
-            by,
-        )));
+        dragging.set(Some((bid, ev.client_x(), ev.client_y(), bx, by)));
     };
 
     view! {
@@ -292,7 +646,10 @@ fn render_block_node(
 
 #[component]
 /// Flowgraph Canvas
-pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
+pub fn FlowgraphCanvas(
+    fg: FlowgraphDescription,
+    on_message_input_click: Callback<(usize, String, String)>,
+) -> impl IntoView {
     let layouts = compute_layout(&fg);
     let (canvas_w, canvas_h) = canvas_size(&layouts);
 
@@ -312,6 +669,7 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
     let pan: RwSignal<(f64, f64)> = RwSignal::new((0.0, 0.0));
 
     let container_ref = NodeRef::<Div>::new();
+    let did_initial_fit: RwSignal<bool> = RwSignal::new(false);
 
     let block_info: HashMap<usize, BlockDescription> =
         fg.blocks.iter().map(|b| (b.id.0, b.clone())).collect();
@@ -322,7 +680,12 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
         .iter()
         .filter_map(|b| {
             let pos = *positions.get(&b.id.0)?;
-            Some(render_block_node(b.clone(), pos, dragging))
+            Some(render_block_node(
+                b.clone(),
+                pos,
+                dragging,
+                on_message_input_click,
+            ))
         })
         .collect();
 
@@ -357,10 +720,10 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
                 let (sx, sy) = src_pos.get();
                 let (dx, dy) = dst_pos.get();
                 bezier_path(
-                    sx + BLOCK_WIDTH,
-                    sy + TITLE_HEIGHT + si * PORT_HEIGHT + PORT_HEIGHT / 2.0,
-                    dx,
-                    dy + TITLE_HEIGHT + di * PORT_HEIGHT + PORT_HEIGHT / 2.0,
+                    sx + BLOCK_WIDTH - 8.0,
+                    sy + TITLE_HEIGHT + si * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 1.0,
+                    dx + 8.0,
+                    dy + TITLE_HEIGHT + di * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 1.0,
                 )
             };
             Some(view! { <path d=d stroke="#94a3b8" stroke-width="2" fill="none" /> })
@@ -400,10 +763,10 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
                 let (sx, sy) = src_pos.get();
                 let (dx, dy) = dst_pos.get();
                 bezier_path(
-                    sx + BLOCK_WIDTH,
-                    sy + TITLE_HEIGHT + src_sr * PORT_HEIGHT + si * PORT_HEIGHT + PORT_HEIGHT / 2.0,
-                    dx,
-                    dy + TITLE_HEIGHT + dst_sr * PORT_HEIGHT + di * PORT_HEIGHT + PORT_HEIGHT / 2.0,
+                    sx + BLOCK_WIDTH - 8.0,
+                    sy + TITLE_HEIGHT + src_sr * PORT_HEIGHT + si * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 2.0,
+                    dx + 8.0,
+                    dy + TITLE_HEIGHT + dst_sr * PORT_HEIGHT + di * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 2.0,
                 )
             };
             Some(view! {
@@ -422,23 +785,23 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
     let on_container_mousedown = move |ev: web_sys::MouseEvent| {
         ev.prevent_default();
         let (ox, oy) = pan.get_untracked();
-        panning.set(Some((ev.client_x() as f64, ev.client_y() as f64, ox, oy)));
+        panning.set(Some((ev.client_x(), ev.client_y(), ox, oy)));
     };
 
     let on_mousemove = move |ev: web_sys::MouseEvent| {
         // Block drag: divide viewport delta by scale to get canvas-space delta
         if let Some((bid, mx0, my0, bx0, by0)) = dragging.get_untracked() {
             let s = scale.get_untracked();
-            let dx = (ev.client_x() as f64 - mx0) / s;
-            let dy = (ev.client_y() as f64 - my0) / s;
+            let dx = (ev.client_x() - mx0) / s;
+            let dy = (ev.client_y() - my0) / s;
             if let Some(&pos) = positions_for_move.get(&bid) {
                 pos.set((bx0 + dx, by0 + dy));
             }
         }
         // Canvas pan: viewport delta applied directly to pan offset
         if let Some((mx0, my0, ox0, oy0)) = panning.get_untracked() {
-            let dx = ev.client_x() as f64 - mx0;
-            let dy = ev.client_y() as f64 - my0;
+            let dx = ev.client_x() - mx0;
+            let dy = ev.client_y() - my0;
             pan.set((ox0 + dx, oy0 + dy));
         }
     };
@@ -466,21 +829,46 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
         //   ox' = mx*(1 - ratio) + ox*ratio   (mx = mouse pos relative to container)
         if let Some(el) = container_ref.get() {
             let rect = el.get_bounding_client_rect();
-            let mx = ev.client_x() as f64 - rect.left();
-            let my = ev.client_y() as f64 - rect.top();
+            let mx = ev.client_x() - rect.left();
+            let my = ev.client_y() - rect.top();
             let (ox, oy) = pan.get_untracked();
-            pan.set((mx * (1.0 - ratio) + ox * ratio, my * (1.0 - ratio) + oy * ratio));
+            pan.set((
+                mx * (1.0 - ratio) + ox * ratio,
+                my * (1.0 - ratio) + oy * ratio,
+            ));
         }
 
         scale.set(new_scale);
     };
 
     let container_style = move || {
-        if dragging.get().is_some() || panning.get().is_some() {
-            "overflow: hidden; background: #0f172a; width: 100%; height: 70vh; cursor: grabbing;"
+        let cursor = if dragging.get().is_some() || panning.get().is_some() {
+            "grabbing"
         } else {
-            "overflow: hidden; background: #0f172a; width: 100%; height: 70vh; cursor: grab;"
-        }
+            "grab"
+        };
+        let s = scale.get();
+        let (ox, oy) = pan.get();
+        // Minor grid every 40px, major grid every 200px; both track pan/zoom
+        let minor = 40.0 * s;
+        let major = 200.0 * s;
+        let (bx, by) = (ox % minor, oy % minor);
+        let (mx, my) = (ox % major, oy % major);
+        format!(
+            "overflow: hidden; width: 100%; height: 70vh; cursor: {cursor}; \
+             background-color: #0f172a; \
+             background-image: \
+               linear-gradient(rgba(100,116,139,0.10) 1px, transparent 1px), \
+               linear-gradient(90deg, rgba(100,116,139,0.10) 1px, transparent 1px), \
+               linear-gradient(rgba(100,116,139,0.22) 1px, transparent 1px), \
+               linear-gradient(90deg, rgba(100,116,139,0.22) 1px, transparent 1px); \
+             background-size: \
+               {minor}px {minor}px, {minor}px {minor}px, \
+               {major}px {major}px, {major}px {major}px; \
+             background-position: \
+               {bx}px {by}px, {bx}px {by}px, \
+               {mx}px {my}px, {mx}px {my}px;"
+        )
     };
 
     let inner_style = move || {
@@ -491,6 +879,150 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
              transform-origin: 0 0; transform: translate({ox}px, {oy}px) scale({s});"
         )
     };
+
+    Effect::new(move |_| {
+        if did_initial_fit.get_untracked() {
+            return;
+        }
+        let Some(container) = container_ref.get() else {
+            return;
+        };
+        let rect = container.get_bounding_client_rect();
+        let view_w = rect.width();
+        let view_h = rect.height();
+        if view_w < 2.0 || view_h < 2.0 {
+            return;
+        }
+
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        let mut include_point = |x: f64, y: f64| {
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        };
+
+        for (id, pos) in &positions {
+            let (x, y) = pos.get_untracked();
+            if let Some(block) = block_info.get(id) {
+                let h = block_height(block);
+                include_point(x, y);
+                include_point(x + BLOCK_WIDTH, y + h);
+            }
+        }
+
+        for e in &fg.stream_edges {
+            let src_id = e.0.0;
+            let dst_id = e.2.0;
+            let Some(src_block) = block_info.get(&src_id) else {
+                continue;
+            };
+            let Some(dst_block) = block_info.get(&dst_id) else {
+                continue;
+            };
+            let Some(src_idx) = src_block
+                .stream_outputs
+                .iter()
+                .position(|p| p == e.1.name())
+            else {
+                continue;
+            };
+            let Some(dst_idx) = dst_block.stream_inputs.iter().position(|p| p == e.3.name()) else {
+                continue;
+            };
+            let Some(src_pos) = positions.get(&src_id) else {
+                continue;
+            };
+            let Some(dst_pos) = positions.get(&dst_id) else {
+                continue;
+            };
+            let (sx, sy) = src_pos.get_untracked();
+            let (dx, dy) = dst_pos.get_untracked();
+            let x1 = sx + BLOCK_WIDTH;
+            let y1 = sy + TITLE_HEIGHT + (src_idx as f64) * PORT_HEIGHT + PORT_HEIGHT / 2.0;
+            let x2 = dx;
+            let y2 = dy + TITLE_HEIGHT + (dst_idx as f64) * PORT_HEIGHT + PORT_HEIGHT / 2.0;
+            include_point(x1, y1);
+            include_point(x2, y2);
+            include_point(x1 + BEZIER_OFFSET, y1);
+            include_point(x2 - BEZIER_OFFSET, y2);
+        }
+
+        for e in &fg.message_edges {
+            let src_id = e.0.0;
+            let dst_id = e.2.0;
+            let Some(src_block) = block_info.get(&src_id) else {
+                continue;
+            };
+            let Some(dst_block) = block_info.get(&dst_id) else {
+                continue;
+            };
+            let Some(src_idx) = src_block
+                .message_outputs
+                .iter()
+                .position(|p| p == e.1.name())
+            else {
+                continue;
+            };
+            let Some(dst_idx) = dst_block
+                .message_inputs
+                .iter()
+                .position(|p| p == e.3.name())
+            else {
+                continue;
+            };
+            let Some(src_pos) = positions.get(&src_id) else {
+                continue;
+            };
+            let Some(dst_pos) = positions.get(&dst_id) else {
+                continue;
+            };
+            let (sx, sy) = src_pos.get_untracked();
+            let (dx, dy) = dst_pos.get_untracked();
+            let src_sr = stream_row_count(src_block) as f64;
+            let dst_sr = stream_row_count(dst_block) as f64;
+            let x1 = sx + BLOCK_WIDTH;
+            let y1 = sy
+                + TITLE_HEIGHT
+                + src_sr * PORT_HEIGHT
+                + (src_idx as f64) * PORT_HEIGHT
+                + PORT_HEIGHT / 2.0;
+            let x2 = dx;
+            let y2 = dy
+                + TITLE_HEIGHT
+                + dst_sr * PORT_HEIGHT
+                + (dst_idx as f64) * PORT_HEIGHT
+                + PORT_HEIGHT / 2.0;
+            include_point(x1, y1);
+            include_point(x2, y2);
+            include_point(x1 + BEZIER_OFFSET, y1);
+            include_point(x2 - BEZIER_OFFSET, y2);
+        }
+
+        if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+            return;
+        }
+
+        let width = (max_x - min_x).max(1.0);
+        let height = (max_y - min_y).max(1.0);
+        let pad_x = width * 0.05;
+        let pad_y = height * 0.05;
+        let fit_min_x = min_x - pad_x;
+        let fit_min_y = min_y - pad_y;
+        let fit_w = width + 2.0 * pad_x;
+        let fit_h = height + 2.0 * pad_y;
+
+        let s = (view_w / fit_w).min(view_h / fit_h).clamp(0.1, 5.0);
+        let ox = -fit_min_x * s + (view_w - fit_w * s) / 2.0;
+        let oy = -fit_min_y * s + (view_h - fit_h * s) / 2.0;
+
+        scale.set(s);
+        pan.set((ox, oy));
+        did_initial_fit.set(true);
+    });
 
     view! {
         <div
@@ -503,7 +1035,6 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
             on:wheel=on_wheel
         >
             <div style=inner_style>
-                {block_nodes}
                 <svg
                     width=canvas_w
                     height=canvas_h
@@ -512,6 +1043,7 @@ pub fn FlowgraphCanvas(fg: FlowgraphDescription) -> impl IntoView {
                     {stream_paths}
                     {message_paths}
                 </svg>
+                {block_nodes}
             </div>
         </div>
     }

@@ -33,11 +33,11 @@ where
     }
     /// Get sample rate
     pub fn sample_rate(&self) -> u32 {
-        self.src.sample_rate()
+        self.src.sample_rate().into()
     }
     /// Get number of samples
     pub fn channels(&self) -> u16 {
-        self.src.channels()
+        self.src.channels().into()
     }
 }
 

@@ -7,8 +7,9 @@ use leptos::task::spawn_local;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::HtmlInputElement;
 use prophecy::ConstellationSinkDensity;
+use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
-use prophecy::FlowgraphMermaid;
+use prophecy::FlowgraphTable;
 use prophecy::ListSelector;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
@@ -154,7 +155,11 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="border-2 border-slate-500 rounded-md m-4 p-4">
             {move || {
                 match fg_desc.get() {
-                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_any(),
+                    Some(Some(desc)) => view! {
+                        <FlowgraphCanvas fg=desc.clone() on_message_input_click=Callback::new(|_| ()) />
+                        <FlowgraphTable fg=desc on_message_input_click=Callback::new(|_| ()) />
+                    }
+                        .into_any(),
                     _ => view! {}.into_any(),
                 }
             }}

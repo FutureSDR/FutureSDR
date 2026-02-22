@@ -5,10 +5,11 @@ use leptos::html::Span;
 use leptos::logging::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::*;
-use prophecy::FlowgraphMermaid;
-use prophecy::RuntimeHandle;
-use prophecy::RadioSelector;
+use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
+use prophecy::FlowgraphTable;
+use prophecy::RadioSelector;
+use prophecy::RuntimeHandle;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
@@ -160,7 +161,11 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
                 match fg_desc.get() {
-                    Some(Some(desc)) => view! { <FlowgraphMermaid fg=desc /> }.into_view(),
+                    Some(Some(desc)) => view! {
+                        <FlowgraphCanvas fg=desc.clone() on_message_input_click=Callback::new(|_| ()) />
+                        <FlowgraphTable fg=desc on_message_input_click=Callback::new(|_| ()) />
+                    }
+                        .into_view(),
                     _ => view! {}.into_view(),
                 }
             }}

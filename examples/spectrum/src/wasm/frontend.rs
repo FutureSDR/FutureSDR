@@ -3,8 +3,9 @@ use futuresdr::runtime::FlowgraphId;
 use futuresdr::runtime::Pmt;
 use gloo_net::websocket::Message;
 use gloo_net::websocket::futures::WebSocket;
+use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
-use prophecy::FlowgraphMermaid;
+use prophecy::FlowgraphTable;
 use prophecy::RadioSelector;
 use prophecy::RuntimeHandle;
 use prophecy::TimeSink;
@@ -232,7 +233,11 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         <div class="p-4 m-4 border-2 rounded-md border-slate-500">
             {move || {
                 if let Some(Some(desc)) = fg_desc.get() {
-                    return view! { <FlowgraphMermaid fg=desc /> }.into_any();
+                    return view! {
+                        <FlowgraphCanvas fg=desc.clone() on_message_input_click=Callback::new(|_| ()) />
+                        <FlowgraphTable fg=desc on_message_input_click=Callback::new(|_| ()) />
+                    }
+                        .into_any();
                 }
                 ().into_any()
             }}
