@@ -95,10 +95,10 @@ where
 {
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox;
+        self.inbox = inbox.control;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -276,10 +276,10 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox;
+        self.inbox = inbox.control;
     }
 
     fn validate(&self) -> Result<(), Error> {

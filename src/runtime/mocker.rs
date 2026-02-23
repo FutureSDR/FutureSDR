@@ -1,5 +1,4 @@
 use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::channel;
 use futuresdr_types::BlockId;
 use std::any::Any;
@@ -204,7 +203,7 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
@@ -299,7 +298,7 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
 impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }

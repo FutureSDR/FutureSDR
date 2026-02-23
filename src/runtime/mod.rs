@@ -36,6 +36,7 @@ mod message_io;
 #[cfg(not(target_arch = "wasm32"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
+mod notify;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
@@ -58,6 +59,7 @@ pub use kernel::KernelInterface;
 pub use megablock::MegaBlock;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
+pub use notify::BlockNotifier;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 pub use tag::ItemTag;
@@ -185,6 +187,18 @@ pub enum BlockMessage {
         /// Back channel for handler result
         tx: oneshot::Sender<Result<Pmt, Error>>,
     },
+}
+
+#[derive(Clone, Debug)]
+/// Inbox context used by stream buffers.
+///
+/// `control` carries regular [`BlockMessage`] control traffic, while
+/// `notifier` is the coalescing fast-path wakeup signal.
+pub struct BlockInbox {
+    /// Control-message sender for the destination block.
+    pub control: mpsc::Sender<BlockMessage>,
+    /// Fast wakeup notifier for the destination block.
+    pub notifier: BlockNotifier,
 }
 
 /// FutureSDR Error

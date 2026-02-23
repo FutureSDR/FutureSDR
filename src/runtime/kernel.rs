@@ -1,8 +1,7 @@
 use std::future::Future;
 
-use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockId;
-use futuresdr::runtime::BlockMessage;
+use futuresdr::runtime::BlockInbox;
 use futuresdr::runtime::BlockMeta;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::MessageOutputs;
@@ -66,7 +65,7 @@ pub trait KernelInterface {
     /// Initialize Stream Ports
     ///
     /// This sets required variables but does not connect.
-    fn stream_ports_init(&mut self, block_id: BlockId, inbox: Sender<BlockMessage>);
+    fn stream_ports_init(&mut self, block_id: BlockId, inbox: BlockInbox);
     /// This sets required variables but does not connect.
     fn stream_ports_validate(&self) -> Result<(), Error>;
     /// Mark stream input as finished

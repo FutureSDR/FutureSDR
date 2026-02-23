@@ -10,8 +10,10 @@ use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockDescription;
 use futuresdr::runtime::BlockId;
+use futuresdr::runtime::BlockInbox;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
+use futuresdr::runtime::BlockNotifier;
 use futuresdr::runtime::BlockPortCtx;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::FlowgraphMessage;
@@ -93,13 +95,22 @@ pub struct WrappedKernel<K: Kernel> {
     pub inbox: mpsc::Receiver<BlockMessage>,
     /// Sending-side of Inbox
     pub inbox_tx: mpsc::Sender<BlockMessage>,
+    /// Fast-path notifier for stream wakeups
+    pub notifier: BlockNotifier,
 }
 
 impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
     /// Create Typed Block
     pub fn new(mut kernel: K, id: BlockId) -> Self {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
-        kernel.stream_ports_init(id, tx.clone());
+        let notifier = BlockNotifier::new();
+        kernel.stream_ports_init(
+            id,
+            BlockInbox {
+                control: tx.clone(),
+                notifier: notifier.clone(),
+            },
+        );
         Self {
             meta: BlockMeta::new(),
             mio: MessageOutputs::new(
@@ -110,6 +121,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             id,
             inbox: rx,
             inbox_tx: tx,
+            notifier,
         }
     }
 
@@ -120,6 +132,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
             mio,
             kernel,
             inbox,
+            notifier,
             ..
         } = self;
 
@@ -166,10 +179,13 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
         // main loop
         loop {
             // ================== non blocking
+            let mut had_notify = notifier.take_pending();
             let mut msg = peek.take().or_else(|| inbox.try_recv().ok());
             while let Some(m) = msg {
                 match m {
-                    BlockMessage::Notify => {}
+                    BlockMessage::Notify => {
+                        had_notify = true;
+                    }
                     BlockMessage::BlockDescription { tx } => {
                         let stream_inputs = kernel.stream_inputs();
                         let stream_outputs = kernel.stream_outputs();
@@ -247,6 +263,9 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                 work_io.call_again = true;
                 msg = inbox.try_recv().ok();
             }
+            if had_notify {
+                work_io.call_again = true;
+            }
 
             // ================== shutdown
             if work_io.finished {
@@ -273,21 +292,37 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                 match work_io.block_on.take() {
                     Some(f) => {
                         let p = inbox.next();
-
-                        match futures::future::select(f, p).await {
+                        let n = notifier.notified();
+                        match futures::future::select(f, futures::future::select(p, n)).await {
                             Either::Left(_) => {
                                 work_io.call_again = true;
                             }
-                            Either::Right((p, f)) => {
-                                peek = p;
+                            Either::Right((wait, f)) => {
                                 work_io.block_on = Some(f);
-                                continue;
+                                match wait {
+                                    Either::Left((p, _)) => {
+                                        peek = p;
+                                        continue;
+                                    }
+                                    Either::Right((_, _)) => {
+                                        work_io.call_again = true;
+                                    }
+                                }
                             }
                         };
                     }
                     _ => {
-                        peek = inbox.next().await;
-                        continue;
+                        let p = inbox.next();
+                        let n = notifier.notified();
+                        match futures::future::select(p, n).await {
+                            Either::Left((p, _)) => {
+                                peek = p;
+                                continue;
+                            }
+                            Either::Right((_, _)) => {
+                                work_io.call_again = true;
+                            }
+                        }
                     }
                 }
             }

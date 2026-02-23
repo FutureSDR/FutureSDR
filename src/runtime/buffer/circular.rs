@@ -8,6 +8,7 @@ use crate::channel::mpsc::Sender;
 use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
@@ -19,7 +20,7 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 
 struct MyNotifier {
-    sender: Sender<BlockMessage>,
+    notifier: BlockNotifier,
 }
 
 impl generic::Notifier for MyNotifier {
@@ -28,7 +29,7 @@ impl generic::Notifier for MyNotifier {
 
     // we notify blocks for every change to the buffer
     fn notify(&mut self) {
-        let _ = self.sender.try_send(BlockMessage::Notify);
+        self.notifier.notify();
     }
 }
 
@@ -73,6 +74,7 @@ where
     tags: Vec<ItemTag>,
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
+    notifier: BlockNotifier,
 }
 
 impl<D> Writer<D>
@@ -91,6 +93,7 @@ where
             tags: vec![],
             min_items: None,
             min_buffer_size_in_items: None,
+            notifier: BlockNotifier::new(),
         }
     }
 }
@@ -110,10 +113,11 @@ where
 {
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox;
+        self.inbox = inbox.control;
+        self.notifier = inbox.notifier;
     }
     fn validate(&self) -> Result<(), Error> {
         if self.writer.is_some() {
@@ -184,11 +188,11 @@ where
         }
 
         let writer_notifier = MyNotifier {
-            sender: self.inbox.clone(),
+            notifier: self.notifier.clone(),
         };
 
         let reader_notifier = MyNotifier {
-            sender: dest.inbox.clone(),
+            notifier: dest.notifier.clone(),
         };
 
         let reader = self
@@ -283,6 +287,7 @@ where
     tags: Vec<ItemTag>,
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
+    notifier: BlockNotifier,
 }
 
 impl<D> Default for Reader<D>
@@ -302,6 +307,7 @@ where
             tags: vec![],
             min_items: None,
             min_buffer_size_in_items: None,
+            notifier: BlockNotifier::new(),
         }
     }
 }
@@ -315,10 +321,11 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: Sender<BlockMessage>) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox;
+        self.inbox = inbox.control;
+        self.notifier = inbox.notifier;
     }
     fn validate(&self) -> Result<(), Error> {
         if self.reader.is_some() {
