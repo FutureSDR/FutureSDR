@@ -16,7 +16,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::task::Poll;
 use std::task::Waker;
@@ -255,6 +254,8 @@ pub struct FlowExecutor {
     state: once_cell::sync::OnceCell<Arc<State>>,
 }
 
+const LOCAL_QUEUE_CAPACITY: usize = 512;
+
 impl UnwindSafe for FlowExecutor {}
 impl RefUnwindSafe for FlowExecutor {}
 
@@ -326,17 +327,18 @@ impl FlowExecutor {
             future.await
         };
 
-        // Creates a slot for the task in the local queue of the executor
-        let queues = self.state().local_queues.write().unwrap();
-        let mut inner = queues[executor].lock();
-        let n = inner.1.len();
-        inner.1.push(None);
-        drop(inner);
-        drop(queues);
+        let local = self
+            .state()
+            .local_queues
+            .read()
+            .unwrap()
+            .get(executor)
+            .cloned()
+            .expect("executor queue not initialized");
 
         // Create the task and register it in the set of active tasks.
         let (runnable, task) =
-            unsafe { async_task::spawn_unchecked(future, self.schedule_executor(executor, n)) };
+            unsafe { async_task::spawn_unchecked(future, self.schedule_executor(local, executor)) };
         entry.insert(runnable.waker());
 
         runnable.schedule();
@@ -345,14 +347,16 @@ impl FlowExecutor {
 
     /// Runs the executor until the given future completes.
     pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
-        let runner = Runner::new(self.state());
+        let mut runner = Runner::new(self.state());
 
         // A future that runs tasks forever.
         let run_forever = async {
             loop {
-                let runnable = runner.runnable().await;
-                debug!("running runnable {}", thread::current().name().unwrap());
-                runnable.run();
+                for _ in 0..200 {
+                    let runnable = runner.runnable().await;
+                    runnable.run();
+                }
+                crate::runtime::futures::yield_now().await;
             }
         };
 
@@ -379,15 +383,17 @@ impl FlowExecutor {
     /// Returns a function that schedules a runnable task when it gets woken up.
     fn schedule_executor(
         &self,
+        local: Arc<ConcurrentQueue<Runnable>>,
         executor: usize,
-        n_task: usize,
     ) -> impl Fn(Runnable) + Send + Sync + 'static {
         let state = self.state().clone();
-        let local = state.local_queues.read().unwrap()[executor].clone();
 
         move |runnable| {
-            {
-                local.lock().1[n_task] = Some(runnable);
+            if let Err(err) = local.push(runnable) {
+                // Local queue is full, fall back to the global queue.
+                state.queue.push(err.into_inner()).unwrap();
+                state.notify();
+                return;
             }
             state.notify_executor(executor);
         }
@@ -415,8 +421,7 @@ impl Drop for FlowExecutor {
             while state.queue.pop().is_ok() {}
 
             for q in state.local_queues.write().unwrap().iter() {
-                let runnables = &mut q.lock().1;
-                while runnables.pop().is_some() {}
+                while q.pop().is_ok() {}
             }
         }
     }
@@ -428,14 +433,13 @@ struct State {
     queue: ConcurrentQueue<Runnable>,
 
     /// Local queues created by runners.
-    #[allow(clippy::type_complexity)]
-    local_queues: RwLock<Vec<Arc<spin::Mutex<(usize, Vec<Option<Runnable>>)>>>>,
+    local_queues: RwLock<Vec<Arc<ConcurrentQueue<Runnable>>>>,
 
     /// Set to `true` when a sleeping ticker is notified or no tickers are sleeping.
     notified: AtomicBool,
 
     /// A list of sleeping tickers.
-    sleepers: spin::Mutex<Sleepers>,
+    sleepers: Mutex<Sleepers>,
 
     /// Currently active tasks.
     active: Mutex<Slab<Waker>>,
@@ -448,7 +452,7 @@ impl State {
             queue: ConcurrentQueue::unbounded(),
             local_queues: RwLock::new(Vec::new()),
             notified: AtomicBool::new(true),
-            sleepers: spin::Mutex::new(Sleepers {
+            sleepers: Mutex::new(Sleepers {
                 count: 0,
                 wakers: Vec::new(),
                 free_ids: Vec::new(),
@@ -462,10 +466,10 @@ impl State {
     fn notify(&self) {
         if self
             .notified
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .is_ok()
         {
-            let waker = self.sleepers.lock().notify();
+            let waker = self.sleepers.lock().unwrap().notify();
             if let Some(w) = waker {
                 w.wake();
             }
@@ -474,20 +478,12 @@ impl State {
 
     #[inline]
     fn notify_executor(&self, queue_index: usize) {
-        let waker = { self.sleepers.lock().notify_executor(queue_index) };
+        let waker = { self.sleepers.lock().unwrap().notify_executor(queue_index) };
         if let Some(w) = waker {
-            debug!(
-                "{} scheduled task on executor {} -- waker found",
-                thread::current().name().unwrap(),
-                queue_index
-            );
             w.wake();
         } else {
-            debug!(
-                "{} scheduled task on executor {} -- no waker found",
-                thread::current().name().unwrap(),
-                queue_index
-            );
+            // Fallback in case the target runner is not sleeping currently.
+            self.notify();
         }
     }
 }
@@ -562,10 +558,8 @@ impl Sleepers {
     /// If a ticker was notified already or there are no tickers, `None` will be returned.
     fn notify(&mut self) -> Option<Waker> {
         if self.wakers.len() == self.count {
-            debug!("sleeper notified");
             self.wakers.pop().map(|item| item.1)
         } else {
-            debug!("no sleeper notified");
             None
         }
     }
@@ -587,7 +581,6 @@ impl Sleepers {
 struct Ticker<'a> {
     /// The executor state.
     state: &'a State,
-
     queue_index: usize,
 
     /// Set to a non-zero sleeper ID when in sleeping state.
@@ -596,40 +589,32 @@ struct Ticker<'a> {
     /// 1) Woken.
     ///    2a) Sleeping and unnotified.
     ///    2b) Sleeping and notified.
-    sleeping: AtomicUsize,
+    sleeping: usize,
 }
 
 impl Ticker<'_> {
     /// Creates a ticker.
     fn new(state: &State, queue_index: usize) -> Ticker<'_> {
-        debug!("ticker created {}", queue_index);
         Ticker {
             state,
             queue_index,
-            sleeping: AtomicUsize::new(0),
+            sleeping: 0,
         }
     }
 
     /// Moves the ticker into sleeping and unnotified state.
     ///
     /// Returns `false` if the ticker was already sleeping and unnotified.
-    fn sleep(&self, waker: &Waker) -> bool {
-        let mut sleepers = self.state.sleepers.lock();
+    fn sleep(&mut self, waker: &Waker) -> bool {
+        let mut sleepers = self.state.sleepers.lock().unwrap();
 
-        match self.sleeping.load(Ordering::SeqCst) {
+        match self.sleeping {
             // Move to sleeping state.
-            0 => self
-                .sleeping
-                .store(sleepers.insert(waker, self.queue_index), Ordering::SeqCst),
+            0 => self.sleeping = sleepers.insert(waker, self.queue_index),
 
             // Already sleeping, check if notified.
             id => {
                 if !sleepers.update(id, waker, self.queue_index) {
-                    debug!(
-                        "{} putting ticker to sleep {} -- false",
-                        thread::current().name().unwrap(),
-                        self.queue_index
-                    );
                     return false;
                 }
             }
@@ -637,41 +622,30 @@ impl Ticker<'_> {
 
         self.state
             .notified
-            .swap(sleepers.is_notified(), Ordering::SeqCst);
-
-        debug!(
-            "{} putting ticker to sleep {} -- true",
-            thread::current().name().unwrap(),
-            self.queue_index
-        );
+            .store(sleepers.is_notified(), Ordering::Release);
         true
     }
 
     /// Moves the ticker into woken state.
-    fn wake(&self) {
-        debug!("ticker waking {}", self.queue_index);
-        let id = self.sleeping.swap(0, Ordering::SeqCst);
-        if id != 0 {
-            let mut sleepers = self.state.sleepers.lock();
+    fn wake(&mut self) {
+        if self.sleeping != 0 {
+            let id = self.sleeping;
+            let mut sleepers = self.state.sleepers.lock().unwrap();
             sleepers.remove(id);
 
             self.state
                 .notified
-                .swap(sleepers.is_notified(), Ordering::SeqCst);
+                .store(sleepers.is_notified(), Ordering::Release);
         }
+        self.sleeping = 0;
     }
 
     /// Waits for the next runnable task to run, given a function that searches for a task.
-    async fn runnable_with(&self, mut search: impl FnMut() -> Option<Runnable>) -> Runnable {
+    async fn runnable_with(&mut self, mut search: impl FnMut() -> Option<Runnable>) -> Runnable {
         future::poll_fn(|cx| {
             loop {
                 match search() {
                     None => {
-                        debug!(
-                            "{} runnable_with {} -- None",
-                            thread::current().name().unwrap(),
-                            self.queue_index
-                        );
                         // Move to sleeping and unnotified state.
                         if !self.sleep(cx.waker()) {
                             // If already sleeping and unnotified, return.
@@ -679,17 +653,12 @@ impl Ticker<'_> {
                         }
                     }
                     Some(r) => {
-                        debug!(
-                            "{} runnable_with {} -- Some",
-                            thread::current().name().unwrap(),
-                            self.queue_index
-                        );
                         // Wake up.
                         self.wake();
 
                         // Notify another ticker now to pick up where this ticker left off, just in
                         // case running the task takes a long time.
-                        // self.state.notify_executor(self.queue_index);
+                        self.state.notify();
 
                         return Poll::Ready(r);
                     }
@@ -703,14 +672,14 @@ impl Ticker<'_> {
 impl Drop for Ticker<'_> {
     fn drop(&mut self) {
         // If this ticker is in sleeping state, it must be removed from the sleepers list.
-        let id = self.sleeping.swap(0, Ordering::SeqCst);
-        if id != 0 {
-            let mut sleepers = self.state.sleepers.lock();
+        if self.sleeping != 0 {
+            let id = self.sleeping;
+            let mut sleepers = self.state.sleepers.lock().unwrap();
             let notified = sleepers.remove(id);
 
             self.state
                 .notified
-                .swap(sleepers.is_notified(), Ordering::SeqCst);
+                .store(sleepers.is_notified(), Ordering::Release);
 
             // If this ticker was notified, then notify another ticker.
             if notified {
@@ -730,16 +699,15 @@ struct Runner<'a> {
     /// Inner ticker.
     ticker: Ticker<'a>,
     /// The local queue.
-    local: Arc<spin::Mutex<(usize, Vec<Option<Runnable>>)>>,
+    local: Arc<ConcurrentQueue<Runnable>>,
 }
 
 impl Runner<'_> {
     /// Creates a runner and registers it in the executor state.
     fn new(state: &State) -> Runner<'_> {
-        let local = Arc::new(spin::Mutex::new((0, Vec::new())));
+        let local = Arc::new(ConcurrentQueue::bounded(LOCAL_QUEUE_CAPACITY));
 
         let mut s = state.local_queues.write().unwrap();
-
         let queue_index = s.len();
         s.push(local.clone());
 
@@ -751,25 +719,16 @@ impl Runner<'_> {
     }
 
     /// Waits for the next runnable task to run.
-    async fn runnable(&self) -> Runnable {
+    async fn runnable(&mut self) -> Runnable {
         let runnable = self
             .ticker
             .runnable_with(|| {
                 // Try the local queue.
-                let mut item = self.local.lock();
-                let mut offset = item.0;
-                let q = &mut item.1;
-                let l = q.len();
-                for (n, runnable) in q.iter().cycle().skip(offset).take(l).enumerate() {
-                    if runnable.is_some() {
-                        offset = (offset + n) % l;
-                        let ret = q[offset].take();
-                        item.0 = (offset + 1) % l;
-                        return ret;
-                    }
+                if let Ok(r) = self.local.pop() {
+                    return Some(r);
                 }
 
-                // Try stealing one task from global queue
+                // Try pulling one task from global queue.
                 if let Ok(r) = self.state.queue.pop() {
                     return Some(r);
                 }
@@ -777,9 +736,6 @@ impl Runner<'_> {
                 None
             })
             .await;
-
-        debug!("ticker found runnable {}", self.ticker.queue_index);
-
         runnable
     }
 }
@@ -787,18 +743,16 @@ impl Runner<'_> {
 impl Drop for Runner<'_> {
     fn drop(&mut self) {
         // Remove the local queue.
-        // self.state
-        //     .local_queues
-        //     .write()
-        //     .unwrap()
-        //     .retain(|local| !Arc::ptr_eq(local, &self.local));
+        self.state
+            .local_queues
+            .write()
+            .unwrap()
+            .retain(|local| !Arc::ptr_eq(local, &self.local));
 
-        // // Re-schedule remaining tasks in the local queue.
-        // while let Some(i) = self.local.lock().1.pop() {
-        //     if let Some(r) = i {
-        //         r.schedule();
-        //     }
-        // }
+        // Re-schedule remaining tasks in the local queue.
+        while let Ok(r) = self.local.pop() {
+            r.schedule();
+        }
     }
 }
 
