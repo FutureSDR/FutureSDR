@@ -7,7 +7,6 @@ use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
-use std::collections::HashMap;
 use std::time;
 
 #[derive(Parser, Debug)]
@@ -38,9 +37,11 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
-    let mut cpu_mapping = HashMap::new();
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let mut cpu_mapping: Vec<Vec<BlockId>> = vec![Vec::new(); n_executors];
 
     for p in 0..pipes {
+        let executor = p % n_executors;
         let src = fg.add(NullSource::<f32>::new())?;
         let head = fg.add(Head::<f32>::new(samples as u64))?;
         let mut last = fg.add(CopyRand::<f32>::new(max_copy))?;
@@ -48,20 +49,20 @@ fn main() -> Result<()> {
         fg.connect_stream(src.get()?.output(), head.get()?.input());
         fg.connect_stream(head.get()?.output(), last.get()?.input());
 
-        cpu_mapping.insert(src.get()?.id, p);
-        cpu_mapping.insert(head.get()?.id, p);
-        cpu_mapping.insert(last.get()?.id, p);
+        cpu_mapping[executor].push(src.get()?.id);
+        cpu_mapping[executor].push(head.get()?.id);
+        cpu_mapping[executor].push(last.get()?.id);
 
         for _ in 1..stages {
             let block = fg.add(CopyRand::<f32>::new(max_copy))?;
             fg.connect_stream(last.get()?.output(), block.get()?.input());
-            cpu_mapping.insert(block.get()?.id, p);
+            cpu_mapping[executor].push(block.get()?.id);
             last = block;
         }
 
         let snk = fg.add(NullSink::<f32>::new())?;
         fg.connect_stream(last.get()?.output(), snk.get()?.input());
-        cpu_mapping.insert(snk.get()?.id, p);
+        cpu_mapping[executor].push(snk.get()?.id);
         snks.push(snk);
     }
 

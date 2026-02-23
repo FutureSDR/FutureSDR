@@ -8,7 +8,7 @@ use futures::future;
 use futures::future::Either;
 use futures::future::select;
 use slab::Slab;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
@@ -40,7 +40,7 @@ pub struct FlowScheduler {
 struct FlowSchedulerInner {
     executor: Arc<FlowExecutor>,
     workers: Vec<(thread::JoinHandle<()>, oneshot::Sender<()>)>,
-    pinned_blocks: HashMap<BlockId, usize>,
+    pinned_blocks: Vec<Vec<BlockId>>,
 }
 
 impl fmt::Debug for FlowSchedulerInner {
@@ -65,11 +65,15 @@ impl Drop for FlowSchedulerInner {
 impl FlowScheduler {
     /// Create Flow scheduler
     pub fn new() -> FlowScheduler {
-        FlowScheduler::with_pinned_blocks(HashMap::new())
+        FlowScheduler::with_pinned_blocks(Vec::new())
     }
 
-    /// Create Flow scheduler with pinned blocks
-    pub fn with_pinned_blocks(pinned_blocks: HashMap<BlockId, usize>) -> FlowScheduler {
+    /// Create Flow scheduler with pinned blocks.
+    ///
+    /// Outer index is the executor index and each inner list contains ordered block IDs
+    /// for that executor. The inner order defines the initial insertion order into the
+    /// executor's local queue.
+    pub fn with_pinned_blocks(pinned_blocks: Vec<Vec<BlockId>>) -> FlowScheduler {
         let executor = Arc::new(FlowExecutor::new());
         let mut workers = Vec::new();
 
@@ -138,52 +142,55 @@ impl Scheduler for FlowScheduler {
     ) {
         let n_blocks = blocks.len();
         let n_cores = self.inner.workers.len();
+        let mut spawned: HashSet<BlockId> = HashSet::new();
+        let mut blocks_by_id = Vec::with_capacity(n_blocks);
 
-        // spawn block executors
         for block in blocks.iter() {
-            let block = Arc::clone(block);
             let id = block.lock_blocking().id();
-            let main_channel = main_channel.clone();
-            let blocking = block.lock_blocking().is_blocking();
-            // println!("{}: {}", id, block.instance_name().unwrap());
+            blocks_by_id.push((id, Arc::clone(block)));
+        }
 
-            if blocking {
-                debug!("spawing block on executor");
-                self.inner
-                    .executor
-                    .spawn_executor(
-                        blocking::unblock(move || {
-                            block_on(async move {
-                                let mut block = block.lock().await;
-                                block.run(main_channel).await;
-                            })
-                        }),
-                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
-                    )
-                    .detach();
-            } else if let Some(&c) = self.inner.pinned_blocks.get(&id) {
-                self.inner
-                    .executor
-                    .spawn_executor(
-                        async move {
-                            let mut block = block.lock().await;
-                            block.run(main_channel).await;
-                        },
-                        c,
-                    )
-                    .detach();
-            } else {
-                self.inner
-                    .executor
-                    .spawn_executor(
-                        async move {
-                            let mut block = block.lock().await;
-                            block.run(main_channel).await;
-                        },
-                        FlowScheduler::map_block(id.0, n_blocks, n_cores),
-                    )
-                    .detach();
+        // Spawn manually pinned blocks in the exact order they appear in the mapping.
+        for (executor, block_ids) in self.inner.pinned_blocks.iter().enumerate() {
+            if executor >= n_cores {
+                warn!(
+                    "flowsched mapping has executor index {} but only {} executors are available",
+                    executor, n_cores
+                );
+                continue;
             }
+
+            for block_id in block_ids {
+                let Some((_, block)) = blocks_by_id.iter().find(|(id, _)| id == block_id) else {
+                    warn!(
+                        "flowsched mapping references unknown block id {:?}",
+                        block_id
+                    );
+                    continue;
+                };
+                if !spawned.insert(*block_id) {
+                    warn!(
+                        "flowsched mapping references block id {:?} more than once",
+                        block_id
+                    );
+                    continue;
+                }
+                spawn_block_on_executor(
+                    &self.inner.executor,
+                    Arc::clone(block),
+                    main_channel.clone(),
+                    executor,
+                );
+            }
+        }
+
+        // Spawn remaining blocks using the default mapper.
+        for (id, block) in blocks_by_id.into_iter() {
+            if spawned.contains(&id) {
+                continue;
+            }
+            let executor = FlowScheduler::map_block(id.0, n_blocks, n_cores);
+            spawn_block_on_executor(&self.inner.executor, block, main_channel.clone(), executor);
         }
     }
 
@@ -207,6 +214,38 @@ impl Scheduler for FlowScheduler {
 impl Default for FlowScheduler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn spawn_block_on_executor(
+    executor: &FlowExecutor,
+    block: Arc<async_lock::Mutex<dyn Block>>,
+    main_channel: Sender<FlowgraphMessage>,
+    queue_index: usize,
+) {
+    if block.lock_blocking().is_blocking() {
+        debug!("spawing block on executor");
+        executor
+            .spawn_executor(
+                blocking::unblock(move || {
+                    block_on(async move {
+                        let mut block = block.lock().await;
+                        block.run(main_channel).await;
+                    })
+                }),
+                queue_index,
+            )
+            .detach();
+    } else {
+        executor
+            .spawn_executor(
+                async move {
+                    let mut block = block.lock().await;
+                    block.run(main_channel).await;
+                },
+                queue_index,
+            )
+            .detach();
     }
 }
 

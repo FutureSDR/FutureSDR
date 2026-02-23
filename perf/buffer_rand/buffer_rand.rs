@@ -42,7 +42,19 @@ impl BufferType for CircBuffer {
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
 
-fn generate<B>() -> Result<(Flowgraph, Vec<BlockId>)>
+fn flow_mapping(pipe_blocks: &[Vec<BlockId>]) -> Vec<Vec<BlockId>> {
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let mut map = vec![Vec::new(); n_executors];
+
+    for (pipe_idx, blocks) in pipe_blocks.iter().enumerate() {
+        let executor = pipe_idx % n_executors;
+        map[executor].extend(blocks.iter().copied());
+    }
+
+    map
+}
+
+fn generate<B>() -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
@@ -57,17 +69,23 @@ where
 
     let mut fg = Flowgraph::new();
     let mut snks: Vec<BlockId> = Vec::new();
+    let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
 
     for _ in 0..pipes {
+        let mut pipe_block_ids: Vec<BlockId> = Vec::new();
+
         let src = NullSource::<f32, B::Writer<f32>>::new();
         let head = Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(samples as u64);
         connect!(fg, src > head);
+        pipe_block_ids.push((&src).into());
+        pipe_block_ids.push((&head).into());
 
         let mut last: BlockId = fg
             .add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
             ))?
             .into();
+        pipe_block_ids.push(last);
 
         fg.connect_dyn(
             head.dyn_stream_output("output")?,
@@ -85,6 +103,7 @@ where
                 block.dyn_stream_input("input")?,
             )?;
             last = block;
+            pipe_block_ids.push(last);
         }
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
@@ -92,9 +111,12 @@ where
             last.dyn_stream_output("output")?,
             snk.dyn_stream_input("input")?,
         )?;
-        snks.push(snk.into());
+        let snk_id: BlockId = snk.into();
+        snks.push(snk_id);
+        pipe_block_ids.push(snk_id);
+        pipes_blocks.push(pipe_block_ids);
     }
-    Ok((fg, snks))
+    Ok((fg, snks, pipes_blocks))
 }
 
 fn main() -> Result<()> {
@@ -108,11 +130,16 @@ fn main() -> Result<()> {
         slab,
     } = Args::parse();
 
-    let (mut fg, snks) = if slab {
+    let (mut fg, snks, pipe_blocks) = if slab {
         generate::<SlabBuffer>()?
     } else {
         generate::<CircBuffer>()?
     };
+
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    assert_eq!(pipe_blocks.len(), pipes);
+    assert_eq!(pipes, n_executors);
+    pipe_blocks.iter().for_each(|v| assert_eq!(v.len(), stages + 3));
 
     let elapsed;
 
@@ -127,7 +154,8 @@ fn main() -> Result<()> {
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime = Runtime::with_scheduler(FlowScheduler::new());
+        let runtime =
+            Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(&pipe_blocks)));
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
