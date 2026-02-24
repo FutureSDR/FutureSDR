@@ -32,6 +32,7 @@ pub struct SyncShort<
     #[output]
     output: O,
     state: State,
+    pending_start_tag: Option<f32>,
 }
 
 impl<I0, I1, I2, O> SyncShort<I0, I1, I2, O>
@@ -48,6 +49,7 @@ where
             in_cor: I2::default(),
             output: O::default(),
             state: State::Search,
+            pending_start_tag: None,
         }
     }
 }
@@ -98,7 +100,7 @@ where
                     if in_cor[i] > THRESHOLD {
                         let f_offset = -in_abs[i].arg() / 16.0;
                         self.state = State::Copy(0, f_offset, false);
-                        tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
+                        self.pending_start_tag = Some(f_offset);
                     } else {
                         self.state = State::Search;
                     }
@@ -109,7 +111,7 @@ where
                         if last_above_threshold && n_copied > MIN_GAP {
                             let f_offset = -in_abs[i].arg() / 16.0;
                             self.state = State::Copy(0, f_offset, false);
-                            tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
+                            self.pending_start_tag = Some(f_offset);
                             i += 1;
                             continue;
                         } else {
@@ -117,6 +119,12 @@ where
                         }
                     } else {
                         last_above_threshold = false;
+                    }
+
+                    if n_copied == 0
+                        && let Some(f_offset) = self.pending_start_tag.take()
+                    {
+                        tags.add_tag(o, Tag::NamedF32("wifi_start".to_string(), f_offset));
                     }
 
                     out[o] = in_sig[i] * Complex32::from_polar(1.0, f_offset * n_copied as f32); // accum?
