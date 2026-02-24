@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_8_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [512])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [512], ["flow", "smoln"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_8_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256], ["flow", "smoln"])]))')
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5,8,9,10,11 -d
 
@@ -34,7 +34,7 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 
 	$(SHIELD) -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) > $@
 
-perf-data/fs%.csv: null_rand.rs
+perf-data/fs%.csv:
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))

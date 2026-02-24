@@ -18,7 +18,7 @@ def conf_int(data, confidence=0.95):
 
 ### throughput vs stages
 d = pd.read_csv('perf-data/results.csv')
-d = d[d['max_copy'] == 512]
+d = d[d['max_copy'] == 256]
 t = d.groupby(['sdr', 'scheduler', 'stages']).agg({'time': 'mean'})
 print(t.unstack(level=[0,1]))
 
@@ -50,4 +50,3 @@ ax.legend(handles, labels, handlelength=2.95)
 
 plt.savefig('null_rand.pdf')
 plt.close('all')
-
