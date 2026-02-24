@@ -10,12 +10,12 @@ use futuresdr::runtime::Runtime;
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let usrp_sample_rate = 2_000_000.0;
+    let source_sample_rate = 2_000_000.0;
     let throttle_rate = 10_000_000.0;
 
     let src = Builder::new("")?
         .frequency(100e6)
-        .sample_rate(usrp_sample_rate)
+        .sample_rate(source_sample_rate)
         .gain(34.0)
         .build_source()?;
 
