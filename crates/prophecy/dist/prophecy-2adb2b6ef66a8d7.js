@@ -506,6 +506,10 @@ function __wbg_get_imports(memory) {
         __wbg_set_search_dceb4146ee48c532: function(arg0, arg1, arg2) {
             arg0.search = getStringFromWasm0(arg1, arg2);
         },
+        __wbg_shiftKey_64c9e551b1cbbee1: function(arg0) {
+            const ret = arg0.shiftKey;
+            return ret;
+        },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {
             const ret = arg1.stack;
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
