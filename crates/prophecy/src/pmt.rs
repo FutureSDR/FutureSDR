@@ -7,14 +7,19 @@ use leptos::html::Select;
 use leptos::html::Textarea;
 use leptos::prelude::*;
 
-pub const JSON_PMT_TYPES: [PmtKind; 13] = [
+pub const JSON_PMT_TYPES: [PmtKind; 18] = [
+    PmtKind::Ok,
+    PmtKind::InvalidValue,
     PmtKind::Null,
     PmtKind::String,
     PmtKind::Bool,
+    PmtKind::Usize,
+    PmtKind::Isize,
     PmtKind::U32,
     PmtKind::U64,
     PmtKind::F32,
     PmtKind::F64,
+    PmtKind::VecCF32,
     PmtKind::VecF32,
     PmtKind::VecU64,
     PmtKind::Blob,
@@ -27,6 +32,8 @@ pub fn parse_json_pmt(kind: PmtKind, input: &str) -> Result<Pmt, String> {
     let v = input.trim();
 
     match kind {
+        PmtKind::Ok => Ok(Pmt::Ok),
+        PmtKind::InvalidValue => Ok(Pmt::InvalidValue),
         PmtKind::Null => Ok(Pmt::Null),
         PmtKind::Finished => Ok(Pmt::Finished),
         PmtKind::String => {
@@ -46,6 +53,14 @@ pub fn parse_json_pmt(kind: PmtKind, input: &str) -> Result<Pmt, String> {
             .parse::<u32>()
             .map(Pmt::U32)
             .map_err(|_| "expected u32".to_string()),
+        PmtKind::Usize => v
+            .parse::<usize>()
+            .map(Pmt::Usize)
+            .map_err(|_| "expected usize".to_string()),
+        PmtKind::Isize => v
+            .parse::<isize>()
+            .map(Pmt::Isize)
+            .map_err(|_| "expected isize".to_string()),
         PmtKind::U64 => v
             .parse::<u64>()
             .map(Pmt::U64)
@@ -76,6 +91,8 @@ pub fn parse_json_pmt(kind: PmtKind, input: &str) -> Result<Pmt, String> {
                     .map_err(|_| "expected JSON array like [1, 2] or one u64".to_string())
             }
         }
+        PmtKind::VecCF32 => serde_json::from_str::<Pmt>(&format!(r#"{{"VecCF32":{v}}}"#))
+            .map_err(|e| format!("expected JSON complex array like [{{\"re\":1.0,\"im\":2.0}}]: {e}")),
         PmtKind::Blob => {
             if let Ok(list) = serde_json::from_str::<Vec<u8>>(v) {
                 Ok(Pmt::Blob(list))

@@ -538,9 +538,6 @@ fn render_block_node(
                                         .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
                                         .map(|el| {
                                             let _ = el.style().set_property("color", "#fbbf24");
-                                            let _ = el
-                                                .style()
-                                                .set_property("filter", "drop-shadow(0 0 5px rgba(251,191,36,0.9))");
                                         });
                                 }
                                 on:mouseleave=move |ev| {
@@ -549,7 +546,6 @@ fn render_block_node(
                                         .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
                                         .map(|el| {
                                             let _ = el.style().set_property("color", "#f59e0b");
-                                            let _ = el.style().set_property("filter", "none");
                                         });
                                 }
                                 on:click=move |_| {
@@ -824,6 +820,9 @@ pub fn FlowgraphCanvas(
     };
 
     let on_wheel = move |ev: web_sys::WheelEvent| {
+        if !ev.shift_key() {
+            return;
+        }
         ev.prevent_default();
         let old_scale = scale.get_untracked();
         let factor = if ev.delta_y() > 0.0 { 1.0 / 1.1 } else { 1.1 };

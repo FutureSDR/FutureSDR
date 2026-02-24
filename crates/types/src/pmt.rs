@@ -564,7 +564,7 @@ impl std::str::FromStr for PmtKind {
             "String" => return Ok(PmtKind::String),
             "Bool" => return Ok(PmtKind::Bool),
             "Usize" => return Ok(PmtKind::Usize),
-            "Isize" => return Ok(PmtKind::Isize),
+            "Isize" | "isize" => return Ok(PmtKind::Isize),
             "U32" => return Ok(PmtKind::U32),
             "U64" => return Ok(PmtKind::U64),
             "F32" => return Ok(PmtKind::F32),
