@@ -300,7 +300,7 @@ impl FlowExecutor {
         let key = entry.key();
         let state = self.state().clone();
         let future = async move {
-            let _guard = CallOnDrop(move || drop(state.active.lock().unwrap().remove(key)));
+            let _guard = CallOnDrop(move || drop(state.active.lock().unwrap().try_remove(key)));
             future.await
         };
 
@@ -324,7 +324,7 @@ impl FlowExecutor {
         let key = entry.key();
         let state = self.state().clone();
         let future = async move {
-            let _guard = CallOnDrop(move || drop(state.active.lock().unwrap().remove(key)));
+            let _guard = CallOnDrop(move || drop(state.active.lock().unwrap().try_remove(key)));
             future.await
         };
 
@@ -519,16 +519,20 @@ impl Ticker<'_> {
                     return Poll::Ready(r);
                 }
 
+                // Enter sleeping state before registering the waker so producers can
+                // reliably observe and clear `sleeping`.
+                self.signal.sleeping.store(true, Ordering::Release);
                 self.signal.waker.register(cx.waker());
+
+                // If a producer cleared the sleeping flag before registration
+                // completed, retry immediately instead of parking and losing wakeups.
+                if !self.signal.sleeping.load(Ordering::Acquire) {
+                    continue;
+                }
+
                 if let Some(r) = search() {
                     self.signal.sleeping.store(false, Ordering::Release);
                     return Poll::Ready(r);
-                }
-
-                self.signal.sleeping.store(true, Ordering::Release);
-                if search().is_some() {
-                    self.signal.sleeping.store(false, Ordering::Release);
-                    continue;
                 }
 
                 return Poll::Pending;
@@ -578,8 +582,7 @@ impl Runner<'_> {
 
     /// Waits for the next runnable task to run.
     async fn runnable(&mut self) -> Runnable {
-        let runnable = self
-            .ticker
+        self.ticker
             .runnable_with(|| {
                 // Try the local queue.
                 if let Ok(r) = self.local.pop() {
@@ -593,8 +596,7 @@ impl Runner<'_> {
 
                 None
             })
-            .await;
-        runnable
+            .await
     }
 }
 

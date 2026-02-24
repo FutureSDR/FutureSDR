@@ -35,25 +35,24 @@ use crate::runtime::scheduler::Task;
 use crate::runtime::scheduler::WasmScheduler;
 
 pub struct TaskHandle<'a, T> {
-    task: std::mem::ManuallyDrop<Task<T>>,
+    task: Option<Task<T>>,
     _p: std::marker::PhantomData<&'a ()>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<T> Drop for TaskHandle<'_, T> {
     fn drop(&mut self) {
-        // SAFETY: We take ownership of the `Task<T>`
-        // and then call `detach`. Because `task` is in a ManuallyDrop,
-        // the compiler won’t automatically drop it afterwards.
-        let task = unsafe { std::ptr::read(&*self.task) };
-        task.detach();
+        // If the task wasn't awaited to completion, detach it so it can keep running.
+        if let Some(task) = self.task.take() {
+            task.detach();
+        }
     }
 }
 
 impl<T> TaskHandle<'_, T> {
     fn new(task: Task<T>) -> Self {
         TaskHandle {
-            task: std::mem::ManuallyDrop::new(task),
+            task: Some(task),
             _p: std::marker::PhantomData,
         }
     }
@@ -62,7 +61,18 @@ impl<T> TaskHandle<'_, T> {
 impl<T> std::future::Future for TaskHandle<'_, T> {
     type Output = T;
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.task.poll_unpin(cx)
+        let task = self
+            .task
+            .as_mut()
+            .expect("TaskHandle polled after completion");
+        match task.poll_unpin(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(output) => {
+                // Mark as completed so Drop doesn't detach/retain a consumed task handle.
+                let _ = self.task.take();
+                Poll::Ready(output)
+            }
+        }
     }
 }
 
