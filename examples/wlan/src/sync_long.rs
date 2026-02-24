@@ -32,7 +32,9 @@ impl Correlator {
         // foo.sort_by(|x, y| y.1.norm().total_cmp(&x.1.norm()));
         // println!("top {:?}", &foo[0..5]);
 
-        self.cor_index = self.cor.iter().map(|x| x.norm_sqr()).enumerate().collect();
+        self.cor_index.clear();
+        self.cor_index
+            .extend(self.cor.iter().map(|x| x.norm_sqr()).enumerate());
         self.cor_index.sort_by(|x, y| y.1.total_cmp(&x.1));
         let (first, second) = if self.cor_index[0].0 < self.cor_index[1].0 {
             (self.cor_index[0].0, self.cor_index[1].0)
