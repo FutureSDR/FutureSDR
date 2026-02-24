@@ -19,7 +19,7 @@ categories = [
 ]
 
 [workspace]
-members = [".", "crates/futuredsp", "crates/macros", "crates/types", "examples/overflow_test"]
+members = [".", "crates/futuredsp", "crates/macros", "crates/types"]
 
 [features]
 default = ["tracing_max_level_debug", "tracing_release_max_level_info"]
