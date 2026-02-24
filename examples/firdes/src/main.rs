@@ -19,7 +19,6 @@ fn main() -> anyhow::Result<()> {
             x if x < 2 * SAMPLING_FREQ / 3 => TONE_FREQ.1,
             _ => TONE_FREQ.2,
         };
-        //println!("t is {}.", t);
         (2.0 * std::f32::consts::PI * t as f32 * freq / SAMPLING_FREQ as f32).sin()
     });
 
