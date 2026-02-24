@@ -1,6 +1,7 @@
 use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
+use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -163,16 +164,15 @@ where
             tags,
             ..
         }) = self.current.take()
+            && offset > self.reserved_items
         {
-            if offset > self.reserved_items {
-                let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap();
 
-                state.reader_input.push_back(BufferFull {
-                    buffer,
-                    items: offset - self.reserved_items,
-                    tags,
-                });
-            }
+            state.reader_input.push_back(BufferFull {
+                buffer,
+                items: offset - self.reserved_items,
+                tags,
+            });
         }
 
         let _ = self
@@ -441,9 +441,7 @@ where
             let b = self.current.take().unwrap();
             let mut state = self.state.lock().unwrap();
 
-            state
-                .writer_input
-                .push_back(BufferEmpty { buffer: b.buffer });
+            state.writer_input.push_back(BufferEmpty { buffer: b.buffer });
 
             let _ = self.writer_inbox.try_send(BlockMessage::Notify);
 
