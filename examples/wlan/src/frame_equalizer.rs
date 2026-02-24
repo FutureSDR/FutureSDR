@@ -289,6 +289,14 @@ where
                     i += 1;
                 }
                 State::Signal => {
+                    // Refuse to decode the SIGNAL field until at least one
+                    // output slot is free.  The wifi_start tag is placed at
+                    // the current output position; if we transition to Copy
+                    // with no room to write the first data symbol the tag
+                    // would be emitted without any accompanying bytes.
+                    if o >= max_o {
+                        break;
+                    }
                     self.equalizer.equalize(
                         &self.sym_in,
                         &mut self.sym_out,
