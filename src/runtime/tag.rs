@@ -55,8 +55,36 @@ pub enum Tag {
     NamedAny(String, Box<dyn TagAny>),
 }
 
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Tag::Id(x) => match other {
+                Tag::Id(y) => x == y,
+                _ => false,
+            },
+            Tag::String(x) => match other {
+                Tag::String(y) => x == y,
+                _ => false,
+            },
+            Tag::Data(x) => match other {
+                Tag::Data(y) => x == y,
+                _ => false,
+            },
+            Tag::NamedUsize(k1, v1) => match other {
+                Tag::NamedUsize(k2, v2) => k1 == k2 && v1 == v2,
+                _ => false,
+            },
+            Tag::NamedF32(k1, v1) => match other {
+                Tag::NamedF32(k2, v2) => k1 == k2 && v1 == v2,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+}
+
 /// Item tag
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ItemTag {
     /// Index of sample in buffer
     pub index: usize,

@@ -166,7 +166,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
         // main loop
         loop {
             // ================== non blocking
-            let mut msg = peek.take().or_else(|| inbox.try_next().ok().flatten());
+            let mut msg = peek.take().or_else(|| inbox.try_recv().ok());
             while let Some(m) = msg {
                 match m {
                     BlockMessage::Notify => {}
@@ -245,7 +245,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
                 };
                 // received at least one message
                 work_io.call_again = true;
-                msg = inbox.try_next().ok().flatten();
+                msg = inbox.try_recv().ok();
             }
 
             // ================== shutdown

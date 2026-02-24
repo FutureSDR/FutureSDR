@@ -865,8 +865,8 @@ impl State {
         out: &mut [Complex32],
         tags: &mut Tags,
     ) -> (isize, usize) {
-        if let Ok(Some(Pmt::MapStrPmt(mut frame_info))) =
-            self.tag_from_msg_handler_to_work_channel.1.try_next()
+        if let Ok(Pmt::MapStrPmt(mut frame_info)) =
+            self.tag_from_msg_handler_to_work_channel.1.try_recv()
         {
             // info!("new frame_info tag: {:?}", frame_info_tag);
             if self.collect_receive_statistics {
@@ -1018,7 +1018,7 @@ impl State {
         self.m_sto_frac = 0.;
         self.sfo_hat = 0.;
         self.sfo_cum = 0.;
-        let _ = self.tag_from_msg_handler_to_work_channel.1.try_next();
+        let _ = self.tag_from_msg_handler_to_work_channel.1.try_recv();
         self.cfo_frac_sto_frac_est = false;
         self.ready_to_detect = true;
     }

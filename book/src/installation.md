@@ -14,9 +14,8 @@ or modify the web UI, since it uses [Leptos](https://leptos.dev/), which
 provides an [ergonomic syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax)
 behind a `nightly` feature flag.
 
-```admonish info
-We recommend using the `nightly` Rust toolchain.
-```
+> [!TIP]
+> We recommend using the `nightly` Rust toolchain.
 
 You can switch to `nightly` globally:
 

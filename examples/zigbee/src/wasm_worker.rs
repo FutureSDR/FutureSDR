@@ -121,7 +121,7 @@ impl gloo_worker::Worker for Worker {
             WorkerMessage::Freq(f) => match &mut self.handle {
                 Handle::None => {}
                 Handle::Receiver(r) => {
-                    if let Ok(Some(mut h)) = r.try_next() {
+                    if let Ok(mut h) = r.try_recv() {
                         self.handle = Handle::Flowgraph(h.clone());
                         spawn_local(async move {
                             h.call(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();

@@ -95,15 +95,14 @@ FUTURESDR_LOG=info,lora::decoder=off cargo run --release --bin rx
 ```
 
 
-~~~admonish warning
-By default, FutureSDR sets feature flags that disable `tracing` level log messages in debug mode and everything more detailed than `info` in release mode. This is a *compile time* filter!
-
-Also, these flags are transitive! If you want more detailed logs in your application, disable default features for the FutureSDR dependency.
-```rustc
-[dependencies]
-futuresdr = { version = ..., default-features=false, features = ["foo", "bar"] }
-```
-~~~
+> [!WARNING]
+> By default, FutureSDR sets feature flags that disable `tracing` level log messages in debug mode and everything more detailed than `info` in release mode. This is a *compile time* filter!
+>
+> Also, these flags are transitive! If you want more detailed logs in your application, disable default features for the FutureSDR dependency.
+> ```rustc
+> [dependencies]
+> futuresdr = { version = ..., default-features=false, features = ["foo", "bar"] }
+> ```
 
 ## Command Line Arguments
 
@@ -128,13 +127,12 @@ Options:
 
 ```
 
-~~~admonish important
-When running applications with `cargo`, use `--` to separate command line parameters of cargo and the application.
-
-```bash
-cargo run --release --bin foo -- --sample_rate 3e6
-```
-~~~
+> [!IMPORTANT]
+> When running applications with `cargo`, use `--` to separate command line parameters of cargo and the application.
+>
+> ```bash
+> cargo run --release --bin foo -- --sample_rate 3e6
+> ```
 
 ## SDR Device Selection and Configuration
 
@@ -159,12 +157,12 @@ A complete command could be
 cargo run --release --bin receiver -- -a soapy_driver=rtlsdr
 ```
 
-```admonish important
-Seify will forward all arguments to Soapy. Only the `driver` argument has to be prefixed to `soapy_driver` to differentiate it from Seify driver selection.
-```
+> [!IMPORTANT]
+> Seify will forward all arguments to Soapy. Only the `driver` argument has to be prefixed to `soapy_driver` to differentiate it from Seify driver selection.
+> ```
 
-```admonish important
-Soapy might select the wrong device even if only one SDR is plugged into your PC.
-Use the `-a/--argument` to select the Soapy driver, e.g., `-a soapy_driver=rtlsdr`.
-```
+> [!IMPORTANT]
+> Soapy might select the wrong device even if only one SDR is plugged into your PC.
+> Use the `-a/--argument` to select the Soapy driver, e.g., `-a soapy_driver=rtlsdr`.
+> ```
 
