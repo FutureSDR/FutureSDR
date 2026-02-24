@@ -43,14 +43,16 @@ impl generic::Metadata for MyMetadata {
     fn new() -> Self {
         MyMetadata { tags: Vec::new() }
     }
-    fn add(&mut self, offset: usize, mut tags: Vec<Self::Item>) {
-        for t in tags.iter_mut() {
+    fn add_from_slice(&mut self, offset: usize, tags: &[Self::Item]) {
+        for t in tags {
+            let mut t = t.clone();
             t.index += offset;
+            self.tags.push(t);
         }
-        self.tags.append(&mut tags);
     }
-    fn get(&self) -> Vec<Self::Item> {
-        self.tags.clone()
+    fn get_into(&self, out: &mut Vec<Self::Item>) {
+        out.clear();
+        out.extend(self.tags.iter().cloned());
     }
     fn consume(&mut self, items: usize) {
         self.tags.retain(|x| x.index >= items);
@@ -232,10 +234,8 @@ where
     type Item = D;
 
     fn produce(&mut self, items: usize) {
-        self.writer
-            .as_mut()
-            .unwrap()
-            .produce(items, std::mem::take(&mut self.tags));
+        self.writer.as_mut().unwrap().produce(items, &self.tags);
+        self.tags.clear();
     }
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         let s = self.writer.as_mut().unwrap().slice(false);
@@ -366,11 +366,13 @@ where
     type Item = D;
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        match self.reader.as_mut().unwrap().slice(false) {
-            Some((s, tags)) => {
-                self.tags = tags;
-                (s, &self.tags)
-            }
+        match self
+            .reader
+            .as_mut()
+            .unwrap()
+            .slice_with_metadata_into(false, &mut self.tags)
+        {
+            Some(s) => (s, &self.tags),
             _ => {
                 debug_assert!(self.tags.is_empty());
                 (&[], &self.tags)
