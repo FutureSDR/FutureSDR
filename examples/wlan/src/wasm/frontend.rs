@@ -1,4 +1,5 @@
 use any_spawner::Executor;
+use futuresdr::runtime::FlowgraphDescription;
 use futuresdr::runtime::FlowgraphId;
 use futuresdr::runtime::Pmt;
 use leptos::html::Span;
@@ -6,13 +7,52 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::HtmlInputElement;
+use leptos::web_sys::KeyboardEvent;
 use prophecy::ConstellationSinkDensity;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphHandle;
 use prophecy::FlowgraphTable;
 use prophecy::ListSelector;
-use prophecy::RadioSelector;
+use prophecy::PmtEditor;
 use prophecy::RuntimeHandle;
+
+fn find_seify_source_block_id(desc: &FlowgraphDescription) -> Option<usize> {
+    let seify_blocks: Vec<_> = desc
+        .blocks
+        .iter()
+        .filter(|b| b.type_name.to_ascii_lowercase().contains("seify"))
+        .collect();
+
+    // Prefer the Seify block that exposes the expected radio-control handlers.
+    seify_blocks
+        .iter()
+        .find(|b| {
+            b.message_inputs.iter().any(|h| h == "sample_rate")
+                && b.message_inputs.iter().any(|h| h == "freq")
+                && b.message_inputs.iter().any(|h| h == "gain")
+        })
+        .or_else(|| {
+            // Fallback to type-name based source match.
+            seify_blocks
+                .iter()
+                .find(|b| b.type_name.eq_ignore_ascii_case("SeifySource"))
+        })
+        .or_else(|| {
+            seify_blocks
+                .iter()
+                .find(|b| b.type_name.to_ascii_lowercase().contains("source"))
+        })
+        .or_else(|| seify_blocks.first())
+        .map(|b| b.id.0)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct MessageInputTarget {
+    block_id: usize,
+    block_name: String,
+    handler: String,
+    source: &'static str,
+}
 
 #[component]
 pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
@@ -29,34 +69,161 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         })
     };
 
-    let (width, set_width) = signal(2.0f32);
+    let (width, _set_width) = signal(2.0f32);
+    let source_block_id = Memo::new(move |_| {
+        fg_desc
+            .get()
+            .and_then(|x| x)
+            .and_then(|desc| find_seify_source_block_id(&desc))
+    });
 
-    let width_label = NodeRef::<Span>::new();
     let gain_label = NodeRef::<Span>::new();
+    let (target, set_target) = signal(None::<MessageInputTarget>);
+    let (submit_error, set_submit_error) = signal(None::<String>);
+    let (submitting, set_submitting) = signal(false);
+    let _esc_listener = window_event_listener(leptos::ev::keydown, move |ev: KeyboardEvent| {
+        if ev.key() == "Escape" && target.get_untracked().is_some() {
+            set_target(None);
+        }
+    });
+    let on_canvas_message_input_click = Callback::new(move |(block_id, block_name, handler)| {
+        set_submit_error(None);
+        set_target(Some(MessageInputTarget {
+            block_id,
+            block_name,
+            handler,
+            source: "canvas",
+        }));
+    });
+    let on_table_message_input_click = Callback::new(move |(block_id, block_name, handler)| {
+        set_submit_error(None);
+        set_target(Some(MessageInputTarget {
+            block_id,
+            block_name,
+            handler,
+            source: "table",
+        }));
+    });
+    let fg_for_submit = fg_handle.clone();
+    let on_submit_pmt = Callback::new(move |pmt: Pmt| {
+        let selected = target.get_untracked();
+        if let Some(selected) = selected {
+            set_submitting(true);
+            set_submit_error(None);
+            let mut fg = fg_for_submit.clone();
+            spawn_local(async move {
+                let result = fg
+                    .put_message_input(selected.block_id, selected.handler.clone(), pmt)
+                    .await;
+                set_submitting(false);
+                match result {
+                    Ok(()) => set_target(None),
+                    Err(e) => set_submit_error(Some(format!("failed to send PMT: {e}"))),
+                }
+            });
+        }
+    });
+    let sample_rate_initialized = RwSignal::new(false);
+    let fg_for_sample_rate_init = fg_handle.clone();
+    let fg_for_channel_select = fg_handle.clone();
+    Effect::new(move |_| {
+        if sample_rate_initialized.get_untracked() {
+            return;
+        }
+        if let Some(source) = source_block_id.get() {
+            sample_rate_initialized.set(true);
+            let mut fg = fg_for_sample_rate_init.clone();
+            spawn_local(async move {
+                let _ = fg.call(source, "sample_rate", Pmt::F64(20e6)).await;
+            });
+        }
+    });
 
     view! {
-        <div class="border-2 border-slate-500 rounded-md flex flex-row flex-wrap m-4 p-4">
-            <div class="basis-1/3">
-                <input type="range" min="0" max="10" value="2" class="align-middle"
-                    on:change= move |v| {
-                        let target = v.target().unwrap();
-                        let input : HtmlInputElement = target.dyn_into().unwrap();
-                        width_label.get().unwrap().set_inner_text(&format!("width: {}", input.value()));
-                        set_width(input.value().parse().unwrap());
-                    } />
-                <span class="text-white p-2 m-2" node_ref=width_label>"width: 2"</span>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl m-4 p-5 shadow-lg">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-white text-lg font-semibold">"Radio Controls"</h2>
+                <span class="text-xs text-slate-400">
+                    {move || {
+                        source_block_id
+                            .get()
+                            .map(|id| format!("source block: {id}"))
+                            .unwrap_or_else(|| "source block: n/a".to_string())
+                    }}
+                </span>
             </div>
-
-            <div class="basis-1/3 text-white">
-                <RadioSelector fg_handle=fg_handle.clone() block_id=0 handler="sample_rate" values=[
-                    ("5 MHz".to_string(), Pmt::F64(5e6)),
-                    ("10 MHz".to_string(), Pmt::F64(10e6)),
-                    ("20 MHz".to_string(), Pmt::F64(20e6)),
-                ] label_class="p-2" />
-            </div>
-            <div class="basis-1/3">
-                <span class="text-white m-2">WLAN Channel</span>
-                <ListSelector fg_handle=fg_handle.clone() block_id=0 handler="freq" values=[
+            <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-4 items-start">
+                <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 h-40 flex flex-col">
+                    <div class="text-slate-300 text-sm mb-2">"Sample Rate"</div>
+                    <div class="flex flex-col gap-2 text-slate-200 text-sm">
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="wlan-sample-rate"
+                                on:change={
+                                    let fg_handle = fg_handle.clone();
+                                    move |_| {
+                                        let mut fg_handle = fg_handle.clone();
+                                        if let Some(source_block_id) = source_block_id.get_untracked() {
+                                            spawn_local(async move {
+                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(5e6)).await;
+                                            });
+                                        }
+                                    }
+                                }
+                            />
+                            <span>"5 MHz"</span>
+                        </label>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="wlan-sample-rate"
+                                on:change={
+                                    let fg_handle = fg_handle.clone();
+                                    move |_| {
+                                        let mut fg_handle = fg_handle.clone();
+                                        if let Some(source_block_id) = source_block_id.get_untracked() {
+                                            spawn_local(async move {
+                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(10e6)).await;
+                                            });
+                                        }
+                                    }
+                                }
+                            />
+                            <span>"10 MHz"</span>
+                        </label>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="wlan-sample-rate"
+                                checked=true
+                                on:change={
+                                    let fg_handle = fg_handle.clone();
+                                    move |_| {
+                                        let mut fg_handle = fg_handle.clone();
+                                        if let Some(source_block_id) = source_block_id.get_untracked() {
+                                            spawn_local(async move {
+                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(20e6)).await;
+                                            });
+                                        }
+                                    }
+                                }
+                            />
+                            <span>"20 MHz"</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 h-40 flex flex-col">
+                    <div class="text-slate-300 text-sm mb-2">"WLAN Channel"</div>
+                    {move || {
+                        match source_block_id.get() {
+                            Some(source_id) => view! {
+                                <ListSelector
+                                    fg_handle=fg_for_channel_select.clone()
+                                    block_id=source_id
+                                    handler="freq"
+                                    select_class="w-full rounded bg-slate-800 border border-slate-600 text-slate-100 px-2 py-2 text-sm"
+                                    values=[
                     // 11g
                     ("1".to_string(),	Pmt::F64(2412e6)),
                     ("2".to_string(),	Pmt::F64(2417e6)),
@@ -127,43 +294,122 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                     ("180".to_string(),	Pmt::F64(5900e6)),
                     ("182".to_string(),	Pmt::F64(5910e6)),
                     ("184".to_string(),	Pmt::F64(5920e6)),
-                ] />
+                    ] />
+                            }
+                                .into_any(),
+                            None => view! {
+                                <div class="text-slate-500 text-sm mt-2">
+                                    "Seify source block not found."
+                                </div>
+                            }
+                                .into_any(),
+                        }
+                    }}
                 </div>
-            <div class="basis-1/3">
-                <input type="range" min="0" max="80" value="60" class="align-middle"
-                    on:change= {
-                        let fg_handle = fg_handle.clone();
-                        move |v| {
-                            let target = v.target().unwrap();
-                            let input : HtmlInputElement = target.dyn_into().unwrap();
-                            gain_label.get().unwrap().set_inner_text(&format!("gain: {} dB", input.value()));
-                            let gain : f64 = input.value().parse().unwrap();
-                            let p = Pmt::F64(gain);
-                            let mut fg_handle = fg_handle.clone();
-                            spawn_local(async move {
-                                let _ = fg_handle.call(0, "gain", p).await;
-                            });
-                }} />
-                <span class="text-white p-2 m-2" node_ref=gain_label>"gain: 60 dB"</span>
+                <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 h-40 flex flex-col">
+                    <div class="text-slate-300 text-sm mb-2">"RF Gain"</div>
+                    <input type="range" min="0" max="80" value="60" class="w-full align-middle accent-cyan-400"
+                        on:change= {
+                            let fg_handle = fg_handle.clone();
+                            move |v| {
+                                let target = v.target().unwrap();
+                                let input : HtmlInputElement = target.dyn_into().unwrap();
+                                gain_label.get().unwrap().set_inner_text(&format!("gain: {} dB", input.value()));
+                                let gain : f64 = input.value().parse().unwrap();
+                                let p = Pmt::F64(gain);
+                                let mut fg_handle = fg_handle.clone();
+                                if let Some(source_block_id) = source_block_id.get_untracked() {
+                                    spawn_local(async move {
+                                        let _ = fg_handle.call(source_block_id, "gain", p).await;
+                                    });
+                                }
+                    }} />
+                    <span class="text-slate-100 text-sm block mt-2" node_ref=gain_label>"gain: 60 dB"</span>
+                </div>
             </div>
         </div>
 
-        <div class="border-2 border-slate-500 rounded-md m-4" style="height: 800px; max-height: 90vh">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl m-4 p-4 shadow-lg">
+            <h2 class="text-white text-lg font-semibold mb-3">"Constellation"</h2>
             <ConstellationSinkDensity width=width />
         </div>
 
-        <div class="border-2 border-slate-500 rounded-md m-4 p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl m-4 p-4 shadow-lg">
+            <h2 class="text-white text-lg font-semibold mb-3">"Flowgraph"</h2>
             {move || {
                 match fg_desc.get() {
                     Some(Some(desc)) => view! {
-                        <FlowgraphCanvas fg=desc.clone() on_message_input_click=Callback::new(|_| ()) />
-                        <FlowgraphTable fg=desc on_message_input_click=Callback::new(|_| ()) />
+                        <FlowgraphCanvas
+                            fg=desc.clone()
+                            on_message_input_click=on_canvas_message_input_click
+                        />
+                        <div class="-mx-4">
+                            <FlowgraphTable
+                                fg=desc
+                                on_message_input_click=on_table_message_input_click
+                            />
+                        </div>
                     }
                         .into_any(),
                     _ => view! {}.into_any(),
                 }
             }}
         </div>
+        {move || target
+            .get()
+            .map(|current| {
+                view! {
+                    <div
+                        class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+                        on:click=move |_| set_target(None)
+                    >
+                        <div
+                            class="w-full max-w-2xl rounded-lg bg-slate-900 border border-slate-700 p-4"
+                            on:click=move |ev| ev.stop_propagation()
+                        >
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-white text-lg font-semibold">"Send PMT"</h3>
+                                    <p class="text-slate-300 text-sm">
+                                        {format!(
+                                            "{} -> block {} ({}) / handler '{}'",
+                                            current.source,
+                                            current.block_id,
+                                            current.block_name,
+                                            current.handler
+                                        )}
+                                    </p>
+                                </div>
+                                <button
+                                    class="rounded bg-slate-700 hover:bg-slate-600 px-3 py-1 text-sm text-white"
+                                    on:click=move |_| set_target(None)
+                                    disabled=submitting
+                                >
+                                    "Close"
+                                </button>
+                            </div>
+                            <div class="mt-3">
+                                <PmtEditor
+                                    on_submit=on_submit_pmt
+                                    disabled=submitting()
+                                    select_class="w-full rounded bg-slate-800 text-white px-2 py-2"
+                                    input_class="w-full h-32 rounded bg-slate-800 text-white px-2 py-2 font-mono"
+                                    error_class="text-red-400 text-sm"
+                                    button_class="rounded bg-blue-600 hover:bg-blue-500 text-white px-3 py-2"
+                                    button_text=if submitting() {
+                                        "Sending...".to_string()
+                                    } else {
+                                        "Send".to_string()
+                                    }
+                                />
+                            </div>
+                            <div class="mt-2 text-red-400 text-sm">
+                                {move || submit_error.get().unwrap_or_default()}
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
     }
 }
 
@@ -185,16 +431,48 @@ pub fn Gui() -> impl IntoView {
     });
 
     view! {
-        <h1 class="text-xl text-white m-4">FutureSDR WLAN</h1>
-        {move || {
-            match fg_handle.get() {
-                Some(wrapped) => match wrapped {
-                    Some(handle) => view! { <Wlan fg_handle=handle /> }.into_any(),
-                    _ => view! {}.into_any(),
+        <div class="min-h-screen bg-slate-900">
+            <header class="bg-slate-800 border-b border-slate-700 shadow-lg">
+                <div class="flex items-center gap-3 px-4 py-3">
+                    <svg
+                        class="w-7 h-7 text-cyan-400 shrink-0"
+                        viewBox="0 0 28 28"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <path
+                            d="M1 14 Q4 6, 7 14 Q10 22, 13 14 Q16 6, 19 14 Q22 22, 25 14 Q27 9, 28 14"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            fill="none"
+                        />
+                    </svg>
+                    <div class="leading-tight">
+                        <span class="text-white font-semibold tracking-tight text-base">"FutureSDR"</span>
+                        <span class="text-cyan-400 font-light text-base ml-1.5">"WLAN"</span>
+                        <div class="text-xs text-slate-400">"Receiver Control Panel"</div>
+                    </div>
+                </div>
+            </header>
+
+            {move || {
+                match fg_handle.get() {
+                    Some(wrapped) => match wrapped {
+                        Some(handle) => view! { <Wlan fg_handle=handle /> }.into_any(),
+                        _ => view! {
+                            <div class="text-slate-300 p-6">"Failed to attach flowgraph."</div>
+                        }
+                            .into_any(),
+                    }
+                    _ => view! {
+                        <div class="text-slate-300 p-6">"Connecting..."</div>
+                    }
+                        .into_any(),
                 }
-                _ => view! { <div>"Connecting"</div> }.into_any(),
-            }
-        }}
+            }}
+        </div>
     }
 }
 
