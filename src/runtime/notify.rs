@@ -59,6 +59,12 @@ impl BlockNotifier {
     }
 }
 
+impl Default for BlockNotifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct Notified {
     state: Arc<BlockNotifyState>,
 }

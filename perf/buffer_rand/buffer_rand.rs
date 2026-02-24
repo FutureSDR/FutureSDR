@@ -139,7 +139,9 @@ fn main() -> Result<()> {
     let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
     assert_eq!(pipe_blocks.len(), pipes);
     assert_eq!(pipes, n_executors);
-    pipe_blocks.iter().for_each(|v| assert_eq!(v.len(), stages + 3));
+    pipe_blocks
+        .iter()
+        .for_each(|v| assert_eq!(v.len(), stages + 3));
 
     let elapsed;
 
@@ -154,8 +156,9 @@ fn main() -> Result<()> {
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime =
-            Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(&pipe_blocks)));
+        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(
+            &pipe_blocks,
+        )));
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();

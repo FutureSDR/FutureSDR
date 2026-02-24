@@ -764,9 +764,17 @@ pub fn FlowgraphCanvas(
                 let (dx, dy) = dst_pos.get();
                 bezier_path(
                     sx + BLOCK_WIDTH - 8.0,
-                    sy + TITLE_HEIGHT + src_sr * PORT_HEIGHT + si * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 2.0,
+                    sy + TITLE_HEIGHT
+                        + src_sr * PORT_HEIGHT
+                        + si * PORT_HEIGHT
+                        + PORT_HEIGHT / 2.0
+                        + 2.0,
                     dx + 8.0,
-                    dy + TITLE_HEIGHT + dst_sr * PORT_HEIGHT + di * PORT_HEIGHT + PORT_HEIGHT / 2.0 + 2.0,
+                    dy + TITLE_HEIGHT
+                        + dst_sr * PORT_HEIGHT
+                        + di * PORT_HEIGHT
+                        + PORT_HEIGHT / 2.0
+                        + 2.0,
                 )
             };
             Some(view! {
