@@ -171,7 +171,7 @@ where
                 }
                 self.input.consume(syms * 80);
                 self.output.produce(syms * 64);
-                self.state = State::Copy(n_copied + syms * 80, freq_offset);
+                self.state = State::Copy(n_copied + syms, freq_offset);
             }
         }
 
