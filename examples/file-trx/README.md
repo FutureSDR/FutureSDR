@@ -10,7 +10,7 @@ This directory contains examples for transmitting and receiving radio signals us
 
 To broadcast a previously recorded file:
 ```sh
-cargo run --release --bin tx --input {file_name}.{file_format} --frequency {center_frequency} --gain {gain} --repeat
+cargo run --release --bin tx -- --input {file_name}.{file_format} --frequency {center_frequency} --gain {gain} --repeat
 ```
 Input file formats can be either `cs8` or `cf32`.
 
