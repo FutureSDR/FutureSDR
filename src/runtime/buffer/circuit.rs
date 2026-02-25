@@ -2,6 +2,7 @@ use crate::channel::mpsc::Sender;
 use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
@@ -15,11 +16,78 @@ use crate::runtime::buffer::InplaceReader;
 use crate::runtime::buffer::InplaceWriter;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
+#[cfg(not(target_arch = "wasm32"))]
+use concurrent_queue::ConcurrentQueue;
 use futures::prelude::*;
 use std::any::Any;
+#[cfg(target_arch = "wasm32")]
 use std::collections::VecDeque;
 use std::sync::Arc;
+#[cfg(target_arch = "wasm32")]
 use std::sync::Mutex;
+
+#[cfg(not(target_arch = "wasm32"))]
+type Queue<T> = ConcurrentQueue<T>;
+#[cfg(target_arch = "wasm32")]
+type Queue<T> = Mutex<VecDeque<T>>;
+
+fn queue_new<T>() -> Queue<T> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        ConcurrentQueue::bounded(1024)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        Mutex::new(VecDeque::new())
+    }
+}
+
+fn queue_push<T>(queue: &Queue<T>, item: T) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if queue.push(item).is_err() {
+            panic!("circuit queue push failed (full or closed)");
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        queue.lock().unwrap().push_back(item);
+    }
+}
+
+fn queue_pop<T>(queue: &Queue<T>) -> Option<T> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        queue.pop().ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        queue.lock().unwrap().pop_front()
+    }
+}
+
+fn queue_pop_back<T>(queue: &Queue<T>) -> Option<T> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // No pop_back for concurrent queue. Use pop as FIFO.
+        queue.pop().ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        queue.lock().unwrap().pop_back()
+    }
+}
+
+fn queue_is_empty<T>(queue: &Queue<T>) -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        queue.is_empty()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        queue.lock().unwrap().is_empty()
+    }
+}
 
 /// In-place buffer
 pub struct Buffer<T>
@@ -72,10 +140,12 @@ where
     reader_inbox: Sender<BlockMessage>,
     reader_input: PortId,
     writer_inbox: Sender<BlockMessage>,
+    notifier: BlockNotifier,
+    reader_notifier: BlockNotifier,
     writer_id: BlockId,
     writer_output: PortId,
-    inbound: Arc<Mutex<Vec<Option<Buffer<T>>>>>,
-    outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
+    inbound: Arc<Queue<Option<Buffer<T>>>>,
+    outbound: Arc<Queue<Buffer<T>>>,
     buffer_size_in_items: usize,
     // for CPU buffer writer
     current: Option<Buffer<T>>,
@@ -96,10 +166,12 @@ where
             reader_inbox: rx.clone(),
             reader_input: PortId::default(),
             writer_inbox: rx,
+            notifier: BlockNotifier::new(),
+            reader_notifier: BlockNotifier::new(),
             writer_id: BlockId::default(),
             writer_output: PortId::default(),
-            inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(VecDeque::new())),
+            inbound: Arc::new(queue_new()),
+            outbound: Arc::new(queue_new()),
             buffer_size_in_items: config().buffer_size / std::mem::size_of::<T>(),
             current: None,
             min_items: 1,
@@ -110,7 +182,7 @@ where
 
     /// Close Circuit
     pub fn close_circuit(&mut self, end: &mut Reader<T>) {
-        end.circuit_start = Some((self.writer_inbox.clone(), self.inbound.clone()));
+        end.circuit_start = Some((self.notifier.clone(), self.inbound.clone()));
     }
 }
 
@@ -133,6 +205,7 @@ where
         self.writer_id = block_id;
         self.writer_output = port_id;
         self.writer_inbox = inbox.control;
+        self.notifier = inbox.notifier;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -150,14 +223,17 @@ where
         self.reader_input = dest.reader_input.clone();
         self.reader_inbox = dest.reader_inbox.clone();
         self.outbound = dest.inbound.clone();
+        self.reader_notifier = dest.notifier.clone();
 
         dest.writer_inbox = self.writer_inbox.clone();
+        dest.writer_notifier = self.notifier.clone();
         dest.writer_output = self.writer_output.clone();
     }
 
     async fn notify_finished(&mut self) {
         if let Some(b) = self.current.take() {
-            self.outbound.lock().unwrap().push_back(b);
+            queue_push(&self.outbound, b);
+            self.reader_notifier.notify();
         }
         let _ = self
             .reader_inbox
@@ -185,14 +261,15 @@ where
     type Buffer = Buffer<T>;
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) {
-        self.outbound.lock().unwrap().push_back(buffer);
-        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+        queue_push(&self.outbound, buffer);
+        self.reader_notifier.notify();
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {
-        self.inbound.lock().unwrap().pop().map(|b| {
+        queue_pop_back(&self.inbound).map(|b| {
             if let Some(mut b) = b {
                 b.valid = b.buffer.len();
+                b.tags.clear();
                 b
             } else {
                 Buffer::with_items(self.buffer_size_in_items)
@@ -201,13 +278,12 @@ where
     }
 
     fn has_more_buffers(&mut self) -> bool {
-        !self.inbound.lock().unwrap().is_empty()
+        !queue_is_empty(&self.inbound)
     }
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
-        let mut inbound = self.inbound.lock().unwrap();
         for _ in 0..n_buffers {
-            inbound.push(Some(Buffer::with_items(n_items)));
+            queue_push(&self.inbound, Some(Buffer::with_items(n_items)));
         }
     }
 }
@@ -219,7 +295,7 @@ where
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         if self.current.is_none() {
-            match self.inbound.lock().unwrap().pop() {
+            match queue_pop_back(&self.inbound) {
                 Some(Some(mut b)) => {
                     b.valid = 0;
                     b.tags.clear();
@@ -248,13 +324,13 @@ where
         c.valid += n;
         if (c.buffer.len() - c.valid) < self.min_items {
             let c = self.current.take().unwrap();
-            self.outbound.lock().unwrap().push_back(c);
+            queue_push(&self.outbound, c);
 
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_notifier.notify();
 
             // make sure to be called again, if we have another buffer queued
-            if !self.inbound.lock().unwrap().is_empty() {
-                let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+            if !queue_is_empty(&self.inbound) {
+                self.notifier.notify();
             }
         }
     }
@@ -285,10 +361,12 @@ where
     reader_id: BlockId,
     reader_input: PortId,
     writer_inbox: Sender<BlockMessage>,
+    notifier: BlockNotifier,
+    writer_notifier: BlockNotifier,
     writer_output: PortId,
-    inbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
+    inbound: Arc<Queue<Buffer<T>>>,
     #[allow(clippy::type_complexity)]
-    circuit_start: Option<(Sender<BlockMessage>, Arc<Mutex<Vec<Option<Buffer<T>>>>>)>,
+    circuit_start: Option<(BlockNotifier, Arc<Queue<Option<Buffer<T>>>>)>,
     finished: bool,
     // for CPU buffer reader
     current: Option<(Buffer<T>, usize)>,
@@ -306,8 +384,10 @@ where
             reader_id: BlockId::default(),
             reader_input: PortId::default(),
             writer_inbox: rx,
+            notifier: BlockNotifier::new(),
+            writer_notifier: BlockNotifier::new(),
             writer_output: PortId::default(),
-            inbound: Arc::new(Mutex::new(VecDeque::new())),
+            inbound: Arc::new(queue_new()),
             circuit_start: None,
             finished: false,
             current: None,
@@ -337,6 +417,7 @@ where
         self.reader_id = block_id;
         self.reader_input = port_id;
         self.reader_inbox = inbox.control;
+        self.notifier = inbox.notifier;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -364,7 +445,7 @@ where
     }
 
     fn finished(&self) -> bool {
-        self.finished && self.inbound.lock().unwrap().is_empty()
+        self.finished && queue_is_empty(&self.inbound)
     }
 
     fn block_id(&self) -> BlockId {
@@ -385,26 +466,27 @@ where
     type Buffer = Buffer<T>;
 
     fn get_full_buffer(&mut self) -> Option<Self::Buffer> {
-        self.inbound.lock().unwrap().pop_front()
+        queue_pop(&self.inbound)
     }
 
     fn has_more_buffers(&mut self) -> bool {
-        !self.inbound.lock().unwrap().is_empty()
+        !queue_is_empty(&self.inbound)
     }
 
-    fn put_empty_buffer(&mut self, buffer: Self::Buffer) {
-        if let Some((ref mut inbox, ref buffers)) = self.circuit_start {
-            buffers.lock().unwrap().push(Some(buffer));
-            let _ = inbox.try_send(BlockMessage::Notify);
+    fn put_empty_buffer(&mut self, mut buffer: Self::Buffer) {
+        buffer.tags.clear();
+        if let Some((ref notifier, ref buffers)) = self.circuit_start {
+            queue_push(buffers, Some(buffer));
+            notifier.notify();
         } else {
             warn!("Put empty buffer in unconnected circuit reader. Dropping buffer.")
         }
     }
 
     fn notify_consumed_buffer(&mut self) {
-        if let Some((ref mut inbox, ref buffers)) = self.circuit_start {
-            buffers.lock().unwrap().push(None);
-            let _ = inbox.try_send(BlockMessage::Notify);
+        if let Some((ref notifier, ref buffers)) = self.circuit_start {
+            queue_push(buffers, None);
+            notifier.notify();
         } else {
             warn!("Dropped buffer in unconnected circuit reader. Dropping buffer.")
         }
@@ -419,7 +501,7 @@ where
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         if self.current.is_none() {
-            match self.inbound.lock().unwrap().pop_front() {
+            match queue_pop(&self.inbound) {
                 Some(b) => {
                     self.current = Some((b, 0));
                 }
@@ -444,11 +526,12 @@ where
         *o += n;
 
         if *o == c.valid {
-            let (b, _) = self.current.take().unwrap();
+            let (mut b, _) = self.current.take().unwrap();
+            b.tags.clear();
             match self.circuit_start {
-                Some((ref mut inbox, ref queue)) => {
-                    queue.lock().unwrap().push(Some(b));
-                    let _ = inbox.try_send(BlockMessage::Notify);
+                Some((ref notifier, ref queue)) => {
+                    queue_push(queue, Some(b));
+                    notifier.notify();
                 }
                 None => {
                     warn!(
@@ -458,8 +541,8 @@ where
             }
 
             // make sure to be called again, if we have another buffer queued
-            if !self.inbound.lock().unwrap().is_empty() {
-                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            if !queue_is_empty(&self.inbound) {
+                self.notifier.notify();
             }
         }
     }
