@@ -26,17 +26,25 @@ d = d.groupby(['sdr', 'config', 'stages']).agg({'time': ['mean', 'var', conf_int
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[('gr')].reset_index()
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\\,Radio')
+if ('gr', 'legacy') in d.index:
+    t = d.loc[('gr')].reset_index()
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\\,Radio')
 
-# t = d.loc[('fs', 'smol1')].reset_index();
-# ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-1')
+if ('fs', 'smoln') in d.index:
+    t = d.loc[('fs', 'smoln')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')
 
-t = d.loc[('fs', 'smoln')].reset_index();
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')
+if ('fs', 'flow') in d.index:
+    t = d.loc[('fs', 'flow')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
 
-t = d.loc[('fs', 'flow')].reset_index();
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
+if ('fs', 'inplace-smol') in d.index:
+    t = d.loc[('fs', 'inplace-smol')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Inplace Smol')
+
+if ('fs', 'inplace-flow') in d.index:
+    t = d.loc[('fs', 'inplace-flow')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Inplace Flow')
 
 if ('fs', 'slab') in d.index:
     t = d.loc[('fs', 'slab')].reset_index();
@@ -51,5 +59,5 @@ handles, labels = ax.get_legend_handles_labels()
 handles = [x[0] for x in handles]
 ax.legend(handles, labels, handlelength=2.95)
 
-plt.savefig('null.pdf')
+plt.savefig('add.pdf')
 plt.close('all')

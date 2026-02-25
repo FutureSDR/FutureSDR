@@ -1,3 +1,8 @@
+pub mod inplace;
+
+mod add;
+pub use add::Add;
+
 mod copy_rand;
 pub use copy_rand::CopyRand;
 
