@@ -164,16 +164,15 @@ fn main() -> Result<()> {
         config,
     } = Args::parse();
 
+    futuresdr::runtime::config::set("buffer_size", 65536);
+
     let use_inplace = config == "inplace-smol" || config == "inplace-flow";
     let use_slab = config == "slab";
     let (mut fg, snks, pipe_blocks) = if use_inplace {
-        futuresdr::runtime::config::set("buffer_size", 65536 / 2);
         generate_inplace(pipes, stages, samples)?
     } else if use_slab {
-        futuresdr::runtime::config::set("buffer_size", 65536);
         generate::<SlabBuffer>(pipes, stages, samples)?
     } else {
-        futuresdr::runtime::config::set("buffer_size", 65536);
         generate::<CircBuffer>(pipes, stages, samples)?
     };
 
