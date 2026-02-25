@@ -15,20 +15,30 @@ def conf_int(data, confidence=0.95):
     return h
 
 d = pd.read_csv('perf-data/results.csv')
-d = d.groupby(['sdr', 'stages']).agg({'time': [np.mean, np.var, conf_int]})
+t = d.groupby(['sdr', 'config', 'stages']).agg({'time': 'mean'})
+print(t.unstack(level=[0,1]))
+
+d = d.groupby(['sdr', 'config', 'stages']).agg({'time': ['mean', 'var', conf_int]})
 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[('gr')]
-ax.errorbar(t.index**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNURadio')
+t = d.loc[('gr')].reset_index()
+ax.errorbar(t['stages']**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNURadio')
 
-t = d.loc[('fs')]
-ax.errorbar(t.index**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='FutureSDR')
+# t = d.loc[('fs', 'smol1')].reset_index()
+# ax.errorbar(t['stages']**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='FutureSDR Smol-1')
+
+t = d.loc[('fs', 'smoln')].reset_index()
+ax.errorbar(t['stages']**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='FutureSDR Smol-N')
+
+t = d.loc[('fs', 'flow')].reset_index()
+ax.errorbar(t['stages']**2, t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='FutureSDR Flow')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
-ax.set_xlabel('\#\,Pipes $\\times$ \#\,Stages')
+ax.set_xlabel('\\#\\,Pipes $\\times$ \\#\\,Stages')
 ax.set_ylabel('Execution Time (in s)')
+ax.set_yscale('log')
 
 handles, labels = ax.get_legend_handles_labels()
 handles = [x[0] for x in handles]
@@ -36,4 +46,3 @@ ax.legend(handles, labels, handlelength=2.95)
 
 plt.savefig('msg.pdf')
 plt.close('all')
-

@@ -72,7 +72,7 @@ int main (int argc, char **argv) {
         auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count()/1e9;
 
         std::cout <<
-            boost::format("%1$4d, %2$4d,  %3$4d,   %4$4d,       %5$4d,       %6$20.12f") %
+            boost::format("%1$4d, %2$4d,  %3$4d,   %4$4d,       %5$4d, legacy,       %6$20.12f") %
                            run    % pipes % stages % repetition % burst_size % time << std::endl;
     }
 
