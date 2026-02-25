@@ -36,7 +36,7 @@ struct Args {
     cpu: bool,
 }
 
-const N_ITEMS: usize = 100_000_000;
+const N_ITEMS: usize = 2_000_000;
 
 fn run_cpu(orig: Vec<f32>) -> Result<Vec<f32>> {
     let mut fg = Flowgraph::new();

@@ -403,7 +403,7 @@ jobs:
       RUST_BACKTRACE: full
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly 
       - run: sudo apt-get -y update
       - run: sudo apt-get -y install libzmq3-dev
       - run: sudo apt-get -y install libasound2-dev
@@ -422,7 +422,7 @@ jobs:
       RUST_BACKTRACE: full
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly 
       - run: brew install shaderc glslang spirv-tools
       - name: Build
         run: cargo test --all-targets --workspace --features=burn,aaronia_http,flow_scheduler,seify_dummy,wgpu

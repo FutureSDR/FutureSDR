@@ -18,6 +18,7 @@ use web_time::Instant;
 /// let throttle = Throttle::<u8>::new(1_000_000.0);
 /// ```
 #[derive(Block)]
+#[message_inputs(rate)]
 pub struct Throttle<
     T: Copy + Send + 'static,
     I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
@@ -47,6 +48,26 @@ where
             t_init: Instant::now(),
             n_items: 0,
         }
+    }
+
+    async fn rate(
+        &mut self,
+        io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        println!("New rate {p:?}");
+        if let Pmt::F64(new_rate) = p {
+            self.rate = new_rate;
+            self.n_items = 0;
+            self.t_init = Instant::now();
+        } else if let Pmt::Finished = p {
+            io.finished = true;
+        } else {
+            warn! {"PMT to rate_handler was not a f64"}
+        }
+        Ok(Pmt::Null)
     }
 }
 
