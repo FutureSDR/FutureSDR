@@ -170,6 +170,7 @@ where
 
         let max_i = input.len() / 48;
         let mut i = 0;
+        let mut broke_early = false;
 
         // println!("decoder input: {:?}", &input[0..max_i * 48]);
 
@@ -204,12 +205,15 @@ where
                     mio.post("rftap", Pmt::Blob(rftap)).await?;
                 }
 
-                i = max_i;
+                broke_early = true;
                 break;
             }
         }
 
         self.input.consume(i * 48);
+        if broke_early && i < max_i {
+            io.call_again = true;
+        }
         if self.input.finished() && i == max_i {
             mio.post("rx_frames", Pmt::Finished).await?;
             io.finished = true;

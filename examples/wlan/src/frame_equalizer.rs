@@ -94,6 +94,7 @@ where
     bits_out: [u8; 48],
     decoder: ViterbiDecoder,
     syms: Vec<Complex32>,
+    pending_frame_tag: Option<FrameParam>,
 }
 
 impl<I, O> FrameEqualizer<I, O>
@@ -113,6 +114,7 @@ where
             bits_out: [0; 48],
             decoder: ViterbiDecoder::new(),
             syms: Vec::new(),
+            pending_frame_tag: None,
         }
     }
 
@@ -216,6 +218,7 @@ where
                     info!("frame equalizer: canceling frame");
                 }
                 self.state = State::Sync1;
+                self.pending_frame_tag = None;
             } else {
                 input = &input[0..*index];
             }
@@ -317,20 +320,24 @@ where
                             frame.n_symbols(),
                             frame.mcs().modulation(),
                         );
-                        out_tags.add_tag(
-                            o * 48,
-                            Tag::NamedAny("wifi_start".to_string(), Box::new(frame)),
-                        );
+                        self.pending_frame_tag = Some(frame);
                     } else {
                         info!(
                             "signal field could not be decoded, snr {}",
                             self.equalizer.snr()
                         );
                         self.state = State::Skip;
+                        self.pending_frame_tag = None;
                     }
                 }
                 &mut State::Copy(mut n_sym, ref mut all_sym, ref mut modulation) => {
                     if o < max_o {
+                        if let Some(frame) = self.pending_frame_tag.take() {
+                            out_tags.add_tag(
+                                o * 48,
+                                Tag::NamedAny("wifi_start".to_string(), Box::new(frame)),
+                            );
+                        }
                         self.equalizer.equalize(
                             &self.sym_in,
                             &mut self.sym_out,
