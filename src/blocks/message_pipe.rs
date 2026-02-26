@@ -28,7 +28,11 @@ impl MessagePipe {
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        self.sender.send(p).await?;
-        Ok(Pmt::Null)
+        if self.sender.send(p).await.is_ok() {
+            Ok(Pmt::Ok)
+        } else {
+            // Channel Receiver dropped
+            Ok(Pmt::Finished)
+        }
     }
 }
