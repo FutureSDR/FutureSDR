@@ -2,9 +2,10 @@ SHELL=/bin/bash
 
 RUNS=0 1 2 3 4
 SIZES=10 100 1000
+CONFIGS=normal opti
 
 GRRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),perf-data/gr_$(r)_$(s).csv))
-FSRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),perf-data/fs_$(r)_$(s).csv))
+FSRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),$(foreach c,$(CONFIGS),perf-data/fs_$(r)_$(s)_$(c).csv)))
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5 -d
 PY_USER_SITE=$(shell python3 -c "import site; print(site.getusersitepackages())")
@@ -33,8 +34,9 @@ perf-data/fs_%.csv:
 	mkdir -p perf-data
 	$(eval RUN=$(word 1,$(subst _, ,$*)))
 	$(eval SIZE=$(word 2,$(subst _, ,$*)))
-	@echo "FS run=$(RUN) size=$(SIZE)"
-	$(SHIELD) -- cargo run --release --bin rx -- --run=$(RUN) --file=wlan-$(SIZE).cf32 > $@
+	$(eval CONFIG=$(word 3,$(subst _, ,$*)))
+	@echo "FS run=$(RUN) size=$(SIZE) config=$(CONFIG)"
+	$(SHIELD) -- cargo run --release --bin rx -- --run=$(RUN) --file=wlan-$(SIZE).cf32 --config=$(CONFIG) > $@
 
 parse:
 	./parse.sh
