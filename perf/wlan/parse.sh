@@ -1,18 +1,28 @@
 #!/bin/bash
+set -euo pipefail
 
 outfile=perf-data/results.csv
-rm -f ${outfile}
+mkdir -p perf-data
+rm -f "${outfile}"
 
-echo "sdr,run,pipes,stages,samples,config,time" > ${outfile}
+echo "sdr,run,file,time,frames" > "${outfile}"
 
-files=$(ls perf-data/gr_*.csv 2>/dev/null || echo)
-for f in ${files}
-do
-	echo "gr,$(cat $f)" >> ${outfile}
+for f in perf-data/gr_*.csv; do
+    [[ -e "$f" ]] || continue
+    line=$(tail -n 1 "$f")
+    run=$(echo "$line" | cut -d, -f1)
+    file=$(echo "$line" | cut -d, -f2)
+    time=$(echo "$line" | cut -d, -f3)
+    frames=$(echo "$file" | sed -E 's/.*wlan-([0-9]+)\.cf32/\1/')
+    echo "gr,${run},${file},${time},${frames}" >> "${outfile}"
 done
 
-files=$(ls perf-data/fs_*.csv 2>/dev/null || echo)
-for f in ${files}
-do
-	echo "fs,$(cat $f)" >> ${outfile}
+for f in perf-data/fs_*.csv; do
+    [[ -e "$f" ]] || continue
+    line=$(tail -n 1 "$f")
+    run=$(echo "$line" | cut -d, -f1)
+    file=$(echo "$line" | cut -d, -f2)
+    time=$(echo "$line" | cut -d, -f3)
+    frames=$(echo "$file" | sed -E 's/.*wlan-([0-9]+)\.cf32/\1/')
+    echo "fs,${run},${file},${time},${frames}" >> "${outfile}"
 done

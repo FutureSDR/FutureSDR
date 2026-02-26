@@ -1,52 +1,40 @@
 #!/usr/bin/env python3
 
-import pandas as pd
-import numpy as np
-import scipy.stats
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-plt.style.use('../acmart.mplrc')
+plt.style.use("../acmart.mplrc")
 
-def conf_int(data, confidence=0.95):
-    a = 1.0*np.array(data)
-    n = len(a)
-    m, se = np.mean(a), scipy.stats.sem(a)
-    if (n < 2) or (se == 0):
-        return np.nan
-    h = se * scipy.stats.t.ppf((1+confidence)/2., n-1)
-    return h
+d = pd.read_csv("perf-data/results.csv")
+t = (
+    d.groupby(["frames", "sdr"], as_index=False)
+    .agg(time_mean=("time", "mean"))
+    .sort_values(["frames", "sdr"])
+)
 
-### throughput vs stages
-d = pd.read_csv('perf-data/results.csv')
-t = d.groupby(['sdr', 'config', 'stages']).agg({'time': 'mean'})
-print(t.unstack(level=[0,1]))
+pivot = t.pivot(index="frames", columns="sdr", values="time_mean").sort_index()
+print(pivot)
 
-d = d.groupby(['sdr', 'config', 'stages']).agg({'time': ['mean', 'var', conf_int]})
+frames = pivot.index.to_numpy()
+x = np.arange(len(frames))
+width = 0.34
+
+fs_vals = pivot["fs"].to_numpy() if "fs" in pivot.columns else np.zeros(len(frames))
+gr_vals = pivot["gr"].to_numpy() if "gr" in pivot.columns else np.zeros(len(frames))
 
 fig, ax = plt.subplots(1, 1)
-fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
+fig.subplots_adjust(bottom=0.2, left=0.12, top=0.98, right=0.98)
 
-t = d.loc[('gr')].reset_index()
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='GNU\\,Radio')
+ax.bar(x - width / 2, fs_vals, width, label="FutureSDR")
+ax.bar(x + width / 2, gr_vals, width, label="GNU Radio")
 
-t = d.loc[('fs', 'smoln')].reset_index();
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')
-
-t = d.loc[('fs', 'flow')].reset_index();
-ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
-
-if ('fs', 'slab') in d.index:
-    t = d.loc[('fs', 'slab')].reset_index();
-    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow+Slab')
-
-plt.setp(ax.get_yticklabels(), rotation=90, va="center")
-ax.set_xlabel('\\#\\,Stages')
-ax.set_ylabel('Execution Time (in s)')
+ax.set_xticks(x)
+ax.set_xticklabels([str(v) for v in frames])
+ax.set_xlabel("Frame Size")
+ax.set_ylabel("Execution Time (in s)")
 ax.set_ylim(0)
+ax.legend()
 
-handles, labels = ax.get_legend_handles_labels()
-handles = [x[0] for x in handles]
-ax.legend(handles, labels, handlelength=2.95)
-
-plt.savefig('null.pdf')
-plt.close('all')
+plt.savefig("wlan.pdf")
+plt.close("all")

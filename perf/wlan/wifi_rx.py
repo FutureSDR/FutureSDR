@@ -118,6 +118,9 @@ class wifi_rx(gr.top_block):
 def argument_parser():
     parser = ArgumentParser()
     parser.add_argument(
+        "--run", dest="run", type=int, default=0,
+        help="Set run number [default=%(default)r]")
+    parser.add_argument(
         "-f", "--file", dest="file", type=str, default='wlan-100.cf32',
         help="Set file name [default=%(default)r]")
     return parser
@@ -143,7 +146,7 @@ def main(top_block_cls=wifi_rx, options=None):
     tb.wait()
     t1 = time.time()
 
-    print("{}, {}".format(options.file, t1 - t0))
+    print("{},{},{}".format(options.run, options.file, t1 - t0))
 
 
 if __name__ == '__main__':
