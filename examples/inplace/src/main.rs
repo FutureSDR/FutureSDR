@@ -6,10 +6,12 @@ use inplace::Apply;
 use inplace::VectorSink;
 use inplace::VectorSource;
 
+const ITEMS: i32 = 99_999_999i32;
+
 fn run_inplace() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let orig = Vec::from_iter(0..999_999i32);
+    let orig = Vec::from_iter(0..ITEMS);
 
     let mut src: VectorSource<i32> = VectorSource::new(orig.clone());
     src.output().inject_buffers(4);
@@ -39,7 +41,7 @@ fn run_hybrid() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let orig = Vec::from_iter(0..999_999i32);
+    let orig = Vec::from_iter(0..ITEMS);
 
     let mut src = VectorSource::<i32, circuit::Writer<i32>>::new(orig.clone());
     src.output().inject_buffers(4);
@@ -70,7 +72,7 @@ fn run_outofplace() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let orig = Vec::from_iter(0..999_999i32);
+    let orig = Vec::from_iter(0..ITEMS);
 
     let src: VectorSource<i32> = VectorSource::new(orig.clone());
     let apply: Apply<_, _, _> = Apply::new(|i: &i32| i.wrapping_add(1));
