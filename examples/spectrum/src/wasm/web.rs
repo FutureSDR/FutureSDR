@@ -8,6 +8,7 @@ use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;
 use prophecy::ListSelector;
+use prophecy::PmtEditor;
 use prophecy::TimeSink;
 use prophecy::TimeSinkMode;
 use prophecy::Waterfall;
@@ -17,8 +18,17 @@ use prophecy::leptos::html::Span;
 use prophecy::leptos::prelude::*;
 use prophecy::leptos::task::spawn_local;
 use prophecy::leptos::wasm_bindgen::JsCast;
+use prophecy::leptos::web_sys::KeyboardEvent;
 
 const FFT_SIZE: usize = 2048;
+
+#[derive(Clone, Debug, PartialEq)]
+struct MessageInputTarget {
+    block_id: usize,
+    block_name: String,
+    handler: String,
+    source: &'static str,
+}
 
 #[component]
 /// Spectrum Widget
@@ -51,6 +61,50 @@ pub fn Spectrum(
     let ctrl_click = move |_| {
         set_ctrl(!ctrl());
     };
+    let (target, set_target) = signal(None::<MessageInputTarget>);
+    let (submit_error, set_submit_error) = signal(None::<String>);
+    let (submitting, set_submitting) = signal(false);
+    let _esc_listener = window_event_listener(leptos::ev::keydown, move |ev: KeyboardEvent| {
+        if ev.key() == "Escape" && target.get_untracked().is_some() {
+            set_target(None);
+        }
+    });
+    let on_canvas_message_input_click = Callback::new(move |(block_id, block_name, handler)| {
+        set_submit_error(None);
+        set_target(Some(MessageInputTarget {
+            block_id,
+            block_name,
+            handler,
+            source: "canvas",
+        }));
+    });
+    let on_table_message_input_click = Callback::new(move |(block_id, block_name, handler)| {
+        set_submit_error(None);
+        set_target(Some(MessageInputTarget {
+            block_id,
+            block_name,
+            handler,
+            source: "table",
+        }));
+    });
+    let fg_for_submit = handle.clone();
+    let on_submit_pmt = Callback::new(move |pmt: Pmt| {
+        if let Some(selected) = target.get_untracked() {
+            set_submitting(true);
+            set_submit_error(None);
+            let mut fg = fg_for_submit.clone();
+            spawn_local(async move {
+                let result = fg
+                    .put_message_input(selected.block_id, selected.handler.clone(), pmt)
+                    .await;
+                set_submitting(false);
+                match result {
+                    Ok(()) => set_target(None),
+                    Err(e) => set_submit_error(Some(format!("failed to send PMT: {e}"))),
+                }
+            });
+        }
+    });
 
     view! {
         <div class="text-white">
@@ -206,21 +260,83 @@ pub fn Spectrum(
         >
             <Waterfall min=min max=max mode=WaterfallMode::Data(waterfall_data) />
         </div>
-        <div class="p-4 m-4 border-2 rounded-md border-slate-500">
+        <div class="m-4 space-y-4">
             {move || {
                 fg_desc
                     .get()
                     .map(|x| x.unwrap())
                     .map(|x| {
                         view! {
-                            <FlowgraphCanvas fg=x.clone() on_message_input_click=Callback::new(|_| ()) />
-                            <FlowgraphTable fg=x on_message_input_click=Callback::new(|_| ()) />
+                            <div class="border-2 rounded-md border-slate-500">
+                                <FlowgraphCanvas
+                                    fg=x.clone()
+                                    on_message_input_click=on_canvas_message_input_click
+                                />
+                            </div>
+                            <div class="border-2 rounded-md border-slate-500 overflow-x-auto">
+                                <FlowgraphTable fg=x on_message_input_click=on_table_message_input_click />
+                            </div>
                         }
                             .into_any()
                     })
                     .unwrap_or(().into_any());
             }}
         </div>
+        {move || target
+            .get()
+            .map(|current| {
+                view! {
+                    <div
+                        class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+                        on:click=move |_| set_target(None)
+                    >
+                        <div
+                            class="w-full max-w-2xl rounded-lg bg-slate-900 border border-slate-700 p-4"
+                            on:click=move |ev| ev.stop_propagation()
+                        >
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-white text-lg font-semibold">"Send PMT"</h3>
+                                    <p class="text-slate-300 text-sm">
+                                        {format!(
+                                            "{} -> block {} ({}) / handler '{}'",
+                                            current.source,
+                                            current.block_id,
+                                            current.block_name,
+                                            current.handler
+                                        )}
+                                    </p>
+                                </div>
+                                <button
+                                    class="rounded bg-slate-700 hover:bg-slate-600 px-3 py-1 text-sm text-white"
+                                    on:click=move |_| set_target(None)
+                                    disabled=submitting
+                                >
+                                    "Close"
+                                </button>
+                            </div>
+                            <div class="mt-3">
+                                <PmtEditor
+                                    on_submit=on_submit_pmt
+                                    disabled=submitting()
+                                    select_class="w-full rounded bg-slate-800 text-white px-2 py-2"
+                                    input_class="w-full h-32 rounded bg-slate-800 text-white px-2 py-2 font-mono"
+                                    error_class="text-red-400 text-sm"
+                                    button_class="rounded bg-blue-600 hover:bg-blue-500 text-white px-3 py-2"
+                                    button_text=if submitting() {
+                                        "Sending...".to_string()
+                                    } else {
+                                        "Send".to_string()
+                                    }
+                                />
+                            </div>
+                            <div class="mt-2 text-red-400 text-sm">
+                                {move || submit_error.get().unwrap_or_default()}
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
     }
 }
 
