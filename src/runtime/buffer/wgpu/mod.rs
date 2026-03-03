@@ -20,10 +20,16 @@ pub struct InputBufferFull<D>
 where
     D: CpuSample,
 {
-    /// Buffer
-    pub buffer: Box<[D]>,
-    /// Used bytes
+    /// Host-visible staging buffer.
+    pub buffer: Buffer,
+    /// Used items.
     pub n_items: usize,
+    /// Item capacity of the staging buffer.
+    pub capacity: usize,
+    /// Reusable upload-slot id managed by H2D internals.
+    pub slot_id: usize,
+    /// Marker for sample type
+    pub _p: PhantomData<D>,
 }
 
 /// Empty input buffer
@@ -32,8 +38,15 @@ pub struct InputBufferEmpty<D>
 where
     D: CpuSample,
 {
-    /// Buffer
-    pub buffer: Box<[D]>,
+    /// Host-visible staging buffer.
+    pub buffer: Buffer,
+    /// Item capacity of the staging buffer.
+    pub capacity: usize,
+    /// Reusable upload-slot id managed by H2D internals.
+    /// Use `usize::MAX` for unmanaged/manual injection.
+    pub slot_id: usize,
+    /// Marker for sample type
+    pub _p: PhantomData<D>,
 }
 
 /// Full output buffer
@@ -63,7 +76,7 @@ where
 }
 
 /// WGPU broker
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instance {
     /// WGPU adapter
     pub adapter: Adapter,

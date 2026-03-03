@@ -1,8 +1,12 @@
 use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
+use wgpu::BufferUsages;
+use wgpu::BufferViewMut;
 
 use crate::channel::mpsc::Sender;
 use crate::channel::mpsc::channel;
@@ -19,25 +23,45 @@ use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::InputBufferFull as BufferFull;
 
+const UNMANAGED_SLOT_ID: usize = usize::MAX;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SlotState {
+    WritableMapped,
+    ReadyForGpu,
+    Remapping,
+}
+
 #[derive(Debug)]
-struct CurrentBuffer<D>
+struct UploadSlot<D>
 where
     D: CpuSample,
 {
-    buffer: Box<[D]>,
-    item_offset: usize,
+    buffer: wgpu::Buffer,
+    capacity: usize,
+    written_items: usize,
+    state: SlotState,
+    _p: PhantomData<D>,
 }
 
-// ====================== WRITER ============================
+#[derive(Debug)]
+struct CurrentSlot {
+    slot_id: usize,
+    item_offset: usize,
+    view: BufferViewMut,
+}
+
 /// Custom buffer writer
 #[derive(Debug)]
 pub struct Writer<D>
 where
     D: CpuSample,
 {
-    current: Option<CurrentBuffer<D>>,
-    inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
-    outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
+    current: Option<CurrentSlot>,
+    slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
+    writable_ids: Arc<Mutex<Vec<usize>>>,
+    ready_ids: Arc<Mutex<VecDeque<usize>>>,
+    instance: Option<Arc<super::Instance>>,
     writer_id: BlockId,
     writer_inbox: Sender<BlockMessage>,
     writer_output_id: PortId,
@@ -55,8 +79,10 @@ where
         let (rx, _) = channel(0);
         Self {
             current: None,
-            inbound: Arc::new(Mutex::new(Vec::new())),
-            outbound: Arc::new(Mutex::new(VecDeque::new())),
+            slots: Arc::new(Mutex::new(Vec::new())),
+            writable_ids: Arc::new(Mutex::new(Vec::new())),
+            ready_ids: Arc::new(Mutex::new(VecDeque::new())),
+            instance: None,
             writer_id: BlockId::default(),
             writer_inbox: rx.clone(),
             writer_output_id: PortId::default(),
@@ -64,6 +90,93 @@ where
             reader_input_id: PortId::default(),
             tags: Vec::new(),
         }
+    }
+
+    /// Set WGPU instance used for staging buffer remap.
+    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+        self.instance = Some(instance);
+    }
+
+    /// Inject reusable mapped staging buffers.
+    pub fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
+        let Some(instance) = self.instance.as_ref() else {
+            panic!("H2D writer: set_instance() must be called before injecting buffers");
+        };
+
+        let n_bytes = (n_items * size_of::<D>()) as u64;
+        let mut slots = self.slots.lock().unwrap();
+        let mut writable_ids = self.writable_ids.lock().unwrap();
+
+        for _ in 0..n_buffers {
+            let slot_id = slots.len();
+            slots.push(UploadSlot {
+                buffer: instance.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("h2d_staging_buffer"),
+                    size: n_bytes,
+                    usage: BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC,
+                    mapped_at_creation: true,
+                }),
+                capacity: n_items,
+                written_items: 0,
+                state: SlotState::WritableMapped,
+                _p: PhantomData,
+            });
+            writable_ids.push(slot_id);
+        }
+    }
+
+    fn finalize_current(&mut self, used_items: usize) {
+        let current = self.current.take().unwrap();
+        let slot_id = current.slot_id;
+        drop(current.view);
+
+        {
+            let mut slots = self.slots.lock().unwrap();
+            let slot = slots.get_mut(slot_id).expect("H2D writer: invalid slot id");
+            assert_eq!(
+                slot.state,
+                SlotState::WritableMapped,
+                "H2D writer: finalize on non-writable slot"
+            );
+            slot.written_items = used_items;
+            slot.state = SlotState::ReadyForGpu;
+            slot.buffer.unmap();
+        }
+
+        self.ready_ids.lock().unwrap().push_back(slot_id);
+    }
+
+    fn acquire_current(&mut self) -> Option<()> {
+        if self.current.is_some() {
+            return Some(());
+        }
+
+        let slot_id = self.writable_ids.lock().unwrap().pop()?;
+
+        let (capacity, view) = {
+            let mut slots = self.slots.lock().unwrap();
+            let slot = slots.get_mut(slot_id).expect("H2D writer: invalid slot id");
+            assert_eq!(
+                slot.state,
+                SlotState::WritableMapped,
+                "H2D writer: acquired non-writable slot"
+            );
+            slot.written_items = 0;
+            let byte_len = (slot.capacity * size_of::<D>()) as u64;
+            (
+                slot.capacity,
+                slot.buffer.slice(0..byte_len).get_mapped_range_mut(),
+            )
+        };
+
+        self.current = Some(CurrentSlot {
+            slot_id,
+            item_offset: 0,
+            view,
+        });
+
+        debug_assert!(capacity > 0);
+        Some(())
     }
 }
 
@@ -89,7 +202,11 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.reader_inbox.is_closed() {
+        if self.instance.is_none() {
+            Err(Error::ValidationError(
+                "H2D writer: no wgpu instance configured".to_string(),
+            ))
+        } else if self.reader_inbox.is_closed() {
             Err(Error::ValidationError(format!(
                 "{:?}:{:?} not connected",
                 self.writer_id, self.writer_output_id
@@ -100,8 +217,14 @@ where
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        dest.inbound = self.outbound.clone();
-        dest.outbound = self.inbound.clone();
+        if self.instance.is_none() {
+            self.instance = dest.instance.clone();
+        }
+
+        dest.slots = self.slots.clone();
+        dest.ready_ids = self.ready_ids.clone();
+        dest.writable_ids = self.writable_ids.clone();
+        dest.instance = self.instance.clone();
         self.reader_input_id = dest.reader_input_id.clone();
         self.reader_inbox = dest.reader_inbox.clone();
         dest.writer_inbox = self.writer_inbox.clone();
@@ -109,17 +232,21 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        debug!("H2D writer called finish");
-        if let Some(CurrentBuffer {
-            item_offset,
-            buffer,
-        }) = self.current.take()
-        {
-            if item_offset > 0 {
-                self.outbound.lock().unwrap().push_back(BufferFull {
-                    buffer,
-                    n_items: item_offset,
-                });
+        if let Some(current) = self.current.as_ref() {
+            if current.item_offset > 0 {
+                self.finalize_current(current.item_offset);
+                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            } else {
+                let current = self.current.take().unwrap();
+                let slot_id = current.slot_id;
+                drop(current.view);
+                {
+                    let mut slots = self.slots.lock().unwrap();
+                    let slot = slots.get_mut(slot_id).expect("H2D writer: invalid slot id");
+                    slot.written_items = 0;
+                    slot.state = SlotState::WritableMapped;
+                }
+                self.writable_ids.lock().unwrap().push(slot_id);
             }
         }
 
@@ -148,47 +275,47 @@ where
     type Item = D;
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
-        if self.current.is_none() {
-            if let Some(b) = self.inbound.lock().unwrap().pop() {
-                self.current = Some(CurrentBuffer {
-                    buffer: b.buffer,
-                    item_offset: 0,
-                });
-            } else {
-                debug!("H2D writer called bytes, buff is none");
-                return (&mut [], Tags::new(&mut self.tags, 0));
-            }
+        if self.acquire_current().is_none() {
+            return (&mut [], Tags::new(&mut self.tags, 0));
         }
 
         let current = self.current.as_mut().unwrap();
-
-        (
-            &mut current.buffer[current.item_offset..],
-            Tags::new(&mut self.tags, 0),
-        )
+        let cap = {
+            let slots = self.slots.lock().unwrap();
+            slots[current.slot_id].capacity
+        };
+        let byte_offset = current.item_offset * size_of::<D>();
+        let byte_len = cap * size_of::<D>();
+        let tail = &mut current.view[byte_offset..byte_len];
+        // Convert mapped bytes into typed sample slice with explicit alignment check.
+        let (prefix, data, suffix) = unsafe { tail.align_to_mut::<D>() };
+        assert!(
+            prefix.is_empty() && suffix.is_empty(),
+            "H2D writer: mapped buffer alignment invalid for sample type"
+        );
+        (data, Tags::new(&mut self.tags, 0))
     }
 
     fn produce(&mut self, amount: usize) {
-        debug!("H2D writer called produce {}", amount);
-        let current = self.current.as_mut().unwrap();
-        let item_capacity = current.buffer.len();
+        if amount == 0 {
+            return;
+        }
 
-        debug_assert!(amount + current.item_offset <= item_capacity);
+        let current = self.current.as_mut().unwrap();
+        let item_capacity = {
+            let slots = self.slots.lock().unwrap();
+            slots[current.slot_id].capacity
+        };
+        assert!(
+            amount + current.item_offset <= item_capacity,
+            "H2D writer overflow: produce {} at offset {} exceeds capacity {}",
+            amount,
+            current.item_offset,
+            item_capacity
+        );
         current.item_offset += amount;
         if current.item_offset == item_capacity {
-            let buffer = self.current.take().unwrap().buffer;
-            self.outbound.lock().unwrap().push_back(BufferFull {
-                buffer,
-                n_items: item_capacity,
-            });
-
-            if let Some(b) = self.inbound.lock().unwrap().pop() {
-                self.current = Some(CurrentBuffer {
-                    buffer: b.buffer,
-                    item_offset: 0,
-                });
-            }
-
+            self.finalize_current(item_capacity);
             let _ = self.reader_inbox.try_send(BlockMessage::Notify);
         }
     }
@@ -200,21 +327,23 @@ where
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
         warn!("set_min_buffer_size_in_items not yet implemented for wgpu buffers");
     }
+
     fn max_items(&self) -> usize {
         warn!("max_items not yet implemented for wgpu buffers");
         usize::MAX
     }
 }
 
-// ====================== READER ============================
 /// Custom buffer reader
 #[derive(Debug)]
 pub struct Reader<D>
 where
     D: CpuSample,
 {
-    inbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
-    outbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
+    slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
+    ready_ids: Arc<Mutex<VecDeque<usize>>>,
+    writable_ids: Arc<Mutex<Vec<usize>>>,
+    instance: Option<Arc<super::Instance>>,
     reader_id: BlockId,
     reader_input_id: PortId,
     reader_inbox: Sender<BlockMessage>,
@@ -227,12 +356,14 @@ impl<D> Reader<D>
 where
     D: CpuSample,
 {
-    /// Send empty buffer back to writer
+    /// Create buffer reader
     pub fn new() -> Self {
         let (rx, _) = channel(0);
         Self {
-            inbound: Arc::new(Mutex::new(VecDeque::new())),
-            outbound: Arc::new(Mutex::new(Vec::new())),
+            slots: Arc::new(Mutex::new(Vec::new())),
+            ready_ids: Arc::new(Mutex::new(VecDeque::new())),
+            writable_ids: Arc::new(Mutex::new(Vec::new())),
+            instance: None,
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
             reader_inbox: rx.clone(),
@@ -242,17 +373,98 @@ where
         }
     }
 
-    /// Send empty buffer back to writer
+    /// Set WGPU instance used for remapping returned staging buffers.
+    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+        self.instance = Some(instance);
+    }
+
+    fn install_unmanaged_slot(&mut self, buffer: &BufferEmpty<D>) -> usize {
+        let mut slots = self.slots.lock().unwrap();
+        let slot_id = slots.len();
+        slots.push(UploadSlot {
+            buffer: buffer.buffer.clone(),
+            capacity: buffer.capacity,
+            written_items: 0,
+            state: SlotState::Remapping,
+            _p: PhantomData,
+        });
+        slot_id
+    }
+
+    /// Send empty buffer back to writer.
     pub fn submit(&mut self, buffer: BufferEmpty<D>) {
-        debug!("H2D reader handling empty buffer");
-        self.outbound.lock().unwrap().push(buffer);
-        let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+        let Some(instance) = self.instance.clone() else {
+            panic!("H2D reader: set_instance() must be called before submit");
+        };
+
+        let slot_id = if buffer.slot_id == UNMANAGED_SLOT_ID {
+            self.install_unmanaged_slot(&buffer)
+        } else {
+            buffer.slot_id
+        };
+
+        let (buffer_for_map, capacity) = {
+            let mut slots = self.slots.lock().unwrap();
+            let slot = slots.get_mut(slot_id).expect("H2D reader: invalid slot id");
+            assert_eq!(
+                slot.state,
+                SlotState::Remapping,
+                "H2D reader: submit on non-remapping slot"
+            );
+            if slot.capacity != buffer.capacity {
+                warn!(
+                    "H2D reader: capacity mismatch on submit (slot {} has {}, submit has {})",
+                    slot_id, slot.capacity, buffer.capacity
+                );
+            }
+            (slot.buffer.clone(), slot.capacity)
+        };
+
+        let writable_ids = self.writable_ids.clone();
+        let slots_arc = self.slots.clone();
+        let mut writer_inbox = self.writer_inbox.clone();
+        let byte_len = (capacity * size_of::<D>()) as u64;
+        let slice = buffer_for_map.slice(0..byte_len);
+        slice.map_async(wgpu::MapMode::Write, move |result| match result {
+            Ok(()) => {
+                {
+                    let mut slots = slots_arc.lock().unwrap();
+                    let slot = slots
+                        .get_mut(slot_id)
+                        .expect("H2D reader: invalid slot id in map callback");
+                    slot.written_items = 0;
+                    slot.state = SlotState::WritableMapped;
+                }
+                writable_ids.lock().unwrap().push(slot_id);
+                let _ = writer_inbox.try_send(BlockMessage::Notify);
+            }
+            Err(e) => {
+                warn!("H2D reader: map_async(write) failed for slot {}: {:?}", slot_id, e);
+            }
+        });
+
+        // Non-blocking kick to help callback progress without stalling this thread.
+        let _ = instance.device.poll(wgpu::PollType::Poll);
     }
 
     /// Get full buffer
     pub fn get_buffer(&mut self) -> Option<BufferFull<D>> {
-        let mut vec = self.inbound.lock().unwrap();
-        vec.pop_front()
+        let slot_id = self.ready_ids.lock().unwrap().pop_front()?;
+        let mut slots = self.slots.lock().unwrap();
+        let slot = slots.get_mut(slot_id).expect("H2D reader: invalid slot id");
+        assert_eq!(
+            slot.state,
+            SlotState::ReadyForGpu,
+            "H2D reader: get_buffer on non-ready slot"
+        );
+        slot.state = SlotState::Remapping;
+        Some(BufferFull {
+            buffer: slot.buffer.clone(),
+            n_items: slot.written_items,
+            capacity: slot.capacity,
+            slot_id,
+            _p: PhantomData,
+        })
     }
 }
 
@@ -281,7 +493,11 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.writer_inbox.is_closed() {
+        if self.instance.is_none() {
+            Err(Error::ValidationError(
+                "H2D reader: no wgpu instance configured".to_string(),
+            ))
+        } else if self.writer_inbox.is_closed() {
             Err(Error::ValidationError(format!(
                 "{:?}:{:?} not connected",
                 self.reader_id, self.reader_input_id
@@ -292,7 +508,6 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        debug!("H2D reader finish");
         if self.finished {
             return;
         }
@@ -310,7 +525,7 @@ where
     }
 
     fn finished(&self) -> bool {
-        self.finished
+        self.finished && self.ready_ids.lock().unwrap().is_empty()
     }
 
     fn block_id(&self) -> BlockId {

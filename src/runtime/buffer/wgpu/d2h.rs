@@ -39,6 +39,7 @@ unsafe impl<D> Send for CurrentBuffer<D> where D: CpuSample {}
 pub struct Writer<D: CpuSample> {
     inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
+    instance: Option<Arc<super::Instance>>,
     writer_inbox: Sender<BlockMessage>,
     writer_id: BlockId,
     writer_output_id: PortId,
@@ -58,6 +59,7 @@ where
         Writer {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
+            instance: None,
             writer_inbox: rx.clone(),
             writer_id: BlockId::default(),
             writer_output_id: PortId::default(),
@@ -70,6 +72,31 @@ where
     pub fn buffers(&mut self) -> Vec<BufferEmpty<D>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
+    }
+
+    /// Set WGPU instance used to allocate reusable readback buffers.
+    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+        self.instance = Some(instance);
+    }
+
+    /// Inject reusable output readback buffers.
+    pub fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
+        let Some(instance) = self.instance.as_ref() else {
+            panic!("D2H writer: set_instance() must be called before injecting buffers");
+        };
+        let n_bytes = (n_items * size_of::<D>()) as u64;
+        let mut inbound = self.inbound.lock().unwrap();
+        for _ in 0..n_buffers {
+            inbound.push(BufferEmpty {
+                buffer: instance.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("d2h_output_buffer"),
+                    size: n_bytes,
+                    usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }),
+                _p: PhantomData,
+            });
+        }
     }
 
     /// Submit full buffer to downstream CPU reader
@@ -101,7 +128,11 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if !self.reader_inbox.is_closed() {
+        if self.instance.is_none() {
+            Err(Error::ValidationError(
+                "D2H writer: no wgpu instance configured".to_string(),
+            ))
+        } else if !self.reader_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -114,6 +145,7 @@ where
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
         dest.outbound = self.inbound.clone();
+        dest.instance = self.instance.clone();
         dest.writer_output_id = self.writer_output_id.clone();
         dest.writer_inbox = self.writer_inbox.clone();
 
@@ -153,6 +185,7 @@ where
     reader_id: BlockId,
     reader_input_id: PortId,
     reader_inbox: Sender<BlockMessage>,
+    instance: Option<Arc<super::Instance>>,
     finished: bool,
 }
 
@@ -174,8 +207,14 @@ where
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
             reader_inbox: rx,
+            instance: None,
             finished: false,
         }
+    }
+
+    /// Set WGPU instance.
+    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+        self.instance = Some(instance);
     }
 }
 
@@ -204,7 +243,11 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if !self.writer_inbox.is_closed() {
+        if self.instance.is_none() {
+            Err(Error::ValidationError(
+                "D2H reader: no wgpu instance configured".to_string(),
+            ))
+        } else if !self.writer_inbox.is_closed() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(

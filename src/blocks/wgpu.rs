@@ -64,9 +64,15 @@ impl Wgpu {
             mapped_at_creation: false,
         });
 
+        let instance = instance;
+        let mut input = H2DReader::new();
+        input.set_instance(std::sync::Arc::new(instance.clone()));
+        let mut output = D2HWriter::new();
+        output.set_instance(std::sync::Arc::new(instance.clone()));
+
         Self {
-            input: H2DReader::new(),
-            output: D2HWriter::new(),
+            input,
+            output,
             instance,
             buffer_items,
             pipeline: None,
@@ -92,8 +98,17 @@ impl Kernel for Wgpu {
         }
 
         for _ in 0..self.n_input_buffers {
+            let input_buffer = self.instance.device.create_buffer(&BufferDescriptor {
+                label: Some("wgpu_h2d_input_staging"),
+                size: self.buffer_items * 4,
+                usage: BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC,
+                mapped_at_creation: true,
+            });
             let input_buffer = wgpu::InputBufferEmpty {
-                buffer: vec![0.0f32; self.buffer_items as usize].into_boxed_slice(),
+                buffer: input_buffer,
+                capacity: self.buffer_items as usize,
+                slot_id: usize::MAX,
+                _p: std::marker::PhantomData,
             };
             self.input.submit(input_buffer);
         }
@@ -164,17 +179,18 @@ impl Kernel for Wgpu {
             }
 
             {
-                let byte_buffer = unsafe {
-                    std::slice::from_raw_parts(m.buffer.as_ptr() as *const u8, m.n_items * 4)
-                };
-                self.instance
-                    .queue
-                    .write_buffer(&self.storage_buffer, 0, byte_buffer);
-
                 let mut encoder = self
                     .instance
                     .device
                     .create_command_encoder(&CommandEncoderDescriptor { label: None });
+
+                encoder.copy_buffer_to_buffer(
+                    &m.buffer,
+                    0,
+                    &self.storage_buffer,
+                    0,
+                    (m.n_items * 4) as u64,
+                );
 
                 {
                     let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
@@ -215,7 +231,12 @@ impl Kernel for Wgpu {
             }
 
             self.input
-                .submit(wgpu::InputBufferEmpty { buffer: m.buffer });
+                .submit(wgpu::InputBufferEmpty {
+                    buffer: m.buffer,
+                    capacity: m.capacity,
+                    slot_id: m.slot_id,
+                    _p: std::marker::PhantomData,
+                });
         }
 
         if self.input.finished() {
