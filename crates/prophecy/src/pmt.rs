@@ -91,8 +91,11 @@ pub fn parse_json_pmt(kind: PmtKind, input: &str) -> Result<Pmt, String> {
                     .map_err(|_| "expected JSON array like [1, 2] or one u64".to_string())
             }
         }
-        PmtKind::VecCF32 => serde_json::from_str::<Pmt>(&format!(r#"{{"VecCF32":{v}}}"#))
-            .map_err(|e| format!("expected JSON complex array like [{{\"re\":1.0,\"im\":2.0}}]: {e}")),
+        PmtKind::VecCF32 => {
+            serde_json::from_str::<Pmt>(&format!(r#"{{"VecCF32":{v}}}"#)).map_err(|e| {
+                format!("expected JSON complex array like [{{\"re\":1.0,\"im\":2.0}}]: {e}")
+            })
+        }
         PmtKind::Blob => {
             if let Ok(list) = serde_json::from_str::<Vec<u8>>(v) {
                 Ok(Pmt::Blob(list))

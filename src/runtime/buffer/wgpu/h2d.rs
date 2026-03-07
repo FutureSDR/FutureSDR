@@ -439,7 +439,10 @@ where
                 let _ = writer_inbox.try_send(BlockMessage::Notify);
             }
             Err(e) => {
-                warn!("H2D reader: map_async(write) failed for slot {}: {:?}", slot_id, e);
+                warn!(
+                    "H2D reader: map_async(write) failed for slot {}: {:?}",
+                    slot_id, e
+                );
             }
         });
 

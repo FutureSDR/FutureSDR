@@ -179,8 +179,8 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     let dest_block = &dst.block;
                     quote! {
                         #fg.connect_message(
-                            ::futuresdr::runtime::DynMessageAccess::dyn_message_output(&#src_block, #src_port)?,
-                            ::futuresdr::runtime::DynMessageAccess::dyn_message_input(&#dest_block, #dst_port)?,
+                            ::futuresdr::runtime::DynPortAccess::dyn_message_output(&#src_block, #src_port)?,
+                            ::futuresdr::runtime::DynPortAccess::dyn_message_input(&#dest_block, #dst_port)?,
                         )?;
                     }
                 }
@@ -1380,167 +1380,86 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         quote! { #guard_ident<'_, #(#unconstraint_params),*> }
     };
 
-    let input_methods = stream_inputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let port_ident = &m.port;
-        let public_name = &m.public_name;
-        let ret_ty = m.port_ty.as_ref().unwrap();
-        let accessor = if let Some(i) = &m.index {
-            quote! { self.#field_ident.#port_ident().get_mut(#i).unwrap() }
-        } else {
-            quote! { self.#field_ident.#port_ident() }
-        };
-        quote! {
-            pub fn #public_name(&mut self) -> &mut #ret_ty {
-                #accessor
-            }
-        }
-    });
+    let build_guard_methods = |mappings: &[PortMapping]| -> Vec<proc_macro2::TokenStream> {
+        mappings
+            .iter()
+            .map(|m| {
+                let field_ident = &m.field;
+                let port_ident = &m.port;
+                let public_name = &m.public_name;
+                let ret_ty = m.port_ty.as_ref().unwrap();
+                let accessor = if let Some(i) = &m.index {
+                    quote! { self.#field_ident.#port_ident().get_mut(#i).unwrap() }
+                } else {
+                    quote! { self.#field_ident.#port_ident() }
+                };
+                quote! {
+                    pub fn #public_name(&mut self) -> &mut #ret_ty {
+                        #accessor
+                    }
+                }
+            })
+            .collect()
+    };
 
-    let output_methods = stream_outputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let port_ident = &m.port;
-        let public_name = &m.public_name;
-        let ret_ty = m.port_ty.as_ref().unwrap();
-        let accessor = if let Some(i) = &m.index {
-            quote! { self.#field_ident.#port_ident().get_mut(#i).unwrap() }
-        } else {
-            quote! { self.#field_ident.#port_ident() }
-        };
-        quote! {
-            pub fn #public_name(&mut self) -> &mut #ret_ty {
-                #accessor
-            }
-        }
-    });
+    let build_resolve_arms = |mappings: &[PortMapping],
+                              access_fn: proc_macro2::TokenStream|
+     -> Vec<proc_macro2::TokenStream> {
+        mappings
+                .iter()
+                .map(|m| {
+                    let field_ident = &m.field;
+                    let public_name = ident_to_port_name(&m.public_name);
+                    let port_name = ident_to_port_name(&m.port);
+                    let internal_name = if let Some(i) = &m.index {
+                        format!("{port_name}[{}]", i.index)
+                    } else {
+                        port_name
+                    };
+                    let internal_lit = syn::LitStr::new(&internal_name, m.public_name.span());
+                    let info = field_map.get(&field_ident.to_string()).unwrap();
+                    let access = if info.is_option {
+                        let name = info.ident.to_string();
+                        quote! {
+                            let block_ref = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
+                        }
+                    } else {
+                        quote! {
+                            let block_ref = &self.#field_ident;
+                        }
+                    };
+                    quote! {
+                        if port.name() == #public_name {
+                            #access
+                            return #access_fn(
+                                block_ref,
+                                ::futuresdr::runtime::PortId::new(#internal_lit.to_string()),
+                            );
+                        }
+                    }
+                })
+                .collect()
+    };
 
-    let input_resolve_arms = stream_inputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let public_name = ident_to_port_name(&m.public_name);
-        let port_name = ident_to_port_name(&m.port);
-        let internal_name = if let Some(i) = &m.index {
-            format!("{port_name}[{}]", i.index)
-        } else {
-            port_name
-        };
-        let internal_lit = syn::LitStr::new(&internal_name, m.public_name.span());
-        let info = field_map.get(&field_ident.to_string()).unwrap();
-        let access = if info.is_option {
-            let name = info.ident.to_string();
-            quote! {
-                let block_ref = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
-            }
-        } else {
-            quote! {
-                let block_ref = &self.#field_ident;
-            }
-        };
-        quote! {
-            if port.name() == #public_name {
-                #access
-                return ::futuresdr::runtime::DynStreamAccess::dyn_stream_input(
-                    block_ref,
-                    ::futuresdr::runtime::PortId::new(#internal_lit.to_string()),
-                );
-            }
-        }
-    });
+    let input_methods = build_guard_methods(&stream_inputs);
+    let output_methods = build_guard_methods(&stream_outputs);
 
-    let output_resolve_arms = stream_outputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let public_name = ident_to_port_name(&m.public_name);
-        let port_name = ident_to_port_name(&m.port);
-        let internal_name = if let Some(i) = &m.index {
-            format!("{port_name}[{}]", i.index)
-        } else {
-            port_name
-        };
-        let internal_lit = syn::LitStr::new(&internal_name, m.public_name.span());
-        let info = field_map.get(&field_ident.to_string()).unwrap();
-        let access = if info.is_option {
-            let name = info.ident.to_string();
-            quote! {
-                let block_ref = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
-            }
-        } else {
-            quote! {
-                let block_ref = &self.#field_ident;
-            }
-        };
-        quote! {
-            if port.name() == #public_name {
-                #access
-                return ::futuresdr::runtime::DynStreamAccess::dyn_stream_output(
-                    block_ref,
-                    ::futuresdr::runtime::PortId::new(#internal_lit.to_string()),
-                );
-            }
-        }
-    });
-
-    let message_input_resolve_arms = message_inputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let public_name = ident_to_port_name(&m.public_name);
-        let port_name = ident_to_port_name(&m.port);
-        let internal_name = if let Some(i) = &m.index {
-            format!("{port_name}[{}]", i.index)
-        } else {
-            port_name
-        };
-        let internal_lit = syn::LitStr::new(&internal_name, m.public_name.span());
-        let info = field_map.get(&field_ident.to_string()).unwrap();
-        let access = if info.is_option {
-            let name = info.ident.to_string();
-            quote! {
-                let block_ref = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
-            }
-        } else {
-            quote! {
-                let block_ref = &self.#field_ident;
-            }
-        };
-        quote! {
-            if port.name() == #public_name {
-                #access
-                return ::futuresdr::runtime::DynMessageAccess::dyn_message_input(
-                    block_ref,
-                    ::futuresdr::runtime::PortId::new(#internal_lit.to_string()),
-                );
-            }
-        }
-    });
-
-    let message_output_resolve_arms = message_outputs.iter().map(|m| {
-        let field_ident = &m.field;
-        let public_name = ident_to_port_name(&m.public_name);
-        let port_name = ident_to_port_name(&m.port);
-        let internal_name = if let Some(i) = &m.index {
-            format!("{port_name}[{}]", i.index)
-        } else {
-            port_name
-        };
-        let internal_lit = syn::LitStr::new(&internal_name, m.public_name.span());
-        let info = field_map.get(&field_ident.to_string()).unwrap();
-        let access = if info.is_option {
-            let name = info.ident.to_string();
-            quote! {
-                let block_ref = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
-            }
-        } else {
-            quote! {
-                let block_ref = &self.#field_ident;
-            }
-        };
-        quote! {
-            if port.name() == #public_name {
-                #access
-                return ::futuresdr::runtime::DynMessageAccess::dyn_message_output(
-                    block_ref,
-                    ::futuresdr::runtime::PortId::new(#internal_lit.to_string()),
-                );
-            }
-        }
-    });
+    let input_resolve_arms = build_resolve_arms(
+        &stream_inputs,
+        quote! { ::futuresdr::runtime::DynPortAccess::dyn_stream_input },
+    );
+    let output_resolve_arms = build_resolve_arms(
+        &stream_outputs,
+        quote! { ::futuresdr::runtime::DynPortAccess::dyn_stream_output },
+    );
+    let message_input_resolve_arms = build_resolve_arms(
+        &message_inputs,
+        quote! { ::futuresdr::runtime::DynPortAccess::dyn_message_input },
+    );
+    let message_output_resolve_arms = build_resolve_arms(
+        &message_outputs,
+        quote! { ::futuresdr::runtime::DynPortAccess::dyn_message_output },
+    );
 
     let expanded = quote! {
         pub struct #guard_ident #guard_generics
@@ -1580,13 +1499,13 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             }
         }
 
-        impl #generics ::futuresdr::runtime::DynStreamAccess for #struct_name #unconstraint_generics
+        impl #generics ::futuresdr::runtime::DynPortAccess for #struct_name #unconstraint_generics
             #where_clause
         {
             fn dyn_stream_input(
                 &self,
                 port: impl Into<::futuresdr::runtime::PortId>,
-            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockStreamPort, ::futuresdr::runtime::Error> {
+            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockPort, ::futuresdr::runtime::Error> {
                 let port = port.into();
                 #(#input_resolve_arms)*
                 Err(::futuresdr::runtime::Error::InvalidStreamPort(
@@ -1598,7 +1517,7 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             fn dyn_stream_output(
                 &self,
                 port: impl Into<::futuresdr::runtime::PortId>,
-            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockStreamPort, ::futuresdr::runtime::Error> {
+            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockPort, ::futuresdr::runtime::Error> {
                 let port = port.into();
                 #(#output_resolve_arms)*
                 Err(::futuresdr::runtime::Error::InvalidStreamPort(
@@ -1606,15 +1525,11 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     port,
                 ))
             }
-        }
 
-        impl #generics ::futuresdr::runtime::DynMessageAccess for #struct_name #unconstraint_generics
-            #where_clause
-        {
             fn dyn_message_input(
                 &self,
                 port: impl Into<::futuresdr::runtime::PortId>,
-            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockMessagePort, ::futuresdr::runtime::Error> {
+            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockPort, ::futuresdr::runtime::Error> {
                 let port = port.into();
                 #(#message_input_resolve_arms)*
                 Err(::futuresdr::runtime::Error::InvalidMessagePort(
@@ -1626,7 +1541,7 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             fn dyn_message_output(
                 &self,
                 port: impl Into<::futuresdr::runtime::PortId>,
-            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockMessagePort, ::futuresdr::runtime::Error> {
+            ) -> ::futuresdr::runtime::Result<::futuresdr::runtime::BlockPort, ::futuresdr::runtime::Error> {
                 let port = port.into();
                 #(#message_output_resolve_arms)*
                 Err(::futuresdr::runtime::Error::InvalidMessagePort(

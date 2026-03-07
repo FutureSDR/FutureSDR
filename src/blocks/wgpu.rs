@@ -230,13 +230,12 @@ impl Kernel for Wgpu {
                 panic!("failed to map result buffer")
             }
 
-            self.input
-                .submit(wgpu::InputBufferEmpty {
-                    buffer: m.buffer,
-                    capacity: m.capacity,
-                    slot_id: m.slot_id,
-                    _p: std::marker::PhantomData,
-                });
+            self.input.submit(wgpu::InputBufferEmpty {
+                buffer: m.buffer,
+                capacity: m.capacity,
+                slot_id: m.slot_id,
+                _p: std::marker::PhantomData,
+            });
         }
 
         if self.input.finished() {

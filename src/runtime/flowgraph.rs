@@ -99,115 +99,78 @@ pub struct Flowgraph {
     pub(crate) message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
-/// Block stream port reference for type-erased stream connections.
-pub struct BlockStreamPort {
+/// Block port reference for type-erased stream or message connections.
+pub struct BlockPort {
     pub(crate) block: BlockId,
     pub(crate) port: PortId,
 }
 
-/// Block message port reference for type-erased message connections.
-pub struct BlockMessagePort {
-    pub(crate) block: BlockId,
-    pub(crate) port: PortId,
-}
-
-/// Access stream ports for type-erased connections.
-pub trait DynStreamAccess {
+/// Access stream and message ports for type-erased connections.
+pub trait DynPortAccess {
     /// Get a stream input port.
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error>;
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error>;
     /// Get a stream output port.
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error>;
-}
-
-/// Access message ports for type-erased connections.
-pub trait DynMessageAccess {
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error>;
     /// Get a message input port.
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error>;
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error>;
     /// Get a message output port.
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error>;
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error>;
 }
 
-impl<T: DynStreamAccess + ?Sized> DynStreamAccess for &T {
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+impl<T: DynPortAccess + ?Sized> DynPortAccess for &T {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
         (*self).dyn_stream_input(port)
     }
-
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
         (*self).dyn_stream_output(port)
     }
-}
-
-impl<T: DynMessageAccess + ?Sized> DynMessageAccess for &T {
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
         (*self).dyn_message_input(port)
     }
-
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
         (*self).dyn_message_output(port)
     }
 }
 
-impl DynStreamAccess for BlockId {
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        Ok(BlockStreamPort {
+impl DynPortAccess for BlockId {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        Ok(BlockPort {
             block: *self,
             port: port.into(),
         })
     }
-
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        Ok(BlockStreamPort {
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        Ok(BlockPort {
             block: *self,
             port: port.into(),
         })
     }
-}
-
-impl<K: Kernel> DynStreamAccess for BlockRef<K> {
-    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        Ok(BlockStreamPort {
-            block: self.id,
-            port: port.into(),
-        })
-    }
-
-    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockStreamPort, Error> {
-        Ok(BlockStreamPort {
-            block: self.id,
-            port: port.into(),
-        })
-    }
-}
-
-impl DynMessageAccess for BlockId {
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        Ok(BlockMessagePort {
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        Ok(BlockPort {
             block: *self,
             port: port.into(),
         })
     }
-
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        Ok(BlockMessagePort {
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        Ok(BlockPort {
             block: *self,
             port: port.into(),
         })
     }
 }
 
-impl<K: Kernel> DynMessageAccess for BlockRef<K> {
-    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        Ok(BlockMessagePort {
-            block: self.id,
-            port: port.into(),
-        })
+impl<K: Kernel> DynPortAccess for BlockRef<K> {
+    fn dyn_stream_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        BlockId::from(self).dyn_stream_input(port)
     }
-
-    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockMessagePort, Error> {
-        Ok(BlockMessagePort {
-            block: self.id,
-            port: port.into(),
-        })
+    fn dyn_stream_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        BlockId::from(self).dyn_stream_output(port)
+    }
+    fn dyn_message_input(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        BlockId::from(self).dyn_message_input(port)
+    }
+    fn dyn_message_output(&self, port: impl Into<PortId>) -> Result<BlockPort, Error> {
+        BlockId::from(self).dyn_message_output(port)
     }
 }
 
@@ -319,7 +282,7 @@ impl Flowgraph {
     ///     Ok(())
     /// }
     /// ```
-    pub fn connect_dyn(&mut self, src: BlockStreamPort, dst: BlockStreamPort) -> Result<(), Error> {
+    pub fn connect_dyn(&mut self, src: BlockPort, dst: BlockPort) -> Result<(), Error> {
         let src_block = self
             .blocks
             .get(src.block.0)
@@ -356,11 +319,7 @@ impl Flowgraph {
     }
 
     /// Make message connection
-    pub fn connect_message(
-        &mut self,
-        src: BlockMessagePort,
-        dst: BlockMessagePort,
-    ) -> Result<(), Error> {
+    pub fn connect_message(&mut self, src: BlockPort, dst: BlockPort) -> Result<(), Error> {
         debug_assert_ne!(src.block, dst.block);
 
         let dst_block = self
