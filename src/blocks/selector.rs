@@ -99,11 +99,11 @@ where
         }
     }
 
-    fn pmt_to_index(p: &Pmt) -> Result<Option<usize>> {
+    fn pmt_to_index(p: &Pmt, n: usize) -> Result<Option<usize>> {
         match p {
-            Pmt::U32(v) => Ok(Some(*v as usize % N)),
-            Pmt::U64(v) => Ok(Some(*v as usize % N)),
-            Pmt::Usize(v) => Ok(Some(*v % N)),
+            Pmt::U32(v) => Ok(Some(*v as usize % n)),
+            Pmt::U64(v) => Ok(Some(*v as usize % n)),
+            Pmt::Usize(v) => Ok(Some(*v % n)),
             Pmt::Finished | Pmt::Ok => Ok(None),
             o => Err(anyhow!("Invalid index specification: {:?}", o)),
         }
@@ -116,7 +116,7 @@ where
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        if let Some(i) = Self::pmt_to_index(&p)? {
+        if let Some(i) = Self::pmt_to_index(&p, N)? {
             self.input_index = i;
         }
         Ok(Pmt::U32(self.input_index as u32))
@@ -129,7 +129,7 @@ where
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
-        if let Some(i) = Self::pmt_to_index(&p)? {
+        if let Some(i) = Self::pmt_to_index(&p, M)? {
             self.output_index = i;
         }
         Ok(Pmt::U32(self.output_index as u32))

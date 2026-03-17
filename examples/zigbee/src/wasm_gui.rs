@@ -5,12 +5,8 @@ use gloo_worker::WorkerBridge;
 use leptos::html::Select;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos::wasm_bindgen;
 use leptos::web_sys;
-use serde::ser::SerializeTuple;
-use serde::ser::Serializer;
 use std::collections::VecDeque;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::wasm_worker::Frame;
@@ -104,17 +100,16 @@ async fn run_fg(
     let navigator: web_sys::Navigator = window.navigator();
     let usb = navigator.usb();
 
-    let filter: serde_json::Value = serde_json::from_str(r#"{ "vendorId": 7504 }"#).unwrap();
-    let s = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-    let mut tup = s.serialize_tuple(1).unwrap();
-    tup.serialize_element(&filter).unwrap();
-    let filter = tup.end().unwrap();
-    let filter = web_sys::UsbDeviceRequestOptions::new(filter.as_ref());
+    let filter = web_sys::UsbDeviceFilter::new();
+    filter.set_vendor_id(7504);
+    let filters = [filter];
+    let filter = web_sys::UsbDeviceRequestOptions::new(&filters);
 
-    let devices: js_sys::Array = JsFuture::from(usb.get_devices()).await.unwrap().into();
+    let devices: js_sys::Array<web_sys::UsbDevice> =
+        JsFuture::from(usb.get_devices()).await.unwrap();
 
     for i in 0..devices.length() {
-        let d: web_sys::UsbDevice = devices.get(0).dyn_into().unwrap();
+        let d = devices.get_unchecked(i);
         println!("dev {}   {:?}", i, &d);
     }
 
@@ -122,14 +117,10 @@ async fn run_fg(
     // Otherwise ask the user to pair a new radio
     let _device: web_sys::UsbDevice = if devices.length() > 0 {
         info!("device already connected");
-        devices.get(0).dyn_into().unwrap()
+        devices.get_unchecked(0)
     } else {
         info!("requesting device: {:?}", &filter);
-        JsFuture::from(usb.request_device(&filter))
-            .await
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+        JsFuture::from(usb.request_device(&filter)).await.unwrap()
     };
 
     let bridge = Worker::spawner()
