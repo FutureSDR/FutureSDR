@@ -103,11 +103,6 @@ where
             .default_output_device()
             .expect("no output device available");
 
-        //let config = StreamConfig {
-        //    channels: self.channels,
-        //    sample_rate: SampleRate(self.sample_rate),
-        //    buffer_size: BufferSize::Default,
-        //};
         let temp_config: StreamConfig = device.default_output_config()?.into();
         let hw_channels = temp_config.channels as usize;
         let app_channels = self.channels as usize;
