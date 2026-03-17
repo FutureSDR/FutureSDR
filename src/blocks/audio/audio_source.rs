@@ -20,6 +20,7 @@ where
     output: O,
     sample_rate: u32,
     channels: u16,
+    hw_channels: u16,
     stream: Option<Stream>,
     rx: Option<mpsc::UnboundedReceiver<Vec<f32>>>,
     buff: Option<(Vec<f32>, usize)>,
@@ -39,6 +40,7 @@ where
             output: O::default(),
             sample_rate,
             channels,
+            hw_channels: 0,
             stream: None,
             rx: None,
             buff: None,
@@ -57,8 +59,12 @@ where
             .default_input_device()
             .expect("no input device available");
 
+        let temp_config = device.default_input_config()?;
+        let hw_channels = temp_config.channels() as usize;
+        self.hw_channels = hw_channels as u16;
+
         let config = StreamConfig {
-            channels: self.channels,
+            channels: hw_channels as u16,
             sample_rate: SampleRate(self.sample_rate),
             buffer_size: BufferSize::Default,
         };
@@ -93,13 +99,25 @@ where
     ) -> Result<()> {
         if let Some((buff, mut full)) = self.buff.take() {
             let o = self.output.slice();
-            let n = std::cmp::min(o.len(), buff.len() - full);
+            if self.channels == 1 && self.hw_channels == 2 {
+                let n = std::cmp::min(o.len(), (buff.len() - full) / 2);
 
-            for (i, v) in o.iter_mut().take(n).enumerate() {
-                *v = buff[full + i]
+                for j in 0..n {
+                    o[j] = buff[full + 2 * j];
+                }
+
+                full += 2 * n;
+                self.output.produce(n);
+            } else {
+                let n = std::cmp::min(o.len(), buff.len() - full);
+
+                for (i, v) in o.iter_mut().take(n).enumerate() {
+                    *v = buff[full + i]
+                }
+
+                full += n;
+                self.output.produce(n);
             }
-
-            full += n;
 
             if buff.len() == full {
                 io.call_again = true;
@@ -107,8 +125,6 @@ where
             } else {
                 self.buff = Some((buff, full));
             }
-
-            self.output.produce(n);
         } else if let Some(v) = self.rx.as_mut().unwrap().next().await {
             io.call_again = true;
             self.buff = Some((v, 0));
