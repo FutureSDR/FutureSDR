@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     let zmq_src = SubSourceBuilder::<u8>::new()
         .address("tcp://127.0.0.1:50001")
         .build();
-    let snk = FileSink::<u8>::new("/tmp/zmq-log.bin");
+    let snk = FileSink::<u8>::new("zmq-log.bin");
 
     connect!(fg, zmq_src > snk);
 
