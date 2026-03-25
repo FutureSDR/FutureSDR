@@ -1,5 +1,4 @@
-Custom Routes Example (custom-routes)
-========================
+# Custom Routes Example
 
 ## Introduction
 
@@ -18,4 +17,4 @@ cargo run --release
   ```
 
 * Open your browser and visit `http://127.0.0.1:1337/my_route/`. You will see a "My Custom Route" heading.
-* To trigger a flowgraph, visit `http://127.0.0.1:1337/start_fg/`. The browser sends a request to the server and the web handler inject a new flowgraph into the running system. You will see debug information about the new flowgraph appearing in your terminal.
+* To trigger a flowgraph, visit `http://127.0.0.1:1337/start_fg/`. The browser sends a request to the server and the web handler starts a new flowgraph on the runtime. You will see debug information about the new flowgraph in your terminal.
