@@ -132,7 +132,7 @@ where
                                 let len = (i << 4) | *o;
                                 if len < 128 {
                                     self.state = State::Decode {
-                                        len: (len as usize).saturating_sub(2),
+                                        len: len as usize,
                                         data: Vec::new(),
                                         byte: None,
                                     };
