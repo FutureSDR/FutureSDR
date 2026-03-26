@@ -1,11 +1,17 @@
-FutureSDR + Egui Spectrum Analyzer (egui)
-=======================
+# Egui Spectrum View
 
 ## Introduction
-This project provides a real-time spectrum analyzer for SDR devices using the FutureSDR framework and the egui library for the graphical interface. It utilizes hardware-accelerated rendering to visualize signals processed by the SDR flowgraph.
 
-## How it works:
-The application architecture is divided into a signal processing backend and a graphical frontend. The DSP flowgraph consists of the following key blocks:
+This example demonstrates how to use [egui](https://www.egui.rs/) with FutureSDR. It renders a custom GL-based widget that shows a line plot of the spectrum.
+
+## How It Works
+
+It demonstrates two possibilities for integrating egui.
+
+- The `combined` binary runs the FutureSDR flowgraph and the egui GUI in one process.
+- The `egui` and `fg` binaries split the GUI from the DSP. The two components are connected via a WebSocket.
+
+The DSP flowgraph consists of the following key blocks:
 
 * Seify Source: Interfaces with the SDR hardware to stream raw IQ samples.
 * FFT Block: Converts the time-domain signal to the frequency domain with a size of 2048.
@@ -13,26 +19,24 @@ The application architecture is divided into a signal processing backend and a g
 * Moving Average: Smooths the spectrum by averaging consecutive frames.
 * Channel / Websocket Sink: Passes the processed data to the UI either via local memory channels or WebSockets.
 
-The application features a native desktop GUI that provides real-time interaction with the RF environment:
 
-* Real-Time Spectrum: Visualizes the frequency domain data with a color gradient.
-* Frequency Slider: Updates the center frequency of the SDR device.
-* Min/Max dB Sliders: Adjusts the vertical scale (power level) of the plot.
+## How to Run
 
-## How to run:
-First, run the backend using this command:
+For the split configuration, run the backend:
 
 ```sh
 cargo run --release --bin fg
-  ```
+```
 
-Then, visualize the spectrum:
+and then the GUI:
 
 ```sh
 cargo run --release --bin egui
-  ```
-Optionally, you can run the complete application using the command below: 
+```
+
+
+For the combined configuration, run:
 
 ```sh
 cargo run --release --bin combined
-  ```
+```
