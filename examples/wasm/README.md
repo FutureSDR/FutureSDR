@@ -1,22 +1,23 @@
-WebAssembly Example (wasm)
-========================
+# WebAssembly Example
 
 ## Introduction
 
-This example demonstrates running a simple flowgraph on both desktop and web browsers.
+This example demonstrates how to run a simple flowgraph on both desktop and in web browsers.
 
-## How it works:
+## How It Works
+
 The flowgraph consists of the following blocks:
 * Source: Creates 100,000 random numbers.
 * Apply: Multiplies each number by 12.0.
 * Sink: Checks if the results are correct.
 
-## How to run:
-* To run the example on desktop, go to the directory of this example and run it:
+## How to Run
+
+To run the example on desktop, go to the example directory and run:
 
 ```sh
 cargo run --release
-  ```
+```
 
 When the flowgraph finishes, you will see the following logs:
 
@@ -24,16 +25,16 @@ When the flowgraph finishes, you will see the following logs:
 INFO main futuresdr::runtime::runtime: after init in runtime
 INFO main futuresdr::runtime::runtime: runtime constructed
 INFO main wasm: data matches
-  ```
+```
 
-* To use the WASM, run these commands:
+To run the WASM version, use the following commands:
 
- ```bash
-  $ cargo install trunk
+```sh
+cargo install trunk
 
-  $ trunk serve 
-  ```
-  Then,  go to the link `http://localhost:8080`.
+trunk serve
+```
 
-The terminal will show build logs of Trunk.
-The web page will display a static message, which directs you to more interesting WASM applications.
+Then visit [`http://localhost:8080`](http://localhost:8080).
+
+The terminal will show Trunk build logs. The browser console will show the flowgraph's log output.
