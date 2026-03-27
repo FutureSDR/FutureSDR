@@ -546,14 +546,13 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
                 let mut blocks = Vec::new();
                 for id in ids.iter() {
                     let (b_tx, rx) = oneshot::channel::<BlockDescription>();
-                    if let Some(inbox) = inboxes.get_mut(id.0) {
-                        if inbox
+                    if let Some(inbox) = inboxes.get_mut(id.0)
+                        && inbox
                             .send(BlockMessage::BlockDescription { tx: b_tx })
                             .await
                             .is_ok()
-                        {
-                            blocks.push(rx.await?);
-                        }
+                    {
+                        blocks.push(rx.await?);
                     }
                 }
 

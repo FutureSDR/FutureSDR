@@ -123,14 +123,14 @@ where
     async fn notify_finished(&mut self) {
         debug!("H2D writer called finish");
 
-        if let Some(buffer) = self.current.take() {
-            if *buffer.borrow_offset() > 0 {
-                let offset = *buffer.borrow_offset();
-                self.outbound.lock().unwrap().push(Buffer {
-                    buffer: buffer.into_heads().buffer,
-                    offset,
-                });
-            }
+        if let Some(buffer) = self.current.take()
+            && *buffer.borrow_offset() > 0
+        {
+            let offset = *buffer.borrow_offset();
+            self.outbound.lock().unwrap().push(Buffer {
+                buffer: buffer.into_heads().buffer,
+                offset,
+            });
         }
 
         let _ = self

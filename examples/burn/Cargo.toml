@@ -41,7 +41,7 @@ ndarray-npy = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 whisper-burn = { git = "https://github.com/bastibl/whisper-burn.git" }
 # keep in sync with burn
-wgpu = "28.0"
+wgpu = "29.0"
 
 [profile.release]
 debug = true

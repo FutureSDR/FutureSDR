@@ -155,7 +155,7 @@ where
                 std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
             };
 
-            while (buffer_size < min_bytes) || (buffer_size % size_of::<D>() != 0) {
+            while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<D>()) {
                 buffer_size += page_size;
             }
 

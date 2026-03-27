@@ -119,13 +119,12 @@ where
             byte_offset,
             buffer,
         }) = self.current.take()
+            && byte_offset > 0
         {
-            if byte_offset > 0 {
-                self.outbound.lock().unwrap().push_back(BufferFull {
-                    buffer,
-                    used_bytes: byte_offset,
-                });
-            }
+            self.outbound.lock().unwrap().push_back(BufferFull {
+                buffer,
+                used_bytes: byte_offset,
+            });
         }
 
         let _ = self

@@ -285,8 +285,17 @@ where
             slots[current.slot_id].capacity
         };
         let byte_offset = current.item_offset * size_of::<D>();
-        let byte_len = cap * size_of::<D>();
-        let tail = &mut current.view[byte_offset..byte_len];
+        let byte_end = cap * size_of::<D>();
+        let mut tail_write_only = current.view.slice(byte_offset..byte_end);
+        // `wgpu` 29 exposes mapped writes through a write-only view. FutureSDR's
+        // writer API still expects a mutable slice here, so derive it from the
+        // raw pointer while keeping the mapped view alive in `self.current`.
+        let tail = unsafe {
+            std::slice::from_raw_parts_mut(
+                tail_write_only.as_raw_element_ptr().as_ptr(),
+                byte_end - byte_offset,
+            )
+        };
         // Convert mapped bytes into typed sample slice with explicit alignment check.
         let (prefix, data, suffix) = unsafe { tail.align_to_mut::<D>() };
         assert!(

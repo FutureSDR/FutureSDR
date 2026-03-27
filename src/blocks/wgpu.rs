@@ -172,7 +172,7 @@ impl Kernel for Wgpu {
                 });
 
             let mut dispatch = m.n_items as u32 / 64; // 64: work group size
-            if m.n_items as u32 % 64 > 0 {
+            if !(m.n_items as u32).is_multiple_of(64) {
                 dispatch += 1;
             }
 

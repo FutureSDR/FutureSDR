@@ -26,4 +26,4 @@ futuresdr = { path = "../..", features = ["burn", "seify", "wgpu"] }
 futuresdr-burn = { path = "../../examples/burn" }
 ndarray = "0.17"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
-wgpu = "28.0"
+wgpu = "29.0"

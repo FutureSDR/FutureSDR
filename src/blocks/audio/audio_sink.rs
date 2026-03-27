@@ -96,25 +96,25 @@ impl AudioSink<DefaultCpuReader<f32>> {
     }
     /// Get supported sample rates
     pub fn supported_sample_rates() -> Vec<u32> {
-        if let Some(d) = cpal::default_host().default_output_device() {
-            if let Ok(configs) = d.supported_output_configs() {
-                let mut v = Vec::new();
-                for c in configs {
-                    let min = c.min_sample_rate();
-                    let max = c.max_sample_rate();
-                    if min >= 10000 {
-                        v.push(min);
-                    }
-                    if max >= 10000 {
-                        v.push(max);
-                    }
-
-                    v.extend(STANDARD_RATES.iter().filter(|x| *x >= &min && *x <= &max));
+        if let Some(d) = cpal::default_host().default_output_device()
+            && let Ok(configs) = d.supported_output_configs()
+        {
+            let mut v = Vec::new();
+            for c in configs {
+                let min = c.min_sample_rate();
+                let max = c.max_sample_rate();
+                if min >= 10000 {
+                    v.push(min);
                 }
-                v.sort();
-                v.dedup();
-                return v;
+                if max >= 10000 {
+                    v.push(max);
+                }
+
+                v.extend(STANDARD_RATES.iter().filter(|x| *x >= &min && *x <= &max));
             }
+            v.sort();
+            v.dedup();
+            return v;
         }
         Vec::new()
     }

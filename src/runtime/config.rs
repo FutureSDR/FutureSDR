@@ -211,10 +211,10 @@ impl Default for Config {
 
 // #[cfg(not(target_arch = "wasm32"))]
 fn config_parse<T: FromStr>(v: &Value) -> T {
-    if let Ok(v) = v.clone().into_string() {
-        if let Ok(v) = v.parse::<T>() {
-            return v;
-        }
+    if let Ok(v) = v.clone().into_string()
+        && let Ok(v) = v.parse::<T>()
+    {
+        return v;
     }
 
     println!("invalid config value {v:?}");
