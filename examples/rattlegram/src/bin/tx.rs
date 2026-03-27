@@ -65,7 +65,7 @@ fn main() -> Result<()> {
     } else {
         let mut fg = Flowgraph::new();
         let src = VectorSource::<f32>::new(sig);
-        let snk = AudioSink::new(48000, 1);
+        let snk = AudioSink::new(48000, 1)?;
         connect!(fg, src > snk);
 
         Runtime::new().run(fg)?;

@@ -128,7 +128,7 @@ fn main() -> Result<()> {
         FirBuilder::resampling_with_taps::<f32, f32, _>(1, audio_mult as usize, audio_filter_taps);
 
     // Single-channel `AudioSink` with the downsampled rate (sample_rate / (8*5) = 48_000)
-    let snk = AudioSink::new(audio_rate, 1);
+    let snk = AudioSink::new(audio_rate, 1)?;
 
     // Add all the blocks to the `Flowgraph`...
     connect!(fg, src.outputs[0] > shift > resamp1 > demod > resamp2 > snk);

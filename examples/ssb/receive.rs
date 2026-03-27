@@ -82,7 +82,7 @@ fn main() -> Result<()> {
         VOLUME_ADJUSTEMENT * (term1 + term2) // substraction for LSB, addition for USB
     });
 
-    let snk = AudioSink::new(audio_rate, 1);
+    let snk = AudioSink::new(audio_rate, 1)?;
 
     connect!(fg, src > freq_xlating > low_pass_filter > weaver_ssb_decode > snk);
 

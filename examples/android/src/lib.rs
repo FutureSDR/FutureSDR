@@ -32,7 +32,7 @@ pub fn run_fg(fd: u32) -> Result<()> {
     let transition = 2000.0 / 3.2e5;
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
     let resamp2 = FirBuilder::resampling_with_taps::<f32, f32, _>(1, 10, audio_filter_taps);
-    let snk = AudioSink::new(32000, 1);
+    let snk = AudioSink::new(32000, 1)?;
 
     connect!(fg, src.outputs[0] > xlate > demod > resamp2 > snk);
 

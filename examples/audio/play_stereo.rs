@@ -21,7 +21,7 @@ fn main() -> Result<()> {
         d[0] = v[0] * GAIN_L;
         d[1] = v[0] * GAIN_R;
     });
-    let snk = AudioSink::new(48_000, 2);
+    let snk = AudioSink::new(48_000, 2)?;
 
     connect!(fg, src > resample > mono_to_stereo > snk);
 

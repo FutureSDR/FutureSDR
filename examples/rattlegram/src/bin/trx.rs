@@ -36,7 +36,7 @@ fn main() -> Result<()> {
     // TX
     let (mut tx, rx) = mpsc::channel(10);
     let src = ChannelSource::<f32>::new(rx);
-    let snk = AudioSink::new(48000, 1);
+    let snk = AudioSink::new(48000, 1)?;
     connect!(fg, src > snk);
 
     let rt = Runtime::new();

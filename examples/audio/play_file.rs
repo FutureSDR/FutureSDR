@@ -7,7 +7,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src: FileSource = FileSource::new("rick.mp3");
-    let snk = AudioSink::new(src.sample_rate(), src.channels());
+    let snk = AudioSink::new(src.sample_rate(), src.channels())?;
     connect!(fg, src > snk);
 
     Runtime::new().run(fg)?;

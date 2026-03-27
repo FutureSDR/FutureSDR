@@ -126,7 +126,7 @@ fn main() -> Result<()> {
         });
     let conv = Apply::<_, _, _>::new(|i: &i16| (*i as f32) / i16::MAX as f32);
     let upsample = FirBuilder::resampling::<f32, f32>(6, 1);
-    let snk = AudioSink::new(48000, 1);
+    let snk = AudioSink::new(48000, 1)?;
 
     connect!(fg, src > demod > in0.subtract;
                  demod > moving_average > in1.subtract;

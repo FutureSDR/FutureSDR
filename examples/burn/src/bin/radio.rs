@@ -221,7 +221,7 @@ fn main() -> Result<()> {
     let audio_filter_taps = firdes::kaiser::lowpass::<f32>(cutoff, transition, 0.1);
     let resamp2 = FirBuilder::resampling_with_taps::<f32, f32, _>(1, 8, audio_filter_taps);
     let whisper = WhisperBlock::new(&args.model_path, &args.model_name, args.language, &device);
-    let snk = AudioSink::new(args.audio_rate, 1);
+    let snk = AudioSink::new(args.audio_rate, 1)?;
 
     connect!(fg, src.outputs[0] > xlate > demod > resamp2 > whisper);
     connect!(fg, resamp2 > snk);

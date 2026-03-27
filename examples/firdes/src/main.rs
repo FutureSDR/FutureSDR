@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
         _ => FirBuilder::fir::<f32, f32, _>(vec![1.0_f32]),
     };
 
-    let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1);
+    let snk = AudioSink::new(DOWNSAMPLED_FREQ, 1)?;
 
     connect!(fg, src > resampler > filter > snk);
 
