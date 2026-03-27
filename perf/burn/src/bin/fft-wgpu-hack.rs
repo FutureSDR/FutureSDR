@@ -107,7 +107,7 @@ impl Args {
 impl VerifyConfig {
     fn new(args: Args) -> Self {
         // Keep the option parsed and visible for future expected-value wiring.
-        let _bins_count = args.verify_bins.max(1).min(FFT_SIZE);
+        let _bins_count = args.verify_bins.clamp(1, FFT_SIZE);
         Self {
             remaining_batches: args.verify_batches.max(1),
             tol_abs: args.verify_tol_abs,
@@ -731,7 +731,7 @@ impl Fft {
             let mapped = pending.buffer.slice(..).get_mapped_range();
             let vals: &[f32] = cast_slice(&mapped);
             self.output_items_emitted += vals.len() as u64;
-            used_bytes = vals.len() * size_of::<f32>();
+            used_bytes = size_of_val(vals);
         }
         self.output.submit(wgpu_buffer::OutputBufferFull {
             buffer: pending.buffer,
@@ -852,7 +852,7 @@ impl Kernel for Fft {
                         break;
                     }
                     let src_offset = (start * size_of::<Complex32>()) as u64;
-                    let src_size_now = in_full.buffer.size() as u64;
+                    let src_size_now = in_full.buffer.size();
                     if src_offset >= src_size_now {
                         warn!(
                             "fft-wgpu-hack: stopping chunk loop, src_offset {} >= src_size_now {}",
@@ -865,7 +865,7 @@ impl Kernel for Fft {
                     state.next_in_buf = (state.next_in_buf + 1) % state.in_bufs.len();
                     let in_buf = &state.in_bufs[in_buf_idx];
                     let bitrev_bg = &state.bitrev_bgs[in_buf_idx];
-                    let dst_size_now = in_buf.size() as u64;
+                    let dst_size_now = in_buf.size();
                     let max_active_batches_by_src_now =
                         (bytes_left as usize) / (FFT_SIZE * size_of::<Complex32>());
                     let max_active_batches_by_dst_now =
@@ -996,10 +996,10 @@ impl Kernel for Fft {
                 let slice = out_buf.slice(..mag_bytes);
                 let (sender, receiver) = std::sync::mpsc::channel();
                 slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
-                if let Some(v) = self.verify.as_mut() {
-                    if v.remaining_batches > 0 {
-                        v.remaining_batches -= 1;
-                    }
+                if let Some(v) = self.verify.as_mut()
+                    && v.remaining_batches > 0
+                {
+                    v.remaining_batches -= 1;
                 }
                 state.pending_readbacks.push_back(PendingReadback {
                     buffer: out_buf,

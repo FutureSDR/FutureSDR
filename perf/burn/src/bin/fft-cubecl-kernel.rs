@@ -22,7 +22,7 @@ fn bit_reverse(mut x: usize, bits: usize) -> usize {
     let mut r = 0usize;
     for _ in 0..bits {
         r = (r << 1usize) | (x & 1usize);
-        x = x >> 1usize;
+        x >>= 1usize;
     }
     r
 }
@@ -174,8 +174,8 @@ fn precompute_twiddles() -> (Vec<f32>, Vec<usize>) {
     let mut stage_offsets = vec![0usize; LOG_N + 2];
     let mut tw = Vec::<f32>::new();
 
-    for stage in 1..=LOG_N {
-        stage_offsets[stage] = tw.len() / 2;
+    for (stage, stage_offset) in stage_offsets.iter_mut().enumerate().take(LOG_N + 1).skip(1) {
+        *stage_offset = tw.len() / 2;
         let m = 1usize << stage;
         let half = m >> 1;
         for j in 0..half {
@@ -439,29 +439,29 @@ impl Kernel for Fft {
             || (self.input.finished() && self.input.slice().len() < need);
         if must_drain {
             let mut ready: Option<(Instant, anyhow::Result<Vec<u8>>)> = None;
-            if let Some(front) = self.pending.front_mut() {
-                if self.output.slice().len() >= FFT_SIZE {
-                    if let Some(res) = front.fut.as_mut().now_or_never() {
-                        self.poll_ready += 1;
-                        ready = Some((front.submitted_at, res));
-                    } else {
-                        self.poll_pending += 1;
-                        // Queue is full (or we're draining at end-of-stream), so avoid busy-spin:
-                        // wait for the oldest in-flight readback instead of repeatedly polling.
-                        let PendingRead { submitted_at, fut } = self.pending.pop_front().unwrap();
-                        self.t_readback_latency += submitted_at.elapsed();
-                        let t2 = Instant::now();
-                        let out_vec = fut.await?;
-                        self.t_readback += t2.elapsed();
-                        let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
+            if let Some(front) = self.pending.front_mut()
+                && self.output.slice().len() >= FFT_SIZE
+            {
+                if let Some(res) = front.fut.as_mut().now_or_never() {
+                    self.poll_ready += 1;
+                    ready = Some((front.submitted_at, res));
+                } else {
+                    self.poll_pending += 1;
+                    // Queue is full (or we're draining at end-of-stream), so avoid busy-spin:
+                    // wait for the oldest in-flight readback instead of repeatedly polling.
+                    let PendingRead { submitted_at, fut } = self.pending.pop_front().unwrap();
+                    self.t_readback_latency += submitted_at.elapsed();
+                    let t2 = Instant::now();
+                    let out_vec = fut.await?;
+                    self.t_readback += t2.elapsed();
+                    let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
 
-                        let t3 = Instant::now();
-                        let output = self.output.slice();
-                        output[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
-                        self.output.produce(FFT_SIZE);
-                        self.t_copy_out += t3.elapsed();
-                        made_progress = true;
-                    }
+                    let t3 = Instant::now();
+                    let output = self.output.slice();
+                    output[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
+                    self.output.produce(FFT_SIZE);
+                    self.t_copy_out += t3.elapsed();
+                    made_progress = true;
                 }
             }
 

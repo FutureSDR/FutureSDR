@@ -50,8 +50,8 @@ where
 
         configs.into_iter().any(|config| {
             config.channels() == channels
-                && sample_rate >= config.min_sample_rate().0
-                && sample_rate <= config.max_sample_rate().0
+                && sample_rate >= config.min_sample_rate()
+                && sample_rate <= config.max_sample_rate()
         })
     }
 

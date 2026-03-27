@@ -648,7 +648,7 @@ impl Kernel for Fft {
             }
 
             let slot = state.next_readback_slot;
-            state.next_readback_slot = (state.next_readback_slot + 1) % READBACK_SLOTS;
+            state.next_readback_slot = 0;
             encoder.copy_buffer_to_buffer(
                 &state.mag_buf,
                 0,
