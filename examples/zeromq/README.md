@@ -1,11 +1,13 @@
-ZeroMQ Example (zeromq)
-=======================
+# ZeroMQ Example
 
 ## Introduction
-This example demonstrates how to stream data between two separate FutureSDR applications using ZeroMQ. It highlights the framework's ability to handle network-based data distribution across different processes.
 
-## How it works:
-The example consists of a Sender and a Receiver flowgraph.
+This example demonstrates how to stream data between two FutureSDR applications using ZeroMQ. It highlights the framework's ability to handle network-based data distribution across different processes.
+
+## How It Works
+
+The example consists of a sender flowgraph and a receiver flowgraph.
+
 * zmq-sender:
     - NullSource: Generates a stream of null bytes.
     - Head: Limits the stream to 1,000,000 samples.
@@ -16,19 +18,20 @@ The example consists of a Sender and a Receiver flowgraph.
     - SubSource: Connects to the sender's address and subscribes to the stream.
     - FileSink: Records the incoming data into a local binary file (`zmq-log.bin`).
 
-## How to run:
-To run the inter-process communication, use two separate terminals.
+## How to Run
 
-1. Start the receiver first to prepare the data sink. To avoid conflicts, change the defaut control port:
+To run the inter-process communication example, use two separate terminals.
+
+Start the receiver first to prepare the data sink. To avoid conflicts, change the default control port:
 
 ```sh
-set FUTURESDR_CTRLPORT_BIND=127.0.0.1:1338&&cargo run --release --bin zmq-receiver
-  ```
+FUTURESDR_CTRLPORT_BIND=127.0.0.1:1338 cargo run --release --bin zmq-receiver
+```
 
-2. In a second terminal, start the publisher:
+In a second terminal, start the publisher:
 
 ```sh
 cargo run --release --bin zmq-sender
-  ```
+```
 
-Once the sender finishes its 1 million samples, the transfer will complete and the `zmq-log.bin` file will be finalized in your project directory.
+Once the sender finishes sending its 1 million samples, the transfer will complete and the `zmq-log.bin` file will be written to your project directory.
