@@ -19,9 +19,11 @@ burn-fusion = "0.20"
 burn-ir = "0.20"
 burn-wgpu = "0.20"
 bytemuck = "1.25"
+bytes = "1"
 cubecl = "0.9"
 cubecl-wgpu = "0.9"
-futuresdr = { path = "../..", features = ["burn", "seify"] }
+futuresdr = { path = "../..", features = ["burn", "seify", "wgpu"] }
 futuresdr-burn = { path = "../../examples/burn" }
 ndarray = "0.17"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
+wgpu = "28.0"

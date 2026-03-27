@@ -7,11 +7,12 @@ use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
 use perf_burn::TimeIt;
+use perf_burn::batch_size_from_args;
 
 // pub type B = burn::backend::Cuda;
+// pub type B = burn::backend::Wgpu;
 pub type B = burn::backend::Vulkan;
 
 #[derive(Block)]
@@ -23,10 +24,11 @@ struct Fft {
     rev: Tensor<B, 3, Int>,
     twiddles: Vec<Tensor<B, 4, Float>>,
     fft_shift: Tensor<B, 1, Int>,
+    batch_size: usize,
 }
 
 impl Fft {
-    fn new(device: &Device<B>) -> Self {
+    fn new(device: &Device<B>, batch_size: usize) -> Self {
         let rev = bit_reversal_indices(11);
         let rev = Tensor::<B, 1, Int>::from_ints(
             TensorData::new(
@@ -36,7 +38,7 @@ impl Fft {
             device,
         )
         .reshape([1, FFT_SIZE, 1])
-        .repeat_dim(0, BATCH_SIZE)
+        .repeat_dim(0, batch_size)
         .repeat_dim(2, 2); // → [batch,n,1]
 
         let mut twiddles = Vec::new();
@@ -58,6 +60,7 @@ impl Fft {
             rev,
             twiddles,
             fft_shift,
+            batch_size,
         }
     }
 }
@@ -73,11 +76,12 @@ impl Kernel for Fft {
             && let Some(b) = self.input.get_full_buffer()
         {
             let t = b.into_tensor();
-            let t = t.reshape([BATCH_SIZE, FFT_SIZE, 2]);
+            let t = t.reshape([self.batch_size, FFT_SIZE, 2]);
             let t = fft_inplace(t, self.rev.clone(), &self.twiddles);
 
             let mag = t.powi_scalar(2).sum_dim(2).mean_dim(0).reshape([FFT_SIZE]);
             let shift = mag.gather(0, self.fft_shift.clone());
+            let shift = shift.log().div_scalar(std::f32::consts::LN_10);
 
             let _ = self.output.get_empty_buffer().unwrap();
             self.output.put_full_buffer(Buffer::from_tensor(shift));
@@ -97,6 +101,7 @@ impl Kernel for Fft {
 }
 
 fn main() -> Result<()> {
+    let batch_size = batch_size_from_args()?;
     futuresdr::runtime::init();
     let device = Default::default();
     let mut fg = Flowgraph::new();
@@ -107,9 +112,9 @@ fn main() -> Result<()> {
     );
     src.output().set_device(&device);
     src.output()
-        .inject_buffers_with_items(4, BATCH_SIZE * FFT_SIZE * 2);
+        .inject_buffers_with_items(4, batch_size * FFT_SIZE * 2);
 
-    let mut fft = Fft::new(&device);
+    let mut fft = Fft::new(&device, batch_size);
     fft.output().set_device(&device);
     fft.output().inject_buffers_with_items(4, FFT_SIZE);
 

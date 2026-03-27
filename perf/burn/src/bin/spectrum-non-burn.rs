@@ -69,15 +69,15 @@ impl Kernel for Avg {
 }
 fn main() -> Result<()> {
     futuresdr::runtime::init();
+    futuresdr::runtime::config::set("buffer_size", (FFT_SIZE * BATCH_SIZE * 8 * 4) as u64);
+
     let mut fg = Flowgraph::new();
 
-    let mut src = Builder::new("")?
-        .frequency(100e6)
-        .sample_rate(3.2e6)
+    let src = Builder::new("")?
+        .frequency(797e6)
+        .sample_rate(32e6)
         .gain(34.0)
         .build_source()?;
-    src.outputs()[0].set_min_buffer_size_in_items(1 << 15);
-
     let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new();
     let snk = WebsocketSink::<f32>::new(9001, WebsocketSinkMode::FixedBlocking(FFT_SIZE));
