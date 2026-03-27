@@ -25,7 +25,7 @@ fn main() -> Result<()> {
         let src: FileSource = FileSource::new(&f);
         connect!(fg, src > snk);
     } else {
-        let src: AudioSource = AudioSource::new(48000, 1);
+        let src: AudioSource = AudioSource::new(48000, 1)?;
         connect!(fg, src > snk);
     };
 

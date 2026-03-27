@@ -18,9 +18,9 @@ where
 {
     #[output]
     output: O,
+    output_channels: u16,
     sample_rate: u32,
     channels: u16,
-    hw_channels: u16,
     stream: Option<Stream>,
     rx: Option<mpsc::UnboundedReceiver<Vec<f32>>>,
     buff: Option<(Vec<f32>, usize)>,
@@ -34,17 +34,45 @@ impl<O> AudioSource<O>
 where
     O: CpuBufferWriter<Item = f32>,
 {
+    fn supports_config(sample_rate: u32, channels: u16) -> bool {
+        let Some(device) = cpal::default_host().default_input_device() else {
+            return false;
+        };
+
+        let Ok(configs) = device.supported_input_configs() else {
+            return false;
+        };
+
+        configs.into_iter().any(|config| {
+            config.channels() == channels
+                && sample_rate >= config.min_sample_rate().0
+                && sample_rate <= config.max_sample_rate().0
+        })
+    }
+
     /// Create AudioSource block
-    pub fn new(sample_rate: u32, channels: u16) -> Self {
-        AudioSource {
+    pub fn new(sample_rate: u32, channels: u16) -> Result<Self> {
+        let input_channels = if Self::supports_config(sample_rate, channels) {
+            channels
+        } else if channels == 1 && Self::supports_config(sample_rate, 2) {
+            warn!(
+                "audio source requested mono input at {} Hz, but only stereo is supported; using channel 0",
+                sample_rate
+            );
+            2
+        } else {
+            return Err(Error::InvalidParameter.into());
+        };
+
+        Ok(AudioSource {
             output: O::default(),
+            output_channels: channels,
             sample_rate,
-            channels,
-            hw_channels: 0,
+            channels: input_channels,
             stream: None,
             rx: None,
             buff: None,
-        }
+        })
     }
 }
 
@@ -54,17 +82,12 @@ where
     O: CpuBufferWriter<Item = f32>,
 {
     async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
-        let host = cpal::default_host();
-        let device = host
+        let device = cpal::default_host()
             .default_input_device()
             .expect("no input device available");
 
-        let temp_config = device.default_input_config()?;
-        let hw_channels = temp_config.channels() as usize;
-        self.hw_channels = hw_channels as u16;
-
         let config = StreamConfig {
-            channels: hw_channels as u16,
+            channels: self.channels,
             sample_rate: SampleRate(self.sample_rate),
             buffer_size: BufferSize::Default,
         };
@@ -99,7 +122,7 @@ where
     ) -> Result<()> {
         if let Some((buff, mut full)) = self.buff.take() {
             let o = self.output.slice();
-            if self.channels == 1 && self.hw_channels == 2 {
+            if self.output_channels == 1 && self.channels == 2 {
                 let n = std::cmp::min(o.len(), (buff.len() - full) / 2);
 
                 for j in 0..n {

@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     // RX
-    let src: AudioSource = AudioSource::new(48000, 1);
+    let src: AudioSource = AudioSource::new(48000, 1)?;
     let snk = DecoderBlock::new();
     connect!(fg, src > snk);
 
