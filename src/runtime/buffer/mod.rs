@@ -30,6 +30,7 @@ pub mod zynq;
 use std::any::Any;
 use std::future::Future;
 
+use crate::runtime::MaybeSend;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::ItemTag;
@@ -94,7 +95,7 @@ pub trait BufferWriter {
         }
     }
     /// Notify downstream blocks that we are done.
-    fn notify_finished(&mut self) -> impl Future<Output = ()> + Send;
+    fn notify_finished(&mut self) -> impl Future<Output = ()> + MaybeSend;
     /// Own Block ID
     fn block_id(&self) -> BlockId;
     /// Own Port ID
@@ -107,7 +108,7 @@ pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {
 impl<T> CpuSample for T where T: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
 /// A generic CPU buffer reader (out-of-place)
-pub trait CpuBufferReader: BufferReader + Default + Send {
+pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     /// Buffer Items
     type Item: CpuSample;
     /// Get available samples.
@@ -139,7 +140,7 @@ pub trait CpuBufferReader: BufferReader + Default + Send {
 ///
 /// Current upstream implemenations are a circular buffer with douple mapping
 /// and the SLAB buffer
-pub trait CpuBufferWriter: BufferWriter + Default + Send {
+pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     /// Buffer Items
     type Item: CpuSample;
     /// Available buffer space
@@ -180,7 +181,7 @@ pub trait InplaceBuffer {
 }
 
 /// In-Place Reader
-pub trait InplaceReader: BufferReader + Default + Send {
+pub trait InplaceReader: BufferReader + Default + MaybeSend {
     /// Items in the reader
     type Item: CpuSample;
     /// Buffer type
@@ -197,7 +198,7 @@ pub trait InplaceReader: BufferReader + Default + Send {
 }
 
 /// In-Place Writer
-pub trait InplaceWriter: BufferWriter + Default + Send {
+pub trait InplaceWriter: BufferWriter + Default + MaybeSend {
     /// Items in the writer
     type Item: CpuSample;
     /// Buffer type

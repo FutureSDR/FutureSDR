@@ -25,6 +25,7 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::MaybeSend;
 use crate::runtime::Pmt;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
@@ -175,27 +176,27 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     }
 
     /// Spawn an async task on the runtime
-    pub fn spawn<T: Send + 'static>(
+    pub fn spawn<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         self.scheduler.spawn(future)
     }
 
     /// Block thread, waiting for future to complete
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn block_on<T: Send + 'static>(
+    pub fn block_on<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> T {
         block_on(self.scheduler.spawn(future))
     }
 
     /// Spawn async task on the runtime, detaching the handle
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn spawn_background<T: Send + 'static>(
+    pub fn spawn_background<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) {
         self.scheduler.spawn(future).detach();
     }
@@ -203,18 +204,18 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     /// Spawn a blocking task
     ///
     /// This is usually moved in a separate thread.
-    pub fn spawn_blocking<T: Send + 'static>(
+    pub fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         self.scheduler.spawn_blocking(future)
     }
 
     /// Spawn a blocking task in the background
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn spawn_blocking_background<T: Send + 'static>(
+    pub fn spawn_blocking_background<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) {
         self.scheduler.spawn_blocking(future).detach();
     }

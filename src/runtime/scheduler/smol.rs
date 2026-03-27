@@ -12,6 +12,7 @@ use std::thread;
 
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::MaybeSend;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 
@@ -130,9 +131,9 @@ impl Scheduler for SmolScheduler {
         }
     }
 
-    fn spawn<T: Send + 'static>(
+    fn spawn<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         SMOL.lock()
             .unwrap()
@@ -141,9 +142,9 @@ impl Scheduler for SmolScheduler {
             .spawn(future)
     }
 
-    fn spawn_blocking<T: Send + 'static>(
+    fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         SMOL.lock()
             .unwrap()

@@ -39,7 +39,7 @@ unsafe impl<D> Send for CurrentBuffer<D> where D: CpuSample {}
 pub struct Writer<D: CpuSample> {
     inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
-    instance: Option<Arc<super::Instance>>,
+    instance: Option<super::Instance>,
     writer_inbox: Sender<BlockMessage>,
     writer_id: BlockId,
     writer_output_id: PortId,
@@ -75,7 +75,7 @@ where
     }
 
     /// Set WGPU instance used to allocate reusable readback buffers.
-    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+    pub fn set_instance(&mut self, instance: super::Instance) {
         self.instance = Some(instance);
     }
 
@@ -185,7 +185,7 @@ where
     reader_id: BlockId,
     reader_input_id: PortId,
     reader_inbox: Sender<BlockMessage>,
-    instance: Option<Arc<super::Instance>>,
+    instance: Option<super::Instance>,
     finished: bool,
 }
 
@@ -213,7 +213,7 @@ where
     }
 
     /// Set WGPU instance.
-    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+    pub fn set_instance(&mut self, instance: super::Instance) {
         self.instance = Some(instance);
     }
 }

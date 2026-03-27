@@ -47,8 +47,6 @@ pub struct Wgpu {
     n_output_buffers: usize,
 }
 
-unsafe impl Send for Wgpu {}
-
 impl Wgpu {
     /// Create Wgpu block
     pub fn new(
@@ -66,9 +64,9 @@ impl Wgpu {
 
         let instance = instance;
         let mut input = H2DReader::new();
-        input.set_instance(std::sync::Arc::new(instance.clone()));
+        input.set_instance(instance.clone());
         let mut output = D2HWriter::new();
-        output.set_instance(std::sync::Arc::new(instance.clone()));
+        output.set_instance(instance.clone());
 
         Self {
             input,

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::MaybeSend;
 use crate::runtime::scheduler::Task;
 
 /// Scheduler trait
@@ -21,13 +22,15 @@ pub trait Scheduler: Clone + Send + 'static {
     );
 
     /// Spawn a task
-    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static)
-    -> Task<T>;
+    fn spawn<T: MaybeSend + 'static>(
+        &self,
+        future: impl Future<Output = T> + MaybeSend + 'static,
+    ) -> Task<T>;
 
     /// Spawn a blocking task in a separate thread
-    fn spawn_blocking<T: Send + 'static>(
+    fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T>;
 }
 
@@ -45,11 +48,14 @@ pub trait Scheduler: Clone + Send + 'static {
     );
 
     /// Spawn a task
-    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T>;
+    fn spawn<T: MaybeSend + 'static>(
+        &self,
+        future: impl Future<Output = T> + MaybeSend + 'static,
+    ) -> Task<T>;
 
     /// Spawn a blocking task in a separate thread
-    fn spawn_blocking<T: Send + 'static>(
+    fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T>;
 }

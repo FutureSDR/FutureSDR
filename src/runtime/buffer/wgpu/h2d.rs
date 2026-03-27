@@ -61,7 +61,7 @@ where
     slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
     writable_ids: Arc<Mutex<Vec<usize>>>,
     ready_ids: Arc<Mutex<VecDeque<usize>>>,
-    instance: Option<Arc<super::Instance>>,
+    instance: Option<super::Instance>,
     writer_id: BlockId,
     writer_inbox: Sender<BlockMessage>,
     writer_output_id: PortId,
@@ -93,7 +93,7 @@ where
     }
 
     /// Set WGPU instance used for staging buffer remap.
-    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+    pub fn set_instance(&mut self, instance: super::Instance) {
         self.instance = Some(instance);
     }
 
@@ -343,7 +343,7 @@ where
     slots: Arc<Mutex<Vec<UploadSlot<D>>>>,
     ready_ids: Arc<Mutex<VecDeque<usize>>>,
     writable_ids: Arc<Mutex<Vec<usize>>>,
-    instance: Option<Arc<super::Instance>>,
+    instance: Option<super::Instance>,
     reader_id: BlockId,
     reader_input_id: PortId,
     reader_inbox: Sender<BlockMessage>,
@@ -374,7 +374,7 @@ where
     }
 
     /// Set WGPU instance used for remapping returned staging buffers.
-    pub fn set_instance(&mut self, instance: Arc<super::Instance>) {
+    pub fn set_instance(&mut self, instance: super::Instance) {
         self.instance = Some(instance);
     }
 

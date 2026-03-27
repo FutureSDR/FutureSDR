@@ -15,7 +15,6 @@ use perf_burn::FFT_SIZE;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::env;
-use std::sync::Arc;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
@@ -165,7 +164,7 @@ struct Fft {
 unsafe impl Send for Fft {}
 
 impl Fft {
-    fn new(instance: Arc<wgpu_buffer::Instance>, args: Args) -> Result<Self> {
+    fn new(instance: wgpu_buffer::Instance, args: Args) -> Result<Self> {
         let mut input = H2DReader::new();
         input.set_instance(instance.clone());
         let mut output = D2HWriter::new();
@@ -192,7 +191,7 @@ impl Fft {
     }
 
     fn create_state(
-        instance: Arc<wgpu_buffer::Instance>,
+        instance: wgpu_buffer::Instance,
         batch_size: usize,
         chunk_batches: Option<usize>,
     ) -> Result<WgpuState> {
@@ -1098,7 +1097,7 @@ fn main() -> Result<()> {
     let args = Args::parse()?;
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
-    let instance = Arc::new(futuresdr::async_io::block_on(wgpu_buffer::Instance::new()));
+    let instance = futuresdr::async_io::block_on(wgpu_buffer::Instance::new());
 
     let src = NullSource::<Complex32>::new();
     let mut head =

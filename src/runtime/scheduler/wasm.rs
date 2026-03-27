@@ -9,6 +9,7 @@ use std::sync::Arc;
 use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::MaybeSend;
 use crate::runtime::scheduler::Scheduler;
 
 /// WASM Scheduler
@@ -47,7 +48,10 @@ impl Scheduler for WasmScheduler {
         }
     }
 
-    fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
+    fn spawn<T: MaybeSend + 'static>(
+        &self,
+        future: impl Future<Output = T> + MaybeSend + 'static,
+    ) -> Task<T> {
         let (tx, rx) = oneshot::channel::<T>();
         wasm_bindgen_futures::spawn_local(async move {
             let t = future.await;
@@ -59,9 +63,9 @@ impl Scheduler for WasmScheduler {
         Task(rx)
     }
 
-    fn spawn_blocking<T: Send + 'static>(
+    fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         info!("no spawn blocking for wasm, using spawn");
         self.spawn(future)

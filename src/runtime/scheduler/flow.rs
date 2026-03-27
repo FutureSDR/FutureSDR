@@ -25,6 +25,7 @@ use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
 use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::MaybeSend;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
 
@@ -192,16 +193,16 @@ impl Scheduler for FlowScheduler {
         }
     }
 
-    fn spawn<T: Send + 'static>(
+    fn spawn<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         self.inner.executor.spawn(future)
     }
 
-    fn spawn_blocking<T: Send + 'static>(
+    fn spawn_blocking<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         self.inner
             .executor
@@ -289,9 +290,9 @@ impl FlowExecutor {
     ///     println!("Hello world");
     /// });
     /// ```
-    pub fn spawn<T: Send + 'static>(
+    pub fn spawn<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         let mut active = self.state().active.lock().unwrap();
 
@@ -312,9 +313,9 @@ impl FlowExecutor {
         task
     }
 
-    pub fn spawn_executor<T: Send + 'static>(
+    pub fn spawn_executor<T: MaybeSend + 'static>(
         &self,
-        future: impl Future<Output = T> + Send + 'static,
+        future: impl Future<Output = T> + MaybeSend + 'static,
         executor: usize,
     ) -> Task<T> {
         let mut active = self.state().active.lock().unwrap();

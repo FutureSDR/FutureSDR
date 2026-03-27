@@ -1,5 +1,6 @@
 use std::future::Future;
 
+use crate::runtime::MaybeSend;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockInbox;
 use futuresdr::runtime::BlockMeta;
@@ -11,20 +12,10 @@ use futuresdr::runtime::Result;
 use futuresdr::runtime::WorkIo;
 use futuresdr::runtime::buffer::BufferReader;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub trait MaybeSend: Send {}
-#[cfg(not(target_arch = "wasm32"))]
-impl<T: Send + ?Sized> MaybeSend for T {}
-
-#[cfg(target_arch = "wasm32")]
-pub trait MaybeSend {}
-#[cfg(target_arch = "wasm32")]
-impl<T: ?Sized> MaybeSend for T {}
-
 /// Kernal
 ///
 /// Central trait to implement a block
-pub trait Kernel: Send {
+pub trait Kernel: MaybeSend {
     /// Processes stream data
     fn work(
         &mut self,

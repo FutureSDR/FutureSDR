@@ -80,6 +80,18 @@ use buffer::BufferWriter;
 /// At the moment, a type alias for [`anyhow::Result`].
 pub type Result<T, E = anyhow::Error> = anyhow::Result<T, E>;
 
+#[cfg(not(target_arch = "wasm32"))]
+/// Marker trait for values that must be `Send` on native runtimes but not on wasm.
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + ?Sized> MaybeSend for T {}
+
+#[cfg(target_arch = "wasm32")]
+/// Marker trait for values that must be `Send` on native runtimes but not on wasm.
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSend for T {}
+
 /// Initialize runtime
 ///
 /// This function does not have to be called. Once a [`Runtime`] is started,

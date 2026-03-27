@@ -6,6 +6,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+use crate::runtime::MaybeSend;
 use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockDescription;
@@ -28,7 +29,7 @@ use futuresdr::runtime::config;
 
 #[async_trait]
 /// Block interface, implemented for [WrappedKernel]s
-pub trait Block: Send + Any {
+pub trait Block: MaybeSend + Any {
     /// required for downcasting
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
@@ -99,7 +100,7 @@ pub struct WrappedKernel<K: Kernel> {
     pub notifier: BlockNotifier,
 }
 
-impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
+impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
     /// Create Typed Block
     pub fn new(mut kernel: K, id: BlockId) -> Self {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
@@ -342,7 +343,7 @@ impl<K: KernelInterface + Kernel + Send + 'static> WrappedKernel<K> {
 }
 
 #[async_trait]
-impl<K: KernelInterface + Kernel + Send + 'static> Block for WrappedKernel<K> {
+impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
