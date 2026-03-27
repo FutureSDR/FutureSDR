@@ -1,10 +1,11 @@
+use anyhow::ensure;
 use clap::Parser;
 use clap::ValueEnum;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::Combine;
 use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
-use futuresdr::blocks::FileSource;
+use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use std::time;
@@ -35,10 +36,27 @@ struct Args {
     config: Config,
 }
 
-fn normal(args: Args) -> Result<()> {
+fn load_cf32(path: &str) -> Result<Vec<Complex32>> {
+    let bytes = std::fs::read(path)?;
+    ensure!(
+        bytes.len() % 8 == 0,
+        "invalid cf32 file size ({}), expected multiple of 8 bytes",
+        bytes.len()
+    );
+
+    let mut out = Vec::with_capacity(bytes.len() / 8);
+    for chunk in bytes.chunks_exact(8) {
+        let re = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        let im = f32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]);
+        out.push(Complex32::new(re, im));
+    }
+    Ok(out)
+}
+
+fn normal(args: Args, samples: Vec<Complex32>) -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<Complex32>::new(&args.file, false);
+    let src = VectorSource::<Complex32>::new(samples);
     let delay = Delay::<Complex32>::new(16);
     let complex_to_mag_2 = Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr());
     let float_avg = MovingAverage::<f32>::new(64);
@@ -75,10 +93,10 @@ fn normal(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn opti(args: Args) -> Result<()> {
+fn opti(args: Args, samples: Vec<Complex32>) -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<Complex32>::new(&args.file, false);
+    let src = VectorSource::<Complex32>::new(samples);
     let delay = Delay::<Complex32>::new(16);
     let complex_to_mag_2 = Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr());
     let float_avg = MovingAverage::<f32>::new(64);
@@ -105,18 +123,22 @@ fn opti(args: Args) -> Result<()> {
         vec![
             src.into(),
             delay.into(),
-            complex_to_mag_2.into(),
             mult_conj.into(),
+            complex_to_mag_2.into(),
         ],
         vec![
-            float_avg.into(),
             complex_avg.into(),
+            float_avg.into(),
             divide_mag.into(),
             sync_short.into(),
-            sync_long.into(),
         ],
-        vec![fft.into(), frame_equalizer.into()],
-        vec![decoder.into()],
+        vec![
+            sync_long.into(),
+            fft.into(),
+            frame_equalizer.into(),
+            decoder.into(),
+        ],
+        vec![],
     ];
 
     let now = time::Instant::now();
@@ -130,10 +152,13 @@ fn opti(args: Args) -> Result<()> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let samples = load_cf32(&args.file)?;
+    let n = samples.len();
+    let samples: Vec<Complex32> = samples.into_iter().cycle().take(n * 10).collect();
 
     match args.config {
-        Config::Normal => normal(args)?,
-        Config::Opti => opti(args)?,
+        Config::Normal => normal(args, samples)?,
+        Config::Opti => opti(args, samples)?,
     }
 
     Ok(())
