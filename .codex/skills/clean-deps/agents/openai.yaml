@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clean Deps"
+  short_description: "Prune unused FutureSDR Cargo dependencies"
+  default_prompt: "Use $clean-deps to find and remove unused Cargo dependencies and unnecessary enabled features in this repository."

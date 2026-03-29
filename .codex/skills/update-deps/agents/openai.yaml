@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Deps"
+  short_description: "Update FutureSDR Cargo dependencies safely"
+  default_prompt: "Use $update-deps to update this repository's Cargo dependencies and fix the resulting API changes."
