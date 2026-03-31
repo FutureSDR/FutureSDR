@@ -7,20 +7,15 @@ use futuresdr::blocks::XlatingFir;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
-use lora::Decoder;
-use lora::Deinterleaver;
-use lora::FftDemod;
-use lora::FrameSync;
-use lora::GrayMapping;
-use lora::HammingDecoder;
-use lora::HeaderDecoder;
-use lora::HeaderMode;
+use lora::build_lora_rx_soft_decoding;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticChannels;
 use lora::meshtastic::MeshtasticConfig;
+use lora::meshtastic::MeshtasticConfigEnumParser;
 use lora::utils::Bandwidth;
+use lora::utils::HeaderMode;
+use lora::utils::SynchWord;
 
-const IMPLICIT_HEADER: bool = false;
 const OVERSAMPLING: usize = 4;
 
 #[derive(Parser, Debug)]
@@ -35,7 +30,7 @@ struct Args {
     #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Meshtastic LoRa Config
-    #[clap(short, long, value_enum, default_value_t = MeshtasticConfig::LongFastEu)]
+    #[clap(short, long, value_parser=MeshtasticConfigEnumParser, value_enum, default_value_t = MeshtasticConfig::LongFastEu)]
     meshtastic_config: MeshtasticConfig,
     /// Meshtastic Channels (Format: <name>:<base64key>,<name>:<base64key>,..)
     #[clap(short, long)]
@@ -58,6 +53,8 @@ fn main() -> Result<()> {
 
     println!("channels: {channels:?}");
 
+    let mut fg = Flowgraph::new();
+
     let src = Builder::new(args.args)?
         .sample_rate(1e6)
         .frequency(Into::<f64>::into(chan) - 200e3)
@@ -76,36 +73,26 @@ fn main() -> Result<()> {
     let taps = firdes::kaiser::lowpass(cutoff, transition_bw, 0.05);
     let decimation: XlatingFir = XlatingFir::with_taps(taps, decimation, 200e3, 1e6);
 
-    let frame_sync: FrameSync = FrameSync::new(
+    let (frame_sync_ref, decoder_ref) = build_lora_rx_soft_decoding(
+        &mut fg,
         chan,
         bandwidth,
         spreading_factor,
-        IMPLICIT_HEADER,
-        vec![vec![16, 88]],
+        HeaderMode::Explicit,
+        ldro,
+        Some(&[SynchWord::Meshtastic]),
         OVERSAMPLING,
         None,
         Some("header_crc_ok"),
         false,
         None,
-    );
-    let fft_demod: FftDemod = FftDemod::new(spreading_factor, ldro);
-    let gray_mapping: GrayMapping = GrayMapping::new();
-    let deinterleaver: Deinterleaver = Deinterleaver::new(ldro, spreading_factor);
-    let hamming_dec: HammingDecoder = HammingDecoder::new();
-    let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
-    let decoder: Decoder = Decoder::new();
+    )?;
 
     let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = MessagePipe::new(tx_frame);
-
-    let mut fg = Flowgraph::new();
     connect!(fg,
-        src.outputs[0] > decimation > frame_sync;
-        frame_sync > fft_demod;
-        fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-        header_decoder.frame_info | frame_info.frame_sync;
-        header_decoder | decoder;
-        decoder | message_pipe;
+        src.outputs[0] > decimation > frame_sync_ref;
+        decoder_ref.out_annotated | message_pipe;
     );
 
     let rt = Runtime::new();
@@ -116,12 +103,14 @@ fn main() -> Result<()> {
         for c in channels {
             chans.add_channel(MeshtasticChannel::new(&c.0, &c.1));
         }
-        while let Some(x) = rx_frame.next().await {
-            match x {
-                Pmt::Blob(data) => {
-                    chans.decode(&data[..data.len() - 2]);
+        loop {
+            while let Ok(x) = rx_frame.recv().await {
+                match x {
+                    Pmt::Blob(data) => {
+                        chans.decode(&data[..data.len() - 2]);
+                    }
+                    _ => break,
                 }
-                _ => break,
             }
         }
     });

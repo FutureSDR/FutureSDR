@@ -1,3 +1,5 @@
+use crate::utils::CodeRate;
+use crate::utils::HeaderMode;
 use futuresdr::prelude::*;
 use std::cmp::min;
 use std::collections::HashMap;
@@ -7,7 +9,7 @@ pub struct Frame {
     pub nibbles: Vec<u8>,
     pub implicit_header: bool,
     pub has_crc: bool,
-    pub code_rate: usize,
+    pub code_rate: CodeRate,
     pub annotations: HashMap<String, Pmt>,
 }
 
@@ -17,19 +19,10 @@ impl Default for Frame {
             nibbles: Vec::new(),
             implicit_header: false,
             has_crc: false,
-            code_rate: 1,
+            code_rate: CodeRate::CR_4_5,
             annotations: HashMap::new(),
         }
     }
-}
-
-pub enum HeaderMode {
-    Explicit,
-    Implicit {
-        payload_len: usize,
-        has_crc: bool,
-        code_rate: usize,
-    },
 }
 
 const HEADER_LEN: usize = 5; // size of the header in nibbles
@@ -45,20 +38,20 @@ where
     mode: HeaderMode,
     left: usize,
     frame: Frame,
-    ldro_mode: bool,
+    ldro_enabled: bool,
 }
 
 impl<I> HeaderDecoder<I>
 where
     I: CpuBufferReader<Item = u8>,
 {
-    pub fn new(mode: HeaderMode, ldro_mode: bool) -> Self {
+    pub fn new(mode: HeaderMode, ldro_enabled: bool) -> Self {
         Self {
             input: I::default(),
             mode,
             left: 0,
             frame: Frame::default(),
-            ldro_mode,
+            ldro_enabled,
         }
     }
 
@@ -67,7 +60,7 @@ where
         cr: usize,
         pay_len: usize,
         crc: bool,
-        ldro_mode: bool,
+        ldro_enabled: bool,
         err: bool,
     ) -> Result<()> {
         let mut header_content: HashMap<String, Pmt> = HashMap::new();
@@ -75,7 +68,7 @@ where
         header_content.insert("cr".to_string(), Pmt::Usize(cr));
         header_content.insert("pay_len".to_string(), Pmt::Usize(pay_len));
         header_content.insert("crc".to_string(), Pmt::Bool(crc));
-        header_content.insert("ldro_mode".to_string(), Pmt::Bool(ldro_mode));
+        header_content.insert("ldro_enabled".to_string(), Pmt::Bool(ldro_enabled));
         header_content.insert("err".to_string(), Pmt::Bool(err));
         mio.post("frame_info", Pmt::MapStrPmt(header_content.clone()))
             .await?;
@@ -177,10 +170,10 @@ where
 
                 Self::publish_frame_info(
                     mio,
-                    code_rate,
+                    code_rate.into(),
                     payload_len,
                     has_crc,
-                    self.ldro_mode,
+                    self.ldro_enabled,
                     false,
                 )
                 .await?;
@@ -190,7 +183,8 @@ where
                 // explicit header to decode
                 let payload_len = ((input[0] << 4) + input[1]) as usize;
                 let has_crc = input[2] & 1 != 0;
-                let code_rate = (input[2] >> 1) as usize;
+                let code_rate_raw = input[2] >> 1;
+                let code_rate = CodeRate::try_from(code_rate_raw);
 
                 // check header Checksum
                 let header_chk = ((input[3] & 1) << 4) + input[4];
@@ -224,7 +218,7 @@ where
                 info!("..:: Header");
                 info!("Payload length: {}", payload_len);
                 info!("CRC presence:   {}", has_crc);
-                info!("Coding rate:    {}", code_rate);
+                info!("Coding rate:    {}", code_rate_raw);
 
                 let mut head_err = header_chk as i16
                     - ((c4 << 4) + (c3 << 3) + (c2 << 2) + (c1 << 1) + c0) as i16
@@ -239,7 +233,7 @@ where
                         debug!("item to process= {}", nitem_to_consume);
                     }
                     head_err = true;
-                } else if code_rate > 3 {
+                } else if code_rate.is_err() {
                     info!("Header invalid!");
                     debug!("Code rate must be within [0, 3]!");
                     head_err = true;
@@ -249,10 +243,10 @@ where
 
                 Self::publish_frame_info(
                     mio,
-                    code_rate,
+                    code_rate_raw as usize,
                     payload_len,
                     has_crc,
-                    self.ldro_mode,
+                    self.ldro_enabled,
                     head_err,
                 )
                 .await?;
@@ -262,7 +256,7 @@ where
                         nibbles: Vec::new(),
                         implicit_header: false,
                         has_crc,
-                        code_rate,
+                        code_rate: code_rate.unwrap(),
                         annotations: annotations.unwrap_or(HashMap::<String, Pmt>::new()),
                     };
 

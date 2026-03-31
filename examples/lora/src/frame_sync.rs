@@ -705,7 +705,7 @@ impl State {
         frame_info.insert(String::from("cfo_frac"), Pmt::F64(self.m_cfo_frac));
         frame_info.insert(String::from("sf"), Pmt::Usize(self.m_sf.into()));
         frame_info.insert(
-            String::from("timestamp"),
+            String::from("timestamp_unix_ns"),
             Pmt::U64(
                 self.startup_timestamp_nanos
                     + (self.processed_samples
@@ -717,6 +717,18 @@ impl State {
                         })
                         * 1_000_000_000
                         / ((Into::<usize>::into(self.m_bw) * self.m_os_factor) as u64),
+            ),
+        );
+        frame_info.insert(
+            String::from("timestamp_samples"),
+            Pmt::U64(
+                self.processed_samples
+                    + items_to_consume as u64
+                    + if one_symbol_off {
+                        self.m_samples_per_symbol as u64
+                    } else {
+                        0
+                    },
             ),
         );
         let frame_info_pmt = Pmt::MapStrPmt(frame_info);
@@ -1061,7 +1073,7 @@ where
         bandwidth: Bandwidth,
         sf: SpreadingFactor,
         impl_head: bool,
-        initial_sync_words: Vec<Vec<usize>>, // initially known NetIDs
+        initial_sync_words: &[SynchWord], // initially known NetIDs
         os_factor: usize,
         preamble_len: Option<usize>,
         net_id_caching_policy: Option<&str>,
@@ -1084,11 +1096,9 @@ where
         let mut known_valid_net_ids: [[bool; 256]; 256] = [[false; 256]; 256];
         let mut known_valid_net_ids_reverse: [[bool; 256]; 256] = [[false; 256]; 256];
         for sync_word in initial_sync_words {
-            let sync_word_tmp: Vec<usize> = expand_sync_word(sync_word);
-            if sync_word_tmp.len() == 2 {
-                known_valid_net_ids_reverse[sync_word_tmp[1]][sync_word_tmp[0]] = true;
-                known_valid_net_ids[sync_word_tmp[0]][sync_word_tmp[1]] = true;
-            }
+            let sync_word_tmp = sync_word.verify_and_expand(sf).unwrap();
+            known_valid_net_ids_reverse[sync_word_tmp[1]][sync_word_tmp[0]] = true;
+            known_valid_net_ids[sync_word_tmp[0]][sync_word_tmp[1]] = true;
         }
         let m_number_of_bins_tmp = sf.samples_per_symbol();
         let m_samples_per_symbol_tmp = m_number_of_bins_tmp * os_factor;
@@ -1267,17 +1277,11 @@ where
             } else {
                 panic!("invalid m_has_crc")
             };
-            // uint8_t
-            let ldro_mode_tmp: LdroMode =
-                if let Pmt::Bool(temp) = frame_info.get("ldro_mode").unwrap() {
-                    if *temp {
-                        LdroMode::ENABLE
-                    } else {
-                        LdroMode::DISABLE
-                    }
-                } else {
-                    panic!("invalid ldro_mode")
-                };
+            let ldro_enabled = if let Pmt::Bool(temp) = frame_info.get("ldro_enabled").unwrap() {
+                *temp
+            } else {
+                panic!("invalid ldro_enabled")
+            };
             let m_invalid_header = if let Pmt::Bool(temp) = frame_info.get("err").unwrap() {
                 *temp
             } else {
@@ -1302,20 +1306,6 @@ where
                     // TODO append NetID to FrameInfo, pass through to decoder, and include NetID in CRC result to avoid need to block
                     self.s.ready_to_detect = false;
                 }
-                // frame parameters
-                let m_ldro: LdroMode = if ldro_mode_tmp == LdroMode::AUTO {
-                    if (self.s.m_sf.samples_per_symbol()) as f32 * 1e3
-                        / Into::<f32>::into(self.s.m_bw)
-                        > LDRO_MAX_DURATION_MS
-                    {
-                        LdroMode::ENABLE
-                    } else {
-                        LdroMode::DISABLE
-                    }
-                } else {
-                    ldro_mode_tmp
-                };
-
                 let m_symb_numb_tmp = 8_isize
                     + ((2 * m_pay_len as isize - self.s.m_sf as isize
                         + if self.s.m_sf >= SpreadingFactor::SF7 {
@@ -1325,7 +1315,7 @@ where
                         }
                         + (!self.s.m_impl_head) as isize * 5
                         + if m_has_crc { 4 } else { 0 }) as f64
-                        / (Into::<usize>::into(self.s.m_sf) - 2 * m_ldro as usize) as f64)
+                        / (Into::<usize>::into(self.s.m_sf) - 2 * ldro_enabled as usize) as f64)
                         .ceil() as isize
                         * (4 + m_cr as isize);
                 assert!(
@@ -1336,8 +1326,6 @@ where
                 self.s.m_received_head = true;
                 frame_info.insert(String::from("is_header"), Pmt::Bool(false));
                 frame_info.insert(String::from("symb_numb"), Pmt::Usize(self.s.m_symb_numb));
-                frame_info.remove("ldro_mode");
-                frame_info.insert(String::from("ldro"), Pmt::Bool(m_ldro as usize != 0));
                 let frame_info_pmt = Pmt::MapStrPmt(frame_info);
                 self.s
                     .tag_from_msg_handler_to_work_channel

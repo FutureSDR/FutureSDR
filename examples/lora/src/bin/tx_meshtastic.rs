@@ -2,13 +2,15 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
-use lora::Transmitter;
+use lora::build_lora_tx;
 use lora::default_values::HAS_CRC;
-use lora::default_values::IMPLICIT_HEADER;
 use lora::default_values::PREAMBLE_LEN;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticConfig;
+use lora::meshtastic::MeshtasticConfigEnumParser;
 use lora::utils::Bandwidth;
+use lora::utils::HeaderMode;
+use lora::utils::SynchWord;
 use std::io::BufRead;
 use std::io::Write;
 
@@ -24,7 +26,7 @@ struct Args {
     #[clap(short, long, default_value_t = 50.0)]
     gain: f64,
     /// Meshtastic LoRa Config
-    #[clap(short, long, value_enum)]
+    #[clap(short, long, value_parser=MeshtasticConfigEnumParser, value_enum)]
     meshtastic_config: MeshtasticConfig,
     /// meshtastic channel name
     #[clap(short, long)]
@@ -56,21 +58,22 @@ fn main() -> Result<()> {
         .antenna(args.antenna)
         .build_sink()?;
 
-    let transmitter: Transmitter = Transmitter::new(
+    let transmitter = build_lora_tx(
+        &mut fg,
+        bandwidth,
+        spreading_factor,
         code_rate,
         HAS_CRC,
-        spreading_factor,
         ldro,
-        IMPLICIT_HEADER,
+        HeaderMode::Explicit,
         interpolation,
-        vec![16, 88],
-        PREAMBLE_LEN,
+        SynchWord::Meshtastic,
+        Some(PREAMBLE_LEN),
         PAD,
-    );
+    )?;
 
     connect!(fg, transmitter > inputs[0].sink);
     let transmitter = transmitter.into();
-
     let rt = Runtime::new();
     let (_fg, handle) = rt.start_sync(fg)?;
 
