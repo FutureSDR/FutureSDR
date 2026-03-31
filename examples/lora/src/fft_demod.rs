@@ -27,7 +27,7 @@ pub struct State<T: DemodulatedSymbol> {
     m_sf: SpreadingFactor,       //< Spreading factor
     m_cr: usize,                 //< Coding rate
     max_log_approx: bool,        //< use Max-log approximation in LLR formula
-    m_ldro: bool,                //< use low datarate optimisation
+    m_ldro_enabled: bool,        //< use low datarate optimisation
     m_symb_numb: usize,          //< number of symbols in the frame
     m_samples_per_symbol: usize, //< Number of samples received per lora symbols
     // variable used to perform the FFT demodulation
@@ -53,8 +53,8 @@ where
         self.m_samples_per_symbol = self.m_sf.samples_per_symbol();
         self.fft_plan = FftPlanner::new().plan_fft_forward(self.m_samples_per_symbol);
         self.base_downchirp = build_upchirp(0, sf, 1, false)
-            .iter()
-            .map(|&x| Complex64::new(x.re as f64, x.im as f64).conj())
+            .into_iter()
+            .map(|x| c64(x.re, x.im))
             .collect();
     }
 
@@ -71,7 +71,8 @@ where
 
     /// check if the reduced rate should be used
     fn reduced_rate(&self) -> bool {
-        (self.is_header && self.m_sf >= SpreadingFactor::SF7) || (!self.is_header && self.m_ldro)
+        (self.is_header && self.m_sf >= SpreadingFactor::SF7)
+            || (!self.is_header && self.m_ldro_enabled)
     }
 
     fn next_iteration_possible(
@@ -261,7 +262,7 @@ where
     O: CpuBufferWriter<Item = T>,
     State<T>: Demod<T>,
 {
-    pub fn new(sf_initial: SpreadingFactor, ldro: bool) -> Self {
+    pub fn new(sf_initial: SpreadingFactor, ldro_enabled: bool) -> Self {
         let m_samples_per_symbol = sf_initial.samples_per_symbol();
         let fft_plan = FftPlanner::new().plan_fft_forward(m_samples_per_symbol);
 
@@ -274,16 +275,16 @@ where
             s: State::<T> {
                 m_sf: sf_initial,
                 m_cr: 0, // initial value irrelevant, set from tag before read
+                m_ldro_enabled: ldro_enabled,
                 max_log_approx: true,
                 m_samples_per_symbol,
                 base_downchirp: build_upchirp(0, sf_initial, 1, false)
-                    .iter()
-                    .map(|&x| Complex64::new(x.re as f64, x.im as f64).conj())
+                    .into_iter()
+                    .map(|x| c64(x.re, x.im).conj())
                     .collect(),
                 m_downchirp: vec![],
                 out: Vec::with_capacity(8),
                 is_header: false,
-                m_ldro: ldro,
                 m_symb_numb: 0,
                 fft_plan,
                 lls: vec![0.; m_samples_per_symbol],
@@ -403,7 +404,8 @@ where
                     } else {
                         panic!()
                     };
-                    self.s.m_ldro = if let Pmt::Bool(tmp) = tag.get("ldro").unwrap() {
+                    self.s.m_ldro_enabled = if let Pmt::Bool(tmp) = tag.get("ldro_enabled").unwrap()
+                    {
                         *tmp
                     } else {
                         panic!()

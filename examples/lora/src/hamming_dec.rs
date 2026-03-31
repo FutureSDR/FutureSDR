@@ -36,7 +36,7 @@ struct State<T> {
 #[message_outputs(out)]
 pub struct HammingDecoder<
     T = DeinterleavedSymbolSoftDecoding,
-    I = DefaultCpuReader<DeinterleavedSymbolSoftDecoding>,
+    I = DefaultCpuReader<T>,
     O = DefaultCpuWriter<u8>,
 > where
     T: DeinterleavedSymbol,

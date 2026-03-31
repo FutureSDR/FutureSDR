@@ -5,15 +5,18 @@ use clap::Parser;
 use futuresdr::async_io::Timer;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
-use lora::Transmitter;
+use lora::build_lora_tx;
 use lora::default_values::HAS_CRC;
-use lora::default_values::IMPLICIT_HEADER;
 use lora::default_values::PREAMBLE_LEN;
-use lora::default_values::ldro;
 use lora::utils::Bandwidth;
 use lora::utils::Channel;
 use lora::utils::CodeRate;
+use lora::utils::HeaderMode;
+use lora::utils::HeaderModeEnumParser;
+use lora::utils::LdroMode;
 use lora::utils::SpreadingFactor;
+use lora::utils::SynchWord;
+use lora::utils::SynchWordEnumParser;
 use lora::utils::sample_count;
 use rand::RngCore;
 
@@ -40,23 +43,30 @@ struct Args {
     /// Spreading Factor
     #[clap(short, long, value_enum, default_value_t = SpreadingFactor::SF7)]
     spreading_factor: SpreadingFactor,
-    /// Sync Word
-    #[clap(long, default_value_t = 0x0816)]
-    sync_word: usize,
+    /// LoRa Sync Word
+    #[clap(long, value_parser=SynchWordEnumParser, value_enum, default_value_t = SynchWord::Private)]
+    sync_word: SynchWord,
     /// Sync Word
     #[clap(long, default_value_t = 16)]
     payload_len: usize,
     /// LoRa Bandwidth
-    #[clap(short, long, value_enum, default_value_t = Bandwidth::BW125)]
+    #[clap(short, long, value_enum, default_value_t)]
     bandwidth: Bandwidth,
     /// LoRa Code Rate
-    #[clap(short, long, value_enum, default_value_t = CodeRate::CR_4_5)]
+    #[clap(short, long, value_enum, default_value_t)]
     code_rate: CodeRate,
+    /// LoRa Code Rate
+    #[clap(long, value_parser=HeaderModeEnumParser, value_enum, default_value_t)]
+    header_mode: HeaderMode,
 }
 const PAD: usize = 0;
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let ldro = LdroMode::AUTO;
+    let ldro_enabled = ldro
+        .resolve_if_auto(args.spreading_factor, args.bandwidth)
+        .enabled();
 
     let mut fg = Flowgraph::new();
 
@@ -69,31 +79,32 @@ fn main() -> Result<()> {
             // make sure the sink will not stall on large bursts
             args.spreading_factor,
             PREAMBLE_LEN,
-            IMPLICIT_HEADER,
+            args.header_mode,
             args.payload_len,
             HAS_CRC,
             args.code_rate,
             args.oversampling,
             PAD,
-            ldro(args.spreading_factor),
+            ldro_enabled,
         ))
         .build_sink()?;
 
-    let transmitter: Transmitter = Transmitter::new(
+    let transmitter = build_lora_tx(
+        &mut fg,
+        args.bandwidth,
+        args.spreading_factor,
         args.code_rate,
         HAS_CRC,
-        args.spreading_factor,
-        ldro(args.spreading_factor),
-        IMPLICIT_HEADER,
+        ldro,
+        args.header_mode,
         args.oversampling,
-        vec![args.sync_word],
-        PREAMBLE_LEN,
+        args.sync_word,
+        Some(PREAMBLE_LEN),
         PAD,
-    );
+    )?;
 
     connect!(fg, transmitter > inputs[0].sink);
     let transmitter = transmitter.into();
-
     let rt = Runtime::new();
 
     let (_fg, mut handle) = rt.start_sync(fg)?;

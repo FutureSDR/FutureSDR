@@ -14,19 +14,14 @@ use futuresdr::blocks::PfbChannelizer;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
-use lora::Decoder;
-use lora::Deinterleaver;
-use lora::FftDemod;
-use lora::FrameSync;
-use lora::GrayMapping;
-use lora::HammingDecoder;
-use lora::HeaderDecoder;
-use lora::HeaderMode;
 use lora::PacketForwarderClient;
-use lora::default_values::ldro;
+use lora::build_lora_rx_soft_decoding;
 use lora::utils::Bandwidth;
 use lora::utils::Channel;
+use lora::utils::HeaderMode;
+use lora::utils::LdroMode;
 use lora::utils::SpreadingFactor;
+use lora::utils::SynchWord;
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -158,37 +153,29 @@ fn main() -> Result<()> {
                 "connecting {:.1}MHz FrameSync with spreading factor {sf}",
                 Into::<f32>::into(channel) / 1.0e6,
             );
-            let frame_sync: FrameSync = FrameSync::new(
+            let (frame_sync_ref, decoder_ref) = build_lora_rx_soft_decoding(
+                &mut fg,
                 channel,
                 BANDWIDTH,
                 sf,
-                false,
-                vec![vec![0x12], vec![0x34]],
+                HeaderMode::Explicit,
+                LdroMode::AUTO,
+                Some(&[SynchWord::Private, SynchWord::Public]),
                 OVERSAMPLING,
                 None,
                 None,
                 false,
                 Some(stream_start_time),
-            );
-            let frame_sync = fg.add_block(frame_sync);
-            fg.connect_dyn(&resampler, "out", &frame_sync, "in")?;
-            let fft_demod: FftDemod = FftDemod::new(sf, ldro(sf));
-            let gray_mapping: GrayMapping = GrayMapping::new();
-            let deinterleaver: Deinterleaver = Deinterleaver::new(ldro(sf), sf);
-            let hamming_dec: HammingDecoder = HammingDecoder::new();
-            let header_decoder = HeaderDecoder::new(HeaderMode::Explicit, ldro(sf));
-            let decoder = Decoder::new();
+            )?;
             let udp_data = BlobToUdp::new("127.0.0.1:55555");
             let udp_rftap = BlobToUdp::new("127.0.0.1:55556");
 
             let resampler_block_ref = resampler.clone();
 
             connect!(fg,
-                resampler_block_ref > frame_sync > fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-                header_decoder.frame_info | frame_info.frame_sync;
-                header_decoder | decoder;
-                decoder.out | udp_data;
-                decoder.rftap | udp_rftap;
+                resampler_block_ref > frame_sync_ref;
+                decoder_ref.out | udp_data;
+                decoder_ref.rftap | udp_rftap;
             );
             if let Some(ref pf) = packet_forwarder {
                 let packet_forwarder = pf.clone();
@@ -201,7 +188,7 @@ fn main() -> Result<()> {
                     (String::from("freq"), Pmt::F64(Into::<f64>::into(channel))),
                 ]);
                 let metadata_tagger = MessageAnnotator::new(tags, None);
-                connect!(fg, decoder.out_annotated | metadata_tagger);
+                connect!(fg, decoder_ref.out_annotated | metadata_tagger);
                 connect!(fg, metadata_tagger | packet_forwarder);
             }
         }

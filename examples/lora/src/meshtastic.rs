@@ -1,13 +1,23 @@
+use crate::utils::Bandwidth;
+use crate::utils::Channel;
+use crate::utils::CodeRate;
+use crate::utils::LdroMode;
+use crate::utils::SpreadingFactor;
 use base64::prelude::*;
+use clap::Arg;
+use clap::Command;
+use clap::Error;
+use clap::ValueEnum;
+use clap::builder::PossibleValue;
+use clap::builder::TypedValueParser;
+use clap::error::ErrorKind;
 use ctr::cipher::KeyIvInit;
 use ctr::cipher::StreamCipher;
 use futuresdr::tracing::info;
 use meshtastic::Message;
-
-use crate::utils::Bandwidth;
-use crate::utils::Channel;
-use crate::utils::CodeRate;
-use crate::utils::SpreadingFactor;
+use std::ffi::OsStr;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 type Aes128 = ctr::Ctr64BE<aes::Aes128>;
 type Aes256 = ctr::Ctr64BE<aes::Aes256>;
@@ -16,8 +26,7 @@ const DEFAULT_KEY: [u8; 16] = [
     0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59, 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01,
 ];
 
-#[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
-#[clap(rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(Debug, Clone, Copy, Default)]
 #[allow(non_camel_case_types)]
 pub enum MeshtasticConfig {
     ShortFastEu,
@@ -29,131 +38,353 @@ pub enum MeshtasticConfig {
     LongModerateEu,
     LongSlowEu,
     VeryLongSlowEu,
+    ShortTurboUs,
     ShortFastUs,
     ShortSlowUs,
     MediumFastUs,
     MediumSlowUs,
+    LongTurboUs,
     LongFastUs,
     LongModerateUs,
     LongSlowUs,
     VeryLongSlowUs,
+    Custom(Bandwidth, SpreadingFactor, CodeRate, Channel, LdroMode),
 }
 
 impl MeshtasticConfig {
-    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, Channel, bool) {
+    fn parse_custom_components(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let components: Vec<_> = input.split(',').map(str::trim).collect();
+        if components.len() != 5 {
+            return Err(format!(
+                "invalid custom Meshtastic config '{input}': expected 5 comma-separated values"
+            ));
+        }
+
+        let bandwidth = <Bandwidth as ValueEnum>::from_str(components[0], ignore_case)?;
+        let spreading_factor =
+            <SpreadingFactor as ValueEnum>::from_str(components[1], ignore_case)?;
+        let code_rate = <CodeRate as ValueEnum>::from_str(components[2], ignore_case)?;
+        let channel = <Channel as ValueEnum>::from_str(components[3], ignore_case)?;
+        let ldro = <LdroMode as ValueEnum>::from_str(components[4], ignore_case)?;
+        Ok(Self::Custom(
+            bandwidth,
+            spreading_factor,
+            code_rate,
+            channel,
+            ldro,
+        ))
+    }
+
+    fn strip_custom_wrapper(input: &str, ignore_case: bool) -> Option<&str> {
+        let trimmed = input.trim();
+        if let Some(inner) = trimmed.strip_prefix('(').and_then(|s| s.strip_suffix(')')) {
+            return Some(inner);
+        }
+
+        if ignore_case {
+            let prefix = "custom(";
+            if trimmed.len() > prefix.len()
+                && trimmed[..prefix.len()].eq_ignore_ascii_case(prefix)
+                && trimmed.ends_with(')')
+            {
+                return Some(&trimmed[prefix.len()..trimmed.len() - 1]);
+            }
+        } else if let Some(inner) = trimmed
+            .strip_prefix("Custom(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
+            return Some(inner);
+        }
+
+        None
+    }
+
+    fn parse_custom(input: &str, ignore_case: bool) -> Option<Result<Self, String>> {
+        let trimmed = input.trim();
+        if let Some(inner) = Self::strip_custom_wrapper(trimmed, ignore_case) {
+            return Some(Self::parse_custom_components(inner, ignore_case));
+        }
+
+        if trimmed.contains(',') {
+            return Some(Self::parse_custom_components(trimmed, ignore_case));
+        }
+
+        None
+    }
+
+    pub fn to_config(&self) -> (Bandwidth, SpreadingFactor, CodeRate, Channel, LdroMode) {
         match self {
             Self::ShortFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF7,
                 CodeRate::CR_4_5,
                 Channel::Custom(869525000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::ShortSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF8,
                 CodeRate::CR_4_5,
                 Channel::Custom(869525000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::MediumFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF9,
                 CodeRate::CR_4_5,
                 Channel::Custom(869525000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::MediumSlowEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF10,
                 CodeRate::CR_4_5,
                 Channel::Custom(869525000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::LongFastEu => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_5,
                 Channel::Custom(869525000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::LongModerateEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_8,
                 Channel::Custom(869587500),
-                true,
+                LdroMode::ENABLE,
             ),
             Self::LongSlowEu => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 Channel::Custom(869587500),
-                true,
+                LdroMode::ENABLE,
             ),
             Self::VeryLongSlowEu => (
                 Bandwidth::BW62,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 Channel::Custom(869492500),
-                true,
+                LdroMode::ENABLE,
+            ),
+            Self::ShortTurboUs => (
+                Bandwidth::BW500,
+                SpreadingFactor::SF7,
+                CodeRate::CR_4_5,
+                Channel::Custom(906875000),
+                LdroMode::DISABLE,
             ),
             Self::ShortFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF7,
                 CodeRate::CR_4_5,
                 Channel::Custom(906875000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::ShortSlowUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF8,
                 CodeRate::CR_4_5,
                 Channel::Custom(906875000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::MediumFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF9,
                 CodeRate::CR_4_5,
                 Channel::Custom(906875000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::MediumSlowUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF10,
                 CodeRate::CR_4_5,
                 Channel::Custom(906875000),
-                false,
+                LdroMode::DISABLE,
+            ),
+            Self::LongTurboUs => (
+                Bandwidth::BW500,
+                SpreadingFactor::SF11,
+                CodeRate::CR_4_5,
+                Channel::Custom(906875000),
+                LdroMode::DISABLE,
             ),
             Self::LongFastUs => (
                 Bandwidth::BW250,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_5,
                 Channel::Custom(906875000),
-                false,
+                LdroMode::DISABLE,
             ),
             Self::LongModerateUs => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF11,
                 CodeRate::CR_4_8,
                 Channel::Custom(904437500),
-                true,
+                LdroMode::ENABLE,
             ),
             Self::LongSlowUs => (
                 Bandwidth::BW125,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 Channel::Custom(904437500),
-                true,
+                LdroMode::ENABLE,
             ),
             Self::VeryLongSlowUs => (
                 Bandwidth::BW62,
                 SpreadingFactor::SF12,
                 CodeRate::CR_4_8,
                 Channel::Custom(916218750),
-                true,
+                LdroMode::ENABLE,
             ),
+            Self::Custom(bw, sf, cr, freq, ldro) => (*bw, *sf, *cr, *freq, *ldro),
+        }
+    }
+}
+
+impl clap::ValueEnum for MeshtasticConfig {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            Self::ShortFastEu,
+            Self::ShortSlowEu,
+            Self::MediumFastEu,
+            Self::MediumSlowEu,
+            Self::LongFastEu,
+            Self::LongModerateEu,
+            Self::LongSlowEu,
+            Self::VeryLongSlowEu,
+            Self::ShortTurboUs,
+            Self::ShortFastUs,
+            Self::ShortSlowUs,
+            Self::MediumFastUs,
+            Self::MediumSlowUs,
+            Self::LongTurboUs,
+            Self::LongFastUs,
+            Self::LongModerateUs,
+            Self::LongSlowUs,
+            Self::VeryLongSlowUs,
+            Self::Custom(
+                Bandwidth::BW250,
+                SpreadingFactor::SF7,
+                CodeRate::CR_4_5,
+                Channel::Custom(868595000),
+                LdroMode::DISABLE,
+            ),
+        ]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        if let Some(custom) = Self::parse_custom(input, ignore_case) {
+            return custom;
+        }
+
+        let input_uppercase = input.to_uppercase();
+        match if ignore_case {
+            input_uppercase.as_str()
+        } else {
+            input
+        } {
+            "SHORT_FAST_EU" => Ok(Self::ShortFastEu),
+            "SHORT_SLOW_EU" => Ok(Self::ShortSlowEu),
+            "MEDIUM_FAST_EU" => Ok(Self::MediumFastEu),
+            "MEDIUM_SLOW_EU" => Ok(Self::MediumSlowEu),
+            "LONG_FAST_EU" => Ok(Self::LongFastEu),
+            "LONG_MODERATE_EU" => Ok(Self::LongModerateEu),
+            "LONG_SLOW_EU" => Ok(Self::LongSlowEu),
+            "VERY_LONG_SLOW_EU" => Ok(Self::VeryLongSlowEu),
+            "SHORT_TURBO_US" => Ok(Self::ShortTurboUs),
+            "SHORT_FAST_US" => Ok(Self::ShortFastUs),
+            "SHORT_SLOW_US" => Ok(Self::ShortSlowUs),
+            "MEDIUM_FAST_US" => Ok(Self::MediumFastUs),
+            "MEDIUM_SLOW_US" => Ok(Self::MediumSlowUs),
+            "LONG_TURBO_US" => Ok(Self::LongTurboUs),
+            "LONG_FAST_US" => Ok(Self::LongFastUs),
+            "LONG_MODERATE_US" => Ok(Self::LongModerateUs),
+            "LONG_SLOW_US" => Ok(Self::LongSlowUs),
+            "VERY_LONG_SLOW_US" => Ok(Self::VeryLongSlowUs),
+            _ => Err(format!("invalid variant: {input}")),
+        }
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::ShortFastEu => Some(PossibleValue::new("SHORT_FAST_EU")),
+            Self::ShortSlowEu => Some(PossibleValue::new("SHORT_SLOW_EU")),
+            Self::MediumFastEu => Some(PossibleValue::new("MEDIUM_FAST_EU")),
+            Self::MediumSlowEu => Some(PossibleValue::new("MEDIUM_SLOW_EU")),
+            Self::LongFastEu => Some(PossibleValue::new("LONG_FAST_EU")),
+            Self::LongModerateEu => Some(PossibleValue::new("LONG_MODERATE_EU")),
+            Self::LongSlowEu => Some(PossibleValue::new("LONG_SLOW_EU")),
+            Self::VeryLongSlowEu => Some(PossibleValue::new("VERY_LONG_SLOW_EU")),
+            Self::ShortTurboUs => Some(PossibleValue::new("SHORT_TURBO_US")),
+            Self::ShortFastUs => Some(PossibleValue::new("SHORT_FAST_US")),
+            Self::ShortSlowUs => Some(PossibleValue::new("SHORT_SLOW_US")),
+            Self::MediumFastUs => Some(PossibleValue::new("MEDIUM_FAST_US")),
+            Self::MediumSlowUs => Some(PossibleValue::new("MEDIUM_SLOW_US")),
+            Self::LongTurboUs => Some(PossibleValue::new("LONG_TURBO_US")),
+            Self::LongFastUs => Some(PossibleValue::new("LONG_FAST_US")),
+            Self::LongModerateUs => Some(PossibleValue::new("LONG_MODERATE_US")),
+            Self::LongSlowUs => Some(PossibleValue::new("LONG_SLOW_US")),
+            Self::VeryLongSlowUs => Some(PossibleValue::new("VERY_LONG_SLOW_US")),
+            Self::Custom(_, _, _, _, _) => Some(
+                PossibleValue::new(
+                    "Custom([bandwidth], [spreading_factor], [code_rate], [channel], [ldro])",
+                )
+                .help(
+                    "Also accepts '([..])' or bare '[..]' with the same 5 comma-separated values.",
+                ),
+            ),
+        }
+    }
+}
+
+impl Display for MeshtasticConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ShortFastEu => write!(f, "SHORT_FAST_EU"),
+            Self::ShortSlowEu => write!(f, "SHORT_SLOW_EU"),
+            Self::MediumFastEu => write!(f, "MEDIUM_FAST_EU"),
+            Self::MediumSlowEu => write!(f, "MEDIUM_SLOW_EU"),
+            Self::LongFastEu => write!(f, "LONG_FAST_EU"),
+            Self::LongModerateEu => write!(f, "LONG_MODERATE_EU"),
+            Self::LongSlowEu => write!(f, "LONG_SLOW_EU"),
+            Self::VeryLongSlowEu => write!(f, "VERY_LONG_SLOW_EU"),
+            Self::ShortTurboUs => write!(f, "SHORT_TURBO_US"),
+            Self::ShortFastUs => write!(f, "SHORT_FAST_US"),
+            Self::ShortSlowUs => write!(f, "SHORT_SLOW_US"),
+            Self::MediumFastUs => write!(f, "MEDIUM_FAST_US"),
+            Self::MediumSlowUs => write!(f, "MEDIUM_SLOW_US"),
+            Self::LongTurboUs => write!(f, "LONG_TURBO_US"),
+            Self::LongFastUs => write!(f, "LONG_FAST_US"),
+            Self::LongModerateUs => write!(f, "LONG_MODERATE_US"),
+            Self::LongSlowUs => write!(f, "LONG_SLOW_US"),
+            Self::VeryLongSlowUs => write!(f, "VERY_LONG_SLOW_US"),
+            Self::Custom(bandwidth, spreading_factor, code_rate, channel, ldro) => write!(
+                f,
+                "Custom({bandwidth}, {spreading_factor}, {code_rate}, {channel}, {ldro})"
+            ),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MeshtasticConfigEnumParser;
+
+impl TypedValueParser for MeshtasticConfigEnumParser {
+    type Value = MeshtasticConfig;
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        let ignore_case = arg.map(|a| a.is_ignore_case_set()).unwrap_or(false);
+        match MeshtasticConfig::from_str(value.to_str().unwrap(), ignore_case) {
+            Err(msg) => Err(clap::error::Error::raw(ErrorKind::InvalidValue, msg)),
+            Ok(value) => Ok(value),
         }
     }
 }

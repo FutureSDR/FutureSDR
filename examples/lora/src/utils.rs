@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::ops::Mul;
 use std::ops::Rem;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::Arg;
@@ -25,15 +26,17 @@ use strum_macros::EnumIter;
 
 use futuredsp::firdes::remez;
 use futuresdr::num_complex::Complex32;
-
-use crate::utils::SpreadingFactor::SF7;
+use futuresdr::prelude::Result;
+use futuresdr::prelude::warn;
+use regex::Regex;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub type LLR = f64; // Log-Likelihood Ratio type
 
 pub const PREAMB_COUNT_DEFAULT: usize = 8;
 
 pub const MAX_SF: usize = 12;
-pub const LDRO_MAX_DURATION_MS: f32 = 16.;
 pub const WHITENING_SEQ: [u8; 255] = [
     0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE1, 0xC2, 0x85, 0x0B, 0x17, 0x2F, 0x5E, 0xBC, 0x78, 0xF1, 0xE3,
     0xC6, 0x8D, 0x1A, 0x34, 0x68, 0xD0, 0xA0, 0x40, 0x80, 0x01, 0x02, 0x04, 0x08, 0x11, 0x23, 0x47,
@@ -136,7 +139,26 @@ impl clap::ValueEnum for Channel {
 
 impl Display for Channel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_possible_value().unwrap().get_name())
+        match self {
+            Channel::Custom(center_freq) => {
+                if center_freq % 1_000 == 0 {
+                    let mhz = center_freq / 1_000_000;
+                    let khz_remainder = (center_freq % 1_000_000) / 1_000;
+                    if khz_remainder == 0 {
+                        write!(f, "[{mhz}.0MHz]")
+                    } else {
+                        let mut fractional = format!("{khz_remainder:03}");
+                        while fractional.ends_with('0') {
+                            fractional.pop();
+                        }
+                        write!(f, "[{mhz}.{fractional}MHz]")
+                    }
+                } else {
+                    write!(f, "[{center_freq}Hz]")
+                }
+            }
+            _ => write!(f, "{}", self.to_possible_value().unwrap().get_name()),
+        }
     }
 }
 
@@ -250,7 +272,7 @@ impl From<Channel> for f64 {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
+#[derive(Debug, Clone, clap::ValueEnum, Copy, Default, Display)]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum Bandwidth {
@@ -310,8 +332,183 @@ impl From<Bandwidth> for f64 {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy, EnumIter, PartialEq, Eq, Display, Serialize, Deserialize)]
+pub enum SynchWord {
+    #[default]
+    Public,
+    Private,
+    Meshtastic,
+    Value(u8),
+    ExpandedSymbols(u8, u8),
+}
+
+impl clap::ValueEnum for SynchWord {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            SynchWord::Value(0x12),
+            SynchWord::ExpandedSymbols(0x08, 0x16),
+        ]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input_uppercase = input.to_uppercase();
+        Ok(if let Ok(synch_word) = input.parse::<u8>() {
+            Self::from(synch_word)
+        } else if let Ok(expanded_symbols) = input.parse::<u16>() {
+            Self::ExpandedSymbols(
+                (expanded_symbols >> 8) as u8,
+                (expanded_symbols & 0x00FF) as u8,
+            )
+        } else {
+            match if ignore_case {
+                input_uppercase.as_str()
+            } else {
+                input
+            } {
+                "public" => SynchWord::Public,
+                "private" => SynchWord::Private,
+                "meshtastic" => SynchWord::Meshtastic,
+                _ => return Err(format!("invalid variant: {input}")),
+            }
+        })
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            SynchWord::Private => Some(PossibleValue::new("private")),
+            SynchWord::Public => Some(PossibleValue::new("public")),
+            SynchWord::Meshtastic => Some(PossibleValue::new("meshtastic")),
+            SynchWord::Value(_) => Some(PossibleValue::new("[u8]")),
+            SynchWord::ExpandedSymbols(_, _) => Some(
+                PossibleValue::new("[u16]")
+                    .help("expanded synch word, e.g. 0x0816 for LoRaWAN private."),
+            ),
+        }
+    }
+}
+
+impl From<u8> for SynchWord {
+    fn from(value: u8) -> Self {
+        match value {
+            0x12 => SynchWord::Private,
+            0x34 => SynchWord::Public,
+            0x2B => SynchWord::Meshtastic,
+            other => SynchWord::Value(other),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for SynchWord {
+    type Error = anyhow::Error;
+
+    fn try_from(values: &[u8]) -> Result<Self, Self::Error> {
+        match values.len() {
+            1 => Ok(Self::from(values[0])),
+            2 => Ok(SynchWord::ExpandedSymbols(values[0], values[1])),
+            _ => Err(anyhow::Error::new(
+                futuresdr::prelude::Error::ValidationError(format!(
+                    "invalid value for synch word: {values:?}"
+                )),
+            )),
+        }
+    }
+}
+
+impl From<SynchWord> for u8 {
+    fn from(value: SynchWord) -> Self {
+        match value {
+            SynchWord::Private => 0x12,
+            SynchWord::Public => 0x34,
+            SynchWord::Meshtastic => 0x2B,
+            SynchWord::Value(v) => v,
+            SynchWord::ExpandedSymbols(synch_0, synch_1) => SynchWord::compact(synch_0, synch_1),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SynchWordEnumParser;
+
+impl TypedValueParser for SynchWordEnumParser {
+    type Value = SynchWord;
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        let ignore_case = arg.map(|a| a.is_ignore_case_set()).unwrap_or(false);
+        match SynchWord::from_str(value.to_str().unwrap(), ignore_case) {
+            Err(msg) => Err(clap::error::Error::raw(ErrorKind::InvalidValue, msg)),
+            Ok(value) => Ok(value),
+        }
+    }
+}
+
+impl SynchWord {
+    fn compact(synch_0: u8, synch_1: u8) -> u8 {
+        ((synch_0 << 1) & 0xF0) | ((synch_1 >> 3) & 0x0F)
+    }
+    fn expand(&self) -> [u8; 2] {
+        fn expand_u8(value: &u8) -> [u8; 2] {
+            [((value & 0xF0_u8) >> 4) << 3, (value & 0x0F_u8) << 3]
+        }
+        match self {
+            SynchWord::Private => expand_u8(&0x12),
+            SynchWord::Public => expand_u8(&0x34),
+            SynchWord::Meshtastic => expand_u8(&0x2B),
+            SynchWord::Value(v) => expand_u8(v),
+            SynchWord::ExpandedSymbols(v1, v2) => [*v1, *v2],
+        }
+    }
+
+    fn verify(sync_word_expanded: [u8; 2], spreading_factor: SpreadingFactor) -> Result<[u8; 2]> {
+        if !(sync_word_expanded[0] == 0x08 && sync_word_expanded[1] == 0x16)
+            && spreading_factor < SpreadingFactor::SF7
+        {
+            warn!(
+                "LoRa Modulator: selecting sync word other than 0x12 for SF < 7 will likely not work with commercial receivers.\n\tSee e.g. https://github.com/Lora-net/sx1302_hal/issues/124#issuecomment-2173450337"
+            );
+        }
+        for sync_word_symbol in sync_word_expanded.iter() {
+            if Into::<usize>::into(*sync_word_symbol) >= spreading_factor.samples_per_symbol() {
+                let msg = format!(
+                    "LoRa Modulator: can not encode chosen sync word with the given spreading factor: symbol space too small.\n\ttried to encode sync word '{}' (symbol values [{}, {}]), with {}, which only supports symbols within [0; {}].",
+                    Self::compact(sync_word_expanded[0], sync_word_expanded[1]),
+                    sync_word_expanded[0],
+                    sync_word_expanded[1],
+                    spreading_factor,
+                    1 << Into::<usize>::into(spreading_factor)
+                );
+                return Err(anyhow::Error::new(
+                    futuresdr::prelude::Error::ValidationError(msg),
+                ));
+            }
+        }
+        Ok(sync_word_expanded)
+    }
+
+    pub fn verify_and_expand(&self, spreading_factor: SpreadingFactor) -> Result<[usize; 2]> {
+        let sync_words_expanded = self.expand();
+        Self::verify(sync_words_expanded, spreading_factor)
+            .map(|synch_word_u8| synch_word_u8.map(|val| val as usize))
+    }
+}
+
 #[derive(
-    Debug, Clone, clap::ValueEnum, Copy, Default, EnumIter, PartialEq, Eq, PartialOrd, Ord, Display,
+    Debug,
+    Clone,
+    clap::ValueEnum,
+    Copy,
+    Default,
+    EnumIter,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Display,
+    Serialize,
+    Deserialize,
 )]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
@@ -325,6 +522,24 @@ pub enum SpreadingFactor {
     SF10,
     SF11,
     SF12,
+}
+
+impl FromStr for SpreadingFactor {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SF5" => Ok(SpreadingFactor::SF5),
+            "SF6" => Ok(SpreadingFactor::SF6),
+            "SF7" => Ok(SpreadingFactor::SF7),
+            "SF8" => Ok(SpreadingFactor::SF8),
+            "SF9" => Ok(SpreadingFactor::SF9),
+            "SF10" => Ok(SpreadingFactor::SF10),
+            "SF11" => Ok(SpreadingFactor::SF11),
+            "SF12" => Ok(SpreadingFactor::SF12),
+            _ => Err(()),
+        }
+    }
 }
 
 impl TryFrom<u8> for SpreadingFactor {
@@ -410,7 +625,7 @@ impl SpreadingFactor {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Copy, Default, Display)]
+#[derive(Debug, Clone, clap::ValueEnum, Copy, Default, Display, PartialEq, Eq)]
 #[clap(rename_all = "SCREAMING_SNAKE_CASE")]
 #[allow(non_camel_case_types)]
 pub enum CodeRate {
@@ -464,12 +679,37 @@ impl From<CodeRate> for usize {
 }
 
 #[repr(usize)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, clap::ValueEnum, Display)]
+#[clap(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[allow(non_camel_case_types)]
 pub enum LdroMode {
     DISABLE = 0,
     ENABLE = 1,
     AUTO = 2,
 }
+
+impl LdroMode {
+    pub fn resolve_if_auto(self, sf: SpreadingFactor, bw: Bandwidth) -> Self {
+        if self != LdroMode::AUTO {
+            return self;
+        }
+
+        if sf.samples_per_symbol() as f32 * 1e3 / Into::<f32>::into(bw)
+            > crate::default_values::LDRO_MAX_DURATION_MS
+        {
+            LdroMode::ENABLE
+        } else {
+            LdroMode::DISABLE
+        }
+    }
+
+    pub fn enabled(self) -> bool {
+        debug_assert_ne!(self, LdroMode::AUTO);
+        self == LdroMode::ENABLE
+    }
+}
+
 impl From<usize> for LdroMode {
     fn from(orig: usize) -> Self {
         match orig {
@@ -477,6 +717,106 @@ impl From<usize> for LdroMode {
             1_usize => LdroMode::ENABLE,
             2_usize => LdroMode::AUTO,
             _ => panic!("invalid value to ldro_mode"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+pub enum HeaderMode {
+    #[default]
+    Explicit,
+    Implicit {
+        payload_len: usize,
+        has_crc: bool,
+        code_rate: CodeRate,
+    },
+}
+
+impl clap::ValueEnum for HeaderMode {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            HeaderMode::Explicit,
+            HeaderMode::Implicit {
+                payload_len: 0,
+                has_crc: true,
+                code_rate: CodeRate::CR_4_5,
+            },
+        ]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        fn parse_implicit_header(passed: &str, ignore_case: bool) -> Result<HeaderMode, String> {
+            let re = Regex::new(
+                r#"^"??(?<uppercase>[Ii])mplicit\((?<payload_len>[0-9]{1,3}), ?(?<has_crc>[tT]rue|(?:[fF]alse)), ?(?<code_rate>CR_4_[5678])\)"?$"#,
+            )
+            .unwrap();
+            let regex_match = re.captures(passed);
+            match regex_match {
+                Some(regex_match) => {
+                    let is_uppercase = "I" == &regex_match["uppercase"];
+                    if !is_uppercase && !ignore_case {
+                        return Err(format!(
+                            "invalid variant (has to be uppercase 'Implicit[...]'): {passed}"
+                        ));
+                    }
+                    let payload_len: u8 = regex_match["payload_len"].parse().unwrap();
+                    let has_crc = "true" == regex_match["has_crc"].to_lowercase();
+                    let code_rate = CodeRate::from_str(&regex_match["code_rate"], ignore_case)?;
+                    Ok(HeaderMode::Implicit {
+                        payload_len: payload_len as usize,
+                        has_crc,
+                        code_rate,
+                    })
+                }
+                None => Err(format!("invalid variant: {passed}")),
+            }
+        }
+        let input_lowercase = input.to_lowercase();
+        if ignore_case {
+            match input_lowercase.as_str() {
+                "explicit" => Ok(HeaderMode::Explicit),
+                _ => parse_implicit_header(&input_lowercase, true),
+            }
+        } else {
+            match input {
+                "Explicit" => Ok(HeaderMode::Explicit),
+                _ => parse_implicit_header(input, false),
+            }
+        }
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            HeaderMode::Explicit => Some(PossibleValue::new("Explicit")),
+            HeaderMode::Implicit {
+                payload_len: _,
+                has_crc: _,
+                code_rate: _,
+            } => Some(
+                PossibleValue::new(
+                    "Implicit{[payload_len], [has_crc], [code_rate]}",
+                )
+                .help("fixed LoRa modulation parameters known to both sender and receiver. E.g., 'Implicit(16, false, CR_4_5)'"),
+            ),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct HeaderModeEnumParser;
+
+impl TypedValueParser for HeaderModeEnumParser {
+    type Value = HeaderMode;
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, Error> {
+        let ignore_case = arg.map(|a| a.is_ignore_case_set()).unwrap_or(false);
+        match HeaderMode::from_str(value.to_str().unwrap(), ignore_case) {
+            Err(msg) => Err(clap::error::Error::raw(ErrorKind::InvalidValue, msg)),
+            Ok(value) => Ok(value),
         }
     }
 }
@@ -610,6 +950,18 @@ pub fn build_upchirp_phase_coherent(
     phase_increment
 }
 
+pub fn samples_from_phase_diff(phase_increments: &[f32]) -> Vec<Complex32> {
+    let mut last_phase = 0.0;
+    phase_increments
+        .iter()
+        .map(|p_i| {
+            let tmp = Complex32::new(1.0, 0.0) * Complex32::from_polar(1., last_phase + *p_i);
+            last_phase += *p_i;
+            tmp
+        })
+        .collect()
+}
+
 #[inline]
 pub fn my_modulo(val1: isize, val2: usize) -> usize {
     if val1 >= 0 {
@@ -637,23 +989,29 @@ pub fn my_roundf(number: f32) -> isize {
 pub fn sample_count(
     sf: SpreadingFactor,
     preamble_len: usize,
-    implicit_header: bool,
+    header_mode: HeaderMode,
     payload_len: usize,
     has_crc: bool,
     code_rate: CodeRate,
     os_factor: usize,
     pad: usize,
-    ldro: bool,
+    ldro_enabled: bool,
 ) -> usize {
-    let preamble_symbol_count: f32 = preamble_len as f32 + 4.25 + if sf < SF7 { 2.0 } else { 0.0 };
-    let header_symbol_count_before_interleaving: usize = if implicit_header { 0 } else { 5 };
+    let preamble_symbol_count: f32 =
+        preamble_len as f32 + 4.25 + if sf < SpreadingFactor::SF7 { 2.0 } else { 0.0 };
+    let header_symbol_count_before_interleaving: usize =
+        if matches!(header_mode, HeaderMode::Explicit) {
+            5
+        } else {
+            0
+        };
     let payload_symbol_count_before_interleaving: usize =
         2 * payload_len + if has_crc { 4 } else { 0 };
     ((preamble_symbol_count
         + 8.  // header symbol count after interleaving, including the first [(Into::<usize>::into(sf) - if LEGACY_SF_5_6 || sf >= SF7 {2} else {0}))] payload symbols
         + ((payload_symbol_count_before_interleaving + header_symbol_count_before_interleaving
-            - (Into::<usize>::into(sf) - if sf >= SF7 {2} else {0})) as f32
-            / (Into::<usize>::into(sf) - if ldro {2} else {0}) as f32)
+            - (Into::<usize>::into(sf) - if sf >= SpreadingFactor::SF7 {2} else {0})) as f32
+            / (Into::<usize>::into(sf) - if ldro_enabled {2} else {0}) as f32)
             .ceil()  // 22 -> 21.x
             * (4 + Into::<usize>::into(code_rate)) as f32)
         * ((1 << Into::<usize>::into(sf)) * os_factor) as f32) as usize
@@ -716,15 +1074,6 @@ pub fn get_symbol_val(
         Some(argmax_f32(&fft_mag))
     } else {
         None
-    }
-}
-
-pub fn expand_sync_word(sync_word: Vec<usize>) -> Vec<usize> {
-    if sync_word.len() == 1 {
-        let tmp = sync_word[0];
-        vec![((tmp & 0xF0_usize) >> 4) << 3, (tmp & 0x0F_usize) << 3]
-    } else {
-        sync_word
     }
 }
 

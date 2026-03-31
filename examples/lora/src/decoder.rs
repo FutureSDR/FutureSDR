@@ -130,8 +130,10 @@ impl Decoder {
                                 Pmt::Blob(dewhitened.clone()),
                             )]);
                         annotated_payload.extend(frame.annotations.clone());
-                        annotated_payload
-                            .insert(String::from("code_rate"), Pmt::Usize(frame.code_rate));
+                        annotated_payload.insert(
+                            String::from("code_rate"),
+                            Pmt::Usize(frame.code_rate.into()),
+                        );
                         annotated_payload.insert(String::from("has_crc"), Pmt::Bool(frame.has_crc));
                         annotated_payload.insert(
                             String::from("implicit_header"),

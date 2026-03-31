@@ -9,7 +9,7 @@ pub struct Encoder {
     code_rate: CodeRate,
     pub spreading_factor: SpreadingFactor,
     has_crc: bool,
-    low_data_rate: bool,
+    ldro_enabled: bool,
     implicit_header: bool,
 }
 
@@ -18,14 +18,14 @@ impl Encoder {
         code_rate: CodeRate,
         spreading_factor: SpreadingFactor,
         has_crc: bool,
-        low_data_rate: bool,
+        ldro_enabled: bool,
         implicit_header: bool,
     ) -> Encoder {
         Encoder {
             code_rate,
             spreading_factor,
             has_crc,
-            low_data_rate,
+            ldro_enabled,
             implicit_header,
         }
     }
@@ -47,7 +47,7 @@ impl Encoder {
             frame,
             self.code_rate,
             self.spreading_factor,
-            self.low_data_rate,
+            self.ldro_enabled,
         );
         Self::gray_demap(frame, self.spreading_factor)
     }
@@ -185,7 +185,7 @@ impl Encoder {
         mut frame: Vec<u8>,
         code_rate: CodeRate,
         spreading_factor: SpreadingFactor,
-        low_data_rate: bool,
+        ldro_enabled: bool,
     ) -> Vec<u16> {
         let mut cnt: usize = 0;
         let mut out = Vec::new();
@@ -199,7 +199,7 @@ impl Encoder {
                     } else {
                         code_rate.into()
                     },
-                    cnt < Into::<usize>::into(spreading_factor) - 2 || low_data_rate, // header or ldro activated for payload
+                    cnt < Into::<usize>::into(spreading_factor) - 2 || ldro_enabled, // header or ldro activated for payload
                 )
             } else
             //sf == 5 or sf ==6 don't use LDRO in header
@@ -210,7 +210,7 @@ impl Encoder {
                     } else {
                         code_rate.into()
                     },
-                    cnt >= spreading_factor.into() && low_data_rate, // not header and ldro activated for payload
+                    cnt >= spreading_factor.into() && ldro_enabled, // not header and ldro activated for payload
                 )
             };
             let sf_app: usize = if use_ldro {

@@ -3,12 +3,14 @@ use futuresdr::prelude::*;
 use std::collections::VecDeque;
 
 use crate::Encoder;
+use crate::HeaderMode;
 use crate::Modulator;
 use crate::utils::CodeRate;
 use crate::utils::SpreadingFactor;
+use crate::utils::SynchWord;
 
 #[derive(Block)]
-#[message_inputs(msg)]
+#[message_inputs(msg, synch_word)]
 pub struct Transmitter<O = DefaultCpuWriter<Complex32>>
 where
     O: CpuBufferWriter<Item = Complex32>,
@@ -33,14 +35,14 @@ where
         code_rate: CodeRate,
         has_crc: bool,
         spreading_factor: SpreadingFactor,
-        low_data_rate: bool,
-        implicit_header: bool,
+        ldro_enabled: bool,
+        header_mode: HeaderMode,
         oversampling: usize,
-        sync_words: Vec<usize>,
+        sync_words: SynchWord,
         preamble_len: usize,
         pad: usize,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             output: O::default(),
             frames: VecDeque::new(),
             current_frame: Vec::new(),
@@ -50,8 +52,8 @@ where
                 code_rate,
                 spreading_factor,
                 has_crc,
-                low_data_rate,
-                implicit_header,
+                ldro_enabled,
+                !matches!(header_mode, HeaderMode::Explicit),
             ),
             modulator: Modulator::new(
                 spreading_factor,
@@ -59,9 +61,9 @@ where
                 sync_words,
                 preamble_len,
                 pad,
-            ),
+            )?,
             tag_pending: None,
-        }
+        })
     }
 
     async fn msg(
@@ -80,6 +82,30 @@ where
                 return Ok(Pmt::InvalidValue);
             }
         }
+        Ok(Pmt::Ok)
+    }
+
+    async fn synch_word(
+        &mut self,
+        _io: &mut WorkIo,
+        _mio: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        p: Pmt,
+    ) -> Result<Pmt> {
+        let new_synch_word = match p {
+            Pmt::U32(synch_word_new) => SynchWord::from(TryInto::<u8>::try_into(synch_word_new)?),
+            Pmt::U64(synch_word_new) => SynchWord::from(TryInto::<u8>::try_into(synch_word_new)?),
+            Pmt::Blob(synch_word_new) => TryFrom::<&[u8]>::try_from(&synch_word_new)?,
+            Pmt::Finished => {
+                self.finished = true;
+                return Ok(Pmt::Ok);
+            }
+            _ => {
+                warn!("Transmitter: new synch_word was not a Blob");
+                return Ok(Pmt::InvalidValue);
+            }
+        };
+        self.modulator.set_synch_word(new_synch_word)?;
         Ok(Pmt::Ok)
     }
 }

@@ -7,21 +7,16 @@ use futuresdr::blocks::XlatingFir;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 
-use lora::Decoder;
-use lora::Deinterleaver;
-use lora::FftDemod;
-use lora::FrameSync;
-use lora::GrayMapping;
-use lora::HammingDecoder;
-use lora::HeaderDecoder;
-use lora::HeaderMode;
+use lora::build_lora_rx_soft_decoding;
 use lora::meshtastic::MeshtasticChannel;
 use lora::meshtastic::MeshtasticChannels;
 use lora::utils::Bandwidth;
 use lora::utils::Channel;
+use lora::utils::HeaderMode;
+use lora::utils::LdroMode;
 use lora::utils::SpreadingFactor;
+use lora::utils::SynchWord;
 
-const IMPLICIT_HEADER: bool = false;
 const OVERSAMPLING: usize = 4;
 
 #[derive(Debug, Clone, clap::ValueEnum, Copy, Default)]
@@ -73,22 +68,25 @@ fn main() -> Result<()> {
                     Bandwidth::BW250,
                     Channel::Custom(869_525_000),
                     vec![
-                        (SpreadingFactor::SF7, false),
-                        (SpreadingFactor::SF8, false),
-                        (SpreadingFactor::SF9, false),
-                        (SpreadingFactor::SF10, false),
-                        (SpreadingFactor::SF11, false),
+                        (SpreadingFactor::SF7, LdroMode::DISABLE),
+                        (SpreadingFactor::SF8, LdroMode::DISABLE),
+                        (SpreadingFactor::SF9, LdroMode::DISABLE),
+                        (SpreadingFactor::SF10, LdroMode::DISABLE),
+                        (SpreadingFactor::SF11, LdroMode::DISABLE),
                     ],
                 ),
                 (
                     Bandwidth::BW125,
                     Channel::Custom(869_587_500),
-                    vec![(SpreadingFactor::SF11, true), (SpreadingFactor::SF12, true)],
+                    vec![
+                        (SpreadingFactor::SF11, LdroMode::ENABLE),
+                        (SpreadingFactor::SF12, LdroMode::ENABLE),
+                    ],
                 ),
                 (
                     Bandwidth::BW62,
                     Channel::Custom(869_492_500),
-                    vec![(SpreadingFactor::SF12, true)],
+                    vec![(SpreadingFactor::SF12, LdroMode::ENABLE)],
                 ),
             ],
         ),
@@ -100,22 +98,25 @@ fn main() -> Result<()> {
                     Bandwidth::BW250,
                     Channel::Custom(906_875_000),
                     vec![
-                        (SpreadingFactor::SF7, false),
-                        (SpreadingFactor::SF8, false),
-                        (SpreadingFactor::SF9, false),
-                        (SpreadingFactor::SF10, false),
-                        (SpreadingFactor::SF11, false),
+                        (SpreadingFactor::SF7, LdroMode::DISABLE),
+                        (SpreadingFactor::SF8, LdroMode::DISABLE),
+                        (SpreadingFactor::SF9, LdroMode::DISABLE),
+                        (SpreadingFactor::SF10, LdroMode::DISABLE),
+                        (SpreadingFactor::SF11, LdroMode::DISABLE),
                     ],
                 ),
                 (
                     Bandwidth::BW125,
                     Channel::Custom(904_437_500),
-                    vec![(SpreadingFactor::SF11, true), (SpreadingFactor::SF12, true)],
+                    vec![
+                        (SpreadingFactor::SF11, LdroMode::ENABLE),
+                        (SpreadingFactor::SF12, LdroMode::ENABLE),
+                    ],
                 ),
                 (
                     Bandwidth::BW62,
                     Channel::Custom(916_218_750),
-                    vec![(SpreadingFactor::SF12, true)],
+                    vec![(SpreadingFactor::SF12, LdroMode::ENABLE)],
                 ),
             ],
         ),
@@ -151,31 +152,23 @@ fn main() -> Result<()> {
         for (spreading_factor, ldro) in chains.into_iter() {
             let decimation = decimation.clone();
             let message_pipe = message_pipe.clone();
-            let frame_sync: FrameSync = FrameSync::new(
+            let (frame_sync_ref, decoder_ref) = build_lora_rx_soft_decoding(
+                &mut fg,
                 chan,
                 bandwidth,
                 spreading_factor,
-                IMPLICIT_HEADER,
-                vec![vec![16, 88]],
+                HeaderMode::Explicit,
+                ldro,
+                Some(&[SynchWord::Meshtastic]),
                 OVERSAMPLING,
                 None,
                 Some("header_crc_ok"),
                 false,
                 None,
-            );
-            let fft_demod: FftDemod = FftDemod::new(spreading_factor, ldro);
-            let gray_mapping: GrayMapping = GrayMapping::new();
-            let deinterleaver: Deinterleaver = Deinterleaver::new(ldro, spreading_factor);
-            let hamming_dec: HammingDecoder = HammingDecoder::new();
-            let header_decoder: HeaderDecoder = HeaderDecoder::new(HeaderMode::Explicit, ldro);
-            let decoder: Decoder = Decoder::new();
+            )?;
             connect!(fg,
-                decimation > frame_sync;
-                frame_sync > fft_demod;
-                fft_demod > gray_mapping > deinterleaver > hamming_dec > header_decoder;
-                header_decoder.frame_info | frame_info.frame_sync;
-                header_decoder | decoder;
-                decoder | message_pipe;
+                decimation > frame_sync_ref;
+                decoder_ref | message_pipe;
             );
         }
     }
@@ -188,7 +181,7 @@ fn main() -> Result<()> {
         for c in channels {
             chans.add_channel(MeshtasticChannel::new(&c.0, &c.1));
         }
-        while let Some(x) = rx_frame.next().await {
+        while let Ok(x) = rx_frame.recv().await {
             match x {
                 Pmt::Blob(data) => {
                     chans.decode(&data[..data.len() - 2]);

@@ -7,8 +7,8 @@ use crate::utils::*;
 pub struct Deinterleaver<
     S = DemodulatedSymbolSoftDecoding,
     D = DeinterleavedSymbolSoftDecoding,
-    I = DefaultCpuReader<DemodulatedSymbolSoftDecoding>,
-    O = DefaultCpuWriter<DeinterleavedSymbolSoftDecoding>,
+    I = DefaultCpuReader<S>,
+    O = DefaultCpuWriter<D>,
 > where
     S: DemodulatedSymbol,
     D: DeinterleavedSymbol,
@@ -19,10 +19,10 @@ pub struct Deinterleaver<
     input: I,
     #[output]
     output: O,
-    sf: usize,       // Spreading factor
-    cr: usize,       // Coding rate
+    sf: usize,          // Spreading factor
+    cr: usize,          // Coding rate
     is_header: bool, // Indicate that we need to deinterleave the first block with the default header parameters (cr=4/8, reduced rate)
-    ldro: bool,      // use low datarate optimization mode
+    ldro_enabled: bool, // use low datarate optimization mode
 }
 
 impl<S, D, I, O> Deinterleaver<S, D, I, O>
@@ -32,14 +32,14 @@ where
     I: CpuBufferReader<Item = S>,
     O: CpuBufferWriter<Item = D>,
 {
-    pub fn new(ldro: bool, sf: SpreadingFactor) -> Self {
+    pub fn new(ldro_enabled: bool, sf: SpreadingFactor) -> Self {
         Self {
             input: I::default(),
             output: O::default(),
             sf: Into::<usize>::into(sf),
             cr: 0,
             is_header: false,
-            ldro,
+            ldro_enabled,
         }
     }
 }
@@ -124,16 +124,6 @@ where
         let (output, mut out_tags) = self.output.slice_with_tags();
         let mut input_len = input.len();
         let output_len = output.len();
-        // let mut n_input = if self.soft_decoding {
-        //     sio.input(0).slice::<[LLR; MAX_SF]>().len()
-        // } else {
-        //     sio.input(0).slice::<u16>().len()
-        // };
-        // let n_output = if self.soft_decoding {
-        //     sio.output(0).slice::<[LLR; 8]>().len()
-        // } else {
-        //     sio.output(0).slice::<u8>().len()
-        // };
 
         let tags: Vec<(usize, &HashMap<String, Pmt>)> = in_tags
             .iter()
@@ -196,7 +186,7 @@ where
                     } else {
                         panic!()
                     };
-                    self.ldro = if let Pmt::Bool(tmp) = tag.get("ldro").unwrap() {
+                    self.ldro_enabled = if let Pmt::Bool(tmp) = tag.get("ldro_enabled").unwrap() {
                         *tmp
                     } else {
                         panic!()
@@ -209,8 +199,8 @@ where
         };
 
         #[allow(clippy::nonminimal_bool)]
-        let sf_app = if (self.sf >= 7 && (self.is_header || self.ldro))
-            || (self.sf < 7 && !self.is_header && self.ldro)
+        let sf_app = if (self.sf >= 7 && (self.is_header || self.ldro_enabled))
+            || (self.sf < 7 && !self.is_header && self.ldro_enabled)
         {
             self.sf - 2 // TODO this can be called w/o ever receiving a header tag, causing overflow if sf is not set explicitly in initializer
         } else {
