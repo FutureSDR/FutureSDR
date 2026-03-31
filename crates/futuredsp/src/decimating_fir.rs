@@ -1,11 +1,9 @@
 //! Decimating FIR Filters
 use core::cmp::Ordering;
-#[cfg(RUSTC_IS_NIGHTLY)]
-use core::intrinsics::fadd_fast;
-#[cfg(RUSTC_IS_NIGHTLY)]
-use core::intrinsics::fmul_fast;
 use num_complex::Complex;
+#[cfg(not(RUSTC_IS_NIGHTLY))]
 use num_traits::Float;
+#[cfg(not(RUSTC_IS_NIGHTLY))]
 use num_traits::Zero;
 
 use crate::ComputationStatus;
@@ -56,14 +54,13 @@ fn fir_kernel_core<
     InputType,
     OutputType,
     TapsType: Taps,
-    InitFn: Fn() -> OutputType,
     MacFn: Fn(OutputType, InputType, TapsType::TapType) -> OutputType,
 >(
     taps: &TapsType,
     i: &[InputType],
     o: &mut [OutputType],
     decimation: usize,
-    init: InitFn,
+    init: OutputType,
     mac: MacFn,
 ) -> (usize, usize, ComputationStatus)
 where
@@ -82,7 +79,7 @@ where
 
     unsafe {
         for k in 0..n {
-            let mut sum = init();
+            let mut sum = init;
             for t in 0..taps.num_taps() {
                 sum = mac(
                     sum,
@@ -108,8 +105,8 @@ mod inner {
                 i,
                 o,
                 self.decimation,
-                || 0.0,
-                |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
+                0.0,
+                |accum, sample, tap| accum.algebraic_add(sample.algebraic_mul(tap)),
             )
         }
         fn length(&self) -> usize {
@@ -124,8 +121,8 @@ mod inner {
                 i,
                 o,
                 self.decimation,
-                || 0.0,
-                |accum, sample, tap| unsafe { fadd_fast(accum, fmul_fast(sample, tap)) },
+                0.0,
+                |accum, sample, tap| accum.algebraic_add(sample.algebraic_mul(tap)),
             )
         }
         fn length(&self) -> usize {
@@ -133,28 +130,83 @@ mod inner {
         }
     }
 
-    impl<TA: Taps<TapType = T>, T> Filter<Complex<T>, Complex<T>, T>
-        for DecimatingFirFilter<Complex<T>, Complex<T>, TA>
-    where
-        T: Float + Send + Sync + Copy + Zero,
+    impl<TA: Taps<TapType = f32>> Filter<Complex<f32>, Complex<f32>, f32>
+        for DecimatingFirFilter<Complex<f32>, Complex<f32>, TA>
     {
         fn filter(
             &self,
-            i: &[Complex<TA::TapType>],
-            o: &mut [Complex<TA::TapType>],
+            i: &[Complex<f32>],
+            o: &mut [Complex<f32>],
         ) -> (usize, usize, ComputationStatus) {
             fir_kernel_core(
                 &self.taps,
                 i,
                 o,
                 self.decimation,
-                || Complex {
-                    re: T::zero(),
-                    im: T::zero(),
-                },
+                Complex { re: 0.0, im: 0.0 },
                 |accum, sample, tap| Complex {
-                    re: unsafe { fadd_fast(accum.re, fmul_fast(sample.re, tap)) },
-                    im: unsafe { fadd_fast(accum.im, fmul_fast(sample.im, tap)) },
+                    re: accum.re.algebraic_add(sample.re.algebraic_mul(tap)),
+                    im: accum.im.algebraic_add(sample.im.algebraic_mul(tap)),
+                },
+            )
+        }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
+    }
+
+    impl<TA: Taps<TapType = f64>> Filter<Complex<f64>, Complex<f64>, f64>
+        for DecimatingFirFilter<Complex<f64>, Complex<f64>, TA>
+    {
+        fn filter(
+            &self,
+            i: &[Complex<f64>],
+            o: &mut [Complex<f64>],
+        ) -> (usize, usize, ComputationStatus) {
+            fir_kernel_core(
+                &self.taps,
+                i,
+                o,
+                self.decimation,
+                Complex { re: 0.0, im: 0.0 },
+                |accum, sample, tap| Complex {
+                    re: accum.re.algebraic_add(sample.re.algebraic_mul(tap)),
+                    im: accum.im.algebraic_add(sample.im.algebraic_mul(tap)),
+                },
+            )
+        }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
+    }
+
+    impl<TA: Taps<TapType = Complex<f32>>> Filter<Complex<f32>, Complex<f32>, Complex<f32>>
+        for DecimatingFirFilter<Complex<f32>, Complex<f32>, TA>
+    {
+        fn filter(
+            &self,
+            i: &[Complex<f32>],
+            o: &mut [Complex<f32>],
+        ) -> (usize, usize, ComputationStatus) {
+            fir_kernel_core(
+                &self.taps,
+                i,
+                o,
+                self.decimation,
+                Complex { re: 0.0, im: 0.0 },
+                |accum, sample, tap| {
+                    let re = sample
+                        .re
+                        .algebraic_mul(tap.re)
+                        .algebraic_sub(sample.im.algebraic_mul(tap.im));
+                    let im = sample
+                        .re
+                        .algebraic_mul(tap.im)
+                        .algebraic_add(sample.im.algebraic_mul(tap.re));
+                    Complex {
+                        re: accum.re.algebraic_add(re),
+                        im: accum.im.algebraic_add(im),
+                    }
                 },
             )
         }
@@ -175,7 +227,7 @@ mod inner {
                 i,
                 o,
                 self.decimation,
-                || 0.0,
+                0.0,
                 |accum, sample, tap| accum + sample * tap,
             )
         }
@@ -191,7 +243,7 @@ mod inner {
                 i,
                 o,
                 self.decimation,
-                || 0.0,
+                0.0,
                 |accum, sample, tap| accum + sample * tap,
             )
         }
@@ -215,7 +267,7 @@ mod inner {
                 i,
                 o,
                 self.decimation,
-                || Complex {
+                Complex {
                     im: T::zero(),
                     re: T::zero(),
                 },
@@ -229,27 +281,27 @@ mod inner {
             self.taps.num_taps()
         }
     }
-}
 
-impl<TA: Taps<TapType = Complex<f32>>> Filter<Complex<f32>, Complex<f32>, Complex<f32>>
-    for DecimatingFirFilter<Complex<f32>, Complex<f32>, TA>
-{
-    fn filter(
-        &self,
-        i: &[TA::TapType],
-        o: &mut [TA::TapType],
-    ) -> (usize, usize, ComputationStatus) {
-        fir_kernel_core(
-            &self.taps,
-            i,
-            o,
-            self.decimation,
-            || Complex { re: 0.0, im: 0.0 },
-            |accum, sample, tap| accum + sample * tap,
-        )
-    }
-    fn length(&self) -> usize {
-        self.taps.num_taps()
+    impl<TA: Taps<TapType = Complex<f32>>> Filter<Complex<f32>, Complex<f32>, Complex<f32>>
+        for DecimatingFirFilter<Complex<f32>, Complex<f32>, TA>
+    {
+        fn filter(
+            &self,
+            i: &[TA::TapType],
+            o: &mut [TA::TapType],
+        ) -> (usize, usize, ComputationStatus) {
+            fir_kernel_core(
+                &self.taps,
+                i,
+                o,
+                self.decimation,
+                Complex { re: 0.0, im: 0.0 },
+                |accum, sample, tap| accum + sample * tap,
+            )
+        }
+        fn length(&self) -> usize {
+            self.taps.num_taps()
+        }
     }
 }
 
