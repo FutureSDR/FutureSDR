@@ -290,8 +290,6 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(Error::RuntimeError(e.to_string()));
             }
-
-            futuresdr::runtime::futures::yield_now().await;
         }
 
         Ok(())
