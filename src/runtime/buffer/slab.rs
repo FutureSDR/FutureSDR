@@ -1,13 +1,11 @@
-use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -53,9 +51,9 @@ pub struct Writer<D: CpuSample> {
     current: Option<CurrentBuffer<D>>,
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input_id: PortId,
-    inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
     port_id: PortId,
     block_id: BlockId,
     tags: Vec<ItemTag>,
@@ -69,7 +67,6 @@ where
 {
     /// Create Slab writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             current: None,
             state: Arc::new(Mutex::new(State {
@@ -77,9 +74,9 @@ where
                 reader_input: VecDeque::new(),
             })),
             reserved_items: 0,
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_input_id: PortId::default(),
-            inbox: rx,
+            inbox: BlockInbox::default(),
             port_id: PortId::default(),
             block_id: BlockId(0),
             tags: Vec::new(),
@@ -107,7 +104,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -244,11 +241,11 @@ where
                 tags: c.tags,
             });
 
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
 
             // make sure to be called again, if we have another buffer queued
             if !state.writer_input.is_empty() {
-                let _ = self.inbox.try_send(BlockMessage::Notify);
+                self.inbox.notify();
             }
         }
     }
@@ -279,10 +276,10 @@ pub struct Reader<D: CpuSample> {
     current: Option<CurrentBuffer<D>>,
     state: Arc<Mutex<State<D>>>,
     reserved_items: usize,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     block_id: BlockId,
     port_id: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output_id: PortId,
     finished: bool,
     min_items: Option<usize>,
@@ -295,8 +292,6 @@ where
 {
     /// Create Slab Buffer Reader
     pub fn new() -> Self {
-        let (reader_inbox, _) = channel(0);
-        let (writer_inbox, _) = channel(0);
         Self {
             current: None,
             state: Arc::new(Mutex::new(State {
@@ -304,8 +299,8 @@ where
                 reader_input: VecDeque::new(),
             })),
             reserved_items: futuresdr::runtime::config::config().slab_reserved,
-            reader_inbox,
-            writer_inbox,
+            reader_inbox: BlockInbox::default(),
+            writer_inbox: BlockInbox::default(),
             finished: false,
             block_id: BlockId(0),
             port_id: PortId::default(),
@@ -337,7 +332,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
     fn validate(&self) -> Result<(), Error> {
         if !self.writer_inbox.is_closed() {
@@ -399,7 +394,7 @@ where
 
                     let old = std::mem::replace(&mut cur.buffer, buffer);
                     state.writer_input.push_back(BufferEmpty { buffer: old });
-                    let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+                    self.writer_inbox.notify();
 
                     cur.end_offset = self.reserved_items + items;
                     cur.offset = self.reserved_items - left;
@@ -441,19 +436,21 @@ where
             let b = self.current.take().unwrap();
             let mut state = self.state.lock().unwrap();
 
-            state.writer_input.push_back(BufferEmpty { buffer: b.buffer });
+            state
+                .writer_input
+                .push_back(BufferEmpty { buffer: b.buffer });
 
-            let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+            self.writer_inbox.notify();
 
             // make sure to be called again, if we have another buffer queued
             if !state.reader_input.is_empty() {
-                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+                self.reader_inbox.notify();
             }
         // we call ourselfs again, since the buffer might be able to get merged
         } else if c.end_offset - c.offset <= self.reserved_items {
             let state = self.state.lock().unwrap();
             if !state.reader_input.is_empty() {
-                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+                self.reader_inbox.notify();
             }
         }
     }

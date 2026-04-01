@@ -1,5 +1,4 @@
 use futures::SinkExt;
-use futures::StreamExt;
 use futures::future::Either;
 use std::any::Any;
 use std::fmt;
@@ -7,14 +6,13 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 use crate::runtime::MaybeSend;
-use futuresdr::channel::mpsc;
 use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockDescription;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::BlockInbox;
+use futuresdr::runtime::BlockInboxReader;
 use futuresdr::runtime::BlockMessage;
 use futuresdr::runtime::BlockMeta;
-use futuresdr::runtime::BlockNotifier;
 use futuresdr::runtime::BlockPortCtx;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::FlowgraphMessage;
@@ -37,7 +35,7 @@ pub trait Block: MaybeSend + Any {
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
     /// Get the inbox of the block
-    fn inbox(&self) -> Sender<BlockMessage>;
+    fn inbox(&self) -> BlockInbox;
     /// Get the ID of the block
     fn id(&self) -> BlockId;
 
@@ -58,7 +56,7 @@ pub trait Block: MaybeSend + Any {
     fn connect(
         &mut self,
         src_port: &PortId,
-        sender: Sender<BlockMessage>,
+        sender: BlockInbox,
         dst_port: &PortId,
     ) -> Result<(), Error>;
 
@@ -93,25 +91,16 @@ pub struct WrappedKernel<K: Kernel> {
     /// Block ID
     pub id: BlockId,
     /// Inbox for Actor Model
-    pub inbox: mpsc::Receiver<BlockMessage>,
+    pub inbox: BlockInboxReader,
     /// Sending-side of Inbox
-    pub inbox_tx: mpsc::Sender<BlockMessage>,
-    /// Fast-path notifier for stream wakeups
-    pub notifier: BlockNotifier,
+    pub inbox_tx: BlockInbox,
 }
 
 impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
     /// Create Typed Block
     pub fn new(mut kernel: K, id: BlockId) -> Self {
-        let (tx, rx) = mpsc::channel(config::config().queue_size);
-        let notifier = BlockNotifier::new();
-        kernel.stream_ports_init(
-            id,
-            BlockInbox {
-                control: tx.clone(),
-                notifier: notifier.clone(),
-            },
-        );
+        let (tx, rx) = crate::runtime::block_inbox::channel(config::config().queue_size);
+        kernel.stream_ports_init(id, tx.clone());
         Self {
             meta: BlockMeta::new(),
             mio: MessageOutputs::new(
@@ -122,7 +111,6 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             id,
             inbox: rx,
             inbox_tx: tx,
-            notifier,
         }
     }
 
@@ -133,7 +121,6 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             mio,
             kernel,
             inbox,
-            notifier,
             ..
         } = self;
 
@@ -149,7 +136,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
         // setup phase
         loop {
             match inbox
-                .next()
+                .recv()
                 .await
                 .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
             {
@@ -175,18 +162,16 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             }
         }
 
-        let mut peek: Option<BlockMessage> = None;
+        let mut woke = false;
 
         // main loop
         loop {
             // ================== non blocking
-            let mut had_notify = notifier.take_pending();
-            let mut msg = peek.take().or_else(|| inbox.try_recv().ok());
+            let had_notify = woke || inbox.take_pending();
+            woke = false;
+            let mut msg = inbox.try_recv();
             while let Some(m) = msg {
                 match m {
-                    BlockMessage::Notify => {
-                        had_notify = true;
-                    }
                     BlockMessage::BlockDescription { tx } => {
                         let stream_inputs = kernel.stream_inputs();
                         let stream_outputs = kernel.stream_outputs();
@@ -262,7 +247,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                 };
                 // received at least one message
                 work_io.call_again = true;
-                msg = inbox.try_recv().ok();
+                msg = inbox.try_recv();
             }
             if had_notify {
                 work_io.call_again = true;
@@ -291,39 +276,20 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             // ================== blocking
             if !work_io.call_again {
                 match work_io.block_on.take() {
-                    Some(f) => {
-                        let p = inbox.next();
-                        let n = notifier.notified();
-                        match futures::future::select(f, futures::future::select(p, n)).await {
-                            Either::Left(_) => {
-                                work_io.call_again = true;
-                            }
-                            Either::Right((wait, f)) => {
-                                work_io.block_on = Some(f);
-                                match wait {
-                                    Either::Left((p, _)) => {
-                                        peek = p;
-                                        continue;
-                                    }
-                                    Either::Right((_, _)) => {
-                                        work_io.call_again = true;
-                                    }
-                                }
-                            }
-                        };
-                    }
-                    _ => {
-                        let p = inbox.next();
-                        let n = notifier.notified();
-                        match futures::future::select(p, n).await {
-                            Either::Left((p, _)) => {
-                                peek = p;
-                                continue;
-                            }
-                            Either::Right((_, _)) => {
-                                work_io.call_again = true;
-                            }
+                    Some(f) => match futures::future::select(f, inbox.notified()).await {
+                        Either::Left(_) => {
+                            work_io.call_again = true;
                         }
+                        Either::Right((_, f)) => {
+                            work_io.block_on = Some(f);
+                            woke = true;
+                            continue;
+                        }
+                    },
+                    _ => {
+                        inbox.notified().await;
+                        woke = true;
+                        continue;
                     }
                 }
             }
@@ -348,7 +314,7 @@ impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
         self
     }
     // ##### Block
-    fn inbox(&self) -> Sender<BlockMessage> {
+    fn inbox(&self) -> BlockInbox {
         self.inbox_tx.clone()
     }
     fn id(&self) -> BlockId {
@@ -374,7 +340,7 @@ impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
     fn connect(
         &mut self,
         src_port: &PortId,
-        dst_box: Sender<BlockMessage>,
+        dst_box: BlockInbox,
         dst_port: &PortId,
     ) -> Result<(), Error> {
         self.mio.connect(src_port, dst_box, dst_port)

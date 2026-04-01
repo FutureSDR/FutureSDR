@@ -1,4 +1,3 @@
-use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -8,9 +7,8 @@ use std::sync::Mutex;
 use wgpu::BufferUsages;
 use wgpu::BufferViewMut;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -63,9 +61,9 @@ where
     ready_ids: Arc<Mutex<VecDeque<usize>>>,
     instance: Option<super::Instance>,
     writer_id: BlockId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input_id: PortId,
     tags: Vec<ItemTag>,
 }
@@ -76,7 +74,6 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             current: None,
             slots: Arc::new(Mutex::new(Vec::new())),
@@ -84,9 +81,9 @@ where
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             instance: None,
             writer_id: BlockId::default(),
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             reader_input_id: PortId::default(),
             tags: Vec::new(),
         }
@@ -198,7 +195,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output_id = port_id;
-        self.writer_inbox = inbox.control;
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -235,7 +232,7 @@ where
         if let Some(current) = self.current.as_ref() {
             if current.item_offset > 0 {
                 self.finalize_current(current.item_offset);
-                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+                self.reader_inbox.notify();
             } else {
                 let current = self.current.take().unwrap();
                 let slot_id = current.slot_id;
@@ -325,7 +322,7 @@ where
         current.item_offset += amount;
         if current.item_offset == item_capacity {
             self.finalize_current(item_capacity);
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
         }
     }
 
@@ -355,9 +352,9 @@ where
     instance: Option<super::Instance>,
     reader_id: BlockId,
     reader_input_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     writer_output_id: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     finished: bool,
 }
 
@@ -367,7 +364,6 @@ where
 {
     /// Create buffer reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             slots: Arc::new(Mutex::new(Vec::new())),
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
@@ -375,9 +371,9 @@ where
             instance: None,
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             finished: false,
         }
     }
@@ -431,7 +427,7 @@ where
 
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
-        let mut writer_inbox = self.writer_inbox.clone();
+        let writer_inbox = self.writer_inbox.clone();
         let byte_len = (capacity * size_of::<D>()) as u64;
         let slice = buffer_for_map.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {
@@ -445,7 +441,7 @@ where
                     slot.state = SlotState::WritableMapped;
                 }
                 writable_ids.lock().unwrap().push(slot_id);
-                let _ = writer_inbox.try_send(BlockMessage::Notify);
+                writer_inbox.notify();
             }
             Err(e) => {
                 warn!(
@@ -501,7 +497,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input_id = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {

@@ -1,12 +1,10 @@
-use futures::prelude::*;
 use std::any::Any;
 use std::fmt;
 use std::mem::size_of;
 use vmcircbuffer::generic;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
@@ -67,11 +65,11 @@ pub struct Writer<D>
 where
     D: CpuSample,
 {
-    inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
     block_id: BlockId,
     port_id: PortId,
     writer: Option<generic::Writer<D, MyNotifier, MyMetadata>>,
-    readers: Vec<(PortId, Sender<BlockMessage>)>,
+    readers: Vec<(PortId, BlockInbox)>,
     finished: bool,
     tags: Vec<ItemTag>,
     min_items: Option<usize>,
@@ -84,9 +82,8 @@ where
     D: CpuSample,
 {
     fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
-            inbox: rx,
+            inbox: BlockInbox::default(),
             block_id: BlockId::default(),
             port_id: PortId::default(),
             writer: None,
@@ -118,8 +115,8 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
-        self.notifier = inbox.notifier;
+        self.notifier = inbox.notifier();
+        self.inbox = inbox;
     }
     fn validate(&self) -> Result<(), Error> {
         if self.writer.is_some() {
@@ -279,11 +276,11 @@ where
 {
     reader: Option<generic::Reader<D, MyNotifier, MyMetadata>>,
     finished: bool,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output_id: PortId,
     block_id: BlockId,
     port_id: PortId,
-    inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
     tags: Vec<ItemTag>,
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
@@ -295,15 +292,14 @@ where
     D: CpuSample,
 {
     fn default() -> Self {
-        let (rx, _) = channel(0);
         Self {
             reader: None,
             finished: false,
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
             block_id: BlockId::default(),
             port_id: PortId::default(),
-            inbox: rx,
+            inbox: BlockInbox::default(),
             tags: vec![],
             min_items: None,
             min_buffer_size_in_items: None,
@@ -324,8 +320,8 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
-        self.notifier = inbox.notifier;
+        self.notifier = inbox.notifier();
+        self.inbox = inbox;
     }
     fn validate(&self) -> Result<(), Error> {
         if self.reader.is_some() {

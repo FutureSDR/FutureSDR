@@ -1,7 +1,7 @@
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
@@ -18,7 +18,6 @@ use crate::runtime::config::config;
 use burn::prelude::*;
 use burn::tensor::BasicOps;
 use burn::tensor::TensorKind;
-use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -188,9 +187,9 @@ where
     SW: CpuSample,
     SR: CpuSample,
 {
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_id: BlockId,
     writer_output: PortId,
     device: Option<Device<B>>,
@@ -215,11 +214,10 @@ where
 {
     /// Create circuit buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_input: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             writer_id: BlockId::default(),
             writer_output: PortId::default(),
             device: None,
@@ -242,7 +240,7 @@ where
 
     /// Close Circuit
     pub fn close_circuit(&mut self, end: &mut Reader<B, E, SR>) {
-        end.circuit_start = Some((self.writer_inbox.clone(), self.inbound.clone()));
+        end.circuit_start = Some((self.writer_inbox.notifier(), self.inbound.clone()));
     }
 }
 
@@ -270,7 +268,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output = port_id;
-        self.writer_inbox = inbox.control;
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -323,7 +321,7 @@ where
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) {
         self.outbound.lock().unwrap().push_back(buffer.cast());
-        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+        self.reader_inbox.notify();
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {
@@ -411,11 +409,11 @@ where
             c.set_valid(o);
             self.outbound.lock().unwrap().push_back(c.cast());
 
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
 
             // make sure to be called again, if we have another buffer queued
             if !self.inbound.lock().unwrap().is_empty() {
-                let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+                self.writer_inbox.notify();
             }
         }
     }
@@ -444,17 +442,14 @@ where
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
     SR: CpuSample,
 {
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_id: BlockId,
     reader_input: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output: PortId,
     inbound: Arc<Mutex<VecDeque<Buffer<B, E, SR>>>>,
     #[allow(clippy::type_complexity)]
-    circuit_start: Option<(
-        Sender<BlockMessage>,
-        Arc<Mutex<Vec<Option<Buffer<B, E, SR>>>>>,
-    )>,
+    circuit_start: Option<(BlockNotifier, Arc<Mutex<Vec<Option<Buffer<B, E, SR>>>>>)>,
     finished: bool,
     // for CPU buffer reader
     current: Option<(Buffer<B, E, SR>, usize)>,
@@ -468,12 +463,11 @@ where
 {
     /// Create circuit buffer reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_id: BlockId::default(),
             reader_input: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             writer_output: PortId::default(),
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             circuit_start: None,
@@ -508,7 +502,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -569,14 +563,14 @@ where
     fn put_empty_buffer(&mut self, buffer: Self::Buffer) {
         if let Some((ref mut inbox, ref buffers)) = self.circuit_start {
             buffers.lock().unwrap().push(Some(buffer));
-            let _ = inbox.try_send(BlockMessage::Notify);
+            inbox.notify();
         }
     }
 
     fn notify_consumed_buffer(&mut self) {
         if let Some((ref mut inbox, ref buffers)) = self.circuit_start {
             buffers.lock().unwrap().push(None);
-            let _ = inbox.try_send(BlockMessage::Notify);
+            inbox.notify();
         }
     }
 }
@@ -621,7 +615,7 @@ where
             match self.circuit_start {
                 Some((ref mut inbox, ref queue)) => {
                     queue.lock().unwrap().push(Some(b));
-                    let _ = inbox.try_send(BlockMessage::Notify);
+                    inbox.notify();
                 }
                 None => {
                     debug!(
@@ -632,7 +626,7 @@ where
 
             // make sure to be called again, if we have another buffer queued
             if !self.inbound.lock().unwrap().is_empty() {
-                let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+                self.reader_inbox.notify();
             }
         }
     }

@@ -1,4 +1,3 @@
-use futures::prelude::*;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -7,9 +6,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use wgpu::BufferView;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -40,10 +38,10 @@ pub struct Writer<D: CpuSample> {
     inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
     instance: Option<super::Instance>,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_id: BlockId,
     writer_output_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input_id: PortId,
 }
 
@@ -55,15 +53,14 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Writer {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
             instance: None,
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_id: BlockId::default(),
             writer_output_id: PortId::default(),
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_input_id: PortId::default(),
         }
     }
@@ -102,7 +99,7 @@ where
     /// Submit full buffer to downstream CPU reader
     pub fn submit(&mut self, buffer: BufferFull<D>) {
         self.outbound.lock().unwrap().push_back(buffer);
-        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+        self.reader_inbox.notify();
     }
 }
 
@@ -124,7 +121,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output_id = port_id;
-        self.writer_inbox = inbox.control;
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -180,11 +177,11 @@ where
     buffer: Option<CurrentBuffer<D>>,
     inbound: Arc<Mutex<VecDeque<BufferFull<D>>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output_id: PortId,
     reader_id: BlockId,
     reader_input_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     instance: Option<super::Instance>,
     finished: bool,
 }
@@ -197,16 +194,15 @@ where
 {
     /// Create Reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             buffer: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             instance: None,
             finished: false,
         }
@@ -239,7 +235,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input_id = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -354,12 +350,12 @@ where
                 buffer,
                 _p: PhantomData,
             });
-            let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+            self.writer_inbox.notify();
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
         }
     }
 

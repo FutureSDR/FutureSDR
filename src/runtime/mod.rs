@@ -8,6 +8,7 @@ use std::fmt::Formatter;
 use thiserror::Error;
 
 mod block;
+mod block_inbox;
 mod block_meta;
 pub mod buffer;
 pub mod config;
@@ -36,7 +37,6 @@ mod message_io;
 #[cfg(not(target_arch = "wasm32"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
-mod notify;
 #[allow(clippy::module_inception)]
 mod runtime;
 pub mod scheduler;
@@ -45,6 +45,9 @@ mod work_io;
 
 pub use block::Block;
 pub use block::WrappedKernel;
+pub use block_inbox::BlockInbox;
+pub use block_inbox::BlockInboxReader;
+pub use block_inbox::BlockNotifier;
 pub use block_meta::BlockMeta;
 pub use flowgraph::AddToFlowgraph;
 pub use flowgraph::BlockPort;
@@ -57,7 +60,6 @@ pub use kernel::KernelInterface;
 pub use megablock::MegaBlock;
 pub use message_io::MessageOutput;
 pub use message_io::MessageOutputs;
-pub use notify::BlockNotifier;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 pub use tag::ItemTag;
@@ -164,8 +166,6 @@ pub enum BlockMessage {
     Initialize,
     /// Terminate
     Terminate,
-    /// Notify
-    Notify,
     /// Get [`BlockDescription`]
     BlockDescription {
         /// Channel for return value
@@ -197,18 +197,6 @@ pub enum BlockMessage {
         /// Back channel for handler result
         tx: oneshot::Sender<Result<Pmt, Error>>,
     },
-}
-
-#[derive(Clone, Debug)]
-/// Inbox context used by stream buffers.
-///
-/// `control` carries regular [`BlockMessage`] control traffic, while
-/// `notifier` is the coalescing fast-path wakeup signal.
-pub struct BlockInbox {
-    /// Control-message sender for the destination block.
-    pub control: mpsc::Sender<BlockMessage>,
-    /// Fast wakeup notifier for the destination block.
-    pub notifier: BlockNotifier,
 }
 
 /// FutureSDR Error

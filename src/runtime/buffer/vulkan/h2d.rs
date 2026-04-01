@@ -1,4 +1,3 @@
-use futures::prelude::*;
 use ouroboros::self_referencing;
 use std::any::Any;
 use std::ops::DerefMut;
@@ -8,9 +7,8 @@ use vulkano::buffer::BufferWriteGuard;
 use vulkano::buffer::Subbuffer;
 use vulkano::buffer::subbuffer::BufferContents;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -41,11 +39,11 @@ pub struct Writer<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
     block_id: BlockId,
     port_id: PortId,
     tags: Vec<ItemTag>,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_port_id: PortId,
 }
 
@@ -55,16 +53,15 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            inbox: rx.clone(),
+            inbox: BlockInbox::default(),
             block_id: BlockId(0),
             port_id: PortId::default(),
             tags: Vec::new(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             reader_port_id: PortId::default(),
         }
     }
@@ -98,7 +95,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -203,7 +200,7 @@ where
                 self.current = Some(buffer);
             }
 
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
         }
     }
 
@@ -225,11 +222,11 @@ where
 #[derive(Debug)]
 pub struct Reader<T: BufferContents + CpuSample> {
     inbound: Arc<Mutex<Vec<Buffer<T>>>>,
-    inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
     block_id: BlockId,
     port_id: PortId,
     writer_port_id: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     finished: bool,
 }
 
@@ -239,14 +236,13 @@ where
 {
     /// Create a Reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             inbound: Arc::new(Mutex::new(Vec::new())),
-            inbox: rx.clone(),
+            inbox: BlockInbox::default(),
             block_id: BlockId(0),
             port_id: PortId::default(),
             writer_port_id: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             finished: false,
         }
     }
@@ -279,7 +275,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {

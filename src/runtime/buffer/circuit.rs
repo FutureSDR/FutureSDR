@@ -1,6 +1,5 @@
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
@@ -18,7 +17,6 @@ use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
 #[cfg(not(target_arch = "wasm32"))]
 use concurrent_queue::ConcurrentQueue;
-use futures::prelude::*;
 use std::any::Any;
 #[cfg(target_arch = "wasm32")]
 use std::collections::VecDeque;
@@ -137,9 +135,9 @@ pub struct Writer<T>
 where
     T: CpuSample,
 {
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     notifier: BlockNotifier,
     reader_notifier: BlockNotifier,
     writer_id: BlockId,
@@ -161,11 +159,10 @@ where
 {
     /// Create circuit buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_input: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             notifier: BlockNotifier::new(),
             reader_notifier: BlockNotifier::new(),
             writer_id: BlockId::default(),
@@ -204,8 +201,8 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output = port_id;
-        self.writer_inbox = inbox.control;
-        self.notifier = inbox.notifier;
+        self.notifier = inbox.notifier();
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -357,10 +354,10 @@ pub struct Reader<T>
 where
     T: CpuSample,
 {
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_id: BlockId,
     reader_input: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     notifier: BlockNotifier,
     writer_notifier: BlockNotifier,
     writer_output: PortId,
@@ -378,12 +375,11 @@ where
 {
     /// Create circuit buffer reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             reader_id: BlockId::default(),
             reader_input: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             notifier: BlockNotifier::new(),
             writer_notifier: BlockNotifier::new(),
             writer_output: PortId::default(),
@@ -416,8 +412,8 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input = port_id;
-        self.reader_inbox = inbox.control;
-        self.notifier = inbox.notifier;
+        self.notifier = inbox.notifier();
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {

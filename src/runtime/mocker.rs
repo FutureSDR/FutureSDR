@@ -6,7 +6,9 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
@@ -60,7 +62,11 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             message_sinks.push(rx);
             block
                 .mio
-                .connect(&PortId::new(*n), tx, &PortId::new("input"))
+                .connect(
+                    &PortId::new(*n),
+                    BlockInbox::new(tx, BlockNotifier::new()),
+                    &PortId::new("input"),
+                )
                 .unwrap();
         }
 

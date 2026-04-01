@@ -17,6 +17,7 @@ use std::task::Poll;
 
 use crate::runtime;
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
 use crate::runtime::Error;
@@ -385,7 +386,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 ) -> Result<Flowgraph, Error> {
     debug!("in run_flowgraph");
 
-    let mut inboxes = vec![];
+    let mut inboxes: Vec<BlockInbox> = vec![];
     for b in fg.blocks.iter() {
         inboxes.push(b.lock().await.inbox())
     }
@@ -436,7 +437,8 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
 
     debug!("running blocks");
     for inbox in inboxes.iter_mut() {
-        if inbox.send(BlockMessage::Notify).await.is_err() {
+        inbox.notify();
+        if inbox.is_closed() {
             debug!("runtime wanted to start block that already terminated");
         }
     }

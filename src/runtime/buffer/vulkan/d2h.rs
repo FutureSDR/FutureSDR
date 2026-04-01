@@ -1,4 +1,3 @@
-use futures::prelude::*;
 use ouroboros::self_referencing;
 use std::any::Any;
 use std::collections::VecDeque;
@@ -9,9 +8,8 @@ use vulkano::buffer::BufferReadGuard;
 use vulkano::buffer::Subbuffer;
 use vulkano::buffer::subbuffer::BufferContents;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -39,8 +37,8 @@ pub struct Writer<T: BufferContents + CpuSample> {
     outbound: Arc<Mutex<VecDeque<Buffer<T>>>>,
     block_id: BlockId,
     port_id: PortId,
-    inbox: Sender<BlockMessage>,
-    reader_inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
+    reader_inbox: BlockInbox,
     reader_port_id: PortId,
 }
 
@@ -50,13 +48,12 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             block_id: BlockId(0),
             port_id: PortId::default(),
-            inbox: rx.clone(),
-            reader_inbox: rx,
+            inbox: BlockInbox::default(),
+            reader_inbox: BlockInbox::default(),
             reader_port_id: PortId::default(),
         }
     }
@@ -64,7 +61,7 @@ where
     /// Submit full buffer to downstream CPU reader
     pub fn submit(&mut self, buffer: Buffer<T>) {
         self.outbound.lock().unwrap().push_back(buffer);
-        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+        self.reader_inbox.notify();
     }
 }
 
@@ -86,7 +83,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -135,9 +132,9 @@ pub struct Reader<T: BufferContents + CpuSample> {
     outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     block_id: BlockId,
     port_id: PortId,
-    inbox: Sender<BlockMessage>,
-    writer_inbox: Sender<BlockMessage>,
-    circuit_start_inbox: Sender<BlockMessage>,
+    inbox: BlockInbox,
+    writer_inbox: BlockInbox,
+    circuit_start_inbox: BlockInbox,
     writer_port_id: PortId,
     tags: Vec<ItemTag>,
     finished: bool,
@@ -148,16 +145,15 @@ where
 {
     /// Create Vulkan Device-to-Host Reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             block_id: BlockId(0),
             port_id: PortId::default(),
-            inbox: rx.clone(),
-            writer_inbox: rx.clone(),
-            circuit_start_inbox: rx,
+            inbox: BlockInbox::default(),
+            writer_inbox: BlockInbox::default(),
+            circuit_start_inbox: BlockInbox::default(),
             writer_port_id: PortId::default(),
             tags: Vec::new(),
             finished: false,
@@ -167,7 +163,7 @@ where
     /// Close Circuit
     pub fn close_circuit(
         &mut self,
-        circuit_start_inbox: Sender<BlockMessage>,
+        circuit_start_inbox: BlockInbox,
         outbound: Arc<Mutex<Vec<Buffer<T>>>>,
     ) {
         self.circuit_start_inbox = circuit_start_inbox;
@@ -196,7 +192,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.inbox = inbox.control;
+        self.inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -290,12 +286,12 @@ where
                 offset: 0,
             });
 
-            let _ = self.circuit_start_inbox.try_send(BlockMessage::Notify);
+            self.circuit_start_inbox.notify();
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.inbox.try_send(BlockMessage::Notify);
+            self.inbox.notify();
         }
     }
 

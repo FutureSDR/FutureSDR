@@ -1,4 +1,3 @@
-use futures::SinkExt;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -7,9 +6,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -36,9 +34,9 @@ where
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull>>>,
     writer_id: BlockId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_output_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input_id: PortId,
     _p: PhantomData<D>,
 }
@@ -49,14 +47,13 @@ where
 {
     /// Create buffer writer
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             inbound: Arc::new(Mutex::new(Vec::new())),
             writer_id: BlockId::default(),
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             reader_input_id: PortId::default(),
             _p: PhantomData,
         }
@@ -71,7 +68,7 @@ where
     /// Submit full buffer to downstream CPU reader
     pub fn submit(&mut self, buffer: BufferFull) {
         self.outbound.lock().unwrap().push_back(buffer);
-        let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+        self.reader_inbox.notify();
     }
 }
 
@@ -93,7 +90,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output_id = port_id;
-        self.writer_inbox = inbox.control;
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -145,10 +142,10 @@ where
     inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     writer_output_id: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     reader_id: BlockId,
     reader_input_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     finished: bool,
     _p: PhantomData<D>,
 }
@@ -159,16 +156,15 @@ where
 {
     /// Create Vulkan Device-to-Host Reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             writer_output_id: PortId::default(),
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             finished: false,
             _p: PhantomData,
         }
@@ -196,7 +192,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input_id = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -287,12 +283,12 @@ where
         if current.byte_offset == byte_capacity {
             let buffer = self.current.take().unwrap().buffer;
             self.outbound.lock().unwrap().push(BufferEmpty { buffer });
-            let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+            self.writer_inbox.notify();
 
             // make sure to be called again for another potentially
             // queued buffer. could also check if there is one and only
             // message in this case.
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
         }
     }
 

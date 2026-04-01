@@ -1,4 +1,3 @@
-use futures::SinkExt;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -7,9 +6,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
 
-use crate::channel::mpsc::Sender;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockId;
+use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
@@ -38,10 +36,10 @@ where
     current: Option<CurrentBuffer>,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull>>>,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     writer_id: BlockId,
     writer_output_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     reader_input_id: PortId,
     tags: Vec<ItemTag>,
     _p: PhantomData<D>,
@@ -54,15 +52,14 @@ where
     /// Create buffer writer
     pub fn new() -> Self {
         debug!("H2D writer created");
-        let (rx, _) = channel(0);
         Self {
             current: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             writer_id: BlockId::default(),
-            writer_inbox: rx.clone(),
+            writer_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
-            reader_inbox: rx,
+            reader_inbox: BlockInbox::default(),
             reader_input_id: PortId::default(),
             tags: Vec::new(),
             _p: PhantomData,
@@ -88,7 +85,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.writer_id = block_id;
         self.writer_output_id = port_id;
-        self.writer_inbox = inbox.control;
+        self.writer_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -198,7 +195,7 @@ where
                 });
             }
 
-            let _ = self.reader_inbox.try_send(BlockMessage::Notify);
+            self.reader_inbox.notify();
         }
     }
 
@@ -226,9 +223,9 @@ where
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
     reader_id: BlockId,
     reader_input_id: PortId,
-    reader_inbox: Sender<BlockMessage>,
+    reader_inbox: BlockInbox,
     writer_output_id: PortId,
-    writer_inbox: Sender<BlockMessage>,
+    writer_inbox: BlockInbox,
     finished: bool,
     _p: PhantomData<D>,
 }
@@ -239,15 +236,14 @@ where
 {
     /// Create a Reader
     pub fn new() -> Self {
-        let (rx, _) = channel(0);
         Self {
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
             reader_id: BlockId::default(),
             reader_input_id: PortId::default(),
-            reader_inbox: rx.clone(),
+            reader_inbox: BlockInbox::default(),
             writer_output_id: PortId::default(),
-            writer_inbox: rx,
+            writer_inbox: BlockInbox::default(),
             finished: false,
             _p: PhantomData,
         }
@@ -257,7 +253,7 @@ where
     pub fn submit(&mut self, buffer: BufferEmpty) {
         // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
-        let _ = self.writer_inbox.try_send(BlockMessage::Notify);
+        self.writer_inbox.notify();
     }
 
     /// Get full buffer
@@ -294,7 +290,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
         self.reader_id = block_id;
         self.reader_input_id = port_id;
-        self.reader_inbox = inbox.control;
+        self.reader_inbox = inbox;
     }
 
     fn validate(&self) -> Result<(), Error> {
