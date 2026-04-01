@@ -75,11 +75,6 @@ pub mod channel {
         #[derive(Debug)]
         pub struct Receiver<T>(::kanal::AsyncReceiver<T>);
 
-        /// Sending side of an unbounded channel.
-        pub type UnboundedSender<T> = Sender<T>;
-        /// Receiving side of an unbounded channel.
-        pub type UnboundedReceiver<T> = Receiver<T>;
-
         /// Error returned by [`Receiver::try_recv`].
         #[derive(Debug, PartialEq, Eq)]
         pub enum TryRecvError {
@@ -130,12 +125,6 @@ pub mod channel {
             (Sender(Arc::new(tx)), Receiver(rx))
         }
 
-        /// Create an unbounded channel.
-        pub fn unbounded<T>() -> (UnboundedSender<T>, UnboundedReceiver<T>) {
-            let (tx, rx) = ::kanal::unbounded_async();
-            (Sender(Arc::new(tx)), Receiver(rx))
-        }
-
         impl<T> Clone for Sender<T> {
             fn clone(&self) -> Self {
                 Self(self.0.clone())
@@ -156,11 +145,6 @@ pub mod channel {
                     Ok(false) => Err(TrySendError::Full(data.expect("send data lost"))),
                     Err(_) => Err(TrySendError::Disconnected(data.expect("send data lost"))),
                 }
-            }
-
-            /// Send a value through an unbounded channel from synchronous code.
-            pub fn unbounded_send(&self, data: T) -> Result<(), SendError> {
-                self.0.as_sync().send(data)
             }
 
             /// Return whether the receiver side has been closed.

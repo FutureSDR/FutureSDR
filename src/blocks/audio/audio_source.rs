@@ -20,13 +20,15 @@ where
     sample_rate: u32,
     channels: u16,
     stream: Option<Stream>,
-    rx: Option<mpsc::UnboundedReceiver<Vec<f32>>>,
+    rx: Option<mpsc::Receiver<Vec<f32>>>,
     buff: Option<(Vec<f32>, usize)>,
 }
 
 // cpal::Stream is !Send
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<O> Send for AudioSource<O> where O: CpuBufferWriter<Item = f32> {}
+
+const QUEUE_SIZE: usize = 5;
 
 impl<O> AudioSource<O>
 where
@@ -90,13 +92,20 @@ where
             buffer_size: BufferSize::Default,
         };
 
-        let (tx, rx) = mpsc::unbounded();
+        let (tx, rx) = mpsc::channel(QUEUE_SIZE);
 
         let stream = device.build_input_stream(
             &config,
             move |data, _| {
                 let data = data.to_owned();
-                tx.unbounded_send(data).unwrap();
+                // Keep the audio callback non-blocking; if the queue is full, drop the newest
+                // chunk instead of stalling the input thread.
+                match tx.try_send(data) {
+                    Ok(()) | Err(mpsc::TrySendError::Full(_)) => {}
+                    Err(mpsc::TrySendError::Disconnected(_)) => {
+                        panic!("audio source channel receiver dropped unexpectedly");
+                    }
+                }
             },
             move |err| {
                 panic!("cpal stream error {err:?}");

@@ -5,15 +5,13 @@ use eframe::egui::mutex::Mutex;
 use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
+use futuresdr::channel::mpsc;
 use futuresdr::runtime::Pmt;
 use futuresdr_remote::Handler;
 use futuresdr_remote::Remote;
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::thread;
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::mpsc::unbounded_channel;
 use tungstenite::Message;
 use tungstenite::connect;
 use tungstenite::protocol::WebSocket;
@@ -40,7 +38,7 @@ enum GuiAction {
     SetFreq(u64),
 }
 
-async fn process_gui_actions(mut rx: UnboundedReceiver<GuiAction>) -> anyhow::Result<()> {
+async fn process_gui_actions(rx: mpsc::Receiver<GuiAction>) -> anyhow::Result<()> {
     let remote = Remote::new("http://127.0.0.1:1337");
     let fgs = remote.flowgraphs().await?;
     println!("sdr {:?}", fgs[0].blocks());
@@ -67,13 +65,13 @@ struct MyApp {
     freq: u64,
     min: f32,
     max: f32,
-    actions: UnboundedSender<GuiAction>,
+    actions: mpsc::Sender<GuiAction>,
     spectrum: Arc<Mutex<Spectrum>>,
 }
 
 impl MyApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (tx, rx) = unbounded_channel();
+        let (tx, rx) = mpsc::channel(10);
         thread::spawn(move || {
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -122,7 +120,7 @@ impl eframe::App for MyApp {
                     )
                     .changed()
                 {
-                    let _ = self.actions.send(GuiAction::SetFreq(self.freq));
+                    let _ = self.actions.try_send(GuiAction::SetFreq(self.freq));
                 }
                 if columns[1]
                     .add(
