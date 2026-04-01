@@ -1,8 +1,8 @@
 use async_lock::Mutex;
-use futures::channel::mpsc::Sender;
 use futures::future::Future;
 use std::sync::Arc;
 
+use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MaybeSend;

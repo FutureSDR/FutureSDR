@@ -38,7 +38,7 @@ pub struct PacketForwarderClient {
 impl PacketForwarderClient {
     pub fn new(mac_addr: &str, server_addr: &str) -> Self {
         let mac_address = MacAddress::from_str(mac_addr).unwrap();
-        let (to_forwarder_sender, mut to_forwarder_receiver) = mpsc::channel::<Packet>(1);
+        let (to_forwarder_sender, to_forwarder_receiver) = mpsc::channel::<Packet>(1);
         let host = SocketAddr::from_str(server_addr).unwrap();
         let server_addr = server_addr.to_owned();
 
@@ -56,7 +56,7 @@ impl PacketForwarderClient {
 
             // send received frames
             handle.spawn(async move {
-                while let Some(received_frame) = to_forwarder_receiver.next().await {
+                while let Some(received_frame) = to_forwarder_receiver.recv().await {
                     uplink_sender.send(received_frame).await.unwrap();
                 }
             });

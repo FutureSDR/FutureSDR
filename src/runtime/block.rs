@@ -1,4 +1,3 @@
-use futures::SinkExt;
 use futures::future::Either;
 use std::any::Any;
 use std::fmt;
@@ -114,7 +113,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
         }
     }
 
-    async fn run_impl(&mut self, mut main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
+    async fn run_impl(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error> {
         let instance_name = self.instance_name().unwrap_or(self.type_name()).to_owned();
         let WrappedKernel {
             meta,
@@ -352,7 +351,7 @@ impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
     }
 
     // ##### KERNEL
-    async fn run(&mut self, mut main_inbox: Sender<FlowgraphMessage>) {
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox

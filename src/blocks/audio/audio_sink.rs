@@ -4,10 +4,9 @@ use cpal::StreamConfig;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use futures::SinkExt;
-use futures::channel::mpsc;
 use futures::channel::oneshot;
 
+use crate::channel::mpsc;
 use crate::prelude::*;
 
 /// Audio Sink.
@@ -140,7 +139,7 @@ where
         let (terminate, terminated) = oneshot::channel();
         let mut terminate = Some(terminate);
         self.terminated = Some(terminated);
-        let (tx, mut rx) = mpsc::channel(QUEUE_SIZE);
+        let (tx, rx) = mpsc::channel(QUEUE_SIZE);
         let mut iter: Option<Vec<f32>> = None;
 
         let stream = device

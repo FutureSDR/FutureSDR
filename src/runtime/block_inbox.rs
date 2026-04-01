@@ -1,5 +1,3 @@
-use futures::SinkExt;
-use futures::StreamExt;
 use futures::task::AtomicWaker;
 use std::future::Future;
 use std::pin::Pin;
@@ -106,7 +104,7 @@ impl BlockInbox {
 
     /// Create an inbox that is disconnected from any reader.
     pub fn disconnected() -> Self {
-        let (control, _) = mpsc::channel(0);
+        let (control, _) = mpsc::channel::<BlockMessage>(0);
         Self::new(control, BlockNotifier::new())
     }
 
@@ -126,10 +124,7 @@ impl BlockInbox {
     }
 
     /// Enqueue a block message and wake the destination block on success.
-    pub async fn send(
-        &mut self,
-        msg: BlockMessage,
-    ) -> Result<(), futures::channel::mpsc::SendError> {
+    pub async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
         self.control.send(msg).await?;
         self.notifier.notify();
         Ok(())
@@ -162,7 +157,7 @@ impl BlockInboxReader {
 
     /// Wait for the next queued block message.
     pub async fn recv(&mut self) -> Option<BlockMessage> {
-        self.control.next().await
+        self.control.recv().await
     }
 
     /// Consume a pending wakeup notification bit.
@@ -178,7 +173,7 @@ impl BlockInboxReader {
 
 /// Create a paired sender/reader block inbox with a coalescing notifier.
 pub fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
-    let (control, receiver) = mpsc::channel(size);
+    let (control, receiver) = mpsc::channel::<BlockMessage>(size);
     let notifier = BlockNotifier::new();
     (
         BlockInbox::new(control, notifier.clone()),
@@ -213,7 +208,7 @@ mod tests {
 
     #[test]
     fn send_enqueues_and_wakes_reader() {
-        let (mut tx, mut rx) = channel(1);
+        let (tx, mut rx) = channel(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -223,7 +218,7 @@ mod tests {
 
     #[test]
     fn recv_waits_for_message() {
-        let (mut tx, mut rx) = channel(1);
+        let (tx, mut rx) = channel(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -245,7 +240,7 @@ mod tests {
 
     #[test]
     fn multiple_sends_coalesce_but_keep_messages() {
-        let (mut tx, mut rx) = channel(4);
+        let (tx, mut rx) = channel(4);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
         block_on(tx.send(BlockMessage::Terminate)).unwrap();

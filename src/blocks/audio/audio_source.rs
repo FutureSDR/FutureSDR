@@ -4,9 +4,8 @@ use cpal::StreamConfig;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use futures::StreamExt;
-use futures::channel::mpsc;
 
+use crate::channel::mpsc;
 use crate::prelude::*;
 
 /// Audio Source.
@@ -147,7 +146,7 @@ where
             } else {
                 self.buff = Some((buff, full));
             }
-        } else if let Some(v) = self.rx.as_mut().unwrap().next().await {
+        } else if let Some(v) = self.rx.as_mut().unwrap().recv().await {
             io.call_again = true;
             self.buff = Some((v, 0));
         } else {

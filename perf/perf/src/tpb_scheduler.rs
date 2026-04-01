@@ -1,7 +1,7 @@
 use async_executor::Executor;
 use async_executor::Task;
 use futuresdr::async_io;
-use futuresdr::futures::channel::mpsc::Sender;
+use futuresdr::channel::mpsc::Sender;
 use futuresdr::futures::channel::oneshot;
 use futuresdr::futures::future::Future;
 use futuresdr::runtime::Block;

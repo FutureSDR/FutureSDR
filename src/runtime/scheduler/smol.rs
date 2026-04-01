@@ -1,6 +1,5 @@
 use async_executor::Executor;
 use async_executor::Task;
-use futures::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use futures::future::Future;
 use once_cell::sync::Lazy;
@@ -10,6 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
+use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MaybeSend;

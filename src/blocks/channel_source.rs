@@ -1,4 +1,4 @@
-use crate::futures::StreamExt;
+use crate::channel::mpsc;
 use crate::prelude::*;
 
 /// Push samples through a channel into a stream connection.
@@ -65,7 +65,7 @@ where
         }
 
         if self.current.is_none() {
-            match self.receiver.by_ref().next().await {
+            match self.receiver.recv().await {
                 Some(data) => {
                     debug!("received data chunk on channel");
                     self.current = Some((data, 0));

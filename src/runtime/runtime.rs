@@ -4,9 +4,6 @@ use async_lock::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
 use futures::FutureExt;
-use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::Sender;
-use futures::channel::mpsc::channel;
 use futures::channel::oneshot;
 use futures::prelude::*;
 use std::fmt;
@@ -15,6 +12,9 @@ use std::sync::Arc;
 use std::task;
 use std::task::Poll;
 
+use crate::channel::mpsc::Receiver;
+use crate::channel::mpsc::Sender;
+use crate::channel::mpsc::channel;
 use crate::runtime;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockInbox;
@@ -298,9 +298,9 @@ trait Spawn {
 #[async_trait]
 impl<S: Scheduler + Sync + 'static> Spawn for S {
     async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
+        use crate::channel::mpsc::channel;
         use crate::runtime::FlowgraphMessage;
         use crate::runtime::runtime::run_flowgraph;
-        use futures::channel::mpsc::channel;
         use futures::channel::oneshot;
 
         let queue_size = config::config().queue_size;
@@ -380,8 +380,8 @@ impl RuntimeHandle {
 pub(crate) async fn run_flowgraph<S: Scheduler>(
     fg: Flowgraph,
     scheduler: S,
-    mut main_channel: Sender<FlowgraphMessage>,
-    mut main_rx: Receiver<FlowgraphMessage>,
+    main_channel: Sender<FlowgraphMessage>,
+    main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<Result<(), Error>>,
 ) -> Result<Flowgraph, Error> {
     debug!("in run_flowgraph");
@@ -415,7 +415,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             break;
         }
 
-        let m = main_rx.next().await.ok_or_else(|| {
+        let m = main_rx.recv().await.ok_or_else(|| {
             Error::RuntimeError("no reply from blocks during init phase".to_string())
         })?;
         match m {
@@ -463,7 +463,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             break;
         }
 
-        let m = main_rx.next().await.ok_or_else(|| {
+        let m = main_rx.recv().await.ok_or_else(|| {
             Error::RuntimeError("all senders to flowgraph inbox dropped".to_string())
         })?;
         match m {

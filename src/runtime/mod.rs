@@ -274,9 +274,13 @@ impl From<mpsc::SendError> for Error {
 
 impl<T> From<mpsc::TrySendError<T>> for Error {
     fn from(_value: mpsc::TrySendError<T>) -> Self {
-        Error::RuntimeError(
-            "Couldn't send to mpsc channel, receiver dropped unexpectedly".to_string(),
-        )
+        let message = match _value {
+            mpsc::TrySendError::Full(_) => "Couldn't send to mpsc channel, channel is full",
+            mpsc::TrySendError::Disconnected(_) => {
+                "Couldn't send to mpsc channel, receiver dropped unexpectedly"
+            }
+        };
+        Error::RuntimeError(message.to_string())
     }
 }
 

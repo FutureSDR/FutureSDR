@@ -1,7 +1,7 @@
 use anyhow::Result;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::futures::channel::mpsc;
+use futuresdr::channel::mpsc;
 use futuresdr::macros::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;

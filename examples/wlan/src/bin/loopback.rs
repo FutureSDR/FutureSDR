@@ -8,7 +8,6 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
-use futuresdr::futures::StreamExt;
 use futuresdr::prelude::*;
 use rand_distr::Distribution;
 use rand_distr::Normal;
@@ -94,7 +93,7 @@ fn main() -> Result<()> {
     connect!(fg, frame_equalizer > decoder);
     connect!(fg, frame_equalizer.symbols | symbol_sink);
 
-    let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
+    let (tx_frame, rx_frame) = mpsc::channel::<Pmt>(100);
     let message_pipe = MessagePipe::new(tx_frame);
     connect!(fg, decoder.rx_frames | message_pipe);
     let blob_to_udp = BlobToUdp::new("127.0.0.1:55555");
@@ -126,7 +125,7 @@ fn main() -> Result<()> {
     });
 
     rt.block_on(async move {
-        while let Some(x) = rx_frame.next().await {
+        while let Some(x) = rx_frame.recv().await {
             match x {
                 Pmt::Blob(data) => {
                     println!("received frame ({:?} bytes)", data.len());

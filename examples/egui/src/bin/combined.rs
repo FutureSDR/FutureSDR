@@ -10,7 +10,6 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::seify::Builder;
-use futuresdr::futures::StreamExt;
 use futuresdr::prelude::*;
 use std::sync::Arc;
 use std::thread;
@@ -38,11 +37,11 @@ enum GuiAction {
 }
 
 async fn process_gui_actions(
-    mut rx: mpsc::Receiver<GuiAction>,
+    rx: mpsc::Receiver<GuiAction>,
     mut handle: FlowgraphHandle,
     seify_src: BlockId,
 ) -> anyhow::Result<()> {
-    while let Some(m) = rx.next().await {
+    while let Some(m) = rx.recv().await {
         match m {
             GuiAction::SetFreq(f) => {
                 println!("setting frequency to {f}MHz");

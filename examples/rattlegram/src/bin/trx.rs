@@ -3,7 +3,7 @@ use clap::Parser;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::AudioSource;
-use futuresdr::futures::channel::mpsc;
+use futuresdr::channel::mpsc;
 use futuresdr::prelude::*;
 
 use rattlegram::DecoderBlock;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     connect!(fg, src > snk);
 
     // TX
-    let (mut tx, rx) = mpsc::channel(10);
+    let (tx, rx) = mpsc::channel(10);
     let src = ChannelSource::<f32>::new(rx);
     let snk = AudioSink::new(48000, 1)?;
     connect!(fg, src > snk);

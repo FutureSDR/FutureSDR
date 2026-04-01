@@ -75,6 +75,7 @@ futures = "0.3"
 futuredsp = { path = "crates/futuredsp", version = "0.0.9-dev" }
 futuresdr-macros = { path = "crates/macros", version = "0.0.9-dev" }
 futuresdr-types = { path = "crates/types", version = "0.0.15-dev" }
+kanal = "0.1.1"
 num-complex = "0.4"
 num-integer = "0.1"
 once_cell = "1.21"

@@ -4,9 +4,7 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::wasm::HackRf;
-use futuresdr::futures::SinkExt;
-use futuresdr::futures::StreamExt;
-use futuresdr::futures::channel::mpsc::Receiver;
+use futuresdr::channel::mpsc::Receiver;
 use futuresdr::prelude::*;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;
@@ -105,7 +103,7 @@ impl gloo_worker::Worker for Worker {
                         set_handler.send(handle).await.unwrap();
 
                         futuresdr::tracing::info!("waiting for frames");
-                        while let Some(x) = rx_frame.next().await {
+                        while let Some(x) = rx_frame.recv().await {
                             info!("rxed {:?}", x);
                             match x {
                                 Pmt::Blob(data) => scope.respond(id, Frame::new(data)),

@@ -1,5 +1,4 @@
 use futures::SinkExt;
-use futures::StreamExt;
 use gloo_net::websocket::Message;
 use gloo_net::websocket::WebSocketError::ConnectionClose;
 use gloo_net::websocket::WebSocketError::ConnectionError;
@@ -33,7 +32,7 @@ where
 {
     /// Create WASM Websocket Sink block
     pub fn new(url: String, iterations_per_send: usize) -> Self {
-        let (sender, mut receiver) = mpsc::channel::<Vec<u8>>(1);
+        let (sender, receiver) = mpsc::channel::<Vec<u8>>(1);
 
         let ws_error = Arc::new(RwLock::new(false));
         let ws_error_clone = ws_error.clone();
@@ -42,7 +41,7 @@ where
         // following processing attempt (call to `work`).
         spawn_local(async move {
             if let Ok(mut conn) = WebSocket::open(&url) {
-                while let Some(v) = receiver.next().await {
+                while let Some(v) = receiver.recv().await {
                     if let Err(error) = conn.send(Message::Bytes(v)).await {
                         // On error, set `ws_error` to true.
                         match error {

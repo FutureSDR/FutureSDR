@@ -1,11 +1,11 @@
-use futures::channel::mpsc::Receiver;
-use futures::channel::mpsc::channel;
 use futuresdr_types::BlockId;
 use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+use crate::channel::mpsc::Receiver;
+use crate::channel::mpsc::channel;
 use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockNotifier;
@@ -53,7 +53,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     pub fn new(kernel: K) -> Self {
         let mut block = WrappedKernel::new(kernel, BlockId(0));
         let mut messages = Vec::new();
-        let mut message_sinks = Vec::new();
+        let mut message_sinks: Vec<Receiver<BlockMessage>> = Vec::new();
         let msg_len = config().queue_size;
 
         for n in K::message_outputs() {
