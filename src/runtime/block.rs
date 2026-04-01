@@ -128,7 +128,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
 
         // init work io
         let mut work_io = WorkIo {
-            call_again: false,
+            call_again: true,
             finished: false,
             block_on: None,
         };
@@ -162,13 +162,10 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             }
         }
 
-        let mut woke = false;
-
         // main loop
         loop {
             // ================== non blocking
-            let had_notify = woke || inbox.take_pending();
-            woke = false;
+            work_io.call_again |= inbox.take_pending();
             let mut msg = inbox.try_recv();
             while let Some(m) = msg {
                 match m {
@@ -249,9 +246,6 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                 work_io.call_again = true;
                 msg = inbox.try_recv();
             }
-            if had_notify {
-                work_io.call_again = true;
-            }
 
             // ================== shutdown
             if work_io.finished {
@@ -276,22 +270,19 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             // ================== blocking
             if !work_io.call_again {
                 match work_io.block_on.take() {
-                    Some(f) => match futures::future::select(f, inbox.notified()).await {
-                        Either::Left(_) => {
-                            work_io.call_again = true;
-                        }
-                        Either::Right((_, f)) => {
+                    Some(f) => {
+                        if let Either::Right((_, f)) =
+                            futures::future::select(f, inbox.notified()).await
+                        {
                             work_io.block_on = Some(f);
-                            woke = true;
-                            continue;
                         }
-                    },
+                    }
                     _ => {
                         inbox.notified().await;
-                        woke = true;
-                        continue;
                     }
                 }
+                work_io.call_again = true;
+                continue;
             }
 
             // ================== work
