@@ -10,13 +10,16 @@ use futures::future::select;
 use slab::Slab;
 use std::collections::HashSet;
 use std::fmt;
+use std::future::Future;
 use std::panic::RefUnwindSafe;
 use std::panic::UnwindSafe;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 use std::thread;
@@ -356,7 +359,7 @@ impl FlowExecutor {
                     let runnable = runner.runnable().await;
                     runnable.run();
                 }
-                crate::runtime::futures::yield_now().await;
+                yield_now().await;
             }
         };
 
@@ -613,6 +616,30 @@ struct CallOnDrop<F: Fn()>(F);
 impl<F: Fn()> Drop for CallOnDrop<F> {
     fn drop(&mut self) {
         (self.0)();
+    }
+}
+
+/// Wakes the current task and returns [`Poll::Pending`] once.
+fn yield_now() -> YieldNow {
+    YieldNow(false)
+}
+
+/// Future for the [`yield_now()`] function.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+struct YieldNow(bool);
+
+impl Future for YieldNow {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if !self.0 {
+            self.0 = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
     }
 }
 
