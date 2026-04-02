@@ -120,7 +120,7 @@ rodio = { version = "0.22", default-features = false, features = [
 tokio = { version = "1", features = ["rt"] }
 tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-vmcircbuffer = { version = "0.0.13", features = ["generic"] }
+vmcircbuffer = { version = "0.0.14", features = ["generic"] }
 vulkano = { version = "0.35", optional = true }
 zmq = { version = "0.10", optional = true }
 

@@ -230,6 +230,10 @@ where
 {
     type Item = D;
 
+    fn slice(&mut self) -> &mut [Self::Item] {
+        self.writer.as_mut().unwrap().slice(false)
+    }
+
     fn produce(&mut self, items: usize) {
         self.writer.as_mut().unwrap().produce(items, &self.tags);
         self.tags.clear();
@@ -360,6 +364,10 @@ where
     D: CpuSample,
 {
     type Item = D;
+
+    fn slice(&mut self) -> &[Self::Item] {
+        self.reader.as_mut().unwrap().slice(false).unwrap_or(&[])
+    }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         match self
