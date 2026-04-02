@@ -32,8 +32,14 @@ ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], labe
 t = d.loc[('fs', 'smoln')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N')
 
+t = d.loc[('fs', 'smoln-spsc')].reset_index();
+ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol SPSC')
+
 t = d.loc[('fs', 'flow')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
+
+t = d.loc[('fs', 'flow-spsc')].reset_index();
+ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow SPSC')
 
 if ('fs', 'slab') in d.index:
     t = d.loc[('fs', 'slab')].reset_index();

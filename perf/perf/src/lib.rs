@@ -1,4 +1,5 @@
 pub mod inplace;
+pub mod spsc;
 
 mod add;
 pub use add::Add;

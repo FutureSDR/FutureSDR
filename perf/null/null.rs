@@ -8,6 +8,7 @@ use futuresdr::prelude::*;
 use futuresdr::runtime::WrappedKernel;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
+use perf::spsc;
 use std::time;
 
 #[derive(Parser, Debug)]
@@ -36,6 +37,11 @@ impl BufferType for SlabBuffer {
 pub struct CircBuffer;
 impl BufferType for CircBuffer {
     type Writer<T: CpuSample> = DefaultCpuWriter<T>;
+}
+
+pub struct SpscBuffer;
+impl BufferType for SpscBuffer {
+    type Writer<T: CpuSample> = spsc::Writer<T>;
 }
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
@@ -104,10 +110,13 @@ fn main() -> Result<()> {
         config,
     } = Args::parse();
 
-    futuresdr::runtime::config::set("buffer_size", 65536);
+    futuresdr::runtime::config::set("buffer_size", 16384);
     let use_slab = config == "slab";
+    let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
     let (mut fg, snks, pipe_blocks) = if use_slab {
         generate::<SlabBuffer>(pipes, stages, samples)?
+    } else if use_spsc {
+        generate::<SpscBuffer>(pipes, stages, samples)?
     } else {
         generate::<CircBuffer>(pipes, stages, samples)?
     };
@@ -119,12 +128,12 @@ fn main() -> Result<()> {
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
-    } else if config == "smoln" {
+    } else if config == "smoln" || config == "smoln-spsc" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
-    } else if config == "flow" || config == "slab" {
+    } else if config == "flow" || config == "slab" || config == "flow-spsc" {
         assert_eq!(pipes, pipe_blocks.len());
         let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
         let now = time::Instant::now();
@@ -141,6 +150,12 @@ fn main() -> Result<()> {
             let snk = t
                 .as_any_mut()
                 .downcast_mut::<WrappedKernel<NullSink<f32, slab::Reader<f32>>>>()
+                .unwrap();
+            assert_eq!(snk.n_received(), samples);
+        } else if use_spsc {
+            let snk = t
+                .as_any_mut()
+                .downcast_mut::<WrappedKernel<NullSink<f32, spsc::Reader<f32>>>>()
                 .unwrap();
             assert_eq!(snk.n_received(), samples);
         } else {

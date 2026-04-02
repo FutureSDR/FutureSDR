@@ -19,10 +19,10 @@ def conf_int(data, confidence=0.95):
 ### throughput vs stages
 d = pd.read_csv('perf-data/results.csv')
 d = d[d['max_copy'] == 256]
-t = d.groupby(['sdr', 'scheduler', 'stages']).agg({'time': 'mean'})
+t = d.groupby(['sdr', 'config', 'stages']).agg({'time': 'mean'})
 print(t.unstack(level=[0,1]))
 
-d = d.groupby(['sdr', 'scheduler', 'stages']).agg({'time': ['mean', 'var', conf_int]})
+d = d.groupby(['sdr', 'config', 'stages']).agg({'time': ['mean', 'var', conf_int]})
 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
@@ -38,6 +38,12 @@ ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], labe
 
 t = d.loc[('fs', 'flow')].reset_index();
 ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
+
+t = d.loc[('fs', 'smoln-spsc')].reset_index();
+ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N SPSC')
+
+t = d.loc[('fs', 'flow-spsc')].reset_index();
+ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow SPSC')
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_xlabel('\\#\\,Stages')

@@ -1,9 +1,9 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,30,2), [700000000])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,30,2), [700000000], ["flow", "smoln", "slab"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_8_{1}_{2}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,30,2), [700000000])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,30,2), [700000000], ["flow", "smoln", "smoln-spsc", "flow-spsc"])]))')
 
-SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5 -d
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5,8,9,10,11 -d
 
 .PHONY: setup all clean perf_smol perf_flow perf_slab perf_gr
 

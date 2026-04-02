@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_8_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256], ["flow", "smoln"])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256], ["flow", "smoln", "flow-spsc", "smoln-spsc"])]))')
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5,8,9,10,11 -d
 
@@ -42,15 +42,15 @@ perf-data/fs%.csv:
 	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
 	$(eval SAMPLES=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
 	$(eval MAX=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
-	$(eval SCHEDULER=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
+	$(eval CONFIG=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo SAMPLES=$(SAMPLES)
 	@echo MAX=$(MAX)
-	@echo SCHEDULER=$(SCHEDULER)
+	@echo CONFIG=$(CONFIG)
 
-	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER) > $@
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --config=$(CONFIG) > $@
 
 clean:
 	rm -rf build
