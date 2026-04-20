@@ -68,6 +68,7 @@ package manager.
 
 ## Windows
 
+- Clone the FutureSDR repository<br/>`git clone https://github.com/FutureSDR/FutureSDR.git`.
 - Install [Visual Studio C++ Community Edition](https://visualstudio.microsoft.com/downloads/) (required components: Win10 SDK and VC++).
 
   Visual Studio does not add its binaries and libraries to the `PATH`.
@@ -75,14 +76,20 @@ package manager.
   Please use the native toolchain for your system to build FutureSDR, e.g., *x64 Native Tools Command Prompt for VS 2022*.
 
 For SoapySDR hardware drivers:
-- [PothosSDR](https://downloads.myriadrf.org/builds/PothosSDR/) for pre-built SDR drivers.
-  The installer offers to add the libraries to your `PATH`. Make sure to check this option.
-- Install [bindgen dependencies](https://rust-lang.github.io/rust-bindgen/requirements.html#windows).
-- Run `volk_profile` on the command line.
+- [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install/overview) for pre-built SDR drivers. The installer offers to add the binaries to your `PATH`. Do not check this option.
+- After installation, open Anaconda Prompt application.
+- Create an environment and activate it: <br/>`conda create -n sdr_env && conda activate sdr_env`
+- Install SoapySDR: <br/>`conda install -c conda-forge soapysdr`
+- Install necessary drivers (e.g. for USRP): <br/>`conda install -c conda-forge soapysdr-module-uhd` <br/>**Note:** Download FPGA images if using USRP: <br/>`uhd_images_downloader`
+- Add the following to your *User Environment Variables*:
 
-PothosSDR comes with many SoapySDR modules. Some of them require further software and services, which can cause issues when scanning for available devices.
-If you run into this issue, either (1) use a filter to specify the driver manually or (2) move the problematic library to a backup folder outside the search path.
-The libraries are, by default, at `C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8`.
-If, for example, SDRplay or UHD causes issues, move `sdrPlaySupport.dll` or `uhdSupport.dll` to a backup folder.
+  | Variable | Value |
+  | :--- | :--- |
+  | <small>SOAPY_SDR_ROOT</small> | `C:\Users\<User>\miniconda3\envs\sdr_env\Library` |
+  | <small>SOAPY_SDR_PLUGIN_PATH</small> |`C:\Users\<User>\miniconda3\envs\sdr_env\Library\lib\SoapySDR\modules0.8` |
+  | <small>LIB</small> | `C:\Users\<User>\miniconda3\envs\sdr_env\Library\lib` |
+  | <small>PATH (Append this one)</small>| `C:\Users\<User>\miniconda3\envs\sdr_env\Library\bin` |
+
+- For verification, restart a new terminal and run `SoapySDRUtil --info`. Check if your hardware (e.g., uhd) is listed under `Available factories`.
 
 - Check if your setup is working by running `cargo build` in the FutureSDR directory.
