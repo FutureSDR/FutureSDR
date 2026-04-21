@@ -46,6 +46,7 @@ fn main() -> Result<()> {
             .frequency(args.tx_freq)
             .sample_rate(4e6)
             .gain(args.tx_gain)
+            .min_in_buffer_size(98304)
             .build_sink()?,
     );
 

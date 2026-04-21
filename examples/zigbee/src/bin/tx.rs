@@ -48,6 +48,7 @@ fn main() -> Result<()> {
         .sample_rate(args.sample_rate)
         .gain(args.gain)
         .antenna(args.antenna)
+        .min_in_buffer_size(98304)
         .build_sink()?;
     let snk = fg.add_block(snk);
 
