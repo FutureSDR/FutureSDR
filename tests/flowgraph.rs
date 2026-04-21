@@ -22,9 +22,9 @@ fn flowgraph() -> Result<()> {
 
     connect!(fg, src > head > copy > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -46,9 +46,9 @@ fn flowgraph_flow() -> Result<()> {
 
     connect!(fg, src > head > copy > snk);
 
-    Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
+    let fg = Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -93,9 +93,9 @@ fn fg_rand_vec() -> Result<()> {
 
     connect!(fg, src > copy > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);
@@ -122,15 +122,14 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
     let mut snks = Vec::new();
     for _ in 0..n_snks {
         let snk = VectorSink::<f32>::new(n_items);
-        let copy = copy.clone();
         connect!(fg, copy > snk);
         snks.push(snk);
     }
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
     for s in &snks {
-        let snk = s.get()?;
+        let snk = s.get(&fg)?;
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);
@@ -150,7 +149,7 @@ fn flowgraph_instance_name() -> Result<()> {
     let src = NullSource::<f32>::new();
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
-    snk.get()?.meta.set_instance_name(name);
+    snk.with_mut(&fg, |snk| snk.meta_mut().set_instance_name(name))?;
     let (_th, mut fg) = rt.start_sync(fg)?;
 
     let desc = rt.block_on(async move { fg.description().await })?;

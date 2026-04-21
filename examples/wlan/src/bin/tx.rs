@@ -65,7 +65,7 @@ fn main() -> Result<()> {
 
     connect!(fg, prefix > inputs[0].snk);
 
-    let mac = mac.get()?.id;
+    let mac = mac.id();
 
     let rt = Runtime::new();
     let (_fg, mut handle) = rt.start_sync(fg)?;

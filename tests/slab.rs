@@ -20,9 +20,9 @@ fn flowgraph() -> Result<()> {
 
     connect!(fg, src > head > copy > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -46,9 +46,9 @@ fn fg_rand_vec() -> Result<()> {
 
     connect!(fg, src > copy > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

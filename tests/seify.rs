@@ -98,7 +98,6 @@ fn config_freq_gain_ports() -> Result<()> {
 
     // Freq
     block_on(async {
-        let src = src.clone();
         fg_handle
             .callback(src, "freq", Pmt::F64(102e6))
             .await
@@ -139,7 +138,6 @@ fn src_config_cmd_map() -> Result<()> {
     let (_, mut fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
-        let src = src.clone();
         let pmt = Pmt::MapStrPmt(HashMap::from([
             ("chan".to_owned(), Pmt::U32(0)),
             ("freq".to_owned(), Pmt::F64(102e6)),
@@ -185,7 +183,6 @@ fn sink_config_cmd_map() -> Result<()> {
     let (_, mut fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
-        let snk = snk.clone();
         let pmt = Pmt::MapStrPmt(HashMap::from([
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),

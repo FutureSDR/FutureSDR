@@ -126,7 +126,7 @@ fn spectrum_reduce_shift_log10<F: Float>(
 
     let grp = idx / fft_size;
     let bin = idx % fft_size;
-    let mut sum = Line::new(F::new(0.0));
+    let mut sum = Line::new(F::new(0.0_f32));
     for b in 0..group_size {
         let fft_idx = grp * group_size + b;
         let base = (fft_idx * fft_size + bin) * 2usize;
@@ -136,7 +136,7 @@ fn spectrum_reduce_shift_log10<F: Float>(
     }
 
     let bs = Line::<F>::cast_from(Line::<usize>::new(group_size));
-    let eps = Line::new(F::new(1.0e-30));
+    let eps = Line::new(F::new(1.0e-30_f32));
     let inv_ln_10 = Line::new(F::new(comptime!(1.0f32 / std::f32::consts::LN_10)));
     let mean = sum / bs + eps;
     let shifted = (bin + fft_size / 2usize) % fft_size;

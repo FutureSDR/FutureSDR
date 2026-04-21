@@ -89,34 +89,32 @@ fn main() -> Result<()> {
         snks.push(snk);
     }
 
-    let elapsed;
-
-    if scheduler == "smol1" {
+    let (fg, elapsed) = if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "tpb" {
         let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else {
         panic!("unknown scheduler");
-    }
+    };
 
     for s in snks {
-        let snk = s.get()?;
+        let snk = s.get(&fg)?;
         let v = snk.n_received();
         assert_eq!(v, samples - (stages * 63));
     }

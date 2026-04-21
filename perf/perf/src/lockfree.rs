@@ -191,7 +191,8 @@ where
             .add_reader()
             .expect("perf::lockfree reader limit exceeded");
 
-        self.readers.push((dest.port_id.clone(), dest.inbox.clone()));
+        self.readers
+            .push((dest.port_id.clone(), dest.inbox.clone()));
         self.reader_notifiers.push(dest.notifier.clone());
 
         dest.reader = Some(reader);
@@ -408,7 +409,10 @@ where
     }
 
     fn consume(&mut self, n: usize) {
-        self.reader.as_mut().expect("reader not connected").consume(n);
+        self.reader
+            .as_mut()
+            .expect("reader not connected")
+            .consume(n);
         if n > 0 {
             self.writer_notifier.notify();
         }

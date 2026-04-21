@@ -48,11 +48,11 @@ fn run_cpu(orig: Vec<f32>) -> Result<Vec<f32>> {
     connect!(fg, src > process > snk);
 
     let now = Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
     println!("cpu took {elapsed:?}");
 
-    let snk = snk.get().unwrap();
+    let snk = snk.get(&fg).unwrap();
     Ok(snk.items().clone())
 }
 
@@ -78,11 +78,11 @@ fn run_vulkan(orig: Vec<f32>) -> Result<Vec<f32>> {
     connect!(fg, src < snk);
 
     let now = Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
     println!("vulkan took {elapsed:?}");
 
-    let snk = snk.get().unwrap();
+    let snk = snk.get(&fg).unwrap();
     Ok(snk.items().clone())
 }
 

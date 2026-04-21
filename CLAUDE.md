@@ -18,6 +18,11 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 - It is important that the core runtime code (in `src/runtime`) that glues everything together is easy to comprehend and minimal.
 - Specific implementations that contain complexity (e.g., a buffer implementation, a scheduler implementation) can be highly optimized and complexity is ok.
 
+## Requirements
+
+- Stream connections for a directed acyclic graph. Circles or self-connections are not supported.
+- Message connections can have arbitrary connection topologies. Circles and self-connections are possible.
+
 ## Build & Test Commands
 
 The root crate uses Rust 2024 edition and currently declares `rust-version = "1.89"`. Build and test commands work on stable Rust, but repository formatting uses `cargo +nightly fmt`, and several Leptos-based frontend crates enable Leptos' `nightly` feature.

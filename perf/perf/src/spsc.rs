@@ -2,7 +2,8 @@ use std::any::Any;
 use std::fmt;
 use std::mem::size_of;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use async_trait::async_trait;
 use futuresdr::runtime::BlockId;

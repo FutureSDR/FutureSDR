@@ -65,9 +65,9 @@ fn fg_vulkan() -> Result<()> {
     connect!(fg, src > vulkan > snk);
     connect!(fg, src < snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

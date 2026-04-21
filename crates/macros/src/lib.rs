@@ -17,7 +17,6 @@ use syn::bracketed;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::parse_macro_input;
-use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::token;
 
@@ -36,7 +35,7 @@ use syn::token;
 /// );
 /// ```
 ///
-/// It generates the following code:
+/// It roughly generates code like:
 ///
 /// ```ignore
 /// // Add all the blocks to the `Flowgraph`...
@@ -48,11 +47,11 @@ use syn::token;
 /// let snk = fg.add(snk)?;
 ///
 /// // ... and connect the ports appropriately
-/// fg.connect_stream(src, "out", shift, "in")?;
-/// fg.connect_stream(shift, "out", resamp1, "in")?;
-/// fg.connect_stream(resamp1, "out", demod, "in")?;
-/// fg.connect_stream(demod, "out", resamp2, "in")?;
-/// fg.connect_stream(resamp2, "out", snk, "in")?;
+/// fg.connect_stream(&src, |b| b.output(), &shift, |b| b.input())?;
+/// fg.connect_stream(&shift, |b| b.output(), &resamp1, |b| b.input())?;
+/// fg.connect_stream(&resamp1, |b| b.output(), &demod, |b| b.input())?;
+/// fg.connect_stream(&demod, |b| b.output(), &resamp2, |b| b.input())?;
+/// fg.connect_stream(&resamp2, |b| b.output(), &snk, |b| b.input())?;
 /// ```
 ///
 /// Connections endpoints are defined by `block.port_name`. Standard names
@@ -126,7 +125,12 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #fg.connect_stream(#src_block.get()?.#src_port, #dst_block.get()?.#dst_port);
+                        #fg.connect_stream(
+                            &#src_block,
+                            |b| b.#src_port,
+                            &#dst_block,
+                            |b| b.#dst_port,
+                        )?;
                     }
                 }
                 ConnectionType::Circuit => {
@@ -160,7 +164,11 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #src_block.get()?.#src_port.close_circuit(#dst_block.get()?.#dst_port);
+                        {
+                            let mut src = #src_block.get(&#fg)?;
+                            let mut dst = #dst_block.get(&#fg)?;
+                            src.#src_port.close_circuit(dst.#dst_port);
+                        }
                     }
                 }
                 ConnectionType::Message => {
@@ -997,38 +1005,12 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             });
 
-    let add_where_clause = {
-        let mut preds = where_clause
-            .as_ref()
-            .map(|w| w.predicates.clone())
-            .unwrap_or_default();
-        preds.push(parse_quote!(
-            #struct_name #unconstraint_generics: ::futuresdr::runtime::Kernel
-                + ::futuresdr::runtime::KernelInterface
-                + 'static
-        ));
-        quote!(where #preds)
-    };
-
     let expanded = quote! {
 
         impl #generics #struct_name #unconstraint_generics
             #where_clause
         {
             #(#port_getter_fns)*
-        }
-
-        impl #generics ::futuresdr::runtime::AddToFlowgraph for #struct_name #unconstraint_generics
-            #add_where_clause
-        {
-            type Added = ::futuresdr::runtime::BlockRef<#struct_name #unconstraint_generics>;
-
-            fn add_to_flowgraph(
-                self,
-                fg: &mut ::futuresdr::runtime::Flowgraph,
-            ) -> ::futuresdr::runtime::Result<Self::Added, ::futuresdr::runtime::Error> {
-                Ok(fg.add_kernel(self))
-            }
         }
 
         impl #generics ::futuresdr::runtime::KernelInterface for #struct_name #unconstraint_generics
@@ -1355,7 +1337,7 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         };
         let block_ty = &info.block_ty;
         let guard_field = quote! {
-            #field_ident: ::async_lock::MutexGuard<'a, ::futuresdr::runtime::WrappedKernel<#block_ty>>
+            #field_ident: ::futuresdr::runtime::TypedBlockGuard<'a, #block_ty>
         };
         guard_fields.push(guard_field);
 
@@ -1363,11 +1345,11 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             let name = info.ident.to_string();
             quote! {
                 let #field_ident = self.#field_ident.as_ref().ok_or_else(|| ::futuresdr::runtime::Error::RuntimeError(format!("MegaBlock field '{}' is None", #name)))?;
-                let #field_ident = #field_ident.get()?;
+                let #field_ident = #field_ident.get(fg)?;
             }
         } else {
             quote! {
-                let #field_ident = self.#field_ident.get()?;
+                let #field_ident = self.#field_ident.get(fg)?;
             }
         };
         guard_inits.push(init);
@@ -1375,9 +1357,9 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
     let guard_ident = Ident::new(&format!("{struct_name}Guard"), struct_name.span());
     let guard_type = if generics.params.is_empty() {
-        quote! { #guard_ident<'_> }
+        quote! { #guard_ident<'a> }
     } else {
-        quote! { #guard_ident<'_, #(#unconstraint_params),*> }
+        quote! { #guard_ident<'a, #(#unconstraint_params),*> }
     };
 
     let build_guard_methods = |mappings: &[PortMapping]| -> Vec<proc_macro2::TokenStream> {
@@ -1471,7 +1453,7 @@ pub fn derive_megablock(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         impl #generics #struct_name #unconstraint_generics
             #where_clause
         {
-            pub fn get(&self) -> ::futuresdr::runtime::Result<#guard_type, ::futuresdr::runtime::Error> {
+            pub fn get<'a>(&self, fg: &'a ::futuresdr::runtime::Flowgraph) -> ::futuresdr::runtime::Result<#guard_type, ::futuresdr::runtime::Error> {
                 #(#guard_inits)*
                 Ok(#guard_ident {
                     #(#used_fields),*

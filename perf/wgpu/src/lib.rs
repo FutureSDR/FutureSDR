@@ -43,10 +43,10 @@ pub async fn run(run: u64, scheduler: String, samples: u64, buffer_size: u64) ->
     }
 
     let start = web_time::Instant::now();
-    runtime.run_async(fg).await?;
+    let fg = runtime.run_async(fg).await?;
     let elapsed = start.elapsed();
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), samples as usize);

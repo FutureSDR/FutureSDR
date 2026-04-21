@@ -17,9 +17,9 @@ fn fir_f32() -> Result<()> {
 
     connect!(fg, src > fir > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = vec![6.0f32, 9.0, 12.0, 15.0];

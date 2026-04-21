@@ -16,7 +16,7 @@ use crate::runtime::KernelInterface;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::WorkIo;
-use crate::runtime::WrappedKernel;
+use crate::runtime::block::WrappedKernel;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
@@ -30,25 +30,54 @@ use crate::runtime::config::config;
 /// A harness to run a block without a runtime. Used for unit tests and benchmarking.
 pub struct Mocker<K: Kernel> {
     /// Wrapped Block
-    pub block: WrappedKernel<K>,
+    block: WrappedKernel<K>,
     message_sinks: Vec<Receiver<BlockMessage>>,
     messages: Vec<Vec<Pmt>>,
 }
 
 impl<K: KernelInterface + Kernel + 'static> Deref for Mocker<K> {
-    type Target = WrappedKernel<K>;
+    type Target = K;
 
     fn deref(&self) -> &Self::Target {
-        &self.block
+        &self.block.kernel
     }
 }
 impl<K: KernelInterface + Kernel + 'static> DerefMut for Mocker<K> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.block
+        &mut self.block.kernel
     }
 }
 
 impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
+    /// Get the block id.
+    pub fn id(&self) -> BlockId {
+        self.block.id
+    }
+
+    /// Get mutable access to the wrapped kernel state used by `Kernel::work`.
+    pub fn parts_mut(
+        &mut self,
+    ) -> (
+        &mut K,
+        &mut crate::runtime::MessageOutputs,
+        &mut crate::runtime::BlockMeta,
+    ) {
+        let WrappedKernel {
+            kernel, mio, meta, ..
+        } = &mut self.block;
+        (kernel, mio, meta)
+    }
+
+    /// Get block metadata.
+    pub fn meta(&self) -> &crate::runtime::BlockMeta {
+        &self.block.meta
+    }
+
+    /// Get mutable block metadata.
+    pub fn meta_mut(&mut self) -> &mut crate::runtime::BlockMeta {
+        &mut self.block.meta
+    }
+
     /// Create mocker
     pub fn new(kernel: K) -> Self {
         let mut block = WrappedKernel::new(kernel, BlockId(0));

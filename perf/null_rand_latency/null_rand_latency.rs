@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::Head;
+use futuresdr::prelude::connect;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
@@ -45,50 +46,53 @@ fn main() -> Result<()> {
     for _ in 0..pipes {
         let src = fg.add(LttngSource::<f32>::new(GRANULARITY))?;
         let head = fg.add(Head::<f32>::new(samples as u64))?;
-        fg.connect_stream(src.get()?.output(), head.get()?.input());
 
         let mut last = fg.add(CopyRand::<f32>::new(max_copy))?;
-        fg.connect_stream(head.get()?.output(), last.get()?.input());
+        {
+            connect!(fg, src > head > last);
+        }
 
         for _ in 1..stages {
             let block = fg.add(CopyRand::<f32>::new(max_copy))?;
-            fg.connect_stream(last.get()?.output(), block.get()?.input());
+            {
+                connect!(fg, last > block);
+            }
             last = block;
         }
 
         let snk = fg.add(LttngSink::<f32>::new(GRANULARITY))?;
-        fg.connect_stream(last.get()?.output(), snk.get()?.input());
+        {
+            connect!(fg, last > snk);
+        }
         snks.push(snk);
     }
 
-    let elapsed;
-
-    if scheduler == "smol1" {
+    let (fg, elapsed) = if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "tpb" {
         let runtime = Runtime::with_scheduler(TpbScheduler::new());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
-        runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        (fg, now.elapsed())
     } else {
         panic!("unknown scheduler");
-    }
+    };
 
     for s in snks {
-        let snk = s.get()?;
+        let snk = s.get(&fg)?;
         let v = snk.n_received();
         assert_eq!(v, samples as u64);
     }

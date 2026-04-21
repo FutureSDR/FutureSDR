@@ -67,10 +67,10 @@ fn main() -> Result<()> {
 
     let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
     let now = time::Instant::now();
-    runtime.run(fg)?;
+    let fg = runtime.run(fg)?;
     let elapsed = now.elapsed();
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
     assert_eq!(v.len(), orig.len());
     for i in 0..v.len() {

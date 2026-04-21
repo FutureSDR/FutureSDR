@@ -80,7 +80,7 @@ impl MyApp {
             let snk = ChannelSink::new(tx_samples);
 
             connect!(fg, src.outputs[0] > fft > mag_sqr > keep > snk);
-            let src_id = src.get()?.id;
+            let src_id = src.id();
 
             let rt = Runtime::new();
             let (_task, handle) = rt.start_sync(fg)?;

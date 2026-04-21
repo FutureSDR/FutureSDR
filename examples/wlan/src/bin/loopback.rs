@@ -100,7 +100,7 @@ fn main() -> Result<()> {
     connect!(fg, decoder.rx_frames | blob_to_udp);
     let blob_to_udp = BlobToUdp::new("127.0.0.1:55556");
     connect!(fg, decoder.rftap | blob_to_udp);
-    let mac = mac.get()?.id;
+    let mac = mac.id();
 
     let rt = Runtime::new();
     let (_fg, mut handle) = rt.start_sync(fg)?;

@@ -15,9 +15,9 @@ fn apply_const_fn() -> Result<()> {
 
     connect!(fg, src > apply > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());
@@ -44,9 +44,9 @@ fn apply_mut_fn() -> Result<()> {
 
     connect!(fg, src > add > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());

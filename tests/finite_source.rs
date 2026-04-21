@@ -14,9 +14,9 @@ fn finite_source_const_fn() -> Result<()> {
 
     connect!(fg, src > head > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 10);
@@ -37,9 +37,9 @@ fn finite_source_mut_fn() -> Result<()> {
 
     connect!(fg, src > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 4);

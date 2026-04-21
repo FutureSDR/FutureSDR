@@ -53,7 +53,7 @@ impl gloo_worker::Worker for Worker {
                     return;
                 }
                 self.started = true;
-                let (mut set_handler, get_handle) = mpsc::channel::<FlowgraphHandle>(1);
+                let (set_handler, get_handle) = mpsc::channel::<FlowgraphHandle>(1);
                 self.handle = Handle::Receiver(get_handle);
                 let scope = scope.clone();
                 spawn_local(async move {
@@ -89,7 +89,7 @@ impl gloo_worker::Worker for Worker {
                         let mac: Mac = Mac::new();
                         let snk = NullSink::<u8>::new();
 
-                        let (tx_frame, mut rx_frame) = mpsc::channel::<Pmt>(100);
+                        let (tx_frame, rx_frame) = mpsc::channel::<Pmt>(100);
                         let message_pipe = MessagePipe::new(tx_frame);
 
                         connect!(fg, src > avg > mm > decoder;

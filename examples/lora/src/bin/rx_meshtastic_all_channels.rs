@@ -146,12 +146,9 @@ fn main() -> Result<()> {
             sample_rate as f32,
         );
 
-        let src = src.clone();
         connect!(fg, src.outputs[0] > decimation);
 
         for (spreading_factor, ldro) in chains.into_iter() {
-            let decimation = decimation.clone();
-            let message_pipe = message_pipe.clone();
             let (frame_sync_ref, decoder_ref) = build_lora_rx_soft_decoding(
                 &mut fg,
                 chan,

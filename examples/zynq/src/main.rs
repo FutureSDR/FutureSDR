@@ -23,9 +23,9 @@ fn main() -> Result<()> {
 
     connect!(fg, src > zynq > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

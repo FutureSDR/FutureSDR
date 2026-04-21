@@ -18,9 +18,9 @@ fn apply_into_iter() -> Result<()> {
 
     connect!(fg, src > apply > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), multiplier * orig.len());

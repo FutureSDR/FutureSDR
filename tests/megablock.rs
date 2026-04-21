@@ -46,11 +46,11 @@ fn stream_megablock_two_inputs_two_outputs() -> Result<()> {
     let snk1 = VectorSink::<u32>::new(4);
 
     connect!(fg, src0 > in0.mega.out0 > snk0; src1 > in1.mega.out1 > snk1);
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk0 = snk0.get()?;
+    let snk0 = snk0.get(&fg)?;
     assert_eq!(snk0.items(), &[1, 2, 3, 4]);
-    let snk1 = snk1.get()?;
+    let snk1 = snk1.get(&fg)?;
     assert_eq!(snk1.items(), &[10, 20, 30, 40]);
     Ok(())
 }
@@ -88,11 +88,11 @@ fn stream_megablock_dyn_connect() -> Result<()> {
         snk1.dyn_stream_input("input")?,
     )?;
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk0 = snk0.get()?;
+    let snk0 = snk0.get(&fg)?;
     assert_eq!(snk0.items(), &[1, 2, 3, 4]);
-    let snk1 = snk1.get()?;
+    let snk1 = snk1.get(&fg)?;
     assert_eq!(snk1.items(), &[10, 20, 30, 40]);
     Ok(())
 }
@@ -126,11 +126,11 @@ fn stream_megablock_indexed_outputs() -> Result<()> {
     let snk1 = VectorSink::<u32>::new(4);
 
     connect!(fg, src > in0.mega.out0 > snk0; src > in0.mega.out1 > snk1);
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk0 = snk0.get()?;
+    let snk0 = snk0.get(&fg)?;
     assert_eq!(snk0.items(), &[1, 2, 3, 4]);
-    let snk1 = snk1.get()?;
+    let snk1 = snk1.get(&fg)?;
     assert_eq!(snk1.items(), &[1, 2, 3, 4]);
     Ok(())
 }
@@ -170,9 +170,9 @@ fn stream_megablock_generic_copy_io() -> Result<()> {
     let snk = VectorSink::<u32>::new(4);
 
     connect!(fg, src > in0.mega.out0 > snk);
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     assert_eq!(snk.items(), &[1, 2, 3, 4]);
     Ok(())
 }
@@ -202,9 +202,9 @@ fn message_megablock_input_output() -> Result<()> {
     let snk = MessageSink::new();
 
     connect!(fg, src | mega | snk);
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     assert_eq!(snk.received(), 1);
     Ok(())
 }

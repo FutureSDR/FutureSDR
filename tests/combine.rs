@@ -16,9 +16,9 @@ fn combine_const_fn() -> Result<()> {
     connect!(fg, src0 > in0.combine.output > snk);
     connect!(fg, src1 > in1.combine);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];
@@ -42,9 +42,9 @@ fn combine_const_fn_diff_len_first() -> Result<()> {
     connect!(fg, src0 > in0.combine.output > snk);
     connect!(fg, src1 > in1.combine);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];
@@ -68,9 +68,9 @@ fn combine_const_fn_diff_len_second() -> Result<()> {
     connect!(fg, src0 > in0.combine.output > snk);
     connect!(fg, src1 > in1.combine);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = [6u32, 8, 10, 12];

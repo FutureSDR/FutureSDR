@@ -25,11 +25,11 @@ fn main() -> Result<()> {
     );
 
     let now = time::Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     let elapsed = now.elapsed();
 
     for snk in [snk0, snk1, snk2].iter() {
-        let snk = snk.get()?;
+        let snk = snk.get(&fg)?;
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);

@@ -58,7 +58,7 @@ fn main() -> Result<()> {
                     prev.dyn_message_output("out")?,
                     block.dyn_message_input("in")?,
                 )?;
-                this_pipe.push(block.get()?.id);
+                this_pipe.push(block.id());
                 prev = block;
             }
 
@@ -86,12 +86,7 @@ fn main() -> Result<()> {
         let elapsed = now.elapsed();
 
         for s in snks {
-            let blk = fg.get_block(s)?;
-            let mut t = blk.lock_blocking();
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<futuresdr::runtime::WrappedKernel<MessageSink>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<MessageSink>(s)?;
             assert_eq!(snk.received(), burst_size);
         }
 

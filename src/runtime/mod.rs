@@ -44,7 +44,6 @@ mod tag;
 mod work_io;
 
 pub use block::Block;
-pub use block::WrappedKernel;
 pub use block_inbox::BlockInbox;
 pub use block_inbox::BlockInboxReader;
 pub use block_inbox::BlockNotifier;
@@ -54,6 +53,7 @@ pub use flowgraph::BlockPort;
 pub use flowgraph::BlockRef;
 pub use flowgraph::DynPortAccess;
 pub use flowgraph::Flowgraph;
+pub use flowgraph::TypedBlockGuard;
 pub use flowgraph_handle::FlowgraphHandle;
 pub use kernel::Kernel;
 pub use kernel::KernelInterface;

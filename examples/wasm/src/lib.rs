@@ -18,9 +18,9 @@ pub async fn run() -> Result<()> {
     connect!(fg, src > mul > snk);
 
     info!("start flowgraph");
-    Runtime::new().run_async(fg).await?;
+    let fg = Runtime::new().run_async(fg).await?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

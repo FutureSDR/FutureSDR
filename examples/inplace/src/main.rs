@@ -22,10 +22,10 @@ fn run_inplace() -> Result<()> {
     connect!(fg, src < snk);
 
     let now = Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     println!("in-place took {:?}", now.elapsed());
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()
@@ -52,10 +52,10 @@ fn run_hybrid() -> Result<()> {
     connect!(fg, src < snk);
 
     let now = Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     println!("hybrid took {:?}", now.elapsed());
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()
@@ -81,10 +81,10 @@ fn run_outofplace() -> Result<()> {
     connect!(fg, src > apply > snk);
 
     let now = Instant::now();
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
     println!("out-of-place took {:?}", now.elapsed());
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()

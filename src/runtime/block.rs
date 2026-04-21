@@ -28,6 +28,8 @@ use futuresdr::runtime::config;
 /// Block interface, implemented for [WrappedKernel]s
 pub trait Block: MaybeSend + Any {
     /// required for downcasting
+    fn as_any(&self) -> &dyn Any;
+    /// required for downcasting
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // ##### BLOCK
@@ -80,7 +82,7 @@ impl fmt::Debug for dyn Block {
     }
 }
 /// Typed Block
-pub struct WrappedKernel<K: Kernel> {
+pub(crate) struct WrappedKernel<K: Kernel> {
     /// Block metadata
     pub meta: BlockMeta,
     /// Message IO
@@ -298,6 +300,9 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
 
 #[async_trait]
 impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

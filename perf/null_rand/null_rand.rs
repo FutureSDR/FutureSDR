@@ -4,7 +4,6 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::WrappedKernel;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
@@ -64,25 +63,34 @@ where
         let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
         ))?;
-        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(max_copy))?;
+        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            max_copy,
+        ))?;
 
-        fg.connect_stream(src.get()?.output(), head.get()?.input());
-        fg.connect_stream(head.get()?.output(), last.get()?.input());
+        {
+            connect!(fg, src > head > last);
+        }
 
-        cpu_mapping[executor].push(src.get()?.id);
-        cpu_mapping[executor].push(head.get()?.id);
-        cpu_mapping[executor].push(last.get()?.id);
+        cpu_mapping[executor].push(src.id());
+        cpu_mapping[executor].push(head.id());
+        cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(max_copy))?;
-            fg.connect_stream(last.get()?.output(), block.get()?.input());
-            cpu_mapping[executor].push(block.get()?.id);
+            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+                max_copy,
+            ))?;
+            {
+                connect!(fg, last > block);
+            }
+            cpu_mapping[executor].push(block.id());
             last = block;
         }
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
-        fg.connect_stream(last.get()?.output(), snk.get()?.input());
-        cpu_mapping[executor].push(snk.get()?.id);
+        {
+            connect!(fg, last > snk);
+        }
+        cpu_mapping[executor].push(snk.id());
         snks.push(snk.into());
     }
 
@@ -135,19 +143,11 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let blk = fg.get_block(s)?;
-        let mut block = blk.lock_blocking();
         if use_spsc {
-            let snk = block
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<f32, spsc::Reader<f32>>>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<NullSink<f32, spsc::Reader<f32>>>(s)?;
             assert_eq!(snk.n_received(), samples);
         } else {
-            let snk = block
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<f32>>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<NullSink<f32>>(s)?;
             assert_eq!(snk.n_received(), samples);
         }
     }

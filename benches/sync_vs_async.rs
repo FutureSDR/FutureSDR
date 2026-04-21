@@ -69,11 +69,8 @@ pub fn sync_vs_async(c: &mut Criterion) {
         b.iter(move || {
             async_io::block_on(async {
                 for _ in 0..N {
-                    let _ = black_box(mocker.block.kernel.sync_work(
-                        &mut io,
-                        &mut mocker.block.mio,
-                        &mut mocker.block.meta,
-                    ));
+                    let (kernel, mio, meta) = mocker.parts_mut();
+                    let _ = black_box(kernel.sync_work(&mut io, mio, meta));
                 }
             })
         });
@@ -96,13 +93,8 @@ pub fn sync_vs_async(c: &mut Criterion) {
         b.iter(move || {
             async_io::block_on(async {
                 for _ in 0..N {
-                    let _ = black_box(
-                        mocker
-                            .block
-                            .kernel
-                            .work(&mut io, &mut mocker.block.mio, &mut mocker.block.meta)
-                            .await,
-                    );
+                    let (kernel, mio, meta) = mocker.parts_mut();
+                    let _ = black_box(kernel.work(&mut io, mio, meta).await);
                 }
             })
         });

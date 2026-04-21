@@ -21,9 +21,9 @@ fn apply_const_fn() -> Result<()> {
 
     connect!(fg, src > filter > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = vec![2u32, 4];
@@ -50,9 +50,9 @@ fn apply_mut_fn() -> Result<()> {
 
     connect!(fg, src > filter > snk);
 
-    Runtime::new().run(fg)?;
+    let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get()?;
+    let snk = snk.get(&fg)?;
     let v = snk.items();
 
     let res = vec![1u32, 3];

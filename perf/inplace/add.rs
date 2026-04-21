@@ -4,7 +4,6 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::WrappedKernel;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::Add;
@@ -194,25 +193,14 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let blk = fg.get_block(s)?;
-        let mut t = blk.lock_blocking();
         if use_inplace {
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<IpSink>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<IpSink>(s)?;
             assert_eq!(snk.n_received(), samples);
         } else if use_slab {
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<i32, slab::Reader<i32>>>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<NullSink<i32, slab::Reader<i32>>>(s)?;
             assert_eq!(snk.n_received(), samples);
         } else {
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<i32, circular::Reader<i32>>>>()
-                .unwrap();
+            let snk = fg.get_typed_block_by_id::<NullSink<i32, circular::Reader<i32>>>(s)?;
             assert_eq!(snk.n_received(), samples);
         }
     }

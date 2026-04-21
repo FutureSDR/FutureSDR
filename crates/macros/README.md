@@ -18,7 +18,7 @@ connect!(fg,
 );
 ```
 
-It generates the following code:
+It roughly generates code like:
 
 ```rust
 // Add all the blocks to the `Flowgraph`...
@@ -30,11 +30,11 @@ let resamp2 = fg.add(resamp2)?;
 let snk = fg.add(snk)?;
 
 // ... and connect the ports appropriately
-fg.connect_stream(src, "out", shift, "in")?;
-fg.connect_stream(shift, "out", resamp1, "in")?;
-fg.connect_stream(resamp1, "out", demod, "in")?;
-fg.connect_stream(demod, "out", resamp2, "in")?;
-fg.connect_stream(resamp2, "out", snk, "in")?;
+fg.connect_stream(&src, |b| b.output(), &shift, |b| b.input())?;
+fg.connect_stream(&shift, |b| b.output(), &resamp1, |b| b.input())?;
+fg.connect_stream(&resamp1, |b| b.output(), &demod, |b| b.input())?;
+fg.connect_stream(&demod, |b| b.output(), &resamp2, |b| b.input())?;
+fg.connect_stream(&resamp2, |b| b.output(), &snk, |b| b.input())?;
 ```
 
 Connections endpoints are defined by `block.port_name`. Standard names (i.e.,

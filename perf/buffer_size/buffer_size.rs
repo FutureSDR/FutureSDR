@@ -4,7 +4,6 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::WrappedKernel;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
@@ -136,22 +135,12 @@ fn main() -> Result<()> {
     }
 
     for s in snks {
-        let blk = fg.get_block(s)?;
-        let mut t = blk.lock_blocking();
         if slab {
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<f32, slab::Reader<f32>>>>()
-                .unwrap();
-            let v = snk.n_received();
-            assert_eq!(v, samples);
+            let snk = fg.get_typed_block_by_id::<NullSink<f32, slab::Reader<f32>>>(s)?;
+            assert_eq!(snk.n_received(), samples);
         } else {
-            let snk = t
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<NullSink<f32, circular::Reader<f32>>>>()
-                .unwrap();
-            let v = snk.n_received();
-            assert_eq!(v, samples);
+            let snk = fg.get_typed_block_by_id::<NullSink<f32, circular::Reader<f32>>>(s)?;
+            assert_eq!(snk.n_received(), samples);
         }
     }
 

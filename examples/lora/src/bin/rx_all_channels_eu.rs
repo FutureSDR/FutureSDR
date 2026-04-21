@@ -172,15 +172,13 @@ fn main() -> Result<()> {
             let udp_data = BlobToUdp::new("127.0.0.1:55555");
             let udp_rftap = BlobToUdp::new("127.0.0.1:55556");
 
-            let resampler_block_ref = resampler.clone();
-
             connect!(fg,
-                resampler_block_ref > frame_sync_ref;
+                resampler > frame_sync_ref;
                 decoder_ref.out | udp_data;
                 decoder_ref.rftap | udp_rftap;
             );
             if let Some(ref pf) = packet_forwarder {
-                let packet_forwarder = pf.clone();
+                let packet_forwarder = *pf;
                 let tags: HashMap<String, Pmt> = HashMap::from([
                     (String::from("sf"), Pmt::U32(sf as u32)),
                     (
