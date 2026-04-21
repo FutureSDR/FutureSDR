@@ -14,6 +14,7 @@
 - [Flowgraph](flowgraph.md)
 - [Block](block.md)
 - [Buffers](buffers.md)
+- [Stream Port Design](port_design.md)
 - [Logging](logging.md)
 - [Android](android.md)
 - [WebAssembly](wasm.md)

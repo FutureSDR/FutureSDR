@@ -1,4 +1,5 @@
 pub mod inplace;
+pub mod lockfree;
 pub mod spsc;
 
 mod add;

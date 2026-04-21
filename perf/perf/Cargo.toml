@@ -18,7 +18,7 @@ futuresdr = { path = "../.." }
 once_cell = "1.21"
 rand = "0.10"
 slab = "0.4"
-vmcircbuffer = { path = "../../../vmcircbuffer" }
+vmcircbuffer = { path = "../../../vmcircbuffer", features = ["lockfree"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 lttng-ust = { git = "https://github.com/bastibl/lttng-ust-rs.git", rev = "023b3fad4c6be0e2d506cf4f6bafcc1b6f80e5c5", optional = true }

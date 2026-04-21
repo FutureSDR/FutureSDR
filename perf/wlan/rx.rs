@@ -6,7 +6,8 @@ use futuresdr::blocks::Delay;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FileSource;
 use futuresdr::prelude::*;
-use futuresdr::runtime::scheduler::FlowScheduler;
+use perf::lockfree;
+use perf::spsc;
 use std::time;
 
 use wlan::Decoder;
@@ -98,20 +99,58 @@ fn normal(args: Args) -> Result<()> {
 }
 
 fn opti(args: Args) -> Result<()> {
+    type LockfreeComplexReader<const N: usize> = lockfree::Reader<Complex32, N>;
+    type LockfreeComplexWriter<const N: usize> = lockfree::Writer<Complex32, N>;
+    type LockfreeU8Reader<const N: usize> = lockfree::Reader<u8, N>;
+    type LockfreeU8Writer<const N: usize> = lockfree::Writer<u8, N>;
+    type SpscComplexReader = spsc::Reader<Complex32>;
+    type SpscComplexWriter = spsc::Writer<Complex32>;
+    type SpscF32Reader = spsc::Reader<f32>;
+    type SpscF32Writer = spsc::Writer<f32>;
+
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<Complex32>::new(&args.file, false);
-    let delay = Delay::<Complex32>::new(16);
-    let complex_to_mag_2 = Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr());
-    let float_avg = MovingAverage::<f32>::new(64);
-    let mult_conj = Combine::<_, _, _, _>::new(|a: &Complex32, b: &Complex32| a * b.conj());
-    let complex_avg = MovingAverage::<Complex32>::new(48);
-    let divide_mag = Combine::<_, _, _, _>::new(|a: &Complex32, b: &f32| a.norm() / b);
-    let sync_short: SyncShort = SyncShort::new();
-    let sync_long: SyncLong = SyncLong::new();
-    let fft: Fft = Fft::new(64);
-    let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
-    let decoder = Decoder::new();
+    let src = FileSource::<Complex32, LockfreeComplexWriter<3>>::new(&args.file, false);
+    let delay = Delay::<Complex32, LockfreeComplexReader<3>, LockfreeComplexWriter<2>>::new(16);
+    let complex_to_mag_2 = Apply::<
+        _,
+        _,
+        _,
+        LockfreeComplexReader<3>,
+        SpscF32Writer,
+    >::new(|i: &Complex32| i.norm_sqr());
+    let float_avg = MovingAverage::<f32, SpscF32Reader, SpscF32Writer>::new(64);
+    let mult_conj = Combine::<
+        _,
+        _,
+        _,
+        _,
+        LockfreeComplexReader<3>,
+        LockfreeComplexReader<2>,
+        SpscComplexWriter,
+    >::new(|a: &Complex32, b: &Complex32| a * b.conj());
+    let complex_avg =
+        MovingAverage::<Complex32, SpscComplexReader, LockfreeComplexWriter<2>>::new(48);
+    let divide_mag = Combine::<
+        _,
+        _,
+        _,
+        _,
+        LockfreeComplexReader<2>,
+        SpscF32Reader,
+        SpscF32Writer,
+    >::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let sync_short: SyncShort<
+        LockfreeComplexReader<2>,
+        LockfreeComplexReader<2>,
+        SpscF32Reader,
+        LockfreeComplexWriter<1>,
+    > = SyncShort::new();
+    let sync_long: SyncLong<LockfreeComplexReader<1>, LockfreeComplexWriter<1>> = SyncLong::new();
+    let fft: Fft<LockfreeComplexReader<1>, LockfreeComplexWriter<1>> = Fft::new(64);
+    let frame_equalizer: FrameEqualizer<LockfreeComplexReader<1>, LockfreeU8Writer<1>> =
+        FrameEqualizer::new();
+    let decoder: Decoder<LockfreeU8Reader<1>> = Decoder::new();
 
     connect!(fg, src > delay;
         src > complex_to_mag_2 > float_avg;
@@ -123,22 +162,7 @@ fn opti(args: Args) -> Result<()> {
         complex_avg > in0.divide_mag; float_avg > in1.divide_mag;
         sync_short > sync_long > fft > frame_equalizer > decoder);
 
-    let block_mapping: Vec<Vec<BlockId>> = vec![
-        vec![
-            src.into(),
-            delay.into(),
-            mult_conj.into(),
-            complex_to_mag_2.into(),
-            complex_avg.into(),
-            float_avg.into(),
-            divide_mag.into(),
-        ],
-        vec![sync_short.into()],
-        vec![sync_long.into()],
-        vec![fft.into(), frame_equalizer.into(), decoder.into()],
-    ];
-
-    let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(block_mapping));
+    let runtime = Runtime::new();
     let now = time::Instant::now();
     runtime.run(fg)?;
     let elapsed = now.elapsed();
