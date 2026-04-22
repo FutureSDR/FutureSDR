@@ -224,6 +224,7 @@ pub mod prelude {
     pub use futuresdr::runtime::WorkIo;
     pub use futuresdr::runtime::buffer::BufferReader;
     pub use futuresdr::runtime::buffer::BufferWriter;
+    pub use futuresdr::runtime::buffer::CircuitWriter;
     pub use futuresdr::runtime::buffer::CpuBufferReader;
     pub use futuresdr::runtime::buffer::CpuBufferWriter;
     pub use futuresdr::runtime::buffer::CpuSample;

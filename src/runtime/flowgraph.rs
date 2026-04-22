@@ -17,6 +17,7 @@ use crate::runtime::KernelInterface;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::WrappedKernel;
+use crate::runtime::buffer::CircuitWriter;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -256,36 +257,6 @@ impl Flowgraph {
             .ok_or(Error::LockError)
     }
 
-    fn with_two_dyn_blocks_mut<R>(
-        &mut self,
-        first: BlockId,
-        second: BlockId,
-        f: impl FnOnce(&mut dyn Block, &mut dyn Block) -> Result<R, Error>,
-    ) -> Result<R, Error> {
-        if first == second {
-            return Err(Error::LockError);
-        }
-        let len = self.blocks.len();
-        if first.0 >= len {
-            return Err(Error::InvalidBlock(first));
-        }
-        if second.0 >= len {
-            return Err(Error::InvalidBlock(second));
-        }
-
-        let (first_slot, second_slot) = if first.0 < second.0 {
-            let (left, right) = self.blocks.split_at_mut(second.0);
-            (&mut left[first.0], &mut right[0])
-        } else {
-            let (left, right) = self.blocks.split_at_mut(first.0);
-            (&mut right[0], &mut left[second.0])
-        };
-
-        let first_block = first_slot.as_deref_mut().ok_or(Error::LockError)?;
-        let second_block = second_slot.as_deref_mut().ok_or(Error::LockError)?;
-        f(first_block, second_block)
-    }
-
     fn get_typed_wrapped_block_by_id<K: Kernel + 'static>(
         &self,
         block_id: BlockId,
@@ -318,40 +289,6 @@ impl Flowgraph {
                     std::any::type_name::<K>()
                 ))
             })
-    }
-
-    #[doc(hidden)]
-    pub fn with_two_blocks_mut<KS: Kernel + 'static, KD: Kernel + 'static, R>(
-        &mut self,
-        src_block: &BlockRef<KS>,
-        dst_block: &BlockRef<KD>,
-        f: impl FnOnce(&mut KS, &mut KD) -> R,
-    ) -> Result<R, Error> {
-        self.validate_block_ref(src_block)?;
-        self.validate_block_ref(dst_block)?;
-        self.with_two_dyn_blocks_mut(src_block.id, dst_block.id, |src, dst| {
-            let src = src
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<KS>>()
-                .ok_or_else(|| {
-                    Error::ValidationError(format!(
-                        "block {:?} has unexpected type for {}",
-                        src_block.id,
-                        std::any::type_name::<KS>()
-                    ))
-                })?;
-            let dst = dst
-                .as_any_mut()
-                .downcast_mut::<WrappedKernel<KD>>()
-                .ok_or_else(|| {
-                    Error::ValidationError(format!(
-                        "block {:?} has unexpected type for {}",
-                        dst_block.id,
-                        std::any::type_name::<KD>()
-                    ))
-                })?;
-            Ok(f(&mut src.kernel, &mut dst.kernel))
-        })
     }
 
     /// Get typed access to a block in this flowgraph by id.
@@ -450,14 +387,118 @@ impl Flowgraph {
         FS: FnOnce(&mut KS) -> &mut B,
         FD: FnOnce(&mut KD) -> &mut B::Reader,
     {
-        let edge = {
-            self.with_two_blocks_mut(src_block, dst_block, |src, dst| {
-                let src_port = src_port(src);
-                let dst_port = dst_port(dst);
-                Self::connect_stream_ports(src_port, dst_port)
-            })?
+        self.validate_block_ref(src_block)?;
+        self.validate_block_ref(dst_block)?;
+        if src_block.id == dst_block.id {
+            return Err(Error::LockError);
+        }
+        let len = self.blocks.len();
+        let invalid_block = if src_block.id.0 >= len {
+            src_block.id
+        } else {
+            dst_block.id
         };
+        let [src_slot, dst_slot] = self
+            .blocks
+            .get_disjoint_mut([src_block.id.0, dst_block.id.0])
+            .map_err(|err| match err {
+                std::slice::GetDisjointMutError::IndexOutOfBounds => {
+                    Error::InvalidBlock(invalid_block)
+                }
+                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+            })?;
+        let src = src_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let dst = dst_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let src = src
+            .as_any_mut()
+            .downcast_mut::<WrappedKernel<KS>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    src_block.id,
+                    std::any::type_name::<KS>()
+                ))
+            })?;
+        let dst = dst
+            .as_any_mut()
+            .downcast_mut::<WrappedKernel<KD>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    dst_block.id,
+                    std::any::type_name::<KD>()
+                ))
+            })?;
+        let edge = Self::connect_stream_ports(src_port(&mut src.kernel), dst_port(&mut dst.kernel));
         self.stream_edges.push(edge);
+        Ok(())
+    }
+
+    /// Close a circuit between already connected circuit-capable buffers.
+    ///
+    /// Circuit-capable buffers are still connected like normal stream buffers with
+    /// [`Flowgraph::connect_stream`]. Closing the circuit is the additional step that
+    /// makes the downstream end return buffers to the upstream start.
+    ///
+    /// This is the typed block-level circuit-closing API used by the
+    /// [connect](futuresdr::macros::connect) macro's `<` operator.
+    pub fn close_circuit<KS, KD, CW, FS, FD>(
+        &mut self,
+        src_block: &BlockRef<KS>,
+        src_port: FS,
+        dst_block: &BlockRef<KD>,
+        dst_port: FD,
+    ) -> Result<(), Error>
+    where
+        KS: Kernel + 'static,
+        KD: Kernel + 'static,
+        CW: CircuitWriter,
+        FS: FnOnce(&mut KS) -> &mut CW,
+        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd,
+    {
+        self.validate_block_ref(src_block)?;
+        self.validate_block_ref(dst_block)?;
+        if src_block.id == dst_block.id {
+            return Err(Error::LockError);
+        }
+        let len = self.blocks.len();
+        let invalid_block = if src_block.id.0 >= len {
+            src_block.id
+        } else {
+            dst_block.id
+        };
+        let [src_slot, dst_slot] = self
+            .blocks
+            .get_disjoint_mut([src_block.id.0, dst_block.id.0])
+            .map_err(|err| match err {
+                std::slice::GetDisjointMutError::IndexOutOfBounds => {
+                    Error::InvalidBlock(invalid_block)
+                }
+                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+            })?;
+        let src = src_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let dst = dst_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let src = src
+            .as_any_mut()
+            .downcast_mut::<WrappedKernel<KS>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    src_block.id,
+                    std::any::type_name::<KS>()
+                ))
+            })?;
+        let dst = dst
+            .as_any_mut()
+            .downcast_mut::<WrappedKernel<KD>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    dst_block.id,
+                    std::any::type_name::<KD>()
+                ))
+            })?;
+        src_port(&mut src.kernel).close_circuit(dst_port(&mut dst.kernel));
         Ok(())
     }
 
@@ -503,23 +544,41 @@ impl Flowgraph {
     /// }
     /// ```
     pub fn connect_dyn(&mut self, src: BlockPort, dst: BlockPort) -> Result<(), Error> {
-        self.with_two_dyn_blocks_mut(src.block, dst.block, |src_block, dst_block| {
-            let reader = dst_block.stream_input(&dst.port).map_err(|e| match e {
+        if src.block == dst.block {
+            return Err(Error::LockError);
+        }
+        let len = self.blocks.len();
+        let invalid_block = if src.block.0 >= len {
+            src.block
+        } else {
+            dst.block
+        };
+        let [src_slot, dst_slot] = self
+            .blocks
+            .get_disjoint_mut([src.block.0, dst.block.0])
+            .map_err(|err| match err {
+                std::slice::GetDisjointMutError::IndexOutOfBounds => {
+                    Error::InvalidBlock(invalid_block)
+                }
+                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+            })?;
+        let src_block = src_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let dst_block = dst_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let reader = dst_block.stream_input(&dst.port).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block), port)
+            }
+            o => o,
+        })?;
+
+        src_block
+            .connect_stream_output(&src.port, reader)
+            .map_err(|e| match e {
                 Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block), port)
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
                 }
                 o => o,
             })?;
-
-            src_block
-                .connect_stream_output(&src.port, reader)
-                .map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
-                    }
-                    o => o,
-                })
-        })?;
 
         self.stream_edges
             .push((src.block, src.port, dst.block, dst.port));

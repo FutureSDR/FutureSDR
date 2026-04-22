@@ -15,6 +15,7 @@ use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
@@ -144,6 +145,17 @@ where
 
     fn port_id(&self) -> PortId {
         self.port_id.clone()
+    }
+}
+
+impl<T> CircuitWriter for Writer<T>
+where
+    T: BufferContents + CpuSample,
+{
+    type CircuitEnd = d2h::Reader<T>;
+
+    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
+        dst.close_circuit(self.inbox.clone(), self.inbound.clone());
     }
 }
 

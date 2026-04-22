@@ -43,6 +43,10 @@ and `out`, one can use following notation.
 
 Stream connections are indicated as `>`, while message connections are indicated as `|`.
 
+Circuit-capable buffers are still connected like normal stream buffers. The `<`
+operator performs the additional circuit-closing step that returns buffers from
+the downstream end to the upstream start.
+
 It is possible to add blocks that have no connections by just putting them on a line separately.
 
 ``` rust

@@ -7,6 +7,7 @@ use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
@@ -306,6 +307,20 @@ where
 
     fn port_id(&self) -> PortId {
         self.writer_output.clone()
+    }
+}
+
+impl<B, E, SW, SR> CircuitWriter for Writer<B, E, SW, SR>
+where
+    B: Backend,
+    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
+    SW: CpuSample,
+    SR: CpuSample,
+{
+    type CircuitEnd = Reader<B, E, SR>;
+
+    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
+        dst.circuit_start = Some((self.writer_inbox.notifier(), self.inbound.clone()));
     }
 }
 

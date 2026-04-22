@@ -61,6 +61,10 @@ use syn::token;
 /// Stream connections are indicated as `>`, while message connections are
 /// indicated as `|`.
 ///
+/// Circuit-capable buffers are still connected with normal stream connections.
+/// The `<` operator performs the additional circuit-closing step that sends
+/// buffers back from the downstream end to the upstream start.
+///
 /// If a block uses non-standard port names it is possible to use triples, e.g.:
 ///
 /// ```ignore
@@ -164,10 +168,11 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #fg.with_two_blocks_mut(
+                        #fg.close_circuit(
                             &#src_block,
+                            |b| b.#src_port,
                             &#dst_block,
-                            |src, dst| src.#src_port.close_circuit(dst.#dst_port),
+                            |b| b.#dst_port,
                         )?;
                     }
                 }

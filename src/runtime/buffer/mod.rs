@@ -102,6 +102,20 @@ pub trait BufferWriter {
     fn port_id(&self) -> PortId;
 }
 
+/// A buffer writer that can close an in-place circuit to a matching end.
+///
+/// Circuit-capable buffers are still connected with the normal
+/// [`BufferWriter::connect`] stream connection. Closing the circuit is the
+/// additional step that wires the downstream end back to the upstream start so
+/// buffers can circulate.
+pub trait CircuitWriter: BufferWriter {
+    /// The circuit end type accepted by this writer.
+    type CircuitEnd;
+
+    /// Close the circuit to the given end.
+    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd);
+}
+
 /// A short hand for the traits required for CpuSamples
 pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
