@@ -164,11 +164,11 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        {
-                            let mut src = #src_block.get(&#fg)?;
-                            let mut dst = #dst_block.get(&#fg)?;
-                            src.#src_port.close_circuit(dst.#dst_port);
-                        }
+                        #fg.with_two_blocks_mut(
+                            &#src_block,
+                            &#dst_block,
+                            |src, dst| src.#src_port.close_circuit(dst.#dst_port),
+                        )?;
                     }
                 }
                 ConnectionType::Message => {

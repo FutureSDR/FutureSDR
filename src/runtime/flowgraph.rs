@@ -1,10 +1,6 @@
-use async_lock::Mutex;
-use async_lock::MutexGuard;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::ops::DerefMut;
-use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -26,38 +22,18 @@ static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
 /// Typed guard to a block stored inside a [`Flowgraph`].
 pub struct TypedBlockGuard<'a, K: Kernel> {
-    guard: MutexGuard<'a, dyn Block>,
-    _marker: PhantomData<fn() -> K>,
+    wrapped: &'a WrappedKernel<K>,
 }
 
 impl<K: Kernel + 'static> TypedBlockGuard<'_, K> {
-    fn wrapped(&self) -> &WrappedKernel<K> {
-        self.guard
-            .as_any()
-            .downcast_ref::<WrappedKernel<K>>()
-            .expect("typed block guard contained unexpected block type")
-    }
-
-    fn wrapped_mut(&mut self) -> &mut WrappedKernel<K> {
-        self.guard
-            .as_any_mut()
-            .downcast_mut::<WrappedKernel<K>>()
-            .expect("typed block guard contained unexpected block type")
-    }
-
     /// Get the block id.
     pub fn id(&self) -> BlockId {
-        self.guard.id()
+        self.wrapped.id
     }
 
     /// Get block metadata.
     pub fn meta(&self) -> &BlockMeta {
-        &self.wrapped().meta
-    }
-
-    /// Get mutable block metadata.
-    pub fn meta_mut(&mut self) -> &mut BlockMeta {
-        &mut self.wrapped_mut().meta
+        &self.wrapped.meta
     }
 }
 
@@ -65,13 +41,7 @@ impl<K: Kernel + 'static> Deref for TypedBlockGuard<'_, K> {
     type Target = K;
 
     fn deref(&self) -> &Self::Target {
-        &self.wrapped().kernel
-    }
-}
-
-impl<K: Kernel + 'static> DerefMut for TypedBlockGuard<'_, K> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.wrapped_mut().kernel
+        &self.wrapped.kernel
     }
 }
 
@@ -96,21 +66,18 @@ impl<K: Kernel + 'static> BlockRef<K> {
     }
 
     /// Access the typed block through the given [`Flowgraph`].
-    pub fn with<R>(
-        &self,
-        fg: &Flowgraph,
-        f: impl FnOnce(&TypedBlockGuard<'_, K>) -> R,
-    ) -> Result<R, Error> {
+    pub fn with<R>(&self, fg: &Flowgraph, f: impl FnOnce(&K) -> R) -> Result<R, Error> {
         fg.with_block(self, f)
     }
 
     /// Mutably access the typed block through the given [`Flowgraph`].
-    pub fn with_mut<R>(
-        &self,
-        fg: &Flowgraph,
-        f: impl FnOnce(&mut TypedBlockGuard<'_, K>) -> R,
-    ) -> Result<R, Error> {
+    pub fn with_mut<R>(&self, fg: &mut Flowgraph, f: impl FnOnce(&mut K) -> R) -> Result<R, Error> {
         fg.with_block_mut(self, f)
+    }
+
+    /// Set the instance name of the block stored in the given [`Flowgraph`].
+    pub fn set_instance_name(&self, fg: &mut Flowgraph, name: impl Into<String>) -> Result<()> {
+        fg.set_block_instance_name(self, name)
     }
 }
 impl<K: Kernel> Copy for BlockRef<K> {}
@@ -167,7 +134,7 @@ impl<K: Kernel> From<&BlockRef<K>> for BlockId {
 /// ```
 pub struct Flowgraph {
     pub(crate) id: FlowgraphId,
-    pub(crate) blocks: Vec<Arc<Mutex<dyn Block>>>,
+    pub(crate) blocks: Vec<Option<Box<dyn Block>>>,
     pub(crate) stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     pub(crate) message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
@@ -273,27 +240,127 @@ impl Flowgraph {
         Ok(())
     }
 
+    fn block(&self, block_id: BlockId) -> Result<&dyn Block, Error> {
+        self.blocks
+            .get(block_id.0)
+            .ok_or(Error::InvalidBlock(block_id))?
+            .as_deref()
+            .ok_or(Error::LockError)
+    }
+
+    fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn Block, Error> {
+        self.blocks
+            .get_mut(block_id.0)
+            .ok_or(Error::InvalidBlock(block_id))?
+            .as_deref_mut()
+            .ok_or(Error::LockError)
+    }
+
+    fn with_two_dyn_blocks_mut<R>(
+        &mut self,
+        first: BlockId,
+        second: BlockId,
+        f: impl FnOnce(&mut dyn Block, &mut dyn Block) -> Result<R, Error>,
+    ) -> Result<R, Error> {
+        if first == second {
+            return Err(Error::LockError);
+        }
+        let len = self.blocks.len();
+        if first.0 >= len {
+            return Err(Error::InvalidBlock(first));
+        }
+        if second.0 >= len {
+            return Err(Error::InvalidBlock(second));
+        }
+
+        let (first_slot, second_slot) = if first.0 < second.0 {
+            let (left, right) = self.blocks.split_at_mut(second.0);
+            (&mut left[first.0], &mut right[0])
+        } else {
+            let (left, right) = self.blocks.split_at_mut(first.0);
+            (&mut right[0], &mut left[second.0])
+        };
+
+        let first_block = first_slot.as_deref_mut().ok_or(Error::LockError)?;
+        let second_block = second_slot.as_deref_mut().ok_or(Error::LockError)?;
+        f(first_block, second_block)
+    }
+
+    fn get_typed_wrapped_block_by_id<K: Kernel + 'static>(
+        &self,
+        block_id: BlockId,
+    ) -> Result<&WrappedKernel<K>, Error> {
+        let block = self.block(block_id)?;
+        block
+            .as_any()
+            .downcast_ref::<WrappedKernel<K>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    block_id,
+                    std::any::type_name::<K>()
+                ))
+            })
+    }
+
+    fn get_typed_wrapped_block_mut_by_id<K: Kernel + 'static>(
+        &mut self,
+        block_id: BlockId,
+    ) -> Result<&mut WrappedKernel<K>, Error> {
+        let block = self.block_mut(block_id)?;
+        block
+            .as_any_mut()
+            .downcast_mut::<WrappedKernel<K>>()
+            .ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "block {:?} has unexpected type for {}",
+                    block_id,
+                    std::any::type_name::<K>()
+                ))
+            })
+    }
+
+    #[doc(hidden)]
+    pub fn with_two_blocks_mut<KS: Kernel + 'static, KD: Kernel + 'static, R>(
+        &mut self,
+        src_block: &BlockRef<KS>,
+        dst_block: &BlockRef<KD>,
+        f: impl FnOnce(&mut KS, &mut KD) -> R,
+    ) -> Result<R, Error> {
+        self.validate_block_ref(src_block)?;
+        self.validate_block_ref(dst_block)?;
+        self.with_two_dyn_blocks_mut(src_block.id, dst_block.id, |src, dst| {
+            let src = src
+                .as_any_mut()
+                .downcast_mut::<WrappedKernel<KS>>()
+                .ok_or_else(|| {
+                    Error::ValidationError(format!(
+                        "block {:?} has unexpected type for {}",
+                        src_block.id,
+                        std::any::type_name::<KS>()
+                    ))
+                })?;
+            let dst = dst
+                .as_any_mut()
+                .downcast_mut::<WrappedKernel<KD>>()
+                .ok_or_else(|| {
+                    Error::ValidationError(format!(
+                        "block {:?} has unexpected type for {}",
+                        dst_block.id,
+                        std::any::type_name::<KD>()
+                    ))
+                })?;
+            Ok(f(&mut src.kernel, &mut dst.kernel))
+        })
+    }
+
     /// Get typed access to a block in this flowgraph by id.
     pub fn get_typed_block_by_id<K: Kernel + 'static>(
         &self,
         block_id: BlockId,
     ) -> Result<TypedBlockGuard<'_, K>, Error> {
-        let guard = self
-            .blocks
-            .get(block_id.0)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .try_lock()
-            .ok_or(Error::LockError)?;
-        if !guard.as_any().is::<WrappedKernel<K>>() {
-            return Err(Error::ValidationError(format!(
-                "block {:?} has unexpected type for {}",
-                block_id,
-                std::any::type_name::<K>()
-            )));
-        }
         Ok(TypedBlockGuard {
-            guard,
-            _marker: PhantomData,
+            wrapped: self.get_typed_wrapped_block_by_id(block_id)?,
         })
     }
 
@@ -310,7 +377,7 @@ impl Flowgraph {
     pub fn with_block<K: Kernel + 'static, R>(
         &self,
         block: &BlockRef<K>,
-        f: impl FnOnce(&TypedBlockGuard<'_, K>) -> R,
+        f: impl FnOnce(&K) -> R,
     ) -> Result<R, Error> {
         let guard = self.get_typed_block(block)?;
         Ok(f(&guard))
@@ -318,12 +385,24 @@ impl Flowgraph {
 
     /// Mutably access a typed block through a closure.
     pub fn with_block_mut<K: Kernel + 'static, R>(
-        &self,
+        &mut self,
         block: &BlockRef<K>,
-        f: impl FnOnce(&mut TypedBlockGuard<'_, K>) -> R,
+        f: impl FnOnce(&mut K) -> R,
     ) -> Result<R, Error> {
-        let mut guard = self.get_typed_block(block)?;
-        Ok(f(&mut guard))
+        self.validate_block_ref(block)?;
+        let wrapped = self.get_typed_wrapped_block_mut_by_id::<K>(block.id)?;
+        Ok(f(&mut wrapped.kernel))
+    }
+
+    fn set_block_instance_name<K: Kernel + 'static>(
+        &mut self,
+        block: &BlockRef<K>,
+        name: impl Into<String>,
+    ) -> Result<()> {
+        self.validate_block_ref(block)?;
+        let wrapped = self.get_typed_wrapped_block_mut_by_id::<K>(block.id)?;
+        wrapped.meta.set_instance_name(name);
+        Ok(())
     }
 
     fn add_kernel<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
@@ -331,8 +410,7 @@ impl Flowgraph {
         let mut b = WrappedKernel::new(block, block_id);
         let block_name = b.type_name();
         b.set_instance_name(&format!("{}-{}", block_name, block_id.0));
-        let b = Arc::new(Mutex::new(b));
-        self.blocks.push(b);
+        self.blocks.push(Some(Box::new(b)));
         BlockRef {
             id: block_id,
             flowgraph_id: self.id,
@@ -373,11 +451,11 @@ impl Flowgraph {
         FD: FnOnce(&mut KD) -> &mut B::Reader,
     {
         let edge = {
-            let mut dst = self.get_typed_block(dst_block)?;
-            let dst_port = dst_port(&mut dst);
-            let mut src = self.get_typed_block(src_block)?;
-            let src_port = src_port(&mut src);
-            Self::connect_stream_ports(src_port, dst_port)
+            self.with_two_blocks_mut(src_block, dst_block, |src, dst| {
+                let src_port = src_port(src);
+                let dst_port = dst_port(dst);
+                Self::connect_stream_ports(src_port, dst_port)
+            })?
         };
         self.stream_edges.push(edge);
         Ok(())
@@ -425,35 +503,23 @@ impl Flowgraph {
     /// }
     /// ```
     pub fn connect_dyn(&mut self, src: BlockPort, dst: BlockPort) -> Result<(), Error> {
-        let src_block = self
-            .blocks
-            .get(src.block.0)
-            .ok_or(Error::InvalidBlock(src.block))?
-            .clone();
-        let dst_block = self
-            .blocks
-            .get(dst.block.0)
-            .ok_or(Error::InvalidBlock(dst.block))?
-            .clone();
-
-        let mut dst_block = dst_block.try_lock().ok_or(Error::LockError)?;
-        let reader = dst_block.stream_input(&dst.port).map_err(|e| match e {
-            Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block), port)
-            }
-            o => o,
-        })?;
-
-        src_block
-            .try_lock()
-            .ok_or(Error::LockError)?
-            .connect_stream_output(&src.port, reader)
-            .map_err(|e| match e {
+        self.with_two_dyn_blocks_mut(src.block, dst.block, |src_block, dst_block| {
+            let reader = dst_block.stream_input(&dst.port).map_err(|e| match e {
                 Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block), port)
                 }
                 o => o,
             })?;
+
+            src_block
+                .connect_stream_output(&src.port, reader)
+                .map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block), port)
+                    }
+                    o => o,
+                })
+        })?;
 
         self.stream_edges
             .push((src.block, src.port, dst.block, dst.port));
@@ -464,12 +530,7 @@ impl Flowgraph {
     pub fn connect_message(&mut self, src: BlockPort, dst: BlockPort) -> Result<(), Error> {
         debug_assert_ne!(src.block, dst.block);
 
-        let dst_block = self
-            .blocks
-            .get(dst.block.0)
-            .ok_or(Error::InvalidBlock(dst.block))?
-            .try_lock()
-            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", dst.block)))?;
+        let dst_block = self.block(dst.block)?;
         if !dst_block.message_inputs().contains(&dst.port.name()) {
             return Err(Error::InvalidMessagePort(
                 BlockPortCtx::Id(dst.block),
@@ -477,60 +538,45 @@ impl Flowgraph {
             ));
         }
         let dst_box = dst_block.inbox();
-        drop(dst_block);
-
-        let mut src_block = self
-            .blocks
-            .get(src.block.0)
-            .ok_or(Error::InvalidBlock(src.block))?
-            .try_lock()
-            .ok_or_else(|| Error::RuntimeError(format!("unable to lock block {:?}", src.block)))?;
+        let src_block = self.block_mut(src.block)?;
         src_block.connect(&src.port, dst_box, &dst.port)?;
         self.message_edges
             .push((src.block, src.port, dst.block, dst.port));
         Ok(())
     }
 
-    /// Get dyn reference to [`Block`].
-    ///
-    /// This should only be used when a [`BlockRef`], i.e., a typed reference to the block, is not
-    /// available. If you have a [`BlockRef`], prefer [`BlockRef::get`], [`BlockRef::with`], or
-    /// [`BlockRef::with_mut`].
-    ///
-    /// ```rust
-    /// use anyhow::Result;
-    /// use futuresdr::blocks::Head;
-    /// use futuresdr::blocks::NullSink;
-    /// use futuresdr::blocks::NullSource;
-    /// use futuresdr::prelude::*;
-    /// use futuresdr::runtime::Error;
-    ///
-    /// fn main() -> Result<()> {
-    ///     let mut fg = Flowgraph::new();
-    ///
-    ///     let src = NullSource::<u8>::new();
-    ///     let head = Head::<u8>::new(1234);
-    ///     let snk = NullSink::<u8>::new();
-    ///
-    ///     connect!(fg, src > head > snk);
-    ///
-    ///     let snk: BlockId = snk.into();
-    ///     let fg = Runtime::new().run(fg)?;
-    ///
-    ///     let blk = fg.get_block(snk)?;
-    ///     let blk = blk.try_lock().ok_or(Error::LockError)?;
-    ///     assert_eq!(blk.id(), snk);
-    ///     assert!(blk.type_name().contains("NullSink"));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn get_block(&self, id: BlockId) -> Result<Arc<Mutex<dyn Block>>, Error> {
-        Ok(self
-            .blocks
-            .get(id.0)
-            .ok_or(Error::InvalidBlock(id))?
-            .clone())
+    pub(crate) fn take_blocks(&mut self) -> Result<Vec<Box<dyn Block>>, Error> {
+        let mut blocks = Vec::with_capacity(self.blocks.len());
+        for slot in self.blocks.iter_mut() {
+            blocks.push(slot.take().ok_or(Error::LockError)?);
+        }
+        Ok(blocks)
+    }
+
+    pub(crate) fn restore_blocks(
+        &mut self,
+        blocks: Vec<(BlockId, Box<dyn Block>)>,
+    ) -> Result<(), Error> {
+        if blocks.len() != self.blocks.len() {
+            return Err(Error::RuntimeError(format!(
+                "expected {} blocks to restore, got {}",
+                self.blocks.len(),
+                blocks.len()
+            )));
+        }
+
+        for (id, block) in blocks {
+            let slot = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
+            if slot.is_some() {
+                return Err(Error::RuntimeError(format!(
+                    "block slot {:?} was restored more than once",
+                    id
+                )));
+            }
+            *slot = Some(block);
+        }
+
+        Ok(())
     }
 }
 

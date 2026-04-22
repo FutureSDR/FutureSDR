@@ -5,6 +5,7 @@ use futuresdr::channel::mpsc::Sender;
 use futuresdr::futures::channel::oneshot;
 use futuresdr::futures::future::Future;
 use futuresdr::runtime::Block;
+use futuresdr::runtime::BlockId;
 use futuresdr::runtime::FlowgraphMessage;
 use futuresdr::runtime::config;
 use futuresdr::runtime::scheduler::Scheduler;
@@ -87,20 +88,22 @@ impl TpbScheduler {
 impl Scheduler for TpbScheduler {
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
+        blocks: Vec<Box<dyn Block>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) {
+    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
         // spawn block executors
-        for block in blocks.iter() {
-            let block = Arc::clone(block);
+        let mut tasks = Vec::with_capacity(blocks.len());
+        for block in blocks {
             let main_channel = main_channel.clone();
 
-            self.spawn_blocking(async move {
-                let mut block = block.lock_blocking();
-                block.run(main_channel.clone()).await;
-            })
-            .detach();
+            tasks.push(self.spawn_blocking(async move {
+                let mut block = block;
+                let id = block.id();
+                block.run(main_channel).await;
+                (id, block)
+            }));
         }
+        tasks
     }
 
     fn spawn<T: Send + 'static>(

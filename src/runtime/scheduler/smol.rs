@@ -11,6 +11,7 @@ use std::thread;
 
 use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
+use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MaybeSend;
 use crate::runtime::config;
@@ -107,28 +108,32 @@ impl SmolScheduler {
 impl Scheduler for SmolScheduler {
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
+        blocks: Vec<Box<dyn Block>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) {
+    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
         // spawn block executors
-        for block in blocks.iter() {
-            let block = Arc::clone(block);
+        let mut tasks = Vec::with_capacity(blocks.len());
+        for block in blocks {
             let main_channel = main_channel.clone();
-            let blocking = block.lock_blocking().is_blocking();
-            if blocking {
+            let blocking = block.is_blocking();
+            let task = if blocking {
                 self.spawn_blocking(async move {
-                    let mut block = block.lock().await;
+                    let mut block = block;
+                    let id = block.id();
                     block.run(main_channel).await;
+                    (id, block)
                 })
-                .detach();
             } else {
                 self.spawn(async move {
-                    let mut block = block.lock().await;
+                    let mut block = block;
+                    let id = block.id();
                     block.run(main_channel).await;
+                    (id, block)
                 })
-                .detach();
-            }
+            };
+            tasks.push(task);
         }
+        tasks
     }
 
     fn spawn<T: MaybeSend + 'static>(

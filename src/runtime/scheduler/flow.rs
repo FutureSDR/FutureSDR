@@ -139,18 +139,20 @@ impl FlowScheduler {
 impl Scheduler for FlowScheduler {
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<async_lock::Mutex<dyn Block>>>,
+        blocks: Vec<Box<dyn Block>>,
         main_channel: &Sender<FlowgraphMessage>,
-    ) {
+    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
         let n_blocks = blocks.len();
         let n_cores = self.inner.workers.len();
         let mut spawned: HashSet<BlockId> = HashSet::new();
         let mut blocks_by_id = Vec::with_capacity(n_blocks);
 
-        for block in blocks.iter() {
-            let id = block.lock_blocking().id();
-            blocks_by_id.push((id, Arc::clone(block)));
+        for block in blocks {
+            let id = block.id();
+            blocks_by_id.push((id, block));
         }
+
+        let mut tasks = Vec::with_capacity(n_blocks);
 
         // Spawn manually pinned blocks in the exact order they appear in the mapping.
         for (executor, block_ids) in self.inner.pinned_blocks.iter().enumerate() {
@@ -163,7 +165,7 @@ impl Scheduler for FlowScheduler {
             }
 
             for block_id in block_ids {
-                let Some((_, block)) = blocks_by_id.iter().find(|(id, _)| id == block_id) else {
+                let Some(pos) = blocks_by_id.iter().position(|(id, _)| id == block_id) else {
                     warn!(
                         "flowsched mapping references unknown block id {:?}",
                         block_id
@@ -177,12 +179,13 @@ impl Scheduler for FlowScheduler {
                     );
                     continue;
                 }
-                spawn_block_on_executor(
+                let (_, block) = blocks_by_id.swap_remove(pos);
+                tasks.push(spawn_block_on_executor(
                     &self.inner.executor,
-                    Arc::clone(block),
+                    block,
                     main_channel.clone(),
                     executor,
-                );
+                ));
             }
         }
 
@@ -192,8 +195,15 @@ impl Scheduler for FlowScheduler {
                 continue;
             }
             let executor = FlowScheduler::map_block(id.0, n_blocks, n_cores);
-            spawn_block_on_executor(&self.inner.executor, block, main_channel.clone(), executor);
+            tasks.push(spawn_block_on_executor(
+                &self.inner.executor,
+                block,
+                main_channel.clone(),
+                executor,
+            ));
         }
+
+        tasks
     }
 
     fn spawn<T: MaybeSend + 'static>(
@@ -221,33 +231,33 @@ impl Default for FlowScheduler {
 
 fn spawn_block_on_executor(
     executor: &FlowExecutor,
-    block: Arc<async_lock::Mutex<dyn Block>>,
+    block: Box<dyn Block>,
     main_channel: Sender<FlowgraphMessage>,
     queue_index: usize,
-) {
-    if block.lock_blocking().is_blocking() {
+) -> Task<(BlockId, Box<dyn Block>)> {
+    if block.is_blocking() {
         debug!("spawing block on executor");
-        executor
-            .spawn_executor(
-                blocking::unblock(move || {
-                    block_on(async move {
-                        let mut block = block.lock().await;
-                        block.run(main_channel).await;
-                    })
-                }),
-                queue_index,
-            )
-            .detach();
-    } else {
-        executor
-            .spawn_executor(
-                async move {
-                    let mut block = block.lock().await;
+        executor.spawn_executor(
+            blocking::unblock(move || {
+                block_on(async move {
+                    let mut block = block;
+                    let id = block.id();
                     block.run(main_channel).await;
-                },
-                queue_index,
-            )
-            .detach();
+                    (id, block)
+                })
+            }),
+            queue_index,
+        )
+    } else {
+        executor.spawn_executor(
+            async move {
+                let mut block = block;
+                let id = block.id();
+                block.run(main_channel).await;
+                (id, block)
+            },
+            queue_index,
+        )
     }
 }
 

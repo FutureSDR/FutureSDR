@@ -1,9 +1,8 @@
-use async_lock::Mutex;
 use futures::future::Future;
-use std::sync::Arc;
 
 use crate::channel::mpsc::Sender;
 use crate::runtime::Block;
+use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::MaybeSend;
 use crate::runtime::scheduler::Task;
@@ -17,9 +16,9 @@ pub trait Scheduler: Clone + Send + 'static {
     /// [`Runtime`](crate::runtime::Runtime)
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<Mutex<dyn Block>>>,
+        blocks: Vec<Box<dyn Block>>,
         main_channel: &Sender<FlowgraphMessage>,
-    );
+    ) -> Vec<Task<(BlockId, Box<dyn Block>)>>;
 
     /// Spawn a task
     fn spawn<T: MaybeSend + 'static>(
@@ -43,9 +42,9 @@ pub trait Scheduler: Clone + Send + 'static {
     /// [`Runtime`](crate::runtime::Runtime)
     fn run_flowgraph(
         &self,
-        blocks: Vec<Arc<Mutex<dyn Block>>>,
+        blocks: Vec<Box<dyn Block>>,
         main_channel: &Sender<FlowgraphMessage>,
-    );
+    ) -> Vec<Task<(BlockId, Box<dyn Block>)>>;
 
     /// Spawn a task
     fn spawn<T: MaybeSend + 'static>(
