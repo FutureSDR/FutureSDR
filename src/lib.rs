@@ -189,7 +189,6 @@ pub mod macros {
     pub use async_trait::async_trait as async_trait_orig;
 
     pub use futuresdr_macros::Block;
-    pub use futuresdr_macros::MegaBlock;
     pub use futuresdr_macros::async_trait;
     pub use futuresdr_macros::connect;
 }
@@ -200,7 +199,6 @@ pub mod prelude {
     pub use futuresdr::channel::mpsc;
     pub use futuresdr::channel::oneshot;
     pub use futuresdr::macros::Block;
-    pub use futuresdr::macros::MegaBlock;
     pub use futuresdr::macros::async_trait;
     pub use futuresdr::macros::connect;
     pub use futuresdr::runtime::BlockId;
@@ -213,7 +211,6 @@ pub mod prelude {
     pub use futuresdr::runtime::FlowgraphId;
     pub use futuresdr::runtime::ItemTag;
     pub use futuresdr::runtime::Kernel;
-    pub use futuresdr::runtime::MegaBlock;
     pub use futuresdr::runtime::MessageOutputs;
     pub use futuresdr::runtime::Pmt;
     pub use futuresdr::runtime::PortId;

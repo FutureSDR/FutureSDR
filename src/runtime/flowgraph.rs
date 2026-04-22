@@ -226,7 +226,7 @@ impl Flowgraph {
         }
     }
 
-    /// Add a regular block, block reference, or MegaBlock-like wrapper to the flowgraph.
+    /// Add a regular block or block reference to the flowgraph.
     pub fn add<T: AddToFlowgraph>(&mut self, item: T) -> Result<T::Added, Error> {
         item.add_to_flowgraph(self)
     }
@@ -639,7 +639,7 @@ impl Flowgraph {
     }
 }
 
-/// Helper trait used by the `connect!` macro to add regular blocks, block refs, and MegaBlocks.
+/// Helper trait used by the `connect!` macro to add regular blocks and block refs.
 pub trait AddToFlowgraph {
     /// Type returned after adding.
     type Added;

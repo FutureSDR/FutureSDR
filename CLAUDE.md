@@ -115,8 +115,6 @@ connect!(fg,
 - `FlowScheduler` — feature-gated (`flow_scheduler`), specialized scheduler
 - `WasmScheduler` — for WASM targets
 
-**MegaBlock** (`src/runtime/megablock.rs`) — composes multiple blocks into a reusable sub-graph with typed stream ports exposed externally.
-
 ### Buffer System (`src/runtime/buffer/`)
 
 Buffers are the transport layer between blocks. Implementations:
