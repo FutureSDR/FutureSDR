@@ -10,8 +10,8 @@ use std::time::Duration;
 #[test]
 fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let fft: BlockId = fg.add(Fft::new(16) as Fft)?.into();
-    let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new())?.into();
+    let fft: BlockId = fg.add_block(Fft::new(16) as Fft).into();
+    let sink: BlockId = fg.add_block(NullSink::<[Complex<f32>; 16]>::new()).into();
     let result = fg.connect_dyn(fft.stream_output("output"), sink.stream_input("input"));
 
     match result {
@@ -24,9 +24,9 @@ fn connect_type_error() -> Result<()> {
 fn message_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add(source)?;
+    let source = fg.add_block(source);
     let sink = MessageSink::new();
-    let sink = fg.add(sink)?;
+    let sink = fg.add_block(sink);
 
     let result = fg.connect_message(
         source.message_output("out"),
@@ -52,9 +52,9 @@ fn message_invalid_in_port() -> Result<()> {
 fn message_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add(source)?;
+    let source = fg.add_block(source);
     let sink = MessageSink::new();
-    let sink = fg.add(sink)?;
+    let sink = fg.add_block(sink);
 
     let result = fg.connect_message(
         source.message_output("fictitious"),
@@ -80,9 +80,9 @@ fn message_invalid_out_port() -> Result<()> {
 fn stream_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add(source)?;
+    let source = fg.add_block(source);
     let sink = NullSink::<f32>::new();
-    let sink = fg.add(sink)?;
+    let sink = fg.add_block(sink);
 
     let result = fg.connect_dyn(
         source.stream_output("output"),
@@ -108,9 +108,9 @@ fn stream_invalid_in_port() -> Result<()> {
 fn stream_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add(source)?;
+    let source = fg.add_block(source);
     let sink = NullSink::<f32>::new();
-    let sink = fg.add(sink)?;
+    let sink = fg.add_block(sink);
 
     let result = fg.connect_dyn(
         source.stream_output("fictitious"),

@@ -47,8 +47,6 @@ pub use block_inbox::BlockInbox;
 pub use block_inbox::BlockInboxReader;
 pub use block_inbox::BlockNotifier;
 pub use block_meta::BlockMeta;
-#[doc(hidden)]
-pub use flowgraph::AddToFlowgraph;
 pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::TypedBlockGuard;
@@ -74,6 +72,11 @@ pub use futuresdr_types::PortId;
 
 use buffer::BufferReader;
 use buffer::BufferWriter;
+
+#[doc(hidden)]
+pub mod __private {
+    pub use super::flowgraph::ConnectAdd;
+}
 
 /// Generic Result Type used for the [`Kernel`] trait.
 ///

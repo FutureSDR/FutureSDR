@@ -47,7 +47,11 @@ fn generate<B>(
     stages: usize,
     samples: usize,
     max_copy: usize,
-) -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)>
+) -> Result<(
+    Flowgraph,
+    Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>,
+    Vec<Vec<BlockId>>,
+)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
@@ -59,13 +63,13 @@ where
 
     for p in 0..pipes {
         let executor = p % n_executors;
-        let src = fg.add(NullSource::<f32, B::Writer<f32>>::new())?;
-        let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        let src = fg.add_block(NullSource::<f32, B::Writer<f32>>::new());
+        let head = fg.add_block(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
-        ))?;
-        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        ));
+        let mut last = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             max_copy,
-        ))?;
+        ));
 
         {
             connect!(fg, src > head > last);
@@ -76,9 +80,9 @@ where
         cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            let block = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
-            ))?;
+            ));
             {
                 connect!(fg, last > block);
             }
@@ -86,12 +90,12 @@ where
             last = block;
         }
 
-        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
+        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
         {
             connect!(fg, last > snk);
         }
         cpu_mapping[executor].push(snk.id());
-        snks.push(snk.into());
+        snks.push(snk);
     }
 
     Ok((fg, snks, cpu_mapping))
@@ -115,42 +119,61 @@ fn main() -> Result<()> {
         _ => panic!("unknown config"),
     };
 
-    let (mut fg, snks, cpu_mapping) = if use_spsc {
-        generate::<SpscBuffer>(pipes, stages, samples, max_copy)?
-    } else {
-        generate::<CircBuffer>(pipes, stages, samples, max_copy)?
-    };
-
-    let elapsed;
-
-    if scheduler == "smol1" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else if scheduler == "smoln" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::default());
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else if scheduler == "flow" {
-        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else {
-        panic!("unknown scheduler");
-    }
-
-    for s in snks {
-        if use_spsc {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, spsc::Reader<f32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
+    let elapsed = if use_spsc {
+        let (mut fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
+        let elapsed = if scheduler == "smol1" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
+        } else if scheduler == "smoln" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::default());
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
+        } else if scheduler == "flow" {
+            let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
         } else {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32>>(s)?;
+            panic!("unknown scheduler");
+        };
+
+        for s in snks {
+            let snk = s.get(&fg)?;
             assert_eq!(snk.n_received(), samples);
         }
-    }
+
+        elapsed
+    } else {
+        let (mut fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, max_copy)?;
+        let elapsed = if scheduler == "smol1" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
+        } else if scheduler == "smoln" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::default());
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
+        } else if scheduler == "flow" {
+            let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+            let now = time::Instant::now();
+            fg = runtime.run(fg)?;
+            now.elapsed()
+        } else {
+            panic!("unknown scheduler");
+        };
+
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+
+        elapsed
+    };
 
     println!(
         "{},{},{},{},{},{},{}",

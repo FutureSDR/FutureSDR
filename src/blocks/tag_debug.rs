@@ -20,7 +20,7 @@ use crate::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add(TagDebug::<Complex32>::new("foo")).unwrap();
+/// let sink = fg.add_block(TagDebug::<Complex32>::new("foo"));
 /// ```
 #[derive(Block)]
 pub struct TagDebug<T, I = DefaultCpuReader<T>>

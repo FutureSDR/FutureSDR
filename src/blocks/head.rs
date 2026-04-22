@@ -18,7 +18,7 @@ use crate::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let head = fg.add(Head::<Complex<f32>>::new(1_000_000)).unwrap();
+/// let head = fg.add_block(Head::<Complex<f32>>::new(1_000_000));
 /// ```
 #[derive(Block)]
 pub struct Head<

@@ -39,12 +39,12 @@ use syn::token;
 ///
 /// ```ignore
 /// // Add all the blocks to the `Flowgraph`...
-/// let src = fg.add(src)?;
-/// let shift = fg.add(shift)?;
-/// let resamp1 = fg.add(resamp1)?;
-/// let demod = fg.add(demod)?;
-/// let resamp2 = fg.add(resamp2)?;
-/// let snk = fg.add(snk)?;
+/// let src = fg.add_block(src);
+/// let shift = fg.add_block(shift);
+/// let resamp1 = fg.add_block(resamp1);
+/// let demod = fg.add_block(demod);
+/// let resamp2 = fg.add_block(resamp2);
+/// let snk = fg.add_block(snk);
 ///
 /// // ... and connect the ports appropriately
 /// fg.connect_stream(&src, |b| b.output(), &shift, |b| b.input())?;
@@ -211,16 +211,12 @@ pub fn connect(input: TokenStream) -> TokenStream {
     // Generate block declarations
     let block_decls = blocks.iter().map(|block| {
         quote! {
-            let #block = #fg.add(#block)?;
+            let #block = ::futuresdr::runtime::__private::ConnectAdd::connect_add(#block, &mut #fg)?;
         }
     });
 
     let out = quote! {
         use futuresdr::runtime::BlockId;
-        use futuresdr::runtime::BlockRef;
-        use futuresdr::runtime::Flowgraph;
-        use futuresdr::runtime::Kernel;
-        use futuresdr::runtime::KernelInterface;
         use std::result::Result;
 
         #(#block_decls)*

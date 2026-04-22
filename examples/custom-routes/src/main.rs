@@ -20,13 +20,13 @@ struct WebState {
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add(
+    fg.add_block(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
         )
         .build(),
-    )?;
+    );
 
     let state = WebState {
         rt: Arc::new(Mutex::new(None)),
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     let rt = Runtime::with_custom_routes(router);
     let handle = rt.handle();
-    *state.rt.lock().unwrap() = Some(handle);
+    *state.rt.lock() = Some(handle);
 
     println!("Visit http://127.0.0.1:1337/my_route/");
     rt.run(fg)?;
@@ -64,7 +64,7 @@ async fn my_route() -> Html<&'static str> {
 
 async fn start_fg(State(ws): State<WebState>) {
     let mut fg = Flowgraph::new();
-    fg.add(
+    fg.add_block(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
@@ -73,7 +73,7 @@ async fn start_fg(State(ws): State<WebState>) {
         .build(),
     )
     .unwrap();
-    let rt_handle = ws.rt.lock().unwrap().as_ref().unwrap().clone();
+    let rt_handle = ws.rt.lock().as_ref().unwrap().clone();
     let mut fg_handle = rt_handle.start(fg).await.unwrap();
     dbg!(fg_handle.description().await.unwrap());
 }

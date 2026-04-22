@@ -185,9 +185,21 @@ impl Flowgraph {
         }
     }
 
-    /// Add a regular block or block reference to the flowgraph.
-    pub fn add<T: AddToFlowgraph>(&mut self, item: T) -> Result<T::Added, Error> {
-        item.add_to_flowgraph(self)
+    /// Add a regular block to the flowgraph.
+    pub fn add_block<K>(&mut self, block: K) -> BlockRef<K>
+    where
+        K: Kernel + KernelInterface + 'static,
+    {
+        let block_id = BlockId(self.blocks.len());
+        let mut b = WrappedKernel::new(block, block_id);
+        let block_name = b.type_name();
+        b.set_instance_name(&format!("{}-{}", block_name, block_id.0));
+        self.blocks.push(Some(Box::new(b)));
+        BlockRef {
+            id: block_id,
+            flowgraph_id: self.id,
+            _marker: PhantomData,
+        }
     }
 
     fn validate_block_ref<K: Kernel>(&self, block: &BlockRef<K>) -> Result<(), Error> {
@@ -304,19 +316,6 @@ impl Flowgraph {
         self.validate_block_ref(block)?;
         let wrapped = self.get_typed_wrapped_block_mut_by_id::<K>(block.id)?;
         Ok(f(&mut wrapped.meta))
-    }
-
-    fn add_kernel<K: Kernel + KernelInterface + 'static>(&mut self, block: K) -> BlockRef<K> {
-        let block_id = BlockId(self.blocks.len());
-        let mut b = WrappedKernel::new(block, block_id);
-        let block_name = b.type_name();
-        b.set_instance_name(&format!("{}-{}", block_name, block_id.0));
-        self.blocks.push(Some(Box::new(b)));
-        BlockRef {
-            id: block_id,
-            flowgraph_id: self.id,
-            _marker: PhantomData,
-        }
     }
 
     fn connect_stream_ports<B: BufferWriter>(
@@ -493,10 +492,10 @@ impl Flowgraph {
     ///     let snk = NullSink::<u8>::new();
     ///
     ///     // type erasure for src
-    ///     let src = fg.add(src)?;
+    ///     let src = fg.add_block(src);
     ///     let src: BlockId = src.into();
     ///
-    ///     let head = fg.add(head)?;
+    ///     let head = fg.add_block(head);
     ///
     ///     // untyped connect
     ///     fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
@@ -611,37 +610,35 @@ impl Flowgraph {
     }
 }
 
-#[doc(hidden)]
-/// Helper trait used by the `connect!` macro and [`Flowgraph::add`].
-pub trait AddToFlowgraph {
-    /// Type returned after adding.
-    type Added;
-    /// Add to flowgraph.
-    fn add_to_flowgraph(self, fg: &mut Flowgraph) -> Result<Self::Added, Error>;
+impl Default for Flowgraph {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-impl<K> AddToFlowgraph for K
+#[doc(hidden)]
+pub trait ConnectAdd {
+    type Added;
+
+    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error>;
+}
+
+impl<K> ConnectAdd for K
 where
     K: Kernel + KernelInterface + 'static,
 {
     type Added = BlockRef<K>;
 
-    fn add_to_flowgraph(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
-        Ok(fg.add_kernel(self))
+    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
+        Ok(fg.add_block(self))
     }
 }
 
-impl<K: Kernel> AddToFlowgraph for BlockRef<K> {
+impl<K: Kernel> ConnectAdd for BlockRef<K> {
     type Added = BlockRef<K>;
 
-    fn add_to_flowgraph(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
+    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
         fg.validate_block_ref(&self)?;
         Ok(self)
-    }
-}
-
-impl Default for Flowgraph {
-    fn default() -> Self {
-        Self::new()
     }
 }

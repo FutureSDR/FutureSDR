@@ -82,7 +82,7 @@ fn main() -> Result<()> {
     let stream_start_time = SystemTime::now();
 
     let packet_forwarder = match args.forward_addr {
-        Some(addr) => Some(fg.add(PacketForwarderClient::new("0200.0000.0403.0201", &addr))?),
+        Some(addr) => Some(fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr))),
         None => None,
     };
 
@@ -114,7 +114,7 @@ fn main() -> Result<()> {
     for n_out in 0..NUM_CHANNELS_PADDED {
         let n_chan = map_port(n_out);
         if n_chan.is_none() {
-            let null_sink_extra_channel = fg.add(NullSink::<Complex32>::new())?;
+            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new());
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
             fg.connect_dyn(
                 channelizer.stream_output(format!("out{n_out}")),
@@ -139,7 +139,7 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|x| x as f32)
         .collect();
-        let resampler = fg.add(PfbArbResampler::new(2.5, &resampler_taps, 5))?;
+        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5));
         fg.connect_dyn(
             channelizer.stream_output(format!("out{n_out}")),
             resampler.stream_input("in"),

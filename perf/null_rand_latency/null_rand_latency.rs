@@ -44,23 +44,23 @@ fn main() -> Result<()> {
     let mut snks = Vec::new();
 
     for _ in 0..pipes {
-        let src = fg.add(LttngSource::<f32>::new(GRANULARITY))?;
-        let head = fg.add(Head::<f32>::new(samples as u64))?;
+        let src = fg.add_block(LttngSource::<f32>::new(GRANULARITY));
+        let head = fg.add_block(Head::<f32>::new(samples as u64));
 
-        let mut last = fg.add(CopyRand::<f32>::new(max_copy))?;
+        let mut last = fg.add_block(CopyRand::<f32>::new(max_copy));
         {
             connect!(fg, src > head > last);
         }
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32>::new(max_copy))?;
+            let block = fg.add_block(CopyRand::<f32>::new(max_copy));
             {
                 connect!(fg, last > block);
             }
             last = block;
         }
 
-        let snk = fg.add(LttngSink::<f32>::new(GRANULARITY))?;
+        let snk = fg.add_block(LttngSink::<f32>::new(GRANULARITY));
         {
             connect!(fg, last > snk);
         }

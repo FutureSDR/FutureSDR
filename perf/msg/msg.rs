@@ -53,7 +53,7 @@ fn main() -> Result<()> {
             let mut prev = block;
 
             for _ in 2..=stages {
-                let block = fg.add(MessageCopy::new())?;
+                let block = fg.add_block(MessageCopy::new());
                 fg.connect_message(
                     prev.message_output("out"),
                     block.message_input("in"),
@@ -62,7 +62,7 @@ fn main() -> Result<()> {
                 prev = block;
             }
 
-            let snk = fg.add(MessageSink::new())?;
+            let snk = fg.add_block(MessageSink::new());
             fg.connect_message(
                 prev.message_output("out"),
                 snk.message_input("in"),

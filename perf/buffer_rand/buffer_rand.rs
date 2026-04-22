@@ -80,9 +80,9 @@ where
         pipe_block_ids.push((&head).into());
 
         let mut last: BlockId = fg
-            .add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            .add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
-            ))?
+            ))
             .into();
         pipe_block_ids.push(last);
 
@@ -93,9 +93,9 @@ where
 
         for _ in 1..stages {
             let block: BlockId = fg
-                .add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+                .add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                     max_copy,
-                ))?
+                ))
                 .into();
             fg.connect_dyn(
                 last.stream_output("output"),
@@ -105,7 +105,7 @@ where
             pipe_block_ids.push(last);
         }
 
-        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
+        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
         fg.connect_dyn(
             last.stream_output("output"),
             snk.stream_input("input"),
