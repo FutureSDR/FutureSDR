@@ -49,44 +49,26 @@ fn main() -> Result<()> {
     for _ in 0..pipes {
         let src = fg.add_block(NullSource::<f32>::new());
         let head = fg.add_block(Head::<f32>::new(samples as u64));
-        fg.connect_dyn(
-            src.stream_output("output"),
-            head.stream_input("input"),
-        )?;
+        fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
 
         let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
         let mut last: BlockId = fg
             .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
             .into();
-        fg.connect_dyn(
-            head.stream_output("output"),
-            copy.stream_input("input"),
-        )?;
-        fg.connect_dyn(
-            copy.stream_output("output"),
-            last.stream_input("input"),
-        )?;
+        fg.connect_dyn(head.stream_output("output"), copy.stream_input("input"))?;
+        fg.connect_dyn(copy.stream_output("output"), last.stream_input("input"))?;
 
         for _ in 1..stages {
             let copy = fg.add_block(CopyRand::<f32>::new(max_copy));
-            fg.connect_dyn(
-                last.stream_output("output"),
-                copy.stream_input("input"),
-            )?;
+            fg.connect_dyn(last.stream_output("output"), copy.stream_input("input"))?;
             last = fg
                 .add_block(FirBuilder::fir::<f32, f32, _>(taps.to_owned()))
                 .into();
-            fg.connect_dyn(
-                copy.stream_output("output"),
-                last.stream_input("input"),
-            )?;
+            fg.connect_dyn(copy.stream_output("output"), last.stream_input("input"))?;
         }
 
         let snk = fg.add_block(NullSink::<f32>::new());
-        fg.connect_dyn(
-            last.stream_output("output"),
-            snk.stream_input("input"),
-        )?;
+        fg.connect_dyn(last.stream_output("output"), snk.stream_input("input"))?;
         snks.push(snk);
     }
 

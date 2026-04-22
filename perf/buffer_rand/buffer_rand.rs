@@ -53,7 +53,12 @@ fn flow_mapping(pipe_blocks: &[Vec<BlockId>]) -> Vec<Vec<BlockId>> {
     map
 }
 
-fn generate<B>() -> Result<(Flowgraph, Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>, Vec<Vec<BlockId>>)>
+#[allow(clippy::type_complexity)]
+fn generate<B>() -> Result<(
+    Flowgraph,
+    Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>,
+    Vec<Vec<BlockId>>,
+)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
@@ -86,10 +91,7 @@ where
             .into();
         pipe_block_ids.push(last);
 
-        fg.connect_dyn(
-            head.stream_output("output"),
-            last.stream_input("input"),
-        )?;
+        fg.connect_dyn(head.stream_output("output"), last.stream_input("input"))?;
 
         for _ in 1..stages {
             let block: BlockId = fg
@@ -97,19 +99,13 @@ where
                     max_copy,
                 ))
                 .into();
-            fg.connect_dyn(
-                last.stream_output("output"),
-                block.stream_input("input"),
-            )?;
+            fg.connect_dyn(last.stream_output("output"), block.stream_input("input"))?;
             last = block;
             pipe_block_ids.push(last);
         }
 
         let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
-        fg.connect_dyn(
-            last.stream_output("output"),
-            snk.stream_input("input"),
-        )?;
+        fg.connect_dyn(last.stream_output("output"), snk.stream_input("input"))?;
         pipe_block_ids.push(snk.id());
         snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
@@ -135,9 +131,8 @@ fn run_flowgraph(
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
-        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(
-            pipe_blocks,
-        )));
+        let runtime =
+            Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(pipe_blocks)));
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
         elapsed = now.elapsed();

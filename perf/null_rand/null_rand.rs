@@ -42,6 +42,7 @@ impl BufferType for SpscBuffer {
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
 
+#[allow(clippy::type_complexity)]
 fn generate<B>(
     pipes: usize,
     stages: usize,

@@ -50,10 +50,7 @@ fn main() -> Result<()> {
             .build_sink()?,
     );
 
-    fg.connect_dyn(
-        mac.stream_output("output"),
-        modulator.stream_input("input"),
-    )?;
+    fg.connect_dyn(mac.stream_output("output"), modulator.stream_input("input"))?;
     fg.connect_dyn(
         modulator.stream_output("output"),
         iq_delay.stream_input("input"),

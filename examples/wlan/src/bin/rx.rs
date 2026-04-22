@@ -71,10 +71,7 @@ fn main() -> Result<()> {
     };
 
     let delay = fg.add_block(Delay::<Complex32>::new(16));
-    fg.connect_dyn(
-        prev.stream_output(output),
-        delay.stream_input("input"),
-    )?;
+    fg.connect_dyn(prev.stream_output(output), delay.stream_input("input"))?;
 
     let complex_to_mag_2 = fg.add_block(Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr()));
     let float_avg = MovingAverage::<f32>::new(64);
@@ -88,10 +85,7 @@ fn main() -> Result<()> {
         |a: &Complex32, b: &Complex32| a * b.conj(),
     ));
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    fg.connect_dyn(
-        prev.stream_output(output),
-        mult_conj.stream_input("in0"),
-    )?;
+    fg.connect_dyn(prev.stream_output(output), mult_conj.stream_input("in0"))?;
     connect!(fg, mult_conj > complex_avg;
                  delay > in1.mult_conj);
 

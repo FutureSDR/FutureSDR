@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     let rt = Runtime::with_custom_routes(router);
     let handle = rt.handle();
-    *state.rt.lock() = Some(handle);
+    *state.rt.lock().unwrap() = Some(handle);
 
     println!("Visit http://127.0.0.1:1337/my_route/");
     rt.run(fg)?;
@@ -71,9 +71,8 @@ async fn start_fg(State(ws): State<WebState>) {
         )
         .n_messages(50)
         .build(),
-    )
-    .unwrap();
-    let rt_handle = ws.rt.lock().as_ref().unwrap().clone();
+    );
+    let rt_handle = (*ws.rt.lock().as_ref().unwrap()).clone().unwrap();
     let mut fg_handle = rt_handle.start(fg).await.unwrap();
     dbg!(fg_handle.description().await.unwrap());
 }

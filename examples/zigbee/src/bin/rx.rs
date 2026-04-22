@@ -46,7 +46,8 @@ fn main() -> Result<()> {
 
     let (src, output): (BlockId, _) = match args.file {
         Some(file) => (
-            fg.add_block(FileSource::<Complex32>::new(file, false)).into(),
+            fg.add_block(FileSource::<Complex32>::new(file, false))
+                .into(),
             "output",
         ),
         None => (
@@ -73,10 +74,7 @@ fn main() -> Result<()> {
         phase - iir
     }));
 
-    fg.connect_dyn(
-        src.stream_output(output),
-        avg.stream_input("input"),
-    )?;
+    fg.connect_dyn(src.stream_output(output), avg.stream_input("input"))?;
 
     let omega = 2.0;
     let gain_omega = 0.000225;

@@ -112,13 +112,10 @@ fn opti(args: Args) -> Result<()> {
 
     let src = FileSource::<Complex32, LockfreeComplexWriter<3>>::new(&args.file, false);
     let delay = Delay::<Complex32, LockfreeComplexReader<3>, LockfreeComplexWriter<2>>::new(16);
-    let complex_to_mag_2 = Apply::<
-        _,
-        _,
-        _,
-        LockfreeComplexReader<3>,
-        SpscF32Writer,
-    >::new(|i: &Complex32| i.norm_sqr());
+    let complex_to_mag_2 =
+        Apply::<_, _, _, LockfreeComplexReader<3>, SpscF32Writer>::new(|i: &Complex32| {
+            i.norm_sqr()
+        });
     let float_avg = MovingAverage::<f32, SpscF32Reader, SpscF32Writer>::new(64);
     let mult_conj = Combine::<
         _,
@@ -131,15 +128,10 @@ fn opti(args: Args) -> Result<()> {
     >::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg =
         MovingAverage::<Complex32, SpscComplexReader, LockfreeComplexWriter<2>>::new(48);
-    let divide_mag = Combine::<
-        _,
-        _,
-        _,
-        _,
-        LockfreeComplexReader<2>,
-        SpscF32Reader,
-        SpscF32Writer,
-    >::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let divide_mag =
+        Combine::<_, _, _, _, LockfreeComplexReader<2>, SpscF32Reader, SpscF32Writer>::new(
+            |a: &Complex32, b: &f32| a.norm() / b,
+        );
     let sync_short: SyncShort<
         LockfreeComplexReader<2>,
         LockfreeComplexReader<2>,

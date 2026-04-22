@@ -4,7 +4,6 @@ use futures::future::Future;
 use futures::task::Context;
 use futures::task::Poll;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use crate::channel::mpsc::Sender;
 use crate::runtime::Block;

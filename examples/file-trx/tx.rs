@@ -77,10 +77,7 @@ fn main() -> Result<()> {
         .build_sink()?;
     let snk = fg.add_block(snk);
 
-    fg.connect_dyn(
-        src.stream_output("output"),
-        snk.stream_input("inputs[0]"),
-    )?;
+    fg.connect_dyn(src.stream_output("output"), snk.stream_input("inputs[0]"))?;
 
     Runtime::new().run(fg)?;
 

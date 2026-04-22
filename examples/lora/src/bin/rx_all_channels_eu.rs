@@ -81,10 +81,9 @@ fn main() -> Result<()> {
     // streamer start time is relative to function call -> can not be used for precise rx timestamping -> just use the system time when constructing the flowgraph as a reference
     let stream_start_time = SystemTime::now();
 
-    let packet_forwarder = match args.forward_addr {
-        Some(addr) => Some(fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr))),
-        None => None,
-    };
+    let packet_forwarder = args
+        .forward_addr
+        .map(|addr| fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr)));
 
     let src = Builder::new(args.args)?
         .sample_rate((NUM_CHANNELS_PADDED * CHANNEL_SPACING) as f64)
