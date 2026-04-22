@@ -136,7 +136,7 @@ fn main() -> Result<()> {
 
     // Start the flowgraph and save the handle
     let rt = Runtime::new();
-    let (_res, mut handle) = rt.start_sync(fg)?;
+    let (_res, handle) = rt.start_sync(fg)?;
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

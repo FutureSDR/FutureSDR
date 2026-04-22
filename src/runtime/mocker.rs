@@ -12,7 +12,6 @@ use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::Kernel;
-use crate::runtime::KernelInterface;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::WorkIo;
@@ -24,6 +23,7 @@ use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
+use crate::runtime::kernel::KernelInterface;
 
 /// Mocker for a block
 ///

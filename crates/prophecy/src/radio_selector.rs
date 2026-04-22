@@ -39,7 +39,7 @@ pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
                             name=uuid.to_string()
                             on:change=move |_| {
                                 let p = p.clone();
-                                let mut fg_handle = fg_handle.clone();
+                                let fg_handle = fg_handle.clone();
                                 let handler = handler.clone();
                                 spawn_local(async move {
                                     log!(

@@ -26,7 +26,7 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
     let change = {
         let values = values.clone();
         move |_| {
-            let mut fg_handle = fg_handle.clone();
+            let fg_handle = fg_handle.clone();
             let handler = handler.clone();
             let select = select_ref.get().unwrap();
             let pmt = values.get(&select.value()).unwrap().clone();

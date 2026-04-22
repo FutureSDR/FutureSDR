@@ -70,7 +70,7 @@ fn fg_terminate() -> Result<()> {
     connect!(fg, src > throttle > snk);
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg)?;
+    let (fg, handle) = rt.start_sync(fg)?;
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
         handle.terminate().await.unwrap();
@@ -150,7 +150,7 @@ fn flowgraph_instance_name() -> Result<()> {
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
     snk.with_meta_mut(&mut fg, |meta| meta.set_instance_name(name))?;
-    let (_th, mut fg) = rt.start_sync(fg)?;
+    let (_th, fg) = rt.start_sync(fg)?;
 
     let desc = rt.block_on(async move { fg.description().await })?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);

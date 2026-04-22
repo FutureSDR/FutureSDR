@@ -61,10 +61,10 @@ fn main() -> Result<()> {
         iq_delay.stream_output("output"),
         snk.stream_input("inputs[0]"),
     )?;
-    let mac = mac.into();
+    let mac = mac.id();
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg)?;
+    let (fg, handle) = rt.start_sync(fg)?;
 
     let mut seq = 0u64;
     rt.spawn_background(async move {

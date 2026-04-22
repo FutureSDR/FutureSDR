@@ -40,7 +40,7 @@ pub fn Spectrum(
     let fg_desc = LocalResource::new({
         let handle = handle.clone();
         move || {
-            let mut handle = handle.clone();
+            let handle = handle.clone();
             async move {
                 if let Ok(desc) = handle.description().await {
                     return Some(desc);
@@ -174,7 +174,7 @@ pub fn Spectrum(
                                     .set_inner_text(&format!("freq: {} MHz", input.value()));
                                 let freq: f64 = input.value().parse().unwrap();
                                 let p = Pmt::F64(freq * 1e6);
-                                let mut handle = handle.clone();
+                                let handle = handle.clone();
                                 spawn_local(async move {
                                     let _ = handle.call(4, "freq", p).await;
                                 });

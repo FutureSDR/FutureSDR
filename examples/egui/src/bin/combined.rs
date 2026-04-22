@@ -38,7 +38,7 @@ enum GuiAction {
 
 async fn process_gui_actions(
     rx: mpsc::Receiver<GuiAction>,
-    mut handle: FlowgraphHandle,
+    handle: FlowgraphHandle,
     seify_src: BlockId,
 ) -> anyhow::Result<()> {
     while let Some(m) = rx.recv().await {

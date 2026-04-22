@@ -139,7 +139,7 @@ impl Default for BlockInbox {
 
 #[derive(Debug)]
 /// Receiver-side actor inbox for blocks.
-pub struct BlockInboxReader {
+pub(crate) struct BlockInboxReader {
     control: mpsc::Receiver<BlockMessage>,
     notifier: BlockNotifier,
 }
@@ -172,7 +172,7 @@ impl BlockInboxReader {
 }
 
 /// Create a paired sender/reader block inbox with a coalescing notifier.
-pub fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
+pub(crate) fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
     let (control, receiver) = mpsc::channel::<BlockMessage>(size);
     let notifier = BlockNotifier::new();
     (

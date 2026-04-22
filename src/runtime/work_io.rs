@@ -2,6 +2,8 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::runtime::MaybeSend;
+
 /// Work IO
 ///
 /// Communicate between `work()` and the runtime.
@@ -22,13 +24,7 @@ pub struct WorkIo {
 
 impl WorkIo {
     /// Helper to set the future of the Work IO
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn block_on<F: Future<Output = ()> + Send + 'static>(&mut self, f: F) {
-        self.block_on = Some(Box::pin(f));
-    }
-    /// Helper to set the future of the Work IO
-    #[cfg(target_arch = "wasm32")]
-    pub fn block_on<F: Future<Output = ()> + 'static>(&mut self, f: F) {
+    pub fn block_on<F: Future<Output = ()> + MaybeSend + 'static>(&mut self, f: F) {
         self.block_on = Some(Box::pin(f));
     }
 }

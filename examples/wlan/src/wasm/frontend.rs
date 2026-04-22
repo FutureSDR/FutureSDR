@@ -59,7 +59,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
     let fg_desc = {
         let fg_handle = fg_handle.clone();
         LocalResource::new(move || {
-            let mut fg_handle = fg_handle.clone();
+            let fg_handle = fg_handle.clone();
             async move {
                 if let Ok(desc) = fg_handle.description().await {
                     return Some(desc);
@@ -163,7 +163,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 on:change={
                                     let fg_handle = fg_handle.clone();
                                     move |_| {
-                                        let mut fg_handle = fg_handle.clone();
+                                        let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
                                                 let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(5e6)).await;
@@ -181,7 +181,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 on:change={
                                     let fg_handle = fg_handle.clone();
                                     move |_| {
-                                        let mut fg_handle = fg_handle.clone();
+                                        let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
                                                 let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(10e6)).await;
@@ -200,7 +200,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 on:change={
                                     let fg_handle = fg_handle.clone();
                                     move |_| {
-                                        let mut fg_handle = fg_handle.clone();
+                                        let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
                                                 let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(20e6)).await;
@@ -317,7 +317,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 gain_label.get().unwrap().set_inner_text(&format!("gain: {} dB", input.value()));
                                 let gain : f64 = input.value().parse().unwrap();
                                 let p = Pmt::F64(gain);
-                                let mut fg_handle = fg_handle.clone();
+                                let fg_handle = fg_handle.clone();
                                 if let Some(source_block_id) = source_block_id.get_untracked() {
                                     spawn_local(async move {
                                         let _ = fg_handle.call(source_block_id, "gain", p).await;

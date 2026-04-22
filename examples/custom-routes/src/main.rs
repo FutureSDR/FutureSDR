@@ -73,6 +73,6 @@ async fn start_fg(State(ws): State<WebState>) {
         .build(),
     );
     let rt_handle = (*ws.rt.lock().as_ref().unwrap()).clone().unwrap();
-    let mut fg_handle = rt_handle.start(fg).await.unwrap();
+    let fg_handle = rt_handle.start(fg).await.unwrap();
     dbg!(fg_handle.description().await.unwrap());
 }

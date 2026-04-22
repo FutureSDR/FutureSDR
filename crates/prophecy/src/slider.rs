@@ -38,7 +38,7 @@ pub fn Slider<P: Into<PortId>>(
                 let fg_handle = fg_handle.clone();
                 move |v| {
                     let handler = handler.clone();
-                    let mut fg_handle = fg_handle.clone();
+                    let fg_handle = fg_handle.clone();
                     let target = v.target().unwrap();
                     let input: HtmlInputElement = target.dyn_into().unwrap();
                     let value: f64 = input.value().parse().unwrap();

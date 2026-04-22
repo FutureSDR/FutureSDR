@@ -107,7 +107,7 @@ fn main() -> Result<()> {
     let transmitter = transmitter.into();
     let rt = Runtime::new();
 
-    let (_fg, mut handle) = rt.start_sync(fg)?;
+    let (_fg, handle) = rt.start_sync(fg)?;
     rt.block_on(async move {
         let mut payload = vec![0u8; args.payload_len];
         loop {

@@ -1014,7 +1014,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             #(#port_getter_fns)*
         }
 
-        impl #generics ::futuresdr::runtime::KernelInterface for #struct_name #unconstraint_generics
+        impl #generics ::futuresdr::runtime::__private::KernelInterface for #struct_name #unconstraint_generics
             #where_clause
         {
             fn is_blocking() -> bool {

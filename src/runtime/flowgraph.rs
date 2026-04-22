@@ -13,11 +13,11 @@ use crate::runtime::BufferWriter;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Kernel;
-use crate::runtime::KernelInterface;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::WrappedKernel;
 use crate::runtime::buffer::CircuitWriter;
+use crate::runtime::kernel::KernelInterface;
 use futuresdr_types::BlockPortId;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);

@@ -44,7 +44,6 @@ mod work_io;
 
 pub use block::Block;
 pub use block_inbox::BlockInbox;
-pub use block_inbox::BlockInboxReader;
 pub use block_inbox::BlockNotifier;
 pub use block_meta::BlockMeta;
 pub use flowgraph::BlockRef;
@@ -52,8 +51,6 @@ pub use flowgraph::Flowgraph;
 pub use flowgraph::TypedBlockGuard;
 pub use flowgraph_handle::FlowgraphHandle;
 pub use kernel::Kernel;
-pub use kernel::KernelInterface;
-pub use message_output::MessageOutput;
 pub use message_output::MessageOutputs;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
@@ -76,6 +73,7 @@ use buffer::BufferWriter;
 #[doc(hidden)]
 pub mod __private {
     pub use super::flowgraph::ConnectAdd;
+    pub use super::kernel::KernelInterface;
 }
 
 /// Generic Result Type used for the [`Kernel`] trait.

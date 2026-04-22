@@ -88,7 +88,7 @@ fn main() -> Result<()> {
             iterator.next().unwrap()?
         };
         let data = channel.encode(msg);
-        let mut handle = handle.clone();
+        let handle = handle.clone();
 
         rt.block_on(async move {
             handle

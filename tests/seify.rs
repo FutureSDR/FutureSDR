@@ -94,7 +94,7 @@ fn config_freq_gain_ports() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_task, mut fg_handle) = rt.start_sync(fg)?;
+    let (_task, fg_handle) = rt.start_sync(fg)?;
 
     // Freq
     block_on(async {
@@ -135,7 +135,7 @@ fn src_config_cmd_map() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_, mut fg_handle) = rt.start_sync(fg)?;
+    let (_, fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
         let pmt = Pmt::MapStrPmt(HashMap::from([
@@ -180,7 +180,7 @@ fn sink_config_cmd_map() -> Result<()> {
     connect!(fg, src > inputs[0].snk);
 
     let rt = Runtime::new();
-    let (_, mut fg_handle) = rt.start_sync(fg)?;
+    let (_, fg_handle) = rt.start_sync(fg)?;
 
     block_on(async {
         let pmt = Pmt::MapStrPmt(HashMap::from([

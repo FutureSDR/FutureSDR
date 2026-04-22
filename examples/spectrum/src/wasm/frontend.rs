@@ -210,7 +210,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                     freq_label.get().unwrap().set_inner_text(&format!("freq: {} MHz", input.value()));
                                     let freq: f64 = input.value().parse().unwrap();
                                     let p = Pmt::F64(freq * 1e6);
-                                    let mut fg_handle = fg_handle.clone();
+                                    let fg_handle = fg_handle.clone();
                                     spawn_local(async move {
                                         let _ = fg_handle.call(block_id(), "freq", p).await;
                                     });
@@ -236,7 +236,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                     gain_label.get().unwrap().set_inner_text(&format!("gain: {} dB", input.value()));
                                     let gain: f64 = input.value().parse().unwrap();
                                     let p = Pmt::F64(gain);
-                                    let mut fg_handle = fg_handle.clone();
+                                    let fg_handle = fg_handle.clone();
                                     spawn_local(async move {
                                         let _ = fg_handle.call(block_id(), "gain", p).await;
                                     });

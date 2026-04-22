@@ -42,7 +42,7 @@ async fn flowgraph_description(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg.await
+    if let Some(fg) = fg.await
         && let Ok(d) = fg.description().await
     {
         return Ok(Json::from(d));
@@ -55,7 +55,7 @@ async fn block_description(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg.await
+    if let Some(fg) = fg.await
         && let Ok(d) = fg.block_description(blk).await
     {
         return Ok(Json::from(d));
@@ -69,7 +69,7 @@ async fn handler_id(
     State(rt): State<RuntimeHandle>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg.await
+    if let Some(fg) = fg.await
         && let Ok(ret) = fg.callback(blk, handler, Pmt::Null).await
     {
         return Ok(Json::from(ret));
@@ -84,7 +84,7 @@ async fn handler_id_post(
     Json(pmt): Json<Pmt>,
 ) -> Result<Json<Pmt>, StatusCode> {
     let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(mut fg) = fg.await
+    if let Some(fg) = fg.await
         && let Ok(ret) = fg.callback(blk, handler, pmt).await
     {
         return Ok(Json::from(ret));

@@ -91,10 +91,10 @@ fn main() -> Result<()> {
 
     connect!(fg, src.outputs[0] > avg > mm > decoder);
     connect!(fg, decoder | rx.mac);
-    let mac = mac.into();
+    let mac = mac.id();
 
     let rt = Runtime::new();
-    let (fg, mut handle) = rt.start_sync(fg)?;
+    let (fg, handle) = rt.start_sync(fg)?;
 
     // send a message every 0.8 seconds
     let mut seq = 0u64;

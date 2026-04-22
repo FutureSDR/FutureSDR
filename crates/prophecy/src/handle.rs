@@ -168,14 +168,14 @@ impl FlowgraphHandle {
     pub fn from_handle(h: runtime::FlowgraphHandle) -> Self {
         Self::Web(h)
     }
-    pub async fn description(&mut self) -> Result<FlowgraphDescription, Error> {
+    pub async fn description(&self) -> Result<FlowgraphDescription, Error> {
         match self {
             Self::Remote(u) => Ok(Request::get(u).send().await?.json().await?),
             Self::Web(h) => Ok(h.description().await?),
         }
     }
     pub async fn call(
-        &mut self,
+        &self,
         block_id: usize,
         handler: impl Into<PortId>,
         pmt: Pmt,
@@ -194,11 +194,11 @@ impl FlowgraphHandle {
                 .await?;
                 Ok(())
             }
-            Self::Web(h) => Ok(h.call(block_id.into(), handler, pmt).await?),
+            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
         }
     }
     pub async fn callback(
-        &mut self,
+        &self,
         block_id: usize,
         handler: impl Into<PortId>,
         pmt: Pmt,
@@ -226,7 +226,7 @@ impl FlowgraphHandle {
     }
 
     pub async fn put_message_input(
-        &mut self,
+        &self,
         block_id: usize,
         handler: impl Into<PortId>,
         pmt: Pmt,
@@ -245,7 +245,7 @@ impl FlowgraphHandle {
                 .await?;
                 Ok(())
             }
-            Self::Web(h) => Ok(h.call(block_id.into(), handler, pmt).await?),
+            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
         }
     }
 }

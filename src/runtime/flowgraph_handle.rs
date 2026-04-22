@@ -30,11 +30,12 @@ impl FlowgraphHandle {
 
     /// Call message handler, ignoring the result
     pub async fn call(
-        &mut self,
-        block_id: BlockId,
+        &self,
+        block_id: impl Into<BlockId>,
         port_id: impl Into<PortId>,
         data: Pmt,
     ) -> Result<(), Error> {
+        let block_id = block_id.into();
         let (tx, rx) = oneshot::channel::<Result<(), Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockCall {
@@ -50,7 +51,7 @@ impl FlowgraphHandle {
 
     /// Call message handler
     pub async fn callback(
-        &mut self,
+        &self,
         block_id: impl Into<BlockId>,
         port_id: impl Into<PortId>,
         data: Pmt,
@@ -70,7 +71,7 @@ impl FlowgraphHandle {
     }
 
     /// Get [`FlowgraphDescription`]
-    pub async fn description(&mut self) -> Result<FlowgraphDescription, Error> {
+    pub async fn description(&self) -> Result<FlowgraphDescription, Error> {
         let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
         self.inbox
             .send(FlowgraphMessage::FlowgraphDescription { tx })
@@ -82,9 +83,10 @@ impl FlowgraphHandle {
 
     /// Get [`BlockDescription`]
     pub async fn block_description(
-        &mut self,
-        block_id: BlockId,
+        &self,
+        block_id: impl Into<BlockId>,
     ) -> Result<BlockDescription, Error> {
+        let block_id = block_id.into();
         let (tx, rx) = oneshot::channel::<Result<BlockDescription, Error>>();
         self.inbox
             .send(FlowgraphMessage::BlockDescription { block_id, tx })
@@ -97,7 +99,7 @@ impl FlowgraphHandle {
     /// Send a terminate message to the [`crate::runtime::Flowgraph`]
     ///
     /// Does not wait until the [`crate::runtime::Flowgraph`] is actually terminated.
-    pub async fn terminate(&mut self) -> Result<(), Error> {
+    pub async fn terminate(&self) -> Result<(), Error> {
         self.inbox
             .send(FlowgraphMessage::Terminate)
             .await
@@ -108,7 +110,7 @@ impl FlowgraphHandle {
     /// Terminate the [`crate::runtime::Flowgraph`]
     ///
     /// Send a terminate message to the [`crate::runtime::Flowgraph`] and wait until it is shutdown.
-    pub async fn terminate_and_wait(&mut self) -> Result<(), Error> {
+    pub async fn terminate_and_wait(&self) -> Result<(), Error> {
         self.terminate()
             .await
             .map_err(|_| Error::FlowgraphTerminated)?;

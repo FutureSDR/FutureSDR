@@ -221,7 +221,7 @@ fn connect_circuit_description_omits_closure_edge() -> Result<()> {
     ];
 
     let rt = Runtime::new();
-    let (task, mut handle) = rt.start_sync(fg)?;
+    let (task, handle) = rt.start_sync(fg)?;
     let description = block_on(async {
         let description = handle.description().await?;
         handle.terminate_and_wait().await?;

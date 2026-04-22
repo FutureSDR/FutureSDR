@@ -51,13 +51,12 @@ type DynSpawn = dyn Spawn + Send + Sync + 'static;
 #[cfg(target_arch = "wasm32")]
 type DynSpawn = dyn Spawn + 'static;
 
-pub struct TaskHandle<'a, T> {
+pub struct TaskHandle<T> {
     task: Option<Task<T>>,
-    _p: std::marker::PhantomData<&'a ()>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl<T> Drop for TaskHandle<'_, T> {
+impl<T> Drop for TaskHandle<T> {
     fn drop(&mut self) {
         // If the task wasn't awaited to completion, detach it so it can keep running.
         if let Some(task) = self.task.take() {
@@ -66,16 +65,13 @@ impl<T> Drop for TaskHandle<'_, T> {
     }
 }
 
-impl<T> TaskHandle<'_, T> {
+impl<T> TaskHandle<T> {
     fn new(task: Task<T>) -> Self {
-        TaskHandle {
-            task: Some(task),
-            _p: std::marker::PhantomData,
-        }
+        TaskHandle { task: Some(task) }
     }
 }
 
-impl<T> std::future::Future for TaskHandle<'_, T> {
+impl<T> std::future::Future for TaskHandle<T> {
     type Output = T;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
@@ -98,15 +94,14 @@ impl<T> std::future::Future for TaskHandle<'_, T> {
 /// The [Runtime] runs [Flowgraph]s and async tasks
 ///
 /// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
-pub struct Runtime<'a, S> {
+pub struct Runtime<S> {
     scheduler: S,
     flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
     _control_port: ControlPort,
-    _p: std::marker::PhantomData<&'a ()>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Runtime<'_, SmolScheduler> {
+impl Runtime<SmolScheduler> {
     /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
     pub fn new() -> Self {
         Self::with_custom_routes(Router::new())
@@ -127,26 +122,25 @@ impl Runtime<'_, SmolScheduler> {
             scheduler,
             flowgraphs,
             _control_port: ControlPort::new(handle, routes),
-            _p: std::marker::PhantomData,
         }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Default for Runtime<'_, SmolScheduler> {
+impl Default for Runtime<SmolScheduler> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S> Drop for Runtime<'_, S> {
+impl<S> Drop for Runtime<S> {
     fn drop(&mut self) {
         debug!("Runtime dropped");
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Runtime<'_, WasmScheduler> {
+impl Runtime<WasmScheduler> {
     /// Create Runtime
     pub fn new() -> Self {
         runtime::init();
@@ -156,19 +150,18 @@ impl Runtime<'_, WasmScheduler> {
             scheduler: WasmScheduler,
             flowgraphs,
             _control_port: ControlPort::new(),
-            _p: std::marker::PhantomData,
         }
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Default for Runtime<'_, WasmScheduler> {
+impl Default for Runtime<WasmScheduler> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a, S: Scheduler> Runtime<'a, S> {
+impl<S: Scheduler> Runtime<S> {
     /// Spawn an async task on the runtime
     pub fn spawn<T: MaybeSend + 'static>(
         &self,
@@ -217,13 +210,10 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
     /// Start a [`Flowgraph`] on the [`Runtime`]
     ///
     /// Returns, once the flowgraph is constructed and running.
-    pub async fn start<'b>(
-        &'a self,
+    pub async fn start(
+        &self,
         fg: Flowgraph,
-    ) -> Result<(TaskHandle<'b, Result<Flowgraph, Error>>, FlowgraphHandle), Error>
-    where
-        'a: 'b,
-    {
+    ) -> Result<(TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -255,7 +245,7 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
     pub fn start_sync(
         &self,
         fg: Flowgraph,
-    ) -> Result<(TaskHandle<'_, Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
+    ) -> Result<(TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
         block_on(self.start(fg))
     }
 
@@ -273,13 +263,18 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
     }
 
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].
-    pub fn scheduler(&self) -> S {
+    pub fn scheduler(&self) -> &S {
+        &self.scheduler
+    }
+
+    /// Clone the [`Scheduler`] that is associated with the [`Runtime`].
+    pub fn scheduler_clone(&self) -> S {
         self.scheduler.clone()
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
+impl<S: Scheduler + Sync> Runtime<S> {
     /// Create a [Runtime] with a given [Scheduler]
     pub fn with_scheduler(scheduler: S) -> Self {
         Self::with_config(scheduler, Router::new())
@@ -299,7 +294,6 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
             scheduler,
             flowgraphs,
             _control_port: ControlPort::new(handle, routes),
-            _p: std::marker::PhantomData,
         }
     }
 
@@ -313,7 +307,7 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl<'a, S: Scheduler> Runtime<'a, S> {
+impl<S: Scheduler> Runtime<S> {
     /// Create a [Runtime] with a given [Scheduler]
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
@@ -323,7 +317,6 @@ impl<'a, S: Scheduler> Runtime<'a, S> {
             scheduler,
             flowgraphs,
             _control_port: ControlPort::new(),
-            _p: std::marker::PhantomData,
         }
     }
 

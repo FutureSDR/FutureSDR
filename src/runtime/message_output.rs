@@ -10,14 +10,14 @@ use crate::runtime::PortId;
 
 /// Message output port
 #[derive(Debug)]
-pub struct MessageOutput {
+struct MessageOutput {
     name: String,
     handlers: Vec<(PortId, BlockInbox)>,
 }
 
 impl MessageOutput {
     /// Create message output port
-    pub fn new(name: &str) -> MessageOutput {
+    fn new(name: &str) -> MessageOutput {
         MessageOutput {
             name: name.to_string(),
             handlers: Vec::new(),
@@ -25,17 +25,17 @@ impl MessageOutput {
     }
 
     /// Get name of port
-    pub fn name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
 
     /// Connect port to downstream message input
-    pub fn connect(&mut self, port: PortId, sender: BlockInbox) {
+    fn connect(&mut self, port: PortId, sender: BlockInbox) {
         self.handlers.push((port, sender));
     }
 
     /// Notify connected downstream message ports that we are finished
-    pub async fn notify_finished(&mut self) {
+    async fn notify_finished(&mut self) {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
@@ -47,7 +47,7 @@ impl MessageOutput {
     }
 
     /// Post data to connected downstream message port
-    pub async fn post(&mut self, p: Pmt) {
+    async fn post(&mut self, p: Pmt) {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
                 .send(BlockMessage::Call {
