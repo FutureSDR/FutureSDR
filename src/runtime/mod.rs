@@ -32,7 +32,7 @@ mod logging;
 mod flowgraph;
 mod flowgraph_handle;
 mod kernel;
-mod message_io;
+mod message_output;
 #[cfg(not(target_arch = "wasm32"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
@@ -53,8 +53,8 @@ pub use flowgraph::TypedBlockGuard;
 pub use flowgraph_handle::FlowgraphHandle;
 pub use kernel::Kernel;
 pub use kernel::KernelInterface;
-pub use message_io::MessageOutput;
-pub use message_io::MessageOutputs;
+pub use message_output::MessageOutput;
+pub use message_output::MessageOutputs;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 pub use tag::ItemTag;
