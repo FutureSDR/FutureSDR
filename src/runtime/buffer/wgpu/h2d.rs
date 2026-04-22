@@ -8,15 +8,17 @@ use wgpu::BufferUsages;
 use wgpu::BufferViewMut;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::PortCore;
+use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::InputBufferFull as BufferFull;
@@ -60,12 +62,14 @@ where
     writable_ids: Arc<Mutex<Vec<usize>>>,
     ready_ids: Arc<Mutex<VecDeque<usize>>>,
     instance: Option<super::Instance>,
-    writer_id: BlockId,
-    writer_inbox: BlockInbox,
-    writer_output_id: PortId,
-    reader_inbox: BlockInbox,
-    reader_input_id: PortId,
+    core: PortCore,
+    state: ConnectionState<ConnectedWriter>,
     tags: Vec<ItemTag>,
+}
+
+#[derive(Debug)]
+struct ConnectedWriter {
+    reader: PortEndpoint,
 }
 
 impl<D> Writer<D>
@@ -80,11 +84,8 @@ where
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             instance: None,
-            writer_id: BlockId::default(),
-            writer_inbox: BlockInbox::default(),
-            writer_output_id: PortId::default(),
-            reader_inbox: BlockInbox::default(),
-            reader_input_id: PortId::default(),
+            core: PortCore::new_disconnected(),
+            state: ConnectionState::disconnected(),
             tags: Vec::new(),
         }
     }
@@ -193,9 +194,7 @@ where
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.writer_id = block_id;
-        self.writer_output_id = port_id;
-        self.writer_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -203,13 +202,10 @@ where
             Err(Error::ValidationError(
                 "H2D writer: no wgpu instance configured".to_string(),
             ))
-        } else if self.reader_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.writer_id, self.writer_output_id
-            )))
-        } else {
+        } else if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
@@ -222,17 +218,21 @@ where
         dest.ready_ids = self.ready_ids.clone();
         dest.writable_ids = self.writable_ids.clone();
         dest.instance = self.instance.clone();
-        self.reader_input_id = dest.reader_input_id.clone();
-        self.reader_inbox = dest.reader_inbox.clone();
-        dest.writer_inbox = self.writer_inbox.clone();
-        dest.writer_output_id = self.writer_output_id.clone();
+
+        self.state.set_connected(ConnectedWriter {
+            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+        });
+
+        dest.state.set_connected(ConnectedReader {
+            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+        });
     }
 
     async fn notify_finished(&mut self) {
         if let Some(current) = self.current.as_ref() {
             if current.item_offset > 0 {
                 self.finalize_current(current.item_offset);
-                self.reader_inbox.notify();
+                self.state.connected().reader.inbox().notify();
             } else {
                 let current = self.current.take().unwrap();
                 let slot_id = current.slot_id;
@@ -247,20 +247,23 @@ where
             }
         }
 
-        self.reader_inbox
+        self.state
+            .connected()
+            .reader
+            .inbox()
             .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_input_id.clone(),
+                input_id: self.state.connected().reader.port_id(),
             })
             .await
             .unwrap();
     }
 
     fn block_id(&self) -> BlockId {
-        self.writer_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.writer_output_id.clone()
+        self.core.port_id()
     }
 }
 
@@ -284,16 +287,12 @@ where
         let byte_offset = current.item_offset * size_of::<D>();
         let byte_end = cap * size_of::<D>();
         let mut tail_write_only = current.view.slice(byte_offset..byte_end);
-        // `wgpu` 29 exposes mapped writes through a write-only view. FutureSDR's
-        // writer API still expects a mutable slice here, so derive it from the
-        // raw pointer while keeping the mapped view alive in `self.current`.
         let tail = unsafe {
             std::slice::from_raw_parts_mut(
                 tail_write_only.as_raw_element_ptr().as_ptr(),
                 byte_end - byte_offset,
             )
         };
-        // Convert mapped bytes into typed sample slice with explicit alignment check.
         let (prefix, data, suffix) = unsafe { tail.align_to_mut::<D>() };
         assert!(
             prefix.is_empty() && suffix.is_empty(),
@@ -322,7 +321,7 @@ where
         current.item_offset += amount;
         if current.item_offset == item_capacity {
             self.finalize_current(item_capacity);
-            self.reader_inbox.notify();
+            self.state.connected().reader.inbox().notify();
         }
     }
 
@@ -350,12 +349,14 @@ where
     ready_ids: Arc<Mutex<VecDeque<usize>>>,
     writable_ids: Arc<Mutex<Vec<usize>>>,
     instance: Option<super::Instance>,
-    reader_id: BlockId,
-    reader_input_id: PortId,
-    reader_inbox: BlockInbox,
-    writer_output_id: PortId,
-    writer_inbox: BlockInbox,
+    core: PortCore,
+    state: ConnectionState<ConnectedReader>,
     finished: bool,
+}
+
+#[derive(Debug)]
+struct ConnectedReader {
+    writer: PortEndpoint,
 }
 
 impl<D> Reader<D>
@@ -369,11 +370,8 @@ where
             ready_ids: Arc::new(Mutex::new(VecDeque::new())),
             writable_ids: Arc::new(Mutex::new(Vec::new())),
             instance: None,
-            reader_id: BlockId::default(),
-            reader_input_id: PortId::default(),
-            reader_inbox: BlockInbox::default(),
-            writer_output_id: PortId::default(),
-            writer_inbox: BlockInbox::default(),
+            core: PortCore::new_disconnected(),
+            state: ConnectionState::disconnected(),
             finished: false,
         }
     }
@@ -427,7 +425,7 @@ where
 
         let writable_ids = self.writable_ids.clone();
         let slots_arc = self.slots.clone();
-        let writer_inbox = self.writer_inbox.clone();
+        let writer_inbox = self.state.connected().writer.inbox();
         let byte_len = (capacity * size_of::<D>()) as u64;
         let slice = buffer_for_map.slice(0..byte_len);
         slice.map_async(wgpu::MapMode::Write, move |result| match result {
@@ -451,7 +449,6 @@ where
             }
         });
 
-        // Non-blocking kick to help callback progress without stalling this thread.
         let _ = instance.device.poll(wgpu::PollType::Poll);
     }
 
@@ -495,9 +492,7 @@ where
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.reader_id = block_id;
-        self.reader_input_id = port_id;
-        self.reader_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -505,13 +500,10 @@ where
             Err(Error::ValidationError(
                 "H2D reader: no wgpu instance configured".to_string(),
             ))
-        } else if self.writer_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.reader_id, self.reader_input_id
-            )))
-        } else {
+        } else if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
@@ -520,9 +512,12 @@ where
             return;
         }
 
-        self.writer_inbox
+        self.state
+            .connected()
+            .writer
+            .inbox()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output_id.clone(),
+                output_id: self.state.connected().writer.port_id(),
             })
             .await
             .unwrap();
@@ -537,10 +532,10 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.reader_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.reader_input_id.clone()
+        self.core.port_id()
     }
 }

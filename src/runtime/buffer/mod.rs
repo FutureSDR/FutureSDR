@@ -32,10 +32,325 @@ use std::future::Future;
 
 use crate::runtime::MaybeSend;
 use futuresdr::runtime::BlockId;
+use futuresdr::runtime::BlockInbox;
+use futuresdr::runtime::BlockNotifier;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::Tag;
+
+/// Shared port configuration collected before the port is connected.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PortConfig {
+    min_items: Option<usize>,
+    min_buffer_size_in_items: Option<usize>,
+}
+
+impl PortConfig {
+    /// Create empty port configuration.
+    pub const fn new() -> Self {
+        Self {
+            min_items: None,
+            min_buffer_size_in_items: None,
+        }
+    }
+
+    /// Create port configuration with an initial `min_items`.
+    pub const fn with_min_items(min_items: usize) -> Self {
+        Self {
+            min_items: Some(min_items),
+            min_buffer_size_in_items: None,
+        }
+    }
+
+    /// Minimum number of items requested by the port.
+    pub const fn min_items(&self) -> Option<usize> {
+        self.min_items
+    }
+
+    /// Configure the minimum number of items required by the port.
+    pub fn set_min_items(&mut self, min_items: usize) {
+        self.min_items = Some(min_items);
+    }
+
+    /// Raise the minimum number of items to at least `min_items`.
+    pub fn set_min_items_max(&mut self, min_items: usize) {
+        self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
+    }
+
+    /// Minimum configured buffer size in items.
+    pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
+        self.min_buffer_size_in_items
+    }
+
+    /// Configure the minimum buffer size in items.
+    pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
+        self.min_buffer_size_in_items = Some(min_items);
+    }
+
+    /// Raise the minimum buffer size to at least `min_items`.
+    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
+        self.min_buffer_size_in_items =
+            Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
+    }
+}
+
+/// Binding state shared by all ports.
+#[derive(Debug, Clone)]
+pub enum PortBinding {
+    /// Port is only constructed and not yet attached to a concrete block/port id.
+    Unbound,
+    /// Port is attached to a concrete block/port id inside a flowgraph.
+    Bound {
+        /// Owning block of the bound port.
+        block_id: BlockId,
+        /// Port id inside the owning block.
+        port_id: PortId,
+        /// Inbox used to notify the owning block.
+        inbox: BlockInbox,
+    },
+}
+
+/// Shared per-port state that is independent from the concrete buffer backend.
+#[derive(Debug, Clone)]
+pub struct PortCore {
+    binding: PortBinding,
+    config: PortConfig,
+}
+
+impl PortCore {
+    /// Create an unbound port with empty configuration.
+    pub const fn new_disconnected() -> Self {
+        Self::with_config(PortConfig::new())
+    }
+
+    /// Create an unbound port with the provided configuration.
+    pub const fn with_config(config: PortConfig) -> Self {
+        Self {
+            binding: PortBinding::Unbound,
+            config,
+        }
+    }
+
+    /// Bind the port to the given block/port id and inbox.
+    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+        self.binding = PortBinding::Bound {
+            block_id,
+            port_id,
+            inbox,
+        };
+    }
+
+    /// Whether the port has been bound to a block inside a flowgraph.
+    pub fn is_bound(&self) -> bool {
+        matches!(self.binding, PortBinding::Bound { .. })
+    }
+
+    /// The current binding state.
+    pub fn binding(&self) -> &PortBinding {
+        &self.binding
+    }
+
+    /// Get the bound block id.
+    pub fn block_id(&self) -> BlockId {
+        match &self.binding {
+            PortBinding::Bound { block_id, .. } => *block_id,
+            PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
+        }
+    }
+
+    /// Get the bound block id if available.
+    pub fn block_id_if_bound(&self) -> Option<BlockId> {
+        match &self.binding {
+            PortBinding::Bound { block_id, .. } => Some(*block_id),
+            PortBinding::Unbound => None,
+        }
+    }
+
+    /// Get the bound port id.
+    pub fn port_id(&self) -> PortId {
+        match &self.binding {
+            PortBinding::Bound { port_id, .. } => port_id.clone(),
+            PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
+        }
+    }
+
+    /// Get the bound port id if available.
+    pub fn port_id_if_bound(&self) -> Option<&PortId> {
+        match &self.binding {
+            PortBinding::Bound { port_id, .. } => Some(port_id),
+            PortBinding::Unbound => None,
+        }
+    }
+
+    /// Get the bound inbox.
+    pub fn inbox(&self) -> BlockInbox {
+        match &self.binding {
+            PortBinding::Bound { inbox, .. } => inbox.clone(),
+            PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
+        }
+    }
+
+    /// Get the notifier associated with the bound inbox.
+    pub fn notifier(&self) -> BlockNotifier {
+        match &self.binding {
+            PortBinding::Bound { inbox, .. } => inbox.notifier(),
+            PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
+        }
+    }
+
+    /// Minimum number of items requested by the port.
+    pub fn min_items(&self) -> Option<usize> {
+        self.config.min_items()
+    }
+
+    /// Configure the minimum number of items required by the port.
+    pub fn set_min_items(&mut self, min_items: usize) {
+        self.config.set_min_items(min_items);
+    }
+
+    /// Raise the minimum number of items required by the port.
+    pub fn set_min_items_max(&mut self, min_items: usize) {
+        self.config.set_min_items_max(min_items);
+    }
+
+    /// Minimum configured buffer size in items.
+    pub fn min_buffer_size_in_items(&self) -> Option<usize> {
+        self.config.min_buffer_size_in_items()
+    }
+
+    /// Configure the minimum buffer size in items.
+    pub fn set_min_buffer_size_in_items(&mut self, min_items: usize) {
+        self.config.set_min_buffer_size_in_items(min_items);
+    }
+
+    /// Raise the minimum buffer size in items.
+    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
+        self.config.set_min_buffer_size_in_items_max(min_items);
+    }
+
+    /// Create a validation error for an unconnected port.
+    pub fn not_connected_error(&self) -> Error {
+        match &self.binding {
+            PortBinding::Bound {
+                block_id, port_id, ..
+            } => Error::ValidationError(format!("{block_id:?}:{port_id:?} not connected")),
+            PortBinding::Unbound => {
+                Error::ValidationError("stream port is not bound to a flowgraph".to_string())
+            }
+        }
+    }
+}
+
+/// A peer endpoint captured during connection setup.
+#[derive(Debug, Clone)]
+pub struct PortEndpoint {
+    inbox: BlockInbox,
+    port_id: PortId,
+}
+
+impl PortEndpoint {
+    /// Create a new peer endpoint.
+    pub fn new(inbox: BlockInbox, port_id: PortId) -> Self {
+        Self { inbox, port_id }
+    }
+
+    /// Get the peer inbox.
+    pub fn inbox(&self) -> BlockInbox {
+        self.inbox.clone()
+    }
+
+    /// Get the peer port id.
+    pub fn port_id(&self) -> PortId {
+        self.port_id.clone()
+    }
+}
+
+/// Circuit-return path back to the start of an in-place circuit.
+#[derive(Debug, Clone)]
+pub(crate) struct CircuitReturn<Q> {
+    notifier: BlockNotifier,
+    queue: Q,
+}
+
+impl<Q> CircuitReturn<Q> {
+    /// Create a new circuit-return path.
+    pub(crate) fn new(notifier: BlockNotifier, queue: Q) -> Self {
+        Self { notifier, queue }
+    }
+
+    /// Notify the circuit start that a buffer was returned or consumed.
+    pub(crate) fn notify(&self) {
+        self.notifier.notify();
+    }
+
+    /// Access the queue used to return buffers to the circuit start.
+    pub(crate) fn queue(&self) -> &Q {
+        &self.queue
+    }
+}
+
+/// A backend state that is either disconnected or fully connected.
+#[derive(Debug)]
+pub enum ConnectionState<T> {
+    /// No backend has been connected yet.
+    Disconnected,
+    /// The backend is fully connected and ready to use.
+    Connected(T),
+}
+
+impl<T> ConnectionState<T> {
+    /// Create a disconnected backend state.
+    pub const fn disconnected() -> Self {
+        Self::Disconnected
+    }
+
+    /// Whether the backend has been connected.
+    pub fn is_connected(&self) -> bool {
+        matches!(self, Self::Connected(_))
+    }
+
+    /// Borrow the connected backend if present.
+    pub fn as_ref(&self) -> Option<&T> {
+        match self {
+            Self::Disconnected => None,
+            Self::Connected(value) => Some(value),
+        }
+    }
+
+    /// Borrow the connected backend mutably if present.
+    pub fn as_mut(&mut self) -> Option<&mut T> {
+        match self {
+            Self::Disconnected => None,
+            Self::Connected(value) => Some(value),
+        }
+    }
+
+    /// Get the connected backend, panicking if it is still disconnected.
+    pub fn connected(&self) -> &T {
+        self.as_ref()
+            .expect("buffer backend is disconnected after validation")
+    }
+
+    /// Get the connected backend mutably, panicking if it is still disconnected.
+    pub fn connected_mut(&mut self) -> &mut T {
+        self.as_mut()
+            .expect("buffer backend is disconnected after validation")
+    }
+
+    /// Replace the state with a connected backend.
+    pub fn set_connected(&mut self, value: T) {
+        *self = Self::Connected(value);
+    }
+
+    /// Take the connected backend out of the state.
+    pub fn take_connected(&mut self) -> Option<T> {
+        match std::mem::replace(self, Self::Disconnected) {
+            Self::Disconnected => None,
+            Self::Connected(value) => Some(value),
+        }
+    }
+}
 
 /// The most generic buffer reader
 ///
@@ -121,7 +436,7 @@ pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {
 
 impl<T> CpuSample for T where T: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
-/// A generic CPU buffer reader (out-of-place)
+/// A generic CPU buffer reader (out-of-place).
 pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     /// Buffer Items
     type Item: CpuSample;
@@ -150,10 +465,7 @@ pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     fn max_items(&self) -> usize;
 }
 
-/// A generic CPU buffer writer (out-of-place)
-///
-/// Current upstream implemenations are a circular buffer with douple mapping
-/// and the SLAB buffer
+/// A generic CPU buffer writer (out-of-place).
 pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     /// Buffer Items
     type Item: CpuSample;
@@ -194,7 +506,7 @@ pub trait InplaceBuffer {
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], &mut Vec<ItemTag>);
 }
 
-/// In-Place Reader
+/// Reader half of an in-place circuit buffer.
 pub trait InplaceReader: BufferReader + Default + MaybeSend {
     /// Items in the reader
     type Item: CpuSample;
@@ -211,7 +523,7 @@ pub trait InplaceReader: BufferReader + Default + MaybeSend {
     fn notify_consumed_buffer(&mut self);
 }
 
-/// In-Place Writer
+/// Writer half of an in-place circuit buffer.
 pub trait InplaceWriter: BufferWriter + Default + MaybeSend {
     /// Items in the writer
     type Item: CpuSample;

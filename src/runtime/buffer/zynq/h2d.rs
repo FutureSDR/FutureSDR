@@ -7,15 +7,17 @@ use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
+use crate::runtime::buffer::PortCore;
+use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
@@ -36,13 +38,15 @@ where
     current: Option<CurrentBuffer>,
     inbound: Arc<Mutex<Vec<BufferEmpty>>>,
     outbound: Arc<Mutex<VecDeque<BufferFull>>>,
-    writer_inbox: BlockInbox,
-    writer_id: BlockId,
-    writer_output_id: PortId,
-    reader_inbox: BlockInbox,
-    reader_input_id: PortId,
+    core: PortCore,
+    state: ConnectionState<ConnectedWriter>,
     tags: Vec<ItemTag>,
     _p: PhantomData<D>,
+}
+
+#[derive(Debug)]
+struct ConnectedWriter {
+    reader: PortEndpoint,
 }
 
 impl<D> Writer<D>
@@ -56,11 +60,8 @@ where
             current: None,
             inbound: Arc::new(Mutex::new(Vec::new())),
             outbound: Arc::new(Mutex::new(VecDeque::new())),
-            writer_id: BlockId::default(),
-            writer_inbox: BlockInbox::default(),
-            writer_output_id: PortId::default(),
-            reader_inbox: BlockInbox::default(),
-            reader_input_id: PortId::default(),
+            core: PortCore::new_disconnected(),
+            state: ConnectionState::disconnected(),
             tags: Vec::new(),
             _p: PhantomData,
         }
@@ -83,30 +84,28 @@ where
     type Reader = Reader<D>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.writer_id = block_id;
-        self.writer_output_id = port_id;
-        self.writer_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.reader_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.writer_id, self.writer_output_id
-            )))
-        } else {
+        if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
         dest.inbound = self.outbound.clone();
         dest.outbound = self.inbound.clone();
-        dest.writer_inbox = self.writer_inbox.clone();
-        dest.writer_output_id = self.writer_output_id.clone();
 
-        self.reader_input_id = dest.reader_input_id.clone();
-        self.reader_inbox = dest.reader_inbox.clone();
+        self.state.set_connected(ConnectedWriter {
+            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+        });
+
+        dest.state.set_connected(ConnectedReader {
+            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+        });
     }
 
     async fn notify_finished(&mut self) {
@@ -125,19 +124,22 @@ where
         }
 
         let _ = self
-            .reader_inbox
+            .state
+            .connected()
+            .reader
+            .inbox()
             .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_input_id.clone(),
+                input_id: self.state.connected().reader.port_id(),
             })
             .await;
     }
 
     fn block_id(&self) -> BlockId {
-        self.writer_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.writer_output_id.clone()
+        self.core.port_id()
     }
 }
 
@@ -155,12 +157,10 @@ where
                     byte_offset: 0,
                 });
             } else {
-                // debug!("H2D writer called bytes, buff is none");
                 return (&mut [], Tags::new(&mut self.tags, 0));
             }
         }
 
-        // debug!("H2D writer called bytes, buff is some");
         let current = self.current.as_mut().unwrap();
 
         unsafe {
@@ -175,7 +175,6 @@ where
     }
 
     fn produce(&mut self, n: usize) {
-        // debug!("H2D writer called produce {}", amount);
         let current = self.current.as_mut().unwrap();
         let byte_capacity = current.buffer.size();
 
@@ -195,7 +194,7 @@ where
                 });
             }
 
-            self.reader_inbox.notify();
+            self.state.connected().reader.inbox().notify();
         }
     }
 
@@ -221,13 +220,15 @@ where
 {
     inbound: Arc<Mutex<VecDeque<BufferFull>>>,
     outbound: Arc<Mutex<Vec<BufferEmpty>>>,
-    reader_id: BlockId,
-    reader_input_id: PortId,
-    reader_inbox: BlockInbox,
-    writer_output_id: PortId,
-    writer_inbox: BlockInbox,
+    core: PortCore,
+    state: ConnectionState<ConnectedReader>,
     finished: bool,
     _p: PhantomData<D>,
+}
+
+#[derive(Debug)]
+struct ConnectedReader {
+    writer: PortEndpoint,
 }
 
 impl<D> Reader<D>
@@ -239,11 +240,8 @@ where
         Self {
             inbound: Arc::new(Mutex::new(VecDeque::new())),
             outbound: Arc::new(Mutex::new(Vec::new())),
-            reader_id: BlockId::default(),
-            reader_input_id: PortId::default(),
-            reader_inbox: BlockInbox::default(),
-            writer_output_id: PortId::default(),
-            writer_inbox: BlockInbox::default(),
+            core: PortCore::new_disconnected(),
+            state: ConnectionState::disconnected(),
             finished: false,
             _p: PhantomData,
         }
@@ -251,9 +249,8 @@ where
 
     /// Send empty buffer back to writer
     pub fn submit(&mut self, buffer: BufferEmpty) {
-        // debug!("H2D reader handling empty buffer");
         self.outbound.lock().unwrap().push(buffer);
-        self.writer_inbox.notify();
+        self.state.connected().writer.inbox().notify();
     }
 
     /// Get full buffer
@@ -288,28 +285,26 @@ where
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.reader_id = block_id;
-        self.reader_input_id = port_id;
-        self.reader_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.writer_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.reader_id, self.reader_input_id
-            )))
-        } else {
+        if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
     async fn notify_finished(&mut self) {
         debug!("H2D reader finish");
         let _ = self
-            .writer_inbox
+            .state
+            .connected()
+            .writer
+            .inbox()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output_id.clone(),
+                output_id: self.state.connected().writer.port_id(),
             })
             .await;
     }
@@ -323,10 +318,10 @@ where
     }
 
     fn block_id(&self) -> BlockId {
-        self.reader_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.reader_input_id.clone()
+        self.core.port_id()
     }
 }

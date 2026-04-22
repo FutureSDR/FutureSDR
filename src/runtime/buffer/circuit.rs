@@ -1,19 +1,22 @@
 use crate::runtime::BlockId;
-use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
 use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CircuitReturn;
 use crate::runtime::buffer::CircuitWriter;
+use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::InplaceBuffer;
 use crate::runtime::buffer::InplaceReader;
 use crate::runtime::buffer::InplaceWriter;
+use crate::runtime::buffer::PortConfig;
+use crate::runtime::buffer::PortCore;
+use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
 #[cfg(not(target_arch = "wasm32"))]
@@ -29,6 +32,8 @@ use std::sync::Mutex;
 type Queue<T> = ConcurrentQueue<T>;
 #[cfg(target_arch = "wasm32")]
 type Queue<T> = Mutex<VecDeque<T>>;
+type EmptyBuffers<T> = Arc<Queue<Option<Buffer<T>>>>;
+type FullBuffers<T> = Arc<Queue<Buffer<T>>>;
 
 fn queue_new<T>() -> Queue<T> {
     #[cfg(not(target_arch = "wasm32"))]
@@ -68,7 +73,6 @@ fn queue_pop<T>(queue: &Queue<T>) -> Option<T> {
 fn queue_pop_back<T>(queue: &Queue<T>) -> Option<T> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // No pop_back for concurrent queue. Use pop as FIFO.
         queue.pop().ok()
     }
     #[cfg(target_arch = "wasm32")]
@@ -136,22 +140,20 @@ pub struct Writer<T>
 where
     T: CpuSample,
 {
-    reader_inbox: BlockInbox,
-    reader_input: PortId,
-    writer_inbox: BlockInbox,
-    notifier: BlockNotifier,
-    reader_notifier: BlockNotifier,
-    writer_id: BlockId,
-    writer_output: PortId,
-    inbound: Arc<Queue<Option<Buffer<T>>>>,
-    outbound: Arc<Queue<Buffer<T>>>,
+    core: PortCore,
+    state: ConnectionState<ConnectedWriter<T>>,
+    inbound: EmptyBuffers<T>,
     buffer_size_in_items: usize,
-    // for CPU buffer writer
     current: Option<Buffer<T>>,
-    min_items: usize,
-    min_buffer_size_in_items: Option<usize>,
-    // dummy to return when no buffer available
     tags: Vec<ItemTag>,
+}
+
+struct ConnectedWriter<T>
+where
+    T: CpuSample,
+{
+    reader: PortEndpoint,
+    outbound: FullBuffers<T>,
 }
 
 impl<T> Writer<T>
@@ -161,26 +163,21 @@ where
     /// Create circuit buffer writer
     pub fn new() -> Self {
         Self {
-            reader_inbox: BlockInbox::default(),
-            reader_input: PortId::default(),
-            writer_inbox: BlockInbox::default(),
-            notifier: BlockNotifier::new(),
-            reader_notifier: BlockNotifier::new(),
-            writer_id: BlockId::default(),
-            writer_output: PortId::default(),
+            core: PortCore::with_config(PortConfig::with_min_items(1)),
+            state: ConnectionState::disconnected(),
             inbound: Arc::new(queue_new()),
-            outbound: Arc::new(queue_new()),
             buffer_size_in_items: config().buffer_size / std::mem::size_of::<T>(),
             current: None,
-            min_items: 1,
-            min_buffer_size_in_items: None,
             tags: Vec::new(),
         }
     }
 
     /// Close Circuit
     pub fn close_circuit(&mut self, end: &mut Reader<T>) {
-        end.circuit_start = Some((self.notifier.clone(), self.inbound.clone()));
+        end.circuit_start = Some(CircuitReturn::new(
+            self.core.notifier(),
+            self.inbound.clone(),
+        ));
     }
 }
 
@@ -200,53 +197,53 @@ where
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.writer_id = block_id;
-        self.writer_output = port_id;
-        self.notifier = inbox.notifier();
-        self.writer_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.reader_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.writer_id, self.writer_output
-            )))
-        } else {
+        if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        self.reader_input = dest.reader_input.clone();
-        self.reader_inbox = dest.reader_inbox.clone();
-        self.outbound = dest.inbound.clone();
-        self.reader_notifier = dest.notifier.clone();
+        let inbound = Arc::new(queue_new());
 
-        dest.writer_inbox = self.writer_inbox.clone();
-        dest.writer_notifier = self.notifier.clone();
-        dest.writer_output = self.writer_output.clone();
+        self.state.set_connected(ConnectedWriter {
+            reader: PortEndpoint::new(dest.core.inbox(), dest.core.port_id()),
+            outbound: inbound.clone(),
+        });
+
+        dest.state.set_connected(ConnectedReader {
+            writer: PortEndpoint::new(self.core.inbox(), self.core.port_id()),
+            inbound,
+        });
     }
 
     async fn notify_finished(&mut self) {
         if let Some(b) = self.current.take() {
-            queue_push(&self.outbound, b);
-            self.reader_notifier.notify();
+            queue_push(&self.state.connected().outbound, b);
+            self.state.connected().reader.inbox().notify();
         }
         let _ = self
-            .reader_inbox
+            .state
+            .connected()
+            .reader
+            .inbox()
             .send(BlockMessage::StreamInputDone {
-                input_id: self.reader_input.clone(),
+                input_id: self.state.connected().reader.port_id(),
             })
             .await;
     }
 
     fn block_id(&self) -> BlockId {
-        self.writer_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.writer_output.clone()
+        self.core.port_id()
     }
 }
 
@@ -257,7 +254,10 @@ where
     type CircuitEnd = Reader<T>;
 
     fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.circuit_start = Some((self.notifier.clone(), self.inbound.clone()));
+        dst.circuit_start = Some(CircuitReturn::new(
+            self.core.notifier(),
+            self.inbound.clone(),
+        ));
     }
 }
 
@@ -266,12 +266,11 @@ where
     T: CpuSample,
 {
     type Item = T;
-
     type Buffer = Buffer<T>;
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) {
-        queue_push(&self.outbound, buffer);
-        self.reader_notifier.notify();
+        queue_push(&self.state.connected().outbound, buffer);
+        self.state.connected().reader.inbox().notify();
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {
@@ -291,11 +290,13 @@ where
     }
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
+        self.buffer_size_in_items = n_items;
         for _ in 0..n_buffers {
             queue_push(&self.inbound, Some(Buffer::with_items(n_items)));
         }
     }
 }
+
 impl<T> CpuBufferWriter for Writer<T>
 where
     T: CpuSample,
@@ -331,28 +332,25 @@ where
         let c = self.current.as_mut().unwrap();
         debug_assert!(n <= c.buffer.len() - c.valid);
         c.valid += n;
-        if (c.buffer.len() - c.valid) < self.min_items {
+        if (c.buffer.len() - c.valid) < self.core.min_items().unwrap_or(1) {
             let c = self.current.take().unwrap();
-            queue_push(&self.outbound, c);
+            queue_push(&self.state.connected().outbound, c);
 
-            self.reader_notifier.notify();
+            self.state.connected().reader.inbox().notify();
 
-            // make sure to be called again, if we have another buffer queued
             if !queue_is_empty(&self.inbound) {
-                self.notifier.notify();
+                self.core.inbox().notify();
             }
         }
     }
 
     fn set_min_items(&mut self, n: usize) {
-        self.min_items = std::cmp::max(self.min_items, n);
+        self.core.set_min_items_max(n);
     }
 
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        self.min_buffer_size_in_items = match self.min_buffer_size_in_items {
-            Some(c) => Some(std::cmp::max(n, c)),
-            None => Some(std::cmp::max(n, 1)),
-        }
+        self.core
+            .set_min_buffer_size_in_items_max(std::cmp::max(n, 1));
     }
 
     fn max_items(&self) -> usize {
@@ -366,19 +364,19 @@ pub struct Reader<T>
 where
     T: CpuSample,
 {
-    reader_inbox: BlockInbox,
-    reader_id: BlockId,
-    reader_input: PortId,
-    writer_inbox: BlockInbox,
-    notifier: BlockNotifier,
-    writer_notifier: BlockNotifier,
-    writer_output: PortId,
-    inbound: Arc<Queue<Buffer<T>>>,
-    #[allow(clippy::type_complexity)]
-    circuit_start: Option<(BlockNotifier, Arc<Queue<Option<Buffer<T>>>>)>,
+    core: PortCore,
+    state: ConnectionState<ConnectedReader<T>>,
+    circuit_start: Option<CircuitReturn<EmptyBuffers<T>>>,
     finished: bool,
-    // for CPU buffer reader
     current: Option<(Buffer<T>, usize)>,
+}
+
+struct ConnectedReader<T>
+where
+    T: CpuSample,
+{
+    writer: PortEndpoint,
+    inbound: FullBuffers<T>,
 }
 
 impl<T> Reader<T>
@@ -388,14 +386,8 @@ where
     /// Create circuit buffer reader
     pub fn new() -> Self {
         Self {
-            reader_inbox: BlockInbox::default(),
-            reader_id: BlockId::default(),
-            reader_input: PortId::default(),
-            writer_inbox: BlockInbox::default(),
-            notifier: BlockNotifier::new(),
-            writer_notifier: BlockNotifier::new(),
-            writer_output: PortId::default(),
-            inbound: Arc::new(queue_new()),
+            core: PortCore::new_disconnected(),
+            state: ConnectionState::disconnected(),
             circuit_start: None,
             finished: false,
             current: None,
@@ -422,28 +414,25 @@ where
     }
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
-        self.reader_id = block_id;
-        self.reader_input = port_id;
-        self.notifier = inbox.notifier();
-        self.reader_inbox = inbox;
+        self.core.init(block_id, port_id, inbox);
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.writer_inbox.is_closed() {
-            Err(Error::ValidationError(format!(
-                "{:?}:{:?} not connected",
-                self.reader_id, self.reader_input
-            )))
-        } else {
+        if self.state.is_connected() {
             Ok(())
+        } else {
+            Err(self.core.not_connected_error())
         }
     }
 
     async fn notify_finished(&mut self) {
         let _ = self
-            .writer_inbox
+            .state
+            .connected()
+            .writer
+            .inbox()
             .send(BlockMessage::StreamOutputDone {
-                output_id: self.writer_output.clone(),
+                output_id: self.state.connected().writer.port_id(),
             })
             .await;
     }
@@ -453,15 +442,19 @@ where
     }
 
     fn finished(&self) -> bool {
-        self.finished && queue_is_empty(&self.inbound)
+        self.finished
+            && self
+                .state
+                .as_ref()
+                .is_none_or(|state| queue_is_empty(&state.inbound))
     }
 
     fn block_id(&self) -> BlockId {
-        self.reader_id
+        self.core.block_id()
     }
 
     fn port_id(&self) -> PortId {
-        self.reader_input.clone()
+        self.core.port_id()
     }
 }
 
@@ -470,31 +463,30 @@ where
     T: CpuSample,
 {
     type Item = T;
-
     type Buffer = Buffer<T>;
 
     fn get_full_buffer(&mut self) -> Option<Self::Buffer> {
-        queue_pop(&self.inbound)
+        queue_pop(&self.state.connected().inbound)
     }
 
     fn has_more_buffers(&mut self) -> bool {
-        !queue_is_empty(&self.inbound)
+        !queue_is_empty(&self.state.connected().inbound)
     }
 
     fn put_empty_buffer(&mut self, mut buffer: Self::Buffer) {
         buffer.tags.clear();
-        if let Some((ref notifier, ref buffers)) = self.circuit_start {
-            queue_push(buffers, Some(buffer));
-            notifier.notify();
+        if let Some(circuit_start) = self.circuit_start.as_ref() {
+            queue_push(circuit_start.queue(), Some(buffer));
+            circuit_start.notify();
         } else {
             warn!("Put empty buffer in unconnected circuit reader. Dropping buffer.")
         }
     }
 
     fn notify_consumed_buffer(&mut self) {
-        if let Some((ref notifier, ref buffers)) = self.circuit_start {
-            queue_push(buffers, None);
-            notifier.notify();
+        if let Some(circuit_start) = self.circuit_start.as_ref() {
+            queue_push(circuit_start.queue(), None);
+            circuit_start.notify();
         } else {
             warn!("Dropped buffer in unconnected circuit reader. Dropping buffer.")
         }
@@ -509,11 +501,11 @@ where
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
         if self.current.is_none() {
-            match queue_pop(&self.inbound) {
+            match queue_pop(&self.state.connected().inbound) {
                 Some(b) => {
                     self.current = Some((b, 0));
                 }
-                _ => {
+                None => {
                     static V: Vec<ItemTag> = vec![];
                     return (&[], &V);
                 }
@@ -536,10 +528,10 @@ where
         if *o == c.valid {
             let (mut b, _) = self.current.take().unwrap();
             b.tags.clear();
-            match self.circuit_start {
-                Some((ref notifier, ref queue)) => {
-                    queue_push(queue, Some(b));
-                    notifier.notify();
+            match self.circuit_start.as_ref() {
+                Some(circuit_start) => {
+                    queue_push(circuit_start.queue(), Some(b));
+                    circuit_start.notify();
                 }
                 None => {
                     warn!(
@@ -548,9 +540,8 @@ where
                 }
             }
 
-            // make sure to be called again, if we have another buffer queued
-            if !queue_is_empty(&self.inbound) {
-                self.notifier.notify();
+            if !queue_is_empty(&self.state.connected().inbound) {
+                self.core.inbox().notify();
             }
         }
     }
