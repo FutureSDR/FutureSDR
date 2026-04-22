@@ -110,7 +110,7 @@ impl Kernel for WhisperBlock {
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let input = self.input.slice();

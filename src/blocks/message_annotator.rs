@@ -28,7 +28,7 @@ impl MessageAnnotator {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -40,7 +40,7 @@ impl MessageAnnotator {
                 p => {
                     let mut annotated_message = self.annotation_prototype.clone();
                     annotated_message.insert(payload_field_name, p);
-                    mio.post("out", Pmt::MapStrPmt(annotated_message)).await?;
+                    mo.post("out", Pmt::MapStrPmt(annotated_message)).await?;
                 }
             }
         } else {
@@ -50,7 +50,7 @@ impl MessageAnnotator {
                 }
                 Pmt::MapStrPmt(mut annotated_message) => {
                     annotated_message.extend(self.annotation_prototype.clone());
-                    mio.post("out", Pmt::MapStrPmt(annotated_message)).await?;
+                    mo.post("out", Pmt::MapStrPmt(annotated_message)).await?;
                 }
                 _ => return Ok(Pmt::InvalidValue),
             }

@@ -85,8 +85,8 @@ impl fmt::Debug for dyn Block {
 pub(crate) struct WrappedKernel<K: Kernel> {
     /// Block metadata
     pub meta: BlockMeta,
-    /// Message IO
-    pub mio: MessageOutputs,
+    /// Message outputs
+    pub mo: MessageOutputs,
     /// Kernel
     pub kernel: K,
     /// Block ID
@@ -104,7 +104,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
         kernel.stream_ports_init(id, tx.clone());
         Self {
             meta: BlockMeta::new(),
-            mio: MessageOutputs::new(
+            mo: MessageOutputs::new(
                 id,
                 K::message_outputs().iter().map(|x| x.to_string()).collect(),
             ),
@@ -119,7 +119,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
         let instance_name = self.instance_name().unwrap_or(self.type_name()).to_owned();
         let WrappedKernel {
             meta,
-            mio,
+            mo,
             kernel,
             inbox,
             ..
@@ -142,7 +142,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                 .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
             {
                 BlockMessage::Initialize => {
-                    match kernel.init(mio, meta).await {
+                    match kernel.init(mo, meta).await {
                         Err(e) => {
                             error!(
                                 "{}: Error during initialization. Terminating.",
@@ -200,7 +200,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                     }
                     BlockMessage::Call { port_id, data } => {
                         match kernel
-                            .call_handler(&mut work_io, mio, meta, port_id, data)
+                            .call_handler(&mut work_io, mo, meta, port_id, data)
                             .await
                         {
                             Err(Error::InvalidMessagePort(_, port_id)) => {
@@ -221,7 +221,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
                     }
                     BlockMessage::Callback { port_id, data, tx } => {
                         match kernel
-                            .call_handler(&mut work_io, mio, meta, port_id.clone(), data)
+                            .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
                             .await
                         {
                             Err(e @ Error::HandlerError(..)) => {
@@ -252,9 +252,9 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
             if work_io.finished {
                 debug!("{} terminating ", instance_name);
                 kernel.stream_ports_notify_finished().await;
-                mio.notify_finished().await;
+                mo.notify_finished().await;
 
-                match kernel.deinit(mio, meta).await {
+                match kernel.deinit(mo, meta).await {
                     Ok(_) => {
                         break;
                     }
@@ -288,7 +288,7 @@ impl<K: KernelInterface + Kernel + 'static> WrappedKernel<K> {
 
             // ================== work
             work_io.call_again = false;
-            if let Err(e) = kernel.work(&mut work_io, mio, meta).await {
+            if let Err(e) = kernel.work(&mut work_io, mo, meta).await {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(Error::RuntimeError(e.to_string()));
             }
@@ -336,7 +336,7 @@ impl<K: KernelInterface + Kernel + 'static> Block for WrappedKernel<K> {
         dst_box: BlockInbox,
         dst_port: &PortId,
     ) -> Result<(), Error> {
-        self.mio.connect(src_port, dst_box, dst_port)
+        self.mo.connect(src_port, dst_box, dst_port)
     }
 
     // ##### META

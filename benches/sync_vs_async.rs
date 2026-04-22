@@ -22,7 +22,7 @@ impl AsyncTest {
     fn sync_work(
         &mut self,
         _io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let i_len = self.input.slice().len();
@@ -39,10 +39,10 @@ impl Kernel for AsyncTest {
     fn work(
         &mut self,
         io: &mut WorkIo,
-        m: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         b: &mut BlockMeta,
     ) -> impl std::future::Future<Output = Result<()>> {
-        std::future::ready(black_box(self.sync_work(io, m, b)))
+        std::future::ready(black_box(self.sync_work(io, mo, b)))
     }
 }
 
@@ -69,8 +69,8 @@ pub fn sync_vs_async(c: &mut Criterion) {
         b.iter(move || {
             async_io::block_on(async {
                 for _ in 0..N {
-                    let (kernel, mio, meta) = mocker.parts_mut();
-                    let _ = black_box(kernel.sync_work(&mut io, mio, meta));
+                    let (kernel, mo, meta) = mocker.parts_mut();
+                    let _ = black_box(kernel.sync_work(&mut io, mo, meta));
                 }
             })
         });
@@ -93,8 +93,8 @@ pub fn sync_vs_async(c: &mut Criterion) {
         b.iter(move || {
             async_io::block_on(async {
                 for _ in 0..N {
-                    let (kernel, mio, meta) = mocker.parts_mut();
-                    let _ = black_box(kernel.work(&mut io, mio, meta).await);
+                    let (kernel, mo, meta) = mocker.parts_mut();
+                    let _ = black_box(kernel.work(&mut io, mo, meta).await);
                 }
             })
         });

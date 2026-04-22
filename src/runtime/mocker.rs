@@ -63,9 +63,9 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         &mut crate::runtime::BlockMeta,
     ) {
         let WrappedKernel {
-            kernel, mio, meta, ..
+            kernel, mo, meta, ..
         } = &mut self.block;
-        (kernel, mio, meta)
+        (kernel, mo, meta)
     }
 
     /// Get block metadata.
@@ -90,7 +90,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             let (tx, rx) = channel(msg_len);
             message_sinks.push(rx);
             block
-                .mio
+                .mo
                 .connect(
                     &PortId::new(*n),
                     BlockInbox::new(tx, BlockNotifier::new()),
@@ -116,9 +116,9 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         };
 
         let WrappedKernel {
-            meta, mio, kernel, ..
+            meta, mo, kernel, ..
         } = &mut self.block;
-        async_io::block_on(kernel.call_handler(&mut io, mio, meta, id, p))
+        async_io::block_on(kernel.call_handler(&mut io, mo, meta, id, p))
             .map_err(|e| Error::HandlerError(e.to_string()))
     }
 
@@ -132,7 +132,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         crate::async_io::block_on(async {
             self.block
                 .kernel
-                .init(&mut self.block.mio, &mut self.block.meta)
+                .init(&mut self.block.mo, &mut self.block.meta)
                 .await
                 .unwrap();
         });
@@ -143,7 +143,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         crate::async_io::block_on(async {
             self.block
                 .kernel
-                .deinit(&mut self.block.mio, &mut self.block.meta)
+                .deinit(&mut self.block.mo, &mut self.block.meta)
                 .await
                 .unwrap();
         });
@@ -170,7 +170,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         loop {
             self.block
                 .kernel
-                .work(&mut io, &mut self.block.mio, &mut self.block.meta)
+                .work(&mut io, &mut self.block.mo, &mut self.block.meta)
                 .await
                 .unwrap();
 

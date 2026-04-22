@@ -1187,7 +1187,7 @@ where
     async fn poke(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -1198,7 +1198,7 @@ where
     async fn bandwidth(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1215,7 +1215,7 @@ where
     async fn center_freq(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1231,7 +1231,7 @@ where
     async fn payload_crc_result(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1257,7 +1257,7 @@ where
     async fn frame_info(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -1348,7 +1348,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let (out, mut out_tags) = self.output.slice_with_tags();

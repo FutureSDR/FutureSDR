@@ -57,7 +57,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let (i, tags) = self.input.slice_with_tags();

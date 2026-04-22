@@ -85,7 +85,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         // Check whether an error has occurred in the websocket task before this call to `work`.

@@ -84,7 +84,7 @@ impl Wgpu {
 
 #[doc(hidden)]
 impl Kernel for Wgpu {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         for _ in 0..self.n_output_buffers {
             let output_buffer = self.instance.device.create_buffer(&BufferDescriptor {
                 label: None,
@@ -139,7 +139,7 @@ impl Kernel for Wgpu {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         for m in self.output.buffers().into_iter() {

@@ -66,7 +66,7 @@ impl Kernel for PreambleDetector {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let samples = self.in_samples.slice();

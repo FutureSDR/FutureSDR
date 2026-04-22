@@ -41,7 +41,7 @@ impl WebsocketPmtSink {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -62,7 +62,7 @@ impl Kernel for WebsocketPmtSink {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(ref mut conn) = self.conn {
@@ -178,7 +178,7 @@ impl Kernel for WebsocketPmtSink {
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(Arc::new(Async::<TcpListener>::bind(
             format!("0.0.0.0:{}", self.port).parse::<SocketAddr>()?,
         )?));

@@ -66,7 +66,7 @@ impl Kernel for Dummy {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         io.finished = true;
@@ -88,7 +88,7 @@ impl Handler {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {

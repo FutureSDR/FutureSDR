@@ -31,7 +31,7 @@ impl Decoder {
         crc
     }
 
-    async fn decode(frame: &Frame, mio: &mut MessageOutputs) -> Option<Vec<u8>> {
+    async fn decode(frame: &Frame, mo: &mut MessageOutputs) -> Option<Vec<u8>> {
         let mut dewhitened: Vec<u8> = vec![];
         let start = if frame.implicit_header { 0 } else { 5 };
         let end = if frame.has_crc {
@@ -70,7 +70,7 @@ impl Decoder {
                 let crc_valid: bool =
                     ((dewhitened[l - 2] as u16) + ((dewhitened[l - 1] as u16) << 8)) as i32
                         == crc as i32;
-                mio.post("crc_check", Pmt::Bool(crc_valid)).await.unwrap();
+                mo.post("crc_check", Pmt::Bool(crc_valid)).await.unwrap();
                 if !crc_valid {
                     info!("crc check failed");
                     false
@@ -101,7 +101,7 @@ impl Decoder {
             rftap[25] = 0; // net_id_caching
             rftap[26] = 0x12; // sync word
             rftap[27..].copy_from_slice(&dewhitened);
-            mio.post("rftap", Pmt::Blob(rftap.clone())).await.unwrap();
+            mo.post("rftap", Pmt::Blob(rftap.clone())).await.unwrap();
 
             // let data = String::from_utf8_lossy(&dewhitened[..dewhitened.len() - 2]);
             // info!("received frame: {}", data);
@@ -116,14 +116,14 @@ impl Decoder {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         pmt: Pmt,
     ) -> Result<Pmt> {
         let ret = match pmt {
             Pmt::Any(a) => {
                 if let Some(frame) = a.downcast_ref::<Frame>() {
-                    if let Some(dewhitened) = Self::decode(frame, mio).await {
+                    if let Some(dewhitened) = Self::decode(frame, mo).await {
                         let mut annotated_payload: HashMap<String, Pmt> =
                             HashMap::<String, Pmt>::from([(
                                 String::from("payload"),
@@ -139,8 +139,8 @@ impl Decoder {
                             String::from("implicit_header"),
                             Pmt::Bool(frame.implicit_header),
                         );
-                        mio.post("out", Pmt::Blob(dewhitened)).await?;
-                        mio.post("out_annotated", Pmt::MapStrPmt(annotated_payload))
+                        mo.post("out", Pmt::Blob(dewhitened)).await?;
+                        mo.post("out_annotated", Pmt::MapStrPmt(annotated_payload))
                             .await?;
                     }
                     Pmt::Ok

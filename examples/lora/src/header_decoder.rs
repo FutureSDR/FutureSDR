@@ -56,7 +56,7 @@ where
     }
 
     async fn publish_frame_info(
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         cr: usize,
         pay_len: usize,
         crc: bool,
@@ -70,7 +70,7 @@ where
         header_content.insert("crc".to_string(), Pmt::Bool(crc));
         header_content.insert("ldro_enabled".to_string(), Pmt::Bool(ldro_enabled));
         header_content.insert("err".to_string(), Pmt::Bool(err));
-        mio.post("frame_info", Pmt::MapStrPmt(header_content.clone()))
+        mo.post("frame_info", Pmt::MapStrPmt(header_content.clone()))
             .await?;
         Ok(())
     }
@@ -83,7 +83,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let (input, in_tags) = self.input.slice_with_tags();
@@ -144,7 +144,7 @@ where
             || (is_header && input.len() < 5 && matches!(self.mode, HeaderMode::Explicit))
         {
             if self.input.finished() {
-                mio.post("out", Pmt::Finished).await?;
+                mo.post("out", Pmt::Finished).await?;
                 io.finished = true;
             }
             return Ok(());
@@ -169,7 +169,7 @@ where
                 };
 
                 Self::publish_frame_info(
-                    mio,
+                    mo,
                     code_rate.into(),
                     payload_len,
                     has_crc,
@@ -242,7 +242,7 @@ where
                 }
 
                 Self::publish_frame_info(
-                    mio,
+                    mo,
                     code_rate_raw as usize,
                     payload_len,
                     has_crc,
@@ -279,7 +279,7 @@ where
             self.left -= nitem_to_consume;
 
             if self.left == 0 {
-                mio.post("out", Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
+                mo.post("out", Pmt::Any(Box::new(std::mem::take(&mut self.frame))))
                     .await?;
             }
             io.call_again = true;
@@ -287,7 +287,7 @@ where
         }
 
         if self.input.finished() && nitem_to_consume == n_input {
-            mio.post("out", Pmt::Finished).await?;
+            mo.post("out", Pmt::Finished).await?;
             io.finished = true;
         }
 

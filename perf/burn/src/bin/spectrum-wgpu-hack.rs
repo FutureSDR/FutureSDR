@@ -570,14 +570,14 @@ fn reduce_power_mean_shift_log(
 }
 
 impl Kernel for Fft {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         Ok(())
     }
 
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if self.emit_pending(false)? {

@@ -44,7 +44,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if self.socket.is_none() {
@@ -87,7 +87,7 @@ where
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.listener = Some(TcpListener::bind(self.bind.clone()).await?);
         Ok(())
     }

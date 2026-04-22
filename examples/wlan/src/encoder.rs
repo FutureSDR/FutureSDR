@@ -172,7 +172,7 @@ where
     async fn tx(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -235,7 +235,7 @@ where
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

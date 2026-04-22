@@ -122,7 +122,7 @@ impl HackRf {
     async fn freq(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -143,7 +143,7 @@ impl HackRf {
     async fn lna(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -164,7 +164,7 @@ impl HackRf {
     async fn vga(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -185,7 +185,7 @@ impl HackRf {
     async fn amp(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -203,7 +203,7 @@ impl HackRf {
     async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -450,7 +450,7 @@ impl HackRf {
 
 #[doc(hidden)]
 impl Kernel for HackRf {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let usb = {
             if let Some(window) = web_sys::window() {
                 let navigator: web_sys::Navigator = window.navigator();
@@ -518,7 +518,7 @@ impl Kernel for HackRf {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();

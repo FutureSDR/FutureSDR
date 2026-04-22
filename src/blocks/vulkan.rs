@@ -76,7 +76,7 @@ impl<T> Kernel for Vulkan<T>
 where
     T: BufferContents + CpuSample,
 {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let stage = PipelineShaderStageCreateInfo::new(self.entry_point.clone());
         let layout = PipelineLayout::new(
             self.broker.device(),
@@ -99,7 +99,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let pipeline = self.pipeline.as_ref().context("no pipeline")?.clone();

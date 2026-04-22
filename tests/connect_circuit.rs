@@ -35,7 +35,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.output.get_empty_buffer() {
@@ -95,7 +95,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.input.get_full_buffer() {
@@ -151,7 +151,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.input.get_full_buffer() {

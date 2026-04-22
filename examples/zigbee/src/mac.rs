@@ -87,7 +87,7 @@ where
     async fn rx(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -101,7 +101,7 @@ where
                     rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
                     rftap[8..12].copy_from_slice(&195u32.to_le_bytes());
                     rftap[12..].copy_from_slice(&data);
-                    mio.post("rftap", Pmt::Blob(rftap)).await?;
+                    mo.post("rftap", Pmt::Blob(rftap)).await?;
 
                     self.n_received += 1;
                     let s = String::from_iter(
@@ -117,7 +117,7 @@ where
                             }),
                     );
                     debug!("{}", s);
-                    mio.post("rxed", Pmt::Blob(data)).await?;
+                    mo.post("rxed", Pmt::Blob(data)).await?;
                 } else {
                     debug!("received frame, crc wrong");
                 }
@@ -135,7 +135,7 @@ where
     async fn tx(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -169,7 +169,7 @@ where
     async fn stats(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
@@ -193,7 +193,7 @@ where
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         loop {

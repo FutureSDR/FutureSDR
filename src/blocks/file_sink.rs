@@ -54,7 +54,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
@@ -79,7 +79,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         let file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -90,7 +90,7 @@ impl<T: Send + 'static, I: CpuBufferReader<Item = T>> Kernel for FileSink<T, I> 
         Ok(())
     }
 
-    async fn deinit(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.file.as_mut().unwrap().sync_all().await?;
         Ok(())
     }

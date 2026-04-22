@@ -35,13 +35,13 @@ where
     async fn msg_handler(
         &mut self,
         _io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let r = (self.callback)(p)?;
         if let Some(r) = r {
-            mio.post("out", r).await?;
+            mo.post("out", r).await?;
         }
         Ok(Pmt::Ok)
     }

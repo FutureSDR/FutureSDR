@@ -193,7 +193,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let (mut input, in_tags) = self.input.slice_with_tags();
@@ -353,7 +353,7 @@ where
                         n_sym -= 1;
                         if n_sym == 0 {
                             if !self.syms.is_empty() {
-                                mio.post("symbols", Pmt::VecCF32(std::mem::take(&mut self.syms)))
+                                mo.post("symbols", Pmt::VecCF32(std::mem::take(&mut self.syms)))
                                     .await?;
                             }
                             self.state = State::Skip;

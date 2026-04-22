@@ -23,7 +23,7 @@ impl Kernel for Add {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
@@ -61,7 +61,7 @@ impl Kernel for AddChunk {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
@@ -110,7 +110,7 @@ mod avx2 {
         async fn work(
             &mut self,
             io: &mut WorkIo,
-            _m: &mut MessageOutputs,
+            _mo: &mut MessageOutputs,
             _b: &mut BlockMeta,
         ) -> Result<()> {
             let i = self.input.slice();

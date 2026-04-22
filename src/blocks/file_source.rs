@@ -53,7 +53,7 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let out = self.output.slice();
@@ -88,7 +88,7 @@ impl<T: Send + 'static, O: CpuBufferWriter<Item = T>> Kernel for FileSource<T, O
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.file = Some(async_fs::File::open(self.file_path.clone()).await.unwrap());
         Ok(())
     }

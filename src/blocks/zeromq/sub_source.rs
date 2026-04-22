@@ -37,7 +37,7 @@ where
     async fn work(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();
@@ -54,7 +54,7 @@ where
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         debug!("SubSource Init");
 
         let context = zmq::Context::new();

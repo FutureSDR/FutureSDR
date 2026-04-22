@@ -78,7 +78,7 @@ where
     async fn cmd(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -90,7 +90,7 @@ where
     async fn freq(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -109,7 +109,7 @@ where
     async fn gain(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -128,7 +128,7 @@ where
     async fn sample_rate(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -147,7 +147,7 @@ where
     async fn config(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         channel: Pmt,
     ) -> Result<Pmt> {
@@ -174,7 +174,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let tags = self.inputs[0].slice_with_tags().1.clone();
@@ -249,13 +249,13 @@ where
             let termination_delay = consumed as f32 / smallest_sample_rate;
             async_io::Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
             // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup
-            mio.post("terminate_out", Pmt::Ok).await?;
+            mo.post("terminate_out", Pmt::Ok).await?;
         }
 
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.max_input_buffer_size_in_samples = self
             .inputs
             .iter_mut()
@@ -271,7 +271,7 @@ where
         Ok(())
     }
 
-    async fn deinit(&mut self, _mio: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.streamer
             .as_mut()
             .ok_or(Error::RuntimeError("Seify: no streamer".to_string()))?

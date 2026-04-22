@@ -105,7 +105,7 @@ impl Decoder {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -131,7 +131,7 @@ impl Decoder {
                     if crc_passed || self.forward_failed_crc {
                         match self.decode_packet(pkt, crc_passed, SystemTime::now()) {
                             Ok(decoded_packet) => {
-                                mio.post("out", Pmt::Any(Box::new(decoded_packet))).await?
+                                mo.post("out", Pmt::Any(Box::new(decoded_packet))).await?
                             }
                             _ => info!("Could not decode packet despite valid CRC"),
                         }

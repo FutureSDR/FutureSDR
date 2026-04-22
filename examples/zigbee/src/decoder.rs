@@ -82,7 +82,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let inbuf = self.input.slice().to_vec();
@@ -158,7 +158,7 @@ where
                                 *byte = None;
                                 if data.len() == *len {
                                     // info!("decoded frame");
-                                    mio.post("out", Pmt::Blob(std::mem::take(data))).await?;
+                                    mo.post("out", Pmt::Blob(std::mem::take(data))).await?;
                                     self.state = State::Search;
                                 }
                             } else {

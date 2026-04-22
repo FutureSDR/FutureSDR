@@ -64,7 +64,7 @@ where
     I: CpuSample,
     O: CpuSample,
 {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let len = self.dma_buffs.len();
         assert!(len > 1);
 
@@ -89,7 +89,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         self.output_buffers.extend(self.output.buffers());

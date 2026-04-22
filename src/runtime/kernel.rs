@@ -20,7 +20,7 @@ pub trait Kernel: MaybeSend {
     fn work(
         &mut self,
         _io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + MaybeSend {
         async { Ok(()) }
@@ -28,7 +28,7 @@ pub trait Kernel: MaybeSend {
     /// Initialize kernel
     fn init(
         &mut self,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + MaybeSend {
         async { Ok(()) }
@@ -36,7 +36,7 @@ pub trait Kernel: MaybeSend {
     /// De-initialize kernel
     fn deinit(
         &mut self,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> impl Future<Output = Result<()>> + MaybeSend {
         async { Ok(()) }
@@ -80,7 +80,7 @@ pub trait KernelInterface {
     fn call_handler(
         &mut self,
         _io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         id: PortId,
         _p: Pmt,

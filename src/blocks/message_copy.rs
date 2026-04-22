@@ -20,7 +20,7 @@ impl MessageCopy {
     async fn r#in(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
@@ -29,7 +29,7 @@ impl MessageCopy {
                 io.finished = true;
             }
             p => {
-                mio.post("out", p).await?;
+                mo.post("out", p).await?;
             }
         }
         Ok(Pmt::Ok)

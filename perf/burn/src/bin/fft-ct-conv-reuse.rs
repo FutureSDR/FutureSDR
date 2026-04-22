@@ -102,7 +102,7 @@ impl Kernel for Fft {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         if self.output.has_more_buffers()

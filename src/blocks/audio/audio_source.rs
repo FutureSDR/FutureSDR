@@ -81,7 +81,7 @@ impl<O> Kernel for AudioSource<O>
 where
     O: CpuBufferWriter<Item = f32>,
 {
-    async fn init(&mut self, _m: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         let device = cpal::default_host()
             .default_input_device()
             .expect("no input device available");
@@ -124,7 +124,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         if let Some((buff, mut full)) = self.buff.take() {

@@ -53,7 +53,7 @@ enum BurstPadState {
 ///     async fn work(
 ///         &mut self,
 ///         io: &mut WorkIo,
-///         _m: &mut MessageOutputs,
+///         _mo: &mut MessageOutputs,
 ///         _b: &mut BlockMeta,
 ///     ) -> Result<()> {
 ///         let (out, mut out_tags) = self.output.slice_with_tags();
@@ -139,7 +139,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _m: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let mut consumed = 0;

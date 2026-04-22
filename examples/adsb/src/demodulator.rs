@@ -49,7 +49,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let (samples, tags) = self.input.slice_with_tags();
@@ -95,7 +95,7 @@ where
                     _ => None,
                 };
                 if let Some(r) = result {
-                    mio.post("out", Pmt::Any(Box::new(r))).await?;
+                    mo.post("out", Pmt::Any(Box::new(r))).await?;
                 }
             }
         }

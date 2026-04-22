@@ -63,7 +63,7 @@ async fn work(
     &mut self,
     io: &mut WorkIo,
     streams: &mut FilterStreams<I, O>,
-    mio: &mut MessageOutputs,
+    mo: &mut MessageOutputs,
     meta: &mut BlockMeta,
 ) -> Result<()>;
 ```

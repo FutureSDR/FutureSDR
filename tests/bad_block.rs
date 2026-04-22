@@ -46,7 +46,7 @@ impl<T: CpuSample> Kernel for BadBlock<T> {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mio: &mut MessageOutputs,
+        _mo: &mut MessageOutputs,
         meta: &mut BlockMeta,
     ) -> Result<()> {
         match self.work_fail {

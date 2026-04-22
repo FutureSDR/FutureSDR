@@ -40,13 +40,13 @@ impl Kernel for MessageSource {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
 
         if now >= self.t_last + self.interval {
-            mio.post("out", self.message.clone()).await?;
+            mo.post("out", self.message.clone()).await?;
             self.t_last = now;
             if let Some(ref mut n) = self.n_messages {
                 *n -= 1;
@@ -63,7 +63,7 @@ impl Kernel for MessageSource {
         Ok(())
     }
 
-    async fn init(&mut self, _mio: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())
     }

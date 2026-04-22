@@ -1002,7 +1002,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             .zip(message_input_names.clone())
             .map(|(handler, handler_name)| {
                 quote! {
-                    #handler_name  => self.#handler(io, mio, meta, p).await,
+                    #handler_name  => self.#handler(io, mo, meta, p).await,
                 }
             });
 
@@ -1093,7 +1093,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             async fn call_handler(
                 &mut self,
                 io: &mut ::futuresdr::runtime::WorkIo,
-                mio: &mut ::futuresdr::runtime::MessageOutputs,
+                mo: &mut ::futuresdr::runtime::MessageOutputs,
                 meta: &mut ::futuresdr::runtime::BlockMeta,
                 id: ::futuresdr::runtime::PortId,
                 p: ::futuresdr::runtime::Pmt) ->

@@ -131,7 +131,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
         let (mut input, in_tags) = self.input.slice_with_tags();
@@ -201,8 +201,8 @@ where
                     rftap[6..8].copy_from_slice(&1u16.to_le_bytes());
                     rftap[8..12].copy_from_slice(&105u32.to_le_bytes());
                     rftap[12..].copy_from_slice(&blob);
-                    mio.post("rx_frames", Pmt::Blob(blob)).await?;
-                    mio.post("rftap", Pmt::Blob(rftap)).await?;
+                    mo.post("rx_frames", Pmt::Blob(blob)).await?;
+                    mo.post("rftap", Pmt::Blob(rftap)).await?;
                 }
 
                 broke_early = true;
@@ -215,7 +215,7 @@ where
             io.call_again = true;
         }
         if self.input.finished() && i == max_i {
-            mio.post("rx_frames", Pmt::Finished).await?;
+            mo.post("rx_frames", Pmt::Finished).await?;
             io.finished = true;
         }
 

@@ -28,11 +28,11 @@ impl Kernel for MessageBurst {
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        mio: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         for _ in 0..self.n_messages {
-            mio.post("out", self.message.clone()).await?;
+            mo.post("out", self.message.clone()).await?;
         }
 
         io.finished = true;
