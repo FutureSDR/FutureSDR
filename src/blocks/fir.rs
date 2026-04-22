@@ -99,13 +99,10 @@ where
 /// Uses `futuredsp` to pick the optimal FIR implementation for the given
 /// constraints.
 ///
-/// Note that there must be an implementation of [futuredsp::TapsAccessor] for
-/// the taps object you pass in, see docs for details.
+/// Note that the taps object must implement [`futuredsp::Taps`].
 ///
-/// Additionally, there must be an available core (implementation of
-/// [futuredsp::UnaryKernel]) available for the specified `SampleType` and
-/// `TapsType`. See the [futuredsp docs](futuredsp::fir) for available
-/// implementations.
+/// Additionally, there must be an available FIR implementation in `futuredsp`
+/// for the specified `SampleType` and `TapsType`.
 ///
 /// # Inputs
 ///

@@ -11,7 +11,7 @@ use futuresdr::runtime::FlowgraphMessage;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 
-/// Handle to interact with running [`Flowgraph`]
+/// Handle to interact with a running [`crate::runtime::Flowgraph`]
 #[derive(Debug, Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
@@ -94,9 +94,9 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
-    /// Send a terminate message to the [`Flowgraph`]
+    /// Send a terminate message to the [`crate::runtime::Flowgraph`]
     ///
-    /// Does not wait until the [`Flowgraph`] is actually terminated.
+    /// Does not wait until the [`crate::runtime::Flowgraph`] is actually terminated.
     pub async fn terminate(&mut self) -> Result<(), Error> {
         self.inbox
             .send(FlowgraphMessage::Terminate)
@@ -105,9 +105,9 @@ impl FlowgraphHandle {
         Ok(())
     }
 
-    /// Terminate the [`Flowgraph`]
+    /// Terminate the [`crate::runtime::Flowgraph`]
     ///
-    /// Send a terminate message to the [`Flowgraph`] and wait until it is shutdown.
+    /// Send a terminate message to the [`crate::runtime::Flowgraph`] and wait until it is shutdown.
     pub async fn terminate_and_wait(&mut self) -> Result<(), Error> {
         self.terminate()
             .await

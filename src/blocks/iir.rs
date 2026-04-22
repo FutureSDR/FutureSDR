@@ -53,14 +53,11 @@ where
     /// Uses the `futuredsp` to pick the optimal IIR implementation for the given
     /// constraints.
     ///
-    /// Note that there must be an implementation of [futuredsp::TapsAccessor] for
-    /// the taps objects you pass in, see docs for details. Both the a_taps and the
-    /// b_taps objects must be the same type.
+    /// Note that the taps objects must implement [`futuredsp::Taps`]. Both
+    /// `a_taps` and `b_taps` must be the same type.
     ///
-    /// Additionally, there must be an available core (implementation of
-    /// [futuredsp::StatefulUnaryKernel]) available for the specified `SampleType`
-    /// and `TapsType`. See the [futuredsp docs](futuredsp::iir) for available
-    /// implementations.
+    /// Additionally, there must be an available stateful IIR implementation in
+    /// `futuredsp` for the specified `SampleType` and `TapsType`.
     ///
     /// # Inputs
     ///

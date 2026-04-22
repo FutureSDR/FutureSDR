@@ -459,7 +459,8 @@ pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
     /// defines the tradeoff between throughput and latency.
     ///
-    /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
+    /// By default, it will be set to the value defined in
+    /// [`crate::runtime::config::Config`].
     fn set_min_buffer_size_in_items(&mut self, n: usize);
     /// Maximum number of items that fit in the buffer
     fn max_items(&self) -> usize;
@@ -488,7 +489,8 @@ pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
     /// defines the tradeoff between throughput and latency.
     ///
-    /// By default, it will be set to the value defined in the [config](futuresdr::config::Config).
+    /// By default, it will be set to the value defined in
+    /// [`crate::runtime::config::Config`].
     fn set_min_buffer_size_in_items(&mut self, n: usize);
     /// Maximum number of items that fit in the buffer
     fn max_items(&self) -> usize;

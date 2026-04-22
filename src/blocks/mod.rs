@@ -15,24 +15,24 @@
 //! ## Streams
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [StreamDeinterleaver](StreamDeinterleaver) | Stream Deinterleave | ✅ |
-//! | [StreamDuplicator](StreamDuplicator) | Stream Duplicator | ✅ |
+//! | [StreamDeinterleaver] | Stream Deinterleave | ✅ |
+//! | [StreamDuplicator] | Stream Duplicator | ✅ |
 //!
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Fft](Fft) | Compute an FFT. | ✅ |
+//! | [Fft] | Compute an FFT. | ✅ |
 //! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
-//! | [Iir](Iir) | IIR filter. | ✅ |
-//! | [PfbArbResampler](PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
-//! | [PfbChannelizer](PfbChannelizer) | Polyphase Channelizer | ✅ |
-//! | [PfbSynthesizer](PfbSynthesizer) | Polyphase Synthesizer | ✅ |
-//! | [XlatingFir](XlatingFirBuilder) | Xlating FIR filter and decimator. | ✅ |
+//! | [Iir] | IIR filter. | ✅ |
+//! | [PfbArbResampler] | Polyphase Arbitrary Rate Resampler | ✅ |
+//! | [PfbChannelizer] | Polyphase Channelizer | ✅ |
+//! | [PfbSynthesizer] | Polyphase Synthesizer | ✅ |
+//! | [XlatingFir] | Xlating FIR filter and decimator. | ✅ |
 //!
 //! ## Misc
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [ConsoleSink] | Log stream data with [log::info!]. | ✅ |
+//! | [ConsoleSink] | Log stream data with `info!`. | ✅ |
 //! | [Delay] | Delays samples. | ✅ |
 //! | [Head] | Copies only a given number of samples and stops. | ✅ |
 //! ! [MovingAvg] | Applies an exponential moving average over a window samples. | ✅ |
@@ -79,8 +79,8 @@
 //! ## SDR Hardware
 //! | Block | Usage | Feature | WebAssembly? |
 //! |---|---|---|---|
-//! | [SeifySink](seify::SinkBuilder) | Transmit samples with a Seify device. | seify | ❌ |
-//! | [SeifySource](seify::SourceBuilder) | Receive samples from a Seify device. | seify | ❌ |
+//! | [seify::Sink] | Transmit samples with a Seify device. | seify | ❌ |
+//! | [seify::Source] | Receive samples from a Seify device. | seify | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |

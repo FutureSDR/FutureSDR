@@ -13,7 +13,7 @@ use crate::Taps;
 ///
 /// Calling `filter()` on this struct always produces exactly as many samples as
 /// it consumes. Note that this kernel is stateful, and thus implements the
-/// [StatefulUnaryKernel] trait.
+/// [`StatefulFilter`] trait.
 ///
 /// Implementations of this core currently exist only for `f32` samples with
 /// `f32` taps.

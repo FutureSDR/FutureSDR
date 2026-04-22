@@ -25,7 +25,7 @@ use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::config;
 
 #[async_trait]
-/// Block interface, implemented for [WrappedKernel]s
+/// Block interface, implemented for wrapped kernel instances.
 pub trait Block: MaybeSend + Any {
     /// required for downcasting
     fn as_any(&self) -> &dyn Any;
@@ -66,7 +66,7 @@ pub trait Block: MaybeSend + Any {
     fn instance_name(&self) -> Option<&str>;
     /// Set instance name (see [`BlockMeta::set_instance_name`])
     fn set_instance_name(&mut self, name: &str);
-    /// Get type name (see [`BlockMeta::type_name`])
+    /// Get the static type name of the block.
     fn type_name(&self) -> &str;
     /// Check whether this block is blocking.
     ///

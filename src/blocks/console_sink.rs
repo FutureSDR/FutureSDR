@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::fmt::Debug;
 
-/// Log stream data with [log::info!].
+/// Log stream data with `info!`.
 #[derive(Block)]
 pub struct ConsoleSink<T, I = DefaultCpuReader<T>>
 where

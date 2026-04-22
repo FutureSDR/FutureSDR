@@ -112,7 +112,7 @@ where
     I: CpuBufferReader<Item = T>,
     O: CpuBufferWriter<Item = T>,
 {
-    /// Create [`struct@futuresdr::blocks::CopyAndTag`] block
+    /// Create [`BurstPad`] block
     pub fn new(num_samples_head: usize, num_samples_tail: usize, value: T) -> Self {
         BurstPad::<T, I, O> {
             input: I::default(),

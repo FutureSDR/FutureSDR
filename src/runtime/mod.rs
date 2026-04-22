@@ -291,8 +291,8 @@ impl From<PmtConversionError> for Error {
     }
 }
 
-/// Description of the [`Block`] under which an [`InvalidMessagePort`] or
-/// [`InvalidStreamPort`] error occurred.
+/// Description of the [`Block`] under which an [`Error::InvalidMessagePort`] or
+/// [`Error::InvalidStreamPort`] error occurred.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockPortCtx {
     /// BlockId is not specified
