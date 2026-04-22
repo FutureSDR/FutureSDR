@@ -36,6 +36,21 @@ use crate::runtime::scheduler::Task;
 #[cfg(target_arch = "wasm32")]
 use crate::runtime::scheduler::WasmScheduler;
 
+#[cfg(not(target_arch = "wasm32"))]
+trait SpawnBound: Scheduler + Sync + 'static {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Scheduler + Sync + 'static> SpawnBound for T {}
+
+#[cfg(target_arch = "wasm32")]
+trait SpawnBound: Scheduler + 'static {}
+#[cfg(target_arch = "wasm32")]
+impl<T: Scheduler + 'static> SpawnBound for T {}
+
+#[cfg(not(target_arch = "wasm32"))]
+type DynSpawn = dyn Spawn + Send + Sync + 'static;
+#[cfg(target_arch = "wasm32")]
+type DynSpawn = dyn Spawn + 'static;
+
 pub struct TaskHandle<'a, T> {
     task: Option<Task<T>>,
     _p: std::marker::PhantomData<&'a ()>,
@@ -62,11 +77,13 @@ impl<T> TaskHandle<'_, T> {
 
 impl<T> std::future::Future for TaskHandle<'_, T> {
     type Output = T;
+
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let task = self
             .task
             .as_mut()
             .expect("TaskHandle polled after completion");
+
         match task.poll_unpin(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(output) => {
@@ -97,16 +114,15 @@ impl Runtime<'_, SmolScheduler> {
 
     /// Set custom routes for the integrated webserver
     pub fn with_custom_routes(routes: Router) -> Self {
-        info!("before init in runtime");
         runtime::init();
-        info!("after init in runtime");
+
         let scheduler = SmolScheduler::default();
         let flowgraphs = Arc::new(Mutex::new(Vec::new()));
         let handle = RuntimeHandle {
             flowgraphs: flowgraphs.clone(),
             scheduler: Arc::new(scheduler.clone()),
         };
-        info!("runtime constructed");
+
         Runtime {
             scheduler,
             flowgraphs,
@@ -134,6 +150,7 @@ impl Runtime<'_, WasmScheduler> {
     /// Create Runtime
     pub fn new() -> Self {
         runtime::init();
+
         let flowgraphs = Arc::new(Mutex::new(Vec::new()));
         Runtime {
             scheduler: WasmScheduler,
@@ -151,31 +168,7 @@ impl Default for Runtime<'_, WasmScheduler> {
     }
 }
 
-impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
-    /// Create a [Runtime] with a given [Scheduler]
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn with_scheduler(scheduler: S) -> Self {
-        Self::with_config(scheduler, Router::new())
-    }
-
-    /// Create runtime with given scheduler and custom routes for the integrated webserver
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn with_config(scheduler: S, routes: Router) -> Self {
-        runtime::init();
-
-        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
-        let handle = RuntimeHandle {
-            flowgraphs: flowgraphs.clone(),
-            scheduler: Arc::new(scheduler.clone()),
-        };
-        Runtime {
-            scheduler,
-            flowgraphs,
-            _control_port: ControlPort::new(handle, routes),
-            _p: std::marker::PhantomData,
-        }
-    }
-
+impl<'a, S: Scheduler> Runtime<'a, S> {
     /// Spawn an async task on the runtime
     pub fn spawn<T: MaybeSend + 'static>(
         &self,
@@ -242,13 +235,16 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
             fg_inbox_rx,
             tx,
         ));
+
         rx.await
             .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
+
         let handle = FlowgraphHandle::new(fg_inbox);
         self.flowgraphs
             .try_lock()
             .ok_or(Error::LockError)?
             .push(handle.clone());
+
         Ok((TaskHandle::new(task), handle))
     }
 
@@ -280,8 +276,58 @@ impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
     pub fn scheduler(&self) -> S {
         self.scheduler.clone()
     }
+}
 
-    /// Get the [`RuntimeHandle`]
+#[cfg(not(target_arch = "wasm32"))]
+impl<'a, S: Scheduler + Sync> Runtime<'a, S> {
+    /// Create a [Runtime] with a given [Scheduler]
+    pub fn with_scheduler(scheduler: S) -> Self {
+        Self::with_config(scheduler, Router::new())
+    }
+
+    /// Create runtime with given scheduler and custom routes for the integrated webserver
+    pub fn with_config(scheduler: S, routes: Router) -> Self {
+        runtime::init();
+
+        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        let handle = RuntimeHandle {
+            flowgraphs: flowgraphs.clone(),
+            scheduler: Arc::new(scheduler.clone()),
+        };
+
+        Runtime {
+            scheduler,
+            flowgraphs,
+            _control_port: ControlPort::new(handle, routes),
+            _p: std::marker::PhantomData,
+        }
+    }
+
+    /// Create [RuntimeHandle]
+    pub fn handle(&self) -> RuntimeHandle {
+        RuntimeHandle {
+            flowgraphs: self.flowgraphs.clone(),
+            scheduler: Arc::new(self.scheduler.clone()),
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, S: Scheduler> Runtime<'a, S> {
+    /// Create a [Runtime] with a given [Scheduler]
+    pub fn with_scheduler(scheduler: S) -> Self {
+        runtime::init();
+
+        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        Runtime {
+            scheduler,
+            flowgraphs,
+            _control_port: ControlPort::new(),
+            _p: std::marker::PhantomData,
+        }
+    }
+
+    /// Create [RuntimeHandle]
     pub fn handle(&self) -> RuntimeHandle {
         RuntimeHandle {
             flowgraphs: self.flowgraphs.clone(),
@@ -296,13 +342,8 @@ trait Spawn {
 }
 
 #[async_trait]
-impl<S: Scheduler + Sync + 'static> Spawn for S {
+impl<S: SpawnBound> Spawn for S {
     async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
-        use crate::channel::mpsc::channel;
-        use crate::runtime::FlowgraphMessage;
-        use crate::runtime::runtime::run_flowgraph;
-        use futures::channel::oneshot;
-
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -315,9 +356,11 @@ impl<S: Scheduler + Sync + 'static> Spawn for S {
             tx,
         ))
         .detach();
+
         rx.await.or(Err(Error::RuntimeError(
             "run_flowgraph crashed".to_string(),
         )))??;
+
         Ok(FlowgraphHandle::new(fg_inbox))
     }
 }
@@ -325,7 +368,7 @@ impl<S: Scheduler + Sync + 'static> Spawn for S {
 /// Runtime handle added as state to web handlers
 #[derive(Clone)]
 pub struct RuntimeHandle {
-    scheduler: Arc<dyn Spawn + Send + Sync + 'static>,
+    scheduler: Arc<DynSpawn>,
     flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
 }
 
@@ -347,7 +390,6 @@ impl RuntimeHandle {
     /// Start a [`Flowgraph`] on the runtime
     pub async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
         let handle = self.scheduler.start(fg).await?;
-
         self.add_flowgraph(handle.clone()).await;
         Ok(handle)
     }
@@ -413,6 +455,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             let m = main_rx.recv().await.ok_or_else(|| {
                 Error::RuntimeError("no reply from blocks during init phase".to_string())
             })?;
+
             match m {
                 FlowgraphMessage::Initialized => i -= 1,
                 FlowgraphMessage::BlockError { .. } => {
@@ -461,6 +504,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             let m = main_rx.recv().await.ok_or_else(|| {
                 Error::RuntimeError("all senders to flowgraph inbox dropped".to_string())
             })?;
+
             match m {
                 FlowgraphMessage::BlockCall {
                     block_id,
