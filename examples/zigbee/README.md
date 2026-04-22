@@ -1,5 +1,4 @@
-Zigbee Example
-========================
+# Zigbee Example
 
 ## Introduction
 
@@ -14,7 +13,7 @@ To transmit via SDR:
 
 ```sh
 cargo run --release --bin tx -- --gain {value} --channel {11..26}
-  ```
+```
 
 The SDR will transmit periodic messages. The terminal will display the current configuration and transmission status (in debug mode).
 
@@ -25,13 +24,13 @@ The receiver mode captures and demodulates Zigbee signals. It can process live s
 
 ```sh
 cargo run --release --bin rx -- --gain {value} --channel {11..26}
-  ```
+```
 
 * To decode from a file:
 
 ```sh
 cargo run --release --bin rx -- --file {file_name}.{file_type}
-  ```
+```
 
 Decoded frame information, including addresses and payloads, is printed to the terminal. Decoded data is also sent to a UDP sink (default port 55555) for analysis in Wireshark.
 
@@ -42,7 +41,7 @@ The transceiver mode runs the transmitter and receiver chains simultaneously wit
 
 ```sh
 cargo run --release --bin trx -- --rx-gain {value} --tx-gain {value} --tx-channel {11..26} --rx-channel {11..26}
-  ```
+```
 
 ## 4. WebAssembly Receiver
 The project includes a web-based receiver implemented with WebAssembly (WASM). This provides a graphical interface to monitor Zigbee traffic through a browser.
@@ -51,7 +50,7 @@ First, run this command:
 
 ```sh
 trunk serve
-  ```
+```
 
 Then, navigate to `http://127.0.0.1:8080/` in your web browser.
 
