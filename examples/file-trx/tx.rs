@@ -78,8 +78,8 @@ fn main() -> Result<()> {
     let snk = fg.add(snk)?;
 
     fg.connect_dyn(
-        src.dyn_stream_output("output")?,
-        snk.dyn_stream_input("inputs[0]")?,
+        src.stream_output("output"),
+        snk.stream_input("inputs[0]"),
     )?;
 
     Runtime::new().run(fg)?;

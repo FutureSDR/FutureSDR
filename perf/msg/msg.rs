@@ -39,7 +39,7 @@ fn main() -> Result<()> {
 
     for r in 0..repetitions {
         let mut fg = Flowgraph::new();
-        let mut snks: Vec<BlockId> = Vec::new();
+        let mut snks = Vec::new();
         let mut pipe_blocks: Vec<Vec<BlockId>> = Vec::new();
 
         for _ in 0..pipes {
@@ -55,8 +55,8 @@ fn main() -> Result<()> {
             for _ in 2..=stages {
                 let block = fg.add(MessageCopy::new())?;
                 fg.connect_message(
-                    prev.dyn_message_output("out")?,
-                    block.dyn_message_input("in")?,
+                    prev.message_output("out"),
+                    block.message_input("in"),
                 )?;
                 this_pipe.push(block.id());
                 prev = block;
@@ -64,12 +64,11 @@ fn main() -> Result<()> {
 
             let snk = fg.add(MessageSink::new())?;
             fg.connect_message(
-                prev.dyn_message_output("out")?,
-                snk.dyn_message_input("in")?,
+                prev.message_output("out"),
+                snk.message_input("in"),
             )?;
-            let snk_id: BlockId = snk.into();
-            this_pipe.push(snk_id);
-            snks.push(snk_id);
+            this_pipe.push(snk.id());
+            snks.push(snk);
             pipe_blocks.push(this_pipe);
         }
 
@@ -86,7 +85,7 @@ fn main() -> Result<()> {
         let elapsed = now.elapsed();
 
         for s in snks {
-            let snk = fg.get_typed_block_by_id::<MessageSink>(s)?;
+            let snk = s.get(&fg)?;
             assert_eq!(snk.received(), burst_size);
         }
 

@@ -95,13 +95,13 @@ fn main() -> Result<()> {
     ))?;
     if args.file.is_some() {
         fg.connect_dyn(
-            src.dyn_stream_output("output")?,
-            interp_block.dyn_stream_input("input")?,
+            src.stream_output("output"),
+            interp_block.stream_input("input"),
         )?;
     } else {
         fg.connect_dyn(
-            src.dyn_stream_output("outputs[0]")?,
-            interp_block.dyn_stream_input("input")?,
+            src.stream_output("outputs[0]"),
+            interp_block.stream_input("input"),
         )?;
     }
 

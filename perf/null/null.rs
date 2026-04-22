@@ -49,13 +49,13 @@ fn generate<B>(
     pipes: usize,
     stages: usize,
     samples: usize,
-) -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)>
+) -> Result<(Flowgraph, Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>, Vec<Vec<BlockId>>)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
 {
     let mut fg = Flowgraph::new();
-    let mut snks: Vec<BlockId> = Vec::new();
+    let mut snks = Vec::new();
     let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
 
     for _ in 0..pipes {
@@ -71,8 +71,8 @@ where
             .into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
-            head.dyn_stream_output("output")?,
-            last.dyn_stream_input("input")?,
+            head.stream_output("output"),
+            last.stream_input("input"),
         )?;
 
         for _ in 1..stages {
@@ -80,8 +80,8 @@ where
                 .add(Copy::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new())?
                 .into();
             fg.connect_dyn(
-                last.dyn_stream_output("output")?,
-                block.dyn_stream_input("input")?,
+                last.stream_output("output"),
+                block.stream_input("input"),
             )?;
             last = block;
             pipe_block_ids.push(last);
@@ -89,15 +89,43 @@ where
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
         fg.connect_dyn(
-            last.dyn_stream_output("output")?,
-            snk.dyn_stream_input("input")?,
+            last.stream_output("output"),
+            snk.stream_input("input"),
         )?;
-        let snk_id: BlockId = snk.into();
-        snks.push(snk_id);
-        pipe_block_ids.push(snk_id);
+        pipe_block_ids.push(snk.id());
+        snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
     }
     Ok((fg, snks, pipes_blocks))
+}
+
+fn run_flowgraph(
+    config: &str,
+    mut fg: Flowgraph,
+    pipe_blocks: Vec<Vec<BlockId>>,
+) -> Result<(Flowgraph, time::Duration)> {
+    let elapsed;
+
+    if config == "smol1" {
+        let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+        let now = time::Instant::now();
+        fg = runtime.run(fg)?;
+        elapsed = now.elapsed();
+    } else if config == "smoln" || config == "smoln-spsc" {
+        let runtime = Runtime::with_scheduler(SmolScheduler::default());
+        let now = time::Instant::now();
+        fg = runtime.run(fg)?;
+        elapsed = now.elapsed();
+    } else if config == "flow" || config == "slab" || config == "flow-spsc" {
+        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
+        let now = time::Instant::now();
+        fg = runtime.run(fg)?;
+        elapsed = now.elapsed();
+    } else {
+        panic!("unknown config");
+    }
+
+    Ok((fg, elapsed))
 }
 
 fn main() -> Result<()> {
@@ -112,48 +140,31 @@ fn main() -> Result<()> {
     futuresdr::runtime::config::set("buffer_size", 16384);
     let use_slab = config == "slab";
     let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
-    let (mut fg, snks, pipe_blocks) = if use_slab {
-        generate::<SlabBuffer>(pipes, stages, samples)?
-    } else if use_spsc {
-        generate::<SpscBuffer>(pipes, stages, samples)?
-    } else {
-        generate::<CircBuffer>(pipes, stages, samples)?
-    };
-
-    let elapsed;
-
-    if config == "smol1" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else if config == "smoln" || config == "smoln-spsc" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::default());
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else if config == "flow" || config == "slab" || config == "flow-spsc" {
-        assert_eq!(pipes, pipe_blocks.len());
-        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
-        let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
-    } else {
-        panic!("unknown config");
-    }
-
-    for s in snks {
-        if use_slab {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, slab::Reader<f32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else if use_spsc {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, spsc::Reader<f32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, circular::Reader<f32>>>(s)?;
+    let elapsed = if use_slab {
+        let (fg, snks, pipe_blocks) = generate::<SlabBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
             assert_eq!(snk.n_received(), samples);
         }
-    }
+        elapsed
+    } else if use_spsc {
+        let (fg, snks, pipe_blocks) = generate::<SpscBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    } else {
+        let (fg, snks, pipe_blocks) = generate::<CircBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    };
 
     println!(
         "{},{},{},{},{},{}",

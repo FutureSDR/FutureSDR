@@ -56,12 +56,12 @@ fn main() -> Result<()> {
     let snk = fg.add(VectorSink::<u32, D2HReader<u32>>::new(items))?;
 
     fg.connect_dyn(
-        src.dyn_stream_output("output")?,
-        zynq.dyn_stream_input("input")?,
+        src.stream_output("output"),
+        zynq.stream_input("input"),
     )?;
     fg.connect_dyn(
-        zynq.dyn_stream_output("output")?,
-        snk.dyn_stream_input("input")?,
+        zynq.stream_output("output"),
+        snk.stream_input("input"),
     )?;
 
     let now = Instant::now();

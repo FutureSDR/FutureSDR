@@ -149,7 +149,7 @@ fn flowgraph_instance_name() -> Result<()> {
     let src = NullSource::<f32>::new();
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
-    snk.set_instance_name(&mut fg, name)?;
+    snk.with_meta_mut(&mut fg, |meta| meta.set_instance_name(name))?;
     let (_th, mut fg) = rt.start_sync(fg)?;
 
     let desc = rt.block_on(async move { fg.description().await })?;

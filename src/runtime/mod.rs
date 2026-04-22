@@ -47,10 +47,9 @@ pub use block_inbox::BlockInbox;
 pub use block_inbox::BlockInboxReader;
 pub use block_inbox::BlockNotifier;
 pub use block_meta::BlockMeta;
+#[doc(hidden)]
 pub use flowgraph::AddToFlowgraph;
-pub use flowgraph::BlockPort;
 pub use flowgraph::BlockRef;
-pub use flowgraph::DynPortAccess;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::TypedBlockGuard;
 pub use flowgraph_handle::FlowgraphHandle;
@@ -66,6 +65,7 @@ pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;
+pub use futuresdr_types::BlockPortId;
 pub use futuresdr_types::FlowgraphDescription;
 pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::Pmt;

@@ -53,16 +53,16 @@ fn main() -> Result<()> {
     let snk = fg.add(snk)?;
 
     fg.connect_dyn(
-        mac.dyn_stream_output("output")?,
-        modulator.dyn_stream_input("input")?,
+        mac.stream_output("output"),
+        modulator.stream_input("input"),
     )?;
     fg.connect_dyn(
-        modulator.dyn_stream_output("output")?,
-        iq_delay.dyn_stream_input("input")?,
+        modulator.stream_output("output"),
+        iq_delay.stream_input("input"),
     )?;
     fg.connect_dyn(
-        iq_delay.dyn_stream_output("output")?,
-        snk.dyn_stream_input("inputs[0]")?,
+        iq_delay.stream_output("output"),
+        snk.stream_input("inputs[0]"),
     )?;
     let mac = mac.into();
 

@@ -53,7 +53,7 @@ fn flow_mapping(pipe_blocks: &[Vec<BlockId>]) -> Vec<Vec<BlockId>> {
     map
 }
 
-fn generate<B>() -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)>
+fn generate<B>() -> Result<(Flowgraph, Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>, Vec<Vec<BlockId>>)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
@@ -67,7 +67,7 @@ where
     } = Args::parse();
 
     let mut fg = Flowgraph::new();
-    let mut snks: Vec<BlockId> = Vec::new();
+    let mut snks = Vec::new();
     let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
 
     for _ in 0..pipes {
@@ -87,8 +87,8 @@ where
         pipe_block_ids.push(last);
 
         fg.connect_dyn(
-            head.dyn_stream_output("output")?,
-            last.dyn_stream_input("input")?,
+            head.stream_output("output"),
+            last.stream_input("input"),
         )?;
 
         for _ in 1..stages {
@@ -98,8 +98,8 @@ where
                 ))?
                 .into();
             fg.connect_dyn(
-                last.dyn_stream_output("output")?,
-                block.dyn_stream_input("input")?,
+                last.stream_output("output"),
+                block.stream_input("input"),
             )?;
             last = block;
             pipe_block_ids.push(last);
@@ -107,41 +107,21 @@ where
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
         fg.connect_dyn(
-            last.dyn_stream_output("output")?,
-            snk.dyn_stream_input("input")?,
+            last.stream_output("output"),
+            snk.stream_input("input"),
         )?;
-        let snk_id: BlockId = snk.into();
-        snks.push(snk_id);
-        pipe_block_ids.push(snk_id);
+        pipe_block_ids.push(snk.id());
+        snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
     }
     Ok((fg, snks, pipes_blocks))
 }
 
-fn main() -> Result<()> {
-    let Args {
-        run,
-        stages,
-        pipes,
-        samples,
-        max_copy,
-        scheduler,
-        slab,
-    } = Args::parse();
-
-    let (mut fg, snks, pipe_blocks) = if slab {
-        generate::<SlabBuffer>()?
-    } else {
-        generate::<CircBuffer>()?
-    };
-
-    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
-    assert_eq!(pipe_blocks.len(), pipes);
-    assert_eq!(pipes, n_executors);
-    pipe_blocks
-        .iter()
-        .for_each(|v| assert_eq!(v.len(), stages + 3));
-
+fn run_flowgraph(
+    scheduler: &str,
+    pipe_blocks: &[Vec<BlockId>],
+    mut fg: Flowgraph,
+) -> Result<(Flowgraph, time::Duration)> {
     let elapsed;
 
     if scheduler == "smol1" {
@@ -156,7 +136,7 @@ fn main() -> Result<()> {
         elapsed = now.elapsed();
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(flow_mapping(
-            &pipe_blocks,
+            pipe_blocks,
         )));
         let now = time::Instant::now();
         fg = runtime.run(fg)?;
@@ -165,15 +145,48 @@ fn main() -> Result<()> {
         panic!("unknown scheduler");
     }
 
-    for s in snks {
-        if slab {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, slab::Reader<f32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, circular::Reader<f32>>>(s)?;
+    Ok((fg, elapsed))
+}
+
+fn main() -> Result<()> {
+    let Args {
+        run,
+        stages,
+        pipes,
+        samples,
+        max_copy,
+        scheduler,
+        slab,
+    } = Args::parse();
+
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let elapsed = if slab {
+        let (fg, snks, pipe_blocks) = generate::<SlabBuffer>()?;
+        assert_eq!(pipe_blocks.len(), pipes);
+        assert_eq!(pipes, n_executors);
+        pipe_blocks
+            .iter()
+            .for_each(|v| assert_eq!(v.len(), stages + 3));
+        let (fg, elapsed) = run_flowgraph(&scheduler, &pipe_blocks, fg)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
             assert_eq!(snk.n_received(), samples);
         }
-    }
+        elapsed
+    } else {
+        let (fg, snks, pipe_blocks) = generate::<CircBuffer>()?;
+        assert_eq!(pipe_blocks.len(), pipes);
+        assert_eq!(pipes, n_executors);
+        pipe_blocks
+            .iter()
+            .for_each(|v| assert_eq!(v.len(), stages + 3));
+        let (fg, elapsed) = run_flowgraph(&scheduler, &pipe_blocks, fg)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    };
 
     println!(
         "{},{},{},{},{},{},{},{}",

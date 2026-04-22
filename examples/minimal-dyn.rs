@@ -18,10 +18,7 @@ fn main() -> Result<()> {
     let head = fg.add(head)?;
 
     // untyped connect
-    fg.connect_dyn(
-        src.dyn_stream_output("output")?,
-        head.dyn_stream_input("input")?,
-    )?;
+    fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
     // typed connect
     connect!(fg, head > snk);
 

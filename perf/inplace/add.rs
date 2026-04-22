@@ -52,13 +52,13 @@ fn generate<B>(
     pipes: usize,
     stages: usize,
     samples: usize,
-) -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)>
+) -> Result<(Flowgraph, Vec<BlockRef<NullSink<i32, ReaderOf<B, i32>>>>, Vec<Vec<BlockId>>)>
 where
     B: BufferType,
     ReaderOf<B, i32>: CpuBufferReader<Item = i32> + 'static,
 {
     let mut fg = Flowgraph::new();
-    let mut snks: Vec<BlockId> = Vec::new();
+    let mut snks = Vec::new();
     let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
 
     for _ in 0..pipes {
@@ -74,8 +74,8 @@ where
             .into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
-            head.dyn_stream_output("output")?,
-            last.dyn_stream_input("input")?,
+            head.stream_output("output"),
+            last.stream_input("input"),
         )?;
 
         for _ in 1..stages {
@@ -83,8 +83,8 @@ where
                 .add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new())?
                 .into();
             fg.connect_dyn(
-                last.dyn_stream_output("output")?,
-                block.dyn_stream_input("input")?,
+                last.stream_output("output"),
+                block.stream_input("input"),
             )?;
             last = block;
             pipe_block_ids.push(last);
@@ -92,12 +92,11 @@ where
 
         let snk = fg.add(NullSink::<i32, ReaderOf<B, i32>>::new())?;
         fg.connect_dyn(
-            last.dyn_stream_output("output")?,
-            snk.dyn_stream_input("input")?,
+            last.stream_output("output"),
+            snk.stream_input("input"),
         )?;
-        let snk_id: BlockId = snk.into();
-        snks.push(snk_id);
-        pipe_block_ids.push(snk_id);
+        pipe_block_ids.push(snk.id());
+        snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
     }
     Ok((fg, snks, pipes_blocks))
@@ -107,9 +106,9 @@ fn generate_inplace(
     pipes: usize,
     stages: usize,
     samples: usize,
-) -> Result<(Flowgraph, Vec<BlockId>, Vec<Vec<BlockId>>)> {
+) -> Result<(Flowgraph, Vec<BlockRef<IpSink>>, Vec<Vec<BlockId>>)> {
     let mut fg = Flowgraph::new();
-    let mut snks: Vec<BlockId> = Vec::new();
+    let mut snks = Vec::new();
     let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
 
     for _ in 0..pipes {
@@ -124,15 +123,15 @@ fn generate_inplace(
         let mut last: BlockId = fg.add(IpAdd::new())?.into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
-            head.dyn_stream_output("output")?,
-            last.dyn_stream_input("input")?,
+            head.stream_output("output"),
+            last.stream_input("input"),
         )?;
 
         for _ in 1..stages {
             let block: BlockId = fg.add(IpAdd::new())?.into();
             fg.connect_dyn(
-                last.dyn_stream_output("output")?,
-                block.dyn_stream_input("input")?,
+                last.stream_output("output"),
+                block.stream_input("input"),
             )?;
             last = block;
             pipe_block_ids.push(last);
@@ -140,41 +139,25 @@ fn generate_inplace(
 
         let snk = fg.add(IpSink::new())?;
         fg.connect_dyn(
-            last.dyn_stream_output("output")?,
-            snk.dyn_stream_input("input")?,
+            last.stream_output("output"),
+            snk.stream_input("input"),
         )?;
         connect!(fg, src < snk);
 
-        let snk_id: BlockId = snk.into();
-        snks.push(snk_id);
-        pipe_block_ids.push(snk_id);
+        pipe_block_ids.push(snk.id());
+        snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
     }
 
     Ok((fg, snks, pipes_blocks))
 }
 
-fn main() -> Result<()> {
-    let Args {
-        run,
-        stages,
-        pipes,
-        samples,
-        config,
-    } = Args::parse();
-
-    futuresdr::runtime::config::set("buffer_size", 65536);
-
-    let use_inplace = config == "inplace-smol" || config == "inplace-flow";
-    let use_slab = config == "slab";
-    let (mut fg, snks, pipe_blocks) = if use_inplace {
-        generate_inplace(pipes, stages, samples)?
-    } else if use_slab {
-        generate::<SlabBuffer>(pipes, stages, samples)?
-    } else {
-        generate::<CircBuffer>(pipes, stages, samples)?
-    };
-
+fn run_flowgraph(
+    config: &str,
+    pipes: usize,
+    mut fg: Flowgraph,
+    pipe_blocks: Vec<Vec<BlockId>>,
+) -> Result<(Flowgraph, time::Duration)> {
     let elapsed;
 
     if config == "smoln" || config == "inplace-smol" {
@@ -192,18 +175,47 @@ fn main() -> Result<()> {
         panic!("unknown config");
     }
 
-    for s in snks {
-        if use_inplace {
-            let snk = fg.get_typed_block_by_id::<IpSink>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else if use_slab {
-            let snk = fg.get_typed_block_by_id::<NullSink<i32, slab::Reader<i32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else {
-            let snk = fg.get_typed_block_by_id::<NullSink<i32, circular::Reader<i32>>>(s)?;
+    Ok((fg, elapsed))
+}
+
+fn main() -> Result<()> {
+    let Args {
+        run,
+        stages,
+        pipes,
+        samples,
+        config,
+    } = Args::parse();
+
+    futuresdr::runtime::config::set("buffer_size", 65536);
+
+    let use_inplace = config == "inplace-smol" || config == "inplace-flow";
+    let use_slab = config == "slab";
+    let elapsed = if use_inplace {
+        let (fg, snks, pipe_blocks) = generate_inplace(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
             assert_eq!(snk.n_received(), samples);
         }
-    }
+        elapsed
+    } else if use_slab {
+        let (fg, snks, pipe_blocks) = generate::<SlabBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    } else {
+        let (fg, snks, pipe_blocks) = generate::<CircBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    };
 
     println!(
         "{},{},{},{},{},{}",

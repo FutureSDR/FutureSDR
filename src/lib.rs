@@ -204,7 +204,6 @@ pub mod prelude {
     pub use futuresdr::runtime::BlockId;
     pub use futuresdr::runtime::BlockMeta;
     pub use futuresdr::runtime::BlockRef;
-    pub use futuresdr::runtime::DynPortAccess;
     pub use futuresdr::runtime::Error;
     pub use futuresdr::runtime::Flowgraph;
     pub use futuresdr::runtime::FlowgraphHandle;

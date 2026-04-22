@@ -41,7 +41,7 @@ impl BufferType for CircBuffer {
 
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
 
-fn generate<B>() -> Result<(Flowgraph, Vec<BlockId>)>
+fn generate<B>() -> Result<(Flowgraph, Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>)>
 where
     B: BufferType,
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
@@ -62,58 +62,39 @@ where
             samples as u64,
         ))?;
         fg.connect_dyn(
-            src.dyn_stream_output("output")?,
-            head.dyn_stream_input("input")?,
+            src.stream_output("output"),
+            head.stream_input("input"),
         )?;
 
         let mut last: BlockId = fg
             .add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))?
             .into();
         fg.connect_dyn(
-            head.dyn_stream_output("output")?,
-            last.dyn_stream_input("input")?,
+            head.stream_output("output"),
+            last.stream_input("input"),
         )?;
 
         for _ in 1..stages {
             let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(1024))?;
             fg.connect_dyn(
-                last.dyn_stream_output("output")?,
-                block.dyn_stream_input("input")?,
+                last.stream_output("output"),
+                block.stream_input("input"),
             )?;
             last = block.into();
         }
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
         fg.connect_dyn(
-            last.dyn_stream_output("output")?,
-            snk.dyn_stream_input("input")?,
+            last.stream_output("output"),
+            snk.stream_input("input"),
         )?;
-        snks.push(snk.into());
+        snks.push(snk);
     }
 
     Ok((fg, snks))
 }
 
-fn main() -> Result<()> {
-    let Args {
-        run,
-        stages,
-        pipes,
-        samples,
-        buffer_size,
-        scheduler,
-        slab,
-    } = Args::parse();
-
-    futuresdr::runtime::init();
-    futuresdr::runtime::config::set("buffer_size", buffer_size as u64);
-
-    let (mut fg, snks) = if slab {
-        generate::<SlabBuffer>()?
-    } else {
-        generate::<CircBuffer>()?
-    };
-
+fn run_flowgraph(scheduler: &str, mut fg: Flowgraph) -> Result<(Flowgraph, time::Duration)> {
     let elapsed;
     if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
@@ -134,15 +115,40 @@ fn main() -> Result<()> {
         panic!("unknown scheduler");
     }
 
-    for s in snks {
-        if slab {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, slab::Reader<f32>>>(s)?;
-            assert_eq!(snk.n_received(), samples);
-        } else {
-            let snk = fg.get_typed_block_by_id::<NullSink<f32, circular::Reader<f32>>>(s)?;
+    Ok((fg, elapsed))
+}
+
+fn main() -> Result<()> {
+    let Args {
+        run,
+        stages,
+        pipes,
+        samples,
+        buffer_size,
+        scheduler,
+        slab,
+    } = Args::parse();
+
+    futuresdr::runtime::init();
+    futuresdr::runtime::config::set("buffer_size", buffer_size as u64);
+
+    let elapsed = if slab {
+        let (fg, snks) = generate::<SlabBuffer>()?;
+        let (fg, elapsed) = run_flowgraph(&scheduler, fg)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
             assert_eq!(snk.n_received(), samples);
         }
-    }
+        elapsed
+    } else {
+        let (fg, snks) = generate::<CircBuffer>()?;
+        let (fg, elapsed) = run_flowgraph(&scheduler, fg)?;
+        for s in snks {
+            let snk = s.get(&fg)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+        elapsed
+    };
 
     println!(
         "{},{},{},{},{},{},{},{}",

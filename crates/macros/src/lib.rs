@@ -192,8 +192,8 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     let dest_block = &dst.block;
                     quote! {
                         #fg.connect_message(
-                            ::futuresdr::runtime::DynPortAccess::dyn_message_output(&#src_block, #src_port)?,
-                            ::futuresdr::runtime::DynPortAccess::dyn_message_input(&#dest_block, #dst_port)?,
+                            #src_block.message_output(#src_port),
+                            #dest_block.message_input(#dst_port),
                         )?;
                     }
                 }
