@@ -1,6 +1,6 @@
 use crate::utils::*;
-use futuresdr::num_complex::Complex64;
 use futuresdr::dev_prelude::*;
+use futuresdr::num_complex::Complex64;
 use futuresdr::tracing::log::debug;
 use rustfft::FftPlanner;
 use std::collections::HashMap;

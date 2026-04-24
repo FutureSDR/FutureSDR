@@ -46,8 +46,7 @@ fn main() -> Result<()> {
 
     let (src, output): (BlockId, _) = match args.file {
         Some(file) => (
-            fg.add(FileSource::<Complex32>::new(file, false))
-                .into(),
+            fg.add(FileSource::<Complex32>::new(file, false)).into(),
             "output",
         ),
         None => (
