@@ -17,7 +17,7 @@ fn apply_const_fn() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());
@@ -46,7 +46,7 @@ fn apply_mut_fn() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), orig.len());

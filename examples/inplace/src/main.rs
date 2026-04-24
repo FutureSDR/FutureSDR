@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use std::time::Instant;
 
 use inplace::Apply;
@@ -25,7 +25,7 @@ fn run_inplace() -> Result<()> {
     let fg = Runtime::new().run(fg)?;
     println!("in-place took {:?}", now.elapsed());
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()
@@ -55,7 +55,7 @@ fn run_hybrid() -> Result<()> {
     let fg = Runtime::new().run(fg)?;
     println!("hybrid took {:?}", now.elapsed());
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()
@@ -84,7 +84,7 @@ fn run_outofplace() -> Result<()> {
     let fg = Runtime::new().run(fg)?;
     println!("out-of-place took {:?}", now.elapsed());
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     assert_eq!(snk.items().len(), orig.len());
     snk.items()
         .iter()

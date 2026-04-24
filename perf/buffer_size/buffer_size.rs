@@ -125,7 +125,7 @@ fn main() -> Result<()> {
         let (fg, snks) = generate::<SlabBuffer>()?;
         let (fg, elapsed) = run_flowgraph(&scheduler, fg)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed
@@ -133,7 +133,7 @@ fn main() -> Result<()> {
         let (fg, snks) = generate::<CircBuffer>()?;
         let (fg, elapsed) = run_flowgraph(&scheduler, fg)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed

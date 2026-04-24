@@ -186,7 +186,7 @@ fn connect_circuit_executes() -> Result<()> {
     connect!(fg, src < snk);
 
     let fg = Runtime::new().run(fg)?;
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
 
     assert_eq!(snk.items(), expected);
     Ok(())
@@ -229,7 +229,7 @@ fn connect_circuit_description_omits_closure_edge() -> Result<()> {
         Ok::<_, Error>(description)
     })?;
     let fg = block_on(running.wait())?;
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
 
     assert_eq!(description.stream_edges, expected_edges);
     assert!(description.message_edges.is_empty());

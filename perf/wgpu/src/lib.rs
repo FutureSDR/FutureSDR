@@ -46,7 +46,7 @@ pub async fn run(run: u64, scheduler: String, samples: u64, buffer_size: u64) ->
     let fg = runtime.run_async(fg).await?;
     let elapsed = start.elapsed();
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), samples as usize);

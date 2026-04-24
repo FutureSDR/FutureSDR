@@ -142,7 +142,7 @@ fn main() -> Result<()> {
         };
 
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
 
@@ -169,7 +169,7 @@ fn main() -> Result<()> {
         };
 
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
 

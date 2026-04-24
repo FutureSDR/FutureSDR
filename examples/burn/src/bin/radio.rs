@@ -13,7 +13,7 @@ use futuresdr::blocks::seify::Builder;
 use futuresdr::futuredsp::firdes;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use whisper_burn::audio::max_waveform_samples;

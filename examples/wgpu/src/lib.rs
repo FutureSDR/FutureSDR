@@ -28,7 +28,7 @@ async fn run_inner() -> Result<()> {
     info!("start flowgraph");
     let fg = Runtime::new().run_async(fg).await?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

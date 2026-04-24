@@ -25,7 +25,7 @@ fn channel_source_min() -> Result<()> {
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     assert_eq!(*snk.items(), vec![0, 1, 2]);
     Ok(())
 }
@@ -53,7 +53,7 @@ fn channel_source_small() -> Result<()> {
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     assert_eq!(*snk.items(), vec![0, 1, 2, 3, 4, 5]);
     Ok(())
 }
@@ -79,7 +79,7 @@ fn channel_source_big() -> Result<()> {
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let mut expected = vec![0; 99999];
     expected.extend_from_slice(&[1; 88888]);
     assert_eq!(*snk.items(), expected);

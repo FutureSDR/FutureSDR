@@ -142,7 +142,7 @@ fn main() -> Result<()> {
         let (fg, snks, pipe_blocks) = generate::<SlabBuffer>(pipes, stages, samples)?;
         let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed
@@ -150,7 +150,7 @@ fn main() -> Result<()> {
         let (fg, snks, pipe_blocks) = generate::<SpscBuffer>(pipes, stages, samples)?;
         let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed
@@ -158,7 +158,7 @@ fn main() -> Result<()> {
         let (fg, snks, pipe_blocks) = generate::<CircBuffer>(pipes, stages, samples)?;
         let (fg, elapsed) = run_flowgraph(&config, fg, pipe_blocks)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed

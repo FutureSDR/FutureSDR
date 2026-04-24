@@ -19,7 +19,7 @@ fn split_const_fn() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk0.get(&fg)?;
+    let snk = fg.block(&snk0)?;
     let v = snk.items();
 
     let res = 0..10;
@@ -28,7 +28,7 @@ fn split_const_fn() -> Result<()> {
         assert_eq!(o, *i);
     }
 
-    let snk = snk1.get(&fg)?;
+    let snk = fg.block(&snk1)?;
     let v = snk.items();
 
     let res = 1..11;

@@ -79,7 +79,7 @@ fn main() -> Result<()> {
         let elapsed = now.elapsed();
 
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.received(), burst_size);
         }
 

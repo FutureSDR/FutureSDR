@@ -70,7 +70,7 @@ fn main() -> Result<()> {
         elapsed.as_secs_f64()
     );
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), items);

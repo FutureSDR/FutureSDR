@@ -22,7 +22,7 @@ fn flowgraph() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -48,7 +48,7 @@ fn fg_rand_vec() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

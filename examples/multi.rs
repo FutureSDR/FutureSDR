@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let elapsed = now.elapsed();
 
     for snk in [snk0, snk1, snk2].iter() {
-        let snk = snk.get(&fg)?;
+        let snk = fg.block(&snk)?;
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);

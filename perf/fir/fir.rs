@@ -92,7 +92,7 @@ fn main() -> Result<()> {
     };
 
     for s in snks {
-        let snk = s.get(&fg)?;
+        let snk = fg.block(&s)?;
         let v = snk.n_received();
         assert_eq!(v, samples - (stages * 63));
     }

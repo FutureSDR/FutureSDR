@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);

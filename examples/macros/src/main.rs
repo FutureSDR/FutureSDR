@@ -4,7 +4,7 @@ use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSourceBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 fn main() -> anyhow::Result<()> {
     let mut fg = Flowgraph::new();

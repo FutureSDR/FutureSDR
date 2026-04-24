@@ -4,7 +4,7 @@ use burn::prelude::*;
 use futuresdr::blocks::WebsocketSink;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr_burn::BATCH_SIZE;
 use futuresdr_burn::FFT_SIZE;

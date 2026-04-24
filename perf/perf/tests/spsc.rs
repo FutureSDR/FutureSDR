@@ -16,7 +16,7 @@ fn flowgraph_spsc_finishes() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    assert_eq!(snk.get(&fg)?.n_received(), 100_000);
+    assert_eq!(fg.block(&snk)?.n_received(), 100_000);
 
     Ok(())
 }

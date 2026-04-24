@@ -164,7 +164,7 @@ fn main() -> Result<()> {
             .for_each(|v| assert_eq!(v.len(), stages + 3));
         let (fg, elapsed) = run_flowgraph(&scheduler, &pipe_blocks, fg)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed
@@ -177,7 +177,7 @@ fn main() -> Result<()> {
             .for_each(|v| assert_eq!(v.len(), stages + 3));
         let (fg, elapsed) = run_flowgraph(&scheduler, &pipe_blocks, fg)?;
         for s in snks {
-            let snk = s.get(&fg)?;
+            let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
         elapsed
