@@ -20,7 +20,7 @@ struct WebState {
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(
+    fg.add(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
@@ -64,7 +64,7 @@ async fn my_route() -> Html<&'static str> {
 
 async fn start_fg(State(ws): State<WebState>) {
     let mut fg = Flowgraph::new();
-    fg.add_block(
+    fg.add(
         MessageSourceBuilder::new(
             Pmt::String("foo".to_string()),
             time::Duration::from_millis(100),
@@ -74,5 +74,5 @@ async fn start_fg(State(ws): State<WebState>) {
     );
     let rt_handle = (*ws.rt.lock().as_ref().unwrap()).clone().unwrap();
     let fg_handle = rt_handle.start(fg).await.unwrap();
-    dbg!(fg_handle.description().await.unwrap());
+    dbg!(fg_handle.describe().await.unwrap());
 }

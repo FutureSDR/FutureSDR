@@ -78,7 +78,7 @@ fn main() -> Result<()> {
         }
     } else {
         (
-            fg.add_block(
+            fg.add(
                 Builder::new(args.args)?
                     .frequency(args.frequency)
                     .sample_rate(args.rate)
@@ -91,7 +91,7 @@ fn main() -> Result<()> {
     };
 
     let (src, output_name): (BlockId, &'static str) = if let Some(samples) = args.samples {
-        let sample_counter: BlockId = fg.add_block(Head::<Complex<f32>>::new(samples)).into();
+        let sample_counter: BlockId = fg.add(Head::<Complex<f32>>::new(samples)).into();
         fg.connect_dyn(
             src.stream_output(output_name),
             sample_counter.stream_input("input"),
@@ -105,7 +105,7 @@ fn main() -> Result<()> {
     let mut last_power_print = Instant::now();
     let mut avgmag = 0.0;
     let mut maxmag = 0.0;
-    let powermeter = fg.add_block(Apply::<_, _, _>::new(move |i: &Complex32| {
+    let powermeter = fg.add(Apply::<_, _, _>::new(move |i: &Complex32| {
         let norm = i.norm();
         if norm > 0.95 && last_clip_warning.elapsed().as_secs_f32() > 0.1 {
             last_clip_warning = Instant::now();

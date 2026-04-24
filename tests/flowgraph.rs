@@ -24,7 +24,7 @@ fn flowgraph() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -48,7 +48,7 @@ fn flowgraph_flow() -> Result<()> {
 
     let fg = Runtime::with_scheduler(FlowScheduler::new()).run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), 1_000_000);
@@ -70,11 +70,11 @@ fn fg_terminate() -> Result<()> {
     connect!(fg, src > throttle > snk);
 
     let rt = Runtime::new();
-    let (fg, handle) = rt.start_sync(fg)?;
+    let running = rt.start_sync(fg)?;
     block_on(async move {
         futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
-        handle.terminate().await.unwrap();
-        let _ = fg.await;
+        running.stop().await.unwrap();
+        let _ = running.wait().await;
     });
 
     Ok(())
@@ -95,7 +95,7 @@ fn fg_rand_vec() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    let snk = snk.get(&fg)?;
+    let snk = fg.block(&snk)?;
     let v = snk.items();
 
     assert_eq!(v.len(), n_items);
@@ -129,7 +129,7 @@ fn fg_rand_vec_multi_snk() -> Result<()> {
     let fg = Runtime::new().run(fg)?;
 
     for s in &snks {
-        let snk = s.get(&fg)?;
+        let snk = fg.block(s)?;
         let v = snk.items();
 
         assert_eq!(v.len(), n_items);
@@ -149,10 +149,10 @@ fn flowgraph_instance_name() -> Result<()> {
     let src = NullSource::<f32>::new();
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
-    snk.with_meta_mut(&mut fg, |meta| meta.set_instance_name(name))?;
-    let (_th, fg) = rt.start_sync(fg)?;
+    fg.block_mut(&snk)?.set_instance_name(name);
+    let fg = rt.start_sync(fg)?.handle();
 
-    let desc = rt.block_on(async move { fg.description().await })?;
+    let desc = rt.block_on(async move { fg.describe().await })?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);
     Ok(())
 }

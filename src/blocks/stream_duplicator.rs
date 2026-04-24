@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use std::cmp::min;
 
 /// Stream Duplicator

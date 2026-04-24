@@ -94,21 +94,18 @@ fn config_freq_gain_ports() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_task, fg_handle) = rt.start_sync(fg)?;
+    let fg_handle = rt.start_sync(fg)?.handle();
 
     // Freq
     block_on(async {
-        fg_handle
-            .callback(src, "freq", Pmt::F64(102e6))
-            .await
-            .unwrap();
+        fg_handle.post(src, "freq", Pmt::F64(102e6)).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
 
     // Gain, use Pmt::U32 to test type conversion
     block_on(async {
-        fg_handle.callback(src, "gain", Pmt::U32(2)).await.unwrap();
+        fg_handle.post(src, "gain", Pmt::U32(2)).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.gain(Rx, 0)?.unwrap(), 2.0);
@@ -135,7 +132,7 @@ fn src_config_cmd_map() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let (_, fg_handle) = rt.start_sync(fg)?;
+    let fg_handle = rt.start_sync(fg)?.handle();
 
     block_on(async {
         let pmt = Pmt::MapStrPmt(HashMap::from([
@@ -143,13 +140,13 @@ fn src_config_cmd_map() -> Result<()> {
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),
         ]));
-        fg_handle.callback(src, "cmd", pmt).await.unwrap();
+        fg_handle.post(src, "cmd", pmt).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
 
-    let conf = block_on(fg_handle.callback(src, "config", Pmt::Ok))?;
+    let conf = block_on(fg_handle.call(src, "config", Pmt::Ok))?;
 
     match conf {
         Pmt::MapStrPmt(m) => {
@@ -180,20 +177,20 @@ fn sink_config_cmd_map() -> Result<()> {
     connect!(fg, src > inputs[0].snk);
 
     let rt = Runtime::new();
-    let (_, fg_handle) = rt.start_sync(fg)?;
+    let fg_handle = rt.start_sync(fg)?.handle();
 
     block_on(async {
         let pmt = Pmt::MapStrPmt(HashMap::from([
             ("freq".to_owned(), Pmt::F64(102e6)),
             ("sample_rate".to_owned(), Pmt::F32(1e6)),
         ]));
-        fg_handle.callback(snk, "cmd", pmt).await.unwrap();
+        fg_handle.post(snk, "cmd", pmt).await.unwrap();
     });
 
     assert_approx_eq!(f64, dev.frequency(Tx, 0)?, 102e6, epsilon = 0.1);
     assert_approx_eq!(f64, dev.sample_rate(Tx, 0)?, 1e6);
 
-    let conf = block_on(fg_handle.callback(snk, "config", Pmt::Ok))?;
+    let conf = block_on(fg_handle.call(snk, "config", Pmt::Ok))?;
 
     match conf {
         Pmt::MapStrPmt(m) => {

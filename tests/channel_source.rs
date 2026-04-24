@@ -16,10 +16,13 @@ fn channel_source_min() -> Result<()> {
 
     let rt = Runtime::new();
     let fg = block_on(async move {
-        let (fg, _) = rt.start(fg).await?;
+        let running = rt.start(fg).await?;
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         drop(tx);
-        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
+        running
+            .wait()
+            .await
+            .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = snk.get(&fg)?;
@@ -38,13 +41,16 @@ fn channel_source_small() -> Result<()> {
 
     let rt = Runtime::new();
     let fg = block_on(async move {
-        let (fg, _) = rt.start(fg).await?;
+        let running = rt.start(fg).await?;
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         tx.send(vec![3, 4].into_boxed_slice()).await?;
         tx.send(vec![].into_boxed_slice()).await?;
         tx.send(vec![5].into_boxed_slice()).await?;
         drop(tx);
-        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
+        running
+            .wait()
+            .await
+            .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = snk.get(&fg)?;
@@ -63,11 +69,14 @@ fn channel_source_big() -> Result<()> {
 
     let rt = Runtime::new();
     let fg = block_on(async move {
-        let (fg, _) = rt.start(fg).await?;
+        let running = rt.start(fg).await?;
         tx.send(vec![0; 99999].into_boxed_slice()).await?;
         tx.send(vec![1; 88888].into_boxed_slice()).await?;
         drop(tx);
-        fg.await.map_err(|e| anyhow!("Flowgraph error, {e}"))
+        running
+            .wait()
+            .await
+            .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
 
     let snk = snk.get(&fg)?;

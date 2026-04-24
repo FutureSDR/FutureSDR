@@ -12,10 +12,10 @@ fn main() -> Result<()> {
     let snk = NullSink::<u8>::new();
 
     // type erasure for src
-    let src = fg.add_block(src);
+    let src = fg.add(src);
     let src: BlockId = src.into();
 
-    let head = fg.add_block(head);
+    let head = fg.add(head);
 
     // untyped connect
     fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;

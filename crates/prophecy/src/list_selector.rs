@@ -37,7 +37,7 @@ pub fn ListSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
                     &handler,
                     &pmt
                 );
-                let _ = fg_handle.call(block_id, handler, pmt).await;
+                let _ = fg_handle.post(block_id, handler, pmt).await;
             });
         }
     };

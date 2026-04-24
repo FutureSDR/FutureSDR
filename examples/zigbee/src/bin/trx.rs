@@ -37,11 +37,11 @@ fn main() -> Result<()> {
     // TRANSMITTER
     // ========================================
     let mac: Mac = Mac::new();
-    let mac = fg.add_block(mac);
+    let mac = fg.add(mac);
     let modulator = modulator(&mut fg);
     let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add_block(iq_delay);
-    let snk = fg.add_block(
+    let iq_delay = fg.add(iq_delay);
+    let snk = fg.add(
         Builder::new("")?
             .frequency(args.tx_freq)
             .sample_rate(4e6)
@@ -94,7 +94,8 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let (fg, handle) = rt.start_sync(fg)?;
+    let running = rt.start_sync(fg)?;
+    let handle = running.handle();
 
     // send a message every 0.8 seconds
     let mut seq = 0u64;
@@ -102,7 +103,7 @@ fn main() -> Result<()> {
         loop {
             Timer::after(Duration::from_secs_f32(0.8)).await;
             handle
-                .call(
+                .post(
                     mac,
                     "tx",
                     Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
@@ -113,7 +114,7 @@ fn main() -> Result<()> {
         }
     });
 
-    block_on(fg)?;
+    block_on(running.wait())?;
 
     Ok(())
 }

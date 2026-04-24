@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 const MAX_ITER: usize = 4000;
 

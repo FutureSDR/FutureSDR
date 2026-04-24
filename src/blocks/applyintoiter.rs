@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 /// Apply a function on each input sample to create an iterator and output its values.
 #[derive(Block)]

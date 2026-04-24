@@ -1,5 +1,5 @@
 use crate::utils::*;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::VecDeque;

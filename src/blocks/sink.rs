@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Apply a function to received samples.
 ///

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Store received samples in vector.
 #[derive(Block)]

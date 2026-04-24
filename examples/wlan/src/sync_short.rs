@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 const MIN_GAP: usize = 480;
 const MAX_SAMPLES: usize = 540 * 80;

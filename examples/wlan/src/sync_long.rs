@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 const SEARCH_WINDOW: usize = 320;
 

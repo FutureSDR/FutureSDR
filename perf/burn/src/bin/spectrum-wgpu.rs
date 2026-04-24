@@ -20,7 +20,7 @@ use cubecl::client::ComputeClient;
 use futuresdr::blocks::WebsocketSink;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
 use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;

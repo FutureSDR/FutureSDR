@@ -28,7 +28,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
             let rt_handle = rt_handle.clone();
             async move {
                 if let Ok(mut fg) = rt_handle.get_flowgraph(0).await {
-                    if let Ok(desc) = fg.description().await {
+                    if let Ok(desc) = fg.describe().await {
                         return Some(desc);
                     }
                 }
@@ -119,7 +119,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 let p = Pmt::F64(freq * 1e6);
                                 let fg_handle = fg_handle.clone();
                                 spawn_local(async move {
-                                    let _ = fg_handle.call(0, "freq", p).await;
+                                    let _ = fg_handle.post(0, "freq", p).await;
                                 });
                     }} />
                     <span class="p-2 m-2 text-white" node_ref=freq_label>"freq: 100 MHz"</span>
@@ -136,7 +136,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 let p = Pmt::F64(gain);
                                 let fg_handle = fg_handle.clone();
                                 spawn_local(async move {
-                                    let _ = fg_handle.call(0, "gain", p).await;
+                                    let _ = fg_handle.post(0, "gain", p).await;
                                 });
                     }} />
                     <span class="p-2 m-2 text-white" node_ref=gain_label>"gain: 60 dB"</span>

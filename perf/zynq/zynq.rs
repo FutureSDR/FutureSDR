@@ -37,23 +37,23 @@ fn main() -> Result<()> {
         .take(items)
         .collect();
 
-    let src = fg.add_block(VectorSource::<u32, H2DWriter<u32>>::new(orig.clone()));
+    let src = fg.add(VectorSource::<u32, H2DWriter<u32>>::new(orig.clone()));
     let zynq: BlockId = if sync {
-        fg.add_block(ZynqSync::<u32, u32>::new(
+        fg.add(ZynqSync::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )?)
         .into()
     } else {
-        fg.add_block(Zynq::<u32, u32>::new(
+        fg.add(Zynq::<u32, u32>::new(
             "uio4",
             "uio5",
             vec!["udmabuf0", "udmabuf1", "udmabuf2", "udmabuf3"],
         )?)
         .into()
     };
-    let snk = fg.add_block(VectorSink::<u32, D2HReader<u32>>::new(items));
+    let snk = fg.add(VectorSink::<u32, D2HReader<u32>>::new(items));
 
     fg.connect_dyn(src.stream_output("output"), zynq.stream_input("input"))?;
     fg.connect_dyn(zynq.stream_output("output"), snk.stream_input("input"))?;

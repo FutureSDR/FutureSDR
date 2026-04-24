@@ -29,7 +29,7 @@ use num_complex::Complex32;
 
 use futuredsp::FirFilter;
 use futuredsp::prelude::*;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 use super::utilities::partition_filter_taps;
 use super::window_buffer::WindowBuffer;

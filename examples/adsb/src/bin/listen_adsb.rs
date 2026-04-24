@@ -73,7 +73,7 @@ fn main() -> Result<()> {
                 .antenna(args.antenna)
                 .build_source()?;
 
-            fg.add_block(src).into()
+            fg.add(src).into()
         }
     };
 
@@ -90,7 +90,7 @@ fn main() -> Result<()> {
              Use a sampling frequency that is a divisor of {DEMOD_SAMPLE_RATE} for the best performance."
         );
     }
-    let interp_block = fg.add_block(FirBuilder::resampling::<Complex32, Complex32>(
+    let interp_block = fg.add(FirBuilder::resampling::<Complex32, Complex32>(
         interp, decim,
     ));
     if args.file.is_some() {

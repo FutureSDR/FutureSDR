@@ -3,7 +3,7 @@ use clap::Parser;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::CopyRand;
@@ -64,11 +64,11 @@ where
 
     for p in 0..pipes {
         let executor = p % n_executors;
-        let src = fg.add_block(NullSource::<f32, B::Writer<f32>>::new());
-        let head = fg.add_block(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        let src = fg.add(NullSource::<f32, B::Writer<f32>>::new());
+        let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
         ));
-        let mut last = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             max_copy,
         ));
 
@@ -81,7 +81,7 @@ where
         cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add_block(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
             ));
             {
@@ -91,7 +91,7 @@ where
             last = block;
         }
 
-        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
+        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new());
         {
             connect!(fg, last > snk);
         }

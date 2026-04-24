@@ -6,7 +6,7 @@ use futuredsp::PolyphaseResamplingFir;
 use futuredsp::firdes;
 use futuredsp::prelude::*;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// FIR filter.
 #[derive(Block)]

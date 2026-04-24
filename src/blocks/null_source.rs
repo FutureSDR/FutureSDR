@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Generate a stream of zeroes.
 ///

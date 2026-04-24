@@ -95,19 +95,19 @@ fn main() -> Result<()> {
         decoder_ref.out | udp_data;
         decoder_ref.rftap | udp_rftap;
     );
-    let transmitter = transmitter.into();
+    let transmitter: BlockId = transmitter.into();
 
     // ==============================================================
     // Send Frames
     // ==============================================================
     let rt = Runtime::new();
-    let (_fg, handle) = rt.start_sync(fg)?;
+    let handle = rt.start_sync(fg)?.handle();
     rt.block_on(async move {
         let mut counter: usize = 0;
         loop {
             let payload = format!("hello world! {counter:02}");
             handle
-                .call(transmitter, "msg", Pmt::String(payload))
+                .post(transmitter, "msg", Pmt::String(payload))
                 .await
                 .unwrap();
             info!("sending frame");

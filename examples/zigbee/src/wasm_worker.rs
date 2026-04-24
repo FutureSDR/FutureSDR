@@ -99,7 +99,7 @@ impl gloo_worker::Worker for Worker {
 
                         let rt = Runtime::new();
 
-                        let (_task, handle) = rt.start(fg).await?;
+                        let handle = rt.start(fg).await?.handle();
                         set_handler.send(handle).await.unwrap();
 
                         futuresdr::tracing::info!("waiting for frames");
@@ -122,14 +122,14 @@ impl gloo_worker::Worker for Worker {
                     if let Ok(mut h) = r.try_recv() {
                         self.handle = Handle::Flowgraph(h.clone());
                         spawn_local(async move {
-                            h.call(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
+                            h.post(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
                         });
                     }
                 }
                 Handle::Flowgraph(h) => {
                     let mut h = h.clone();
                     spawn_local(async move {
-                        h.call(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
+                        h.post(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
                     });
                 }
             },

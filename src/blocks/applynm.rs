@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 /// Apply a function to each N input samples, producing M output samples.
 ///
@@ -24,7 +24,7 @@ use futuresdr::prelude::*;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Convert mono stream to stereo interleaved stream
-/// let mono_to_stereo = fg.add_block(ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
+/// let mono_to_stereo = fg.add(ApplyNM::<_, _, _, 1, 2>::new(move |v: &[f32], d: &mut [f32]| {
 ///     d[0] =  v[0] * 0.5; // gain left
 ///     d[1] =  v[0] * 0.9; // gain right
 /// }));

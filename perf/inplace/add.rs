@@ -3,7 +3,7 @@ use clap::Parser;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::Add;
@@ -70,7 +70,7 @@ where
         pipe_block_ids.push((&head).into());
 
         let mut last: BlockId =
-            fg.add_block(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new()).into();
+            fg.add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new()).into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
             head.stream_output("output"),
@@ -79,7 +79,7 @@ where
 
         for _ in 1..stages {
             let block: BlockId =
-                fg.add_block(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new()).into();
+                fg.add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new()).into();
             fg.connect_dyn(
                 last.stream_output("output"),
                 block.stream_input("input"),
@@ -88,7 +88,7 @@ where
             pipe_block_ids.push(last);
         }
 
-        let snk = fg.add_block(NullSink::<i32, ReaderOf<B, i32>>::new());
+        let snk = fg.add(NullSink::<i32, ReaderOf<B, i32>>::new());
         fg.connect_dyn(
             last.stream_output("output"),
             snk.stream_input("input"),
@@ -118,7 +118,7 @@ fn generate_inplace(
         pipe_block_ids.push((&src).into());
         pipe_block_ids.push((&head).into());
 
-        let mut last: BlockId = fg.add_block(IpAdd::new()).into();
+        let mut last: BlockId = fg.add(IpAdd::new()).into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
             head.stream_output("output"),
@@ -126,7 +126,7 @@ fn generate_inplace(
         )?;
 
         for _ in 1..stages {
-            let block: BlockId = fg.add_block(IpAdd::new()).into();
+            let block: BlockId = fg.add(IpAdd::new()).into();
             fg.connect_dyn(
                 last.stream_output("output"),
                 block.stream_input("input"),
@@ -135,7 +135,7 @@ fn generate_inplace(
             pipe_block_ids.push(last);
         }
 
-        let snk = fg.add_block(IpSink::new());
+        let snk = fg.add(IpSink::new());
         fg.connect_dyn(
             last.stream_output("output"),
             snk.stream_input("input"),

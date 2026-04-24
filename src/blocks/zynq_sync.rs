@@ -1,7 +1,7 @@
 use xilinx_dma::AxiDma;
 use xilinx_dma::DmaBuffer;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;

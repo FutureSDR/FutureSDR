@@ -4,7 +4,7 @@ use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::spsc;
@@ -67,7 +67,7 @@ where
         pipe_block_ids.push((&head).into());
 
         let mut last: BlockId =
-            fg.add_block(Copy::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new()).into();
+            fg.add(Copy::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new()).into();
         pipe_block_ids.push(last);
         fg.connect_dyn(
             head.stream_output("output"),
@@ -76,7 +76,7 @@ where
 
         for _ in 1..stages {
             let block: BlockId =
-                fg.add_block(Copy::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new()).into();
+                fg.add(Copy::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new()).into();
             fg.connect_dyn(
                 last.stream_output("output"),
                 block.stream_input("input"),
@@ -85,7 +85,7 @@ where
             pipe_block_ids.push(last);
         }
 
-        let snk = fg.add_block(NullSink::<f32, ReaderOf<B, f32>>::new());
+        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new());
         fg.connect_dyn(
             last.stream_output("output"),
             snk.stream_input("input"),

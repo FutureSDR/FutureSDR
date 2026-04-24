@@ -1,5 +1,5 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 pub struct PreambleDetector<

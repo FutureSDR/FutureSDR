@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use lttng_ust::import_tracepoints;
 
 import_tracepoints!(concat!(env!("OUT_DIR"), "/tracepoints.rs"), tracepoints);

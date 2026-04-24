@@ -1,5 +1,5 @@
 #![allow(clippy::type_complexity)]
-use crate::prelude::*;
+use crate::dev_prelude::*;
 use futuredsp::ComputationStatus;
 use futuredsp::IirFilter;
 use futuredsp::prelude::*;

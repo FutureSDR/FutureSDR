@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::WorkerGlobalScope;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 const TRANSFER_SIZE: usize = 262144;
 

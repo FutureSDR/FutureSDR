@@ -47,7 +47,7 @@ pub fn Slider<P: Into<PortId>>(
                         setter(value);
                     }
                     spawn_local(async move {
-                        let _ = fg_handle.call(block_id, handler, pmt).await;
+                        let _ = fg_handle.post(block_id, handler, pmt).await;
                     });
                 }
             }

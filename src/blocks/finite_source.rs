@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Repeatedly apply a function to generate samples, using [Option] values to allow termination.
 #[derive(Block)]

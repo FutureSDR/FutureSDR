@@ -17,6 +17,13 @@ pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
 }
 
+/// Handle to interact with a specific block in a running [`crate::runtime::Flowgraph`].
+#[derive(Debug, Clone)]
+pub struct FlowgraphBlockHandle {
+    flowgraph: FlowgraphHandle,
+    block_id: BlockId,
+}
+
 impl PartialEq for FlowgraphHandle {
     fn eq(&self, other: &Self) -> bool {
         self.inbox.same_receiver(&other.inbox)
@@ -28,8 +35,16 @@ impl FlowgraphHandle {
         FlowgraphHandle { inbox }
     }
 
-    /// Call message handler, ignoring the result
-    pub async fn call(
+    /// Get a handle scoped to one block in the running flowgraph.
+    pub fn block(&self, block_id: impl Into<BlockId>) -> FlowgraphBlockHandle {
+        FlowgraphBlockHandle {
+            flowgraph: self.clone(),
+            block_id: block_id.into(),
+        }
+    }
+
+    /// Post a message to a handler, ignoring the result.
+    pub async fn post(
         &self,
         block_id: impl Into<BlockId>,
         port_id: impl Into<PortId>,
@@ -49,8 +64,8 @@ impl FlowgraphHandle {
         rx.await?
     }
 
-    /// Call message handler
-    pub async fn callback(
+    /// Call a handler and return its result.
+    pub async fn call(
         &self,
         block_id: impl Into<BlockId>,
         port_id: impl Into<PortId>,
@@ -70,8 +85,8 @@ impl FlowgraphHandle {
         rx.await?
     }
 
-    /// Get [`FlowgraphDescription`]
-    pub async fn description(&self) -> Result<FlowgraphDescription, Error> {
+    /// Get [`FlowgraphDescription`].
+    pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
         let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
         self.inbox
             .send(FlowgraphMessage::FlowgraphDescription { tx })
@@ -81,8 +96,8 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
-    /// Get [`BlockDescription`]
-    pub async fn block_description(
+    /// Get [`BlockDescription`] for one block.
+    pub async fn describe_block(
         &self,
         block_id: impl Into<BlockId>,
     ) -> Result<BlockDescription, Error> {
@@ -96,10 +111,10 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
-    /// Send a terminate message to the [`crate::runtime::Flowgraph`]
+    /// Send a stop message to the [`crate::runtime::Flowgraph`].
     ///
     /// Does not wait until the [`crate::runtime::Flowgraph`] is actually terminated.
-    pub async fn terminate(&self) -> Result<(), Error> {
+    pub async fn stop(&self) -> Result<(), Error> {
         self.inbox
             .send(FlowgraphMessage::Terminate)
             .await
@@ -107,13 +122,11 @@ impl FlowgraphHandle {
         Ok(())
     }
 
-    /// Terminate the [`crate::runtime::Flowgraph`]
+    /// Stop the [`crate::runtime::Flowgraph`].
     ///
-    /// Send a terminate message to the [`crate::runtime::Flowgraph`] and wait until it is shutdown.
-    pub async fn terminate_and_wait(&self) -> Result<(), Error> {
-        self.terminate()
-            .await
-            .map_err(|_| Error::FlowgraphTerminated)?;
+    /// Send a terminate message to the [`crate::runtime::Flowgraph`] and wait until it shuts down.
+    pub async fn stop_and_wait(&self) -> Result<(), Error> {
+        self.stop().await.map_err(|_| Error::FlowgraphTerminated)?;
         while !self.inbox.is_closed() {
             #[cfg(not(target_arch = "wasm32"))]
             async_io::Timer::after(std::time::Duration::from_millis(200)).await;
@@ -121,5 +134,27 @@ impl FlowgraphHandle {
             gloo_timers::future::sleep(std::time::Duration::from_millis(200)).await;
         }
         Ok(())
+    }
+}
+
+impl FlowgraphBlockHandle {
+    /// Get the block id this handle targets.
+    pub fn id(&self) -> BlockId {
+        self.block_id
+    }
+
+    /// Post a message to a handler on this block, ignoring the result.
+    pub async fn post(&self, port_id: impl Into<PortId>, data: Pmt) -> Result<(), Error> {
+        self.flowgraph.post(self.block_id, port_id, data).await
+    }
+
+    /// Call a handler on this block and return its result.
+    pub async fn call(&self, port_id: impl Into<PortId>, data: Pmt) -> Result<Pmt, Error> {
+        self.flowgraph.call(self.block_id, port_id, data).await
+    }
+
+    /// Describe this block.
+    pub async fn describe(&self) -> Result<BlockDescription, Error> {
+        self.flowgraph.describe_block(self.block_id).await
     }
 }

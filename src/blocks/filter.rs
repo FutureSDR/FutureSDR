@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Apply a function, returning an [Option] to allow filtering samples.
 ///
@@ -18,7 +18,7 @@ use crate::prelude::*;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Remove samples above 1.0
-/// let filter = fg.add_block(Filter::<f32, f32>::new(|i| {
+/// let filter = fg.add(Filter::<f32, f32>::new(|i| {
 ///     if *i < 1.0 {
 ///         Some(*i)
 ///     } else {

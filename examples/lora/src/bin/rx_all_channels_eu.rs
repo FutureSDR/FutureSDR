@@ -83,7 +83,7 @@ fn main() -> Result<()> {
 
     let packet_forwarder = args
         .forward_addr
-        .map(|addr| fg.add_block(PacketForwarderClient::new("0200.0000.0403.0201", &addr)));
+        .map(|addr| fg.add(PacketForwarderClient::new("0200.0000.0403.0201", &addr)));
 
     let src = Builder::new(args.args)?
         .sample_rate((NUM_CHANNELS_PADDED * CHANNEL_SPACING) as f64)
@@ -108,12 +108,12 @@ fn main() -> Result<()> {
     .collect();
     let channelizer: PfbChannelizer =
         PfbChannelizer::new(NUM_CHANNELS_PADDED, &channelizer_taps, 1.0);
-    // let channelizer = fg.add_block(channelizer);
+    // let channelizer = fg.add(channelizer);
     connect!(fg, src.outputs[0] > channelizer);
     for n_out in 0..NUM_CHANNELS_PADDED {
         let n_chan = map_port(n_out);
         if n_chan.is_none() {
-            let null_sink_extra_channel = fg.add_block(NullSink::<Complex32>::new());
+            let null_sink_extra_channel = fg.add(NullSink::<Complex32>::new());
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
             fg.connect_dyn(
                 channelizer.stream_output(format!("out{n_out}")),
@@ -138,7 +138,7 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|x| x as f32)
         .collect();
-        let resampler = fg.add_block(PfbArbResampler::new(2.5, &resampler_taps, 5));
+        let resampler = fg.add(PfbArbResampler::new(2.5, &resampler_taps, 5));
         fg.connect_dyn(
             channelizer.stream_output(format!("out{n_out}")),
             resampler.stream_input("in"),

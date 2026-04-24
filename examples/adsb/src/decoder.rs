@@ -1,6 +1,6 @@
 use crate::DemodPacket;
 use anyhow::bail;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use serde::Serialize;
 use std::time::SystemTime;
 

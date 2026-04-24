@@ -1,5 +1,5 @@
 use burn::prelude::*;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use std::time::Instant;
 
 #[derive(Block)]

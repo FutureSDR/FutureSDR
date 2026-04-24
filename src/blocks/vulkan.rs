@@ -1,5 +1,5 @@
 use anyhow::Context;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::vulkan::D2HWriter;
 use futuresdr::runtime::buffer::vulkan::H2DReader;
 use futuresdr::runtime::buffer::vulkan::Instance;

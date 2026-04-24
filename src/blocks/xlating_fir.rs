@@ -4,7 +4,7 @@ use futuredsp::Rotator;
 use futuredsp::firdes;
 use futuredsp::prelude::*;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Frequency Xlating FIR filter.
 #[derive(Block)]

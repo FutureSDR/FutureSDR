@@ -83,7 +83,7 @@ impl MyApp {
             let src_id = src.id();
 
             let rt = Runtime::new();
-            let (_task, handle) = rt.start_sync(fg)?;
+            let handle = rt.start_sync(fg)?.handle();
 
             let _ = futuresdr::async_io::block_on(process_gui_actions(rx, handle, src_id));
 

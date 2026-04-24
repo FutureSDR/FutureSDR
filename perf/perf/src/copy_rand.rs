@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use rand::RngExt;
 
 /// Copy input samples to the output, forwarding only a randomly selected number of samples.

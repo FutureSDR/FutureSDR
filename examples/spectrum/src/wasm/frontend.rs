@@ -38,7 +38,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         let rt_handle = rt_handle.clone();
         async move {
             if let Ok(mut fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await
-                && let Ok(desc) = fg.description().await
+                && let Ok(desc) = fg.describe().await
             {
                 return Some(desc);
             }
@@ -212,7 +212,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                     let p = Pmt::F64(freq * 1e6);
                                     let fg_handle = fg_handle.clone();
                                     spawn_local(async move {
-                                        let _ = fg_handle.call(block_id(), "freq", p).await;
+                                        let _ = fg_handle.post(block_id(), "freq", p).await;
                                     });
                                 }
                             }
@@ -238,7 +238,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
                                     let p = Pmt::F64(gain);
                                     let fg_handle = fg_handle.clone();
                                     spawn_local(async move {
-                                        let _ = fg_handle.call(block_id(), "gain", p).await;
+                                        let _ = fg_handle.post(block_id(), "gain", p).await;
                                     });
                                 }
                             }

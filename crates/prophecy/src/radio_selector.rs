@@ -48,7 +48,7 @@ pub fn RadioSelector<P: Into<PortId>, V: IntoIterator<Item = (String, Pmt)>>(
                                 &handler,
                                 &p
                                     );
-                                    let _ = fg_handle.call(block_id, handler, p).await;
+                                    let _ = fg_handle.post(block_id, handler, p).await;
                                 });
                             }
                         />

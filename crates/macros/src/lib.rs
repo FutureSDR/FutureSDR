@@ -39,19 +39,19 @@ use syn::token;
 ///
 /// ```ignore
 /// // Add all the blocks to the `Flowgraph`...
-/// let src = fg.add_block(src);
-/// let shift = fg.add_block(shift);
-/// let resamp1 = fg.add_block(resamp1);
-/// let demod = fg.add_block(demod);
-/// let resamp2 = fg.add_block(resamp2);
-/// let snk = fg.add_block(snk);
+/// let src = fg.add(src);
+/// let shift = fg.add(shift);
+/// let resamp1 = fg.add(resamp1);
+/// let demod = fg.add(demod);
+/// let resamp2 = fg.add(resamp2);
+/// let snk = fg.add(snk);
 ///
 /// // ... and connect the ports appropriately
-/// fg.connect_stream(&src, |b| b.output(), &shift, |b| b.input())?;
-/// fg.connect_stream(&shift, |b| b.output(), &resamp1, |b| b.input())?;
-/// fg.connect_stream(&resamp1, |b| b.output(), &demod, |b| b.input())?;
-/// fg.connect_stream(&demod, |b| b.output(), &resamp2, |b| b.input())?;
-/// fg.connect_stream(&resamp2, |b| b.output(), &snk, |b| b.input())?;
+/// fg.stream(&src, |b| b.output(), &shift, |b| b.input())?;
+/// fg.stream(&shift, |b| b.output(), &resamp1, |b| b.input())?;
+/// fg.stream(&resamp1, |b| b.output(), &demod, |b| b.input())?;
+/// fg.stream(&demod, |b| b.output(), &resamp2, |b| b.input())?;
+/// fg.stream(&resamp2, |b| b.output(), &snk, |b| b.input())?;
 /// ```
 ///
 /// Connections endpoints are defined by `block.port_name`. Standard names
@@ -129,7 +129,7 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dst_block = &dst.block;
                     quote! {
-                        #fg.connect_stream(
+                        #fg.stream(
                             &#src_block,
                             |b| b.#src_port,
                             &#dst_block,
@@ -191,7 +191,7 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     };
                     let dest_block = &dst.block;
                     quote! {
-                        #fg.connect_message(
+                        #fg.message(
                             #src_block.message_output(#src_port),
                             #dest_block.message_input(#dst_port),
                         )?;

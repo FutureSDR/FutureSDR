@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 use std::fmt::Debug;
 
 /// Log stream data with `info!`.

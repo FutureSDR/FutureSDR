@@ -5,8 +5,8 @@ use seify::TxStreamer;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
+use crate::dev_prelude::*;
 use crate::num_complex::Complex32;
-use crate::prelude::*;
 
 /// Seify Sink block
 ///

@@ -136,7 +136,7 @@ fn main() -> Result<()> {
 
     // Start the flowgraph and save the handle
     let rt = Runtime::new();
-    let (_res, handle) = rt.start_sync(fg)?;
+    let handle = rt.start_sync(fg)?.handle();
 
     // Keep asking user for a new frequency and a new sample rate
     loop {
@@ -151,7 +151,7 @@ fn main() -> Result<()> {
         // If the user entered a valid number, set the new frequency by sending a message to the `FlowgraphHandle`
         if let Ok(new_freq) = input.parse::<f64>() {
             println!("Setting frequency to {input}");
-            async_io::block_on(handle.call(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
+            async_io::block_on(handle.post(src, "freq", Pmt::F64(new_freq * 1e6 + freq_offset)))?;
         } else {
             println!("Input not parsable: {input}");
         }

@@ -7,7 +7,7 @@ use cpal::traits::StreamTrait;
 use futures::channel::oneshot;
 
 use crate::channel::mpsc;
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Audio Sink.
 #[derive(Block)]

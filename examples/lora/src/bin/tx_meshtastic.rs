@@ -73,9 +73,10 @@ fn main() -> Result<()> {
     )?;
 
     connect!(fg, transmitter > inputs[0].sink);
-    let transmitter = transmitter.into();
+    let transmitter: BlockId = transmitter.into();
+
     let rt = Runtime::new();
-    let (_fg, handle) = rt.start_sync(fg)?;
+    let handle = rt.start_sync(fg)?.handle();
 
     let channel = MeshtasticChannel::new(&args.name, &args.key);
     loop {
@@ -92,7 +93,7 @@ fn main() -> Result<()> {
 
         rt.block_on(async move {
             handle
-                .call(transmitter, "msg", Pmt::Blob(data))
+                .post(transmitter, "msg", Pmt::Blob(data))
                 .await
                 .unwrap();
             info!("sent frame");

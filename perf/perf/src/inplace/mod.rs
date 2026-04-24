@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 /// In-place null source for `i32` streams.
 #[derive(Block)]

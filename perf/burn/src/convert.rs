@@ -1,6 +1,6 @@
 use burn::prelude::*;
 use burn_buffer::Buffer;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 use crate::BATCH_SIZE;
 use crate::FFT_SIZE;

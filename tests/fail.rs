@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::bail;
 use futuresdr::blocks::MessageSink;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 struct FailInit;
@@ -67,8 +67,8 @@ impl Kernel for FailDeinit {
 fn fail_init() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new());
-    fg.add_block(FailInit::new());
+    fg.add(MessageSink::new());
+    fg.add(FailInit::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")
@@ -81,8 +81,8 @@ fn fail_init() -> Result<()> {
 fn fail_work() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new());
-    fg.add_block(FailWork::new());
+    fg.add(MessageSink::new());
+    fg.add(FailWork::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")
@@ -95,8 +95,8 @@ fn fail_work() -> Result<()> {
 fn fail_deinit() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    fg.add_block(MessageSink::new());
-    fg.add_block(FailDeinit::new());
+    fg.add(MessageSink::new());
+    fg.add(FailDeinit::new());
 
     if Runtime::new().run(fg).is_ok() {
         panic!("flowgraph should fail")

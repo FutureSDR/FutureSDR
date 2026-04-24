@@ -5,7 +5,7 @@ use burn::prelude::*;
 use burn_cubecl::CubeBackend;
 use burn_fusion::Fusion;
 use futuresdr::blocks::FileSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
 use perf_burn::Convert;
 use perf_burn::FFT_SIZE;

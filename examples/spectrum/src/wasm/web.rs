@@ -42,7 +42,7 @@ pub fn Spectrum(
         move || {
             let handle = handle.clone();
             async move {
-                if let Ok(desc) = handle.description().await {
+                if let Ok(desc) = handle.describe().await {
                     return Some(desc);
                 }
                 None
@@ -176,7 +176,7 @@ pub fn Spectrum(
                                 let p = Pmt::F64(freq * 1e6);
                                 let handle = handle.clone();
                                 spawn_local(async move {
-                                    let _ = handle.call(4, "freq", p).await;
+                                    let _ = handle.post(4, "freq", p).await;
                                 });
                             }
                         }
@@ -459,10 +459,10 @@ async fn run(
     connect!(fg, src > fft > mag_sqr > keep > snk);
 
     let rt = Runtime::new();
-    let (task, handle) = rt.start(fg).await?;
-    set_handle.set(Some(handle));
+    let running = rt.start(fg).await?;
+    set_handle.set(Some(running.handle()));
 
-    let _ = task.await;
+    let _ = running.wait().await;
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 pub struct ClockRecoveryMm<I = DefaultCpuReader<f32>, O = DefaultCpuWriter<f32>>

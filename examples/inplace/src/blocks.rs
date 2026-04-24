@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 pub struct VectorSource<T, O = circuit::Writer<T>>

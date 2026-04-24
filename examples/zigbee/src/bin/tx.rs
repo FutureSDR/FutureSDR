@@ -38,10 +38,10 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let mac: Mac = Mac::new();
-    let mac = fg.add_block(mac);
+    let mac = fg.add(mac);
     let modulator = modulator(&mut fg);
     let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add_block(iq_delay);
+    let iq_delay = fg.add(iq_delay);
 
     let snk = Builder::new(args.args)?
         .frequency(args.freq)
@@ -50,7 +50,7 @@ fn main() -> Result<()> {
         .antenna(args.antenna)
         .min_in_buffer_size(98304)
         .build_sink()?;
-    let snk = fg.add_block(snk);
+    let snk = fg.add(snk);
 
     fg.connect_dyn(mac.stream_output("output"), modulator.stream_input("input"))?;
     fg.connect_dyn(
@@ -64,14 +64,15 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let (fg, handle) = rt.start_sync(fg)?;
+    let running = rt.start_sync(fg)?;
+    let handle = running.handle();
 
     let mut seq = 0u64;
     rt.spawn_background(async move {
         loop {
             Timer::after(Duration::from_secs_f32(0.8)).await;
             handle
-                .call(
+                .post(
                     mac,
                     "tx",
                     Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
@@ -82,7 +83,7 @@ fn main() -> Result<()> {
         }
     });
 
-    block_on(fg)?;
+    block_on(running.wait())?;
 
     Ok(())
 }

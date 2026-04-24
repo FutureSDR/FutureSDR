@@ -3,7 +3,7 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use std::hint::black_box;
 
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;

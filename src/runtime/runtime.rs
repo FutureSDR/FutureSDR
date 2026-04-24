@@ -17,6 +17,7 @@ use crate::channel::mpsc::Sender;
 use crate::channel::mpsc::channel;
 use crate::runtime;
 use crate::runtime::BlockDescription;
+use crate::runtime::BlockId;
 use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::ControlPort;
@@ -55,6 +56,12 @@ pub struct TaskHandle<T> {
     task: Option<Task<T>>,
 }
 
+/// Running [`Flowgraph`] together with its control handle and completion task.
+pub struct RunningFlowgraph {
+    handle: FlowgraphHandle,
+    task: TaskHandle<Result<Flowgraph, Error>>,
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl<T> Drop for TaskHandle<T> {
     fn drop(&mut self) {
@@ -68,6 +75,76 @@ impl<T> Drop for TaskHandle<T> {
 impl<T> TaskHandle<T> {
     fn new(task: Task<T>) -> Self {
         TaskHandle { task: Some(task) }
+    }
+}
+
+impl RunningFlowgraph {
+    fn new(handle: FlowgraphHandle, task: TaskHandle<Result<Flowgraph, Error>>) -> Self {
+        Self { handle, task }
+    }
+
+    /// Get a clonable handle to the running [`Flowgraph`].
+    pub fn handle(&self) -> FlowgraphHandle {
+        self.handle.clone()
+    }
+
+    /// Get a handle scoped to one block in the running flowgraph.
+    pub fn block(&self, block_id: impl Into<BlockId>) -> runtime::FlowgraphBlockHandle {
+        self.handle.block(block_id)
+    }
+
+    /// Split the running flowgraph into its completion task and control handle.
+    pub fn split(self) -> (TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle) {
+        (self.task, self.handle)
+    }
+
+    /// Wait until the flowgraph terminates and return the finished [`Flowgraph`].
+    pub async fn wait(self) -> Result<Flowgraph, Error> {
+        self.task.await
+    }
+
+    /// Post a message to a block, ignoring the return value.
+    pub async fn post(
+        &self,
+        block_id: impl Into<BlockId>,
+        port_id: impl Into<crate::runtime::PortId>,
+        data: Pmt,
+    ) -> Result<(), Error> {
+        self.handle.post(block_id, port_id, data).await
+    }
+
+    /// Call a message handler on a block.
+    pub async fn call(
+        &self,
+        block_id: impl Into<BlockId>,
+        port_id: impl Into<crate::runtime::PortId>,
+        data: Pmt,
+    ) -> Result<Pmt, Error> {
+        self.handle.call(block_id, port_id, data).await
+    }
+
+    /// Describe the running flowgraph.
+    pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
+        self.handle.describe().await
+    }
+
+    /// Describe a block in the running flowgraph.
+    pub async fn describe_block(
+        &self,
+        block_id: impl Into<BlockId>,
+    ) -> Result<BlockDescription, Error> {
+        self.handle.describe_block(block_id).await
+    }
+
+    /// Stop the running flowgraph.
+    pub async fn stop(&self) -> Result<(), Error> {
+        self.handle.stop().await
+    }
+
+    /// Stop the running flowgraph and wait until it terminates.
+    pub async fn stop_and_wait(self) -> Result<Flowgraph, Error> {
+        self.handle.stop().await?;
+        self.wait().await
     }
 }
 
@@ -210,10 +287,7 @@ impl<S: Scheduler> Runtime<S> {
     /// Start a [`Flowgraph`] on the [`Runtime`]
     ///
     /// Returns, once the flowgraph is constructed and running.
-    pub async fn start(
-        &self,
-        fg: Flowgraph,
-    ) -> Result<(TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
+    pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -235,31 +309,27 @@ impl<S: Scheduler> Runtime<S> {
             .ok_or(Error::LockError)?
             .push(handle.clone());
 
-        Ok((TaskHandle::new(task), handle))
+        Ok(RunningFlowgraph::new(handle, TaskHandle::new(task)))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`]
     ///
     /// Blocks until the flowgraph is constructed and running.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn start_sync(
-        &self,
-        fg: Flowgraph,
-    ) -> Result<(TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle), Error> {
+    pub fn start_sync(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         block_on(self.start(fg))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let (handle, _) = block_on(self.start(fg))?;
-        block_on(handle)
+        let running = block_on(self.start(fg))?;
+        block_on(running.wait())
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let (handle, _) = self.start(fg).await?;
-        handle.await
+        self.start(fg).await?.wait().await
     }
 
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].

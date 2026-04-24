@@ -20,7 +20,7 @@ use cubecl::bytes::AllocationProperty;
 use cubecl::bytes::Bytes;
 use cubecl::client::ComputeClient;
 use futuresdr::blocks::FileSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
 use perf_burn::Convert;
 use perf_burn::FFT_SIZE;

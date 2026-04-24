@@ -1,4 +1,4 @@
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 pub struct Prefix<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>

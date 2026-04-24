@@ -104,16 +104,17 @@ fn main() -> Result<()> {
     )?;
 
     connect!(fg, transmitter > inputs[0].sink);
-    let transmitter = transmitter.into();
+    let transmitter: BlockId = transmitter.into();
+
     let rt = Runtime::new();
 
-    let (_fg, handle) = rt.start_sync(fg)?;
+    let handle = rt.start_sync(fg)?.handle();
     rt.block_on(async move {
         let mut payload = vec![0u8; args.payload_len];
         loop {
             rand::rng().fill_bytes(payload.as_mut());
             handle
-                .call(transmitter, "msg", Pmt::Blob(payload.clone()))
+                .post(transmitter, "msg", Pmt::Blob(payload.clone()))
                 .await
                 .unwrap();
             info!("sending frame with payload {:02x?}", payload);

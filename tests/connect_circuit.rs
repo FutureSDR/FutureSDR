@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futuresdr::async_io::block_on;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 #[derive(Block)]
 struct CircuitSource<O = circuit::Writer<i32>>
@@ -221,13 +221,14 @@ fn connect_circuit_description_omits_closure_edge() -> Result<()> {
     ];
 
     let rt = Runtime::new();
-    let (task, handle) = rt.start_sync(fg)?;
+    let running = rt.start_sync(fg)?;
+    let handle = running.handle();
     let description = block_on(async {
-        let description = handle.description().await?;
-        handle.terminate_and_wait().await?;
+        let description = handle.describe().await?;
+        handle.stop_and_wait().await?;
         Ok::<_, Error>(description)
     })?;
-    let fg = block_on(task)?;
+    let fg = block_on(running.wait())?;
     let snk = snk.get(&fg)?;
 
     assert_eq!(description.stream_edges, expected_edges);

@@ -198,25 +198,42 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use futuresdr::channel::mpsc;
     pub use futuresdr::channel::oneshot;
-    pub use futuresdr::macros::Block;
-    pub use futuresdr::macros::async_trait;
     pub use futuresdr::macros::connect;
     pub use futuresdr::runtime::BlockId;
-    pub use futuresdr::runtime::BlockMeta;
+    pub use futuresdr::runtime::BlockPortId;
     pub use futuresdr::runtime::BlockRef;
     pub use futuresdr::runtime::Error;
     pub use futuresdr::runtime::Flowgraph;
+    pub use futuresdr::runtime::FlowgraphBlockHandle;
     pub use futuresdr::runtime::FlowgraphHandle;
     pub use futuresdr::runtime::FlowgraphId;
     pub use futuresdr::runtime::ItemTag;
-    pub use futuresdr::runtime::Kernel;
-    pub use futuresdr::runtime::MessageOutputs;
     pub use futuresdr::runtime::Pmt;
     pub use futuresdr::runtime::PortId;
     pub use futuresdr::runtime::Result;
+    pub use futuresdr::runtime::RunningFlowgraph;
     pub use futuresdr::runtime::Runtime;
     pub use futuresdr::runtime::RuntimeHandle;
     pub use futuresdr::runtime::Tag;
+    pub use futuresdr::tracing::debug;
+    pub use futuresdr::tracing::error;
+    pub use futuresdr::tracing::info;
+    pub use futuresdr::tracing::trace;
+    pub use futuresdr::tracing::warn;
+    pub use num_complex::*;
+}
+
+/// Prelude for implementing custom blocks and other developer-facing runtime extensions.
+pub mod dev_prelude {
+    pub use crate::prelude::*;
+    pub use futuresdr::channel::mpsc;
+    pub use futuresdr::channel::oneshot;
+    pub use futuresdr::macros::Block;
+    pub use futuresdr::macros::async_trait;
+    pub use futuresdr::runtime::Block;
+    pub use futuresdr::runtime::BlockMeta;
+    pub use futuresdr::runtime::Kernel;
+    pub use futuresdr::runtime::MessageOutputs;
     pub use futuresdr::runtime::WorkIo;
     pub use futuresdr::runtime::buffer::BufferReader;
     pub use futuresdr::runtime::buffer::BufferWriter;
@@ -235,10 +252,4 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use futuresdr::runtime::buffer::circular;
     pub use futuresdr::runtime::buffer::slab;
-    pub use futuresdr::tracing::debug;
-    pub use futuresdr::tracing::error;
-    pub use futuresdr::tracing::info;
-    pub use futuresdr::tracing::trace;
-    pub use futuresdr::tracing::warn;
-    pub use num_complex::*;
 }

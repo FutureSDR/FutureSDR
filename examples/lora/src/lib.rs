@@ -14,10 +14,10 @@ pub use deinterleaver::Deinterleaver;
 pub use encoder::Encoder;
 pub use fft_demod::FftDemod;
 pub use frame_sync::FrameSync;
-use futuresdr::macros::connect;
 use futuresdr::prelude::BlockRef;
 use futuresdr::prelude::Flowgraph;
 use futuresdr::prelude::Result;
+use futuresdr::prelude::connect;
 pub use gray_mapping::GrayMapping;
 pub use hamming_dec::HammingDecoder;
 pub use header_decoder::Frame;
@@ -59,7 +59,7 @@ pub fn build_lora_tx(
     pad: usize,
 ) -> Result<BlockRef<Transmitter>> {
     let ldro_enabled = ldro.resolve_if_auto(sf, bw).enabled();
-    let transmitter = fg.add_block(Transmitter::new(
+    let transmitter = fg.add(Transmitter::new(
         code_rate,
         has_crc,
         sf,
@@ -126,7 +126,7 @@ pub fn build_lora_rx_dyn(
 
 #[allow(clippy::too_many_arguments)]
 pub fn build_lora_rx_soft_decoding(
-    fg: &mut Flowgraph,
+    mut fg: &mut Flowgraph,
     chan: Channel,
     bw: Bandwidth,
     sf: SpreadingFactor,
@@ -168,7 +168,7 @@ pub fn build_lora_rx_soft_decoding(
 
 #[allow(clippy::too_many_arguments)]
 pub fn build_lora_rx_hard_decoding(
-    fg: &mut Flowgraph,
+    mut fg: &mut Flowgraph,
     chan: Channel,
     bw: Bandwidth,
     sf: SpreadingFactor,

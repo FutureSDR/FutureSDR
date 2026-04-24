@@ -5,7 +5,7 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use std::cmp;
 
 pub enum FailType {
@@ -109,12 +109,12 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
         RunMode::Run => Runtime::new().run(fg),
         RunMode::Terminate => {
             let rt = Runtime::new();
-            let (fg_task, fg_handle) = rt.start_sync(fg)?;
+            let running = rt.start_sync(fg)?;
             block_on(async move {
                 // Sleep to allow work to be called at least once
                 futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
-                let _ = fg_handle.terminate().await;
-                fg_task.await
+                let _ = running.stop().await;
+                running.wait().await
             })
         }
     };

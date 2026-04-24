@@ -1,7 +1,7 @@
 use anyhow::Context;
 use async_net::UdpSocket;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Read samples from a UDP socket.
 #[derive(Block)]

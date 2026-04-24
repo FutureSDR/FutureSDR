@@ -1,7 +1,7 @@
 use std::cmp;
 use std::ptr;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Stream samples from vector.
 #[derive(Block)]

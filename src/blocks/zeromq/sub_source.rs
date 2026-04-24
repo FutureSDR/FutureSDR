@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
 #[derive(Block)]

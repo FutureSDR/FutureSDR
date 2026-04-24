@@ -103,14 +103,14 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let (_fg, handle) = rt.start_sync(fg)?;
+    let handle = rt.start_sync(fg)?.handle();
 
     let mut seq = 0u64;
     rt.spawn_background(async move {
         loop {
             Timer::after(Duration::from_secs_f32(0.8)).await;
             handle
-                .call(
+                .post(
                     mac,
                     "tx",
                     Pmt::Any(Box::new((

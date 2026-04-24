@@ -6,7 +6,7 @@ use seify::RxStreamer;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 /// Seify Source block
 ///

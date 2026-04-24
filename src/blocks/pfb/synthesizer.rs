@@ -7,7 +7,7 @@ use rustfft::FftPlanner;
 use futuredsp::Filter;
 use futuredsp::FirFilter;
 
-use crate::prelude::*;
+use crate::dev_prelude::*;
 
 use super::utilities::partition_filter_taps;
 use super::window_buffer::WindowBuffer;

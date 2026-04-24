@@ -40,13 +40,13 @@ pub fn call_periodically(
         let pmt = pmt.clone();
         let handler = handler.clone();
         match fg.get() {
-            Some(mut fg) => {
+            Some(fg) => {
                 if !matches!(started, Some(true)) {
                     log!("Starting to call block {} handler {:?}", block_id, &handler);
                     spawn_local(async move {
                         loop {
                             if fg
-                                .call(block_id, handler.clone(), pmt.clone())
+                                .post(block_id, handler.clone(), pmt.clone())
                                 .await
                                 .is_err()
                             {
@@ -77,12 +77,12 @@ pub fn poll_periodically(
         let pmt = pmt.clone();
         let handler = handler.clone();
         match fg.get() {
-            Some(mut fg) => {
+            Some(fg) => {
                 if !matches!(started, Some(true)) {
                     log!("Starting to poll block {} handler {:?}", block_id, &handler);
                     spawn_local(async move {
                         loop {
-                            match fg.callback(block_id, handler.clone(), pmt.clone()).await {
+                            match fg.call(block_id, handler.clone(), pmt.clone()).await {
                                 Ok(p) => {
                                     set_res(p);
                                 }
@@ -168,13 +168,13 @@ impl FlowgraphHandle {
     pub fn from_handle(h: runtime::FlowgraphHandle) -> Self {
         Self::Web(h)
     }
-    pub async fn description(&self) -> Result<FlowgraphDescription, Error> {
+    pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
         match self {
             Self::Remote(u) => Ok(Request::get(u).send().await?.json().await?),
-            Self::Web(h) => Ok(h.description().await?),
+            Self::Web(h) => Ok(h.describe().await?),
         }
     }
-    pub async fn call(
+    pub async fn post(
         &self,
         block_id: usize,
         handler: impl Into<PortId>,
@@ -194,10 +194,10 @@ impl FlowgraphHandle {
                 .await?;
                 Ok(())
             }
-            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
+            Self::Web(h) => Ok(h.post(block_id, handler, pmt).await?),
         }
     }
-    pub async fn callback(
+    pub async fn call(
         &self,
         block_id: usize,
         handler: impl Into<PortId>,
@@ -221,7 +221,7 @@ impl FlowgraphHandle {
                     Err(Error::Gloo(format!("Request failed {response:?}")))
                 }
             }
-            Self::Web(h) => Ok(h.callback(block_id, handler, pmt).await?),
+            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
         }
     }
 
@@ -245,7 +245,7 @@ impl FlowgraphHandle {
                 .await?;
                 Ok(())
             }
-            Self::Web(h) => Ok(h.call(block_id, handler, pmt).await?),
+            Self::Web(h) => Ok(h.post(block_id, handler, pmt).await?),
         }
     }
 }

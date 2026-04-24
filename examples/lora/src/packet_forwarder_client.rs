@@ -21,7 +21,7 @@ use tokio::runtime::Runtime;
 use triggered::Trigger;
 
 use futuresdr::channel::mpsc::Sender;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 
 /// Forward messages.
 #[derive(Block)]

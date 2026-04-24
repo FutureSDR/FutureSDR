@@ -4,7 +4,7 @@ use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::prelude::*;
+use futuresdr::dev_prelude::*;
 use perf_burn::FFT_SIZE;
 use perf_burn::batch_size_from_args;
 

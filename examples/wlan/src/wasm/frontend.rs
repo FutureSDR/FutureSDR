@@ -61,7 +61,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         LocalResource::new(move || {
             let fg_handle = fg_handle.clone();
             async move {
-                if let Ok(desc) = fg_handle.description().await {
+                if let Ok(desc) = fg_handle.describe().await {
                     return Some(desc);
                 }
                 None
@@ -134,7 +134,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
             sample_rate_initialized.set(true);
             let mut fg = fg_for_sample_rate_init.clone();
             spawn_local(async move {
-                let _ = fg.call(source, "sample_rate", Pmt::F64(20e6)).await;
+                let _ = fg.post(source, "sample_rate", Pmt::F64(20e6)).await;
             });
         }
     });
@@ -166,7 +166,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                         let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
-                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(5e6)).await;
+                                                let _ = fg_handle.post(source_block_id, "sample_rate", Pmt::F64(5e6)).await;
                                             });
                                         }
                                     }
@@ -184,7 +184,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                         let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
-                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(10e6)).await;
+                                                let _ = fg_handle.post(source_block_id, "sample_rate", Pmt::F64(10e6)).await;
                                             });
                                         }
                                     }
@@ -203,7 +203,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                         let fg_handle = fg_handle.clone();
                                         if let Some(source_block_id) = source_block_id.get_untracked() {
                                             spawn_local(async move {
-                                                let _ = fg_handle.call(source_block_id, "sample_rate", Pmt::F64(20e6)).await;
+                                                let _ = fg_handle.post(source_block_id, "sample_rate", Pmt::F64(20e6)).await;
                                             });
                                         }
                                     }
@@ -320,7 +320,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
                                 let fg_handle = fg_handle.clone();
                                 if let Some(source_block_id) = source_block_id.get_untracked() {
                                     spawn_local(async move {
-                                        let _ = fg_handle.call(source_block_id, "gain", p).await;
+                                        let _ = fg_handle.post(source_block_id, "gain", p).await;
                                     });
                                 }
                     }} />
