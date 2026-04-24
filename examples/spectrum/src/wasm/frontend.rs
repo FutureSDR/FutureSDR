@@ -37,7 +37,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
     let fg_desc = LocalResource::new(move || {
         let rt_handle = rt_handle.clone();
         async move {
-            if let Ok(mut fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await
+            if let Ok(fg) = rt_handle.get_flowgraph(FlowgraphId(0)).await
                 && let Ok(desc) = fg.describe().await
             {
                 return Some(desc);
@@ -134,7 +134,7 @@ pub fn Spectrum(fg_handle: FlowgraphHandle) -> impl IntoView {
         if let Some(selected) = target.get_untracked() {
             set_submitting(true);
             set_submit_error(None);
-            let mut fg = fg_for_submit.clone();
+            let fg = fg_for_submit.clone();
             spawn_local(async move {
                 let result = fg
                     .put_message_input(selected.block_id, selected.handler.clone(), pmt)

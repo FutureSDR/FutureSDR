@@ -119,7 +119,7 @@ impl gloo_worker::Worker for Worker {
             WorkerMessage::Freq(f) => match &mut self.handle {
                 Handle::None => {}
                 Handle::Receiver(r) => {
-                    if let Ok(mut h) = r.try_recv() {
+                    if let Ok(h) = r.try_recv() {
                         self.handle = Handle::Flowgraph(h.clone());
                         spawn_local(async move {
                             h.post(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
@@ -127,7 +127,7 @@ impl gloo_worker::Worker for Worker {
                     }
                 }
                 Handle::Flowgraph(h) => {
-                    let mut h = h.clone();
+                    let h = h.clone();
                     spawn_local(async move {
                         h.post(BlockId(6), "freq", Pmt::U64(f)).await.unwrap();
                     });

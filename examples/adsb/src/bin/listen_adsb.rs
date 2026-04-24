@@ -12,6 +12,7 @@ use futuresdr::blocks::Throttle;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::num_integer;
 use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::DefaultCpuReader;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]

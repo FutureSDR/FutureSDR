@@ -87,7 +87,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
         if let Some(selected) = selected {
             set_submitting(true);
             set_submit_error(None);
-            let mut fg = fg_handle.clone();
+            let fg = fg_handle.clone();
             spawn_local(async move {
                 let result = fg
                     .put_message_input(selected.block_id, selected.handler.clone(), pmt)
@@ -190,7 +190,7 @@ pub fn Flowgraph(fg_handle: FlowgraphHandle) -> impl IntoView {
 /// Top bar: runtime URL input and flowgraph selector dropdown
 pub fn RuntimeControl() -> impl IntoView {
     let default_url = window().location().origin().unwrap();
-    let (rt_handle, set_rt_handle) = signal(RuntimeHandle::from_url(default_url.clone()));
+    let (rt_handle, set_rt_handle) = signal_local(RuntimeHandle::from_url(default_url.clone()));
     let (fg_handle, set_fg_handle) = signal(None::<FlowgraphHandle>);
     let fg_ids: RwSignal<Vec<FlowgraphId>> = RwSignal::new(vec![]);
 
@@ -229,7 +229,7 @@ pub fn RuntimeControl() -> impl IntoView {
         if ev.key() == "Enter"
             && let Some(input) = url_ref.get()
         {
-            set_rt_handle(RuntimeHandle::from_url(input.value()));
+            set_rt_handle.set(RuntimeHandle::from_url(input.value()));
         }
     };
 
