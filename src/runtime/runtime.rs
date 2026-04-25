@@ -103,7 +103,7 @@ impl RunningFlowgraph {
         self.task.await
     }
 
-    /// Post a message to a block, ignoring the return value.
+    /// Post a message to a block without waiting for handler completion.
     pub async fn post(
         &self,
         block_id: impl Into<BlockId>,

@@ -3,6 +3,7 @@ use adsb_demod::Decoder;
 use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
 use adsb_demod::Tracker;
+use adsb_demod::preamble_correlator_taps;
 use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::Apply;
@@ -12,7 +13,6 @@ use futuresdr::blocks::Throttle;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::num_integer;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::DefaultCpuReader;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
@@ -108,8 +108,7 @@ fn main() -> Result<()> {
 
     let complex_to_mag_2: Apply<_, _, _> = Apply::new(|i: &Complex32| i.norm_sqr());
     let nf_est_block = FirBuilder::fir::<f32, f32, _>(vec![1.0f32 / 32.0; 32]);
-    let preamble_taps: Vec<f32> =
-        PreambleDetector::<DefaultCpuReader<f32>>::preamble_correlator_taps();
+    let preamble_taps: Vec<f32> = preamble_correlator_taps();
     let preamble_corr_block = FirBuilder::fir::<f32, f32, _>(preamble_taps);
     let preamble_detector = PreambleDetector::new(args.preamble_threshold);
     let adsb_demod = Demodulator::new();

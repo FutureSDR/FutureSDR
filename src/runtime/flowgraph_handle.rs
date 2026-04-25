@@ -43,7 +43,10 @@ impl FlowgraphHandle {
         }
     }
 
-    /// Post a message to a handler, ignoring the result.
+    /// Post a message to a handler without waiting for the handler to finish.
+    ///
+    /// This only waits until the runtime accepts and forwards the message. Use
+    /// [`Self::call`] if you need to wait for handler completion.
     pub async fn post(
         &self,
         block_id: impl Into<BlockId>,
@@ -143,7 +146,7 @@ impl FlowgraphBlockHandle {
         self.block_id
     }
 
-    /// Post a message to a handler on this block, ignoring the result.
+    /// Post a message to a handler on this block without waiting for completion.
     pub async fn post(&self, port_id: impl Into<PortId>, data: Pmt) -> Result<(), Error> {
         self.flowgraph.post(self.block_id, port_id, data).await
     }

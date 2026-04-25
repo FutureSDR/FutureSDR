@@ -16,6 +16,7 @@ pub const SYMBOL_ZERO_TAPS: [f32; 2 * N_SAMPLES_PER_HALF_SYM] = [-1.0, -1.0, 1.0
 
 mod preamble_detector;
 pub use preamble_detector::PreambleDetector;
+pub use preamble_detector::preamble_correlator_taps;
 
 mod demodulator;
 pub use demodulator::DemodPacket;

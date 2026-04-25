@@ -1,6 +1,26 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
 use futuresdr::dev_prelude::*;
 
+const PREAMBLE: [f32; 16] = [
+    1.0f32, -1.0f32, // Symbol 1
+    1.0f32, -1.0f32, // Symbol 2
+    -1.0f32, -1.0f32, // ...
+    -1.0f32, 1.0f32, //
+    -1.0f32, 1.0f32, //
+    -1.0f32, -1.0f32, //
+    -1.0f32, -1.0f32, //
+    -1.0f32, -1.0f32, // Symbol 8
+];
+
+/// Returns taps for the preamble correlation filter.
+pub fn preamble_correlator_taps() -> Vec<f32> {
+    PREAMBLE
+        .into_iter()
+        .rev()
+        .flat_map(|n| std::iter::repeat_n(n, N_SAMPLES_PER_HALF_SYM))
+        .collect()
+}
+
 #[derive(Block)]
 pub struct PreambleDetector<
     IS = DefaultCpuReader<f32>,
@@ -31,26 +51,6 @@ where
     IP: CpuBufferReader<Item = f32>,
     O: CpuBufferWriter<Item = f32>,
 {
-    pub const PREAMBLE: [f32; 16] = [
-        1.0f32, -1.0f32, // Symbol 1
-        1.0f32, -1.0f32, // Symbol 2
-        -1.0f32, -1.0f32, // ...
-        -1.0f32, 1.0f32, //
-        -1.0f32, 1.0f32, //
-        -1.0f32, -1.0f32, //
-        -1.0f32, -1.0f32, //
-        -1.0f32, -1.0f32, // Symbol 8
-    ];
-
-    /// Returns taps for the preamble correlation filter
-    pub fn preamble_correlator_taps() -> Vec<f32> {
-        Self::PREAMBLE
-            .into_iter()
-            .rev()
-            .flat_map(|n| std::iter::repeat_n(n, N_SAMPLES_PER_HALF_SYM))
-            .collect()
-    }
-
     pub fn new(detection_threshold: f32) -> Self {
         Self {
             in_samples: IS::default(),
