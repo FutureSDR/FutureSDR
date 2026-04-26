@@ -2,7 +2,6 @@ use anyhow::Result;
 use futuresdr::blocks::Split;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::num_complex::Complex;
 use futuresdr::prelude::*;
 
 #[test]

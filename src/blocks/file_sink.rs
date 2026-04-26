@@ -24,7 +24,6 @@ use std::path::PathBuf;
 /// ```no_run
 /// use futuresdr::blocks::FileSink;
 /// use futuresdr::prelude::*;
-/// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();
 ///

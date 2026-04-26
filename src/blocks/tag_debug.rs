@@ -16,7 +16,6 @@ use crate::runtime::dev::prelude::*;
 /// ```
 /// use futuresdr::blocks::TagDebug;
 /// use futuresdr::prelude::*;
-/// use futuresdr::num_complex::Complex32;
 ///
 /// let mut fg = Flowgraph::new();
 ///

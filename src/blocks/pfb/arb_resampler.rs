@@ -25,8 +25,6 @@
 
 use std::cmp::min;
 
-use num_complex::Complex32;
-
 use futuredsp::FirFilter;
 use futuredsp::prelude::*;
 use futuresdr::runtime::dev::prelude::*;

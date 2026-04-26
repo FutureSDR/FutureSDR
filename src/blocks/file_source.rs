@@ -20,7 +20,6 @@ use std::path::PathBuf;
 /// ```no_run
 /// use futuresdr::blocks::FileSource;
 /// use futuresdr::prelude::*;
-/// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();
 ///

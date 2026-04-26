@@ -11,7 +11,6 @@ use futuresdr::blocks::XlatingFir;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::futuredsp::firdes;
-use futuresdr::num_complex::Complex32;
 use futuresdr::prelude::*;
 use futuresdr::runtime::dev::prelude::*;
 use whisper_burn::audio::max_waveform_samples;

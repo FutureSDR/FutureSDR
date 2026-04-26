@@ -115,7 +115,7 @@ where
 /// # Usage
 /// ```
 /// use futuresdr::blocks::FirBuilder;
-/// use num_complex::Complex;
+/// use futuresdr::prelude::*;
 ///
 /// let fir = FirBuilder::fir::<f32, f32, _>([1.0f32, 2.0, 3.0]);
 /// let fir = FirBuilder::fir::<Complex<f32>, Complex<f32>, _>(&[1.0f32, 2.0, 3.0]);
