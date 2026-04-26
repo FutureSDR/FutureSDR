@@ -10,7 +10,6 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::block::WrappedKernel;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
@@ -26,6 +25,7 @@ use crate::runtime::dev::Kernel;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
+use crate::runtime::wrapped_kernel::WrappedKernel;
 
 /// Mocker for a block
 ///

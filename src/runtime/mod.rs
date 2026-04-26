@@ -59,6 +59,7 @@ mod runtime;
 pub mod scheduler;
 mod tag;
 mod work_io;
+mod wrapped_kernel;
 
 pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
