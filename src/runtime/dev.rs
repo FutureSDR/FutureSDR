@@ -42,10 +42,6 @@ impl<T: ?Sized> MaybeSend for T {}
 /// Prelude for implementing custom blocks and other developer-facing runtime
 /// extensions.
 pub mod prelude {
-    pub use crate::channel::mpsc;
-    pub use crate::channel::oneshot;
-    pub use crate::macros::Block;
-    pub use crate::macros::async_trait;
     pub use crate::prelude::*;
     #[cfg(feature = "burn")]
     pub use crate::runtime::buffer::burn as burn_buffer;
@@ -53,6 +49,8 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use crate::runtime::buffer::circular;
     pub use crate::runtime::buffer::slab;
+    pub use crate::runtime::channel::mpsc;
+    pub use crate::runtime::channel::oneshot;
     pub use crate::runtime::dev::Block;
     pub use crate::runtime::dev::BlockInbox;
     pub use crate::runtime::dev::BlockMeta;
@@ -76,4 +74,6 @@ pub mod prelude {
     pub use crate::runtime::dev::TypedBlockGuard;
     pub use crate::runtime::dev::TypedBlockGuardMut;
     pub use crate::runtime::dev::WorkIo;
+    pub use crate::runtime::macros::Block;
+    pub use crate::runtime::macros::async_trait;
 }

@@ -4,7 +4,6 @@ use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::wasm::HackRf;
-use futuresdr::channel::mpsc::Receiver;
 use futuresdr::prelude::*;
 use gloo_worker::HandlerId;
 use gloo_worker::WorkerScope;
@@ -22,7 +21,7 @@ pub enum WorkerMessage {
 
 enum Handle {
     None,
-    Receiver(Receiver<FlowgraphHandle>),
+    Receiver(mpsc::Receiver<FlowgraphHandle>),
     Flowgraph(FlowgraphHandle),
 }
 

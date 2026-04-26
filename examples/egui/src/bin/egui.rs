@@ -5,7 +5,7 @@ use eframe::egui::mutex::Mutex;
 use eframe::egui::widgets::SliderClamping;
 use eframe::egui_glow;
 use eframe::glow;
-use futuresdr::channel::mpsc;
+use futuresdr::runtime::channel::mpsc;
 use futuresdr::runtime::Pmt;
 use futuresdr_remote::Handler;
 use futuresdr_remote::Remote;

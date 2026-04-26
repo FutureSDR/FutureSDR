@@ -23,7 +23,7 @@ use std::path::PathBuf;
 /// # Usage
 /// ```no_run
 /// use futuresdr::blocks::FileSink;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 /// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();

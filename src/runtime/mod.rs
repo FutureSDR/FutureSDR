@@ -9,19 +9,22 @@
 //!
 //! For custom blocks and runtime extensions, see
 //! [`dev`](crate::runtime::dev).
-use futuresdr::channel::mpsc;
-use futuresdr::channel::oneshot;
 use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use thiserror::Error;
 
+use crate::runtime::channel::mpsc;
+use crate::runtime::channel::oneshot;
+
 mod block;
 mod block_inbox;
 mod block_meta;
 /// Advanced buffer APIs for implementing custom runtime integrations.
 pub mod buffer;
+/// Async channels used by runtime and block implementation APIs.
+pub mod channel;
 pub mod config;
 mod connect_add;
 /// Developer-facing APIs for implementing custom blocks and runtime extensions.
@@ -60,6 +63,16 @@ pub mod scheduler;
 mod tag;
 mod work_io;
 mod wrapped_kernel;
+
+/// Macros for building flowgraphs and implementing blocks.
+pub mod macros {
+    #[doc(hidden)]
+    pub use async_trait::async_trait as async_trait_orig;
+
+    pub use futuresdr_macros::Block;
+    pub use futuresdr_macros::async_trait;
+    pub use futuresdr_macros::connect;
+}
 
 pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;

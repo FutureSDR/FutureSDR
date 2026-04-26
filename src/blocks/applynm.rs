@@ -18,7 +18,7 @@ use futuresdr::runtime::dev::prelude::*;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::ApplyNM;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 /// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();

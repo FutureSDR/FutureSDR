@@ -12,7 +12,6 @@ use futuresdr::futuredsp::firdes;
 use futuresdr::futuredsp::windows::hamming;
 use futuresdr::hound::SampleFormat;
 use futuresdr::hound::WavSpec;
-use futuresdr::macros::connect;
 use futuresdr::prelude::*;
 use std::f32::consts::TAU;
 use std::path::Path;

@@ -1,8 +1,4 @@
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::dev::BlockMeta;
-use crate::runtime::dev::MessageOutputs;
-use crate::runtime::dev::WorkIo;
+use crate::runtime::dev::prelude::*;
 
 /// Forward messages.
 #[derive(Block)]

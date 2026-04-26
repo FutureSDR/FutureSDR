@@ -1,4 +1,4 @@
-use crate::channel::mpsc::Sender;
+use crate::runtime::channel::mpsc::Sender;
 use futures::channel::oneshot;
 use std::cmp::PartialEq;
 use std::fmt::Debug;

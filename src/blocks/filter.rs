@@ -13,7 +13,7 @@ use crate::runtime::dev::prelude::*;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Filter;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 ///

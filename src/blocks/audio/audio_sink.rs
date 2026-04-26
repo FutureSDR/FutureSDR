@@ -1,13 +1,10 @@
+use crate::runtime::dev::prelude::*;
 use cpal::BufferSize;
 use cpal::Stream;
 use cpal::StreamConfig;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
-use futures::channel::oneshot;
-
-use crate::channel::mpsc;
-use crate::runtime::dev::prelude::*;
 
 /// Audio Sink.
 #[derive(Block)]

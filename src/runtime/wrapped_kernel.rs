@@ -21,7 +21,7 @@ use crate::runtime::dev::Kernel;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
-use futuresdr::channel::mpsc::Sender;
+use futuresdr::runtime::channel::mpsc::Sender;
 
 /// Typed block wrapper around a concrete kernel instance.
 pub(crate) struct WrappedKernel<K: Kernel> {

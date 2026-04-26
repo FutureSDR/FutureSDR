@@ -180,7 +180,7 @@ impl<K: Kernel> From<&BlockRef<K>> for BlockId {
 /// The main component of any FutureSDR application.
 ///
 /// A [Flowgraph] is composed of a set of blocks and connections between them. It is typically set
-/// up with the [connect](futuresdr::macros::connect) macro. Once it is configure, the [Flowgraph]
+/// up with the [connect](futuresdr::runtime::macros::connect) macro. Once it is configure, the [Flowgraph]
 /// is executed on a [Runtime](futuresdr::runtime::Runtime).
 ///
 /// ```
@@ -358,7 +358,7 @@ impl Flowgraph {
     /// Connect stream ports through typed block handles owned by this flowgraph.
     ///
     /// This is the typed block-level stream API used by the
-    /// [connect](futuresdr::macros::connect) macro.
+    /// [connect](futuresdr::runtime::macros::connect) macro.
     pub fn stream<KS, KD, B, FS, FD>(
         &mut self,
         src_block: &BlockRef<KS>,
@@ -427,7 +427,7 @@ impl Flowgraph {
     /// makes the downstream end return buffers to the upstream start.
     ///
     /// This is the typed block-level circuit-closing API used by the
-    /// [connect](futuresdr::macros::connect) macro's `<` operator.
+    /// [connect](futuresdr::runtime::macros::connect) macro's `<` operator.
     pub fn close_circuit<KS, KD, CW, FS, FD>(
         &mut self,
         src_block: &BlockRef<KS>,

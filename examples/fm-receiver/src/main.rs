@@ -18,12 +18,9 @@ use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::futuredsp::firdes;
-use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;
 use futuresdr::num_integer::gcd;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Pmt;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 
 #[derive(Parser, Debug)]
 struct Args {

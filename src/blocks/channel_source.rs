@@ -1,4 +1,3 @@
-use crate::channel::mpsc;
 use crate::runtime::dev::prelude::*;
 
 /// Push samples through a channel into a stream connection.
@@ -9,9 +8,8 @@ use crate::runtime::dev::prelude::*;
 ///
 /// # Usage
 /// ```
-/// use futuresdr::futures::channel::mpsc;
 /// use futuresdr::blocks::ChannelSource;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 /// let (mut tx, rx) = mpsc::channel(10);

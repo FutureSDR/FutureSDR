@@ -3,7 +3,6 @@ use clap::Parser;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::audio::AudioSource;
-use futuresdr::channel::mpsc;
 use futuresdr::prelude::*;
 
 use rattlegram::DecoderBlock;

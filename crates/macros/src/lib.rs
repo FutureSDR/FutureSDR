@@ -1136,8 +1136,8 @@ pub fn async_trait(
 ) -> proc_macro::TokenStream {
     let fun: proc_macro2::TokenStream = fun.into();
     quote!(
-        #[cfg_attr(not(target_arch = "wasm32"), futuresdr::macros::async_trait_orig)]
-        #[cfg_attr(target_arch = "wasm32", futuresdr::macros::async_trait_orig(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), futuresdr::runtime::macros::async_trait_orig)]
+        #[cfg_attr(target_arch = "wasm32", futuresdr::runtime::macros::async_trait_orig(?Send))]
         #fun
     )
     .into()

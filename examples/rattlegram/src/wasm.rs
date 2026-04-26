@@ -1,10 +1,7 @@
 use anyhow::Result;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::audio::AudioSink;
-use futuresdr::channel::mpsc;
-use futuresdr::macros::connect;
-use futuresdr::runtime::Flowgraph;
-use futuresdr::runtime::Runtime;
+use futuresdr::prelude::*;
 use futuresdr::tracing::warn;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html::Input;

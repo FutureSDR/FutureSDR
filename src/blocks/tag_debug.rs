@@ -15,7 +15,7 @@ use crate::runtime::dev::prelude::*;
 /// # Usage
 /// ```
 /// use futuresdr::blocks::TagDebug;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 /// use futuresdr::num_complex::Complex32;
 ///
 /// let mut fg = Flowgraph::new();

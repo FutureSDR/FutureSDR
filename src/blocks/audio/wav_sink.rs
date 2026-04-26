@@ -8,8 +8,7 @@ use std::path;
 /// use futuresdr::blocks::Apply;
 /// use futuresdr::blocks::audio::WavSink;
 /// use futuresdr::blocks::VectorSource;
-/// use futuresdr::runtime::Flowgraph;
-/// use futuresdr::runtime::Runtime;
+/// use futuresdr::prelude::*;
 /// use std::path::Path;
 ///
 /// let filename = "/tmp/output.wav";

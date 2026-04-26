@@ -8,8 +8,8 @@ use crate::runtime::Result;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::MaybeSend;
-use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::BlockId;
+use futuresdr::runtime::channel::mpsc::Sender;
 
 #[async_trait]
 /// Block interface, implemented for wrapped kernel instances.

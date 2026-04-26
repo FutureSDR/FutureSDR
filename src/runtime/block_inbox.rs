@@ -7,8 +7,8 @@ use std::sync::atomic::Ordering;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::channel::mpsc;
 use crate::runtime::BlockMessage;
+use crate::runtime::channel::mpsc;
 
 #[derive(Debug)]
 struct BlockNotifyState {

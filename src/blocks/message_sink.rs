@@ -1,9 +1,4 @@
-use crate::runtime::Pmt;
-use crate::runtime::Result;
-use crate::runtime::dev::BlockMeta;
-use crate::runtime::dev::Kernel;
-use crate::runtime::dev::MessageOutputs;
-use crate::runtime::dev::WorkIo;
+use crate::runtime::dev::prelude::*;
 
 /// Black hole for messages.
 #[derive(Block)]

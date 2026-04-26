@@ -20,7 +20,6 @@ use semtech_udp::push_data::RxPkV2;
 use tokio::runtime::Runtime;
 use triggered::Trigger;
 
-use futuresdr::channel::mpsc::Sender;
 use futuresdr::runtime::dev::prelude::*;
 
 /// Forward messages.
@@ -30,7 +29,7 @@ use futuresdr::runtime::dev::prelude::*;
 pub struct PacketForwarderClient {
     mac_addr: MacAddress,
     shutdown_trigger: Trigger,
-    uplink_sender: Sender<Packet>,
+    uplink_sender: mpsc::Sender<Packet>,
     #[allow(dead_code)]
     udp_client_runtime: Runtime,
 }

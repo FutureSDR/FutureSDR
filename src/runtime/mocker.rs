@@ -4,8 +4,6 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::channel::mpsc::Receiver;
-use crate::channel::mpsc::channel;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
@@ -16,6 +14,8 @@ use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
+use crate::runtime::channel::mpsc::Receiver;
+use crate::runtime::channel::mpsc::channel;
 use crate::runtime::config::config;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockMeta;

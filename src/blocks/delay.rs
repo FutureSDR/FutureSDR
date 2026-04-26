@@ -20,7 +20,7 @@ enum State {
 /// # Usage
 /// ```
 /// use futuresdr::blocks::Delay;
-/// use futuresdr::runtime::Flowgraph;
+/// use futuresdr::prelude::*;
 /// use num_complex::Complex;
 ///
 /// let mut fg = Flowgraph::new();
