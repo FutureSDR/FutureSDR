@@ -9,6 +9,8 @@ use crate::runtime::Pmt;
 /// Seify Config
 #[derive(Debug, Default, Clone)]
 pub struct Config {
+    /// Configured-channel index for targeted updates.
+    pub chan: Option<usize>,
     /// Antenna
     pub antenna: Option<String>,
     /// Bandwidth
@@ -35,6 +37,9 @@ impl Config {
     /// Generate a [`Pmt`] that can be serialized
     pub fn to_serializable_pmt(&self) -> Pmt {
         let mut m = HashMap::new();
+        if let Some(chan) = self.chan {
+            m.insert("chan".to_string(), Pmt::U64(chan as u64));
+        }
         if let Some(antenna) = &self.antenna {
             m.insert("antenna".to_string(), Pmt::String(antenna.clone()));
         }
@@ -57,28 +62,49 @@ impl Config {
     pub fn apply<D: DeviceTrait + Clone>(
         &self,
         dev: &Device<D>,
-        channels: &Vec<usize>,
+        channels: &[usize],
         dir: Direction,
     ) -> Result<(), Error> {
-        for c in channels {
-            if let Some(ref a) = self.antenna {
-                dev.set_antenna(dir, *c, a)?;
-            }
-            if let Some(b) = self.bandwidth {
-                dev.set_bandwidth(dir, *c, b)?;
-            }
-            if let Some(f) = self.freq {
-                dev.set_frequency(dir, *c, f)?;
-            }
-            if let Some(g) = self.gain {
-                dev.set_gain(dir, *c, g)?;
-            }
-            if let Some(s) = self.sample_rate {
-                dev.set_sample_rate(dir, *c, s)?;
+        if let Some(chan) = self.selected_channel(channels)? {
+            self.apply_channel(dev, dir, chan)?;
+        } else {
+            for &chan in channels {
+                self.apply_channel(dev, dir, chan)?;
             }
         }
 
         Ok(())
+    }
+
+    fn apply_channel<D: DeviceTrait + Clone>(
+        &self,
+        dev: &Device<D>,
+        dir: Direction,
+        chan: usize,
+    ) -> Result<(), Error> {
+        if let Some(ref a) = self.antenna {
+            dev.set_antenna(dir, chan, a)?;
+        }
+        if let Some(b) = self.bandwidth {
+            dev.set_bandwidth(dir, chan, b)?;
+        }
+        if let Some(f) = self.freq {
+            dev.set_frequency(dir, chan, f)?;
+        }
+        if let Some(g) = self.gain {
+            dev.set_gain(dir, chan, g)?;
+        }
+        if let Some(s) = self.sample_rate {
+            dev.set_sample_rate(dir, chan, s)?;
+        }
+
+        Ok(())
+    }
+
+    fn selected_channel(&self, channels: &[usize]) -> Result<Option<usize>, Error> {
+        self.chan
+            .map(|idx| channels.get(idx).copied().ok_or(Error::InvalidParameter))
+            .transpose()
     }
 
     /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
@@ -89,6 +115,7 @@ impl Config {
     ) -> Result<Self, Error> {
         let inner = dev.impl_ref::<D>()?;
         Ok(Config {
+            chan: None,
             antenna: inner.antenna(dir, channel).ok(),
             bandwidth: inner.bandwidth(dir, channel).ok(),
             freq: inner.frequency(dir, channel).ok(),
@@ -114,6 +141,15 @@ impl TryFrom<Pmt> for Config {
                 let mut cfg = Config::default();
                 for (n, v) in m.drain() {
                     match (n.as_str(), v) {
+                        ("chan", Pmt::U32(chan)) => {
+                            cfg.chan = Some(chan as usize);
+                        }
+                        ("chan", Pmt::U64(chan)) => {
+                            cfg.chan = Some(chan as usize);
+                        }
+                        ("chan", Pmt::Usize(chan)) => {
+                            cfg.chan = Some(chan);
+                        }
                         ("antenna", Pmt::String(p)) => {
                             cfg.antenna = Some(p.to_owned());
                         }
@@ -137,5 +173,60 @@ impl TryFrom<Pmt> for Config {
             }
             _ => Err(Error::PmtConversionError),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+    use crate::runtime::Error;
+    use crate::runtime::Pmt;
+    use std::collections::HashMap;
+
+    #[test]
+    fn serializable_pmt_includes_chan() {
+        let cfg = Config {
+            chan: Some(1),
+            freq: Some(102e6),
+            ..Default::default()
+        };
+
+        let Pmt::MapStrPmt(map) = cfg.to_serializable_pmt() else {
+            panic!("expected map");
+        };
+
+        assert_eq!(map.get("chan"), Some(&Pmt::U64(1)));
+        assert_eq!(map.get("freq"), Some(&Pmt::F64(102e6)));
+    }
+
+    #[test]
+    fn map_pmt_parses_chan() {
+        let cfg = Config::try_from(Pmt::MapStrPmt(HashMap::from([(
+            "chan".to_string(),
+            Pmt::U32(2),
+        )])))
+        .unwrap();
+
+        assert_eq!(cfg.chan, Some(2));
+    }
+
+    #[test]
+    fn selected_channel_maps_configured_index() {
+        let cfg = Config {
+            chan: Some(1),
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.selected_channel(&[2, 4]).unwrap(), Some(4));
+    }
+
+    #[test]
+    fn selected_channel_rejects_out_of_range_index() {
+        let cfg = Config {
+            chan: Some(2),
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.selected_channel(&[2, 4]), Err(Error::InvalidParameter));
     }
 }

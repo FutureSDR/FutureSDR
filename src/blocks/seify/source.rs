@@ -20,9 +20,9 @@ use crate::dev_prelude::*;
 ///     - `"freq"`: `f32`, `f64`, `u32`, or `u64` (Hertz) center tuning frequency, or `Null` to query
 ///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) gain setting, or `Null` to query
 ///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
-///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once
+///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once, or one configured channel if `chan` is set
 ///     - `"terminate"`: `Pmt::Ok` to terminate the block
-///     - `"config"`: `u32`, `u64`, `usize` (channel id) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
+///     - `"config"`: `u32`, `u64`, `usize` (configured-channel index) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
 /// * Message outputs: None
 #[derive(Block)]
 #[blocking]
@@ -91,8 +91,11 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         let c: Config = p.try_into()?;
-        c.apply(&self.dev, &self.channels, Rx)?;
-        Ok(Pmt::Ok)
+        match c.apply(&self.dev, &self.channels, Rx) {
+            Ok(()) => Ok(Pmt::Ok),
+            Err(Error::InvalidParameter) => Ok(Pmt::InvalidValue),
+            Err(e) => Err(e.into()),
+        }
     }
 
     async fn freq(
@@ -172,7 +175,9 @@ where
         if id >= self.channels.len() {
             return Ok(Pmt::InvalidValue);
         }
-        Ok(Config::from(&self.dev, Rx, id)?.to_serializable_pmt())
+        let mut config = Config::from(&self.dev, Rx, self.channels[id])?;
+        config.chan = Some(id);
+        Ok(config.to_serializable_pmt())
     }
 
     async fn overflows(
