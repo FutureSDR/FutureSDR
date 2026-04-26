@@ -638,30 +638,3 @@ impl Default for Flowgraph {
         Self::new()
     }
 }
-
-#[doc(hidden)]
-pub trait ConnectAdd {
-    type Added;
-
-    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error>;
-}
-
-impl<K> ConnectAdd for K
-where
-    K: Kernel + KernelInterface + 'static,
-{
-    type Added = BlockRef<K>;
-
-    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
-        Ok(fg.add(self))
-    }
-}
-
-impl<K: Kernel> ConnectAdd for BlockRef<K> {
-    type Added = BlockRef<K>;
-
-    fn connect_add(self, fg: &mut Flowgraph) -> Result<Self::Added, Error> {
-        fg.validate_block_ref(&self)?;
-        Ok(self)
-    }
-}

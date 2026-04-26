@@ -23,6 +23,7 @@ mod block_meta;
 /// Advanced buffer APIs for implementing custom runtime integrations.
 pub mod buffer;
 pub mod config;
+mod connect_add;
 /// Developer-facing APIs for implementing custom blocks and runtime extensions.
 pub mod dev;
 
@@ -81,7 +82,7 @@ pub use futuresdr_types::PortId;
 /// expansions can reference generated implementation details.
 #[doc(hidden)]
 pub mod __private {
-    pub use super::flowgraph::ConnectAdd;
+    pub use super::connect_add::ConnectAdd;
     pub use super::kernel_interface::KernelInterface;
 }
 

@@ -216,9 +216,6 @@ pub fn connect(input: TokenStream) -> TokenStream {
     });
 
     let out = quote! {
-        use futuresdr::runtime::BlockId;
-        use std::result::Result;
-
         #(#block_decls)*
         #(#connections)*
         (#(#blocks),*)
