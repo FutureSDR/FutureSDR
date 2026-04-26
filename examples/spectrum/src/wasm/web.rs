@@ -3,7 +3,7 @@ use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MovingAvg;
 use futuresdr::blocks::wasm::HackRf;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use leptos::web_sys::HtmlInputElement;
 use prophecy::FlowgraphCanvas;
 use prophecy::FlowgraphTable;

@@ -4,7 +4,7 @@ use rodio::source::Source;
 use std::fs::File;
 use std::io::BufReader;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Read an audio file and output its samples.
 #[derive(Block)]

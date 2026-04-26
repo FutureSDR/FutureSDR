@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Repeatedly apply a function to generate samples.
 ///

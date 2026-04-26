@@ -9,7 +9,6 @@ use wgpu::BufferView;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -20,6 +19,8 @@ use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::wgpu::OutputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::OutputBufferFull as BufferFull;
+use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::ItemTag;
 
 #[derive(Debug)]
 struct CurrentBuffer<D>
@@ -118,7 +119,7 @@ where
 {
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -232,7 +233,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::bail;
 use futuresdr::blocks::MessageSink;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 #[derive(Block)]
 struct FailInit;

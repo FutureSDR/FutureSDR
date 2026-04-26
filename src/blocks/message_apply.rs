@@ -1,8 +1,8 @@
-use crate::runtime::BlockMeta;
-use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::runtime::dev::BlockMeta;
+use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::WorkIo;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
 #[derive(Block)]

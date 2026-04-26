@@ -2,12 +2,12 @@ use async_io::Timer;
 use std::time::Duration;
 use web_time::Instant;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::Kernel;
-use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::runtime::dev::BlockMeta;
+use crate::runtime::dev::Kernel;
+use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::WorkIo;
 
 /// Output the same message periodically.
 #[derive(Block)]

@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Get samples out of a Flowgraph into a channel.
 ///

@@ -10,7 +10,6 @@ use wgpu::BufferViewMut;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -22,6 +21,8 @@ use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::InputBufferFull as BufferFull;
+use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::ItemTag;
 
 const UNMANAGED_SLOT_ID: usize = usize::MAX;
 
@@ -193,7 +194,7 @@ where
 {
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -491,7 +492,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

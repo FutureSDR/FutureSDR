@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Stream Deinterleaver
 #[derive(Block)]

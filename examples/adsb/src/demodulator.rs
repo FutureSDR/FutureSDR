@@ -1,7 +1,7 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
 use crate::SYMBOL_ONE_TAPS;
 use crate::SYMBOL_ZERO_TAPS;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct DemodPacket {

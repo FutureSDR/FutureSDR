@@ -1,12 +1,12 @@
 //! Message/Event/RPC-based Ports
 use futuresdr_types::BlockId;
 
-use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::dev::BlockInbox;
 
 /// Message output port
 #[derive(Debug)]

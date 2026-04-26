@@ -1,5 +1,5 @@
 use crate::N_SAMPLES_PER_HALF_SYM;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 const PREAMBLE: [f32; 16] = [
     1.0f32, -1.0f32, // Symbol 1

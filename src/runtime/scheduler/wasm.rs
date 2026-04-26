@@ -6,10 +6,10 @@ use futures::task::Poll;
 use std::pin::Pin;
 
 use crate::channel::mpsc::Sender;
-use crate::runtime::Block;
 use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::MaybeSend;
+use crate::runtime::dev::Block;
+use crate::runtime::dev::MaybeSend;
 use crate::runtime::scheduler::Scheduler;
 
 /// WASM Scheduler

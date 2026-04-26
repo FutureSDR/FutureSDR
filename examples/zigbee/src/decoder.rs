@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 const CHIP_MAPPING: [u32; 16] = [
     1618456172, 1309113062, 1826650030, 1724778362, 778887287, 2061946375, 2007919840, 125494990,

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessageCopy;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;

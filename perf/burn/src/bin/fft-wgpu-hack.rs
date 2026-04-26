@@ -5,7 +5,7 @@ use bytemuck::Zeroable;
 use bytemuck::cast_slice;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSource;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::buffer::wgpu as wgpu_buffer;
 use futuresdr::runtime::buffer::wgpu::D2HReader;
 use futuresdr::runtime::buffer::wgpu::D2HWriter;

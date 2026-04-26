@@ -30,14 +30,14 @@ pub mod zynq;
 use std::any::Any;
 use std::future::Future;
 
-use crate::runtime::MaybeSend;
+use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockNotifier;
+use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::MaybeSend;
+use crate::runtime::dev::Tag;
 use futuresdr::runtime::BlockId;
-use futuresdr::runtime::BlockInbox;
-use futuresdr::runtime::BlockNotifier;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
-use futuresdr::runtime::Tag;
 
 /// Shared port configuration collected before the port is connected.
 #[derive(Debug, Clone, Copy, Default)]
@@ -365,7 +365,7 @@ pub trait BufferReader: Any {
     ///
     /// This sets the own block ID, Port ID, and message receiver so that it can
     /// be communicated the the other end when making connections.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox);
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
     /// Check if connected
     fn validate(&self) -> Result<(), Error>;
     /// notify upstream that we are done
@@ -393,7 +393,7 @@ pub trait BufferWriter {
     ///
     /// This sets the own block ID, Port ID, and message receiver so that it can
     /// be communicated the the other end when making connections.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox);
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
     /// Check if connected
     fn validate(&self) -> Result<(), Error>;
     /// Connect the writer to (another) reader.
@@ -448,7 +448,8 @@ pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
     /// Consume Items
     fn consume(&mut self, n: usize);
-    /// Configure the minimum numer of items required in [work()](futuresdr::runtime::Kernel::work)
+    /// Configure the minimum numer of items required in
+    /// [work()](crate::runtime::dev::Kernel::work)
     ///
     /// This defines the minimum number of samples that the block needs to proceed. For example, an
     /// FFT block requires samples correspoding to the FFT size.
@@ -456,7 +457,7 @@ pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     /// Configure the minimum buffer size
     ///
     /// This sets the minimum number of samples that the buffer can take. This is independent from
-    /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
+    /// any requirements in [work()](crate::runtime::dev::Kernel::work) but mainly for performance reasons, i.e., it
     /// defines the tradeoff between throughput and latency.
     ///
     /// By default, it will be set to the value defined in
@@ -478,7 +479,8 @@ pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>);
     /// Produce items
     fn produce(&mut self, n: usize);
-    /// Configure the minimum numer of items required in [work()](futuresdr::runtime::Kernel::work)
+    /// Configure the minimum numer of items required in
+    /// [work()](crate::runtime::dev::Kernel::work)
     ///
     /// This defines the minimum number of samples that the block needs to proceed. For example, an
     /// FFT block requires samples correspoding to the FFT size.
@@ -486,7 +488,7 @@ pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     /// Configure the minimum buffer size
     ///
     /// This sets the minimum number of samples that the buffer can take. This is independent from
-    /// any requirements in [work()](futuresdr::runtime::Kernel::work) but mainly for performance reasons, i.e., it
+    /// any requirements in [work()](crate::runtime::dev::Kernel::work) but mainly for performance reasons, i.e., it
     /// defines the tradeoff between throughput and latency.
     ///
     /// By default, it will be set to the value defined in

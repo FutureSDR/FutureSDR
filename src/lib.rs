@@ -1,13 +1,12 @@
 #![warn(missing_docs)]
 #![recursion_limit = "512"]
 
-//! An experimental asynchronous SDR runtime for heterogeneous architectures that is:
-//! * **Extensible**: custom buffers (supporting accelerators like GPUs and FPGAs) and custom schedulers (optimized for your application).
-//! * **Asynchronous**: solving long-standing issues around IO, blocking, and timers.
-//! * **Portable**: Linux, Windows, Mac, WASM, Android, and prime support for embedded platforms through a REST API and web-based GUIs.
-//! * **Fast**: SDR go brrr!
+//! Build and run SDR flowgraphs with reusable blocks.
 //!
-//! ## Example
+//! FutureSDR is an experimental asynchronous SDR runtime for heterogeneous
+//! architectures with a strong focus on ergonomic flowgraph construction.
+//!
+//! ## Build and run a flowgraph
 //! An example flowgraph that forwards 123 zeros into a sink:
 //! ```
 //! use futuresdr::blocks::Head;
@@ -29,6 +28,15 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Main entry points
+//! - [`blocks`] contains the reusable block library.
+//! - [`runtime`] contains flowgraph construction, execution, and control APIs.
+//! - [`prelude`] is the intended import path for building and running flowgraphs.
+//!
+//! ## Implement custom blocks
+//! To implement custom blocks or other runtime extensions, use
+//! [`runtime::dev::prelude`].
 
 // make the futuresdr crate available in the library to allow referencing it as
 // futuresdr internally, which simpilifies proc macros.
@@ -53,7 +61,11 @@ pub use num_integer;
 #[cfg(feature = "seify")]
 pub use seify;
 
+/// Library of reusable blocks for building flowgraphs.
 pub mod blocks;
+/// Runtime APIs for constructing, running, and controlling flowgraphs.
+///
+/// For block-authoring and runtime extension APIs, see [`runtime::dev`].
 pub mod runtime;
 /// FutureSDR Async Channels
 ///
@@ -211,44 +223,10 @@ pub mod prelude {
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::RunningFlowgraph;
     pub use futuresdr::runtime::Runtime;
-    pub use futuresdr::runtime::RuntimeHandle;
     pub use futuresdr::tracing::debug;
     pub use futuresdr::tracing::error;
     pub use futuresdr::tracing::info;
     pub use futuresdr::tracing::trace;
     pub use futuresdr::tracing::warn;
     pub use num_complex::*;
-}
-
-/// Prelude for implementing custom blocks and other developer-facing runtime extensions.
-pub mod dev_prelude {
-    pub use crate::prelude::*;
-    pub use futuresdr::channel::mpsc;
-    pub use futuresdr::channel::oneshot;
-    pub use futuresdr::macros::Block;
-    pub use futuresdr::macros::async_trait;
-    pub use futuresdr::runtime::Block;
-    pub use futuresdr::runtime::BlockMeta;
-    pub use futuresdr::runtime::ItemTag;
-    pub use futuresdr::runtime::Kernel;
-    pub use futuresdr::runtime::MessageOutputs;
-    pub use futuresdr::runtime::Tag;
-    pub use futuresdr::runtime::WorkIo;
-    pub use futuresdr::runtime::buffer::BufferReader;
-    pub use futuresdr::runtime::buffer::BufferWriter;
-    pub use futuresdr::runtime::buffer::CircuitWriter;
-    pub use futuresdr::runtime::buffer::CpuBufferReader;
-    pub use futuresdr::runtime::buffer::CpuBufferWriter;
-    pub use futuresdr::runtime::buffer::CpuSample;
-    pub use futuresdr::runtime::buffer::DefaultCpuReader;
-    pub use futuresdr::runtime::buffer::DefaultCpuWriter;
-    pub use futuresdr::runtime::buffer::InplaceBuffer;
-    pub use futuresdr::runtime::buffer::InplaceReader;
-    pub use futuresdr::runtime::buffer::InplaceWriter;
-    #[cfg(feature = "burn")]
-    pub use futuresdr::runtime::buffer::burn as burn_buffer;
-    pub use futuresdr::runtime::buffer::circuit;
-    #[cfg(not(target_arch = "wasm32"))]
-    pub use futuresdr::runtime::buffer::circular;
-    pub use futuresdr::runtime::buffer::slab;
 }

@@ -4,7 +4,7 @@ use async_net::TcpListener;
 use async_net::TcpStream;
 use futures::AsyncWriteExt;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Push samples into a TCP socket.
 #[derive(Block)]

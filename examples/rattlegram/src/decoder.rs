@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use rustfft::Fft;
 use rustfft::FftPlanner;
 use std::sync::Arc;

@@ -14,10 +14,10 @@ use ::wgpu::ShaderModuleDescriptor;
 use ::wgpu::ShaderSource;
 use std::borrow::Cow;
 
-use crate::dev_prelude::*;
 use crate::runtime::buffer::wgpu;
 use crate::runtime::buffer::wgpu::D2HWriter;
 use crate::runtime::buffer::wgpu::H2DReader;
+use crate::runtime::dev::prelude::*;
 
 const SHADER: &str = r#"
     @group(0)

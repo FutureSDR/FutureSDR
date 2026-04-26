@@ -10,11 +10,11 @@ use std::sync::Mutex;
 use std::thread;
 
 use crate::channel::mpsc::Sender;
-use crate::runtime::Block;
 use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::MaybeSend;
 use crate::runtime::config;
+use crate::runtime::dev::Block;
+use crate::runtime::dev::MaybeSend;
 use crate::runtime::scheduler::Scheduler;
 
 static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));

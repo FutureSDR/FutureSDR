@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 /// Apply a function to each N input samples, producing M output samples.
 ///

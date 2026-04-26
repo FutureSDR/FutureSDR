@@ -1,6 +1,6 @@
 use crate::utils::CodeRate;
 use crate::utils::HeaderMode;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use std::cmp::min;
 use std::collections::HashMap;
 

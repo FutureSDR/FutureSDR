@@ -1,10 +1,10 @@
 use futures::future::Future;
 
 use crate::channel::mpsc::Sender;
-use crate::runtime::Block;
 use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::MaybeSend;
+use crate::runtime::dev::Block;
+use crate::runtime::dev::MaybeSend;
 use crate::runtime::scheduler::Task;
 
 /// Scheduler trait

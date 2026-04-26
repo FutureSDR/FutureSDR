@@ -4,11 +4,8 @@ use std::mem::size_of;
 
 use async_trait::async_trait;
 use futuresdr::runtime::BlockId;
-use futuresdr::runtime::BlockInbox;
 use futuresdr::runtime::BlockMessage;
-use futuresdr::runtime::BlockNotifier;
 use futuresdr::runtime::Error;
-use futuresdr::runtime::ItemTag;
 use futuresdr::runtime::PortId;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;
@@ -16,6 +13,9 @@ use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::dev::BlockNotifier;
+use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
 use vmcircbuffer::Metadata;
 use vmcircbuffer::lockfree as vm_lockfree;
@@ -440,7 +440,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futuresdr::runtime::Tag;
+    use futuresdr::runtime::dev::Tag;
 
     #[test]
     fn basic_transfer() {

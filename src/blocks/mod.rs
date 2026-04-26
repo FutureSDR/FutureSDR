@@ -2,93 +2,93 @@
 //! ## Functional/Apply-style Blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Apply] | Apply a function to each sample. | ✅ |
-//! | [ApplyIntoIter] | Apply a function on each input sample to create an iterator and output its values. | ✅ |
-//! | [ApplyNM] | Apply a function to each N input samples, producing M output samples. | ✅ |
-//! | [Combine] | Apply a function to combine two streams into one. | ✅ |
-//! | [Filter] | Apply a function, returning an [Option] to allow filtering samples. | ✅ |
-//! | [Sink] | Apply a function to received samples. | ✅ |
-//! | [Source] | Repeatedly apply a function to generate samples. | ✅ |
-//! | [Split] | Apply a function to split a stream. | ✅ |
-//! | [FiniteSource] | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
+//! | [Apply](crate::blocks::Apply) | Apply a function to each sample. | ✅ |
+//! | [ApplyIntoIter](crate::blocks::ApplyIntoIter) | Apply a function on each input sample to create an iterator and output its values. | ✅ |
+//! | [ApplyNM](crate::blocks::ApplyNM) | Apply a function to each N input samples, producing M output samples. | ✅ |
+//! | [Combine](crate::blocks::Combine) | Apply a function to combine two streams into one. | ✅ |
+//! | [Filter](crate::blocks::Filter) | Apply a function, returning an [Option] to allow filtering samples. | ✅ |
+//! | [Sink](crate::blocks::Sink) | Apply a function to received samples. | ✅ |
+//! | [Source](crate::blocks::Source) | Repeatedly apply a function to generate samples. | ✅ |
+//! | [Split](crate::blocks::Split) | Apply a function to split a stream. | ✅ |
+//! | [FiniteSource](crate::blocks::FiniteSource) | Repeatedly apply a function to generate samples, using [Option] values to allow termination. | ✅ |
 //!
 //! ## Streams
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [StreamDeinterleaver] | Stream Deinterleave | ✅ |
-//! | [StreamDuplicator] | Stream Duplicator | ✅ |
+//! | [StreamDeinterleaver](crate::blocks::StreamDeinterleaver) | Stream Deinterleave | ✅ |
+//! | [StreamDuplicator](crate::blocks::StreamDuplicator) | Stream Duplicator | ✅ |
 //!
 //! ## DSP blocks
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [Fft] | Compute an FFT. | ✅ |
-//! | [Fir](FirBuilder) | FIR filter and resampler. | ✅ |
-//! | [Iir] | IIR filter. | ✅ |
-//! | [PfbArbResampler] | Polyphase Arbitrary Rate Resampler | ✅ |
-//! | [PfbChannelizer] | Polyphase Channelizer | ✅ |
-//! | [PfbSynthesizer] | Polyphase Synthesizer | ✅ |
-//! | [XlatingFir] | Xlating FIR filter and decimator. | ✅ |
+//! | [Fft](crate::blocks::Fft) | Compute an FFT. | ✅ |
+//! | [Fir](crate::blocks::FirBuilder) | FIR filter and resampler. | ✅ |
+//! | [Iir](crate::blocks::Iir) | IIR filter. | ✅ |
+//! | [PfbArbResampler](crate::blocks::PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
+//! | [PfbChannelizer](crate::blocks::PfbChannelizer) | Polyphase Channelizer | ✅ |
+//! | [PfbSynthesizer](crate::blocks::PfbSynthesizer) | Polyphase Synthesizer | ✅ |
+//! | [XlatingFir](crate::blocks::XlatingFir) | Xlating FIR filter and decimator. | ✅ |
 //!
 //! ## Misc
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [ConsoleSink] | Log stream data with `info!`. | ✅ |
-//! | [Delay] | Delays samples. | ✅ |
-//! | [Head] | Copies only a given number of samples and stops. | ✅ |
-//! ! [MovingAvg] | Applies an exponential moving average over a window samples. | ✅ |
-//! | [NullSink] | Drops samples. | ✅ |
-//! | [NullSource] | Generates a stream of zeros. | ✅ |
-//! | [Selector] | Forward the input stream with a given index to the output stream with a given index. | ✅ |
-//! | [TagDebug] | Drop samples, printing tags. | ✅ |
-//! | [Throttle] | Limit sample rate. | ✅ |
-//! | [VectorSink] | Store received samples in vector. | ✅ |
-//! | [VectorSource] | Stream samples from vector. | ✅ |
+//! | [ConsoleSink](crate::blocks::ConsoleSink) | Log stream data with `info!`. | ✅ |
+//! | [Delay](crate::blocks::Delay) | Delays samples. | ✅ |
+//! | [Head](crate::blocks::Head) | Copies only a given number of samples and stops. | ✅ |
+//! | [MovingAvg](crate::blocks::MovingAvg) | Applies an exponential moving average over a window samples. | ✅ |
+//! | [NullSink](crate::blocks::NullSink) | Drops samples. | ✅ |
+//! | [NullSource](crate::blocks::NullSource) | Generates a stream of zeros. | ✅ |
+//! | [Selector](crate::blocks::Selector) | Forward the input stream with a given index to the output stream with a given index. | ✅ |
+//! | [TagDebug](crate::blocks::TagDebug) | Drop samples, printing tags. | ✅ |
+//! | [Throttle](crate::blocks::Throttle) | Limit sample rate. | ✅ |
+//! | [VectorSink](crate::blocks::VectorSink) | Store received samples in vector. | ✅ |
+//! | [VectorSource](crate::blocks::VectorSource) | Stream samples from vector. | ✅ |
 //!
 //! ## Message Passing
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [MessageAnnotator] | Wrap every message in a DictStrPmt and add fixed additional fields, to facilitate multiplexing w/o losing the source association | ✅ |
-//! | [MessageApply] | Apply a function to each message, emitting the result as a new message. | ✅ |
-//! | [MessageBurst] | Output a given number of messages in one burst and terminate. | ✅ |
-//! | [MessageCopy] | Forward messages. | ✅ |
-//! | [MessagePipe] | Push received messages into a channel. | ✅ |
-//! | [MessageSink] | Black hole for messages. | ✅ |
-//! | [MessageSource](MessageSourceBuilder) | Output the same message periodically. | ✅ |
+//! | [MessageAnnotator](crate::blocks::MessageAnnotator) | Wrap every message in a DictStrPmt and add fixed additional fields, to facilitate multiplexing w/o losing the source association | ✅ |
+//! | [MessageApply](crate::blocks::MessageApply) | Apply a function to each message, emitting the result as a new message. | ✅ |
+//! | [MessageBurst](crate::blocks::MessageBurst) | Output a given number of messages in one burst and terminate. | ✅ |
+//! | [MessageCopy](crate::blocks::MessageCopy) | Forward messages. | ✅ |
+//! | [MessagePipe](crate::blocks::MessagePipe) | Push received messages into a channel. | ✅ |
+//! | [MessageSink](crate::blocks::MessageSink) | Black hole for messages. | ✅ |
+//! | [MessageSource](crate::blocks::MessageSourceBuilder) | Output the same message periodically. | ✅ |
 //!
 //! ## Performance Evaluation
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | [struct@Copy] | Copy input samples to the output. | ✅ | |
+//! | [Copy](crate::blocks::Copy) | Copy input samples to the output. | ✅ | |
 //!
 //! ## I/O
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [BlobToUdp] | Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
-//! | [ChannelSource] | Push samples through a channel into a stream connection. | ✅ |
-//! | [ChannelSink] | Read samples from Flowgraph and send them into a channel | ✅ |
-//! | [FileSink] | Write samples to a file. | ❌ |
-//! | [FileSource] | Read samples from a file. | ❌ |
-//! | [TcpSource] | Reads samples from a TCP socket. | ❌ |
-//! | [TcpSink] | Push samples into a TCP socket. | ❌ |
-//! | [UdpSource] | Reads samples from a UDP socket. | ❌ |
-//! | [WebsocketSink] | Push samples in a WebSocket. | ❌ |
-//! | [WebsocketPmtSink] | Push samples from Pmts a WebSocket. | ❌ |
-//! | [zeromq::PubSink] | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
-//! | [zeromq::SubSource] | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
+//! | [BlobToUdp](crate::blocks::BlobToUdp) | Push [blobs](crate::runtime::Pmt::Blob) into a UDP socket. | ❌ |
+//! | [ChannelSource](crate::blocks::ChannelSource) | Push samples through a channel into a stream connection. | ✅ |
+//! | [ChannelSink](crate::blocks::ChannelSink) | Read samples from Flowgraph and send them into a channel | ✅ |
+//! | [FileSink](crate::blocks::FileSink) | Write samples to a file. | ❌ |
+//! | [FileSource](crate::blocks::FileSource) | Read samples from a file. | ❌ |
+//! | [TcpSource](crate::blocks::TcpSource) | Reads samples from a TCP socket. | ❌ |
+//! | [TcpSink](crate::blocks::TcpSink) | Push samples into a TCP socket. | ❌ |
+//! | [UdpSource](crate::blocks::UdpSource) | Reads samples from a UDP socket. | ❌ |
+//! | [WebsocketSink](crate::blocks::WebsocketSink) | Push samples in a WebSocket. | ❌ |
+//! | [WebsocketPmtSink](crate::blocks::WebsocketPmtSink) | Push samples from Pmts a WebSocket. | ❌ |
+//! | [zeromq::PubSink](crate::blocks::zeromq::PubSink) | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
+//! | [zeromq::SubSource](crate::blocks::zeromq::SubSource) | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //!
 //! ## SDR Hardware
 //! | Block | Usage | Feature | WebAssembly? |
 //! |---|---|---|---|
-//! | [seify::Sink] | Transmit samples with a Seify device. | seify | ❌ |
-//! | [seify::Source] | Receive samples from a Seify device. | seify | ❌ |
+//! | [seify::Sink](crate::blocks::seify::Sink) | Transmit samples with a Seify device. | seify | ❌ |
+//! | [seify::Source](crate::blocks::seify::Source) | Receive samples from a Seify device. | seify | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | [Vulkan] | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
-//! | [Wgpu] | Interface GPU w/ native API. | ✅ | `wgpu` |
-//! | [Zynq] | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
-//! | [ZynqSync] | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
+//! | [Vulkan](crate::blocks::Vulkan) | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
+//! | [Wgpu](crate::blocks::Wgpu) | Interface GPU w/ native API. | ✅ | `wgpu` |
+//! | [Zynq](crate::blocks::Zynq) | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
+//! | [ZynqSync](crate::blocks::ZynqSync) | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
 //!
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
@@ -99,15 +99,15 @@
 //! ## Signal Sources
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [SignalSource](SignalSourceBuilder) | Create signals (sin, cos, square). | ✅ |
+//! | [SignalSource](crate::blocks::SignalSourceBuilder) | Create signals (sin, cos, square). | ✅ |
 //!
 //! ## Audio (requires `audio` feature)
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [AudioSink](audio::AudioSink) | Audio sink. | ❌ |
-//! | [AudioSource](audio::AudioSource) | Audio source. | ❌ |
-//! | [FileSource](audio::FileSource) | Read an audio file and output its samples. | ❌ |
-//! | [WavSink](audio::WavSink) | Writes samples to a WAV file | ❌ |
+//! | [AudioSink](crate::blocks::audio::AudioSink) | Audio sink. | ❌ |
+//! | [AudioSource](crate::blocks::audio::AudioSource) | Audio source. | ❌ |
+//! | [audio::FileSource](crate::blocks::audio::FileSource) | Read an audio file and output its samples. | ❌ |
+//! | [WavSink](crate::blocks::audio::WavSink) | Writes samples to a WAV file | ❌ |
 //!
 
 mod apply;

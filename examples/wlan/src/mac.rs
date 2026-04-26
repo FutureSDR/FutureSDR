@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 use crate::MAX_PAYLOAD_SIZE;
 use crate::MAX_PSDU_SIZE;

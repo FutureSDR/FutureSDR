@@ -10,7 +10,7 @@ use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::XlatingFir;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::blocks::seify::Builder;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::futuredsp::firdes;
 use futuresdr::macros::connect;
 use futuresdr::num_complex::Complex32;

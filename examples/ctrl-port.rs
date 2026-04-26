@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 fn main() -> Result<()> {
     futuresdr::runtime::init();

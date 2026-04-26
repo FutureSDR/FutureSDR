@@ -1,8 +1,8 @@
 use anyhow::Context;
-use futuresdr::dev_prelude::*;
 use futuresdr::runtime::buffer::vulkan::D2HWriter;
 use futuresdr::runtime::buffer::vulkan::H2DReader;
 use futuresdr::runtime::buffer::vulkan::Instance;
+use futuresdr::runtime::dev::prelude::*;
 use std::sync::Arc;
 use vulkano::buffer::BufferContents;
 use vulkano::command_buffer::AutoCommandBufferBuilder;

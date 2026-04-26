@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use std::time::Instant;
 
 use inplace::Apply;

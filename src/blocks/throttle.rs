@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 use web_time::Instant;
 
 /// Limit sample rate.

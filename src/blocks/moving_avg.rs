@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Reads chunks of size `WIDTH` and outputs an exponential moving average over a window of specified size.
 ///

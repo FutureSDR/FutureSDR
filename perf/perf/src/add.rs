@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 /// Add 1 to each `i32` sample from input and write to output.
 #[derive(Block)]

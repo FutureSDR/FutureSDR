@@ -2,7 +2,7 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::runtime::MaybeSend;
+use crate::runtime::dev::MaybeSend;
 
 /// Work IO
 ///

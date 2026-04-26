@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// WASM Websocket Sink
 #[derive(Block)]

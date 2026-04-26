@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futuresdr::async_io::block_on;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 
 #[derive(Block)]
 struct CircuitSource<O = circuit::Writer<i32>>

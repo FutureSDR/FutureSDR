@@ -1,5 +1,5 @@
 use crate::channel::mpsc;
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Push samples through a channel into a stream connection.
 ///

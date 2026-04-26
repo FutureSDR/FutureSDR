@@ -3,7 +3,7 @@ use async_net::TcpListener;
 use async_net::TcpStream;
 use futures::AsyncReadExt;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Read samples from a TCP socket.
 #[derive(Block)]

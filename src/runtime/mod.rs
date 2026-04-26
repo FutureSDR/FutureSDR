@@ -1,4 +1,14 @@
-//! ## SDR Runtime
+//! Build, run, and control SDR flowgraphs.
+//!
+//! This module contains the user-facing runtime APIs for:
+//! - constructing [`Flowgraph`](crate::runtime::Flowgraph)s
+//! - starting them on a [`Runtime`](crate::runtime::Runtime)
+//! - interacting with running graphs through
+//!   [`RunningFlowgraph`](crate::runtime::RunningFlowgraph) and handles
+//! - inspecting finished graphs
+//!
+//! For custom blocks and runtime extensions, see
+//! [`dev`](crate::runtime::dev).
 use futuresdr::channel::mpsc;
 use futuresdr::channel::oneshot;
 use futuresdr_types::PmtConversionError;
@@ -10,8 +20,11 @@ use thiserror::Error;
 mod block;
 mod block_inbox;
 mod block_meta;
+/// Advanced buffer APIs for implementing custom runtime integrations.
 pub mod buffer;
 pub mod config;
+/// Developer-facing APIs for implementing custom blocks and runtime extensions.
+pub mod dev;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod ctrl_port;
@@ -32,34 +45,25 @@ mod logging;
 mod flowgraph;
 mod flowgraph_handle;
 mod kernel;
+mod kernel_interface;
 mod message_output;
 #[cfg(not(target_arch = "wasm32"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
 #[allow(clippy::module_inception)]
 mod runtime;
+/// Advanced scheduler APIs for implementing custom executors.
 pub mod scheduler;
 mod tag;
 mod work_io;
 
-pub use block::Block;
-pub use block_inbox::BlockInbox;
-pub use block_inbox::BlockNotifier;
-pub use block_meta::BlockMeta;
 pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
-pub use flowgraph::TypedBlockGuard;
-pub use flowgraph::TypedBlockGuardMut;
 pub use flowgraph_handle::FlowgraphBlockHandle;
 pub use flowgraph_handle::FlowgraphHandle;
-pub use kernel::Kernel;
-pub use message_output::MessageOutputs;
 pub use runtime::RunningFlowgraph;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
-pub use tag::ItemTag;
-pub use tag::Tag;
-pub use work_io::WorkIo;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;
@@ -70,31 +74,18 @@ pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
 
-use buffer::BufferReader;
-use buffer::BufferWriter;
-
+/// Proc-macro and runtime plumbing that is public only so downstream macro
+/// expansions can reference generated implementation details.
 #[doc(hidden)]
 pub mod __private {
     pub use super::flowgraph::ConnectAdd;
-    pub use super::kernel::KernelInterface;
+    pub use super::kernel_interface::KernelInterface;
 }
 
-/// Generic Result Type used for the [`Kernel`] trait.
+/// Generic Result Type used for the [`crate::runtime::dev::Kernel`] trait.
 ///
 /// At the moment, a type alias for [`anyhow::Result`].
 pub type Result<T, E = anyhow::Error> = anyhow::Result<T, E>;
-
-#[cfg(not(target_arch = "wasm32"))]
-/// Marker trait for values that must be `Send` on native runtimes but not on wasm.
-pub trait MaybeSend: Send {}
-#[cfg(not(target_arch = "wasm32"))]
-impl<T: Send + ?Sized> MaybeSend for T {}
-
-#[cfg(target_arch = "wasm32")]
-/// Marker trait for values that must be `Send` on native runtimes but not on wasm.
-pub trait MaybeSend {}
-#[cfg(target_arch = "wasm32")]
-impl<T: ?Sized> MaybeSend for T {}
 
 /// Initialize runtime
 ///
@@ -109,6 +100,7 @@ pub fn init() {
 }
 
 /// Flowgraph inbox message type
+#[doc(hidden)]
 #[derive(Debug)]
 pub enum FlowgraphMessage {
     /// Terminate
@@ -162,6 +154,7 @@ pub enum FlowgraphMessage {
 }
 
 /// Block inbox message type
+#[doc(hidden)]
 #[derive(Debug)]
 pub enum BlockMessage {
     /// Initialize
@@ -294,6 +287,7 @@ impl From<PmtConversionError> for Error {
 
 /// Description of the [`Block`] under which an [`Error::InvalidMessagePort`] or
 /// [`Error::InvalidStreamPort`] error occurred.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockPortCtx {
     /// BlockId is not specified
@@ -304,8 +298,8 @@ pub enum BlockPortCtx {
     Name(String),
 }
 
-impl From<&dyn Block> for BlockPortCtx {
-    fn from(value: &dyn Block) -> Self {
+impl From<&dyn crate::runtime::dev::Block> for BlockPortCtx {
+    fn from(value: &dyn crate::runtime::dev::Block) -> Self {
         BlockPortCtx::Name(value.type_name().into())
     }
 }

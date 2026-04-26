@@ -4,7 +4,7 @@ use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use perf::spsc;

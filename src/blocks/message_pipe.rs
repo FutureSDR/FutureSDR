@@ -1,9 +1,9 @@
 use crate::channel::mpsc;
-use crate::runtime::BlockMeta;
-use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::runtime::dev::BlockMeta;
+use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::WorkIo;
 
 /// Push received messages into a channel.
 #[derive(Block)]

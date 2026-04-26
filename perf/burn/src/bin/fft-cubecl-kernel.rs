@@ -7,7 +7,7 @@ use cubecl::wgpu::WgpuDevice;
 use cubecl::wgpu::WgpuRuntime;
 use futuresdr::blocks::FileSource;
 use futuresdr::blocks::NullSink;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
 use perf_burn::batch_size_from_args;
 use std::collections::VecDeque;

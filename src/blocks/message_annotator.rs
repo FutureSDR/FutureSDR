@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::runtime::BlockMeta;
-use crate::runtime::MessageOutputs;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
-use crate::runtime::WorkIo;
+use crate::runtime::dev::BlockMeta;
+use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::WorkIo;
 
 /// Forward messages.
 #[derive(Block)]

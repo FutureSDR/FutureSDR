@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Copies only a given number of samples and stops.
 ///

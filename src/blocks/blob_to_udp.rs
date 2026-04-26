@@ -2,7 +2,7 @@ use async_net::SocketAddr;
 use async_net::UdpSocket;
 use std::net::ToSocketAddrs;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
 #[derive(Block)]

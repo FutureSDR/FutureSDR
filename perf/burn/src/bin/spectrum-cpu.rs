@@ -3,7 +3,7 @@ use anyhow::Result;
 use futuresdr::blocks::WebsocketSink;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use ndarray::Array;
 use ndarray::Array1;
 use ndarray::Array2;

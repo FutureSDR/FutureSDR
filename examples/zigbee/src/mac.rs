@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use std::collections::VecDeque;
 
 const MAX_FRAMES: usize = 128;

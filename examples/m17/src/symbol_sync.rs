@@ -1,4 +1,4 @@
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::num_integer::Integer;
 use std::collections::VecDeque;
 

@@ -2,7 +2,7 @@
 use anyhow::Result;
 use burn::prelude::*;
 use futuresdr::blocks::FileSource;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;

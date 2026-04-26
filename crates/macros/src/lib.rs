@@ -963,7 +963,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         } else if attr.path().is_ident("null_kernel") {
             kernel = quote! {
                 #[doc(hidden)]
-                impl #generics ::futuresdr::runtime::Kernel for #struct_name #generics
+                impl #generics ::futuresdr::runtime::dev::Kernel for #struct_name #generics
                     #where_clause { }
 
             }
@@ -1035,7 +1035,7 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 names
             }
 
-            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inbox: ::futuresdr::runtime::BlockInbox) {
+            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inbox: ::futuresdr::runtime::dev::BlockInbox) {
                 use ::futuresdr::runtime::PortId;
                 #(#stream_inputs_init)*
                 #(#stream_outputs_init)*
@@ -1092,9 +1092,9 @@ pub fn derive_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
             async fn call_handler(
                 &mut self,
-                io: &mut ::futuresdr::runtime::WorkIo,
-                mo: &mut ::futuresdr::runtime::MessageOutputs,
-                meta: &mut ::futuresdr::runtime::BlockMeta,
+                io: &mut ::futuresdr::runtime::dev::WorkIo,
+                mo: &mut ::futuresdr::runtime::dev::MessageOutputs,
+                meta: &mut ::futuresdr::runtime::dev::BlockMeta,
                 id: ::futuresdr::runtime::PortId,
                 p: ::futuresdr::runtime::Pmt) ->
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {

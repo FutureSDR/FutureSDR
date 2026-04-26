@@ -5,7 +5,7 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::Throttle;
-use futuresdr::dev_prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use std::cmp;
 
 pub enum FailType {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futuresdr::runtime::Tag;
+use futuresdr::runtime::dev::Tag;
 
 #[test]
 fn tag_any_is() -> Result<()> {

@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Operation mode for [WebsocketSink].
 pub enum WebsocketSinkMode {

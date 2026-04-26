@@ -1,7 +1,6 @@
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::ItemTag;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -19,6 +18,8 @@ use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
+use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::ItemTag;
 #[cfg(not(target_arch = "wasm32"))]
 use concurrent_queue::ConcurrentQueue;
 use std::any::Any;
@@ -196,7 +197,7 @@ where
 {
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -413,7 +414,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

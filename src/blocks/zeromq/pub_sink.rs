@@ -1,4 +1,4 @@
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
 #[derive(Block)]

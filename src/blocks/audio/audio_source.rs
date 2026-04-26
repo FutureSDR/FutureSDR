@@ -6,7 +6,7 @@ use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
 
 use crate::channel::mpsc;
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 
 /// Audio Source.
 #[derive(Block)]

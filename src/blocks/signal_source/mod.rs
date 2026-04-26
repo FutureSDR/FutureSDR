@@ -4,7 +4,7 @@ pub use fxpt_phase::FixedPointPhase;
 mod fxpt_nco;
 pub use fxpt_nco::NCO;
 
-use crate::dev_prelude::*;
+use crate::runtime::dev::prelude::*;
 use std::marker::PhantomData;
 
 /// Signal Source block

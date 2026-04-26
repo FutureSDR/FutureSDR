@@ -6,15 +6,10 @@ use std::ops::DerefMut;
 
 use crate::channel::mpsc::Receiver;
 use crate::channel::mpsc::channel;
-use crate::runtime::BlockInbox;
 use crate::runtime::BlockMessage;
-use crate::runtime::BlockNotifier;
 use crate::runtime::Error;
-use crate::runtime::ItemTag;
-use crate::runtime::Kernel;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::WorkIo;
 use crate::runtime::block::WrappedKernel;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -23,7 +18,14 @@ use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::config::config;
-use crate::runtime::kernel::KernelInterface;
+use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockMeta;
+use crate::runtime::dev::BlockNotifier;
+use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::Kernel;
+use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::WorkIo;
+use crate::runtime::kernel_interface::KernelInterface;
 
 /// Mocker for a block
 ///
@@ -55,13 +57,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     }
 
     /// Get mutable access to the wrapped kernel state used by `Kernel::work`.
-    pub fn parts_mut(
-        &mut self,
-    ) -> (
-        &mut K,
-        &mut crate::runtime::MessageOutputs,
-        &mut crate::runtime::BlockMeta,
-    ) {
+    pub fn parts_mut(&mut self) -> (&mut K, &mut MessageOutputs, &mut BlockMeta) {
         let WrappedKernel {
             kernel, mo, meta, ..
         } = &mut self.block;
@@ -69,12 +65,12 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     }
 
     /// Get block metadata.
-    pub fn meta(&self) -> &crate::runtime::BlockMeta {
+    pub fn meta(&self) -> &BlockMeta {
         &self.block.meta
     }
 
     /// Get mutable block metadata.
-    pub fn meta_mut(&mut self) -> &mut crate::runtime::BlockMeta {
+    pub fn meta_mut(&mut self) -> &mut BlockMeta {
         &mut self.block.meta
     }
 
@@ -238,7 +234,7 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
@@ -333,7 +329,7 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
 impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: crate::runtime::BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
