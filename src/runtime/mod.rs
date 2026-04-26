@@ -51,6 +51,7 @@ mod message_output;
 #[cfg(not(target_arch = "wasm32"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
+mod running_flowgraph;
 #[allow(clippy::module_inception)]
 mod runtime;
 /// Advanced scheduler APIs for implementing custom executors.
@@ -63,7 +64,7 @@ pub use flowgraph::Flowgraph;
 pub use flowgraph_handle::FlowgraphBlockHandle;
 pub use flowgraph_handle::FlowgraphHandle;
 pub use flowgraph_task::FlowgraphTask;
-pub use runtime::RunningFlowgraph;
+pub use running_flowgraph::RunningFlowgraph;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
 
