@@ -2,8 +2,8 @@
 use anyhow::Result;
 use burn::prelude::*;
 use futuresdr::blocks::FileSource;
-use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::buffer::burn::Buffer;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;

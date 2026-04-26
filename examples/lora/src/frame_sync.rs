@@ -1,5 +1,5 @@
-use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::dev::prelude::*;
 use rustfft::Fft;
 use rustfft::FftDirection;
 use rustfft::FftPlanner;

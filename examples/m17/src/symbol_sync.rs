@@ -1,5 +1,5 @@
-use futuresdr::runtime::dev::prelude::*;
 use futuresdr::num_integer::Integer;
+use futuresdr::runtime::dev::prelude::*;
 use std::collections::VecDeque;
 
 struct InterpResampler {
