@@ -6,9 +6,9 @@ use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use futuresdr::runtime::Result;
 
-/// Kernal
+/// Kernel
 ///
-/// Central trait to implement a block
+/// Central trait that the developer has to implement for a block.
 pub trait Kernel: MaybeSend {
     /// Processes stream data
     fn work(

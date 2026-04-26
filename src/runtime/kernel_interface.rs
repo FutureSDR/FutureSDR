@@ -20,7 +20,7 @@ use futuresdr::runtime::buffer::BufferReader;
 /// implement it through [`crate::runtime::__private::KernelInterface`].
 #[doc(hidden)]
 pub trait KernelInterface {
-    /// If true, the block is run in a spearate thread
+    /// If true, the block is run in a separate thread
     fn is_blocking() -> bool;
     /// Name of the block
     fn type_name() -> &'static str;

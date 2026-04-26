@@ -229,7 +229,7 @@ pub use vector_source::VectorSource;
 mod vulkan;
 #[cfg(feature = "vulkan")]
 pub use vulkan::Vulkan;
-/// WASM-specfici blocks (target wasm32-unknown-unknown)
+/// WASM-specific blocks (target wasm32-unknown-unknown)
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(not(target_arch = "wasm32"))]

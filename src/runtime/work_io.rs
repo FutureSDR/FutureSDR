@@ -14,10 +14,10 @@ pub struct WorkIo {
     pub finished: bool,
     /// Block on future
     ///
-    /// The block will be called (1) if somehting happens or (2) if the future resolves
+    /// The block will be called (1) if something happens or (2) if the future resolves
     #[cfg(not(target_arch = "wasm32"))]
     pub block_on: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    /// The block will be called (1) if somehting happens or (2) if the future resolves
+    /// The block will be called (1) if something happens or (2) if the future resolves
     #[cfg(target_arch = "wasm32")]
     pub block_on: Option<Pin<Box<dyn Future<Output = ()>>>>,
 }

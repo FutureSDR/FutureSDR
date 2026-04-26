@@ -3,14 +3,10 @@ use async_io::block_on;
 use async_lock::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
-use futures::FutureExt;
 use futures::channel::oneshot;
 use futures::prelude::*;
 use std::fmt;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task;
-use std::task::Poll;
 
 use crate::channel::mpsc::Receiver;
 use crate::channel::mpsc::Sender;
@@ -26,6 +22,7 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
 use crate::runtime::config;
 use crate::runtime::dev::BlockInbox;
@@ -52,34 +49,14 @@ type DynSpawn = dyn Spawn + Send + Sync + 'static;
 #[cfg(target_arch = "wasm32")]
 type DynSpawn = dyn Spawn + 'static;
 
-pub struct TaskHandle<T> {
-    task: Option<Task<T>>,
-}
-
 /// Running [`Flowgraph`] together with its control handle and completion task.
 pub struct RunningFlowgraph {
     handle: FlowgraphHandle,
-    task: TaskHandle<Result<Flowgraph, Error>>,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl<T> Drop for TaskHandle<T> {
-    fn drop(&mut self) {
-        // If the task wasn't awaited to completion, detach it so it can keep running.
-        if let Some(task) = self.task.take() {
-            task.detach();
-        }
-    }
-}
-
-impl<T> TaskHandle<T> {
-    fn new(task: Task<T>) -> Self {
-        TaskHandle { task: Some(task) }
-    }
+    task: FlowgraphTask,
 }
 
 impl RunningFlowgraph {
-    fn new(handle: FlowgraphHandle, task: TaskHandle<Result<Flowgraph, Error>>) -> Self {
+    fn new(handle: FlowgraphHandle, task: FlowgraphTask) -> Self {
         Self { handle, task }
     }
 
@@ -94,7 +71,7 @@ impl RunningFlowgraph {
     }
 
     /// Split the running flowgraph into its completion task and control handle.
-    pub fn split(self) -> (TaskHandle<Result<Flowgraph, Error>>, FlowgraphHandle) {
+    pub fn split(self) -> (FlowgraphTask, FlowgraphHandle) {
         (self.task, self.handle)
     }
 
@@ -145,26 +122,6 @@ impl RunningFlowgraph {
     pub async fn stop_and_wait(self) -> Result<Flowgraph, Error> {
         self.handle.stop().await?;
         self.wait().await
-    }
-}
-
-impl<T> std::future::Future for TaskHandle<T> {
-    type Output = T;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let task = self
-            .task
-            .as_mut()
-            .expect("TaskHandle polled after completion");
-
-        match task.poll_unpin(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(output) => {
-                // Mark as completed so Drop doesn't detach/retain a consumed task handle.
-                let _ = self.task.take();
-                Poll::Ready(output)
-            }
-        }
     }
 }
 
@@ -309,7 +266,7 @@ impl<S: Scheduler> Runtime<S> {
             .ok_or(Error::LockError)?
             .push(handle.clone());
 
-        Ok(RunningFlowgraph::new(handle, TaskHandle::new(task)))
+        Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`]

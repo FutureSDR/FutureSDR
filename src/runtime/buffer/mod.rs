@@ -364,7 +364,7 @@ pub trait BufferReader: Any {
     /// Initialize buffer
     ///
     /// This sets the own block ID, Port ID, and message receiver so that it can
-    /// be communicated the the other end when making connections.
+    /// be communicated to the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
     /// Check if connected
     fn validate(&self) -> Result<(), Error>;
@@ -392,7 +392,7 @@ pub trait BufferWriter {
     /// Initialize buffer
     ///
     /// This sets the own block ID, Port ID, and message receiver so that it can
-    /// be communicated the the other end when making connections.
+    /// be communicated to the other end when making connections.
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
     /// Check if connected
     fn validate(&self) -> Result<(), Error>;
@@ -448,11 +448,11 @@ pub trait CpuBufferReader: BufferReader + Default + MaybeSend {
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>);
     /// Consume Items
     fn consume(&mut self, n: usize);
-    /// Configure the minimum numer of items required in
+    /// Configure the minimum number of items required in
     /// [work()](crate::runtime::dev::Kernel::work)
     ///
     /// This defines the minimum number of samples that the block needs to proceed. For example, an
-    /// FFT block requires samples correspoding to the FFT size.
+    /// FFT block requires samples corresponding to the FFT size.
     fn set_min_items(&mut self, n: usize);
     /// Configure the minimum buffer size
     ///
@@ -479,11 +479,11 @@ pub trait CpuBufferWriter: BufferWriter + Default + MaybeSend {
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>);
     /// Produce items
     fn produce(&mut self, n: usize);
-    /// Configure the minimum numer of items required in
+    /// Configure the minimum number of items required in
     /// [work()](crate::runtime::dev::Kernel::work)
     ///
     /// This defines the minimum number of samples that the block needs to proceed. For example, an
-    /// FFT block requires samples correspoding to the FFT size.
+    /// FFT block requires samples corresponding to the FFT size.
     fn set_min_items(&mut self, n: usize);
     /// Configure the minimum buffer size
     ///

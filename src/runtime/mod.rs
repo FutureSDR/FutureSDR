@@ -44,6 +44,7 @@ mod logging;
 
 mod flowgraph;
 mod flowgraph_handle;
+mod flowgraph_task;
 mod kernel;
 mod kernel_interface;
 mod message_output;
@@ -61,6 +62,7 @@ pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
 pub use flowgraph_handle::FlowgraphBlockHandle;
 pub use flowgraph_handle::FlowgraphHandle;
+pub use flowgraph_task::FlowgraphTask;
 pub use runtime::RunningFlowgraph;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
