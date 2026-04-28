@@ -451,8 +451,8 @@ async fn run(
     let mut fg = Flowgraph::new();
 
     let src = HackRf::new();
-    let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
-    let mag_sqr = Apply::<_, _, _>::new(|x: &Complex32| x.norm_sqr());
+    let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+    let mag_sqr = Apply::new(|x: &Complex32| x.norm_sqr());
     let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
     let snk = Sink::new(set_time_data, set_waterfall_data);
 

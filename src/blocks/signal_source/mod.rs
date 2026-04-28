@@ -22,14 +22,25 @@ where
     amplitude: f32,
 }
 
+impl<A, F> SignalSource<A, F, DefaultCpuWriter<A>>
+where
+    A: CpuSample + Copy + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
+    F: FnMut(FixedPointPhase) -> A + Send + 'static,
+{
+    /// Create SignalSource block with the default stream buffer.
+    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: f32) -> Self {
+        Self::with_buffer(phase_to_amplitude, nco, amplitude)
+    }
+}
+
 impl<A, F, O> SignalSource<A, F, O>
 where
     A: Copy + Send + 'static + std::ops::Mul<Output = A> + std::ops::Add<Output = A>,
     F: FnMut(FixedPointPhase) -> A + Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
-    /// Create SignalSource block
-    pub fn new(phase_to_amplitude: F, nco: NCO, amplitude: f32) -> Self {
+    /// Create SignalSource block with a custom stream buffer.
+    pub fn with_buffer(phase_to_amplitude: F, nco: NCO, amplitude: f32) -> Self {
         Self {
             output: O::default(),
             nco,
@@ -102,7 +113,7 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(|phase: FixedPointPhase| phase.cos(), nco, amplitude)
+        SignalSource::with_buffer(|phase: FixedPointPhase| phase.cos(), nco, amplitude)
     }
     /// Create sine wave
     pub fn sin(
@@ -115,7 +126,7 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(|phase: FixedPointPhase| phase.sin(), nco, amplitude)
+        SignalSource::with_buffer(|phase: FixedPointPhase| phase.sin(), nco, amplitude)
     }
     /// Create square wave
     pub fn square(
@@ -128,7 +139,7 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(
+        SignalSource::with_buffer(
             |phase: FixedPointPhase| {
                 if phase.value < 0 { 1.0 } else { 0.0 }
             },
@@ -162,7 +173,7 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(
+        SignalSource::with_buffer(
             |phase: FixedPointPhase| Complex32::new(phase.cos(), phase.sin()),
             nco,
             amplitude,
@@ -180,7 +191,7 @@ where
             initial_phase,
             2.0 * core::f32::consts::PI * frequency / sample_rate,
         );
-        SignalSource::new(
+        SignalSource::with_buffer(
             |phase: FixedPointPhase| {
                 let t = phase.value >> 30;
                 match t {

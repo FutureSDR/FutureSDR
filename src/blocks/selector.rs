@@ -82,14 +82,24 @@ pub struct Selector<
     drop_policy: DropPolicy,
 }
 
+impl<A, const N: usize, const M: usize> Selector<A, N, M, DefaultCpuReader<A>, DefaultCpuWriter<A>>
+where
+    A: CpuSample + Copy,
+{
+    /// Create Selector block with default stream buffers.
+    pub fn new(drop_policy: DropPolicy) -> Self {
+        Self::with_buffers(drop_policy)
+    }
+}
+
 impl<A, const N: usize, const M: usize, IN, OUT> Selector<A, N, M, IN, OUT>
 where
     A: Send + 'static + Copy,
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = A>,
 {
-    /// Create Selector block
-    pub fn new(drop_policy: DropPolicy) -> Self {
+    /// Create Selector block with custom stream buffers.
+    pub fn with_buffers(drop_policy: DropPolicy) -> Self {
         Selector {
             inputs: from_fn(|_| IN::default()),
             outputs: from_fn(|_| OUT::default()),

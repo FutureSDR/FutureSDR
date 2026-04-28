@@ -20,7 +20,7 @@ fn tags_vs_prefix() -> Result<()> {
     connect!(fg, mac.tx | tx.encoder);
     let mapper: Mapper = Mapper::new();
     connect!(fg, encoder > mapper);
-    let fft: Fft = Fft::with_options(
+    let fft = Fft::with_options(
         64,
         FftDirection::Inverse,
         true,

@@ -28,6 +28,13 @@ unsafe impl<O> Send for AudioSource<O> where O: CpuBufferWriter<Item = f32> {}
 
 const QUEUE_SIZE: usize = 5;
 
+impl AudioSource<DefaultCpuWriter<f32>> {
+    /// Create AudioSource block with the default stream buffer.
+    pub fn new(sample_rate: u32, channels: u16) -> Result<Self> {
+        Self::with_buffer(sample_rate, channels)
+    }
+}
+
 impl<O> AudioSource<O>
 where
     O: CpuBufferWriter<Item = f32>,
@@ -48,8 +55,8 @@ where
         })
     }
 
-    /// Create AudioSource block
-    pub fn new(sample_rate: u32, channels: u16) -> Result<Self> {
+    /// Create AudioSource block with a custom stream buffer.
+    pub fn with_buffer(sample_rate: u32, channels: u16) -> Result<Self> {
         let input_channels = if Self::supports_config(sample_rate, channels) {
             channels
         } else if channels == 1 && Self::supports_config(sample_rate, 2) {

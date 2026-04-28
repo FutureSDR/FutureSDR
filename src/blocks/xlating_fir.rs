@@ -21,12 +21,8 @@ where
     rotator: Rotator,
 }
 
-impl<I, O> XlatingFir<I, O>
-where
-    I: CpuBufferReader<Item = Complex32>,
-    O: CpuBufferWriter<Item = Complex32>,
-{
-    /// Create a new non-resampling FIR filter with the specified taps.
+impl XlatingFir<DefaultCpuReader<Complex32>, DefaultCpuWriter<Complex32>> {
+    /// Create a new non-resampling FIR filter with the specified taps and default stream buffers.
     pub fn new(decimation: usize, offset: f32, sample_rate: f32) -> Self {
         assert!(decimation >= 2, "Xlating FIR: Decimation has to be >= 2");
         let transition_bw = 0.1;
@@ -35,8 +31,33 @@ where
         Self::with_taps(taps, decimation, offset, sample_rate)
     }
 
-    /// Create Xlating FIR block
+    /// Create Xlating FIR block with default stream buffers.
     pub fn with_taps(taps: Vec<f32>, decimation: usize, offset: f32, sample_rate: f32) -> Self {
+        Self::with_taps_and_buffers(taps, decimation, offset, sample_rate)
+    }
+}
+
+impl<I, O> XlatingFir<I, O>
+where
+    I: CpuBufferReader<Item = Complex32>,
+    O: CpuBufferWriter<Item = Complex32>,
+{
+    /// Create a new non-resampling FIR filter with the specified taps and custom stream buffers.
+    pub fn with_buffers(decimation: usize, offset: f32, sample_rate: f32) -> Self {
+        assert!(decimation >= 2, "Xlating FIR: Decimation has to be >= 2");
+        let transition_bw = 0.1;
+        let cutoff = (0.5f64 - transition_bw - f64::EPSILON).min(1.0 / decimation as f64);
+        let taps = firdes::kaiser::lowpass::<f32>(cutoff, transition_bw, 0.0001);
+        Self::with_taps_and_buffers(taps, decimation, offset, sample_rate)
+    }
+
+    /// Create Xlating FIR block with custom stream buffers.
+    pub fn with_taps_and_buffers(
+        taps: Vec<f32>,
+        decimation: usize,
+        offset: f32,
+        sample_rate: f32,
+    ) -> Self {
         assert!(decimation != 0);
 
         let mut bpf_taps = Vec::new();

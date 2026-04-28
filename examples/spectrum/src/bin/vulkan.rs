@@ -47,14 +47,15 @@ fn main() -> Result<()> {
         .gain(34.0)
         .build_source()?;
 
-    let fft: Fft = Fft::with_options(
+    let fft = Fft::with_options(
         FFT_SIZE,
         futuresdr::blocks::FftDirection::Forward,
         true,
         None,
     );
 
-    let mut power = Apply::<_, _, _, _, vulkan::H2DWriter<f32>>::new(|x: &Complex32| x.norm_sqr());
+    let mut power =
+        Apply::<_, _, _, _, vulkan::H2DWriter<f32>>::with_buffers(|x: &Complex32| x.norm_sqr());
     let log = Vulkan::new(instance.clone(), entry_point, 32);
     let keep = MovingAvg::<FFT_SIZE, vulkan::D2HReader<f32>>::new(0.1, 3);
 

@@ -31,6 +31,13 @@ unsafe impl<I> Send for AudioSink<I> where I: CpuBufferReader<Item = f32> {}
 const QUEUE_SIZE: usize = 5;
 const STANDARD_RATES: [u32; 4] = [24000, 44100, 48000, 96000];
 
+impl AudioSink<DefaultCpuReader<f32>> {
+    /// Create AudioSink block with the default stream buffer.
+    pub fn new(sample_rate: u32, channels: u16) -> Result<Self> {
+        Self::with_buffer(sample_rate, channels)
+    }
+}
+
 impl<I> AudioSink<I>
 where
     I: CpuBufferReader<Item = f32>,
@@ -51,8 +58,8 @@ where
         })
     }
 
-    /// Create AudioSink block
-    pub fn new(sample_rate: u32, channels: u16) -> Result<Self> {
+    /// Create AudioSink block with a custom stream buffer.
+    pub fn with_buffer(sample_rate: u32, channels: u16) -> Result<Self> {
         let output_channels = if Self::supports_config(sample_rate, channels) {
             channels
         } else if channels == 1 && Self::supports_config(sample_rate, 2) {

@@ -57,12 +57,12 @@ fn main() -> Result<()> {
         }
     };
 
-    let complex_to_mag = Apply::<_, _, _>::new(|i: &Complex32| -> f32 { i.norm_sqr() });
+    let complex_to_mag = Apply::new(|i: &Complex32| -> f32 { i.norm_sqr() });
 
     let mut cur = 0.0;
     let alpha = 0.0001;
     let alpha_inv = 1.0 - alpha;
-    let avg = Apply::<_, _, _>::new(move |x: &f32| -> f32 {
+    let avg = Apply::new(move |x: &f32| -> f32 {
         cur = cur * alpha_inv + *x * alpha;
         *x - cur
     });
@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     let taps = firdes::lowpass::<f32>(15e3 / 250e3, &windows::hamming(128, false));
     let low_pass = FirBuilder::fir::<f32, f32, _>(taps);
 
-    let slice = Apply::<_, _, _>::new(move |i: &f32| -> u8 {
+    let slice = Apply::new(move |i: &f32| -> u8 {
         if *i > 0.0 { 1 } else { 0 }
     });
 

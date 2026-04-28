@@ -17,12 +17,19 @@ where
     src: Buffered<Decoder<BufReader<File>>>,
 }
 
+impl FileSource<DefaultCpuWriter<f32>> {
+    /// Create FileSource block with the default stream buffer.
+    pub fn new(file: &str) -> Self {
+        Self::with_buffer(file)
+    }
+}
+
 impl<O> FileSource<O>
 where
     O: CpuBufferWriter<Item = f32>,
 {
-    /// Create FileSource block
-    pub fn new(file: &str) -> Self {
+    /// Create FileSource block with a custom stream buffer.
+    pub fn with_buffer(file: &str) -> Self {
         let file = BufReader::new(File::open(file).unwrap());
         let source = Decoder::new(file).unwrap();
 

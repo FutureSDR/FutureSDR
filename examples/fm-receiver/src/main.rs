@@ -98,7 +98,7 @@ fn main() -> Result<()> {
     // Demodulation block using the conjugate delay method
     // See https://en.wikipedia.org/wiki/Detector_(radio)#Quadrature_detector
     let mut last = Complex32::new(0.0, 0.0); // store sample x[n-1]
-    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
+    let demod = Apply::new(move |v: &Complex32| -> f32 {
         let arg = (v * last.conj()).arg(); // Obtain phase of x[n] * conj(x[n-1])
         last = *v;
         arg
@@ -109,7 +109,7 @@ fn main() -> Result<()> {
         1.0,
         (2.0 * std::f64::consts::PI * freq_offset / args.rate) as f32,
     );
-    let shift = Apply::<_, _, _>::new(move |v: &Complex32| -> Complex32 {
+    let shift = Apply::new(move |v: &Complex32| -> Complex32 {
         last *= add;
         last * v
     });

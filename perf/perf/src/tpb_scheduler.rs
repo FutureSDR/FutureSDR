@@ -1,11 +1,11 @@
 use async_executor::Executor;
 use async_executor::Task;
 use futuresdr::async_io;
-use futuresdr::runtime::channel::mpsc::Sender;
 use futuresdr::futures::channel::oneshot;
 use futuresdr::futures::future::Future;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::FlowgraphMessage;
+use futuresdr::runtime::channel::mpsc::Sender;
 use futuresdr::runtime::config;
 use futuresdr::runtime::dev::Block;
 use futuresdr::runtime::scheduler::Scheduler;

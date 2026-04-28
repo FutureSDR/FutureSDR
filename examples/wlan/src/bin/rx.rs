@@ -58,7 +58,7 @@ fn main() -> Result<()> {
         let mut avg_real = 0.0;
         let mut avg_img = 0.0;
         let ratio = 1.0e-5;
-        let dc = Apply::<_, _, _>::new(move |c: &Complex32| -> Complex32 {
+        let dc = Apply::new(move |c: &Complex32| -> Complex32 {
             avg_real = ratio * (c.re - avg_real) + avg_real;
             avg_img = ratio * (c.im - avg_img) + avg_img;
             Complex32::new(c.re - avg_real, c.im - avg_img)
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
     let delay = fg.add(Delay::<Complex32>::new(16));
     fg.connect_dyn(prev.stream_output(output), delay.stream_input("input"))?;
 
-    let complex_to_mag_2 = fg.add(Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr()));
+    let complex_to_mag_2 = fg.add(Apply::new(|i: &Complex32| i.norm_sqr()));
     let float_avg = MovingAverage::<f32>::new(64);
     fg.connect_dyn(
         prev.stream_output(output),
@@ -81,15 +81,13 @@ fn main() -> Result<()> {
     )?;
     connect!(fg, complex_to_mag_2 > float_avg);
 
-    let mult_conj = fg.add(Combine::<_, _, _, _>::new(
-        |a: &Complex32, b: &Complex32| a * b.conj(),
-    ));
+    let mult_conj = fg.add(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()));
     let complex_avg = MovingAverage::<Complex32>::new(48);
     fg.connect_dyn(prev.stream_output(output), mult_conj.stream_input("in0"))?;
     connect!(fg, mult_conj > complex_avg;
                  delay > in1.mult_conj);
 
-    let divide_mag = Combine::<_, _, _, _>::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
     connect!(fg, complex_avg > in0.divide_mag; float_avg > in1.divide_mag);
 
     let sync_short: SyncShort = SyncShort::new();
@@ -100,7 +98,7 @@ fn main() -> Result<()> {
     let sync_long: SyncLong = SyncLong::new();
     connect!(fg, sync_short > sync_long);
 
-    let fft: Fft = Fft::new(64);
+    let fft = Fft::new(64);
     // fft.set_tag_propagation(Box::new(copy_tag_propagation));
     let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
     let decoder = Decoder::new();

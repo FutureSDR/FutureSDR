@@ -15,7 +15,7 @@ fn multi_input_mock() {
         .take(128)
         .collect();
 
-    let block: Apply<_, _, _, Reader<_>, Writer<_>> = Apply::new(|x: &u32| x + 1);
+    let block: Apply<_, _, _, Reader<_>, Writer<_>> = Apply::with_buffers(|x: &u32| x + 1);
 
     let mut mocker = Mocker::new(block);
     mocker.input().set(input[..64].to_vec());
@@ -33,7 +33,7 @@ fn multi_input_mock() {
 
 #[test]
 fn tags_through_mock() -> Result<()> {
-    let noop: Apply<_, _, _, Reader<_>, Writer<_>> = Apply::new(|x: &f32| *x);
+    let noop: Apply<_, _, _, Reader<_>, Writer<_>> = Apply::with_buffers(|x: &f32| *x);
 
     let mut mock = Mocker::new(noop);
     let input = vec![0.0_f32; 1024];

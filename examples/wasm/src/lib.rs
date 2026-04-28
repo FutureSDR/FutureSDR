@@ -12,7 +12,7 @@ pub async fn run() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = VectorSource::<f32>::new(orig.clone());
-    let mul = Apply::<_, _, _>::new(|i: &f32| i * 12.0);
+    let mul = Apply::new(|i: &f32| i * 12.0);
     let snk = VectorSink::<f32>::new(n_items);
 
     connect!(fg, src > mul > snk);

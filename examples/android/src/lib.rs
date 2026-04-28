@@ -19,10 +19,10 @@ pub fn run_fg(fd: u32) -> Result<()> {
         .gain(40.0)
         .build_source()?;
 
-    let xlate: XlatingFir = XlatingFir::new(10, 0.3e6, 3.2e6);
+    let xlate = XlatingFir::new(10, 0.3e6, 3.2e6);
 
     let mut last = Complex32::new(1.0, 0.0);
-    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
+    let demod = Apply::new(move |v: &Complex32| -> f32 {
         let arg = (v * last.conj()).arg();
         last = *v;
         arg / 8.0

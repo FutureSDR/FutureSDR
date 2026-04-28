@@ -65,7 +65,7 @@ fn main() -> Result<()> {
         match format.as_str() {
             "cs8" => {
                 let src = FileSource::<Complex<i8>>::new(input, false);
-                let typecvt = Apply::<_, _, _>::new(|i: &Complex<i8>| Complex {
+                let typecvt = Apply::new(|i: &Complex<i8>| Complex {
                     re: i.re as f32 / 127.,
                     im: i.im as f32 / 127.,
                 });
@@ -105,7 +105,7 @@ fn main() -> Result<()> {
     let mut last_power_print = Instant::now();
     let mut avgmag = 0.0;
     let mut maxmag = 0.0;
-    let powermeter = fg.add(Apply::<_, _, _>::new(move |i: &Complex32| {
+    let powermeter = fg.add(Apply::new(move |i: &Complex32| {
         let norm = i.norm();
         if norm > 0.95 && last_clip_warning.elapsed().as_secs_f32() > 0.1 {
             last_clip_warning = Instant::now();
@@ -137,7 +137,7 @@ fn main() -> Result<()> {
         .expect("Output format could not be determined!");
     match format.as_str() {
         "cs8" => {
-            let typecvt = Apply::<_, _, _>::new(|i: &Complex32| Complex {
+            let typecvt = Apply::new(|i: &Complex32| Complex {
                 re: (i.re * 127.) as i8,
                 im: (i.im * 127.) as i8,
             });

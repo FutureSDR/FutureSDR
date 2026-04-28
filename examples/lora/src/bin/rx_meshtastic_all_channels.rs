@@ -139,7 +139,7 @@ fn main() -> Result<()> {
         let cutoff = Into::<f64>::into(bandwidth) / 2.0 / sample_rate as f64;
         let transition_bw = cutoff;
         let taps = firdes::kaiser::lowpass(cutoff, transition_bw, 0.05);
-        let decimation: XlatingFir = XlatingFir::with_taps(
+        let decimation = XlatingFir::with_taps(
             taps,
             decimation,
             (Into::<u32>::into(chan) - center_freq) as f32,

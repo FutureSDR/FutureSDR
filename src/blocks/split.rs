@@ -38,8 +38,8 @@ where
     O0: CpuBufferWriter<Item = B>,
     O1: CpuBufferWriter<Item = C>,
 {
-    /// Create Split block
-    pub fn new(f: F) -> Self {
+    /// Create Split block with custom stream buffers.
+    pub fn with_buffers(f: F) -> Self {
         Self {
             input: I::default(),
             output0: O0::default(),
@@ -49,7 +49,19 @@ where
     }
 }
 
-#[doc(hidden)]
+impl<F, A, B, C> Split<F, A, B, C, DefaultCpuReader<A>, DefaultCpuWriter<B>, DefaultCpuWriter<C>>
+where
+    F: FnMut(&A) -> (B, C) + Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
+{
+    /// Create Split block with default stream buffers.
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<F, A, B, C, I, O1, O2> Kernel for Split<F, A, B, C, I, O1, O2>
 where
     F: FnMut(&A) -> (B, C) + Send + 'static,

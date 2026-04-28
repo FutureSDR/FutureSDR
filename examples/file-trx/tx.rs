@@ -53,7 +53,7 @@ fn main() -> Result<()> {
     let src: BlockId = match format.as_str() {
         "cs8" => {
             let src = FileSource::<Complex<i8>>::new(args.input, args.repeat);
-            let typecvt = Apply::<_, _, _>::new(|i: &Complex<i8>| Complex {
+            let typecvt = Apply::new(|i: &Complex<i8>| Complex {
                 re: i.re as f32 / 128.,
                 im: i.im as f32 / 128.,
             });

@@ -60,7 +60,7 @@ fn main() -> Result<()> {
         1.0,
         -2.0 * std::f32::consts::PI * (center_freq as f32) / (file_rate as f32),
     );
-    let freq_xlating = Apply::<_, _, _>::new(move |v: &Complex32| {
+    let freq_xlating = Apply::new(move |v: &Complex32| {
         osc *= shift;
         v * osc * FILE_LEVEL_ADJUSTMENT
     });
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         1.0,
         2.0 * std::f32::consts::PI * (MID_AUDIO_SPECTRUM_FREQ as f32) / (audio_rate as f32),
     );
-    let weaver_ssb_decode = Apply::<_, _, _>::new(move |v: &Complex32| {
+    let weaver_ssb_decode = Apply::new(move |v: &Complex32| {
         osc *= shift;
         let term1 = v.re * osc.re;
         let term2 = v.im * osc.im;

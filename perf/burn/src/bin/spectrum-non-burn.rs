@@ -78,7 +78,7 @@ fn main() -> Result<()> {
         .sample_rate(32e6)
         .gain(34.0)
         .build_source()?;
-    let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+    let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new();
     let snk = WebsocketSink::<f32>::new(9001, WebsocketSinkMode::FixedBlocking(FFT_SIZE));
 

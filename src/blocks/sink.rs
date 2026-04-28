@@ -14,7 +14,7 @@ use crate::runtime::dev::prelude::*;
 /// ```
 /// use futuresdr::blocks::Sink;
 ///
-/// let sink = Sink::<_, _>::new(|x: &f32| println!("{}", x));
+/// let sink = Sink::new(|x: &f32| println!("{}", x));
 /// ```
 #[derive(Block)]
 pub struct Sink<F, A, I = DefaultCpuReader<A>>
@@ -28,14 +28,25 @@ where
     f: F,
 }
 
+impl<F, A> Sink<F, A, DefaultCpuReader<A>>
+where
+    F: FnMut(&A) + Send + 'static,
+    A: CpuSample,
+{
+    /// Create Sink block with the default stream buffer.
+    pub fn new(f: F) -> Self {
+        Self::with_buffer(f)
+    }
+}
+
 impl<F, A, I> Sink<F, A, I>
 where
     F: FnMut(&A) + Send + 'static,
     A: Send + 'static,
     I: CpuBufferReader<Item = A>,
 {
-    /// Create Sink block
-    pub fn new(f: F) -> Self {
+    /// Create Sink block with a custom stream buffer.
+    pub fn with_buffer(f: F) -> Self {
         Self {
             input: I::default(),
             f,

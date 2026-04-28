@@ -81,7 +81,7 @@ fn main() -> Result<()> {
 
     let src = NullSource::<Complex32>::new();
     let head = Head::<Complex32>::new(1_000_000_000);
-    let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+    let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new(batch_size);
     let snk = NullSink::<f32>::new();
 

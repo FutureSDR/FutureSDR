@@ -335,7 +335,7 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
 }
 
 pub fn modulator(fg: &mut Flowgraph) -> BlockId {
-    fg.add(ApplyIntoIter::<_, _, _>::new(|i: &u8| {
+    fg.add(ApplyIntoIter::new(|i: &u8| {
         make_nibble(i & 0x0F).chain(make_nibble(i >> 4))
     }))
     .into()

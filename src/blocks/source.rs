@@ -15,7 +15,7 @@ use crate::runtime::dev::prelude::*;
 /// use futuresdr::blocks::Source;
 ///
 /// // Generate zeroes
-/// let source = Source::<_, _>::new(|| { 0.0f32 });
+/// let source = Source::new(|| { 0.0f32 });
 /// ```
 #[derive(Block)]
 pub struct Source<F, A, O = DefaultCpuWriter<A>>
@@ -29,14 +29,25 @@ where
     f: F,
 }
 
+impl<F, A> Source<F, A, DefaultCpuWriter<A>>
+where
+    F: FnMut() -> A + Send + 'static,
+    A: CpuSample,
+{
+    /// Create Source block with the default stream buffer.
+    pub fn new(f: F) -> Self {
+        Self::with_buffer(f)
+    }
+}
+
 impl<F, A, O> Source<F, A, O>
 where
     F: FnMut() -> A + Send + 'static,
     A: Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
-    /// Create Source block
-    pub fn new(f: F) -> Self {
+    /// Create Source block with a custom stream buffer.
+    pub fn with_buffer(f: F) -> Self {
         Self {
             output: O::default(),
             f,

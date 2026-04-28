@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let data: Vec<i16> = reader.into_samples::<i16>().map(|v| v.unwrap()).collect();
 
     let mut i = 0;
-    let src = FiniteSource::<_, _>::new(move || {
+    let src = FiniteSource::new(move || {
         if i >= data.len() {
             None
         } else {
@@ -56,7 +56,7 @@ fn main() -> Result<()> {
 
     let mut curr = Complex32::new(0.8, 0.0);
     let sensitivity = 2.0 * std::f32::consts::PI * 800.0 / 48000.0;
-    let fm = Apply::<_, _, _>::new(move |i: &f32| {
+    let fm = Apply::new(move |i: &f32| {
         let c = Complex32::from_polar(1.0, i * 3.3 * sensitivity);
         curr *= c;
         curr

@@ -157,6 +157,7 @@ mod head;
 pub use head::Head;
 mod iir;
 pub use iir::Iir;
+pub use iir::IirBuilder;
 mod message_annotator;
 pub use message_annotator::MessageAnnotator;
 mod message_apply;

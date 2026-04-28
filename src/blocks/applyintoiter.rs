@@ -24,6 +24,24 @@ pub struct ApplyIntoIter<
     output: O,
 }
 
+impl<F, A, B>
+    ApplyIntoIter<F, A, B, DefaultCpuReader<A>, DefaultCpuWriter<<B as IntoIterator>::Item>>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: CpuSample,
+    B: Send + 'static + IntoIterator,
+    <B as IntoIterator>::Item: CpuSample,
+    <B as IntoIterator>::IntoIter: Send,
+{
+    /// Create [`ApplyIntoIter`] block with default stream buffers.
+    ///
+    /// ## Parameter
+    /// - `f`: Function to create an interator from an input sample
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<F, A, B, I, O> ApplyIntoIter<F, A, B, I, O>
 where
     F: FnMut(&A) -> B + Send + 'static,
@@ -34,11 +52,11 @@ where
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B::Item>,
 {
-    /// Create [`ApplyIntoIter`] block
+    /// Create [`ApplyIntoIter`] block with custom stream buffers.
     ///
     /// ## Parameter
     /// - `f`: Function to create an interator from an input sample
-    pub fn new(f: F) -> Self {
+    pub fn with_buffers(f: F) -> Self {
         Self {
             f,
             current_it: Box::new(std::iter::empty()),

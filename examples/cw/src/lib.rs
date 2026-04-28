@@ -109,12 +109,11 @@ pub async fn run_fg(msg: String) -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let src = VectorSource::<char>::new(msg);
-    let audio_snk: AudioSink = AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1)?;
-    let morse = ApplyIntoIter::<_, _, Vec<CWAlphabet>>::new(morse);
-    let switch_command = ApplyIntoIter::<_, _, CWAlphabet>::new(|c: &CWAlphabet| *c);
+    let audio_snk = AudioSink::new(SAMPLE_RATE.try_into().unwrap(), 1)?;
+    let morse = ApplyIntoIter::new(morse);
+    let switch_command = ApplyIntoIter::new(|c: &CWAlphabet| *c);
     let sidetone_src = SignalSourceBuilder::<f32>::sin(SIDETONE_FREQ, SAMPLE_RATE as f32, 0.5, 0.0);
-    let switch_sidetone: Combine<_, f32, f32, f32> =
-        Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b });
+    let switch_sidetone = Combine::new(|a: &f32, b: &f32| -> f32 { *a * *b });
 
     connect!(fg, src > morse > switch_command > in0.switch_sidetone;
         sidetone_src > in1.switch_sidetone.output > audio_snk);

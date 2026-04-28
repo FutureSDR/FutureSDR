@@ -29,6 +29,40 @@ pub struct Iir<
     _tap_type: std::marker::PhantomData<TapsType>,
 }
 
+/// Create an [`Iir`] filter with default stream buffers.
+pub struct IirBuilder;
+
+impl IirBuilder {
+    /// Create an IIR filter for the specified input and output sample types.
+    pub fn iir<InputType, OutputType, TapsType>(
+        a_taps: TapsType,
+        b_taps: TapsType,
+    ) -> Iir<InputType, OutputType, TapsType, IirFilter<InputType, OutputType, TapsType>>
+    where
+        InputType: CpuSample,
+        OutputType: CpuSample,
+        TapsType: 'static + Send + Taps,
+        IirFilter<InputType, OutputType, TapsType>:
+            StatefulFilter<InputType, OutputType, TapsType::TapType>,
+    {
+        Iir::with_core(IirFilter::new(a_taps, b_taps))
+    }
+
+    /// Create an IIR filter where the input and output sample types are the same.
+    pub fn same_type<SampleType, TapsType>(
+        a_taps: TapsType,
+        b_taps: TapsType,
+    ) -> Iir<SampleType, SampleType, TapsType, IirFilter<SampleType, SampleType, TapsType>>
+    where
+        SampleType: CpuSample,
+        TapsType: 'static + Send + Taps,
+        IirFilter<SampleType, SampleType, TapsType>:
+            StatefulFilter<SampleType, SampleType, TapsType::TapType>,
+    {
+        Self::iir(a_taps, b_taps)
+    }
+}
+
 impl<InputType, OutputType, TapsType, I, O>
     Iir<InputType, OutputType, TapsType, IirFilter<InputType, OutputType, TapsType>, I, O>
 where
@@ -69,9 +103,9 @@ where
     ///
     /// # Usage
     /// ```
-    /// use futuresdr::blocks::Iir;
+    /// use futuresdr::blocks::IirBuilder;
     ///
-    /// let iir: Iir<_, _, _, _> = Iir::new([1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]);
+    /// let iir = IirBuilder::same_type([1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]);
     /// ```
     pub fn new(
         a_taps: TapsType,

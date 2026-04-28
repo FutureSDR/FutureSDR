@@ -74,8 +74,8 @@ impl MyApp {
                 .sample_rate(3.2e6)
                 .gain(34.0)
                 .build_source()?;
-            let fft: Fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
-            let mag_sqr = Apply::<_, _, _>::new(|x: &Complex32| x.norm_sqr());
+            let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+            let mag_sqr = Apply::new(|x: &Complex32| x.norm_sqr());
             let keep = MovingAvg::<FFT_SIZE>::new(0.1, 3);
             let snk = ChannelSink::new(tx_samples);
 

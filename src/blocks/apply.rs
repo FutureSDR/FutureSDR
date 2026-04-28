@@ -18,18 +18,18 @@ use futuresdr::runtime::dev::prelude::*;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Double each sample
-/// let doubler = Apply::<_, _, _>::new(|i: &f32| i * 2.0);
+/// let doubler = Apply::new(|i: &f32| i * 2.0);
 ///
 /// // Note that the closure can also hold state
 /// let mut last_value = 0.0;
-/// let moving_average = Apply::<_, _, _>::new(move |i: &f32| {
+/// let moving_average = Apply::new(move |i: &f32| {
 ///     let new_value = (last_value + i) / 2.0;
 ///     last_value = *i;
 ///     new_value
 /// });
 ///
 /// // Additionally, the closure can change the type of the sample
-/// let to_complex = Apply::<_, _, _>::new(|i: &f32| {
+/// let to_complex = Apply::new(|i: &f32| {
 ///     Complex {
 ///         re: 0.0,
 ///         im: *i,
@@ -52,6 +52,21 @@ where
     output: OUT,
 }
 
+impl<F, A, B> Apply<F, A, B, DefaultCpuReader<A>, DefaultCpuWriter<B>>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+{
+    /// Create [`Apply`] block with default stream buffers.
+    ///
+    /// ## Parameter
+    /// - `f`: Function to apply on each sample
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<F, A, B, IN, OUT> Apply<F, A, B, IN, OUT>
 where
     F: FnMut(&A) -> B + Send + 'static,
@@ -60,11 +75,11 @@ where
     IN: CpuBufferReader<Item = A>,
     OUT: CpuBufferWriter<Item = B>,
 {
-    /// Create [`Apply`] block
+    /// Create [`Apply`] block with custom stream buffers.
     ///
     /// ## Parameter
     /// - `f`: Function to apply on each sample
-    pub fn new(f: F) -> Self {
+    pub fn with_buffers(f: F) -> Self {
         Self {
             f,
             input: IN::default(),

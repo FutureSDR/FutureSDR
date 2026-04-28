@@ -22,10 +22,10 @@ fn main() -> Result<()> {
     let snk: DecoderBlock = DecoderBlock::new();
 
     if let Some(f) = args.file {
-        let src: FileSource = FileSource::new(&f);
+        let src = FileSource::new(&f);
         connect!(fg, src > snk);
     } else {
-        let src: AudioSource = AudioSource::new(48000, 1)?;
+        let src = AudioSource::new(48000, 1)?;
         connect!(fg, src > snk);
     };
 

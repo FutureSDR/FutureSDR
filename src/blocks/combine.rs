@@ -16,7 +16,7 @@ use crate::runtime::dev::prelude::*;
 /// ```
 /// use futuresdr::blocks::Combine;
 ///
-/// let adder = Combine::<_, _, _, _>::new(|a: &f32, b: &f32| {
+/// let adder = Combine::new(|a: &f32, b: &f32| {
 ///     a + b
 /// });
 /// ```
@@ -48,6 +48,22 @@ pub struct Combine<
     f: F,
 }
 
+impl<F, A, B, C> Combine<F, A, B, C, DefaultCpuReader<A>, DefaultCpuReader<B>, DefaultCpuWriter<C>>
+where
+    F: FnMut(&A, &B) -> C + Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+    C: CpuSample,
+{
+    /// Create [`Combine`] block with default stream buffers.
+    ///
+    /// ## Parameter
+    /// - `f`: Function `(&A, &B) -> C` used to combine samples
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<F, A, B, C, INA, INB, OUT> Combine<F, A, B, C, INA, INB, OUT>
 where
     F: FnMut(&A, &B) -> C + Send + 'static,
@@ -58,11 +74,11 @@ where
     INB: CpuBufferReader<Item = B>,
     OUT: CpuBufferWriter<Item = C>,
 {
-    /// Create [`Combine`] block
+    /// Create [`Combine`] block with custom stream buffers.
     ///
     /// ## Parameter
     /// - `f`: Function `(&A, &B) -> C` used to combine samples
-    pub fn new(f: F) -> Self {
+    pub fn with_buffers(f: F) -> Self {
         Self {
             in0: INA::default(),
             in1: INB::default(),

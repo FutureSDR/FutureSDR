@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     connect!(fg, mac.tx | tx.encoder);
     let mapper: Mapper = Mapper::new();
     connect!(fg, encoder > mapper);
-    let fft: Fft = Fft::with_options(
+    let fft = Fft::with_options(
         64,
         FftDirection::Inverse,
         true,
@@ -46,7 +46,7 @@ fn main() -> Result<()> {
 
     // add noise
     let normal = Normal::new(0.0f32, 0.01).unwrap();
-    let noise = Apply::<_, _, _>::new(move |i: &Complex32| -> Complex32 {
+    let noise = Apply::new(move |i: &Complex32| -> Complex32 {
         let re = normal.sample(&mut rand::rng());
         let imag = normal.sample(&mut rand::rng());
         i + Complex32::new(re, imag)
@@ -61,16 +61,16 @@ fn main() -> Result<()> {
     let delay = Delay::<Complex32>::new(16);
     connect!(fg, src > delay);
 
-    let complex_to_mag_2 = Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr());
+    let complex_to_mag_2 = Apply::new(|i: &Complex32| i.norm_sqr());
     let float_avg = MovingAverage::<f32>::new(64);
     connect!(fg, src > complex_to_mag_2 > float_avg);
 
-    let mult_conj = Combine::<_, _, _, _>::new(|a: &Complex32, b: &Complex32| a * b.conj());
+    let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg = MovingAverage::<Complex32>::new(48);
     connect!(fg, src > in0.mult_conj > complex_avg);
     connect!(fg, delay > in1.mult_conj);
 
-    let divide_mag = Combine::<_, _, _, _>::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
     connect!(fg, complex_avg > in0.divide_mag);
     connect!(fg, float_avg > in1.divide_mag);
 
@@ -82,7 +82,7 @@ fn main() -> Result<()> {
     let sync_long: SyncLong = SyncLong::new();
     connect!(fg, sync_short > sync_long);
 
-    let fft: Fft = Fft::new(64);
+    let fft = Fft::new(64);
     connect!(fg, sync_long > fft);
 
     let frame_equalizer: FrameEqualizer = FrameEqualizer::new();

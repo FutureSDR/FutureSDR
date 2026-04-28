@@ -13,14 +13,25 @@ where
     f: F,
 }
 
+impl<F, A> FiniteSource<F, A, DefaultCpuWriter<A>>
+where
+    F: FnMut() -> Option<A> + Send + 'static,
+    A: CpuSample,
+{
+    /// Create FiniteSource block with the default stream buffer.
+    pub fn new(f: F) -> Self {
+        Self::with_buffer(f)
+    }
+}
+
 impl<F, A, O> FiniteSource<F, A, O>
 where
     F: FnMut() -> Option<A> + Send + 'static,
     A: Send + 'static,
     O: CpuBufferWriter<Item = A>,
 {
-    /// Create FiniteSource block
-    pub fn new(f: F) -> Self {
+    /// Create FiniteSource block with a custom stream buffer.
+    pub fn with_buffer(f: F) -> Self {
         Self {
             output: O::default(),
             f,

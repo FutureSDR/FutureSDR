@@ -23,7 +23,7 @@ use std::sync::Arc;
 /// ```
 /// use futuresdr::blocks::Fft;
 ///
-/// let fft: Fft<> = Fft::new(2048);
+/// let fft = Fft::new(2048);
 /// ```
 #[derive(Block)]
 #[message_inputs(fft_size)]
@@ -55,21 +55,41 @@ pub enum FftDirection {
 
 const BUFF_FFTS: usize = 32;
 
+impl Fft<DefaultCpuReader<Complex32>, DefaultCpuWriter<Complex32>> {
+    /// Create FFT block with default stream buffers.
+    pub fn new(len: usize) -> Self {
+        Self::with_direction(len, FftDirection::Forward)
+    }
+    /// Create FFT block with [`FftDirection`] and default stream buffers.
+    pub fn with_direction(len: usize, direction: FftDirection) -> Self {
+        Self::with_options(len, direction, false, None)
+    }
+    /// Create FFT block with options and default stream buffers.
+    pub fn with_options(
+        len: usize,
+        direction: FftDirection,
+        fft_shift: bool,
+        normalize: Option<f32>,
+    ) -> Self {
+        Self::with_options_and_buffers(len, direction, fft_shift, normalize)
+    }
+}
+
 impl<I, O> Fft<I, O>
 where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = Complex32>,
 {
-    /// Create FFT block
-    pub fn new(len: usize) -> Self {
-        Self::with_direction(len, FftDirection::Forward)
+    /// Create FFT block with custom stream buffers.
+    pub fn with_buffers(len: usize) -> Self {
+        Self::with_direction_and_buffers(len, FftDirection::Forward)
     }
-    /// Create FFT block with [`FftDirection`]
-    pub fn with_direction(len: usize, direction: FftDirection) -> Self {
-        Self::with_options(len, direction, false, None)
+    /// Create FFT block with [`FftDirection`] and custom stream buffers.
+    pub fn with_direction_and_buffers(len: usize, direction: FftDirection) -> Self {
+        Self::with_options_and_buffers(len, direction, false, None)
     }
-    /// Create FFT block with options (direction, shift, normalization)
-    pub fn with_options(
+    /// Create FFT block with options and custom stream buffers.
+    pub fn with_options_and_buffers(
         len: usize,
         direction: FftDirection,
         fft_shift: bool,

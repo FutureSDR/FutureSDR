@@ -72,7 +72,7 @@ fn main() -> Result<()> {
     let mut last: Complex32 = Complex32::new(0.0, 0.0);
     let mut iir: f32 = 0.0;
     let alpha = 0.00016;
-    let avg = Apply::<_, _, _>::new(move |i: &Complex32| -> f32 {
+    let avg = Apply::new(move |i: &Complex32| -> f32 {
         let phase = (last.conj() * i).arg();
         last = *i;
         iir = (1.0 - alpha) * iir + alpha * phase;

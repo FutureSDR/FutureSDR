@@ -54,6 +54,19 @@ pub struct ApplyNM<
     output: O,
 }
 
+impl<F, A, B, const N: usize, const M: usize>
+    ApplyNM<F, A, B, N, M, DefaultCpuReader<A>, DefaultCpuWriter<B>>
+where
+    F: FnMut(&[A], &mut [B]) + Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+{
+    /// Create [`ApplyNM`] block with default stream buffers.
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<F, A, B, const N: usize, const M: usize, I, O> ApplyNM<F, A, B, N, M, I, O>
 where
     F: FnMut(&[A], &mut [B]) + Send + 'static,
@@ -62,8 +75,8 @@ where
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B>,
 {
-    /// Create [`ApplyNM`] block
-    pub fn new(f: F) -> Self {
+    /// Create [`ApplyNM`] block with custom stream buffers.
+    pub fn with_buffers(f: F) -> Self {
         Self {
             f,
             input: I::default(),

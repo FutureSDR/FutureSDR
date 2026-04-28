@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 
     let mut fg = Flowgraph::new();
 
-    let source: FileSource = FileSource::new(&cli.input);
+    let source = FileSource::new(&cli.input);
     assert!(
         source.channels() == 1,
         "Input audio must be mono but found {} channels",
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
     let taps = firdes::kaiser::lowpass(cli.audio_bandwidth / audio_rate, 350.0 / audio_rate, 0.05);
     let lowpass = FirBuilder::fir::<f32, f32, _>(taps);
 
-    let split = Split::<_, _, _, _>::new(move |v: &f32| (*v, *v));
+    let split = Split::new(move |v: &f32| (*v, *v));
 
     // Phase transformation by 90°.
     let window = hamming(167, false);
@@ -91,7 +91,7 @@ fn main() -> Result<()> {
     // Match the delay caused by the phase transformation.
     let delay = Delay::<f32>::new(window.len() as isize / -2);
 
-    let to_complex = Combine::<_, _, _, _>::new(move |i: &f32, q: &f32| match cli.mode {
+    let to_complex = Combine::new(move |i: &f32, q: &f32| match cli.mode {
         Mode::Lsb => Complex32::new(*i, *q * -1.0),
         Mode::Usb => Complex32::new(*i, *q),
     });
@@ -101,7 +101,7 @@ fn main() -> Result<()> {
 
     let mut osc = Complex32::new(1.0, 0.0);
     let shift = Complex32::from_polar(1.0, TAU * cli.frequency / file_rate as f32);
-    let mixer = Apply::<_, _, _>::new(move |v: &Complex32| {
+    let mixer = Apply::new(move |v: &Complex32| {
         osc *= shift;
         v * osc
     });
@@ -122,7 +122,7 @@ fn main() -> Result<()> {
     );
 
     // Adjust amplitude to levels expected by `receiver`.
-    let file_level = Apply::<_, _, _>::new(|v: &Complex32| v * 2.0 / 0.0001);
+    let file_level = Apply::new(|v: &Complex32| v * 2.0 / 0.0001);
     let dat = FileSink::<Complex32>::new(format!("{}.dat", cli.output));
 
     connect!(fg,

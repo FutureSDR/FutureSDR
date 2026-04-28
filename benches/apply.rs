@@ -158,7 +158,7 @@ pub fn apply(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let block: Apply<_, _, _, Reader<u8>, Writer<u8>> =
-                    Apply::new(|x: &u8| x.wrapping_add(1));
+                    Apply::with_buffers(|x: &u8| x.wrapping_add(1));
                 let mut mocker = Mocker::new(block);
                 mocker.input().set(input.clone());
                 mocker.output().reserve(n_samp);

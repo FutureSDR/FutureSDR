@@ -18,7 +18,7 @@ use crate::runtime::dev::prelude::*;
 /// let mut fg = Flowgraph::new();
 ///
 /// // Remove samples above 1.0
-/// let filter = fg.add(Filter::<f32, f32>::new(|i| {
+/// let filter = fg.add(Filter::new(|i: &f32| {
 ///     if *i < 1.0 {
 ///         Some(*i)
 ///     } else {
@@ -42,6 +42,17 @@ where
     f: Box<dyn FnMut(&A) -> Option<B> + Send + 'static>,
 }
 
+impl<A, B> Filter<A, B, DefaultCpuReader<A>, DefaultCpuWriter<B>>
+where
+    A: CpuSample,
+    B: CpuSample,
+{
+    /// Create Filter block with default stream buffers.
+    pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
 impl<A, B, I, O> Filter<A, B, I, O>
 where
     A: 'static,
@@ -49,8 +60,8 @@ where
     I: CpuBufferReader<Item = A>,
     O: CpuBufferWriter<Item = B>,
 {
-    /// Create Filter block
-    pub fn new(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Self {
+    /// Create Filter block with custom stream buffers.
+    pub fn with_buffers(f: impl FnMut(&A) -> Option<B> + Send + 'static) -> Self {
         Self {
             input: I::default(),
             output: O::default(),

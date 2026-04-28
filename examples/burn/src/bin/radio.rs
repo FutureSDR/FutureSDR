@@ -203,11 +203,10 @@ fn main() -> Result<()> {
         .gain(args.gain)
         .build_source()?;
 
-    let xlate: XlatingFir =
-        XlatingFir::new(10, args.frequency_offset as f32, args.sample_rate as f32);
+    let xlate = XlatingFir::new(10, args.frequency_offset as f32, args.sample_rate as f32);
 
     let mut last = Complex32::new(1.0, 0.0);
-    let demod = Apply::<_, _, _>::new(move |v: &Complex32| -> f32 {
+    let demod = Apply::new(move |v: &Complex32| -> f32 {
         let arg = (v * last.conj()).arg();
         last = *v;
         arg / 8.0

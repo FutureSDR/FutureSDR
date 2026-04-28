@@ -62,14 +62,14 @@ fn normal(args: Args) -> Result<()> {
 
     let src = FileSource::<Complex32>::new(&args.file, false);
     let delay = Delay::<Complex32>::new(16);
-    let complex_to_mag_2 = Apply::<_, _, _>::new(|i: &Complex32| i.norm_sqr());
+    let complex_to_mag_2 = Apply::new(|i: &Complex32| i.norm_sqr());
     let float_avg = MovingAverage::<f32>::new(64);
-    let mult_conj = Combine::<_, _, _, _>::new(|a: &Complex32, b: &Complex32| a * b.conj());
+    let mult_conj = Combine::new(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg = MovingAverage::<Complex32>::new(48);
-    let divide_mag = Combine::<_, _, _, _>::new(|a: &Complex32, b: &f32| a.norm() / b);
+    let divide_mag = Combine::new(|a: &Complex32, b: &f32| a.norm() / b);
     let sync_short: SyncShort = SyncShort::new();
     let sync_long: SyncLong = SyncLong::new();
-    let fft: Fft = Fft::new(64);
+    let fft = Fft::new(64);
     let frame_equalizer: FrameEqualizer = FrameEqualizer::new();
     let decoder = Decoder::new();
 
@@ -113,9 +113,11 @@ fn opti(args: Args) -> Result<()> {
     let src = FileSource::<Complex32, LockfreeComplexWriter<3>>::new(&args.file, false);
     let delay = Delay::<Complex32, LockfreeComplexReader<3>, LockfreeComplexWriter<2>>::new(16);
     let complex_to_mag_2 =
-        Apply::<_, _, _, LockfreeComplexReader<3>, SpscF32Writer>::new(|i: &Complex32| {
+        Apply::<_, _, _, LockfreeComplexReader<3>, SpscF32Writer>::with_buffers(
+            |i: &Complex32| {
             i.norm_sqr()
-        });
+        },
+        );
     let float_avg = MovingAverage::<f32, SpscF32Reader, SpscF32Writer>::new(64);
     let mult_conj = Combine::<
         _,
@@ -125,11 +127,11 @@ fn opti(args: Args) -> Result<()> {
         LockfreeComplexReader<3>,
         LockfreeComplexReader<2>,
         SpscComplexWriter,
-    >::new(|a: &Complex32, b: &Complex32| a * b.conj());
+    >::with_buffers(|a: &Complex32, b: &Complex32| a * b.conj());
     let complex_avg =
         MovingAverage::<Complex32, SpscComplexReader, LockfreeComplexWriter<2>>::new(48);
     let divide_mag =
-        Combine::<_, _, _, _, LockfreeComplexReader<2>, SpscF32Reader, SpscF32Writer>::new(
+        Combine::<_, _, _, _, LockfreeComplexReader<2>, SpscF32Reader, SpscF32Writer>::with_buffers(
             |a: &Complex32, b: &f32| a.norm() / b,
         );
     let sync_short: SyncShort<
@@ -139,7 +141,7 @@ fn opti(args: Args) -> Result<()> {
         LockfreeComplexWriter<1>,
     > = SyncShort::new();
     let sync_long: SyncLong<LockfreeComplexReader<1>, LockfreeComplexWriter<1>> = SyncLong::new();
-    let fft: Fft<LockfreeComplexReader<1>, LockfreeComplexWriter<1>> = Fft::new(64);
+    let fft: Fft<LockfreeComplexReader<1>, LockfreeComplexWriter<1>> = Fft::with_buffers(64);
     let frame_equalizer: FrameEqualizer<LockfreeComplexReader<1>, LockfreeU8Writer<1>> =
         FrameEqualizer::new();
     let decoder: Decoder<LockfreeU8Reader<1>> = Decoder::new();
