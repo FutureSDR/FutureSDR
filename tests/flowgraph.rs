@@ -8,8 +8,45 @@ use futuresdr::blocks::Throttle;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use std::iter::repeat_with;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
+use std::time::Instant;
+
+#[derive(Block)]
+#[message_inputs(r#in)]
+struct StopOnMessage {
+    terminated: Arc<AtomicBool>,
+}
+
+impl StopOnMessage {
+    fn new(terminated: Arc<AtomicBool>) -> Self {
+        Self { terminated }
+    }
+
+    async fn r#in(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> futuresdr::runtime::Result<Pmt> {
+        io.finished = true;
+        Ok(Pmt::Ok)
+    }
+}
+
+impl Kernel for StopOnMessage {}
+
+impl Drop for StopOnMessage {
+    fn drop(&mut self) {
+        self.terminated.store(true, Ordering::SeqCst);
+    }
+}
 
 #[test]
 fn flowgraph() -> Result<()> {
@@ -78,6 +115,35 @@ fn fg_terminate() -> Result<()> {
     });
 
     Ok(())
+}
+
+#[test]
+fn fg_handle_survives_runtime_and_task_drop() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let terminated = Arc::new(AtomicBool::new(false));
+    let blk = fg.add(StopOnMessage::new(terminated.clone()));
+
+    let running = Runtime::new().start_sync(fg)?;
+    let (task, handle) = running.split();
+
+    drop(task);
+
+    block_on(async move {
+        handle.post(blk, "in", Pmt::Null).await?;
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            if terminated.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+
+            assert!(
+                Instant::now() < deadline,
+                "flowgraph did not terminate within 1 second"
+            );
+            futuresdr::async_io::Timer::after(Duration::from_millis(10)).await;
+        }
+    })
 }
 
 #[test]
