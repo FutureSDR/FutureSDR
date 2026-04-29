@@ -1,12 +1,13 @@
 #![warn(missing_docs)]
 #![recursion_limit = "512"]
 
-//! Build and run SDR flowgraphs with reusable blocks.
+//! An experimental asynchronous SDR runtime for heterogeneous architectures that is:
+//! * **Extensible**: custom buffers (supporting accelerators like GPUs and FPGAs) and custom schedulers (optimized for your application).
+//! * **Asynchronous**: solving long-standing issues around IO, blocking, and timers.
+//! * **Portable**: Linux, Windows, Mac, WASM, Android, and prime support for embedded platforms through a REST API and web-based GUIs.
+//! * **Fast**: SDR go brrr!
 //!
-//! FutureSDR is an experimental asynchronous SDR runtime for heterogeneous
-//! architectures with a strong focus on ergonomic flowgraph construction.
-//!
-//! ## Build and run a flowgraph
+//! ## Example
 //! An example flowgraph that forwards 123 zeros into a sink:
 //! ```
 //! use futuresdr::blocks::Head;
@@ -29,12 +30,12 @@
 //! }
 //! ```
 //!
-//! ## Main entry points
+//! ## Main Entry Points
 //! - [`blocks`] contains the reusable block library.
 //! - [`runtime`] contains flowgraph construction, execution, and control APIs.
 //! - [`prelude`] is the intended import path for building and running flowgraphs.
 //!
-//! ## Implement custom blocks
+//! ## Custom Blocks
 //! To implement custom blocks or other runtime extensions, use
 //! [`runtime::dev::prelude`].
 
@@ -61,14 +62,16 @@ pub use num_integer;
 #[cfg(feature = "seify")]
 pub use seify;
 
-/// Library of reusable blocks for building flowgraphs.
+/// Library of common blocks that are not tight to a specific technology.
 pub mod blocks;
 /// Runtime APIs for constructing, running, and controlling flowgraphs.
 ///
-/// For block-authoring and runtime extension APIs, see [`runtime::dev`].
+/// For custom block implementations and runtime extension APIs, see [`runtime::dev`].
 pub mod runtime;
 
 /// Prelude with common structs and traits
+///
+/// These imports are for setting up, running, and interacting with flowgraphs.
 pub mod prelude {
     pub use futures::prelude::*;
     pub use futuresdr::runtime::BlockId;
