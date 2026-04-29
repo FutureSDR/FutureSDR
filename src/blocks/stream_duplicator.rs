@@ -1,7 +1,22 @@
 use futuresdr::runtime::dev::prelude::*;
 use std::cmp::min;
 
-/// Stream Duplicator
+/// Duplicate one input stream into `N` output streams.
+///
+/// # Stream Inputs
+///
+/// `input`: Input samples.
+///
+/// # Stream Outputs
+///
+/// `outputs[0]`, `outputs[1]`, ...: Copies of the input stream.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::StreamDuplicator;
+///
+/// let duplicator = StreamDuplicator::<f32, 2>::new();
+/// ```
 #[derive(Block)]
 pub struct StreamDuplicator<
     T,

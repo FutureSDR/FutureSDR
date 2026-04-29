@@ -1,6 +1,21 @@
 use crate::runtime::dev::prelude::*;
 
 /// Black hole for messages.
+///
+/// # Message Inputs
+///
+/// `in`: Messages to count and drop. `Pmt::Finished` terminates the block.
+///
+/// # Message Outputs
+///
+/// No message outputs.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessageSink;
+///
+/// let sink = MessageSink::new();
+/// ```
 #[derive(Block)]
 #[message_inputs(r#in)]
 pub struct MessageSink {
@@ -31,7 +46,7 @@ impl MessageSink {
 
         Ok(Pmt::U64(self.n_received))
     }
-    /// Get number of received message.
+    /// Get number of received messages.
     pub fn received(&self) -> u64 {
         self.n_received
     }

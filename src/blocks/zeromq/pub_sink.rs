@@ -1,6 +1,24 @@
 use crate::runtime::dev::prelude::*;
 
 /// Push samples into [ZeroMQ](https://zeromq.org/) socket.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to publish using their in-memory representation.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::zeromq::PubSinkBuilder;
+///
+/// let sink = PubSinkBuilder::<u8>::new()
+///     .address("tcp://*:5555")
+///     .min_item_per_send(128)
+///     .build();
+/// ```
 #[derive(Block)]
 pub struct PubSink<T, I = DefaultCpuReader<T>>
 where

@@ -1,6 +1,23 @@
 use crate::runtime::dev::prelude::*;
 
 /// Read samples from [ZeroMQ](https://zeromq.org/) socket.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Samples received using their in-memory representation.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::zeromq::SubSourceBuilder;
+///
+/// let source = SubSourceBuilder::<u8>::new()
+///     .address("tcp://localhost:5555")
+///     .build();
+/// ```
 #[derive(Block)]
 pub struct SubSource<T, O = DefaultCpuWriter<T>>
 where

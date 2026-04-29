@@ -7,17 +7,17 @@ use std::sync::Arc;
 ///
 /// This block computes the FFT on `len` samples at a time, outputting `len` samples per FFT.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input samples (Complex32)
+/// `input`: Input samples (`Complex32`).
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: FFT results (Complex32)
+/// `output`: FFT results (`Complex32`).
 ///
-/// # Messages
+/// # Message Inputs
 ///
-/// `fft_size`: Change the FFT size (Pmt::Usize)
+/// `fft_size`: Change the FFT size (`Pmt::Usize`).
 ///
 /// # Usage
 /// ```

@@ -2,6 +2,21 @@ use crate::runtime::dev::prelude::*;
 
 /// Reads chunks of size `WIDTH` and outputs an exponential moving average over a window of specified size.
 ///
+/// # Stream Inputs
+///
+/// `input`: `f32` samples grouped into chunks of `WIDTH`.
+///
+/// # Stream Outputs
+///
+/// `output`: Averaged chunks of `WIDTH` samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MovingAvg;
+///
+/// let avg = MovingAvg::<128>::new(0.1, 3);
+/// ```
+///
 /// # Example
 /// See [`egui` example][egui] for example of using [`MovingAvg`] to
 /// smooth over FFTs.

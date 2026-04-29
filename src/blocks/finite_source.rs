@@ -1,6 +1,27 @@
 use crate::runtime::dev::prelude::*;
 
 /// Repeatedly apply a function to generate samples, using [Option] values to allow termination.
+///
+/// The block terminates when the callback returns `None`.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Generated samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::FiniteSource;
+///
+/// let mut n = 0u8;
+/// let src = FiniteSource::new(move || {
+///     n += 1;
+///     (n <= 4).then_some(n)
+/// });
+/// ```
 #[derive(Block)]
 pub struct FiniteSource<F, A, O = DefaultCpuWriter<A>>
 where

@@ -2,9 +2,9 @@ use crate::runtime::dev::prelude::*;
 
 /// Push samples through a channel into a stream connection.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Samples pushed into the channel
+/// `output`: Samples received from the channel.
 ///
 /// # Usage
 /// ```

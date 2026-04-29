@@ -5,6 +5,21 @@ use std::net::ToSocketAddrs;
 use crate::runtime::dev::prelude::*;
 
 /// Push [Blobs](crate::runtime::Pmt::Blob) into a UDP socket.
+///
+/// # Message Inputs
+///
+/// `in`: `Pmt::Blob` payloads to send. `Pmt::Finished` terminates the block.
+///
+/// # Message Outputs
+///
+/// No message outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::BlobToUdp;
+///
+/// let udp = BlobToUdp::new("127.0.0.1:2342");
+/// ```
 #[derive(Block)]
 #[message_inputs(r#in)]
 pub struct BlobToUdp {

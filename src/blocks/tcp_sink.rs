@@ -7,6 +7,24 @@ use futures::AsyncWriteExt;
 use crate::runtime::dev::prelude::*;
 
 /// Push samples into a TCP socket.
+///
+/// The block listens on `127.0.0.1:{port}` and writes input samples using the
+/// machine's in-memory sample representation.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to send.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::TcpSink;
+///
+/// let sink = TcpSink::<u8>::new(9000);
+/// ```
 #[derive(Block)]
 pub struct TcpSink<T, I = DefaultCpuReader<T>>
 where

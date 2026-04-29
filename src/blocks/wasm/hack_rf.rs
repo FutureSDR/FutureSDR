@@ -89,7 +89,26 @@ impl From<JsValue> for Error {
     }
 }
 
-/// WASM-native HackRf Source
+/// WASM-native HackRF source.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Complex I/Q samples from the device.
+///
+/// # Message Inputs
+///
+/// `freq`, `vga`, `lna`, `amp`, `sample_rate`: Device settings.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::wasm::HackRf;
+///
+/// let source = HackRf::new();
+/// ```
 #[derive(Block)]
 #[message_inputs(freq, vga, lna, amp, sample_rate)]
 pub struct HackRf {

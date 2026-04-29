@@ -4,6 +4,21 @@ use async_net::UdpSocket;
 use crate::runtime::dev::prelude::*;
 
 /// Read samples from a UDP socket.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Samples decoded from UDP packet bytes.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::UdpSource;
+///
+/// let source = UdpSource::<u8>::new("127.0.0.1:9000", 1500);
+/// ```
 #[derive(Block)]
 pub struct UdpSource<T, O = DefaultCpuWriter<T>>
 where

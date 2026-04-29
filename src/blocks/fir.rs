@@ -104,13 +104,13 @@ where
 /// Additionally, there must be an available FIR implementation in `futuredsp`
 /// for the specified `SampleType` and `TapsType`.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input samples.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output
+/// `output`: Filtered output samples.
 ///
 /// # Usage
 /// ```
@@ -120,8 +120,8 @@ where
 /// let fir = FirBuilder::fir::<f32, f32, _>([1.0f32, 2.0, 3.0]);
 /// let fir = FirBuilder::fir::<Complex<f32>, Complex<f32>, _>(&[1.0f32, 2.0, 3.0]);
 /// let fir = FirBuilder::fir::<f32, f32, _>(vec![1.0f32, 2.0, 3.0]);
+/// let fir = FirBuilder::decimating::<f32, f32, Vec<f32>>(4);
 /// let fir = FirBuilder::resampling_with_taps::<f32, f32, _>(3, 2, vec![1.0f32, 2.0, 3.0]);
-/// let fir = FirBuilder::mmse::<f32>(2.0);
 /// ```
 pub struct FirBuilder;
 

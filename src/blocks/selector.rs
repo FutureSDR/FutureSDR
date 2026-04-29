@@ -60,6 +60,30 @@ impl fmt::Display for DropPolicy {
 
 /// Forward the input stream with a given index to the output stream with a
 /// given index.
+///
+/// The selected input and output start at index `0`. The active indices can be
+/// changed through message calls.
+///
+/// # Stream Inputs
+///
+/// `inputs[0]`, `inputs[1]`, ...: Candidate input streams.
+///
+/// # Stream Outputs
+///
+/// `outputs[0]`, `outputs[1]`, ...: Candidate output streams.
+///
+/// # Message Inputs
+///
+/// `input_index`: Set or query the active input index.
+///
+/// `output_index`: Set or query the active output index.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::{Selector, SelectorDropPolicy};
+///
+/// let selector = Selector::<f32, 2, 1>::new(SelectorDropPolicy::SameRate);
+/// ```
 #[derive(Block)]
 #[message_inputs(input_index, output_index)]
 pub struct Selector<

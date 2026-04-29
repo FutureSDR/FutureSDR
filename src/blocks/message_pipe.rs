@@ -1,6 +1,23 @@
 use crate::runtime::dev::prelude::*;
 
 /// Push received messages into a channel.
+///
+/// # Message Inputs
+///
+/// `in`: Messages to send through the channel.
+///
+/// # Message Outputs
+///
+/// No message outputs.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessagePipe;
+/// use futuresdr::prelude::*;
+///
+/// let (tx, rx) = mpsc::channel(8);
+/// let pipe = MessagePipe::new(tx);
+/// ```
 #[derive(Block)]
 #[message_inputs(r#in)]
 #[null_kernel]

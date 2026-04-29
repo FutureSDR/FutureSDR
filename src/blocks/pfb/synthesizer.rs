@@ -13,6 +13,25 @@ use super::utilities::partition_filter_taps;
 use super::window_buffer::WindowBuffer;
 
 /// Polyphase Synthesizer.
+///
+/// Combines `num_channels` complex input streams into one synthesized output
+/// stream.
+///
+/// # Stream Inputs
+///
+/// `input[0]`, `input[1]`, ...: Per-channel complex input streams.
+///
+/// # Stream Outputs
+///
+/// `output`: Synthesized complex output stream.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::PfbSynthesizer;
+///
+/// let taps = vec![0.0f32, 0.25, 0.5, 0.25, 0.0, 0.0, 0.0, 0.0];
+/// let synthesizer: PfbSynthesizer = PfbSynthesizer::new(4, &taps);
+/// ```
 #[derive(Block)]
 pub struct PfbSynthesizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where

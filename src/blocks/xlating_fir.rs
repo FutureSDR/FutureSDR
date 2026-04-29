@@ -7,6 +7,23 @@ use futuredsp::prelude::*;
 use crate::runtime::dev::prelude::*;
 
 /// Frequency Xlating FIR filter.
+///
+/// Rotates a complex stream by `offset`, filters it, and decimates it.
+///
+/// # Stream Inputs
+///
+/// `input`: Complex input samples.
+///
+/// # Stream Outputs
+///
+/// `output`: Frequency-shifted and decimated complex samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::XlatingFir;
+///
+/// let xlating = XlatingFir::new(4, 12_000.0, 1_000_000.0);
+/// ```
 #[derive(Block)]
 pub struct XlatingFir<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where

@@ -11,7 +11,22 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::runtime::dev::prelude::*;
 
-/// WASM Websocket Sink
+/// WASM WebSocket sink.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to send as binary WebSocket messages.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::wasm::WasmWsSink;
+///
+/// let sink = WasmWsSink::<f32>::new("ws://localhost:9001".to_string(), 4);
+/// ```
 #[derive(Block)]
 pub struct WasmWsSink<T>
 where

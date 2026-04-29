@@ -18,6 +18,24 @@ use std::task::Poll;
 use crate::runtime::dev::prelude::*;
 
 /// Push Samples from PMTs in a WebSocket.
+///
+/// The block accepts vector PMTs such as `Pmt::VecF32` and `Pmt::VecCF32` and
+/// sends their little-endian binary representation to one WebSocket client.
+///
+/// # Message Inputs
+///
+/// `in`: PMTs to queue for WebSocket transmission. `Pmt::Finished` terminates the block.
+///
+/// # Message Outputs
+///
+/// No message outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::WebsocketPmtSink;
+///
+/// let sink = WebsocketPmtSink::new(9001);
+/// ```
 #[derive(Block)]
 #[message_inputs(r#in)]
 pub struct WebsocketPmtSink {

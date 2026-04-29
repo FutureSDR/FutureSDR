@@ -1,6 +1,21 @@
 use crate::runtime::dev::prelude::*;
 
 /// Copy input samples to the output.
+///
+/// # Stream Inputs
+///
+/// `input`: Input samples.
+///
+/// # Stream Outputs
+///
+/// `output`: Unmodified copies of input samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Copy;
+///
+/// let copy = Copy::<u8>::new();
+/// ```
 #[derive(Block)]
 pub struct Copy<
     T: Send + Sync + 'static,

@@ -8,22 +8,42 @@ use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
 use crate::runtime::dev::prelude::*;
 
-/// Seify Sink block
+/// Seify sink block.
 ///
-/// # Ports
+/// # Stream Inputs
 ///
-/// * Stream inputs:
-///     - `"in"` (if single channel): `Complex32` I/Q samples
-///     - `"in1"`, `"in2"`, ... (if multiple channels): `Complex32` I/Q samples
-/// * Stream outputs: None
-/// * Message inputs:
-///     - `"freq"`: `f32`, `f64`, `u32`, or `u64` (Hertz) set center tuning frequency, or `Null` to query
-///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) set gain, or `Null` to query
-///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
-///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once, or one configured channel if `chan` is set
-///     - `"config"`: `u32`, `u64`, `usize` (configured-channel index) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
-/// * Message outputs:
-///     - `"terminate_out"`: `Pmt::Ok` when stream has finished
+/// `inputs[0]`, `inputs[1]`, ...: `Complex32` I/Q samples for each configured channel.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Message Inputs
+///
+/// `freq`: `f32`, `f64`, `u32`, or `u64` center frequency in Hertz.
+///
+/// `gain`: `f32`, `f64`, `u32`, or `u64` gain in dB.
+///
+/// `sample_rate`: `f32`, `f64`, `u32`, or `u64` sample rate in Hertz.
+///
+/// `cmd`: `Pmt` encoded [`Config`] to apply to all configured channels.
+///
+/// `config`: `u32`, `u64`, or `usize` channel index to return a `Pmt::MapStrPmt` [`Config`].
+///
+/// # Message Outputs
+///
+/// `terminate_out`: `Pmt::Ok` when the input stream has finished.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::seify::Builder;
+///
+/// let sink = Builder::new("driver=dummy")?
+///     .frequency(100e6)
+///     .sample_rate(1e6)
+///     .build_sink()?;
+/// # Ok::<(), futuresdr::runtime::Error>(())
+/// ```
 #[derive(Block)]
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, config)]

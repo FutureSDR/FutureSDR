@@ -7,7 +7,25 @@ pub use fxpt_nco::NCO;
 use crate::runtime::dev::prelude::*;
 use std::marker::PhantomData;
 
-/// Signal Source block
+/// Signal source block.
+///
+/// Generates samples by converting the internal fixed-point phase to an
+/// amplitude value on every output item.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Generated signal samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::SignalSourceBuilder;
+///
+/// let source = SignalSourceBuilder::<f32>::sin(1_000.0, 48_000.0, 0.5, 0.0);
+/// ```
 #[derive(Block)]
 pub struct SignalSource<A, F, O = DefaultCpuWriter<A>>
 where

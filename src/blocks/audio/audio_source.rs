@@ -7,6 +7,24 @@ use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
 
 /// Audio Source.
+///
+/// Captures `f32` audio samples from the default input device.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Interleaved audio samples.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::audio::AudioSource;
+///
+/// let source = AudioSource::new(48_000, 2)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Block)]
 pub struct AudioSource<O = DefaultCpuWriter<f32>>
 where

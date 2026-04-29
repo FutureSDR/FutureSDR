@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Drop samples.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Stream to drop
+/// `input`: Stream to drop.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// No outputs
+/// No stream outputs.
 ///
 /// # Usage
 /// ```

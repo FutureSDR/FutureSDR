@@ -51,7 +51,23 @@ struct State {
     mu: f32,           // fractional filterbank interpolation value
 }
 
-/// Polyphase Arbitrary Rate Resampler
+/// Polyphase arbitrary rate resampler.
+///
+/// # Stream Inputs
+///
+/// `input`: Complex input samples.
+///
+/// # Stream Outputs
+///
+/// `output`: Resampled complex output samples.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::PfbArbResampler;
+///
+/// let taps = vec![0.0f32, 0.25, 0.5, 0.25, 0.0, 0.0, 0.0, 0.0];
+/// let resampler: PfbArbResampler = PfbArbResampler::new(1.5, &taps, 4);
+/// ```
 #[derive(Block)]
 pub struct PfbArbResampler<
     I: CpuBufferReader<Item = Complex32> = DefaultCpuReader<Complex32>,

@@ -9,13 +9,17 @@ enum State {
 
 /// Delays samples.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Stream to delay
+/// `input`: Stream to delay.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Delayed stream
+/// `output`: Delayed stream.
+///
+/// # Message Inputs
+///
+/// `new_value`: Set a new delay value from an integer PMT.
 ///
 /// # Usage
 /// ```

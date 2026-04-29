@@ -1,6 +1,24 @@
 use futuresdr::runtime::dev::prelude::*;
 
 /// Apply a function on each input sample to create an iterator and output its values.
+///
+/// The block fully drains the iterator produced for one input item before it
+/// advances to the next input item.
+///
+/// # Stream Inputs
+///
+/// `input`: Input samples.
+///
+/// # Stream Outputs
+///
+/// `output`: Items yielded by each iterator.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::ApplyIntoIter;
+///
+/// let repeat = ApplyIntoIter::new(|x: &u8| [*x, *x]);
+/// ```
 #[derive(Block)]
 pub struct ApplyIntoIter<
     F,
@@ -36,7 +54,7 @@ where
     /// Create [`ApplyIntoIter`] block with default stream buffers.
     ///
     /// ## Parameter
-    /// - `f`: Function to create an interator from an input sample
+    /// - `f`: Function to create an iterator from an input sample
     pub fn new(f: F) -> Self {
         Self::with_buffers(f)
     }
@@ -55,7 +73,7 @@ where
     /// Create [`ApplyIntoIter`] block with custom stream buffers.
     ///
     /// ## Parameter
-    /// - `f`: Function to create an interator from an input sample
+    /// - `f`: Function to create an iterator from an input sample
     pub fn with_buffers(f: F) -> Self {
         Self {
             f,

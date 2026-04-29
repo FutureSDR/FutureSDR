@@ -4,13 +4,13 @@ use crate::runtime::dev::prelude::*;
 ///
 /// Console output is prefixed with the `name` to help differentiate the output from multiple tag debug blocks.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Stream to drop
+/// `input`: Stream to drop after printing tags.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// No outputs
+/// No stream outputs.
 ///
 /// # Usage
 /// ```

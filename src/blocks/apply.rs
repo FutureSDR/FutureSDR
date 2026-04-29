@@ -4,11 +4,11 @@ use futuresdr::runtime::dev::prelude::*;
 ///
 /// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input
 ///
 /// # Stream Outputs
 ///
-/// `out`: Output, corresponding to input with function applied
+/// `output`: Output, corresponding to input with function applied
 ///
 /// # Usage
 /// ```

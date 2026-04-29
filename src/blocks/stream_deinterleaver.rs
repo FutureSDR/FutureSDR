@@ -2,7 +2,25 @@ use std::cmp::min;
 
 use crate::runtime::dev::prelude::*;
 
-/// Stream Deinterleaver
+/// Deinterleave one stream into `num_channels` output streams.
+///
+/// Input samples are distributed round-robin: sample 0 to `output[0]`, sample 1
+/// to `output[1]`, and so on.
+///
+/// # Stream Inputs
+///
+/// `input`: Interleaved input stream.
+///
+/// # Stream Outputs
+///
+/// `output[0]`, `output[1]`, ...: Deinterleaved channel streams.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::StreamDeinterleaver;
+///
+/// let deinterleaver = StreamDeinterleaver::<f32>::new(2);
+/// ```
 #[derive(Block)]
 pub struct StreamDeinterleaver<T, I = DefaultCpuReader<T>, O = DefaultCpuWriter<T>>
 where

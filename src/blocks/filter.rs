@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Apply a function, returning an [Option] to allow filtering samples.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input samples.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Filtered outputs
+/// `output`: Samples returned as `Some` by the callback.
 ///
 /// # Usage
 /// ```

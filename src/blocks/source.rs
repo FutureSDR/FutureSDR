@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Repeatedly apply a function to generate samples.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// No inputs.
+/// No stream inputs.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output samples
+/// `output`: Generated output samples.
 ///
 /// # Usage
 /// ```

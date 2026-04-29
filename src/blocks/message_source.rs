@@ -66,13 +66,13 @@ impl Kernel for MessageSource {
 
 /// Repeats a fixed message on an interval
 ///
-/// # Inputs
+/// # Message Inputs
 ///
-/// No inputs.
+/// No message inputs.
 ///
-/// # Outputs
+/// # Message Outputs
 ///
-/// **Message**: `out`: Message output
+/// `out`: Repeated message output.
 ///
 /// # Usage
 /// ```

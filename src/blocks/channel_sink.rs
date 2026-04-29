@@ -2,9 +2,9 @@ use crate::runtime::dev::prelude::*;
 
 /// Get samples out of a Flowgraph into a channel.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Samples retrieved from the flowgraph
+/// `input`: Samples retrieved from the flowgraph.
 ///
 /// # Usage
 /// ```

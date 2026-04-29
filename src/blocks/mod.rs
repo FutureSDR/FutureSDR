@@ -73,22 +73,22 @@
 //! | [UdpSource](crate::blocks::UdpSource) | Reads samples from a UDP socket. | ❌ |
 //! | [WebsocketSink](crate::blocks::WebsocketSink) | Push samples in a WebSocket. | ❌ |
 //! | [WebsocketPmtSink](crate::blocks::WebsocketPmtSink) | Push samples from Pmts a WebSocket. | ❌ |
-//! | [zeromq::PubSink](crate::blocks::zeromq::PubSink) | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
-//! | [zeromq::SubSource](crate::blocks::zeromq::SubSource) | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
+//! | `zeromq::PubSink` | Push samples into [ZeroMQ](https://zeromq.org/) socket. | ❌ |
+//! | `zeromq::SubSource` | Read samples from [ZeroMQ](https://zeromq.org/) socket. | ❌ |
 //!
 //! ## SDR Hardware
 //! | Block | Usage | Feature | WebAssembly? |
 //! |---|---|---|---|
-//! | [seify::Sink](crate::blocks::seify::Sink) | Transmit samples with a Seify device. | seify | ❌ |
-//! | [seify::Source](crate::blocks::seify::Source) | Receive samples from a Seify device. | seify | ❌ |
+//! | `seify::Sink` | Transmit samples with a Seify device. | seify | ❌ |
+//! | `seify::Source` | Receive samples from a Seify device. | seify | ❌ |
 //!
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | [Vulkan](crate::blocks::Vulkan) | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
-//! | [Wgpu](crate::blocks::Wgpu) | Interface GPU w/ native API. | ✅ | `wgpu` |
-//! | [Zynq](crate::blocks::Zynq) | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
-//! | [ZynqSync](crate::blocks::ZynqSync) | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
+//! | `Vulkan` | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
+//! | `Wgpu` | Interface GPU w/ native API. | ✅ | `wgpu` |
+//! | `Zynq` | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
+//! | `ZynqSync` | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
 //!
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
@@ -104,10 +104,10 @@
 //! ## Audio (requires `audio` feature)
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [AudioSink](crate::blocks::audio::AudioSink) | Audio sink. | ❌ |
-//! | [AudioSource](crate::blocks::audio::AudioSource) | Audio source. | ❌ |
-//! | [audio::FileSource](crate::blocks::audio::FileSource) | Read an audio file and output its samples. | ❌ |
-//! | [WavSink](crate::blocks::audio::WavSink) | Writes samples to a WAV file | ❌ |
+//! | `audio::AudioSink` | Audio sink. | ❌ |
+//! | `audio::AudioSource` | Audio source. | ❌ |
+//! | `audio::FileSource` | Read an audio file and output its samples. | ❌ |
+//! | `audio::WavSink` | Writes samples to a WAV file | ❌ |
 //!
 
 mod apply;

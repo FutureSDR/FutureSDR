@@ -1,6 +1,22 @@
 use crate::runtime::dev::prelude::*;
 
 /// Output a given number of messages in one burst and terminate.
+///
+/// # Message Inputs
+///
+/// No message inputs.
+///
+/// # Message Outputs
+///
+/// `out`: The configured message, repeated `n_messages` times.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessageBurst;
+/// use futuresdr::runtime::Pmt;
+///
+/// let burst = MessageBurst::new(Pmt::String("tick".to_string()), 4);
+/// ```
 #[derive(Block)]
 #[message_outputs(out)]
 pub struct MessageBurst {

@@ -49,7 +49,25 @@ struct State {
     all_windows_filled: bool,
 }
 
-/// Polyphase Channelizer
+/// Polyphase channelizer.
+///
+/// Splits a complex input stream into `num_channels` frequency channels.
+///
+/// # Stream Inputs
+///
+/// `input`: Complex input samples.
+///
+/// # Stream Outputs
+///
+/// `outputs[0]`, `outputs[1]`, ...: Channelized complex output streams.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::PfbChannelizer;
+///
+/// let taps = vec![0.0f32, 0.25, 0.5, 0.25, 0.0, 0.0, 0.0, 0.0];
+/// let channelizer: PfbChannelizer = PfbChannelizer::new(4, &taps, 1.0);
+/// ```
 #[derive(Block)]
 pub struct PfbChannelizer<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<Complex32>>
 where

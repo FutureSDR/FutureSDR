@@ -3,13 +3,13 @@ use web_time::Instant;
 
 /// Limit sample rate.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input samples.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output
+/// `output`: Rate-limited output samples.
 ///
 /// # Usage
 /// ```

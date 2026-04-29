@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Apply a function to received samples.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in` Input Samples.
+/// `input`: Samples passed to the callback.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// No Outputs
+/// No stream outputs.
 ///
 /// # Usage
 /// ```

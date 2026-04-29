@@ -32,6 +32,26 @@ const SHADER: &str = r#"
 "#;
 
 /// Interface GPU w/ native API.
+///
+/// This example block multiplies `f32` samples by a fixed value in a WGPU
+/// compute shader.
+///
+/// # Stream Inputs
+///
+/// `input`: Host-to-device WGPU buffer.
+///
+/// # Stream Outputs
+///
+/// `output`: Device-to-host WGPU buffer.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::Wgpu;
+/// use futuresdr::runtime::buffer::wgpu;
+///
+/// let instance = wgpu::Instance::new();
+/// let block = Wgpu::new(instance, 4096, 2, 2);
+/// ```
 #[derive(Block)]
 pub struct Wgpu {
     #[input]

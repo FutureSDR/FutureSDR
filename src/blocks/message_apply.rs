@@ -1,6 +1,24 @@
 use crate::runtime::dev::prelude::*;
 
 /// This [`Block`] applies a callback function to incoming messages, emitting the result as a new message.
+///
+/// `None` return values are filtered out.
+///
+/// # Message Inputs
+///
+/// `msg_handler`: Messages passed to the callback.
+///
+/// # Message Outputs
+///
+/// `out`: Callback results returned as `Some`.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessageApply;
+/// use futuresdr::runtime::Pmt;
+///
+/// let apply = MessageApply::new(|p| Ok(Some(p)));
+/// ```
 #[derive(Block)]
 #[message_inputs(msg_handler)]
 #[message_outputs(out)]

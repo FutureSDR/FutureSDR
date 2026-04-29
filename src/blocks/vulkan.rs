@@ -24,6 +24,23 @@ use vulkano::sync;
 use vulkano::sync::GpuFuture;
 
 /// Interface GPU with Vulkan.
+///
+/// Runs a caller-provided Vulkan compute shader over Vulkan stream buffers.
+///
+/// # Stream Inputs
+///
+/// `input`: Host-to-device Vulkan buffer.
+///
+/// # Stream Outputs
+///
+/// `output`: Device-to-host Vulkan buffer.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::Vulkan;
+///
+/// let block = Vulkan::<f32>::new(instance, entry_point, 64);
+/// ```
 #[derive(Block)]
 pub struct Vulkan<T>
 where

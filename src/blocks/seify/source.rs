@@ -8,22 +8,46 @@ use std::time::Duration;
 use crate::blocks::seify::Config;
 use crate::runtime::dev::prelude::*;
 
-/// Seify Source block
+/// Seify source block.
 ///
-/// # Ports
+/// # Stream Inputs
 ///
-/// * Stream inputs: None
-/// * Stream outputs:
-///     - `"out"` (if single channel): `Complex32` I/Q samples
-///     - `"out1"`, `"out2"`, ... (if multiple channels): `Complex32` I/Q samples
-/// * Message inputs:
-///     - `"freq"`: `f32`, `f64`, `u32`, or `u64` (Hertz) center tuning frequency, or `Null` to query
-///     - `"gain"`: `f32`, `f64`, `u32`, or `u64` (dB) gain setting, or `Null` to query
-///     - `"sample_rate"`: `f32`, `f64`, `u32`, or `u64` (Hertz) sample rate frequency, or `Null` to query
-///     - `"cmd"`: `Pmt` encoded `Config` to apply to all channels at once, or one configured channel if `chan` is set
-///     - `"terminate"`: `Pmt::Ok` to terminate the block
-///     - `"config"`: `u32`, `u64`, `usize` (configured-channel index) returns the `Config` for the specified channel as a `Pmt::MapStrPmt`
-/// * Message outputs: None
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `outputs[0]`, `outputs[1]`, ...: `Complex32` I/Q samples for each configured channel.
+///
+/// # Message Inputs
+///
+/// `freq`: `f32`, `f64`, `u32`, or `u64` center frequency in Hertz, or `Pmt::Null` to query.
+///
+/// `gain`: `f32`, `f64`, `u32`, or `u64` gain in dB, or `Pmt::Null` to query.
+///
+/// `sample_rate`: `f32`, `f64`, `u32`, or `u64` sample rate in Hertz, or `Pmt::Null` to query.
+///
+/// `cmd`: `Pmt` encoded [`Config`] to apply to all configured channels.
+///
+/// `terminate`: `Pmt::Ok` to terminate the block.
+///
+/// `config`: `u32`, `u64`, or `usize` channel index to return a `Pmt::MapStrPmt` [`Config`].
+///
+/// `overflows`: Query the number of receive overflows as `Pmt::U64`.
+///
+/// # Message Outputs
+///
+/// No message outputs.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::seify::Builder;
+///
+/// let source = Builder::new("driver=dummy")?
+///     .frequency(100e6)
+///     .sample_rate(1e6)
+///     .build_source()?;
+/// # Ok::<(), futuresdr::runtime::Error>(())
+/// ```
 #[derive(Block)]
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]

@@ -6,6 +6,24 @@ use futures::AsyncReadExt;
 use crate::runtime::dev::prelude::*;
 
 /// Read samples from a TCP socket.
+///
+/// The block listens on `bind` and fills output buffers from one accepted TCP
+/// connection using the machine's in-memory sample representation.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Samples read from the socket.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::TcpSource;
+///
+/// let source = TcpSource::<u8>::new("127.0.0.1:9000");
+/// ```
 #[derive(Block)]
 pub struct TcpSource<T, O = DefaultCpuWriter<T>>
 where

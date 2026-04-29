@@ -2,6 +2,21 @@ use crate::runtime::dev::prelude::*;
 use std::fmt::Debug;
 
 /// Log stream data with `info!`.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to format with `Debug` and log.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::ConsoleSink;
+///
+/// let sink = ConsoleSink::<u8>::new(", ");
+/// ```
 #[derive(Block)]
 pub struct ConsoleSink<T, I = DefaultCpuReader<T>>
 where

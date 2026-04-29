@@ -7,6 +7,21 @@ use std::io::BufReader;
 use crate::runtime::dev::prelude::*;
 
 /// Read an audio file and output its samples.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Decoded `f32` audio samples.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::audio::FileSource;
+///
+/// let source = FileSource::new("input.wav");
+/// ```
 #[derive(Block)]
 pub struct FileSource<O = DefaultCpuWriter<f32>>
 where

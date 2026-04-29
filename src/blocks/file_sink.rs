@@ -12,13 +12,13 @@ use std::path::PathBuf;
 /// endian. Complex numbers are written with the real component coming before
 /// the complex component.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Samples to write.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// No outputs.
+/// No stream outputs.
 ///
 /// # Usage
 /// ```no_run

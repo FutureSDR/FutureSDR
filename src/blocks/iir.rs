@@ -93,13 +93,13 @@ where
     /// Additionally, there must be an available stateful IIR implementation in
     /// `futuredsp` for the specified `SampleType` and `TapsType`.
     ///
-    /// # Inputs
+    /// # Stream Inputs
     ///
-    /// `in`: Input
+    /// `input`: Input samples.
     ///
-    /// # Outputs
+    /// # Stream Outputs
     ///
-    /// `out`: Output
+    /// `output`: Filtered output samples.
     ///
     /// # Usage
     /// ```

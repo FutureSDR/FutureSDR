@@ -7,6 +7,24 @@ use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
 
 /// Audio Sink.
+///
+/// Plays `f32` audio samples on the default output device.
+///
+/// # Stream Inputs
+///
+/// `input`: Interleaved audio samples.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::audio::AudioSink;
+///
+/// let sink = AudioSink::new(48_000, 2)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Block)]
 pub struct AudioSink<I = DefaultCpuReader<f32>>
 where

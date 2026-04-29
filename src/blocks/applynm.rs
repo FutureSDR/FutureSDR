@@ -7,13 +7,13 @@ use futuresdr::runtime::dev::prelude::*;
 /// Handy for interleaved samples for example.
 /// See examples/audio/play_stereo.rs
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input samples.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output after function applied
+/// `output`: Output samples produced by the callback.
 ///
 /// # Usage
 /// ```

@@ -1,6 +1,26 @@
 use crate::runtime::dev::prelude::*;
 
 /// Apply a function to split a stream.
+///
+/// The callback receives one input item and returns one item for each output
+/// stream.
+///
+/// # Stream Inputs
+///
+/// `input`: Input samples.
+///
+/// # Stream Outputs
+///
+/// `output0`: First callback result.
+///
+/// `output1`: Second callback result.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::Split;
+///
+/// let split = Split::new(|x: &f32| (*x, -*x));
+/// ```
 #[derive(Block)]
 pub struct Split<
     F,

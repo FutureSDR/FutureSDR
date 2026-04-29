@@ -1,6 +1,21 @@
 use crate::runtime::dev::prelude::*;
 
 /// Forward messages.
+///
+/// # Message Inputs
+///
+/// `in`: Messages to forward. `Pmt::Finished` terminates the block.
+///
+/// # Message Outputs
+///
+/// `out`: Forwarded messages.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::MessageCopy;
+///
+/// let copy = MessageCopy::new();
+/// ```
 #[derive(Block)]
 #[message_inputs(r#in)]
 #[message_outputs(out)]

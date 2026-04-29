@@ -4,6 +4,23 @@ use std::ptr;
 use crate::runtime::dev::prelude::*;
 
 /// Stream samples from vector.
+///
+/// The block emits each item once and then finishes.
+///
+/// # Stream Inputs
+///
+/// No stream inputs.
+///
+/// # Stream Outputs
+///
+/// `output`: Items from the vector.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::VectorSource;
+///
+/// let src = VectorSource::<u8>::new(vec![1, 2, 3]);
+/// ```
 #[derive(Block)]
 pub struct VectorSource<T: Send, O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>> {
     items: Vec<T>,

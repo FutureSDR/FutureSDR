@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Copies only a given number of samples and stops.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in`: Input
+/// `input`: Input samples.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output
+/// `output`: The first `n_items` input samples.
 ///
 /// # Usage
 /// ```

@@ -12,11 +12,23 @@ use crate::runtime::dev::prelude::*;
 ///
 /// # Stream Inputs
 ///
-/// `in`: Zynq custom buffer
+/// `input`: Zynq custom buffer.
 ///
 /// # Stream Outputs
 ///
-/// `out`: Zynq custom buffer
+/// `output`: Zynq custom buffer.
+///
+/// # Usage
+/// ```ignore
+/// use futuresdr::blocks::ZynqSync;
+///
+/// let zynq = ZynqSync::<u32, u32>::new(
+///     "dma_h2d",
+///     "dma_d2h",
+///     vec!["/dev/dma_buf0", "/dev/dma_buf1"],
+/// )?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Block)]
 #[blocking]
 pub struct ZynqSync<I, O>

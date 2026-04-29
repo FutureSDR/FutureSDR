@@ -2,13 +2,13 @@ use crate::runtime::dev::prelude::*;
 
 /// Generate a stream of zeroes.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// No inputs
+/// No stream inputs.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output
+/// `output`: Generated zero samples.
 ///
 /// # Usage
 /// ```

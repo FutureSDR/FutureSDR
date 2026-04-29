@@ -1,6 +1,21 @@
 use crate::runtime::dev::prelude::*;
 
 /// Store received samples in vector.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to collect.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```
+/// use futuresdr::blocks::VectorSink;
+///
+/// let sink = VectorSink::<u8>::new(1024);
+/// ```
 #[derive(Block)]
 pub struct VectorSink<T: Send, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     items: Vec<T>,

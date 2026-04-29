@@ -29,6 +29,21 @@ pub enum WebsocketSinkMode {
 }
 
 /// Push samples in a WebSocket.
+///
+/// # Stream Inputs
+///
+/// `input`: Samples to send as binary WebSocket frames.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
+/// # Usage
+/// ```no_run
+/// use futuresdr::blocks::{WebsocketSink, WebsocketSinkMode};
+///
+/// let sink = WebsocketSink::<f32>::new(9001, WebsocketSinkMode::Blocking);
+/// ```
 #[derive(Block)]
 pub struct WebsocketSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {
     #[input]

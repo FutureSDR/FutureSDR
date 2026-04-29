@@ -8,13 +8,13 @@ use std::path::PathBuf;
 /// example, on most machines, that means little endian. For complex samples,
 /// the real component must come before the imaginary component.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// No inputs.
+/// No stream inputs.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Output samples
+/// `output`: Samples read from the file.
 ///
 /// # Usage
 /// ```no_run

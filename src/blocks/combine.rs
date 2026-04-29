@@ -2,15 +2,15 @@ use crate::runtime::dev::prelude::*;
 
 /// Apply a function to combine two streams into one.
 ///
-/// # Inputs
+/// # Stream Inputs
 ///
-/// `in0`: Input A
+/// `in0`: First input stream.
 ///
-/// `in1`: Input B
+/// `in1`: Second input stream.
 ///
-/// # Outputs
+/// # Stream Outputs
 ///
-/// `out`: Combined output
+/// `output`: Combined output stream.
 ///
 /// # Usage
 /// ```

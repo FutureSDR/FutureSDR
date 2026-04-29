@@ -3,8 +3,16 @@ use std::path;
 
 /// Write samples to a WAV file.
 ///
+/// # Stream Inputs
+///
+/// `input`: Samples to encode into the WAV file.
+///
+/// # Stream Outputs
+///
+/// No stream outputs.
+///
 /// # Usage
-/// ```
+/// ```no_run
 /// use futuresdr::blocks::Apply;
 /// use futuresdr::blocks::audio::WavSink;
 /// use futuresdr::blocks::VectorSource;
@@ -22,7 +30,8 @@ use std::path;
 /// let mut fg = Flowgraph::new();
 /// let src = fg.add(VectorSource::<f32>::new(vec![1.45, 2.4, 3.14, 4.2]));
 /// let snk = fg.add(WavSink::<f32>::new(path, spec));
-/// Runtime::new().run(fg);
+/// Runtime::new().run(fg)?;
+/// # Ok::<(), futuresdr::runtime::Error>(())
 /// ```
 #[derive(Block)]
 pub struct WavSink<T, I = DefaultCpuReader<T>>
