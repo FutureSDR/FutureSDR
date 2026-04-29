@@ -59,7 +59,19 @@ impl MessageOutput {
     }
 }
 
-/// Message Outputs
+/// Message output ports for one block.
+///
+/// `MessageOutputs` is passed to [`Kernel`](crate::runtime::dev::Kernel)
+/// lifecycle methods. A block can use it to post [`Pmt`] values on named
+/// message output ports declared by `#[derive(Block)]`.
+///
+/// ```no_run
+/// # use futuresdr::runtime::dev::prelude::*;
+/// # async fn emit(mo: &mut MessageOutputs) -> Result<()> {
+/// mo.post("out", Pmt::Usize(42)).await?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct MessageOutputs {
     block_id: BlockId,
@@ -67,12 +79,12 @@ pub struct MessageOutputs {
 }
 
 impl MessageOutputs {
-    /// Create message outputs with given names
+    /// Create message outputs with the given port names.
     pub fn new(block_id: BlockId, outputs: Vec<String>) -> Self {
         let outputs = outputs.iter().map(|x| MessageOutput::new(x)).collect();
         MessageOutputs { block_id, outputs }
     }
-    /// Post data to connected downstream ports
+    /// Post data to all handlers connected to an output port.
     pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
         let id = id.into();
         self.output_mut(&id)
@@ -81,7 +93,7 @@ impl MessageOutputs {
             .await;
         Ok(())
     }
-    /// Connect Message Output Port
+    /// Connect one message output port to a downstream block inbox.
     pub fn connect(
         &mut self,
         src_port: &PortId,
@@ -100,7 +112,7 @@ impl MessageOutputs {
             o.notify_finished().await;
         }
     }
-    /// Get output port Id, given its name
+    /// Get a mutable output port by id.
     fn output_mut(&mut self, port: &PortId) -> Option<&mut MessageOutput> {
         self.outputs
             .iter_mut()

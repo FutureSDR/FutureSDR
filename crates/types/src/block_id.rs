@@ -4,7 +4,11 @@ use serde::Serialize;
 use crate::BlockPortId;
 use crate::PortId;
 
-/// Block identifier
+/// Identifier of a block inside one flowgraph.
+///
+/// Block ids are assigned when blocks are added to a flowgraph. They are useful
+/// for type-erased connections, runtime descriptions, and message calls to a
+/// running flowgraph.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct BlockId(pub usize);
 

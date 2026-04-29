@@ -4,37 +4,39 @@ use serde::Serialize;
 use crate::BlockId;
 use crate::PortId;
 
-/// Description of a `Flowgraph`.
+/// Serializable description of a running or constructed flowgraph.
 ///
-/// This struct can be serialized to be used with the REST API.
+/// The control port and runtime flowgraph handles use this shape to report
+/// block metadata and type-erased connections.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowgraphDescription {
-    /// Blocks
+    /// Blocks in the flowgraph.
     pub blocks: Vec<BlockDescription>,
-    /// Stream edges
+    /// Stream edges as `(src_block, src_port, dst_block, dst_port)`.
     pub stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
-    /// Message edges
+    /// Message edges as `(src_block, src_port, dst_block, dst_port)`.
     pub message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
-/// Description of a `Block`.
+/// Serializable description of one block instance.
 ///
-/// This struct can be serialized to be used with the REST API.
+/// This is the block-level metadata returned by the control port and runtime
+/// flowgraph handles.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockDescription {
-    /// Id
+    /// Block id inside the flowgraph.
     pub id: BlockId,
-    /// Type name
+    /// Rust type name of the block kernel.
     pub type_name: String,
-    /// Instance name
+    /// Runtime instance name assigned to the block.
     pub instance_name: String,
-    /// Stream inputs
+    /// Stream input port names.
     pub stream_inputs: Vec<String>,
-    /// Stream outputs
+    /// Stream output port names.
     pub stream_outputs: Vec<String>,
-    /// Message inputs
+    /// Message input port names.
     pub message_inputs: Vec<String>,
-    /// Message outputs
+    /// Message output port names.
     pub message_outputs: Vec<String>,
     /// Blocking
     ///

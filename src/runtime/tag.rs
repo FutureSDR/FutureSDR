@@ -4,8 +4,11 @@ use std::fmt;
 
 use crate::runtime::Pmt;
 
+/// Trait object support for arbitrary stream tag payloads.
 pub trait TagAny: Any + DynClone + Send + Sync + 'static {
+    /// Return this value as [`Any`] for downcasting.
     fn as_any(&self) -> &dyn Any;
+    /// Return this value as mutable [`Any`] for downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 dyn_clone::clone_trait_object!(TagAny);
@@ -20,12 +23,15 @@ impl<T: Any + DynClone + Send + Sync + 'static> TagAny for T {
 }
 
 impl dyn TagAny {
+    /// Return whether the boxed tag payload has type `T`.
     pub fn is<T: TagAny>(&self) -> bool {
         self.as_any().is::<T>()
     }
+    /// Downcast the boxed tag payload by shared reference.
     pub fn downcast_ref<T: TagAny>(&self) -> Option<&T> {
         (*self).as_any().downcast_ref::<T>()
     }
+    /// Downcast the boxed tag payload by mutable reference.
     pub fn downcast_mut<T: TagAny>(&mut self) -> Option<&mut T> {
         (*self).as_any_mut().downcast_mut::<T>()
     }
@@ -37,15 +43,18 @@ impl fmt::Debug for Box<dyn TagAny> {
     }
 }
 
-/// Stream tag
+/// Metadata attached to an item in a stream.
+///
+/// Tags travel with stream items and can carry simple built-in values, PMTs, or
+/// cloneable type-erased payloads.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub enum Tag {
-    /// Id
+    /// Numeric identifier.
     Id(u64),
-    /// String
+    /// String payload.
     String(String),
-    /// Pmt
+    /// PMT payload.
     Data(Pmt),
     /// A `usize` with a name
     NamedUsize(String, usize),
@@ -83,11 +92,11 @@ impl PartialEq for Tag {
     }
 }
 
-/// Item tag
+/// A stream tag with the item index it applies to.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ItemTag {
-    /// Index of sample in buffer
+    /// Index of the tagged item in the buffer.
     pub index: usize,
-    /// [`Tag`] value
+    /// Tag value.
     pub tag: Tag,
 }

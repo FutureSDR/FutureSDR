@@ -9,7 +9,12 @@ use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
 
-/// Running [`Flowgraph`] together with its control handle and completion task.
+/// A running [`Flowgraph`] together with its control handle and completion task.
+///
+/// This value is returned by [`Runtime::start`](crate::runtime::Runtime::start).
+/// It can be split into a [`FlowgraphHandle`] and [`FlowgraphTask`], or used
+/// directly to post messages, request descriptions, stop the flowgraph, and wait
+/// for its finished [`Flowgraph`].
 pub struct RunningFlowgraph {
     handle: FlowgraphHandle,
     task: FlowgraphTask,
@@ -25,7 +30,7 @@ impl RunningFlowgraph {
         self.handle.clone()
     }
 
-    /// Get a handle scoped to one block in the running flowgraph.
+    /// Get a control handle scoped to one block in the running flowgraph.
     pub fn block(&self, block_id: impl Into<BlockId>) -> runtime::FlowgraphBlockHandle {
         self.handle.block(block_id)
     }
@@ -50,7 +55,7 @@ impl RunningFlowgraph {
         self.handle.post(block_id, port_id, data).await
     }
 
-    /// Call a message handler on a block.
+    /// Call a message handler on a block and return its result.
     pub async fn call(
         &self,
         block_id: impl Into<BlockId>,

@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
 
-/// Port Identifier
+/// Identifier of a flowgraph known to a runtime control handle.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FlowgraphId(pub usize);
 

@@ -11,13 +11,20 @@ use futuresdr::runtime::FlowgraphMessage;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
 
-/// Handle to interact with a running [`crate::runtime::Flowgraph`]
+/// Clonable control handle for a running [`crate::runtime::Flowgraph`].
+///
+/// Use this handle to post or call message handlers, inspect the running
+/// flowgraph, or request shutdown. `post` only waits until the runtime accepts
+/// the message, while `call` waits for the handler result.
 #[derive(Debug, Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
 }
 
-/// Handle to interact with a specific block in a running [`crate::runtime::Flowgraph`].
+/// Control handle scoped to one block in a running [`crate::runtime::Flowgraph`].
+///
+/// This is a convenience wrapper around [`FlowgraphHandle`] that stores the
+/// target block id for repeated message calls or description requests.
 #[derive(Debug, Clone)]
 pub struct FlowgraphBlockHandle {
     flowgraph: FlowgraphHandle,
@@ -68,6 +75,9 @@ impl FlowgraphHandle {
     }
 
     /// Call a handler and return its result.
+    ///
+    /// Unlike [`Self::post`], this waits for the message handler to complete and
+    /// returns the handler's [`Pmt`] response.
     pub async fn call(
         &self,
         block_id: impl Into<BlockId>,
@@ -88,7 +98,7 @@ impl FlowgraphHandle {
         rx.await?
     }
 
-    /// Get [`FlowgraphDescription`].
+    /// Describe the running flowgraph.
     pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
         let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
         self.inbox
@@ -99,7 +109,7 @@ impl FlowgraphHandle {
         Ok(d)
     }
 
-    /// Get [`BlockDescription`] for one block.
+    /// Describe one block in the running flowgraph.
     pub async fn describe_block(
         &self,
         block_id: impl Into<BlockId>,

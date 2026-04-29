@@ -12,25 +12,29 @@ use futuresdr::runtime::BlockId;
 use futuresdr::runtime::channel::mpsc::Sender;
 
 #[async_trait]
-/// Block interface, implemented for wrapped kernel instances.
+/// Runtime object-safe interface for wrapped kernel instances.
+///
+/// Custom blocks implement [`Kernel`](crate::runtime::dev::Kernel); this trait
+/// is implemented by the runtime wrapper generated around a kernel and is
+/// mainly useful for runtime extensions.
 pub trait Block: MaybeSend + Any {
-    /// required for downcasting
+    /// Return this block as [`Any`] for downcasting.
     fn as_any(&self) -> &dyn Any;
-    /// required for downcasting
+    /// Return this block as mutable [`Any`] for downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // ##### BLOCK
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
-    /// Get the inbox of the block
+    /// Get the sender-side inbox of the block.
     fn inbox(&self) -> BlockInbox;
-    /// Get the ID of the block
+    /// Get the block id.
     fn id(&self) -> BlockId;
 
     // ##### Stream Ports
-    /// Get dyn reference to stream input
+    /// Get a type-erased stream input by port id.
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error>;
-    /// Connect dyn BufferReader by downcasting it
+    /// Connect a type-erased stream output by downcasting the destination reader.
     fn connect_stream_output(
         &mut self,
         id: &PortId,
@@ -38,9 +42,9 @@ pub trait Block: MaybeSend + Any {
     ) -> Result<(), Error>;
 
     // ##### Message Ports
-    /// Message inputs of the block
+    /// Message input port names declared by this block.
     fn message_inputs(&self) -> &'static [&'static str];
-    /// Connect message output port
+    /// Connect one message output port to a downstream block inbox.
     fn connect(
         &mut self,
         src_port: &PortId,

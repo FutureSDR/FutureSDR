@@ -4,7 +4,10 @@ use serde::Serialize;
 use crate::BlockId;
 use crate::PortId;
 
-/// Block port identifier for type-erased stream or message connections.
+/// Identifier for a port on a specific block.
+///
+/// `BlockPortId` is used by type-erased stream and message connection APIs
+/// where the Rust block type is no longer available.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockPortId {
     block: BlockId,

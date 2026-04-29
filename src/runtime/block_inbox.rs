@@ -26,6 +26,9 @@ impl Default for BlockNotifyState {
 }
 
 /// Coalescing wakeup handle for a block.
+///
+/// A notifier wakes the block without carrying a message payload. Repeated
+/// notifications are coalesced until the block observes the pending wakeup.
 #[derive(Clone, Debug)]
 pub struct BlockNotifier {
     state: Arc<BlockNotifyState>,
@@ -53,7 +56,7 @@ impl BlockNotifier {
         self.state.pending.swap(false, Ordering::AcqRel)
     }
 
-    /// Future that resolves on the next pending notification.
+    /// Return a future that resolves on the next pending notification.
     pub fn notified(&self) -> Notified {
         Notified {
             state: self.state.clone(),
@@ -67,6 +70,9 @@ impl Default for BlockNotifier {
     }
 }
 
+/// Future returned by [`BlockNotifier::notified`].
+///
+/// Polling this future consumes one pending notification bit.
 pub struct Notified {
     state: Arc<BlockNotifyState>,
 }
@@ -89,8 +95,13 @@ impl Future for Notified {
     }
 }
 
+/// Sender-side actor inbox for a block.
+///
+/// Message outputs and runtime control paths use `BlockInbox` to enqueue
+/// [`BlockMessage`](crate::runtime::BlockMessage)s and wake the destination
+/// block. Most block authors interact with it indirectly through
+/// [`MessageOutputs`](crate::runtime::dev::MessageOutputs).
 #[derive(Clone, Debug)]
-/// Sender-side actor inbox for blocks.
 pub struct BlockInbox {
     control: mpsc::Sender<BlockMessage>,
     notifier: BlockNotifier,

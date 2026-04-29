@@ -1,12 +1,15 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-/// Port Identifier
+/// Identifier of a stream or message port on a block.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PortId(String);
 
 impl PortId {
-    /// Create PortId from String
+    /// Create a port id from a string-like value.
+    ///
+    /// A leading raw-identifier prefix (`r#`) is stripped so Rust field names
+    /// such as `r#in` map to the public port name `in`.
     pub fn new(s: impl Into<String>) -> Self {
         let mut s = s.into();
         s = s
@@ -16,7 +19,7 @@ impl PortId {
         Self(s)
     }
 
-    /// Get Name
+    /// Get the port name.
     pub fn name(&self) -> &str {
         &self.0
     }

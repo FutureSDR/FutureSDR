@@ -23,12 +23,19 @@ use futuresdr_types::BlockPortId;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
-/// Typed guard to a block stored inside a [`Flowgraph`].
+/// Shared typed access to a block stored inside a [`Flowgraph`].
+///
+/// The guard dereferences to the block's kernel type and also exposes runtime
+/// metadata such as the block id and instance name. It is only available before
+/// the flowgraph is moved into a running [`Runtime`](crate::runtime::Runtime).
 pub struct TypedBlockGuard<'a, K: Kernel> {
     wrapped: &'a WrappedKernel<K>,
 }
 
-/// Mutable typed guard to a block stored inside a [`Flowgraph`].
+/// Mutable typed access to a block stored inside a [`Flowgraph`].
+///
+/// The guard dereferences to the block's kernel type and can be used to update
+/// block state or metadata before the flowgraph is started.
 pub struct TypedBlockGuardMut<'a, K: Kernel> {
     wrapped: &'a mut WrappedKernel<K>,
 }
@@ -99,10 +106,22 @@ impl<K: Kernel + 'static> DerefMut for TypedBlockGuardMut<'_, K> {
     }
 }
 
-/// Reference to a typed block that was added to a [`Flowgraph`].
+/// Typed reference to a block that was added to a [`Flowgraph`].
 ///
-/// `BlockRef` is only a typed handle. The block itself remains owned by the [`Flowgraph`] and can
-/// only be accessed together with that flowgraph.
+/// `BlockRef` is a lightweight identifier that preserves the Rust kernel type.
+/// The block itself remains owned by the [`Flowgraph`] and can only be accessed
+/// together with that flowgraph before execution starts.
+///
+/// ```
+/// use futuresdr::blocks::NullSink;
+/// use futuresdr::prelude::*;
+///
+/// let mut fg = Flowgraph::new();
+/// let snk = fg.add(NullSink::<u8>::new());
+///
+/// assert_eq!(snk.id(), snk.get(&fg)?.id());
+/// # Ok::<(), futuresdr::runtime::Error>(())
+/// ```
 pub struct BlockRef<K: Kernel> {
     id: BlockId,
     flowgraph_id: FlowgraphId,
@@ -177,11 +196,12 @@ impl<K: Kernel> From<&BlockRef<K>> for BlockId {
     }
 }
 
-/// The main component of any FutureSDR application.
+/// A directed graph of blocks and their stream/message connections.
 ///
-/// A [Flowgraph] is composed of a set of blocks and connections between them. It is typically set
-/// up with the [connect](futuresdr::runtime::macros::connect) macro. Once it is configure, the [Flowgraph]
-/// is executed on a [Runtime](futuresdr::runtime::Runtime).
+/// A [`Flowgraph`] owns the blocks until it is passed to a
+/// [`Runtime`](crate::runtime::Runtime). It is typically built with the
+/// [`connect`](crate::runtime::macros::connect) macro, which adds blocks and
+/// wires their default or named ports in one step.
 ///
 /// ```
 /// use anyhow::Result;
@@ -211,7 +231,7 @@ pub struct Flowgraph {
 }
 
 impl Flowgraph {
-    /// Create a [Flowgraph].
+    /// Create an empty [`Flowgraph`].
     pub fn new() -> Flowgraph {
         Flowgraph {
             id: FlowgraphId(NEXT_FLOWGRAPH_ID.fetch_add(1, Ordering::Relaxed)),
@@ -221,7 +241,10 @@ impl Flowgraph {
         }
     }
 
-    /// Add a regular block to the flowgraph.
+    /// Add a block and return a typed reference to it.
+    ///
+    /// The returned [`BlockRef`] can be used for explicit typed connections or
+    /// for inspecting/mutating the block before the flowgraph is started.
     pub fn add<K>(&mut self, block: K) -> BlockRef<K>
     where
         K: Kernel + KernelInterface + 'static,
@@ -325,7 +348,7 @@ impl Flowgraph {
         })
     }
 
-    /// Get a typed block handle from this flowgraph.
+    /// Get typed shared access to a block in this flowgraph.
     pub fn block<K: Kernel + 'static>(
         &self,
         block: &BlockRef<K>,
@@ -333,7 +356,7 @@ impl Flowgraph {
         self.get_typed_block(block)
     }
 
-    /// Get a mutable typed block handle from this flowgraph.
+    /// Get typed mutable access to a block in this flowgraph.
     pub fn block_mut<K: Kernel + 'static>(
         &mut self,
         block: &BlockRef<K>,

@@ -49,9 +49,11 @@ type DynSpawn = dyn Spawn + Send + Sync + 'static;
 #[cfg(target_arch = "wasm32")]
 type DynSpawn = dyn Spawn + 'static;
 
-/// The [Runtime] runs [Flowgraph]s and async tasks
+/// Executor and control-plane owner for [`Flowgraph`]s and async tasks.
 ///
-/// [Runtime]s are generic over the scheduler used to run the [Flowgraph].
+/// A [`Runtime`] owns a scheduler, starts flowgraphs, and provides a control
+/// port on native targets. It is generic over the scheduler implementation, but
+/// most applications can use [`Runtime::new`] with the default scheduler.
 pub struct Runtime<S> {
     scheduler: S,
     flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
@@ -60,12 +62,12 @@ pub struct Runtime<S> {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Runtime<SmolScheduler> {
-    /// Constructs a new [Runtime] using [SmolScheduler::default()] for the [Scheduler].
+    /// Construct a new [`Runtime`] using [`SmolScheduler::default()`].
     pub fn new() -> Self {
         Self::with_custom_routes(Router::new())
     }
 
-    /// Set custom routes for the integrated webserver
+    /// Construct a runtime with additional routes for the integrated webserver.
     pub fn with_custom_routes(routes: Router) -> Self {
         runtime::init();
 
@@ -99,7 +101,7 @@ impl<S> Drop for Runtime<S> {
 
 #[cfg(target_arch = "wasm32")]
 impl Runtime<WasmScheduler> {
-    /// Create Runtime
+    /// Construct a runtime using the WASM scheduler.
     pub fn new() -> Self {
         runtime::init();
 
@@ -120,7 +122,7 @@ impl Default for Runtime<WasmScheduler> {
 }
 
 impl<S: Scheduler> Runtime<S> {
-    /// Spawn an async task on the runtime
+    /// Spawn an async task on the runtime scheduler.
     pub fn spawn<T: MaybeSend + 'static>(
         &self,
         future: impl Future<Output = T> + MaybeSend + 'static,
@@ -128,7 +130,7 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn(future)
     }
 
-    /// Block thread, waiting for future to complete
+    /// Block the current thread until a future spawned on the runtime completes.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn block_on<T: MaybeSend + 'static>(
         &self,
@@ -137,7 +139,7 @@ impl<S: Scheduler> Runtime<S> {
         block_on(self.scheduler.spawn(future))
     }
 
-    /// Spawn async task on the runtime, detaching the handle
+    /// Spawn an async task and detach its handle.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_background<T: MaybeSend + 'static>(
         &self,
@@ -165,9 +167,11 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    /// Start a [`Flowgraph`] on the [`Runtime`]
+    /// Start a [`Flowgraph`] on the [`Runtime`].
     ///
-    /// Returns, once the flowgraph is constructed and running.
+    /// Returns once the flowgraph is initialized and running. The returned
+    /// [`RunningFlowgraph`] can be used to send messages, stop the graph, or
+    /// wait for completion.
     pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
@@ -193,9 +197,9 @@ impl<S: Scheduler> Runtime<S> {
         Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
     }
 
-    /// Start a [`Flowgraph`] on the [`Runtime`]
+    /// Start a [`Flowgraph`] on the [`Runtime`].
     ///
-    /// Blocks until the flowgraph is constructed and running.
+    /// Blocks until the flowgraph is initialized and running.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn start_sync(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         block_on(self.start(fg))
@@ -226,12 +230,12 @@ impl<S: Scheduler> Runtime<S> {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<S: Scheduler + Sync> Runtime<S> {
-    /// Create a [Runtime] with a given [Scheduler]
+    /// Construct a [`Runtime`] with a custom [`Scheduler`].
     pub fn with_scheduler(scheduler: S) -> Self {
         Self::with_config(scheduler, Router::new())
     }
 
-    /// Create runtime with given scheduler and custom routes for the integrated webserver
+    /// Construct a runtime with a custom scheduler and webserver routes.
     pub fn with_config(scheduler: S, routes: Router) -> Self {
         runtime::init();
 
@@ -248,7 +252,7 @@ impl<S: Scheduler + Sync> Runtime<S> {
         }
     }
 
-    /// Create [RuntimeHandle]
+    /// Create a clonable [`RuntimeHandle`] for starting and querying flowgraphs.
     pub fn handle(&self) -> RuntimeHandle {
         RuntimeHandle {
             flowgraphs: self.flowgraphs.clone(),
@@ -259,7 +263,7 @@ impl<S: Scheduler + Sync> Runtime<S> {
 
 #[cfg(target_arch = "wasm32")]
 impl<S: Scheduler> Runtime<S> {
-    /// Create a [Runtime] with a given [Scheduler]
+    /// Construct a [`Runtime`] with a custom [`Scheduler`].
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
 
@@ -271,7 +275,7 @@ impl<S: Scheduler> Runtime<S> {
         }
     }
 
-    /// Create [RuntimeHandle]
+    /// Create a clonable [`RuntimeHandle`] for starting and querying flowgraphs.
     pub fn handle(&self) -> RuntimeHandle {
         RuntimeHandle {
             flowgraphs: self.flowgraphs.clone(),
@@ -309,7 +313,11 @@ impl<S: SpawnBound> Spawn for S {
     }
 }
 
-/// Runtime handle added as state to web handlers
+/// Clonable runtime control handle used by web handlers and external control code.
+///
+/// A `RuntimeHandle` can start new flowgraphs on the same scheduler as the
+/// owning [`Runtime`] and look up flowgraphs that have been registered with the
+/// control plane.
 #[derive(Clone)]
 pub struct RuntimeHandle {
     scheduler: Arc<DynSpawn>,
@@ -331,14 +339,14 @@ impl PartialEq for RuntimeHandle {
 }
 
 impl RuntimeHandle {
-    /// Start a [`Flowgraph`] on the runtime
+    /// Start a [`Flowgraph`] on the runtime.
     pub async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
         let handle = self.scheduler.start(fg).await?;
         self.add_flowgraph(handle.clone()).await;
         Ok(handle)
     }
 
-    /// Add a [`FlowgraphHandle`] to make it available to web handlers
+    /// Add a [`FlowgraphHandle`] to make it available to web handlers.
     async fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
         let mut v = self.flowgraphs.lock().await;
         let l = v.len();
@@ -346,12 +354,12 @@ impl RuntimeHandle {
         FlowgraphId(l)
     }
 
-    /// Get handle to a running flowgraph
+    /// Get the control handle for a running flowgraph by id.
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
         self.flowgraphs.lock().await.get(id.0).cloned()
     }
 
-    /// Get list of flowgraph IDs
+    /// Get the ids of flowgraphs known to this runtime handle.
     pub async fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs
             .lock()

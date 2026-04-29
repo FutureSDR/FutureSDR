@@ -17,7 +17,8 @@ enum TaskState {
 /// A `FlowgraphTask` can be awaited to retrieve the finished flowgraph after
 /// runtime execution completes. On native targets, dropping it before
 /// completion detaches the underlying runtime task so the flowgraph keeps
-/// running in the background.
+/// running in the background. Keep and await this task when shutdown ordering or
+/// the final flowgraph state matters.
 pub struct FlowgraphTask {
     state: TaskState,
 }

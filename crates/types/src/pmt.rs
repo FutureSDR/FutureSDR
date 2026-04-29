@@ -59,10 +59,20 @@ impl dyn PmtAny {
     }
 }
 
-/// PMT -- Polymorphic Type
+/// Polymorphic message type used by FutureSDR message ports.
 ///
-/// PMTs are used as input and output for the FutureSDR message passing interface. At the moment,
-/// the `Any` type is ignored for de-/serialization.
+/// PMTs are the input and output values for message handlers and runtime
+/// control calls. Most variants serialize normally; [`Pmt::Any`] is skipped
+/// during serialization and is intended only for in-process values.
+///
+/// ```
+/// use futuresdr_types::{Pmt, PmtKind};
+///
+/// let pmt = Pmt::Usize(7);
+/// assert_eq!(pmt.kind(), PmtKind::Usize);
+/// assert_eq!(usize::try_from(pmt)?, 7);
+/// # Ok::<(), futuresdr_types::PmtConversionError>(())
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Pmt {
@@ -98,7 +108,7 @@ pub enum Pmt {
     VecCF32(Vec<Complex32>),
     /// Vector of 32-bit floats.
     VecF32(Vec<f32>),
-    /// Vector of 64-bit floats.
+    /// Vector of 64-bit unsigned integers.
     VecU64(Vec<u64>),
     /// Binary data blob
     Blob(Vec<u8>),
@@ -106,11 +116,11 @@ pub enum Pmt {
     VecPmt(Vec<Pmt>),
     /// Finished
     ///
-    /// Runtime message, used to signal the handler that a connected block finished.
+    /// Runtime message used to signal that a connected block finished.
     Finished,
-    /// Map (String -> Pmt)
+    /// Map from string keys to PMT values.
     MapStrPmt(HashMap<String, Pmt>),
-    /// Any type
+    /// Type-erased in-process payload.
     ///
     /// Wrap anything that implements [`Any`](std::any::Any) in a Pmt. Use
     /// `downcast_ref/mut()` to extract.
@@ -469,7 +479,7 @@ impl From<Vec<Complex32>> for Pmt {
     }
 }
 
-/// PMT types that do not wrap values.
+/// PMT variant tags without associated values.
 ///
 /// Useful for bindings to other languages that do not support Rust's broad enum features.
 #[non_exhaustive]

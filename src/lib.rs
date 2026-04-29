@@ -31,7 +31,7 @@
 //! ```
 //!
 //! ## Main Entry Points
-//! - [`blocks`] Library of common blocks that are not tight to a specific technology.
+//! - [`blocks`] Library of common blocks that are not tied to a specific technology.
 //! - [`runtime`] Runtime APIs for constructing, running, and interacting with flowgraphs.
 //! - [`prelude`] Imports for constructing, running, and interacting with flowgraphs.
 //!
@@ -40,7 +40,7 @@
 //! [`runtime::dev::prelude`].
 
 // make the futuresdr crate available in the library to allow referencing it as
-// futuresdr internally, which simpilifies proc macros.
+// futuresdr internally, which simplifies proc macros.
 extern crate self as futuresdr;
 #[macro_use]
 extern crate futuresdr_macros;
@@ -62,16 +62,19 @@ pub use num_integer;
 #[cfg(feature = "seify")]
 pub use seify;
 
-/// Library of common blocks that are not tight to a specific technology.
+/// Library of common blocks that are not tied to a specific technology.
 pub mod blocks;
 /// Runtime APIs for constructing, running, and controlling flowgraphs.
 ///
 /// For custom block implementations and runtime extension APIs, see [`runtime::dev`].
 pub mod runtime;
 
-/// Prelude with common structs and traits
+/// Prelude for building and controlling flowgraphs.
 ///
-/// These imports are for setting up, running, and interacting with flowgraphs.
+/// These imports cover the usual application-facing API: flowgraph
+/// construction, runtime execution, message passing, common IDs, and logging.
+/// Custom block implementations should use [`crate::runtime::dev::prelude`]
+/// instead.
 pub mod prelude {
     pub use futures::prelude::*;
     pub use futuresdr::runtime::BlockId;

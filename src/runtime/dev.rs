@@ -1,5 +1,5 @@
-//! Developer-facing runtime APIs for implementing custom blocks and runtime
-//! extensions.
+//! Developer-facing runtime APIs for implementing custom blocks, buffers, and
+//! runtime extensions.
 //!
 //! App authors building and running flowgraphs should generally prefer
 //! [`crate::prelude`] and the top-level [`crate::runtime`] APIs.
@@ -28,19 +28,30 @@ pub use super::tag::Tag;
 pub use super::work_io::WorkIo;
 
 /// Marker trait for values that must be `Send` on native runtimes but not on wasm.
+///
+/// FutureSDR uses this bound on futures and block internals that may be moved
+/// between native executor threads. On `wasm32`, where the runtime is
+/// single-threaded, the marker does not require `Send`.
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Send + ?Sized> MaybeSend for T {}
 
 /// Marker trait for values that must be `Send` on native runtimes but not on wasm.
+///
+/// FutureSDR uses this bound on futures and block internals that may be moved
+/// between native executor threads. On `wasm32`, where the runtime is
+/// single-threaded, the marker does not require `Send`.
 #[cfg(target_arch = "wasm32")]
 pub trait MaybeSend {}
 #[cfg(target_arch = "wasm32")]
 impl<T: ?Sized> MaybeSend for T {}
 
-/// Prelude for implementing custom blocks and other developer-facing runtime
-/// extensions.
+/// Prelude for implementing custom blocks and runtime extensions.
+///
+/// This prelude includes the application-facing [`crate::prelude`] plus the
+/// traits, buffer types, message helpers, tags, and macros needed by custom
+/// block implementations.
 pub mod prelude {
     pub use crate::prelude::*;
     #[cfg(feature = "burn")]
