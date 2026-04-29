@@ -23,7 +23,7 @@
 //! |---|---|---|
 //! | [Fft](crate::blocks::Fft) | Compute an FFT. | ✅ |
 //! | [Fir](crate::blocks::FirBuilder) | FIR filter and resampler. | ✅ |
-//! | [Iir](crate::blocks::Iir) | IIR filter. | ✅ |
+//! | [Iir](crate::blocks::IirBuilder) | IIR filter. | ✅ |
 //! | [PfbArbResampler](crate::blocks::PfbArbResampler) | Polyphase Arbitrary Rate Resampler | ✅ |
 //! | [PfbChannelizer](crate::blocks::PfbChannelizer) | Polyphase Channelizer | ✅ |
 //! | [PfbSynthesizer](crate::blocks::PfbSynthesizer) | Polyphase Synthesizer | ✅ |
