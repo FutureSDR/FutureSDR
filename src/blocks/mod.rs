@@ -32,7 +32,6 @@
 //! ## Misc
 //! | Block | Usage | WebAssembly? |
 //! |---|---|---|
-//! | [ConsoleSink](crate::blocks::ConsoleSink) | Log stream data with `info!`. | ✅ |
 //! | [Delay](crate::blocks::Delay) | Delays samples. | ✅ |
 //! | [Head](crate::blocks::Head) | Copies only a given number of samples and stops. | ✅ |
 //! | [MovingAvg](crate::blocks::MovingAvg) | Applies an exponential moving average over a window samples. | ✅ |
@@ -128,8 +127,6 @@ mod channel_source;
 pub use channel_source::ChannelSource;
 mod combine;
 pub use combine::Combine;
-mod console_sink;
-pub use console_sink::ConsoleSink;
 mod copy;
 pub use copy::Copy;
 mod delay;
