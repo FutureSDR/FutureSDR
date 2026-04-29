@@ -31,9 +31,9 @@
 //! ```
 //!
 //! ## Main Entry Points
-//! - [`blocks`] contains the reusable block library.
-//! - [`runtime`] contains flowgraph construction, execution, and control APIs.
-//! - [`prelude`] is the intended import path for building and running flowgraphs.
+//! - [`blocks`] Library of common blocks that are not tight to a specific technology.
+//! - [`runtime`] Runtime APIs for constructing, running, and interacting with flowgraphs.
+//! - [`prelude`] Imports for constructing, running, and interacting with flowgraphs.
 //!
 //! ## Custom Blocks
 //! To implement custom blocks or other runtime extensions, use
