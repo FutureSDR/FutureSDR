@@ -1,5 +1,21 @@
 # Running Flowgraphs
 
+FutureSDR examples and applications can be run like normal Rust applications:
+
+```bash
+cargo run --release --bin rx
+```
+
+Or examples
+```bash
+cargo run --release --example minimal
+```
+
+> [!NOTE]
+> If `--release` is not specified, Rust will by default build the binary in debug mode, which is much slower
+> and often unusable for real-time signal processing.
+
+
 ## Configuration
 
 FutureSDR offers runtime options that can be configured through a `config.toml` or environment variables.

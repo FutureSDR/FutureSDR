@@ -1,7 +1,7 @@
 # Flowgraph Interaction
 
 It is possible to interact with a running flowgraph through the control port REST API, which
-can be used as the base for arbitrary UIs using web technology or any other GUI framework.
+can be used as the base for web UIs or any other tool supporting REST (e.g., Curl, Python requests).
 
 ## REST API
 
@@ -130,6 +130,15 @@ Here are some more examples of serialized PMTs:
 { "String": "foo" }
 ```
 
+### Endpoints
+
+The control port interface is associated with the runtime. By default, it comes with the following endpoints:
+
+- **GET /api/fg/**: Array of flowgraph IDs of the flowgraphs spawned on the runtime.
+- **GET /api/fg/0/**: JSON description of flowgraph with ID 0.
+- **GET /api/fg/0/block/0/**: JSON description of the block with ID 0.
+- **GET /api/fg/0/block/0/call/freq**: Call message handler `freq` of the block with `Pmt::Null` as argument.
+- **POST /api/fg/0/block/0/call/freq**: Call message handler `freq` with JSON-serialized `Pmt` as input.
 
 ## Web UI
 
