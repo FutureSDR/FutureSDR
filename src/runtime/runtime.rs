@@ -203,12 +203,12 @@ impl<S: Scheduler> Runtime<S> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
         let running = async_io::block_on(self.start_async(fg))?;
-        async_io::block_on(running.wait())
+        running.wait()
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        self.start_async(fg).await?.wait().await
+        self.start_async(fg).await?.wait_async().await
     }
 
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].

@@ -227,7 +227,7 @@ fn connect_circuit_description_omits_closure_edge() -> Result<()> {
         handle.stop_and_wait().await?;
         Ok::<_, Error>(description)
     })?;
-    let fg = Runtime::block_on(running.wait())?;
+    let fg = running.wait()?;
     let snk = fg.block(&snk)?;
 
     assert_eq!(description.stream_edges, expected_edges);

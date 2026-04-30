@@ -113,7 +113,7 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
                 // Sleep to allow work to be called at least once
                 Timer::after(std::time::Duration::from_millis(1)).await;
                 let _ = running.stop().await;
-                running.wait().await
+                running.wait_async().await
             })
         }
     };

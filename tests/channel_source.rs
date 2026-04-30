@@ -19,7 +19,7 @@ fn channel_source_min() -> Result<()> {
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         drop(tx);
         running
-            .wait()
+            .wait_async()
             .await
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
@@ -47,7 +47,7 @@ fn channel_source_small() -> Result<()> {
         tx.send(vec![5].into_boxed_slice()).await?;
         drop(tx);
         running
-            .wait()
+            .wait_async()
             .await
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;
@@ -73,7 +73,7 @@ fn channel_source_big() -> Result<()> {
         tx.send(vec![1; 88888].into_boxed_slice()).await?;
         drop(tx);
         running
-            .wait()
+            .wait_async()
             .await
             .map_err(|e| anyhow!("Flowgraph error, {e}"))
     })?;

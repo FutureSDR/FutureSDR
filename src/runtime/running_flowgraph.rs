@@ -14,8 +14,8 @@ use crate::runtime::Result;
 /// This value is returned by [`Runtime::start_async`](crate::runtime::Runtime::start_async)
 /// and by `Runtime::start` on native targets.
 /// It can be split into a [`FlowgraphHandle`] and [`FlowgraphTask`], or used
-/// directly to post messages, request descriptions, stop the flowgraph, and wait
-/// for its finished [`Flowgraph`].
+/// directly to post messages, request descriptions, stop the flowgraph, and
+/// wait for its finished [`Flowgraph`].
 pub struct RunningFlowgraph {
     handle: FlowgraphHandle,
     task: FlowgraphTask,
@@ -41,9 +41,15 @@ impl RunningFlowgraph {
         (self.task, self.handle)
     }
 
-    /// Wait until the flowgraph terminates and return the finished [`Flowgraph`].
-    pub async fn wait(self) -> Result<Flowgraph, Error> {
+    /// Await flowgraph termination and return the finished [`Flowgraph`].
+    pub async fn wait_async(self) -> Result<Flowgraph, Error> {
         self.task.await
+    }
+
+    /// Block until the flowgraph terminates and return the finished [`Flowgraph`].
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn wait(self) -> Result<Flowgraph, Error> {
+        async_io::block_on(self.wait_async())
     }
 
     /// Post a message to a block without waiting for handler completion.
@@ -87,6 +93,6 @@ impl RunningFlowgraph {
     /// Stop the running flowgraph and wait until it terminates.
     pub async fn stop_and_wait(self) -> Result<Flowgraph, Error> {
         self.handle.stop().await?;
-        self.wait().await
+        self.wait_async().await
     }
 }

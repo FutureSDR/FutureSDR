@@ -142,7 +142,7 @@ Use `BlockRef::id()` or convert a `BlockRef` into `BlockId` when a runtime inter
 
 `RunningFlowgraph` can post messages, call message handlers, describe the running graph, stop it, and wait for completion.
 
-The following example starts a flowgraph, hops through a list of frequencies by posting `Pmt::F64` values to a block's `freq` message handler, and then waits for the flowgraph to finish:
+The following example starts a flowgraph and continuously hops through a list of frequencies by posting `Pmt::F64` values to a block's `freq` message handler:
 
 ```rust
 use futuresdr::prelude::*;
@@ -161,22 +161,44 @@ let running = rt.start(fg)?;
 Runtime::block_on(async move {
     let frequencies = [100.0e6, 101.0e6, 102.0e6];
 
-    for freq in frequencies.iter().cycle().take(10) {
-        running.post(radio_id, "freq", Pmt::F64(*freq)).await?;
-        Timer::after(Duration::from_secs(1)).await;
+    loop {
+        for freq in frequencies {
+            running.post(radio_id, "freq", Pmt::F64(freq)).await?;
+            Timer::after(Duration::from_secs(1)).await;
+        }
     }
-
-    let fg = running.wait().await?;
-    Ok::<_, Error>(fg)
 })?;
 ```
 
-For flowgraphs that run indefinitely, request shutdown before waiting:
+Waiting for completion is a separate operation. Use it when the flowgraph is expected to finish on its own, for example when a finite source reaches the end of its input:
+
+```rust
+use futuresdr::blocks::VectorSink;
+use futuresdr::blocks::VectorSource;
+use futuresdr::prelude::*;
+
+let mut fg = Flowgraph::new();
+
+let src = VectorSource::<u32>::new(vec![1, 2, 3, 4]);
+let snk = VectorSink::<u32>::new(4);
+
+connect!(fg, src > snk);
+
+let rt = Runtime::new();
+let running = rt.start(fg)?;
+
+let fg = running.wait()?;
+let snk = fg.block(&snk)?;
+
+assert_eq!(snk.items(), &vec![1, 2, 3, 4]);
+```
+
+For flowgraphs that do not finish on their own, request shutdown before waiting:
 
 ```rust
 Runtime::block_on(async move {
     running.stop().await?;
-    let fg = running.wait().await?;
+    let fg = running.wait_async().await?;
     Ok::<_, Error>(fg)
 })?;
 ```

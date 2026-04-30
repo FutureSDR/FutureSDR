@@ -462,7 +462,7 @@ async fn run(
     let running = rt.start_async(fg).await?;
     set_handle.set(Some(running.handle()));
 
-    let _ = running.wait().await;
+    let _ = running.wait_async().await;
 
     Ok(())
 }

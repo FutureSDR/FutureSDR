@@ -76,7 +76,7 @@ fn main() -> Result<()> {
         }
     });
 
-    Runtime::block_on(running.wait())?;
+    running.wait()?;
 
     Ok(())
 }

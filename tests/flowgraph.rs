@@ -110,7 +110,7 @@ fn fg_terminate() -> Result<()> {
     Runtime::block_on(async move {
         Timer::after(std::time::Duration::from_secs(1)).await;
         running.stop().await.unwrap();
-        let _ = running.wait().await;
+        let _ = running.wait_async().await;
     });
 
     Ok(())

@@ -50,16 +50,14 @@ Both methods return a [`RunningFlowgraph`](https://docs.rs/futuresdr/latest/futu
 
 ```rust
 let running = rt.start(fg)?;
+let handle = running.handle();
 
-Runtime::block_on(async move {
-    running.post(block_id, "handler_name", Pmt::U32(42)).await?;
+Runtime::block_on(async move { handle.post(block_id, "handler_name", Pmt::U32(42)).await })?;
 
-    let fg = running.wait().await?;
-    Ok::<_, Error>(fg)
-})?;
+let fg = running.wait()?;
 ```
 
-Use `running.post()` and `running.call()` to interact with blocks, `running.wait().await` to wait for termination and recover the finished flowgraph, and `running.stop_and_wait().await` to request shutdown and then recover the finished flowgraph. Use `running.handle()` when you need to keep a clonable control handle. If you need to pass the two parts around separately, `running.split()` returns the `FlowgraphTask` and `FlowgraphHandle`.
+Use `running.post()` and `running.call()` to interact with blocks, `running.wait()` to block until termination on native targets, and `running.wait_async().await` in async code. `running.stop_and_wait().await` requests shutdown and then recovers the finished flowgraph. Use `running.handle()` when you need to keep a clonable control handle. If you need to pass the two parts around separately, `running.split()` returns the `FlowgraphTask` and `FlowgraphHandle`.
 
 ## Selecting a Scheduler
 
