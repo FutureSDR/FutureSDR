@@ -4,7 +4,7 @@ use anyhow::Result;
 mod foo {
     use anyhow::Result;
     use clap::Parser;
-    use futuresdr::async_io::block_on;
+    use futuresdr::prelude::Runtime;
 
     use cw::run_fg;
 
@@ -19,7 +19,7 @@ mod foo {
         let args = Args::parse();
         let msg: String = args.message;
 
-        block_on(run_fg(msg))?;
+        Runtime::block_on(run_fg(msg))?;
         Ok(())
     }
 }

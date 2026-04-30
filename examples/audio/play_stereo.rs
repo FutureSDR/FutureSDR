@@ -1,4 +1,3 @@
-use anyhow::Result;
 use futuresdr::blocks::ApplyNM;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::audio::AudioSink;

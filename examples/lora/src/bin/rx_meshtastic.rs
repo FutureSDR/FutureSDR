@@ -97,7 +97,7 @@ fn main() -> Result<()> {
 
     let rt = Runtime::new();
     let _running = rt.start_sync(fg)?;
-    rt.block_on(async move {
+    Runtime::block_on(async move {
         let mut chans = MeshtasticChannels::new();
         chans.add_channel(MeshtasticChannel::new("", "AQ=="));
         for c in channels {

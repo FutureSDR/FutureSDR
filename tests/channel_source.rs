@@ -1,6 +1,5 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use futuresdr::async_io::block_on;
 use futuresdr::blocks::ChannelSource;
 use futuresdr::blocks::VectorSink;
 use futuresdr::prelude::*;
@@ -15,8 +14,8 @@ fn channel_source_min() -> Result<()> {
     connect!(fg, cs > snk);
 
     let rt = Runtime::new();
-    let fg = block_on(async move {
-        let running = rt.start(fg).await?;
+    let running = rt.start_sync(fg)?;
+    let fg = Runtime::block_on(async move {
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         drop(tx);
         running
@@ -40,8 +39,8 @@ fn channel_source_small() -> Result<()> {
     connect!(fg, cs > snk);
 
     let rt = Runtime::new();
-    let fg = block_on(async move {
-        let running = rt.start(fg).await?;
+    let running = rt.start_sync(fg)?;
+    let fg = Runtime::block_on(async move {
         tx.send(vec![0, 1, 2].into_boxed_slice()).await?;
         tx.send(vec![3, 4].into_boxed_slice()).await?;
         tx.send(vec![].into_boxed_slice()).await?;
@@ -68,8 +67,8 @@ fn channel_source_big() -> Result<()> {
     connect!(fg, cs > snk);
 
     let rt = Runtime::new();
-    let fg = block_on(async move {
-        let running = rt.start(fg).await?;
+    let running = rt.start_sync(fg)?;
+    let fg = Runtime::block_on(async move {
         tx.send(vec![0; 99999].into_boxed_slice()).await?;
         tx.send(vec![1; 88888].into_boxed_slice()).await?;
         drop(tx);

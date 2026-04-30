@@ -20,6 +20,7 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::Runtime;
 use crate::runtime::RuntimeHandle;
 use crate::runtime::config;
 
@@ -179,7 +180,7 @@ impl ControlPort {
                 }
             });
 
-            runtime.block_on(async move {
+            Runtime::block_on(async move {
                 let _ = rx_shutdown.await;
             });
         });

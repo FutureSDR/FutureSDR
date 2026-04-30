@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::async_io::Timer;
+use futuresdr::runtime::Timer;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
 use lora::build_lora_tx;
@@ -109,7 +109,7 @@ fn main() -> Result<()> {
     let rt = Runtime::new();
 
     let handle = rt.start_sync(fg)?.handle();
-    rt.block_on(async move {
+    Runtime::block_on(async move {
         let mut payload = vec![0u8; args.payload_len];
         loop {
             rand::rng().fill_bytes(payload.as_mut());

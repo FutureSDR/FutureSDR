@@ -2,7 +2,7 @@ use wgpu::run;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    async_io::block_on(run());
+    futuresdr::runtime::Runtime::block_on(run());
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::async_io::Timer;
-use futuresdr::async_io::block_on;
+use futuresdr::runtime::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
@@ -114,7 +113,7 @@ fn main() -> Result<()> {
         }
     });
 
-    block_on(running.wait())?;
+    Runtime::block_on(running.wait())?;
 
     Ok(())
 }

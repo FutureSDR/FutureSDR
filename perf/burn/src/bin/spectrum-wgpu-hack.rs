@@ -86,20 +86,18 @@ impl Fft {
 
     fn create_state() -> Result<WgpuState> {
         let instance = wgpu::Instance::default();
-        let adapter = futuresdr::async_io::block_on(
-            instance.request_adapter(&wgpu::RequestAdapterOptions::default()),
-        )
-        .expect("Failed to find an appropriate adapter");
+        let adapter =
+            Runtime::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect("Failed to find an appropriate adapter");
 
-        let (device, queue) =
-            futuresdr::async_io::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-                label: Some("perf-burn-spectrum-wgpu-hack"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                experimental_features: wgpu::ExperimentalFeatures::default(),
-                memory_hints: wgpu::MemoryHints::MemoryUsage,
-                trace: wgpu::Trace::Off,
-            }))?;
+        let (device, queue) = Runtime::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("perf-burn-spectrum-wgpu-hack"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            experimental_features: wgpu::ExperimentalFeatures::default(),
+            memory_hints: wgpu::MemoryHints::MemoryUsage,
+            trace: wgpu::Trace::Off,
+        }))?;
 
         let complex_items = (BATCH_SIZE * FFT_SIZE) as u64;
         let complex_bytes = complex_items * size_of::<[f32; 2]>() as u64;

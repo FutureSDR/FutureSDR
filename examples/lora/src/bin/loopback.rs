@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use clap::Parser;
 
-use futuresdr::async_io::Timer;
+use futuresdr::runtime::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::prelude::*;
 
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
     // ==============================================================
     let rt = Runtime::new();
     let handle = rt.start_sync(fg)?.handle();
-    rt.block_on(async move {
+    Runtime::block_on(async move {
         let mut counter: usize = 0;
         loop {
             let payload = format!("hello world! {counter:02}");

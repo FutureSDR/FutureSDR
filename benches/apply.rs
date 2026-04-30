@@ -5,11 +5,99 @@ use criterion::criterion_main;
 use futuresdr::runtime::mocker;
 use std::iter::repeat_with;
 
-use futuresdr::blocks::Apply;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;
+
+#[derive(Block)]
+pub struct Apply<F, A, B, IN = DefaultCpuReader<A>, OUT = DefaultCpuWriter<B>>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
+{
+    f: F,
+    #[input]
+    input: IN,
+    #[output]
+    output: OUT,
+}
+
+impl<F, A, B> Apply<F, A, B, DefaultCpuReader<A>, DefaultCpuWriter<B>>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: CpuSample,
+    B: CpuSample,
+{
+    /// Create [`Apply`] block with default stream buffers.
+    ///
+    /// ## Parameter
+    /// - `f`: Function to apply on each sample
+    pub fn new(f: F) -> Self {
+        Self::with_buffers(f)
+    }
+}
+
+impl<F, A, B, IN, OUT> Apply<F, A, B, IN, OUT>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + Sync + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
+{
+    /// Create [`Apply`] block with custom stream buffers.
+    ///
+    /// ## Parameter
+    /// - `f`: Function to apply on each sample
+    pub fn with_buffers(f: F) -> Self {
+        Self {
+            f,
+            input: IN::default(),
+            output: OUT::default(),
+        }
+    }
+}
+
+#[doc(hidden)]
+impl<F, A, B, IN, OUT> Kernel for Apply<F, A, B, IN, OUT>
+where
+    F: FnMut(&A) -> B + Send + 'static,
+    A: Send + 'static,
+    B: Send + 'static,
+    IN: CpuBufferReader<Item = A>,
+    OUT: CpuBufferWriter<Item = B>,
+{
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        let i = self.input.slice();
+        let o = self.output.slice();
+        let i_len = i.len();
+
+        let m = std::cmp::min(i_len, o.len());
+        if m > 0 {
+            for (v, r) in i.iter().zip(o.iter_mut()) {
+                *r = (self.f)(v);
+            }
+
+            self.input.consume(m);
+            self.output.produce(m);
+        }
+
+        if self.input.finished() && m == i_len {
+            io.finished = true;
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Block)]
 struct Add {

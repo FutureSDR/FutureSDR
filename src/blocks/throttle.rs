@@ -1,3 +1,4 @@
+use crate::runtime::Timer;
 use crate::runtime::dev::prelude::*;
 use web_time::Instant;
 
@@ -89,10 +90,7 @@ where
         }
 
         io.block_on(async {
-            #[cfg(target_arch = "wasm32")]
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            #[cfg(not(target_arch = "wasm32"))]
-            async_io::Timer::after(std::time::Duration::from_millis(100)).await;
+            Timer::after(std::time::Duration::from_millis(100)).await;
         });
 
         Ok(())

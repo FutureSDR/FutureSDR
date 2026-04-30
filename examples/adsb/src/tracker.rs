@@ -1,4 +1,4 @@
-use futuresdr::async_io::Timer;
+use futuresdr::runtime::Timer;
 use futuresdr::runtime::dev::prelude::*;
 use std::cmp::Ordering;
 use std::time::Duration;

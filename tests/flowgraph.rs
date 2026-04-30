@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::async_io::block_on;
 use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -108,8 +107,8 @@ fn fg_terminate() -> Result<()> {
 
     let rt = Runtime::new();
     let running = rt.start_sync(fg)?;
-    block_on(async move {
-        futuresdr::async_io::Timer::after(std::time::Duration::from_secs(1)).await;
+    Runtime::block_on(async move {
+        Timer::after(std::time::Duration::from_secs(1)).await;
         running.stop().await.unwrap();
         let _ = running.wait().await;
     });
@@ -123,12 +122,14 @@ fn fg_handle_survives_runtime_and_task_drop() -> Result<()> {
     let terminated = Arc::new(AtomicBool::new(false));
     let blk = fg.add(StopOnMessage::new(terminated.clone()));
 
-    let running = Runtime::new().start_sync(fg)?;
+    let runtime = Runtime::new();
+    let running = runtime.start_sync(fg)?;
     let (task, handle) = running.split();
 
     drop(task);
+    drop(runtime);
 
-    block_on(async move {
+    Runtime::block_on(async move {
         handle.post(blk, "in", Pmt::Null).await?;
 
         let deadline = Instant::now() + Duration::from_secs(1);
@@ -141,7 +142,7 @@ fn fg_handle_survives_runtime_and_task_drop() -> Result<()> {
                 Instant::now() < deadline,
                 "flowgraph did not terminate within 1 second"
             );
-            futuresdr::async_io::Timer::after(Duration::from_millis(10)).await;
+            Timer::after(Duration::from_millis(10)).await;
         }
     })
 }
@@ -218,7 +219,7 @@ fn flowgraph_instance_name() -> Result<()> {
     fg.block_mut(&snk)?.set_instance_name(name);
     let fg = rt.start_sync(fg)?.handle();
 
-    let desc = rt.block_on(async move { fg.describe().await })?;
+    let desc = Runtime::block_on(async move { fg.describe().await })?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);
     Ok(())
 }

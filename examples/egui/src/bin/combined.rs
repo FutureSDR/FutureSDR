@@ -1,5 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use anyhow::Result;
 use eframe::egui;
 use eframe::egui::mutex::Mutex;
 use eframe::egui::widgets::SliderClamping;
@@ -85,7 +84,7 @@ impl MyApp {
             let rt = Runtime::new();
             let handle = rt.start_sync(fg)?.handle();
 
-            let _ = futuresdr::async_io::block_on(process_gui_actions(rx, handle, src_id));
+            let _ = Runtime::block_on(process_gui_actions(rx, handle, src_id));
 
             Ok(())
         });

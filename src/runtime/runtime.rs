@@ -1,5 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use async_io::block_on;
 use async_lock::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use axum::Router;
@@ -67,6 +65,11 @@ impl Runtime<SmolScheduler> {
         Self::with_custom_routes(Router::new())
     }
 
+    /// Block the current thread until a future completes.
+    pub fn block_on<T>(future: impl Future<Output = T>) -> T {
+        async_io::block_on(future)
+    }
+
     /// Construct a runtime with additional routes for the integrated webserver.
     pub fn with_custom_routes(routes: Router) -> Self {
         runtime::init();
@@ -128,15 +131,6 @@ impl<S: Scheduler> Runtime<S> {
         future: impl Future<Output = T> + MaybeSend + 'static,
     ) -> Task<T> {
         self.scheduler.spawn(future)
-    }
-
-    /// Block the current thread until a future spawned on the runtime completes.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn block_on<T: MaybeSend + 'static>(
-        &self,
-        future: impl Future<Output = T> + MaybeSend + 'static,
-    ) -> T {
-        block_on(self.scheduler.spawn(future))
     }
 
     /// Spawn an async task and detach its handle.
@@ -202,14 +196,14 @@ impl<S: Scheduler> Runtime<S> {
     /// Blocks until the flowgraph is initialized and running.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn start_sync(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
-        block_on(self.start(fg))
+        async_io::block_on(self.start(fg))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let running = block_on(self.start(fg))?;
-        block_on(running.wait())
+        let running = async_io::block_on(self.start(fg))?;
+        async_io::block_on(running.wait())
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
@@ -220,11 +214,6 @@ impl<S: Scheduler> Runtime<S> {
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].
     pub fn scheduler(&self) -> &S {
         &self.scheduler
-    }
-
-    /// Clone the [`Scheduler`] that is associated with the [`Runtime`].
-    pub fn scheduler_clone(&self) -> S {
-        self.scheduler.clone()
     }
 }
 

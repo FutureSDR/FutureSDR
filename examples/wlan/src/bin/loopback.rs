@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futuresdr::async_io::Timer;
+use futuresdr::runtime::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::blocks::Combine;
@@ -124,7 +124,7 @@ fn main() -> Result<()> {
         }
     });
 
-    rt.block_on(async move {
+    Runtime::block_on(async move {
         while let Some(x) = rx_frame.recv().await {
             match x {
                 Pmt::Blob(data) => {

@@ -1,14 +1,14 @@
 //! Build, run, and control SDR flowgraphs.
 //!
 //! This module contains the user-facing runtime APIs for:
-//! - constructing [`Flowgraph`](crate::runtime::Flowgraph)s
-//! - starting them on a [`Runtime`](crate::runtime::Runtime)
+//! - constructing [`Flowgraph`]s
+//! - starting them on a [`Runtime`]
 //! - interacting with running graphs through
-//!   [`RunningFlowgraph`](crate::runtime::RunningFlowgraph) and handles
+//!   [`RunningFlowgraph`]() and handles
 //! - inspecting finished graphs
 //!
 //! For custom blocks and runtime extensions, see
-//! [`dev`](crate::runtime::dev).
+//! [`dev`].
 use futuresdr_types::PmtConversionError;
 use std::fmt;
 use std::fmt::Display;
@@ -61,6 +61,7 @@ mod runtime;
 /// Advanced scheduler APIs for implementing custom executors.
 pub mod scheduler;
 mod tag;
+mod timer;
 mod work_io;
 mod wrapped_kernel;
 
@@ -82,6 +83,7 @@ pub use flowgraph_task::FlowgraphTask;
 pub use running_flowgraph::RunningFlowgraph;
 pub use runtime::Runtime;
 pub use runtime::RuntimeHandle;
+pub use timer::Timer;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;

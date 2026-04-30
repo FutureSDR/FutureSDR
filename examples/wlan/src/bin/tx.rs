@@ -1,5 +1,5 @@
 use clap::Parser;
-use futuresdr::async_io::Timer;
+use futuresdr::runtime::Timer;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::seify::Builder;
@@ -71,7 +71,7 @@ fn main() -> Result<()> {
     let handle = rt.start_sync(fg)?.handle();
 
     let mut seq = 0u64;
-    rt.block_on(async move {
+    Runtime::block_on(async move {
         loop {
             Timer::after(Duration::from_secs_f32(0.1)).await;
             handle

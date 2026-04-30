@@ -50,8 +50,6 @@ pub extern crate tracing;
 
 // re-exports
 #[cfg(not(target_arch = "wasm32"))]
-pub use async_io;
-#[cfg(not(target_arch = "wasm32"))]
 pub use async_net;
 pub use futuredsp;
 pub use futures;
@@ -64,9 +62,6 @@ pub use seify;
 
 /// Library of common blocks that are not tied to a specific technology.
 pub mod blocks;
-/// Runtime APIs for constructing, running, and controlling flowgraphs.
-///
-/// For custom block implementations and runtime extension APIs, see [`runtime::dev`].
 pub mod runtime;
 
 /// Prelude for building and controlling flowgraphs.
@@ -90,6 +85,7 @@ pub mod prelude {
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::RunningFlowgraph;
     pub use futuresdr::runtime::Runtime;
+    pub use futuresdr::runtime::Timer;
     pub use futuresdr::runtime::channel::mpsc;
     pub use futuresdr::runtime::macros::connect;
     pub use futuresdr::tracing::debug;

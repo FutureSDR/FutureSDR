@@ -36,13 +36,19 @@ impl AsyncTest {
 }
 
 impl Kernel for AsyncTest {
-    fn work(
+    async fn work(
         &mut self,
-        io: &mut WorkIo,
-        mo: &mut MessageOutputs,
-        b: &mut BlockMeta,
-    ) -> impl std::future::Future<Output = Result<()>> {
-        std::future::ready(black_box(self.sync_work(io, mo, b)))
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _b: &mut BlockMeta,
+    ) -> Result<()> {
+        let i_len = self.input.slice().len();
+        let o_len = self.output.slice().len();
+
+        self.input.consume(i_len);
+        self.output.produce(o_len);
+
+        Ok(())
     }
 }
 

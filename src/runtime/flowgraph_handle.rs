@@ -10,6 +10,7 @@ use futuresdr::runtime::FlowgraphDescription;
 use futuresdr::runtime::FlowgraphMessage;
 use futuresdr::runtime::Pmt;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::Timer;
 
 /// Clonable control handle for a running [`crate::runtime::Flowgraph`].
 ///
@@ -141,10 +142,7 @@ impl FlowgraphHandle {
     pub async fn stop_and_wait(&self) -> Result<(), Error> {
         self.stop().await.map_err(|_| Error::FlowgraphTerminated)?;
         while !self.inbox.is_closed() {
-            #[cfg(not(target_arch = "wasm32"))]
-            async_io::Timer::after(std::time::Duration::from_millis(200)).await;
-            #[cfg(target_arch = "wasm32")]
-            gloo_timers::future::sleep(std::time::Duration::from_millis(200)).await;
+            Timer::after(std::time::Duration::from_millis(200)).await;
         }
         Ok(())
     }

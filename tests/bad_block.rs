@@ -1,6 +1,5 @@
 use anyhow::Result;
 use anyhow::bail;
-use futuresdr::async_io::block_on;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
@@ -110,9 +109,9 @@ fn run_badblock(bb: BadBlock<f32>, mode: RunMode) -> Result<Option<Error>> {
         RunMode::Terminate => {
             let rt = Runtime::new();
             let running = rt.start_sync(fg)?;
-            block_on(async move {
+            Runtime::block_on(async move {
                 // Sleep to allow work to be called at least once
-                futuresdr::async_io::Timer::after(std::time::Duration::from_millis(1)).await;
+                Timer::after(std::time::Duration::from_millis(1)).await;
                 let _ = running.stop().await;
                 running.wait().await
             })

@@ -1097,7 +1097,7 @@ fn main() -> Result<()> {
     let args = Args::parse()?;
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
-    let instance = futuresdr::async_io::block_on(wgpu_buffer::Instance::new());
+    let instance = Runtime::block_on(wgpu_buffer::Instance::new());
 
     let src = NullSource::<Complex32>::new();
     let mut head =

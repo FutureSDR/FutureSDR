@@ -6,6 +6,7 @@ use seify::RxStreamer;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
+use crate::runtime::Timer;
 use crate::runtime::dev::prelude::*;
 
 /// Seify source block.
@@ -99,7 +100,7 @@ where
         match &p {
             Pmt::Ok => {
                 // allow some time for the RX streamer to receive any samples sent right before the sink terminated
-                async_io::Timer::after(Duration::from_secs_f32(0.5)).await;
+                Timer::after(Duration::from_secs_f32(0.5)).await;
                 io.finished = true
             }
             _ => return Ok(Pmt::InvalidValue),

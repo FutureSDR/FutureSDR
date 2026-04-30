@@ -1,4 +1,3 @@
-use anyhow::Result;
 use futuresdr::blocks::SignalSourceBuilder;
 use futuresdr::blocks::audio::AudioSink;
 use futuresdr::prelude::*;

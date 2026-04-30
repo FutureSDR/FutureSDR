@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use crate::blocks::seify::Config;
 use crate::num_complex::Complex32;
+use crate::runtime::Timer;
 use crate::runtime::dev::prelude::*;
 
 /// Seify sink block.
@@ -272,7 +273,7 @@ where
                     .map(|c| self.dev.sample_rate(Tx, *c).unwrap())
                     .fold(f64::INFINITY, |a, b| a.min(b)) as f32;
             let termination_delay = consumed as f32 / smallest_sample_rate;
-            async_io::Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
+            Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
             // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup
             mo.post("terminate_out", Pmt::Ok).await?;
         }

@@ -120,12 +120,12 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
 
     /// Run the block wrapped by the mocker
     pub fn run(&mut self) {
-        crate::async_io::block_on(self.run_async());
+        async_io::block_on(self.run_async());
     }
 
     /// Init the block wrapped by the mocker
     pub fn init(&mut self) {
-        crate::async_io::block_on(async {
+        async_io::block_on(async {
             self.block
                 .kernel
                 .init(&mut self.block.mo, &mut self.block.meta)
@@ -136,7 +136,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
 
     /// Deinit the block wrapped by the mocker
     pub fn deinit(&mut self) {
-        crate::async_io::block_on(async {
+        async_io::block_on(async {
             self.block
                 .kernel
                 .deinit(&mut self.block.mo, &mut self.block.meta)

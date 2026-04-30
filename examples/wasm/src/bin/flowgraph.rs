@@ -1,6 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> anyhow::Result<()> {
-    futuresdr::async_io::block_on(wasm::run())
+    futuresdr::runtime::Runtime::block_on(wasm::run())
 }
 
 #[cfg(target_arch = "wasm32")]
