@@ -86,7 +86,8 @@ let snk = fg.add(VectorSink::<u32>::new(4));
 fg.stream_dyn(src, "output", snk, "input")?;
 
 let msg_source = fg.add(
-    MessageSourceBuilder::new(Pmt::String("foo".to_string()), Duration::from_millis(100))
+    MessageSourceBuilder::new(Pmt::String("foo".to_string()),
+            Duration::from_millis(100))
         .n_messages(20)
         .build(),
 );
@@ -153,7 +154,6 @@ let mut fg = Flowgraph::new();
 
 // `my_seify_source` is a source or sink block with a `freq` message input.
 let radio = fg.add(my_seify_source);
-let radio_id: BlockId = radio.into();
 
 let rt = Runtime::new();
 let running = rt.start(fg)?;
@@ -161,11 +161,9 @@ let running = rt.start(fg)?;
 Runtime::block_on(async move {
     let frequencies = [100.0e6, 101.0e6, 102.0e6];
 
-    loop {
-        for freq in frequencies {
-            running.post(radio_id, "freq", Pmt::F64(freq)).await?;
-            Timer::after(Duration::from_secs(1)).await;
-        }
+    for freq in frequencies.iter().cycle() {
+        running.post(radio, "freq", Pmt::F64(*freq)).await?;
+        Timer::after(Duration::from_secs(1)).await;
     }
 })?;
 ```
