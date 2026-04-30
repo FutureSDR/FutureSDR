@@ -50,17 +50,16 @@ Both methods return a [`RunningFlowgraph`](https://docs.rs/futuresdr/latest/futu
 
 ```rust
 let running = rt.start(fg)?;
-let handle = running.handle();
 
 Runtime::block_on(async move {
-    handle.post(block_id, "in", Pmt::U32(42)).await?;
+    running.post(block_id, "handler_name", Pmt::U32(42)).await?;
 
     let fg = running.wait().await?;
-    Ok::<_, futuresdr::runtime::Error>(fg)
+    Ok::<_, Error>(fg)
 })?;
 ```
 
-Use `running.handle()` when you need to keep a clonable control handle, `running.wait().await` to wait for termination and recover the finished flowgraph, and `running.stop_and_wait().await` to request shutdown and then recover the finished flowgraph. If you need to pass the two parts around separately, `running.split()` returns the `FlowgraphTask` and `FlowgraphHandle`.
+Use `running.post()` and `running.call()` to interact with blocks, `running.wait().await` to wait for termination and recover the finished flowgraph, and `running.stop_and_wait().await` to request shutdown and then recover the finished flowgraph. Use `running.handle()` when you need to keep a clonable control handle. If you need to pass the two parts around separately, `running.split()` returns the `FlowgraphTask` and `FlowgraphHandle`.
 
 ## Selecting a Scheduler
 
@@ -86,11 +85,12 @@ Runtime::block_on(async move {
     let mut fg = Flowgraph::new();
     // set up the flowgraph
 
-    let flowgraph_handle = runtime_handle.start(fg).await?;
+    let running = runtime_handle.start(fg).await?;
+    let flowgraph_handle = running.handle();
     let description = flowgraph_handle.describe().await?;
 
     Ok::<_, futuresdr::runtime::Error>(())
 })?;
 ```
 
-`RuntimeHandle::start()` returns a `FlowgraphHandle`. Unlike `Runtime::start()`, it does not return a `RunningFlowgraph`; the flowgraph task is detached, so this API is for control-plane use rather than waiting for the finished `Flowgraph`.
+`RuntimeHandle::start()` returns a `RunningFlowgraph`. It also registers the flowgraph with the runtime control plane, so it remains available through `get_flowgraph()` and the control port.

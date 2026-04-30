@@ -275,30 +275,30 @@ impl<S: Scheduler> Runtime<S> {
 
 #[async_trait]
 trait Spawn {
-    async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error>;
+    async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error>;
 }
 
 #[async_trait]
 impl<S: SpawnBound> Spawn for S {
-    async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
+    async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
         let (tx, rx) = oneshot::channel::<Result<(), Error>>();
-        self.spawn(run_flowgraph(
+        let task = self.spawn(run_flowgraph(
             fg,
             self.clone(),
             fg_inbox.clone(),
             fg_inbox_rx,
             tx,
-        ))
-        .detach();
+        ));
 
         rx.await.or(Err(Error::RuntimeError(
             "run_flowgraph crashed".to_string(),
         )))??;
 
-        Ok(FlowgraphHandle::new(fg_inbox))
+        let handle = FlowgraphHandle::new(fg_inbox);
+        Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
     }
 }
 
@@ -329,10 +329,10 @@ impl PartialEq for RuntimeHandle {
 
 impl RuntimeHandle {
     /// Start a [`Flowgraph`] on the runtime.
-    pub async fn start(&self, fg: Flowgraph) -> Result<FlowgraphHandle, Error> {
-        let handle = self.scheduler.start(fg).await?;
-        self.add_flowgraph(handle.clone()).await;
-        Ok(handle)
+    pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
+        let running = self.scheduler.start(fg).await?;
+        self.add_flowgraph(running.handle()).await;
+        Ok(running)
     }
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers.
