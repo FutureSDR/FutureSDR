@@ -1,4 +1,4 @@
-# Stream Port Design
+# Stream Buffers
 
 FutureSDR stream ports currently live as typed fields on blocks. For example, a
 CPU processing block usually has an input field implementing `CpuBufferReader`
@@ -178,3 +178,5 @@ This keeps the important properties of the current design:
 This does not make buffers purely edge-owned, but it addresses the main source
 of ugliness without giving up the performance and extensibility properties that
 the current design provides.
+
+
