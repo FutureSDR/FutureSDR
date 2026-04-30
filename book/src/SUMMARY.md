@@ -15,10 +15,7 @@
 - [Block](block.md)
 - [Stream Buffers](stream_buffers.md)
 - [Logging](logging.md)
-- [Android](android.md)
-- [WebAssembly](wasm.md)
-- [Web UI](web_ui.md)
-- [Seify](seify.md)
+- [Misc](misc.md)
 - [Mocker](mocker.md)
 - [Performance Measurement](performance_measurement.md) 
 
