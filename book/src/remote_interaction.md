@@ -140,6 +140,50 @@ The control port interface is associated with the runtime. By default, it comes 
 - **GET /api/fg/0/block/0/call/freq**: Call message handler `freq` of the block with `Pmt::Null` as argument.
 - **POST /api/fg/0/block/0/call/freq**: Call message handler `freq` with JSON-serialized `Pmt` as input.
 
+### Example: Frequency Hopping
+
+The following Python script uses the REST API to find the first block in
+flowgraph `0` whose type or instance name contains `seify`, then repeatedly
+calls its `freq` message handler with a list of frequencies.
+
+It requires the Python `requests` package:
+
+```python
+#!/usr/bin/env python3
+
+import itertools
+import requests
+import time
+
+
+BASE_URL = "http://127.0.0.1:1337"
+FREQUENCIES = [
+    100.0e6,
+    101.0e6,
+    102.0e6,
+]
+DWELL_TIME = 1.0
+
+
+description = requests.get(f"{BASE_URL}/api/fg/0/").json()
+
+seify_block = next(
+    block
+    for block in description["blocks"]
+    if "seify" in block["type_name"].lower()
+    or "seify" in block["instance_name"].lower()
+)
+
+freq_url = f"{BASE_URL}/api/fg/0/block/{seify_block['id']}/call/freq/"
+
+for freq in itertools.cycle(FREQUENCIES):
+    # Pmt::F64(freq), serialized as JSON.
+    requests.post(freq_url, json={"F64": freq})
+    print(f"set frequency to {freq / 1e6:.3f} MHz")
+    time.sleep(DWELL_TIME)
+```
+
+
 ## Web UI
 
 FutureSDR comes with a minimal, work-in-progress web UI, implemented in the *prophecy* crate.
@@ -154,5 +198,3 @@ Using the REST API, it is straightforward to build custom UIs.
 - A web UI served through FutureSDR control port (see the WLAN and ADS-B examples)
 - A UI using arbitrary technology (GTK, Qt, etc.) running as a separate process
   (see the Egui example)
-
-

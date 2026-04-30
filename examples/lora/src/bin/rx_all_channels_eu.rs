@@ -115,10 +115,7 @@ fn main() -> Result<()> {
         if n_chan.is_none() {
             let null_sink_extra_channel = fg.add(NullSink::<Complex32>::new());
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
-            fg.connect_dyn(
-                channelizer.stream_output(format!("out{n_out}")),
-                null_sink_extra_channel.stream_input("in"),
-            )?;
+            fg.stream_dyn(channelizer, format!("out{n_out}"), null_sink_extra_channel, "in")?;
             println!("connecting channel {n_out} to NullSink");
             continue;
         }
@@ -139,10 +136,7 @@ fn main() -> Result<()> {
         .map(|x| x as f32)
         .collect();
         let resampler = fg.add(PfbArbResampler::new(2.5, &resampler_taps, 5));
-        fg.connect_dyn(
-            channelizer.stream_output(format!("out{n_out}")),
-            resampler.stream_input("in"),
-        )?;
+        fg.stream_dyn(channelizer, format!("out{n_out}"), resampler, "in")?;
         let channel = CHANNELS[n_chan];
         println!(
             "connecting {:.1}MHz chain to channel {}",

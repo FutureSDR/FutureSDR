@@ -52,22 +52,22 @@ fn main() -> Result<()> {
     for _ in 0..pipes {
         let src = fg.add(LttngSource::<f32>::new(GRANULARITY));
         let head = fg.add(Head::<f32>::new(samples));
-        fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
+        fg.stream_dyn(src, "output", head, "input")?;
 
         let copy = fg.add(CopyRand::<f32>::new(max_copy));
         let mut last = fg.add(FirBuilder::fir::<f32, f32, _>(taps.to_owned()));
-        fg.connect_dyn(head.stream_output("output"), copy.stream_input("input"))?;
-        fg.connect_dyn(copy.stream_output("output"), last.stream_input("input"))?;
+        fg.stream_dyn(head, "output", copy, "input")?;
+        fg.stream_dyn(copy, "output", last, "input")?;
 
         for _ in 1..stages {
             let copy = fg.add(CopyRand::<f32>::new(max_copy));
-            fg.connect_dyn(last.stream_output("output"), copy.stream_input("input"))?;
+            fg.stream_dyn(last, "output", copy, "input")?;
             last = fg.add(FirBuilder::fir::<f32, f32, _>(taps.to_owned()));
-            fg.connect_dyn(copy.stream_output("output"), last.stream_input("input"))?;
+            fg.stream_dyn(copy, "output", last, "input")?;
         }
 
         let snk = fg.add(LttngSink::<f32>::new(GRANULARITY));
-        fg.connect_dyn(last.stream_output("output"), snk.stream_input("input"))?;
+        fg.stream_dyn(last, "output", snk, "input")?;
         snks.push(snk);
     }
 

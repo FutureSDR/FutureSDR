@@ -55,8 +55,8 @@ fn main() -> Result<()> {
     };
     let snk = fg.add(VectorSink::<u32, D2HReader<u32>>::new(items));
 
-    fg.connect_dyn(src.stream_output("output"), zynq.stream_input("input"))?;
-    fg.connect_dyn(zynq.stream_output("output"), snk.stream_input("input"))?;
+    fg.stream_dyn(src, "output", zynq, "input")?;
+    fg.stream_dyn(zynq, "output", snk, "input")?;
 
     let now = Instant::now();
     let fg = Runtime::new().run(fg)?;

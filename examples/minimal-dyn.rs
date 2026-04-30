@@ -13,12 +13,11 @@ fn main() -> Result<()> {
 
     // type erasure for src
     let src = fg.add(src);
-    let src: BlockId = src.into();
 
     let head = fg.add(head);
 
     // untyped connect
-    fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
+    fg.stream_dyn(src, "output", head, "input")?;
     // typed connect
     connect!(fg, head > snk);
 

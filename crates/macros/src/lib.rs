@@ -192,8 +192,10 @@ pub fn connect(input: TokenStream) -> TokenStream {
                     let dest_block = &dst.block;
                     quote! {
                         #fg.message(
-                            #src_block.message_output(#src_port),
-                            #dest_block.message_input(#dst_port),
+                            #src_block,
+                            #src_port,
+                            #dest_block,
+                            #dst_port,
                         )?;
                     }
                 }

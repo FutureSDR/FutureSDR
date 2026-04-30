@@ -10,6 +10,7 @@ struct MyConfig {
     c: usize,
 }
 
+#[allow(dead_code)]
 fn c() -> usize {
     42
 }

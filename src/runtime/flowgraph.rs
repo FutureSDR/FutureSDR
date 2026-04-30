@@ -19,7 +19,6 @@ use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::wrapped_kernel::WrappedKernel;
-use futuresdr_types::BlockPortId;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -148,26 +147,6 @@ impl<K: Kernel + 'static> BlockRef<K> {
     pub fn with_mut<R>(&self, fg: &mut Flowgraph, f: impl FnOnce(&mut K) -> R) -> Result<R, Error> {
         let mut block = fg.block_mut(self)?;
         Ok(f(&mut block))
-    }
-
-    /// Get a type-erased stream input endpoint on this block.
-    pub fn stream_input(&self, port: impl Into<PortId>) -> BlockPortId {
-        self.id.stream_input(port)
-    }
-
-    /// Get a type-erased stream output endpoint on this block.
-    pub fn stream_output(&self, port: impl Into<PortId>) -> BlockPortId {
-        self.id.stream_output(port)
-    }
-
-    /// Get a type-erased message input endpoint on this block.
-    pub fn message_input(&self, port: impl Into<PortId>) -> BlockPortId {
-        self.id.message_input(port)
-    }
-
-    /// Get a type-erased message output endpoint on this block.
-    pub fn message_output(&self, port: impl Into<PortId>) -> BlockPortId {
-        self.id.message_output(port)
     }
 }
 impl<K: Kernel> Copy for BlockRef<K> {}
@@ -511,12 +490,12 @@ impl Flowgraph {
         Ok(())
     }
 
-    /// Connect stream ports non-type-safe
+    /// Connect stream ports without static port type checks.
     ///
     /// This function only does runtime checks. If the stream ports exist and have compatible
-    /// types and sample types, will only be checked during runtime.
+    /// types and sample types, that will only be checked during runtime.
     ///
-    /// If possible, it is, therefore, recommneded to use the typed API
+    /// If possible, it is, therefore, recommended to use the typed API
     /// ([Flowgraph::stream]).
     ///
     /// This function can be helpful when using types is not practical. For example, when a runtime
@@ -537,14 +516,11 @@ impl Flowgraph {
     ///     let head = Head::<u8>::new(1234);
     ///     let snk = NullSink::<u8>::new();
     ///
-    ///     // type erasure for src
     ///     let src = fg.add(src);
-    ///     let src: BlockId = src.into();
-    ///
     ///     let head = fg.add(head);
     ///
-    ///     // untyped connect
-    ///     fg.connect_dyn(src.stream_output("output"), head.stream_input("input"))?;
+    ///     // untyped stream connect
+    ///     fg.stream_dyn(src, "output", head, "input")?;
     ///     // typed connect
     ///     connect!(fg, head > snk);
     ///
@@ -552,19 +528,30 @@ impl Flowgraph {
     ///     Ok(())
     /// }
     /// ```
-    pub fn connect_dyn(&mut self, src: BlockPortId, dst: BlockPortId) -> Result<(), Error> {
-        if src.block_id() == dst.block_id() {
+    pub fn stream_dyn(
+        &mut self,
+        src_block_id: impl Into<BlockId>,
+        src_port_id: impl Into<PortId>,
+        dst_block_id: impl Into<BlockId>,
+        dst_port_id: impl Into<PortId>,
+    ) -> Result<(), Error> {
+        let src_block_id = src_block_id.into();
+        let src_port_id = src_port_id.into();
+        let dst_block_id = dst_block_id.into();
+        let dst_port_id = dst_port_id.into();
+
+        if src_block_id == dst_block_id {
             return Err(Error::LockError);
         }
         let len = self.blocks.len();
-        let invalid_block = if src.block_id().0 >= len {
-            src.block_id()
+        let invalid_block = if src_block_id.0 >= len {
+            src_block_id
         } else {
-            dst.block_id()
+            dst_block_id
         };
         let [src_slot, dst_slot] = self
             .blocks
-            .get_disjoint_mut([src.block_id().0, dst.block_id().0])
+            .get_disjoint_mut([src_block_id.0, dst_block_id.0])
             .map_err(|err| match err {
                 std::slice::GetDisjointMutError::IndexOutOfBounds => {
                     Error::InvalidBlock(invalid_block)
@@ -573,51 +560,54 @@ impl Flowgraph {
             })?;
         let src_block = src_slot.as_deref_mut().ok_or(Error::LockError)?;
         let dst_block = dst_slot.as_deref_mut().ok_or(Error::LockError)?;
-        let reader = dst_block.stream_input(dst.port_id()).map_err(|e| match e {
+        let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst.block_id()), port)
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
             }
             o => o,
         })?;
 
         src_block
-            .connect_stream_output(src.port_id(), reader)
+            .connect_stream_output(&src_port_id, reader)
             .map_err(|e| match e {
                 Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src.block_id()), port)
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
                 }
                 o => o,
             })?;
 
-        self.stream_edges.push((
-            src.block_id(),
-            src.port_id().clone(),
-            dst.block_id(),
-            dst.port_id().clone(),
-        ));
+        self.stream_edges
+            .push((src_block_id, src_port_id, dst_block_id, dst_port_id));
         Ok(())
     }
 
     /// Make message connection
-    pub fn message(&mut self, src: BlockPortId, dst: BlockPortId) -> Result<(), Error> {
-        debug_assert_ne!(src.block_id(), dst.block_id());
+    pub fn message(
+        &mut self,
+        src_block_id: impl Into<BlockId>,
+        src_port_id: impl Into<PortId>,
+        dst_block_id: impl Into<BlockId>,
+        dst_port_id: impl Into<PortId>,
+    ) -> Result<(), Error> {
+        let src_block_id = src_block_id.into();
+        let src_port_id = src_port_id.into();
+        let dst_block_id = dst_block_id.into();
+        let dst_port_id = dst_port_id.into();
 
-        let dst_block = self.raw_block(dst.block_id())?;
-        if !dst_block.message_inputs().contains(&dst.port_id().name()) {
+        debug_assert_ne!(src_block_id, dst_block_id);
+
+        let dst_block = self.raw_block(dst_block_id)?;
+        if !dst_block.message_inputs().contains(&dst_port_id.name()) {
             return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(dst.block_id()),
-                dst.port_id().clone(),
+                BlockPortCtx::Id(dst_block_id),
+                dst_port_id.clone(),
             ));
         }
         let dst_box = dst_block.inbox();
-        let src_block = self.raw_block_mut(src.block_id())?;
-        src_block.connect(src.port_id(), dst_box, dst.port_id())?;
-        self.message_edges.push((
-            src.block_id(),
-            src.port_id().clone(),
-            dst.block_id(),
-            dst.port_id().clone(),
-        ));
+        let src_block = self.raw_block_mut(src_block_id)?;
+        src_block.connect(&src_port_id, dst_box, &dst_port_id)?;
+        self.message_edges
+            .push((src_block_id, src_port_id, dst_block_id, dst_port_id));
         Ok(())
     }
 

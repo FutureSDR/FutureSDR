@@ -92,10 +92,7 @@ fn main() -> Result<()> {
 
     let (src, output_name): (BlockId, &'static str) = if let Some(samples) = args.samples {
         let sample_counter: BlockId = fg.add(Head::<Complex<f32>>::new(samples)).into();
-        fg.connect_dyn(
-            src.stream_output(output_name),
-            sample_counter.stream_input("input"),
-        )?;
+        fg.stream_dyn(src, output_name, sample_counter, "input")?;
         (sample_counter, "output")
     } else {
         (src, output_name)
@@ -123,10 +120,7 @@ fn main() -> Result<()> {
         *i
     }));
 
-    fg.connect_dyn(
-        src.stream_output(output_name),
-        powermeter.stream_input("input"),
-    )?;
+    fg.stream_dyn(src, output_name, powermeter, "input")?;
 
     let format = args
         .format_out

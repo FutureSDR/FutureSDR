@@ -51,13 +51,13 @@ fn main() -> Result<()> {
 
             for _ in 2..=stages {
                 let block = fg.add(MessageCopy::new());
-                fg.message(prev.message_output("out"), block.message_input("in"))?;
+                fg.message(prev, "out", block, "in")?;
                 this_pipe.push(block.id());
                 prev = block;
             }
 
             let snk = fg.add(MessageSink::new());
-            fg.message(prev.message_output("out"), snk.message_input("in"))?;
+            fg.message(prev, "out", snk, "in")?;
             this_pipe.push(snk.id());
             snks.push(snk);
             pipe_blocks.push(this_pipe);

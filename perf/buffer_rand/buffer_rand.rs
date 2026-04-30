@@ -91,7 +91,7 @@ where
             .into();
         pipe_block_ids.push(last);
 
-        fg.connect_dyn(head.stream_output("output"), last.stream_input("input"))?;
+        fg.stream_dyn(head, "output", last, "input")?;
 
         for _ in 1..stages {
             let block: BlockId = fg
@@ -99,13 +99,13 @@ where
                     max_copy,
                 ))
                 .into();
-            fg.connect_dyn(last.stream_output("output"), block.stream_input("input"))?;
+            fg.stream_dyn(last, "output", block, "input")?;
             last = block;
             pipe_block_ids.push(last);
         }
 
         let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new());
-        fg.connect_dyn(last.stream_output("output"), snk.stream_input("input"))?;
+        fg.stream_dyn(last, "output", snk, "input")?;
         pipe_block_ids.push(snk.id());
         snks.push(snk);
         pipes_blocks.push(pipe_block_ids);
