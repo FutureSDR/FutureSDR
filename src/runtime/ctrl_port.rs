@@ -20,7 +20,6 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::Runtime;
 use crate::runtime::RuntimeHandle;
 use crate::runtime::config;
 
@@ -159,12 +158,17 @@ impl ControlPort {
                 }
             };
 
-            runtime.spawn(async move {
+            runtime.block_on(async move {
                 if let Ok(addr) = config::config().ctrlport_bind.parse::<SocketAddr>() {
                     match TcpListener::bind(&addr).await {
                         Ok(listener) => {
                             debug!("Listening on {}", addr);
-                            if let Err(e) = axum::serve(listener, app.into_make_service()).await {
+                            if let Err(e) = axum::serve(listener, app.into_make_service())
+                                .with_graceful_shutdown(async move {
+                                    let _ = rx_shutdown.await;
+                                })
+                                .await
+                            {
                                 warn!("axum server failed {e:?}");
                             }
                         }
@@ -178,10 +182,6 @@ impl ControlPort {
                         config::config().ctrlport_bind
                     );
                 }
-            });
-
-            Runtime::block_on(async move {
-                let _ = rx_shutdown.await;
             });
         });
 
