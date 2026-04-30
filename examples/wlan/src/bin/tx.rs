@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let handle = rt.start_sync(fg)?.handle();
+    let handle = rt.start(fg)?.handle();
 
     let mut seq = 0u64;
     Runtime::block_on(async move {

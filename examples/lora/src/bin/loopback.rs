@@ -101,7 +101,7 @@ fn main() -> Result<()> {
     // Send Frames
     // ==============================================================
     let rt = Runtime::new();
-    let handle = rt.start_sync(fg)?.handle();
+    let handle = rt.start(fg)?.handle();
     Runtime::block_on(async move {
         let mut counter: usize = 0;
         loop {

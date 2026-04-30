@@ -106,7 +106,7 @@ fn fg_terminate() -> Result<()> {
     connect!(fg, src > throttle > snk);
 
     let rt = Runtime::new();
-    let running = rt.start_sync(fg)?;
+    let running = rt.start(fg)?;
     Runtime::block_on(async move {
         Timer::after(std::time::Duration::from_secs(1)).await;
         running.stop().await.unwrap();
@@ -123,7 +123,7 @@ fn fg_handle_survives_runtime_and_task_drop() -> Result<()> {
     let blk = fg.add(StopOnMessage::new(terminated.clone()));
 
     let runtime = Runtime::new();
-    let running = runtime.start_sync(fg)?;
+    let running = runtime.start(fg)?;
     let (task, handle) = running.split();
 
     drop(task);
@@ -217,7 +217,7 @@ fn flowgraph_instance_name() -> Result<()> {
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
     fg.block_mut(&snk)?.set_instance_name(name);
-    let fg = rt.start_sync(fg)?.handle();
+    let fg = rt.start(fg)?.handle();
 
     let desc = Runtime::block_on(async move { fg.describe().await })?;
     assert_eq!(desc.blocks.first().unwrap().instance_name, name);

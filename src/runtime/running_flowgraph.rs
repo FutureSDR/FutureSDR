@@ -11,7 +11,8 @@ use crate::runtime::Result;
 
 /// A running [`Flowgraph`] together with its control handle and completion task.
 ///
-/// This value is returned by [`Runtime::start`](crate::runtime::Runtime::start).
+/// This value is returned by [`Runtime::start_async`](crate::runtime::Runtime::start_async)
+/// and by `Runtime::start` on native targets.
 /// It can be split into a [`FlowgraphHandle`] and [`FlowgraphTask`], or used
 /// directly to post messages, request descriptions, stop the flowgraph, and wait
 /// for its finished [`Flowgraph`].

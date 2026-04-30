@@ -39,7 +39,7 @@ fn main() -> Result<()> {
     connect!(fg, src > snk);
 
     let rt = Runtime::new();
-    let _running = rt.start_sync(fg)?;
+    let _running = rt.start(fg)?;
 
     // Keep asking user for a new frequency and a new sample rate
     loop {

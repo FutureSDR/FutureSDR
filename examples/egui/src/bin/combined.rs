@@ -82,7 +82,7 @@ impl MyApp {
             let src_id = src.id();
 
             let rt = Runtime::new();
-            let handle = rt.start_sync(fg)?.handle();
+            let handle = rt.start(fg)?.handle();
 
             let _ = Runtime::block_on(process_gui_actions(rx, handle, src_id));
 

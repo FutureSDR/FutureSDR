@@ -68,7 +68,7 @@ fn builder_config() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    rt.start_sync(fg)?;
+    rt.start(fg)?;
 
     assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
     assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 100e6);
@@ -93,7 +93,7 @@ fn config_freq_gain_ports() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let fg_handle = rt.start_sync(fg)?.handle();
+    let fg_handle = rt.start(fg)?.handle();
 
     // Freq
     let ret = Runtime::block_on(fg_handle.call(src, "freq", Pmt::F64(102e6)))?;
@@ -129,7 +129,7 @@ fn src_config_cmd_map() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let fg_handle = rt.start_sync(fg)?.handle();
+    let fg_handle = rt.start(fg)?.handle();
 
     let pmt = Pmt::MapStrPmt(HashMap::from([
         ("chan".to_owned(), Pmt::U32(0)),
@@ -174,7 +174,7 @@ fn sink_config_cmd_map() -> Result<()> {
     connect!(fg, src > inputs[0].snk);
 
     let rt = Runtime::new();
-    let fg_handle = rt.start_sync(fg)?.handle();
+    let fg_handle = rt.start(fg)?.handle();
 
     let pmt = Pmt::MapStrPmt(HashMap::from([
         ("freq".to_owned(), Pmt::F64(102e6)),
@@ -213,7 +213,7 @@ fn src_config_cmd_invalid_chan() -> Result<()> {
     connect!(fg, src.outputs[0] > snk);
 
     let rt = Runtime::new();
-    let fg_handle = rt.start_sync(fg)?.handle();
+    let fg_handle = rt.start(fg)?.handle();
 
     let pmt = Pmt::MapStrPmt(HashMap::from([
         ("chan".to_owned(), Pmt::U32(1)),

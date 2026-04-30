@@ -161,12 +161,12 @@ impl<S: Scheduler> Runtime<S> {
         self.scheduler.spawn_blocking(future).detach();
     }
 
-    /// Start a [`Flowgraph`] on the [`Runtime`].
+    /// Start a [`Flowgraph`] on the [`Runtime`] and await initialization.
     ///
     /// Returns once the flowgraph is initialized and running. The returned
     /// [`RunningFlowgraph`] can be used to send messages, stop the graph, or
     /// wait for completion.
-    pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
+    pub async fn start_async(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -195,20 +195,20 @@ impl<S: Scheduler> Runtime<S> {
     ///
     /// Blocks until the flowgraph is initialized and running.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn start_sync(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
-        async_io::block_on(self.start(fg))
+    pub fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
+        async_io::block_on(self.start_async(fg))
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        let running = async_io::block_on(self.start(fg))?;
+        let running = async_io::block_on(self.start_async(fg))?;
         async_io::block_on(running.wait())
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
-        self.start(fg).await?.wait().await
+        self.start_async(fg).await?.wait().await
     }
 
     /// Get the [`Scheduler`] that is associated with the [`Runtime`].

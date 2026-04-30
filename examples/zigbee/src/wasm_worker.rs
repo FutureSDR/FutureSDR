@@ -98,7 +98,7 @@ impl gloo_worker::Worker for Worker {
 
                         let rt = Runtime::new();
 
-                        let handle = rt.start(fg).await?.handle();
+                        let handle = rt.start_async(fg).await?.handle();
                         set_handler.send(handle).await.unwrap();
 
                         futuresdr::tracing::info!("waiting for frames");

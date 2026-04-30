@@ -459,7 +459,7 @@ async fn run(
     connect!(fg, src > fft > mag_sqr > keep > snk);
 
     let rt = Runtime::new();
-    let running = rt.start(fg).await?;
+    let running = rt.start_async(fg).await?;
     set_handle.set(Some(running.handle()));
 
     let _ = running.wait().await;

@@ -1,45 +1,66 @@
 # Runtime
 
-<!--toc:start-->
-- [Runtime](#runtime)
-  - [Running a Flowgraph](#running-a-flowgraph)
-  - [Starting a Flowgraph](#starting-a-flowgraph)
-  - [Selecting a Scheduler](#selecting-a-scheduler)
-  - [Runtime Handle](#runtime-handle)
-<!--toc:end-->
-
-A FutureSDR [Runtime](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.Runtime.html) has a [Scheduler](scheduler.md) associated with it and can run one or multiple [Flowgraphs](flowgraph.md).
+A FutureSDR [Runtime](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.Runtime.html) owns a [Scheduler](scheduler.md) and starts one or more [Flowgraphs](flowgraph.md). On native targets, the runtime can start an integrated web server to serve a web UI and expose the [control port](flowgraph_interaction.md#rest-api) interface (i.e., a REST API) to interface with the runtime and the flowgraphs.
 
 ## Running a Flowgraph
 
-In the simplest case, you can construct a runtime with the default scheduler (Smol), execute a flowgraph and wait for its completion.
+The simplest way to execute a flowgraph is to construct a runtime, pass the flowgraph to `run()`, and block until it terminates.
 
 ```rust
 let mut fg = Flowgraph::new();
 // set up the flowgraph
 
-Runtime::new().run(fg)?;
+let fg = Runtime::new().run(fg)?;
 ```
 
-The `run()` method takes ownership of the flowgraph and returns it after completion.
+The `run()` method is a blocking call that takes ownership of the flowgraph and returns the finished flowgraph after all blocks have terminated. This is useful when you need to inspect blocks after execution, for example to read data or statistics.
+
+In async code, use `run_async()` instead:
+
+```rust
+let mut fg = Flowgraph::new();
+// set up the flowgraph
+
+let fg = Runtime::new().run_async(fg).await?;
+```
 
 ## Starting a Flowgraph
 
-In most cases, you may want to start the flowgraph and continue instead of blocking and waiting for its completion, in which case one would use the `start` or `start_sync` methods.
-The former is for use in async contexts.
-
+Use `start_async()` when the application should keep doing other work while the flowgraph is running. It returns once all blocks have initialized.
 
 ```rust
 let mut fg = Flowgraph::new();
 // set up the flowgraph
 
 let rt = Runtime::new();
-let let (task_handle, flowgraph_handle) = rt.start_sync(fg)?;
+let running = rt.start_async(fg).await?;
 ```
 
-The `task_handle` can be used to await completion of the flowgraph and getting ownership back afterwards (similar to `run()`).
-The [`flowgraph_handle`](flowgraph.md#flowgraph-handle) can be used to interact with the
-flowgraph (e.g., query its structure or send PMTs to blocks).
+On native targets, `start()` provides the same behavior from synchronous code:
+
+```rust
+let mut fg = Flowgraph::new();
+// set up the flowgraph
+
+let rt = Runtime::new();
+let running = rt.start(fg)?;
+```
+
+Both methods return a [`RunningFlowgraph`](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.RunningFlowgraph.html). It combines the completion task with a [`FlowgraphHandle`](flowgraph.md#flowgraph-handle):
+
+```rust
+let running = rt.start(fg)?;
+let handle = running.handle();
+
+Runtime::block_on(async move {
+    handle.post(block_id, "in", Pmt::U32(42)).await?;
+
+    let fg = running.wait().await?;
+    Ok::<_, futuresdr::runtime::Error>(fg)
+})?;
+```
+
+Use `running.handle()` when you need to keep a clonable control handle, `running.wait().await` to wait for termination and recover the finished flowgraph, and `running.stop_and_wait().await` to request shutdown and then recover the finished flowgraph. If you need to pass the two parts around separately, `running.split()` returns the `FlowgraphTask` and `FlowgraphHandle`.
 
 ## Selecting a Scheduler
 
@@ -55,18 +76,21 @@ rt.run(fg)?;
 
 ## Runtime Handle
 
-It is possible to get a [RuntimeHandle](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.RuntimeHandle.html) to interact with the runtime from different contexts (e.g., other threads or closures).
-The runtime handle can be passed around easily, since it is cloneable and implements the [`Send`](https://doc.rust-lang.org/std/marker/trait.Send.html) trait.
-Using the handle, it is possible to launch flowgraphs or query the flowgraphs that are currently executed.
+A [RuntimeHandle](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.RuntimeHandle.html) is a clonable control handle for the runtime. It is useful when other tasks, threads, web handlers, or callbacks need to start flowgraphs or query the flowgraphs registered with the runtime control plane.
 
 ```rust
 let rt = Runtime::new();
-let handle = rt.handle();
+let runtime_handle = rt.handle();
 
-async_io::block_on(async move {
+Runtime::block_on(async move {
     let mut fg = Flowgraph::new();
     // set up the flowgraph
 
-    let _ = handle.start(fg).await;
-});
+    let flowgraph_handle = runtime_handle.start(fg).await?;
+    let description = flowgraph_handle.describe().await?;
+
+    Ok::<_, futuresdr::runtime::Error>(())
+})?;
 ```
+
+`RuntimeHandle::start()` returns a `FlowgraphHandle`. Unlike `Runtime::start()`, it does not return a `RunningFlowgraph`; the flowgraph task is detached, so this API is for control-plane use rather than waiting for the finished `Flowgraph`.

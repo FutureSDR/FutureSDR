@@ -93,7 +93,7 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let running = rt.start_sync(fg)?;
+    let running = rt.start(fg)?;
     let handle = running.handle();
 
     // send a message every 0.8 seconds

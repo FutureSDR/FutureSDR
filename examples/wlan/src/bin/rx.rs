@@ -114,7 +114,7 @@ fn main() -> Result<()> {
                  decoder.rx_frames | udp1;
                  decoder.rftap | udp2);
 
-    let _running = rt.start_sync(fg)?;
+    let _running = rt.start(fg)?;
     Runtime::block_on(async move {
         while let Some(x) = rx_frame.recv().await {
             match x {

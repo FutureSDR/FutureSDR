@@ -108,7 +108,7 @@ fn main() -> Result<()> {
 
     let rt = Runtime::new();
 
-    let handle = rt.start_sync(fg)?.handle();
+    let handle = rt.start(fg)?.handle();
     Runtime::block_on(async move {
         let mut payload = vec![0u8; args.payload_len];
         loop {

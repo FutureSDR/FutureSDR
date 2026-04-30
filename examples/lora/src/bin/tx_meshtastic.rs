@@ -76,7 +76,7 @@ fn main() -> Result<()> {
     let transmitter: BlockId = transmitter.into();
 
     let rt = Runtime::new();
-    let handle = rt.start_sync(fg)?.handle();
+    let handle = rt.start(fg)?.handle();
 
     let channel = MeshtasticChannel::new(&args.name, &args.key);
     loop {

@@ -63,7 +63,7 @@ fn main() -> Result<()> {
     let mac = mac.id();
 
     let rt = Runtime::new();
-    let running = rt.start_sync(fg)?;
+    let running = rt.start(fg)?;
     let handle = running.handle();
 
     let mut seq = 0u64;
