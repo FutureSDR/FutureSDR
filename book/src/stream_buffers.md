@@ -1,182 +1,164 @@
 # Stream Buffers
 
-FutureSDR stream ports currently live as typed fields on blocks. For example, a
-CPU processing block usually has an input field implementing `CpuBufferReader`
-and an output field implementing `CpuBufferWriter`. The fields are default
-constructed when the block is constructed, initialized when the block is added
-to a flowgraph, and connected when stream edges are created.
+Stream buffers move samples between connected stream ports. A source block writes into the writer side of a buffer, and the downstream block reads from the reader side.
 
-This design has a visible downside: buffer implementations have to represent an
-unconnected state even though the real endpoint only exists after connection.
-The circular buffer writer, for example, carries default block metadata and an
-optional underlying writer until it is connected. This is not aesthetically
-pleasing, and it mixes several responsibilities in one type:
+FutureSDR can be extended with arbitrary buffer implementations. At the lowest level, a buffer only has to provide a writer and reader pair implementing `BufferWriter` and `BufferReader`. Those two traits are mostly the type-erased runtime connection layer: they let the flowgraph connect a writer port to a reader port, validate the connection, and propagate termination.
 
-- user-facing work-time API, such as `slice()`, `consume()`, and `produce()`;
-- connect-time state, such as peer inboxes and port IDs;
-- runtime lifecycle state, such as finish notifications;
-- concrete buffer implementation state.
+Buffer implementations can expose their own higher-level API. A CPU buffer exposes slices. A GPU buffer can expose GPU resources. A DMA buffer can expose hardware-owned memory. FutureSDR therefore provides specialized traits for the common buffer families instead of forcing every buffer into one sample-slice API.
 
-The obvious question is whether ports can be removed from block state and made
-properties of flowgraph edges instead. That would match the conceptual model:
-buffers transport data between blocks, so they look like edge state rather than
-block state.
+The main stream buffer trait families are:
 
-## Requirements
+- `BufferWriter` / `BufferReader`: minimal base trait that all buffers implement.
+- `CpuBufferWriter` / `CpuBufferReader`: out-of-place CPU buffer API.
+- `InplaceWriter` / `InplaceReader` / `InplaceBuffer`: in-place CPU buffer API.
 
-Any replacement design has to preserve several properties that are important for
-FutureSDR.
+Most application code should use the default buffers through existing blocks. You only need to name buffer types when you want a non-default transport, such as in-place, GPU, or DMA buffers.
 
-- The hot `work()` path must remain statically dispatched. Blocks should call
-  methods such as `slice()` or `get_buffer()` on concrete types without a
-  `dyn` call on every access.
-- External buffer implementations must remain possible. A design must not rely
-  on a closed enum of built-in buffer types.
-- Buffer implementations can expose very different work-time APIs. CPU buffers
-  expose slices, in-place buffers exchange full and empty buffers, and GPU
-  buffers expose backend-specific operations.
-- Block work code must remain ergonomic. Wrapping every port in `Option` and
-  unwrapping in `work()` is not acceptable.
-- Flowgraph construction should remain ordinary Rust code. Users should be able
-  to add blocks and connect them incrementally, without encoding the whole graph
-  shape in type-level state.
-- Typed stream connections should continue to catch incompatible buffer pairs at
-  compile time where possible.
-- Runtime introspection still needs stable block IDs, port IDs, and stream edge
-  metadata.
+## Normal Buffers
 
-These requirements constrain the design strongly. In Rust, avoiding dynamic
-dispatch in `work()` means that the concrete stream endpoint type must be known
-in the type that implements the block's runtime behavior. Once a block has been
-added to the flowgraph and stored behind `dyn Block`, its concrete type cannot
-be changed later by a connection.
-
-## Alternatives Considered
-
-### Runtime-owned typed streams
-
-One idea is to remove stream ports from user block structs and pass a generated
-stream bundle into `work()`:
+Normal CPU stream buffers are the default for most blocks. They expose readable and writable slices:
 
 ```rust
-async fn work(
-    &mut self,
-    io: &mut WorkIo,
-    streams: &mut FilterStreams<I, O>,
-    mo: &mut MessageOutputs,
-    meta: &mut BlockMeta,
-) -> Result<()>;
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
+use futuresdr::prelude::*;
+
+let mut fg = Flowgraph::new();
+
+let src = NullSource::<f32>::new();
+let head = Head::<f32>::new(1024);
+let snk = NullSink::<f32>::new();
+
+connect!(fg, src > head > snk);
 ```
 
-This can keep static dispatch if `FilterStreams<I, O>` contains the actual
-reader and writer types. However, those types have to be known before the block
-is inserted into the flowgraph as `dyn Block`. That either moves buffer choice
-to block-add time or requires a staging builder that computes all port types
-before materializing the runtime flowgraph.
+On native targets, `DefaultCpuReader<T>` and `DefaultCpuWriter<T>` are double-mapped circular buffers. They avoid wrapping logic in the hot path while still behaving like a ring buffer.
 
-Moving buffer choice to block-add time makes the API worse than the current
-design, because the user still has to specify port types but through a second
-mechanism. A type-level staging builder can preserve edge-owned buffer choice,
-but it makes ordinary dynamic graph construction impractical and would likely
-produce difficult compiler errors.
+On WebAssembly, the default CPU buffer is the `Slab` implementation. It uses ordinary allocated slabs because double-mapped virtual memory is not available in the browser environment.
 
-### Edge-owned buffers with capability objects
+The default buffer size is controlled by the runtime config key `buffer_size`; see [Running Applications](running_apps.md#configuration). Some blocks also configure minimum item counts internally. For example, an FFT block needs enough samples for one transform.
 
-Another idea is for blocks to declare only stream capabilities, such as
-`CpuInput<T>`, `CpuOutput<T>`, or `WgpuInput<T>`, while connections choose the
-actual transport. This matches the conceptual model well.
-
-The problem is the hot path. If a CPU input slot can hold any external CPU
-reader implementation selected at connection time, then the slot needs either
-dynamic dispatch, an enum of supported implementations, or type-level graph
-staging. Dynamic dispatch is undesirable in `work()`, a closed enum rejects
-external buffers, and type-level staging is too heavy for normal flowgraph
-construction.
-
-### `MaybeUninit`
-
-Using `MaybeUninit` instead of `Option` does not solve the design issue. The
-port still has an unconnected state, and the implementation still needs an
-initialization flag, validation, correct drop handling, and a failure mode for
-accidental use before connection. It mainly replaces safe code with unsafe code.
-
-## Consequence
-
-Given these constraints, typed stream ports need to remain part of the block
-type. This is what lets Rust monomorphize `work()` for concrete buffer APIs
-while still allowing external buffer implementations and incremental flowgraph
-construction.
-
-The current approach is therefore the practical baseline:
+You can select another CPU buffer by naming the buffer generic parameters:
 
 ```rust
-#[derive(Block)]
-pub struct Filter<A, B, I = DefaultCpuReader<A>, O = DefaultCpuWriter<B>>
-where
-    I: CpuBufferReader<Item = A>,
-    O: CpuBufferWriter<Item = B>,
-{
-    #[input]
-    input: I,
-    #[output]
-    output: O,
-    f: Box<dyn FnMut(&A) -> Option<B> + Send + 'static>,
-}
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::slab;
+
+let mut fg = Flowgraph::new();
+
+let src = NullSource::<f32, slab::Writer<f32>>::new();
+let head = Head::<f32, slab::Reader<f32>, slab::Writer<f32>>::new(1024);
+let snk = NullSink::<f32, slab::Reader<f32>>::new();
+
+connect!(fg, src > head > snk);
 ```
 
-The concrete port fields make the block type reflect the exact work-time API.
-This is important for buffers whose APIs are not slice based.
+This is rarely needed in normal applications, but it is useful for benchmarks or platform-specific experiments.
 
-## Possible Cleanup Within the Current Approach
+## In-Place Buffers
 
-The remaining design problem is not that typed ports exist on blocks. The
-problem is that every concrete buffer implementation currently has to implement
-the unconnected port lifecycle itself.
+Normal stream buffers copy data from an input slice to an output slice when a block transforms samples. In-place buffers move owned buffer chunks through the flowgraph instead. A block can mutate the chunk and pass the same allocation downstream.
 
-A smaller, compatible cleanup is to split generic port lifecycle state from
-connected buffer endpoint state:
+This can help for simple transformations, such as adding a constant to every sample, where copying between input and output buffers would dominate the work.
+
+In-place buffers have a different API from normal CPU buffers:
+
+- `InplaceReader::get_full_buffer()` receives a full reusable buffer chunk.
+- `InplaceWriter::put_full_buffer()` forwards the same chunk after processing.
+- `InplaceBuffer::slice()` gives mutable access to the chunk contents.
+
+That means in-place processing usually needs blocks written for the in-place API. See the [in-place example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/inplace) for complete source.
+
+Reusable buffers need to return to the start of the pipeline. FutureSDR models this as a circuit. First connect the forward stream edges as usual, then close the circuit from the source to the final sink with `<`:
 
 ```rust
-pub struct PortReader<B: BufferFamily> {
-    meta: PortMeta,
-    config: B::ReaderConfig,
-    endpoint: Late<B::Reader>,
-}
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::circuit;
 
-pub struct PortWriter<B: BufferFamily> {
-    meta: PortMeta,
-    config: B::WriterConfig,
-    endpoint: Late<B::Writer>,
-    readers: Vec<Downstream>,
-}
+let mut fg = Flowgraph::new();
+
+let mut src: VectorSource<i32> = VectorSource::new(vec![1, 2, 3, 4]);
+src.output().inject_buffers(4);
+
+let apply = Apply::new();
+let snk = VectorSink::new(4);
+
+connect!(fg, src > apply > snk);
+connect!(fg, src < snk);
 ```
 
-Concrete buffers would implement a family or endpoint trait. For example, the
-circular buffer would provide connected reader and writer endpoints, while the
-generic `PortReader` and `PortWriter` would own the unconnected state, block
-metadata, validation, and common lifecycle behavior.
+The `<` connection closes the return path for empty buffers. The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink returns each consumed buffer to the source side.
 
-The public buffer names could stay the same through aliases or thin wrappers:
+This concept is inspired by [qsdr](https://github.com/daniestevez/qsdr), which also explores in-place work APIs for SDR-style flowgraphs.
+
+In-place buffers also implement the CPU buffer traits. This allows hybrid graphs where standard CPU blocks sit at the boundary and an in-place block processes the middle:
 
 ```rust
-pub type DefaultCpuReader<T> = circular::Reader<T>;
-pub type DefaultCpuWriter<T> = circular::Writer<T>;
+use futuresdr::blocks::VectorSink;
+use futuresdr::blocks::VectorSource;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::circuit;
+
+let mut fg = Flowgraph::new();
+
+let mut src = VectorSource::<i32, circuit::Writer<i32>>::new(vec![1, 2, 3, 4]);
+src.output().inject_buffers(4);
+
+let apply = Apply::new();
+let snk = VectorSink::new(4);
+
+connect!(fg, src > apply > snk);
+connect!(fg, src < snk);
 ```
 
-where `circular::Reader<T>` and `circular::Writer<T>` are implemented in terms
-of the generic port shell.
+Here the standard `VectorSource` writes into a circuit writer, the in-place `Apply` block mutates the buffer chunk, and the standard `VectorSink` reads from a circuit reader.
 
-This keeps the important properties of the current design:
+## Accelerator Buffers
 
-- block definitions remain typed and ergonomic;
-- `work()` stays statically dispatched;
-- external buffers remain possible;
-- `connect!` can continue to operate on typed port fields;
-- the unconnected `Option` state is centralized instead of repeated in every
-  buffer implementation.
+Accelerator buffers use the same connection model but expose APIs that match their hardware or framework:
 
-This does not make buffers purely edge-owned, but it addresses the main source
-of ugliness without giving up the performance and extensibility properties that
-the current design provides.
+- Xilinx Zynq DMA buffers move chunks through AXI DMA-backed memory.
+- WGPU buffers use [`wgpu`](https://wgpu.rs/) resources and can run in native or browser environments.
+- Vulkan buffers use Vulkan storage buffers.
+- Burn buffers use [Burn](https://burn.dev/) tensors for machine-learning workloads.
 
+These buffer APIs are intentionally not standardized beyond `BufferWriter` and `BufferReader`. A GPU block may need mapped buffers. A DMA block may need hardware buffer handles. A tensor buffer may need framework-specific tensor ownership.
 
+Accelerator buffer implementations typically also implement CPU buffer traits at the host boundary:
+
+- Host-to-device writers implement `CpuBufferWriter`, so a CPU source can write samples into an upload buffer.
+- Device-to-host readers implement `CpuBufferReader`, so a CPU sink can read processed samples after download.
+
+For example, the WGPU example uses a CPU `VectorSource` with an `H2DWriter`, a GPU processing block, and a CPU `VectorSink` with a `D2HReader`:
+
+```rust
+use futuresdr::blocks::VectorSink;
+use futuresdr::blocks::VectorSource;
+use futuresdr::blocks::Wgpu;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::wgpu;
+use futuresdr::runtime::buffer::wgpu::D2HReader;
+use futuresdr::runtime::buffer::wgpu::H2DWriter;
+
+let mut fg = Flowgraph::new();
+
+let src = VectorSource::<f32, H2DWriter<f32>>::new(vec![1.0, 2.0, 3.0]);
+let instance = wgpu::Instance::new().await;
+let gpu = Wgpu::new(instance, 4096, 4, 4);
+let snk = VectorSink::<f32, D2HReader<f32>>::new(3);
+
+connect!(fg, src > gpu > snk);
+```
+
+See the complete accelerator examples:
+
+- [WGPU example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/wgpu)
+- [Vulkan example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/vulkan)
+- [Zynq example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/zynq)
+- [Burn example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/burn)
+
+See the [API Docs](https://docs.rs/futuresdr/latest/futuresdr/runtime/buffer/index.html) for more details.
