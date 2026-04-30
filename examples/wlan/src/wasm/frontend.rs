@@ -110,7 +110,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         if let Some(selected) = selected {
             set_submitting(true);
             set_submit_error(None);
-            let mut fg = fg_for_submit.clone();
+            let fg = fg_for_submit.clone();
             spawn_local(async move {
                 let result = fg
                     .put_message_input(selected.block_id, selected.handler.clone(), pmt)
@@ -132,7 +132,7 @@ pub fn Wlan(fg_handle: FlowgraphHandle) -> impl IntoView {
         }
         if let Some(source) = source_block_id.get() {
             sample_rate_initialized.set(true);
-            let mut fg = fg_for_sample_rate_init.clone();
+            let fg = fg_for_sample_rate_init.clone();
             spawn_local(async move {
                 let _ = fg.post(source, "sample_rate", Pmt::F64(20e6)).await;
             });
