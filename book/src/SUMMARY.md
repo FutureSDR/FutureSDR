@@ -7,7 +7,7 @@
 - [Running Applications](running_apps.md)
 - [Remote Interaction](remote_interaction.md)
 
-# Developer Documentation
+# Application Development
 - [Project Creation](project.md)
 - [Runtime](runtime.md)
 - [Scheduler](scheduler.md)
@@ -22,5 +22,7 @@
 - [Seify](seify.md)
 - [Performance Measurement](performance_measurement.md) 
 
-# FutureSDR Development
-- [Todo]()
+# SDR Development
+- [Custom Blocks]()
+- [Custom Schedulers]()
+- [Custom Buffers]()

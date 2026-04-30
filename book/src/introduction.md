@@ -24,3 +24,24 @@ abstractions remain familiar. It supports *Blocks* that implement stream-based
 or message-based data processing. These blocks can be combined into a
 *Flowgraph* and launched on a *Runtime* that is driven by a *Scheduler*.
 
+## Documentation Structure
+
+**User Documentation** explains how to:
+
+- Use an existing FutureSDR application (an example or a thrid party implementation).
+- Interface a FutureSDR application through the built-in or a custom web interface.
+- Interface a FutureSDR application through the REST API (e.g., Curl or a custom Python script).
+
+
+**Application Development** explains how to;
+
+- Create FutureSDR applications using existing blocks.
+- Interact with running flowgraphs through Rust code.
+- Integrate FutureSDR in a broader application, potentially with custom GUIs.
+
+
+**SDR Development** explains how to:
+
+- Implement custom blocks for specific technologies or custom integrations.
+- Extend FutureSDR with custom buffers or custom schedulers.
+
