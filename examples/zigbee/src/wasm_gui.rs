@@ -2,6 +2,7 @@ use any_spawner::Executor;
 use futuresdr::tracing::info;
 use gloo_worker::Spawnable;
 use gloo_worker::WorkerBridge;
+use leptos::html::Input;
 use leptos::html::Select;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -32,7 +33,7 @@ fn Gui() -> impl IntoView {
     });
     let start = move |_| {
         if handle.read_untracked().is_some() {
-            info!("already running");
+            info!("receiver already running");
         } else {
             spawn_local(run_fg(set_handle, set_frames));
         }
@@ -41,12 +42,44 @@ fn Gui() -> impl IntoView {
         <h1>"FutureSDR ZigBee Receiver"</h1>
         <button on:click=start type="button" class="bg-fs-blue hover:brightness-75 text-slate-200 font-bold py-2 px-4 rounded">Start</button>
         <Channel handle=handle/>
+        <GainControls handle=handle/>
         <div class="bg-fs-blue font-mono">
             "Frames received: " {n_frames}
         </div>
         <ul class="font-mono">
             {move || frames().into_iter().map(|n| view! { <li>{format!("{n:?}")}</li> }).collect_view()}
         </ul>
+    }
+}
+
+#[component]
+fn GainControls(
+    handle: ReadSignal<Option<&'static WorkerBridge<Worker>>, LocalStorage>,
+) -> impl IntoView {
+    let lna_ref = NodeRef::<Input>::new();
+    let vga_ref = NodeRef::<Input>::new();
+    let set_lna = move |_| {
+        let input = lna_ref.get().unwrap();
+        let gain: u16 = input.value().parse().unwrap();
+        if let Some(h) = *handle.read_untracked() {
+            h.send(WorkerMessage::Lna(gain));
+        }
+    };
+    let set_vga = move |_| {
+        let input = vga_ref.get().unwrap();
+        let gain: u16 = input.value().parse().unwrap();
+        if let Some(h) = *handle.read_untracked() {
+            h.send(WorkerMessage::Vga(gain));
+        }
+    };
+
+    view! {
+        <div class="bg-fs-green">
+            "LNA gain:"
+            <input type="number" min="0" max="40" step="8" value="32" node_ref=lna_ref on:change=set_lna/>
+            " VGA gain:"
+            <input type="number" min="0" max="62" step="2" value="2" node_ref=vga_ref on:change=set_vga/>
+        </div>
     }
 }
 
@@ -58,7 +91,6 @@ fn Channel(
     let select_ref = NodeRef::<Select>::new();
     let change = move |_| {
         let select = select_ref.get().unwrap();
-        info!("setting frequency to {}", select.value());
         let freq: u64 = select.value().parse().unwrap();
         spawn_local(async move {
             if let Some(h) = *handle.read_untracked() {
@@ -125,7 +157,6 @@ async fn run_fg(
 
     let bridge = Worker::spawner()
         .callback(move |frame| {
-            info!("{:?}", &frame);
             set_frames.update(|f| {
                 f.push_front(frame);
                 if f.len() > 20 {

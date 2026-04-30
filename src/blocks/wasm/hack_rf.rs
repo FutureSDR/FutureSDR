@@ -117,6 +117,7 @@ pub struct HackRf {
     buffer: [i8; TRANSFER_SIZE],
     offset: usize,
     device: Option<web_sys::UsbDevice>,
+    pending_transfer: Option<js_sys::Promise<web_sys::UsbInTransferResult>>,
 }
 
 unsafe impl Send for HackRf {}
@@ -135,6 +136,7 @@ impl HackRf {
             buffer: [0; TRANSFER_SIZE],
             offset: TRANSFER_SIZE,
             device: None,
+            pending_transfer: None,
         }
     }
 
@@ -441,12 +443,22 @@ impl HackRf {
         }
     }
 
-    async fn fill_buffer(&mut self) -> Result<(), Error> {
+    fn start_transfer(&mut self) {
+        if self.pending_transfer.is_some() {
+            return;
+        }
+
         let transfer = self
             .device
             .as_ref()
             .unwrap()
             .transfer_in(1, TRANSFER_SIZE as u32);
+        self.pending_transfer = Some(transfer);
+    }
+
+    async fn fill_buffer(&mut self) -> Result<(), Error> {
+        self.start_transfer();
+        let transfer = self.pending_transfer.take().unwrap();
 
         let data = JsFuture::from(transfer)
             .await?
@@ -456,8 +468,15 @@ impl HackRf {
             .unwrap()
             .dyn_into::<js_sys::DataView>()
             .unwrap();
+        let byte_length = data.byte_length();
 
-        debug_assert_eq!(data.byte_length(), TRANSFER_SIZE);
+        if byte_length != TRANSFER_SIZE {
+            return Err(Error::BrowserError(format!(
+                "short HackRF transfer: received {byte_length} bytes, expected {TRANSFER_SIZE}"
+            )));
+        }
+
+        self.start_transfer();
         for i in 0..TRANSFER_SIZE {
             self.buffer[i] = data.get_int8(i);
         }
@@ -491,31 +510,21 @@ impl Kernel for HackRf {
         let devices: js_sys::Array<web_sys::UsbDevice> = JsFuture::from(usb.get_devices())
             .await
             .map_err(Error::from)?;
-
-        for i in 0..devices.length() {
-            let d = devices.get_unchecked(i);
-            println!("dev {}   {:?}", i, &d);
-        }
         // Open radio if one is already paired and plugged
         // Otherwise ask the user to pair a new radio
         let device: web_sys::UsbDevice = if devices.length() > 0 {
-            info!("device already connected");
             devices.get_unchecked(0)
         } else {
-            info!("requesting device: {:?}", &filter);
             JsFuture::from(usb.request_device(&filter))
                 .await
                 .map_err(Error::from)?
         };
 
-        info!("opening device");
         JsFuture::from(device.open()).await.map_err(Error::from)?;
-        info!("selecting configuration");
         JsFuture::from(device.select_configuration(1))
             .await
             .map_err(Error::from)?;
 
-        info!("claiming device");
         JsFuture::from(device.claim_interface(0))
             .await
             .map_err(Error::from)?;
@@ -524,8 +533,8 @@ impl Kernel for HackRf {
         self.set_sample_rate(8_000_000, 2).await.unwrap();
         self.set_hw_sync_mode(0).await.unwrap();
         self.set_freq(2_480_000_000).await.unwrap();
-        self.set_vga_gain(4).await.unwrap();
-        self.set_lna_gain(24).await.unwrap();
+        self.set_vga_gain(2).await.unwrap();
+        self.set_lna_gain(32).await.unwrap();
         self.set_amp_enable(true).await.unwrap();
         self.set_transceiver_mode(TransceiverMode::Receive)
             .await
