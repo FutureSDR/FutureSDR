@@ -1,4 +1,4 @@
-# Flowgraph Interaction
+# Remote Interaction
 
 It is possible to interact with a running flowgraph through the control port REST API, which
 can be used as the base for web UIs or any other tool supporting REST (e.g., Curl, Python requests).

@@ -1,4 +1,4 @@
-# Running Flowgraphs
+# Running FutureSDR Applications
 
 FutureSDR examples and applications can be run like normal Rust applications:
 

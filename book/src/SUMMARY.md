@@ -4,8 +4,8 @@
 
 # User Documentation
 - [Installation](installation.md)
-- [Running Flowgraphs](running.md)
-- [Flowgraph Interaction](flowgraph_interaction.md)
+- [Running Applications](running_apps.md)
+- [Remote Interaction](remote_interaction.md)
 
 # Developer Documentation
 - [Project Creation](project.md)
