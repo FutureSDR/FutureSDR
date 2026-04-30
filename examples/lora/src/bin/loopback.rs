@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use clap::Parser;
 
-use futuresdr::runtime::Timer;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::prelude::*;
+use futuresdr::runtime::Timer;
 
 use lora::build_lora_rx_soft_decoding;
 use lora::build_lora_tx;

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futuresdr::runtime::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::BlobToUdp;
 use futuresdr::blocks::Combine;
@@ -9,6 +8,7 @@ use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::MessagePipe;
 use futuresdr::blocks::WebsocketPmtSink;
 use futuresdr::prelude::*;
+use futuresdr::runtime::Timer;
 use rand_distr::Distribution;
 use rand_distr::Normal;
 use std::time::Duration;

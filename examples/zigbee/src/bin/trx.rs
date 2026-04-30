@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::runtime::Timer;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
+use futuresdr::runtime::Timer;
 use std::time::Duration;
 
 use zigbee::ClockRecoveryMm;

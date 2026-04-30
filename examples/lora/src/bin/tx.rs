@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::runtime::Timer;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::prelude::*;
+use futuresdr::runtime::Timer;
 use lora::build_lora_tx;
 use lora::default_values::HAS_CRC;
 use lora::default_values::PREAMBLE_LEN;

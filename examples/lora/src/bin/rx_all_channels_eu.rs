@@ -115,7 +115,12 @@ fn main() -> Result<()> {
         if n_chan.is_none() {
             let null_sink_extra_channel = fg.add(NullSink::<Complex32>::new());
             // map highest channel to null-sink (channel numbering starts at center and wraps around)
-            fg.stream_dyn(channelizer, format!("out{n_out}"), null_sink_extra_channel, "in")?;
+            fg.stream_dyn(
+                channelizer,
+                format!("out{n_out}"),
+                null_sink_extra_channel,
+                "in",
+            )?;
             println!("connecting channel {n_out} to NullSink");
             continue;
         }
