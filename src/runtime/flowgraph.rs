@@ -1891,17 +1891,17 @@ impl Flowgraph {
         Ok(())
     }
 
-    /// Connect stream ports without static port type checks.
+    /// Connect stream ports by block id and port name.
     ///
-    /// This function only does runtime checks. If the stream ports exist and have compatible
-    /// types and sample types, that will only be checked during runtime.
+    /// This dynamic API skips the compile-time port type checks provided by
+    /// [`Flowgraph::stream`]. Port existence and buffer compatibility are still
+    /// validated while the connection is created and again during flowgraph
+    /// startup.
     ///
-    /// If possible, it is, therefore, recommended to use the typed API
-    /// ([Flowgraph::stream]).
-    ///
-    /// This function can be helpful when using types is not practical. For example, when a runtime
-    /// option switches between different block types, which is often used to switch between
-    /// reading samples from hardware or a file.
+    /// Prefer the typed API when the concrete block types are known. The dynamic
+    /// API is useful when a runtime option selects between different block
+    /// implementations, for example switching a source between hardware and a
+    /// file.
     ///
     /// ```
     /// use anyhow::Result;
@@ -1920,9 +1920,9 @@ impl Flowgraph {
     ///     let src = fg.add(src);
     ///     let head = fg.add(head);
     ///
-    ///     // untyped stream connect
+    ///     // dynamic stream connection by port name
     ///     fg.stream_dyn(src, "output", head, "input")?;
-    ///     // typed connect
+    ///     // typed connection through the `connect!` macro
     ///     connect!(fg, head > snk);
     ///
     ///     Runtime::new().run(fg)?;

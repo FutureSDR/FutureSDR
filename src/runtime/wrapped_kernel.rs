@@ -33,13 +33,13 @@ pub(crate) struct WrappedKernel<K> {
     pub meta: BlockMeta,
     /// Message outputs
     pub mo: MessageOutputs,
-    /// Kernel
+    /// User kernel implementation.
     pub kernel: K,
-    /// Block ID
+    /// Runtime block id.
     pub id: BlockId,
-    /// Inbox for Actor Model
+    /// Receiver side of the block's actor-style inbox.
     pub inbox: BlockInboxReader,
-    /// Sending-side of Inbox
+    /// Sender side of the block's actor-style inbox.
     pub inbox_tx: BlockInbox,
 }
 

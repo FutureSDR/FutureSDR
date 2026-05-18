@@ -1,4 +1,4 @@
-//! Remote Control through REST API
+//! Native HTTP control port for flowgraph inspection and message calls.
 use axum::Json;
 use axum::Router;
 use axum::extract::Path;

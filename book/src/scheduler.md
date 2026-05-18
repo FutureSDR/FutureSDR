@@ -80,15 +80,11 @@ let src = NullSource::<f32>::new();
 let head = Head::<f32>::new(1_000_000);
 let snk = NullSink::<f32>::new();
 
-let src_id: BlockId = src.into();
-let head_id: BlockId = head.into();
-let snk_id: BlockId = snk.into();
-
 connect!(fg, src > head > snk);
 
 let scheduler = FlowScheduler::with_pinned_blocks(vec![
-    vec![src_id, head_id],
-    vec![snk_id],
+    vec![src.id(), head.id()],
+    vec![snk.id()],
 ]);
 
 Runtime::with_scheduler(scheduler).run(fg)?;

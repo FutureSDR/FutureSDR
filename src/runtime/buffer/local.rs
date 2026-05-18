@@ -1,9 +1,9 @@
-//! Local single-thread CPU buffer.
+//! Same-thread CPU buffer for local domains.
 
 use crate::runtime::buffer::queued;
 
-/// Local single-thread CPU reader.
+/// Same-thread CPU reader.
 pub type Reader<D> = queued::Reader<D, queued::LocalState<D>>;
 
-/// Local single-thread CPU writer.
+/// Same-thread CPU writer.
 pub type Writer<D> = queued::Writer<D, queued::LocalState<D>>;

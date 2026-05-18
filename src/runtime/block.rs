@@ -43,7 +43,7 @@ pub trait BlockObject: Any {
 
     /// Get the static type name of the block.
     fn type_name(&self) -> &str;
-    /// Check whether this block is blocking.
+    /// Whether this block is flagged for a local blocking domain.
     fn is_blocking(&self) -> bool;
 }
 

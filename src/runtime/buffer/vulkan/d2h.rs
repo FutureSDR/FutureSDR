@@ -37,7 +37,7 @@ struct CurrentBuffer<T: BufferContents + CpuSample> {
     guard: BufferReadGuard<'this, [T]>,
 }
 
-/// Custom buffer writer
+/// Vulkan device-to-host writer that accepts full GPU buffers.
 #[derive(Debug)]
 pub struct Writer<T: BufferContents + CpuSample> {
     core: PortCore,
@@ -54,7 +54,7 @@ impl<T> Writer<T>
 where
     T: BufferContents + CpuSample,
 {
-    /// Create buffer writer
+    /// Create a Vulkan device-to-host writer.
     pub fn new() -> Self {
         Self {
             core: PortCore::new_disconnected(),
@@ -62,7 +62,7 @@ where
         }
     }
 
-    /// Submit full buffer to downstream CPU reader
+    /// Submit a full GPU buffer to the downstream CPU reader.
     pub fn submit(&mut self, buffer: Buffer<T>) {
         self.state
             .connected()
@@ -136,7 +136,7 @@ where
     }
 }
 
-/// Custom buffer reader
+/// Vulkan device-to-host CPU reader.
 #[derive(Debug)]
 pub struct Reader<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
@@ -157,7 +157,7 @@ impl<T> Reader<T>
 where
     T: BufferContents + CpuSample,
 {
-    /// Create Vulkan Device-to-Host Reader
+    /// Create a Vulkan device-to-host reader.
     pub fn new() -> Self {
         Self {
             current: None,
@@ -169,7 +169,7 @@ where
         }
     }
 
-    /// Close Circuit
+    /// Close the circuit back to the matching host-to-device writer.
     pub fn close_circuit(&mut self, circuit_start_inbox: BlockInbox, outbound: ReturnQueue<T>) {
         self.circuit_start = Some(CircuitReturn::new(circuit_start_inbox.notifier(), outbound));
     }

@@ -13,20 +13,20 @@
 #[cfg(feature = "burn")]
 pub mod burn;
 
-/// In-place circuit buffer
+/// In-place circuit buffer.
 pub mod circuit;
 
-/// Local single-thread CPU buffer
+/// Same-thread CPU buffer for local domains.
 pub mod local;
 #[doc(hidden)]
 pub mod queued;
 
-/// Double-mapped circular buffer
+/// Double-mapped circular CPU buffer.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod circular;
 
 // ===================== SLAB ========================
-/// Slab buffer
+/// Queue-backed slab CPU buffer.
 pub mod slab;
 
 // ==================== VULKAN =======================
@@ -613,7 +613,8 @@ pub trait InplaceWriter: BufferWriter + Default {
 
     /// Get an empty buffer, if one is available.
     ///
-    /// This is typically used in sources, i.e., when there is no inplace reader
+    /// This is typically used by source-style blocks that create data at the
+    /// beginning of an in-place circuit.
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer>;
     /// Return whether more empty buffers are immediately available.
     fn has_more_buffers(&mut self) -> bool;
@@ -644,10 +645,10 @@ pub type DefaultCpuReader<D> = circular::Reader<D>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type DefaultCpuWriter<D> = circular::Writer<D>;
 #[cfg(target_arch = "wasm32")]
-/// Default local [`CpuBufferReader`] implementation.
+/// Default [`CpuBufferReader`] implementation on WASM.
 pub type DefaultCpuReader<D> = slab::Reader<D>;
 #[cfg(target_arch = "wasm32")]
-/// Default local [`CpuBufferWriter`] implementation.
+/// Default [`CpuBufferWriter`] implementation on WASM.
 pub type DefaultCpuWriter<D> = slab::Writer<D>;
 /// Local [`CpuBufferReader`] implementation.
 pub type LocalCpuReader<D> = local::Reader<D>;

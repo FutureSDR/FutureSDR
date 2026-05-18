@@ -8,29 +8,28 @@ needed for building native binaries and the web user interface.
 
 To install Rust, follow the [official instructions](https://www.rust-lang.org/tools/install).
 
-FutureSDR works with both the `stable` and `nightly` toolchains. The `nightly`
-compiler enables a few performance optimizations and is required when you build
-or modify the web UI, since it uses [Leptos](https://leptos.dev/), which
-provides an [ergonomic syntax](https://book.leptos.dev/reactivity/working_with_signals.html?highlight=nightly#nightly-syntax)
-behind a `nightly` feature flag.
+FutureSDR requires the nightly Rust toolchain. The root crate uses nightly-only Rust features, and the Leptos-based web UI crates also enable Leptos' `nightly` syntax feature. The `rust-version` in `Cargo.toml` is only the minimum compiler version; the channel must still be nightly.
 
-> [!TIP]
-> We recommend using the `nightly` Rust toolchain.
-
-You can switch to `nightly` globally:
+Install nightly with the standard development components:
 
 ```bash
-rustup toolchain install nightly
+rustup toolchain install nightly --component rustfmt clippy
+```
+
+For FutureSDR applications, either make nightly your default toolchain:
+
+```bash
 rustup default nightly
 ```
 
-or only for your FutureSDR project:
+or set it per project:
 
 ```bash
-rustup toolchain install nightly
 cd <into your project or FutureSDR>
 rustup override set nightly
 ```
+
+The FutureSDR repository contains a `rust-toolchain.toml`, so `cargo` automatically selects nightly when run inside the checkout.
 
 ## Web GUI and Web SDR Applications
 
@@ -39,7 +38,7 @@ tooling. If you want to extend or adapt the web UIs, install the
 `wasm32-unknown-unknown` target:
 
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
 
 Install [Trunk](https://trunkrs.dev/), a build and packaging tool for Rust
@@ -101,12 +100,12 @@ Alternatively, FutureSDR can be run on Windows using WSL (These steps are verifi
 - After installation, restart your PC.
 - Open a Linux terminal, set up your username/password, and run: <br/>`sudo apt update && sudo apt upgrade`
 - Install the core tools required for compiling Rust and C++ projects: <br/>`sudo apt install git build-essential cmake libfontconfig1-dev clang libclang-dev usbutils`
-- Install Rust and set the `nightly` toolchain as default:
+- Install Rust and make nightly the default toolchain:
 
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   source $HOME/.cargo/env
-  rustup toolchain install nightly
+  rustup toolchain install nightly --component rustfmt clippy
   rustup default nightly
   ```
 

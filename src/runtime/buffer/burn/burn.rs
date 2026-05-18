@@ -241,7 +241,8 @@ where
         self.device = Some(device.clone());
     }
 
-    /// Close Circuit
+    /// Close the in-place tensor circuit by connecting its end back to this
+    /// writer.
     pub fn close_circuit(&mut self, end: &mut Reader<B, E, SR>) {
         end.circuit_start = Some(CircuitReturn::new(
             self.core.notifier(),

@@ -37,7 +37,7 @@ struct CurrentBuffer<T: BufferContents + CpuSample> {
 }
 
 // ====================== WRITER ============================
-/// Custom buffer writer
+/// Vulkan host-to-device CPU writer.
 #[derive(Debug)]
 pub struct Writer<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
@@ -57,7 +57,7 @@ impl<T> Writer<T>
 where
     T: BufferContents + CpuSample,
 {
-    /// Create buffer writer
+    /// Create a Vulkan host-to-device writer.
     pub fn new() -> Self {
         Self {
             current: None,
@@ -68,12 +68,12 @@ where
         }
     }
 
-    /// Add buffer to circuit
+    /// Add a reusable Vulkan buffer to the circuit.
     pub fn add_buffer(&mut self, buffer: Buffer<T>) {
         self.inbound.lock().unwrap().push(buffer);
     }
 
-    /// Close Circuit
+    /// Close the circuit to a Vulkan device-to-host reader.
     pub fn close_circuit(&mut self, end: &mut d2h::Reader<T>) {
         end.close_circuit(self.core.inbox(), self.inbound.clone());
     }
@@ -245,7 +245,7 @@ where
 }
 
 // ====================== READER ============================
-/// Custom buffer reader
+/// Vulkan host-to-device reader that hands full GPU buffers to downstream code.
 #[derive(Debug)]
 pub struct Reader<T: BufferContents + CpuSample> {
     core: PortCore,
@@ -263,7 +263,7 @@ impl<T> Reader<T>
 where
     T: BufferContents + CpuSample,
 {
-    /// Create a Reader
+    /// Create a Vulkan host-to-device reader.
     pub fn new() -> Self {
         Self {
             core: PortCore::new_disconnected(),
@@ -272,7 +272,7 @@ where
         }
     }
 
-    /// Get full buffer
+    /// Take all full buffers that are ready for the device side.
     pub fn buffers(&mut self) -> Vec<Buffer<T>> {
         let mut vec = self.state.connected().inbound.lock().unwrap();
         std::mem::take(&mut vec)

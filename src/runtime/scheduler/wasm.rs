@@ -365,7 +365,7 @@ impl<T> Task<T> {
         Task(task)
     }
 
-    /// Detach from task.
+    /// Detach the task so it continues running when the task handle is dropped.
     pub fn detach(self) {
         self.0.detach();
     }

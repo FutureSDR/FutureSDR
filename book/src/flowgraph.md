@@ -109,6 +109,8 @@ Normal blocks and buffers must be send-capable because the scheduler may move bl
 Create a local domain, add blocks with `add_local()`, and connect local-only stream buffers with `~>` in `connect!` or `stream_local()` manually:
 
 ```rust
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
@@ -133,6 +135,32 @@ connect!(fg, src ~> snk);
 ```
 
 Local-only stream connections must stay inside one local domain. Send-capable stream buffers can still connect normal blocks and local-domain blocks. Message connections are not restricted by local domains.
+
+When a block's state must be created on the local-domain thread itself, build that part of the graph with `domain_run()` (or `domain_run_async()` in async code). The closure receives a `LocalDomainContext`; add local blocks through `ctx.add(...)` and use the same `connect!` syntax with `ctx` as the graph argument:
+
+```rust
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::LocalCpuReader;
+use futuresdr::runtime::buffer::LocalCpuWriter;
+
+let mut fg = Flowgraph::new();
+let local = fg.local_domain()?;
+
+let snk = fg.domain_run(local, |ctx| {
+    let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
+    let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
+    let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+
+    connect!(ctx, src ~> head ~> snk);
+
+    Ok(snk)
+})?;
+```
+
+On `wasm32`, use the async forms (`add_local_async`, `domain_run_async`, and `connect_async!`) while constructing the graph.
 
 ## Accessing Blocks
 

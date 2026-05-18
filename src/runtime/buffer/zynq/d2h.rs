@@ -28,7 +28,7 @@ struct CurrentBuffer {
     byte_offset: usize,
 }
 
-/// Custom buffer writer
+/// Zynq device-to-host writer that accepts full DMA buffers.
 #[derive(Debug)]
 pub struct Writer<D>
 where
@@ -50,7 +50,7 @@ impl<D> Writer<D>
 where
     D: CpuSample,
 {
-    /// Create buffer writer
+    /// Create a Zynq device-to-host writer.
     pub fn new() -> Self {
         Self {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
@@ -61,13 +61,13 @@ where
         }
     }
 
-    /// All available empty buffers
+    /// Take all empty DMA buffers available for device output.
     pub fn buffers(&mut self) -> Vec<BufferEmpty> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
-    /// Submit full buffer to downstream CPU reader
+    /// Submit a full DMA buffer to the downstream CPU reader.
     pub fn submit(&mut self, buffer: BufferFull) {
         self.outbound.lock().unwrap().push_back(buffer);
         self.state.connected().reader.inbox().notify();
@@ -135,7 +135,7 @@ where
     }
 }
 
-/// Custom buffer reader
+/// Zynq device-to-host CPU reader.
 #[derive(Debug)]
 pub struct Reader<D>
 where
@@ -159,7 +159,7 @@ impl<D> Reader<D>
 where
     D: CpuSample,
 {
-    /// Create Vulkan Device-to-Host Reader
+    /// Create a Zynq device-to-host reader.
     pub fn new() -> Self {
         Self {
             current: None,
@@ -288,14 +288,14 @@ where
     }
 
     fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not yet implemented for zynq buffers");
+        warn!("set_min_items not yet implemented for Zynq buffers");
     }
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not yet implemented for zynq buffers");
+        warn!("set_min_buffer_size_in_items not yet implemented for Zynq buffers");
     }
     fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for zynq buffers");
+        warn!("max_items not yet implemented for Zynq buffers");
         usize::MAX
     }
 }

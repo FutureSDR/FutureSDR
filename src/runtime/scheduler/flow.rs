@@ -71,11 +71,12 @@ impl FlowScheduler {
         FlowScheduler::with_pinned_blocks(Vec::new())
     }
 
-    /// Create Flow scheduler with pinned blocks.
+    /// Create a flow scheduler with an explicit block-to-worker mapping.
     ///
-    /// Outer index is the executor index and each inner list contains ordered block IDs
-    /// for that executor. The inner order defines the initial insertion order into the
-    /// executor's local queue.
+    /// The outer index is the worker index. Each inner list contains block IDs
+    /// assigned to that worker, in the order they should be inserted into the
+    /// worker's local queue. Blocks not listed here are assigned by the default
+    /// mapper.
     pub fn with_pinned_blocks(pinned_blocks: Vec<Vec<BlockId>>) -> FlowScheduler {
         let core_ids = core_affinity::get_core_ids().unwrap();
         let executor = Arc::new(FlowExecutor::new(core_ids.len()));
@@ -346,7 +347,7 @@ impl FlowExecutor {
     fn schedule(&self) -> impl Fn(Runnable) + Send + Sync + 'static {
         let state = self.state().clone();
 
-        // TODO(stjepang): If possible, push into the current local queue and notify the ticker.
+        // Independent tasks do not have a preferred worker, so use the global queue.
         move |runnable| {
             state.queue.push(runnable).unwrap();
             state.notify();
@@ -401,7 +402,7 @@ impl Drop for FlowExecutor {
     }
 }
 
-/// The state of a executor.
+/// Shared executor state.
 struct State {
     /// The global queue.
     queue: ConcurrentQueue<Runnable>,
@@ -522,9 +523,9 @@ impl Drop for Ticker<'_> {
     }
 }
 
-/// A worker in a work-stealing executor.
+/// A worker in the flow executor.
 ///
-/// This is just a ticker that also has an associated local queue for improved cache locality.
+/// Each worker checks its own local queue first and then the global queue.
 struct Runner<'a> {
     /// The executor state.
     state: &'a State,

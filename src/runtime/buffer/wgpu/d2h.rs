@@ -32,7 +32,7 @@ where
     slice: BufferView,
 }
 
-/// Custom buffer writer
+/// WGPU device-to-host writer that accepts full readback buffers.
 #[derive(Debug)]
 pub struct Writer<D: CpuSample> {
     inbound: Arc<Mutex<Vec<BufferEmpty<D>>>>,
@@ -51,7 +51,7 @@ impl<D> Writer<D>
 where
     D: CpuSample,
 {
-    /// Create buffer writer
+    /// Create a WGPU device-to-host writer.
     pub fn new() -> Self {
         Writer {
             outbound: Arc::new(Mutex::new(VecDeque::new())),
@@ -62,7 +62,7 @@ where
         }
     }
 
-    /// All available empty buffers
+    /// Take all empty readback buffers available for device output.
     pub fn buffers(&mut self) -> Vec<BufferEmpty<D>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
@@ -93,7 +93,7 @@ where
         }
     }
 
-    /// Submit full buffer to downstream CPU reader
+    /// Submit a full readback buffer to the downstream CPU reader.
     pub fn submit(&mut self, buffer: BufferFull<D>) {
         self.outbound.lock().unwrap().push_back(buffer);
         self.state.connected().reader.inbox().notify();
@@ -166,7 +166,7 @@ where
     }
 }
 
-/// Custom buffer reader
+/// WGPU device-to-host CPU reader.
 #[derive(Debug)]
 pub struct Reader<D>
 where
@@ -190,7 +190,7 @@ impl<D> Reader<D>
 where
     D: CpuSample,
 {
-    /// Create Reader
+    /// Create a WGPU device-to-host reader.
     pub fn new() -> Self {
         Self {
             buffer: None,

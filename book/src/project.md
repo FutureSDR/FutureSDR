@@ -1,10 +1,11 @@
 # Project Creation
 
-To create a Rust crate that uses FutureSDR initialize the crate and add FutureSDR as a dependency.
+To create a Rust crate that uses FutureSDR, initialize the crate and add FutureSDR as a dependency. FutureSDR requires nightly Rust, so configure the project to use the nightly toolchain.
 
 ```bash
 cargo init my_project
 cd my_project
+rustup override set nightly
 ```
 
 Edit the `Cargo.toml` to add the dependency. There are several options:
@@ -12,7 +13,7 @@ Edit the `Cargo.toml` to add the dependency. There are several options:
 **Use a specific version** (stable, but code might be outdated due to irregular release cycles)
 ```toml
 [dependencies]
-futuresdr = { version = "0.0.39" }
+futuresdr = { version = "0.0.40" }
 ```
 
 **Track the main branch** (unstable but always up-to-date)
@@ -59,7 +60,7 @@ For example:
 
 ```toml
 [dependencies]
-futuresdr = { version = "0.0.39", default-features = false, features = ["audio", "seify"] }
+futuresdr = { version = "0.0.40", default-features = false, features = ["audio", "seify"] }
 ```
 
 

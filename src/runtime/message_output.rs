@@ -7,7 +7,7 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::dev::BlockInbox;
 
-/// Message output port
+/// One named message output port and its connected downstream handlers.
 #[derive(Debug)]
 struct MessageOutput {
     name: String,
@@ -15,7 +15,7 @@ struct MessageOutput {
 }
 
 impl MessageOutput {
-    /// Create message output port
+    /// Create a message output port.
     fn new(name: &str) -> MessageOutput {
         MessageOutput {
             name: name.to_string(),
@@ -23,17 +23,17 @@ impl MessageOutput {
         }
     }
 
-    /// Get name of port
+    /// Get the port name.
     fn name(&self) -> &str {
         &self.name
     }
 
-    /// Connect port to downstream message input
+    /// Connect this output to one downstream message input.
     fn connect(&mut self, port: PortId, sender: BlockInbox) {
         self.handlers.push((port, sender));
     }
 
-    /// Notify connected downstream message ports that we are finished
+    /// Notify connected downstream message ports that this block is finished.
     async fn notify_finished(&mut self) {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender
@@ -45,7 +45,7 @@ impl MessageOutput {
         }
     }
 
-    /// Post data to connected downstream message port
+    /// Post data to all connected downstream message inputs.
     async fn post(&mut self, p: Pmt) {
         for (port_id, sender) in self.handlers.iter_mut() {
             let _ = sender

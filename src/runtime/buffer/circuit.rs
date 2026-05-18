@@ -174,7 +174,7 @@ where
         }
     }
 
-    /// Close Circuit
+    /// Close the in-place circuit by connecting its end back to this writer.
     pub fn close_circuit(&mut self, end: &mut Reader<T>) {
         end.circuit_start = Some(CircuitReturn::new(
             self.core.notifier(),

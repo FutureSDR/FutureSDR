@@ -52,7 +52,7 @@ struct CurrentSlot {
     view: BufferViewMut,
 }
 
-/// Custom buffer writer
+/// WGPU host-to-device CPU writer.
 #[derive(Debug)]
 pub struct Writer<D>
 where
@@ -77,7 +77,7 @@ impl<D> Writer<D>
 where
     D: CpuSample,
 {
-    /// Create buffer writer
+    /// Create a WGPU host-to-device writer.
     pub fn new() -> Self {
         Self {
             current: None,
@@ -339,7 +339,7 @@ where
     }
 }
 
-/// Custom buffer reader
+/// WGPU host-to-device reader that exposes full staging buffers.
 #[derive(Debug)]
 pub struct Reader<D>
 where
@@ -363,7 +363,7 @@ impl<D> Reader<D>
 where
     D: CpuSample,
 {
-    /// Create buffer reader
+    /// Create a WGPU host-to-device reader.
     pub fn new() -> Self {
         Self {
             slots: Arc::new(Mutex::new(Vec::new())),
@@ -394,7 +394,7 @@ where
         slot_id
     }
 
-    /// Send empty buffer back to writer.
+    /// Return an empty staging buffer to the writer.
     pub fn submit(&mut self, buffer: BufferEmpty<D>) {
         let Some(instance) = self.instance.clone() else {
             panic!("H2D reader: set_instance() must be called before submit");
@@ -452,7 +452,7 @@ where
         let _ = instance.device.poll(wgpu::PollType::Poll);
     }
 
-    /// Get full buffer
+    /// Get the next full staging buffer, if available.
     pub fn get_buffer(&mut self) -> Option<BufferFull<D>> {
         let slot_id = self.ready_ids.lock().unwrap().pop_front()?;
         let mut slots = self.slots.lock().unwrap();

@@ -140,7 +140,21 @@ impl Kernel for UiBoundBlock {
 }
 ```
 
-Add local blocks to a `LocalDomain` with `Flowgraph::add_local()`. On native targets a local domain is backed by a dedicated thread; on WASM it is backed by a dedicated web worker.
+Add local blocks to a `LocalDomain` with `Flowgraph::add_local()`. The constructor closure is executed in the local domain, so non-`Send` resources can be created there:
+
+```rust
+use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::LocalCpuReader;
+
+let mut fg = Flowgraph::new();
+let local = fg.local_domain()?;
+
+let block = fg.add_local(local, || UiBoundBlock {
+    input: LocalCpuReader::<f32>::default(),
+});
+```
+
+For a group of local blocks, or for async construction on the local thread, use `Flowgraph::domain_run()` or `Flowgraph::domain_run_async()` and add blocks through the provided `LocalDomainContext`. On native targets a local domain is backed by a dedicated thread; on WASM it is backed by a dedicated web worker.
 
 ## Testing
 

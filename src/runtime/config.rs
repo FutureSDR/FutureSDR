@@ -1,4 +1,8 @@
-//! Configuration Management
+//! Runtime configuration management.
+//!
+//! Native builds load defaults, then optional user and project `config.toml`
+//! files, and finally `FUTURESDR_*` environment overrides. WASM builds use the
+//! defaults plus values set through this module.
 #[cfg(not(target_arch = "wasm32"))]
 use config::File;
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,12 +16,12 @@ use std::sync::Mutex;
 use std::sync::MutexGuard;
 use tracing::level_filters::LevelFilter;
 
-/// Get global configuration
+/// Return a snapshot of the global runtime configuration.
 pub fn config() -> Config {
     get_config().clone()
 }
 
-// helper to deal with poisoned Mutex
+// Recover from a poisoned configuration mutex by restoring the initial config.
 fn get_config() -> MutexGuard<'static, Config> {
     CONFIG.lock().unwrap_or_else(|poison| {
         warn!("config poisoned, restoring initial config");
@@ -28,17 +32,17 @@ fn get_config() -> MutexGuard<'static, Config> {
     })
 }
 
-/// Set config value
+/// Set a configuration value.
 pub fn set<V: Into<config::Value>>(name: impl Into<String>, value: V) {
     get_config().set_value(name, value);
 }
 
-/// Get value from config
+/// Get an untyped custom configuration value.
 pub fn get_value(name: &str) -> Option<Value> {
     get_config().misc.get(name).cloned()
 }
 
-/// Try to parse value from config string
+/// Parse a custom configuration value from its string representation.
 pub fn get<T: FromStr>(name: &str) -> Option<T> {
     get_config()
         .misc
@@ -51,7 +55,7 @@ pub fn get<T: FromStr>(name: &str) -> Option<T> {
 fn init_config() -> Config {
     let mut settings = ::config::Config::builder();
 
-    // user config
+    // Optional user config: $XDG_CONFIG_HOME/futuresdr/config.toml (or platform equivalent).
     if let Some(mut path) = dirs::config_dir() {
         path.push("futuresdr");
         path.push("config.toml");
@@ -59,14 +63,14 @@ fn init_config() -> Config {
         settings = settings.add_source(File::from(path.clone()).required(false));
     }
 
-    // project config
+    // Optional project-local config.toml in the current working directory.
     settings =
         settings.add_source(File::new("config.toml", config::FileFormat::Toml).required(false));
 
-    // env config
+    // FUTURESDR_* environment variables have the highest file/env precedence.
     settings = settings.add_source(config::Environment::with_prefix("futuresdr"));
 
-    // start from default config
+    // Start from built-in defaults and apply loaded overrides below.
     let mut c = Config::default();
 
     match settings.build() {
@@ -118,24 +122,24 @@ fn init_config() -> Config {
 
 static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(init_config()));
 
-/// Configuration
+/// Runtime configuration values.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Queue size of inboxes
+    /// Bounded queue size used for block and flowgraph inboxes.
     pub queue_size: usize,
-    /// Stream buffer size in bytes
+    /// Default stream buffer size in bytes.
     pub buffer_size: usize,
-    /// Thread stack size
+    /// Stack size for scheduler and local-domain threads.
     pub stack_size: usize,
-    /// Slab reserved items
+    /// Reserved look-ahead items for queue-backed CPU buffers.
     pub slab_reserved: usize,
-    /// Log level
+    /// Default tracing log level.
     pub log_level: LevelFilter,
-    /// Enable control port
+    /// Whether to start the native HTTP control port.
     pub ctrlport_enable: bool,
-    /// Control port socket address
+    /// Socket address for the native HTTP control port.
     pub ctrlport_bind: String,
-    /// Frontend path for Webserver
+    /// Optional frontend directory served by the native control-port web server.
     pub frontend_path: Option<PathBuf>,
     misc: HashMap<String, Value>,
 }
@@ -209,7 +213,6 @@ impl Default for Config {
     }
 }
 
-// #[cfg(not(target_arch = "wasm32"))]
 fn config_parse<T: FromStr>(v: &Value) -> T {
     if let Ok(v) = v.clone().into_string()
         && let Ok(v) = v.parse::<T>()

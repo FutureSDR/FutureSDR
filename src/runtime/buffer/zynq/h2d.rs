@@ -30,7 +30,7 @@ struct CurrentBuffer {
 }
 
 // ====================== WRITER ============================
-/// Custom buffer writer
+/// Zynq host-to-device CPU writer.
 #[derive(Debug)]
 pub struct Writer<D>
 where
@@ -54,7 +54,7 @@ impl<D> Writer<D>
 where
     D: CpuSample,
 {
-    /// Create buffer writer
+    /// Create a Zynq host-to-device writer.
     pub fn new() -> Self {
         debug!("H2D writer created");
         Self {
@@ -200,20 +200,20 @@ where
     }
 
     fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not yet implemented for Vulkan buffers");
+        warn!("set_min_items not yet implemented for Zynq buffers");
     }
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not yet implemented for Vulkan buffers");
+        warn!("set_min_buffer_size_in_items not yet implemented for Zynq buffers");
     }
     fn max_items(&self) -> usize {
-        warn!("max_items not yet implemented for zynq buffers");
+        warn!("max_items not yet implemented for Zynq buffers");
         usize::MAX
     }
 }
 
 // ====================== READER ============================
-/// Custom buffer reader
+/// Zynq host-to-device reader that exposes full DMA buffers.
 #[derive(Debug)]
 pub struct Reader<D>
 where
@@ -236,7 +236,7 @@ impl<D> Reader<D>
 where
     D: CpuSample,
 {
-    /// Create a Reader
+    /// Create a Zynq host-to-device reader.
     pub fn new() -> Self {
         Self {
             inbound: Arc::new(Mutex::new(VecDeque::new())),
@@ -248,19 +248,19 @@ where
         }
     }
 
-    /// Send empty buffer back to writer
+    /// Return an empty DMA buffer to the writer.
     pub fn submit(&mut self, buffer: BufferEmpty) {
         self.outbound.lock().unwrap().push(buffer);
         self.state.connected().writer.inbox().notify();
     }
 
-    /// Get full buffer
+    /// Get the next full DMA buffer, if available.
     pub fn get_buffer(&mut self) -> Option<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
         vec.pop_front()
     }
 
-    /// Check, if a buffer is available
+    /// Check whether a full buffer is available.
     pub fn buffer_available(&self) -> bool {
         let vec = self.inbound.lock().unwrap();
         !vec.is_empty()

@@ -80,6 +80,9 @@ Reusable buffers need to return to the start of the pipeline. FutureSDR models t
 ```rust
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::circuit;
+use inplace::Apply;
+use inplace::VectorSink;
+use inplace::VectorSource;
 
 let mut fg = Flowgraph::new();
 
@@ -93,7 +96,7 @@ connect!(fg, src > apply > snk);
 connect!(fg, src < snk);
 ```
 
-The `<` connection closes the return path for empty buffers. The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink returns each consumed buffer to the source side.
+The `<` connection closes the return path for empty buffers. The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink returns each consumed buffer to the source side. In this snippet, `inplace::VectorSource`, `inplace::Apply`, and `inplace::VectorSink` are the custom blocks from the in-place example.
 
 This concept is inspired by [qsdr](https://github.com/daniestevez/qsdr), which also explores in-place work APIs for SDR-style flowgraphs.
 
@@ -104,13 +107,14 @@ use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::circuit;
+use inplace::Apply as InplaceApply;
 
 let mut fg = Flowgraph::new();
 
 let mut src = VectorSource::<i32, circuit::Writer<i32>>::new(vec![1, 2, 3, 4]);
 src.output().inject_buffers(4);
 
-let apply = Apply::new();
+let apply = InplaceApply::new();
 let snk = VectorSink::new(4);
 
 connect!(fg, src > apply > snk);
