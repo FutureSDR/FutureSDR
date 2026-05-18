@@ -432,6 +432,9 @@ jobs:
     runs-on: windows-latest
     env:
       RUST_BACKTRACE: full
+      # shaderc-sys 0.8.x vendors CMake projects with old minimum versions;
+      # GitHub's Windows image ships CMake 4, which requires this opt-in.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
     steps:
       - name: Install Ninja
         run: choco install ninja -y --no-progress
