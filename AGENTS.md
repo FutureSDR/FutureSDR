@@ -25,7 +25,7 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 
 ## Build & Test Commands
 
-The root crate uses Rust 2024 edition and currently declares `rust-version = "1.89"`. Build and test commands work on stable Rust, but repository formatting uses `cargo +nightly fmt`, and several Leptos-based frontend crates enable Leptos' `nightly` feature.
+The root crate uses Rust 2024 edition, currently declares `rust-version = "1.89"`, and requires the nightly Rust channel. The repository includes `rust-toolchain.toml`, so cargo/rustup automatically select nightly inside the checkout. The `rust-version` value is only the minimum compiler version; it does not imply stable support.
 
 The root workspace contains `.`, `crates/futuredsp`, `crates/macros`, and `crates/types`. `crates/prophecy`, `crates/remote`, every directory under `examples/`, and every directory under `perf/` are independent Cargo workspaces.
 
@@ -51,10 +51,10 @@ cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
 cargo clippy --all-targets --workspace --features=burn,vulkan,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
 
 # Format (repository convention uses nightly rustfmt)
-cargo +nightly fmt --all
+cargo fmt --all
 
 # Format check
-cargo +nightly fmt --all -- --check
+cargo fmt --all -- --check
 ```
 
 ### Examples, Perf, and independent crates

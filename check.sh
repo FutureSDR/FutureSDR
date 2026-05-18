@@ -7,7 +7,7 @@ SCRIPTPATH=`dirname $SCRIPT`
 
 cd ${SCRIPTPATH} && find . -name "Cargo.lock" -delete
 
-CARGO_FMT="cargo +nightly fmt"
+CARGO_FMT="cargo fmt"
 
 ###########################################################
 # FMT

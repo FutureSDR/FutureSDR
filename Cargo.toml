@@ -3,6 +3,7 @@ name = "futuresdr"
 version = "0.0.41-dev"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
+# Minimum rustc version; FutureSDR currently requires the nightly channel (see rust-toolchain.toml).
 rust-version = "1.89"
 license = "Apache-2.0"
 homepage = "https://www.futuresdr.org"
@@ -159,9 +160,6 @@ features = [
     'WorkerOptions',
     'WorkerType',
 ]
-
-[build-dependencies]
-rustc_version = "0.4"
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

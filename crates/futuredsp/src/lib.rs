@@ -1,7 +1,7 @@
 //! A signal processing library for SDR and real-time DSP.
 #![warn(missing_docs)]
 #![no_std]
-#![cfg_attr(RUSTC_IS_NIGHTLY, feature(float_algebraic))]
+#![feature(float_algebraic)]
 
 #[macro_use]
 extern crate alloc;
