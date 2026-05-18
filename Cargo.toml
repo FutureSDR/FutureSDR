@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr"
-version = "0.0.41-dev"
+version = "0.0.41"
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 # Minimum rustc version; FutureSDR currently requires the nightly channel (see rust-toolchain.toml).
@@ -73,9 +73,9 @@ config = "0.15"
 dirs = "6.0"
 dyn-clone = "1.0"
 futures = "0.3"
-futuredsp = { path = "crates/futuredsp", version = "0.0.10-dev" }
-futuresdr-macros = { path = "crates/macros", version = "0.0.10-dev" }
-futuresdr-types = { path = "crates/types", version = "0.0.16-dev" }
+futuredsp = { path = "crates/futuredsp", version = "0.0.10" }
+futuresdr-macros = { path = "crates/macros", version = "0.0.10" }
+futuresdr-types = { path = "crates/types", version = "0.0.16" }
 kanal = "0.1.1"
 num-complex = "0.4"
 num-integer = "0.1"
