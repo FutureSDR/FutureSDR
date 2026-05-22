@@ -6,7 +6,8 @@ can be used as the base for web UIs or any other tool supporting REST (e.g., Cur
 ## REST API
 
 *Control port* provides a REST API to expose the flowgraph structure and enable remote interaction.
-It is enabled by default, but you can configure it explicitly through the
+The native server is compiled in through the `ctrl_port` Cargo feature, which is
+enabled by default. At runtime, you can configure it explicitly through the
 [configuration](running_apps.md#configuration), for example:
 
 ```toml
@@ -188,9 +189,10 @@ for freq in itertools.cycle(FREQUENCIES):
 
 FutureSDR comes with a minimal, work-in-progress web UI, implemented in the *prophecy* crate.
 It comes pre-compiled at `crates/prophecy/dist`.
-When FutureSDR is started with control port enabled, you can specify the
-`frontend_path` [configuration](running_apps.md#configuration) option to serve a custom
-frontend at the root path of the control-port URL (e.g., `127.0.0.1:1337`).
+When FutureSDR is built with the `ctrl_port` feature and started with control
+port enabled, you can specify the `frontend_path`
+[configuration](running_apps.md#configuration) option to serve a custom frontend
+at the root path of the control-port URL (e.g., `127.0.0.1:1337`).
 
 Using the REST API, it is straightforward to build custom UIs.
 

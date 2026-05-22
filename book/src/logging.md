@@ -90,15 +90,15 @@ The accepted config values are tracing level filters such as `off`, `error`, `wa
 ## Compile-Time Filters
 
 > [!WARNING]
-> By default, FutureSDR enables feature flags that apply compile-time tracing filters: `tracing_max_level_debug` and `tracing_release_max_level_info`.
+> By default, FutureSDR enables `ctrl_port` and feature flags that apply compile-time tracing filters: `tracing_max_level_debug` and `tracing_release_max_level_info`.
 >
 > These filters remove more verbose log statements at compile time. In debug builds, `trace` messages are disabled. In release builds, messages more detailed than `info` are disabled.
 >
-> The filters are transitive. If your application needs more detailed logs, disable FutureSDR's default features and enable the features you need explicitly:
+> The filters are transitive. If your application needs more detailed logs, disable FutureSDR's default features and enable the features you need explicitly, including `ctrl_port` if you still need the REST API or Prophecy web UI:
 >
 > ```toml
 > [dependencies]
-> futuresdr = { version = "...", default-features = false, features = ["audio", "seify"] }
+> futuresdr = { version = "...", default-features = false, features = ["audio", "seify", "ctrl_port"] }
 > ```
 
 Runtime filters such as `FUTURESDR_LOG=trace` cannot show messages that were removed by compile-time filters.

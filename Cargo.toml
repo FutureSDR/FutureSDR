@@ -23,10 +23,11 @@ categories = [
 members = [".", "crates/futuredsp", "crates/macros", "crates/types"]
 
 [features]
-default = ["tracing_max_level_debug", "tracing_release_max_level_info"]
+default = ["ctrl_port", "tracing_max_level_debug", "tracing_release_max_level_info"]
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 burn = ["dep:burn"]
+ctrl_port = ["dep:axum", "dep:tokio", "dep:tower-http"]
 flow_scheduler = ["dep:spin"]
 hackrf = ["seify/hackrfone"]
 rtlsdr = ["seify/rtlsdr"]
@@ -111,7 +112,7 @@ async-io = "2.6"
 async-net = "2.0"
 async-task = "4.7"
 async-tungstenite = "0.34"
-axum = "0.8"
+axum = { version = "0.8", optional = true }
 blocking = "1.6"
 concurrent-queue = { version = "2.5" }
 core_affinity = "0.8"
@@ -121,8 +122,8 @@ ouroboros = { version = "0.18", optional = true }
 rodio = { version = "0.22", default-features = false, features = [
     "symphonia-all",
 ], optional = true }
-tokio = { version = "1", features = ["rt"] }
-tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"] }
+tokio = { version = "1", features = ["rt"], optional = true }
+tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = { version = "0.0.14", features = ["generic"] }
 vulkano = { version = "0.35", optional = true }

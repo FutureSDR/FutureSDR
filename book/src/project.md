@@ -39,10 +39,11 @@ futuresdr = { path = "../FutureSDR" }
 
 FutureSDR supports several features that you may want to enable.
 
-- `default`: by default `tracing_max_level_debug` and `tracing_release_max_level_info` are enabled
+- `default`: enables `ctrl_port`, `tracing_max_level_debug`, and `tracing_release_max_level_info`
 - `aaronia_http`: drivers for Aaronia HTTP servers, usable through Seify
 - `audio`: read/write audio files and interface speakers/mic
 - `burn`: buffers using [Burn](https://burn.dev) tensors
+- `ctrl_port`: enable the native HTTP control port and Prophecy web UI server
 - `flow_scheduler`: enable the [Flow Scheduler](scheduler.md#flow)
 - `hackrf`: enable Rust HackRF driver for Seify (unstable, not recommended)
 - `rtlsdr`: enable Rust RTL SDR driver for Seify (unstable, not recommended)
@@ -60,7 +61,7 @@ For example:
 
 ```toml
 [dependencies]
-futuresdr = { version = "0.0.40", default-features = false, features = ["audio", "seify"] }
+futuresdr = { version = "0.0.40", default-features = false, features = ["audio", "seify", "ctrl_port"] }
 ```
 
 

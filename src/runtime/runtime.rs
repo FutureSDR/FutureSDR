@@ -1,12 +1,12 @@
 use async_lock::Mutex;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 use axum::Router;
 use futures::prelude::*;
 use std::fmt;
 use std::sync::Arc;
 
 use crate::runtime;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 use crate::runtime::ControlPort;
 use crate::runtime::Error;
 use crate::runtime::Flowgraph;
@@ -36,8 +36,9 @@ pub type DefaultScheduler = WasmMainScheduler;
 /// Executor and control-plane owner for [`Flowgraph`]s and async tasks.
 ///
 /// A [`Runtime`] owns a scheduler, starts flowgraphs, and provides a control
-/// port on native targets. It is generic over the scheduler implementation, but
-/// most applications should use [`Runtime::new`] with the default scheduler.
+/// port on native targets when the `ctrl_port` feature is enabled. It is generic
+/// over the scheduler implementation, but most applications should use
+/// [`Runtime::new`] with the default scheduler.
 ///
 /// Use [`Runtime::run`] or [`Runtime::run_async`] when the caller should wait
 /// until a flowgraph finishes. Use [`Runtime::start`] or
@@ -46,7 +47,7 @@ pub type DefaultScheduler = WasmMainScheduler;
 pub struct Runtime<S = DefaultScheduler> {
     scheduler: S,
     flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
     _control_port: ControlPort<S>,
 }
 
@@ -54,10 +55,11 @@ pub struct Runtime<S = DefaultScheduler> {
 impl Runtime<DefaultScheduler> {
     /// Construct a new [`Runtime`] using [`DefaultScheduler::default()`].
     ///
-    /// On native targets this also initializes logging and starts the integrated
-    /// control-port server when the runtime configuration enables it.
+    /// On native targets this also initializes logging and, with the `ctrl_port`
+    /// feature, starts the integrated control-port server when the runtime
+    /// configuration enables it.
     pub fn new() -> Self {
-        Self::with_custom_routes(Router::new())
+        Self::with_scheduler(DefaultScheduler::default())
     }
 
     /// Construct a runtime with additional routes for the integrated web server.
@@ -65,6 +67,7 @@ impl Runtime<DefaultScheduler> {
     /// The routes are merged into the native control-port server. Use this for
     /// application-specific HTTP APIs or UI assets that should be served by the
     /// same process.
+    #[cfg(feature = "ctrl_port")]
     pub fn with_custom_routes(routes: Router) -> Self {
         Self::with_config(DefaultScheduler::default(), routes)
     }
@@ -170,7 +173,7 @@ impl<S: Scheduler> Runtime<S> {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 impl<S: Scheduler + Sync> Runtime<S> {
     /// Construct a [`Runtime`] with a custom [`Scheduler`].
     ///
@@ -194,6 +197,20 @@ impl<S: Scheduler + Sync> Runtime<S> {
             scheduler,
             flowgraphs,
             _control_port: ControlPort::new(handle, routes),
+        }
+    }
+}
+
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "ctrl_port")))]
+impl<S: Scheduler> Runtime<S> {
+    /// Construct a [`Runtime`] with a custom [`Scheduler`].
+    pub fn with_scheduler(scheduler: S) -> Self {
+        runtime::init();
+
+        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        Runtime {
+            scheduler,
+            flowgraphs,
         }
     }
 }

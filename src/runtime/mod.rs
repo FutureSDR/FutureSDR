@@ -28,9 +28,9 @@ mod connect_add;
 /// Developer-facing APIs for implementing custom blocks and runtime extensions.
 pub mod dev;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 mod ctrl_port;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 use crate::runtime::ctrl_port::ControlPort;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]

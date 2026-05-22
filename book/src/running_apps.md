@@ -33,11 +33,11 @@ The available options are:
 - `slab_reserved`: number of items a Slab buffer copies into the next buffer
 - `log_level`: one of `off`, `info`, `warn`, `error`, `debug`, or `trace`
 - `ctrlport_enable`: whether control port should be enabled (`true` or
-  `false`)
+  `false`; requires the `ctrl_port` Cargo feature, enabled by default)
 - `ctrlport_bind`: endpoint that the control-port web server should bind to
-  (e.g., `127.0.0.1:1337`)
+  (e.g., `127.0.0.1:1337`; requires `ctrl_port`)
 - `frontend_path`: path to a web UI that is served as the root URL of the
-  control-port server
+  control-port server (requires `ctrl_port`)
 
 An example `config.toml`:
 ```toml
@@ -82,6 +82,10 @@ Disable default features with:
 cargo run --release --bin rx --no-default-features
 ```
 
+Note that FutureSDR's default features include the native `ctrl_port` server and
+compile-time tracing filters. If an application disables default features but
+still needs the REST API or Prophecy web UI, enable `ctrl_port` explicitly.
+
 
 ## Log and Debug Messages
 
@@ -112,12 +116,12 @@ FUTURESDR_LOG=info,lora::decoder=off cargo run --release --bin rx
 
 
 > [!WARNING]
-> By default, FutureSDR sets feature flags that apply compile-time tracing filters: `trace` messages are disabled in debug builds, and messages more detailed than `info` are disabled in release builds.
+> By default, FutureSDR enables `ctrl_port` and feature flags that apply compile-time tracing filters: `trace` messages are disabled in debug builds, and messages more detailed than `info` are disabled in release builds.
 >
-> Also, these flags are transitive! If you want more detailed logs in your application, disable default features for the FutureSDR dependency.
+> Also, these flags are transitive! If you want more detailed logs in your application, disable default features for the FutureSDR dependency and re-enable the non-logging defaults you still need.
 > ```toml
 > [dependencies]
-> futuresdr = { version = "...", default-features = false, features = ["audio", "seify"] }
+> futuresdr = { version = "...", default-features = false, features = ["audio", "seify", "ctrl_port"] }
 > ```
 
 ## Command Line Arguments

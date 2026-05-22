@@ -1,6 +1,6 @@
 # Runtime
 
-A FutureSDR [Runtime](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.Runtime.html) owns a [Scheduler](scheduler.md) and starts one or more [Flowgraphs](flowgraph.md). On native targets, the runtime can start an integrated web server to serve a web UI and expose the [control port](remote_interaction.md#rest-api) interface for runtime and flowgraph interaction.
+A FutureSDR [Runtime](https://docs.rs/futuresdr/latest/futuresdr/runtime/struct.Runtime.html) owns a [Scheduler](scheduler.md) and starts one or more [Flowgraphs](flowgraph.md). On native targets built with the default `ctrl_port` feature, the runtime can start an integrated web server to serve a web UI and expose the [control port](remote_interaction.md#rest-api) interface for runtime and flowgraph interaction.
 
 ## Running a Flowgraph
 
@@ -91,7 +91,7 @@ Runtime::block_on(async move {
 })?;
 ```
 
-`RuntimeHandle::start()` returns a `RunningFlowgraph`. It also registers the flowgraph with the runtime control plane, so it remains available through `get_flowgraph()` and the control port.
+`RuntimeHandle::start()` returns a `RunningFlowgraph`. It also registers the flowgraph with the runtime control plane, so it remains available through `get_flowgraph()` and, when the `ctrl_port` feature is enabled, the control port.
 
 ## Initialization and Logging
 
