@@ -7,7 +7,7 @@ CONFIGS=normal opti
 GRRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),perf-data/gr_$(r)_$(s).csv))
 FSRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),$(foreach c,$(CONFIGS),perf-data/fs_$(r)_$(s)_$(c).csv)))
 
-SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5 -d
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 # BUFFER_SIZE=262144
 BUFFER_SIZE=65536
 PY_USER_SITE=$(shell python3 -c "import site; print(site.getusersitepackages())")

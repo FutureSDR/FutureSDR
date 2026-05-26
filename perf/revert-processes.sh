@@ -9,3 +9,6 @@ echo "==> Resetting AllowedCPUs to all CPUs: $ALL_CPUS"
 sudo systemctl set-property --runtime system.slice AllowedCPUs=$ALL_CPUS
 sudo systemctl set-property --runtime user.slice   AllowedCPUs=$ALL_CPUS
 sudo systemctl set-property --runtime init.scope   AllowedCPUs=$ALL_CPUS
+
+sudo systemctl stop sdr.slice || true
+sudo systemctl reset-failed sdr.slice || true

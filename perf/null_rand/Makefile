@@ -1,11 +1,11 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_8_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_8_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [200000000], [256], ["flow", "smoln", "flow-spsc", "smoln-spsc"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,25,2), [600000000], [128])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [600000000], [128], ["flow", "smoln", "flow-spsc", "smoln-spsc", "local"])]))')
 
-SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5,8,9,10,11 -d
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
-.PHONY: setup all clean perf_smol perf_flow perf_gr
+.PHONY: setup all clean perf_smol perf_flow perf_local perf_gr
 
 all: setup $(GRRESULTS) $(FSRESULTS)
 
@@ -56,15 +56,20 @@ clean:
 	rm -rf build
 
 PERF=perf stat -B -e context-switches,cpu-migrations,LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-load-misses,cache-misses,cache-references,dTLB-load-misses,dTLB-loads,dTLB-store-misses,dTLB-stores,iTLB-load-misses,iTLB-loads
-PERF_PARAMS=--max-copy=128 --samples 500000000 --pipes=6 --stages=10
+PERF_PARAMS=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
+PERF_PARAMS_LOCAL=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
 
 perf_flow:
 	cargo build --release --bin null_rand
-	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --scheduler flow
+	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --config flow
 
 perf_smol:
 	cargo build --release --bin null_rand
-	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --scheduler smoln
+	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --config smoln
+
+perf_local:
+	cargo build --release --bin null_rand
+	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS_LOCAL) --config local
 
 perf_gr:
 	$(SHIELD) -- $(PERF) ./build/null_rand_flowgraph $(PERF_PARAMS)

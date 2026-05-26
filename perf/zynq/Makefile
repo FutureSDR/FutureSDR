@@ -1,5 +1,7 @@
 SHELL=/bin/bash
 
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
+
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
 FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_{1}_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,21), [1000])]))')
 
@@ -14,9 +16,7 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../create_cpuset.sh
-	../cpugov.sh performance
-	../irq_affinity.sh
+	../migrate-processes.sh
 
 build/msg_flowgraph: msg_flowgraph.cpp msg_flowgraph.hpp
 	rm -rf build
@@ -35,7 +35,7 @@ perf-data/gr%.csv: build/msg_flowgraph
 	@echo STAGES=$(STAGES)
 	@echo BURST_SIZE=$(BURST_SIZE)
 
-	cset shield --userset=sdr --exec -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) | grep -v cset > $@
+	$(SHIELD) -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) > $@
 
 perf-data/fs%.csv: msg.rs
 	mkdir -p perf-data
@@ -49,7 +49,7 @@ perf-data/fs%.csv: msg.rs
 	@echo STAGES=$(STAGES)
 	@echo BURST_SIZE=$(BURST_SIZE)
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) | grep -v cset > $@
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) > $@
 
 clean:
 	rm -rf build

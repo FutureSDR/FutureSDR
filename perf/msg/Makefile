@@ -5,7 +5,7 @@ FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".jo
 
 REPETITIONS=10
 
-SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -p AllowedCPUs=2,3,4,5 -d
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
 .PHONY: setup all clean
 

@@ -3,4 +3,5 @@ target
 node_modules
 perf-data
 package-lock.json
+*.syms.json
 .idea/

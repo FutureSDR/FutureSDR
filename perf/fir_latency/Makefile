@@ -1,5 +1,7 @@
 SHELL=/bin/bash
 
+SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
+
 GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_6_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,25,2), [20000000], [512])]))')
 FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_6_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,25,2), [20000000], [512], ["smol1", "smoln", "flow"])]))')
 
@@ -12,9 +14,7 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../create_cpuset.sh
-	../cpugov.sh performance
-	../irq_affinity.sh
+	../migrate-processes.sh
 
 perf-data/gr%.csv: build/fir_rand_flowgraph
 	mkdir -p perf-data
@@ -41,7 +41,7 @@ perf-data/gr%.csv: build/fir_rand_flowgraph
 	lttng enable-event --userspace null_rand_latency:rx
 	lttng start
 
-	cset shield --userset=sdr --exec -- ./build/fir_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX)
+	$(SHIELD) -- ./build/fir_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX)
 
 	lttng destroy
 	python3 parse.py perf-data/foo > $@
@@ -72,7 +72,7 @@ perf-data/fs%.csv: fir.rs
 	lttng enable-event --userspace futuresdr:rx
 	lttng start
 
-	cset shield --userset=sdr --exec -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER)
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER)
 
 	lttng destroy
 	python3 parse.py perf-data/foo > $@
