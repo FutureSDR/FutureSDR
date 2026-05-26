@@ -1,9 +1,13 @@
 pub mod inplace;
+pub mod local_spsc;
 pub mod lockfree;
 pub mod spsc;
 
 mod add;
 pub use add::Add;
+
+mod copy_n;
+pub use copy_n::CopyN;
 
 mod copy_rand;
 pub use copy_rand::CopyRand;
