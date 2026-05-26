@@ -4,9 +4,11 @@ use std::mem::size_of;
 use vmcircbuffer::generic;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferInbox;
+use crate::runtime::buffer::BufferMode;
+use crate::runtime::buffer::BufferNotifier;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::ConnectionState;
@@ -16,15 +18,14 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
-use crate::runtime::dev::BlockInbox;
-use crate::runtime::dev::BlockNotifier;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::dev::ItemTag;
 
-struct MyNotifier {
-    notifier: BlockNotifier,
+struct MyNotifier<N: BufferNotifier> {
+    notifier: N,
 }
 
-impl generic::Notifier for MyNotifier {
+impl<N: BufferNotifier> generic::Notifier for MyNotifier<N> {
     // we never arm the notifier
     fn arm(&mut self) {}
 
@@ -64,27 +65,30 @@ impl generic::Metadata for MyMetadata {
 }
 
 /// Circular writer
-pub struct Writer<D>
+pub struct Writer<D, M = ThreadSafeMode>
 where
     D: CpuSample,
+    M: BufferMode,
 {
-    core: PortCore,
-    state: ConnectionState<ConnectedWriter<D>>,
+    core: PortCore<M>,
+    state: ConnectionState<ConnectedWriter<D, M>>,
     finished: bool,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedWriter<D>
+struct ConnectedWriter<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
-    writer: generic::Writer<D, MyNotifier, MyMetadata>,
-    readers: Vec<PortEndpoint>,
+    writer: generic::Writer<D, MyNotifier<M::Notifier>, MyMetadata>,
+    readers: Vec<PortEndpoint<M>>,
 }
 
-impl<D> Writer<D>
+impl<D, M> Writer<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     fn new() -> Self {
         Self {
@@ -96,22 +100,25 @@ where
     }
 }
 
-impl<D> Default for Writer<D>
+impl<D, M> Default for Writer<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D> BufferWriter for Writer<D>
+impl<D, M> BufferWriter for Writer<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
-    type Reader = Reader<D>;
+    type Mode = M;
+    type Reader = Reader<D, M>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
     fn validate(&self) -> Result<(), Error> {
@@ -212,12 +219,7 @@ where
     }
     async fn notify_finished(&mut self) {
         for i in &self.state.connected().readers {
-            let _ = i
-                .inbox()
-                .send(BlockMessage::StreamInputDone {
-                    input_id: i.port_id(),
-                })
-                .await;
+            let _ = i.inbox().stream_input_done(i.port_id()).await;
         }
     }
     fn block_id(&self) -> BlockId {
@@ -228,9 +230,10 @@ where
     }
 }
 
-impl<D> CpuBufferWriter for Writer<D>
+impl<D, M> CpuBufferWriter for Writer<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     type Item = D;
 
@@ -265,9 +268,10 @@ where
     }
 }
 
-impl<D> fmt::Debug for Writer<D>
+impl<D, M> fmt::Debug for Writer<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Writer")
@@ -278,27 +282,30 @@ where
 }
 
 /// Circular Reader
-pub struct Reader<D>
+pub struct Reader<D, M = ThreadSafeMode>
 where
     D: CpuSample,
+    M: BufferMode,
 {
-    state: ConnectionState<ConnectedReader<D>>,
+    state: ConnectionState<ConnectedReader<D, M>>,
     finished: bool,
-    core: PortCore,
+    core: PortCore<M>,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedReader<D>
+struct ConnectedReader<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
-    reader: generic::Reader<D, MyNotifier, MyMetadata>,
-    writer: PortEndpoint,
+    reader: generic::Reader<D, MyNotifier<M::Notifier>, MyMetadata>,
+    writer: PortEndpoint<M>,
 }
 
-impl<D> Default for Reader<D>
+impl<D, M> Default for Reader<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self {
@@ -310,15 +317,17 @@ where
     }
 }
 
-impl<D> BufferReader for Reader<D>
+impl<D, M> BufferReader for Reader<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
+    type Mode = M;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
     fn validate(&self) -> Result<(), Error> {
@@ -334,9 +343,7 @@ where
             .connected()
             .writer
             .inbox()
-            .send(BlockMessage::StreamOutputDone {
-                output_id: self.state.connected().writer.port_id(),
-            })
+            .stream_output_done(self.state.connected().writer.port_id())
             .await;
     }
     fn finish(&mut self) {
@@ -353,9 +360,10 @@ where
     }
 }
 
-impl<D> CpuBufferReader for Reader<D>
+impl<D, M> CpuBufferReader for Reader<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     type Item = D;
 
@@ -403,9 +411,10 @@ where
     }
 }
 
-impl<D> fmt::Debug for Reader<D>
+impl<D, M> fmt::Debug for Reader<D, M>
 where
     D: CpuSample,
+    M: BufferMode,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("circular::Reader")

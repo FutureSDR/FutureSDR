@@ -14,11 +14,11 @@ use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
+use futuresdr::runtime::buffer::LocalMode;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::dev::BlockInboxInit;
+use futuresdr::runtime::dev::ItemTag;
 use futuresdr::runtime::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::LocalBlockNotifier;
-use futuresdr::runtime::dev::ItemTag;
 use futuresdr::tracing::warn;
 use once_cell::sync::Lazy;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
@@ -134,12 +134,12 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
+    type Mode = LocalMode;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInboxInit) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        let inbox = inbox.local();
         self.notifier = inbox.notifier();
         self.inbox = inbox;
     }
@@ -370,14 +370,15 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
+    type Mode = LocalMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInboxInit) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        let inbox = inbox.local();
         self.notifier = inbox.notifier();
         self.inbox = inbox;
     }

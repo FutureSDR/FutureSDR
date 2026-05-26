@@ -7,9 +7,11 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
+use crate::runtime::block_inbox::BlockInbox;
+use crate::runtime::block_inbox::BlockInboxReader;
+use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockInbox;
 
 pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Send + 'static>;
 
@@ -21,6 +23,8 @@ pub(crate) type LocalDomainAsyncExec = Box<
 
 pub(crate) struct LocalDomainState {
     blocks: Vec<Option<Box<dyn LocalBlock>>>,
+    inboxes: Vec<Option<LocalInboxHandle>>,
+    external_inboxes: Vec<Option<BlockInboxReader>>,
     stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
 }
@@ -29,6 +33,8 @@ impl LocalDomainState {
     pub(crate) fn new() -> Self {
         Self {
             blocks: Vec::new(),
+            inboxes: Vec::new(),
+            external_inboxes: Vec::new(),
             stream_edges: Vec::new(),
             message_edges: Vec::new(),
         }
@@ -49,16 +55,24 @@ impl LocalDomainState {
     pub(crate) fn insert_block(
         &mut self,
         local_id: usize,
-        block: Box<dyn LocalBlock>,
+        mut block: Box<dyn LocalBlock>,
     ) -> Result<(), Error> {
         if self.blocks.len() <= local_id {
             self.blocks.resize_with(local_id + 1, || None);
+        }
+        if self.inboxes.len() <= local_id {
+            self.inboxes.resize_with(local_id + 1, || None);
+        }
+        if self.external_inboxes.len() <= local_id {
+            self.external_inboxes.resize_with(local_id + 1, || None);
         }
         if self.blocks[local_id].is_some() {
             return Err(Error::RuntimeError(format!(
                 "local block slot {local_id} was inserted more than once"
             )));
         }
+        self.inboxes[local_id] = block.local_inbox_state();
+        self.external_inboxes[local_id] = block.take_external_inbox_reader();
         self.blocks[local_id] = Some(block);
         Ok(())
     }
@@ -67,6 +81,16 @@ impl LocalDomainState {
         &mut self,
     ) -> impl Iterator<Item = (usize, &mut Option<Box<dyn LocalBlock>>)> {
         self.blocks.iter_mut().enumerate()
+    }
+
+    pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
+        self.external_inboxes
+            .get_mut(local_id)
+            .and_then(Option::take)
+    }
+
+    pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalInboxHandle> {
+        self.inboxes.get(local_id).and_then(Clone::clone)
     }
 
     pub(crate) fn block(

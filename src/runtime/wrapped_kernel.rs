@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::future::Future;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -14,7 +15,11 @@ use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockInboxReader;
-use crate::runtime::buffer::BufferReader;
+use crate::runtime::block_inbox::LocalBlockInbox;
+use crate::runtime::block_inbox::LocalBlockInboxReader;
+use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::buffer::AnyBufferReader;
+use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config;
 use crate::runtime::dev::BlockInbox;
@@ -26,9 +31,168 @@ use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
 
+pub(crate) type NormalWrappedKernel<K> = WrappedKernel<K, ThreadSafeInbox>;
+pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalDomainInbox>;
+
+pub(crate) trait WrappedInbox {
+    fn try_recv(&mut self) -> Option<BlockMessage>;
+    fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_;
+    fn take_message_pending(&self) -> bool;
+    fn take_pending(&self) -> bool;
+    fn notified(&self) -> impl Future<Output = ()> + '_;
+}
+
+impl WrappedInbox for BlockInboxReader {
+    fn try_recv(&mut self) -> Option<BlockMessage> {
+        self.try_recv()
+    }
+
+    fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_ {
+        self.recv()
+    }
+
+    fn take_message_pending(&self) -> bool {
+        self.take_message_pending()
+    }
+
+    fn take_pending(&self) -> bool {
+        self.take_pending()
+    }
+
+    fn notified(&self) -> impl Future<Output = ()> + '_ {
+        self.notified()
+    }
+}
+
+impl WrappedInbox for LocalBlockInboxReader {
+    fn try_recv(&mut self) -> Option<BlockMessage> {
+        self.try_recv()
+    }
+
+    fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_ {
+        self.recv()
+    }
+
+    fn take_message_pending(&self) -> bool {
+        self.take_message_pending()
+    }
+
+    fn take_pending(&self) -> bool {
+        self.take_pending()
+    }
+
+    fn notified(&self) -> impl Future<Output = ()> + '_ {
+        self.notified()
+    }
+}
+
+/// Inbox bundle for normal thread-safe blocks.
+pub(crate) struct ThreadSafeInbox {
+    tx: BlockInbox,
+    rx: Option<BlockInboxReader>,
+}
+
+impl ThreadSafeInbox {
+    fn new() -> Self {
+        let (tx, rx) = crate::runtime::block_inbox::channel(config::config().queue_size);
+        Self { tx, rx: Some(rx) }
+    }
+}
+
+/// Inbox bundle for blocks that execute inside a local domain.
+pub(crate) struct LocalDomainInbox {
+    external_tx: BlockInbox,
+    external_rx: Option<BlockInboxReader>,
+    local_tx: LocalBlockInbox,
+    local_rx: Option<LocalBlockInboxReader>,
+}
+
+impl LocalDomainInbox {
+    fn new() -> Self {
+        let (external_tx, external_rx) =
+            crate::runtime::block_inbox::channel(config::config().queue_size);
+        let (local_tx, local_rx, _) = LocalBlockInboxReader::pair();
+        Self {
+            external_tx,
+            external_rx: Some(external_rx),
+            local_tx,
+            local_rx: Some(local_rx),
+        }
+    }
+}
+
+pub(crate) trait WrappedKernelInbox {
+    type RunInbox: WrappedInbox;
+
+    fn init_arg(&self) -> PortInboxes;
+    fn external_inbox(&self) -> BlockInbox;
+    fn take_run_inbox(&mut self) -> Self::RunInbox;
+    fn put_run_inbox(&mut self, inbox: Self::RunInbox);
+
+    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+        None
+    }
+
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        None
+    }
+}
+
+impl WrappedKernelInbox for ThreadSafeInbox {
+    type RunInbox = BlockInboxReader;
+
+    fn init_arg(&self) -> PortInboxes {
+        PortInboxes::thread_safe(self.tx.clone())
+    }
+
+    fn external_inbox(&self) -> BlockInbox {
+        self.tx.clone()
+    }
+
+    fn take_run_inbox(&mut self) -> Self::RunInbox {
+        self.rx
+            .take()
+            .expect("normal block inbox missing while running")
+    }
+
+    fn put_run_inbox(&mut self, inbox: Self::RunInbox) {
+        self.rx = Some(inbox);
+    }
+}
+
+impl WrappedKernelInbox for LocalDomainInbox {
+    type RunInbox = LocalBlockInboxReader;
+
+    fn init_arg(&self) -> PortInboxes {
+        PortInboxes::local(self.external_tx.clone(), self.local_tx.clone())
+    }
+
+    fn external_inbox(&self) -> BlockInbox {
+        self.external_tx.clone()
+    }
+
+    fn take_run_inbox(&mut self) -> Self::RunInbox {
+        self.local_rx
+            .take()
+            .expect("local block inbox missing while running")
+    }
+
+    fn put_run_inbox(&mut self, inbox: Self::RunInbox) {
+        self.local_rx = Some(inbox);
+    }
+
+    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+        Some(self.local_tx.clone())
+    }
+
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        self.external_rx.take()
+    }
+}
+
 /// Typed block wrapper around a concrete kernel instance.
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-pub(crate) struct WrappedKernel<K> {
+pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     /// Block metadata
     pub meta: BlockMeta,
     /// Message outputs
@@ -37,18 +201,33 @@ pub(crate) struct WrappedKernel<K> {
     pub kernel: K,
     /// Runtime block id.
     pub id: BlockId,
-    /// Receiver side of the block's actor-style inbox.
-    pub inbox: BlockInboxReader,
-    /// Sender side of the block's actor-style inbox.
-    pub inbox_tx: BlockInbox,
+    /// Inbox bundle for the block placement mode.
+    pub(crate) inbox: I,
 }
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-impl<K: KernelInterface + 'static> WrappedKernel<K> {
+impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
     /// Create typed block wrapper.
     pub fn new(mut kernel: K, id: BlockId) -> Self {
-        let (tx, rx) = crate::runtime::block_inbox::channel(config::config().queue_size);
-        kernel.stream_ports_init(id, tx.clone());
+        let inbox = ThreadSafeInbox::new();
+        kernel.stream_ports_init(id, inbox.init_arg());
+        Self::with_inbox(kernel, id, inbox)
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
+    /// Create typed block wrapper with a local-domain inbox.
+    pub fn new_local(mut kernel: K, id: BlockId) -> Self {
+        let inbox = LocalDomainInbox::new();
+        kernel.stream_ports_init(id, inbox.init_arg());
+        Self::with_inbox(kernel, id, inbox)
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
+    fn with_inbox(kernel: K, id: BlockId, inbox: I) -> Self {
         Self {
             meta: BlockMeta::new(),
             mo: MessageOutputs::new(
@@ -57,14 +236,18 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
             ),
             kernel,
             id,
-            inbox: rx,
-            inbox_tx: tx,
+            inbox,
         }
     }
 
-    async fn run_impl(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>
+    async fn run_with_inbox<RI>(
+        &mut self,
+        main_inbox: Sender<FlowgraphMessage>,
+        inbox: &mut RI,
+    ) -> Result<(), Error>
     where
         K: Kernel,
+        RI: WrappedInbox,
     {
         let instance_name = self
             .meta
@@ -72,11 +255,7 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
             .unwrap_or(K::type_name())
             .to_owned();
         let WrappedKernel {
-            meta,
-            mo,
-            kernel,
-            inbox,
-            ..
+            meta, mo, kernel, ..
         } = self;
 
         kernel.stream_ports_validate()?;
@@ -125,84 +304,88 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
 
         loop {
             work_io.call_again |= inbox.take_pending();
-            let mut msg = inbox.try_recv();
-            while let Some(m) = msg {
-                match m {
-                    BlockMessage::BlockDescription { tx } => {
-                        let stream_inputs = kernel.stream_inputs();
-                        let stream_outputs = kernel.stream_outputs();
-                        let message_inputs =
-                            K::message_inputs().iter().map(|n| n.to_string()).collect();
-                        let message_outputs =
-                            K::message_outputs().iter().map(|n| n.to_string()).collect();
+            if inbox.take_message_pending() {
+                let mut msg = inbox.try_recv();
+                while let Some(m) = msg {
+                    match m {
+                        BlockMessage::BlockDescription { tx } => {
+                            let stream_inputs = kernel.stream_inputs();
+                            let stream_outputs = kernel.stream_outputs();
+                            let message_inputs =
+                                K::message_inputs().iter().map(|n| n.to_string()).collect();
+                            let message_outputs =
+                                K::message_outputs().iter().map(|n| n.to_string()).collect();
 
-                        let description = BlockDescription {
-                            id: self.id,
-                            type_name: K::type_name().to_string(),
-                            instance_name: instance_name.clone(),
-                            stream_inputs,
-                            stream_outputs,
-                            message_inputs,
-                            message_outputs,
-                            blocking: K::is_blocking(),
-                        };
-                        if tx.send(description).is_err() {
-                            warn!("failed to return BlockDescription, oneshot receiver dropped");
-                        }
-                    }
-                    BlockMessage::StreamInputDone { input_id } => {
-                        kernel.stream_input_finish(input_id)?;
-                    }
-                    BlockMessage::StreamOutputDone { .. } => {
-                        work_io.finished = true;
-                    }
-                    BlockMessage::Call { port_id, data } => {
-                        match kernel
-                            .call_handler(&mut work_io, mo, meta, port_id, data)
-                            .await
-                        {
-                            Err(Error::InvalidMessagePort(_, port_id)) => {
-                                error!(
-                                    "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
-                                    instance_name
+                            let description = BlockDescription {
+                                id: self.id,
+                                type_name: K::type_name().to_string(),
+                                instance_name: instance_name.clone(),
+                                stream_inputs,
+                                stream_outputs,
+                                message_inputs,
+                                message_outputs,
+                                blocking: K::is_blocking(),
+                            };
+                            if tx.send(description).is_err() {
+                                warn!(
+                                    "failed to return BlockDescription, oneshot receiver dropped"
                                 );
                             }
-                            Err(e @ Error::HandlerError(..)) => {
-                                error!(
-                                    "{}: BlockMessage::Call -> {e}. Terminating.",
-                                    instance_name
-                                );
-                                return Err(e);
-                            }
-                            _ => {}
                         }
-                    }
-                    BlockMessage::Callback { port_id, data, tx } => {
-                        match kernel
-                            .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
-                            .await
-                        {
-                            Err(e @ Error::HandlerError(..)) => {
-                                error!(
-                                    "{}: BlockMessage::Callback -> {e}. Terminating.",
-                                    instance_name
-                                );
-                                let _ = tx.send(Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::Id(self.id),
-                                    port_id,
-                                )));
-                                return Err(e);
-                            }
-                            res => {
-                                let _ = tx.send(res);
+                        BlockMessage::StreamInputDone { input_id } => {
+                            kernel.stream_input_finish(input_id)?;
+                        }
+                        BlockMessage::StreamOutputDone { .. } => {
+                            work_io.finished = true;
+                        }
+                        BlockMessage::Call { port_id, data } => {
+                            match kernel
+                                .call_handler(&mut work_io, mo, meta, port_id, data)
+                                .await
+                            {
+                                Err(Error::InvalidMessagePort(_, port_id)) => {
+                                    error!(
+                                        "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
+                                        instance_name
+                                    );
+                                }
+                                Err(e @ Error::HandlerError(..)) => {
+                                    error!(
+                                        "{}: BlockMessage::Call -> {e}. Terminating.",
+                                        instance_name
+                                    );
+                                    return Err(e);
+                                }
+                                _ => {}
                             }
                         }
-                    }
-                    BlockMessage::Terminate => work_io.finished = true,
-                    t => warn!("block unhandled message in main loop {:?}", t),
-                };
-                work_io.call_again = true;
-                msg = inbox.try_recv();
+                        BlockMessage::Callback { port_id, data, tx } => {
+                            match kernel
+                                .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
+                                .await
+                            {
+                                Err(e @ Error::HandlerError(..)) => {
+                                    error!(
+                                        "{}: BlockMessage::Callback -> {e}. Terminating.",
+                                        instance_name
+                                    );
+                                    let _ = tx.send(Err(Error::InvalidMessagePort(
+                                        BlockPortCtx::Id(self.id),
+                                        port_id,
+                                    )));
+                                    return Err(e);
+                                }
+                                res => {
+                                    let _ = tx.send(res);
+                                }
+                            }
+                        }
+                        BlockMessage::Terminate => work_io.finished = true,
+                        t => warn!("block unhandled message in main loop {:?}", t),
+                    };
+                    work_io.call_again = true;
+                    msg = inbox.try_recv();
+                }
             }
 
             if work_io.finished {
@@ -228,7 +411,9 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
                 if work_io.block_on {
                     match <K as Kernel>::block_on(kernel) {
                         Some(f) => {
-                            let _ = futures::future::select(f, inbox.notified()).await;
+                            let notified = inbox.notified();
+                            futures::pin_mut!(notified);
+                            let _ = futures::future::select(f, notified).await;
                         }
                         None => {
                             inbox.notified().await;
@@ -252,9 +437,21 @@ impl<K: KernelInterface + 'static> WrappedKernel<K> {
 
         Ok(())
     }
+
+    async fn run_impl(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>
+    where
+        K: Kernel,
+    {
+        let mut inbox = self.inbox.take_run_inbox();
+        let result = self.run_with_inbox(main_inbox, &mut inbox).await;
+        self.inbox.put_run_inbox(inbox);
+        result
+    }
 }
 
-impl<K: KernelInterface + 'static> BlockObject for WrappedKernel<K> {
+impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
+    for WrappedKernel<K, I>
+{
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -262,19 +459,25 @@ impl<K: KernelInterface + 'static> BlockObject for WrappedKernel<K> {
         self
     }
     fn inbox(&self) -> BlockInbox {
-        self.inbox_tx.clone()
+        self.inbox.external_inbox()
+    }
+    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+        self.inbox.local_inbox_state()
+    }
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        self.inbox.take_external_inbox_reader()
     }
     fn id(&self) -> BlockId {
         self.id
     }
 
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error> {
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error> {
         self.kernel.stream_input(id)
     }
     fn connect_stream_output(
         &mut self,
         id: &PortId,
-        reader: &mut dyn BufferReader,
+        reader: &mut dyn AnyBufferReader,
     ) -> Result<(), Error> {
         self.kernel.connect_stream_output(id, reader)
     }
@@ -300,7 +503,7 @@ impl<K: KernelInterface + 'static> BlockObject for WrappedKernel<K> {
 }
 
 #[async_trait::async_trait]
-impl<K> Block for WrappedKernel<K>
+impl<K> Block for NormalWrappedKernel<K>
 where
     K: SendKernel + SendKernelInterface + 'static,
 {
@@ -328,7 +531,10 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<K: KernelInterface + Kernel + 'static> LocalBlock for WrappedKernel<K> {
+impl<K> LocalBlock for NormalWrappedKernel<K>
+where
+    K: SendKernel + SendKernelInterface + 'static,
+{
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {
@@ -352,7 +558,32 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for WrappedKernel<K> {
     }
 }
 
-impl<K> Deref for WrappedKernel<K> {
+#[async_trait::async_trait(?Send)]
+impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K> {
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
+        match self.run_impl(main_inbox.clone()).await {
+            Ok(_) => {
+                let _ = main_inbox
+                    .send(FlowgraphMessage::BlockDone { block_id: self.id })
+                    .await;
+                return;
+            }
+            Err(e) => {
+                let instance_name = self
+                    .meta
+                    .instance_name()
+                    .unwrap_or("<instance name not set>")
+                    .to_string();
+                error!("{}: Error in Block.run() {:?}", instance_name, e);
+                let _ = main_inbox
+                    .send(FlowgraphMessage::BlockError { block_id: self.id })
+                    .await;
+            }
+        }
+    }
+}
+
+impl<K, I> Deref for WrappedKernel<K, I> {
     type Target = K;
 
     fn deref(&self) -> &Self::Target {
@@ -360,7 +591,7 @@ impl<K> Deref for WrappedKernel<K> {
     }
 }
 
-impl<K> DerefMut for WrappedKernel<K> {
+impl<K, I> DerefMut for WrappedKernel<K, I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.kernel
     }

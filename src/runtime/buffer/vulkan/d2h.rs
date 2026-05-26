@@ -20,6 +20,7 @@ use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
@@ -87,6 +88,7 @@ impl<T> BufferWriter for Writer<T>
 where
     T: BufferContents + CpuSample,
 {
+    type Mode = ThreadSafeMode;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -142,7 +144,7 @@ pub struct Reader<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
     core: PortCore,
     state: ConnectionState<ConnectedReader<T>>,
-    circuit_start: Option<CircuitReturn<ReturnQueue<T>>>,
+    circuit_start: Option<CircuitReturn<BlockInbox, ReturnQueue<T>>>,
     tags: Vec<ItemTag>,
     finished: bool,
 }
@@ -171,7 +173,7 @@ where
 
     /// Close the circuit back to the matching host-to-device writer.
     pub fn close_circuit(&mut self, circuit_start_inbox: BlockInbox, outbound: ReturnQueue<T>) {
-        self.circuit_start = Some(CircuitReturn::new(circuit_start_inbox.notifier(), outbound));
+        self.circuit_start = Some(CircuitReturn::new(circuit_start_inbox, outbound));
     }
 }
 
@@ -188,6 +190,8 @@ impl<T> BufferReader for Reader<T>
 where
     T: BufferContents + CpuSample,
 {
+    type Mode = ThreadSafeMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

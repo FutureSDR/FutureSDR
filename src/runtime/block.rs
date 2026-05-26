@@ -7,7 +7,9 @@ use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockInbox;
-use crate::runtime::buffer::BufferReader;
+use crate::runtime::block_inbox::BlockInboxReader;
+use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::channel::mpsc::Sender;
 
 /// Object-safe runtime interface shared by normal and local block wrappers.
@@ -19,16 +21,24 @@ pub trait BlockObject: Any {
 
     /// Get the sender-side inbox of the block.
     fn inbox(&self) -> BlockInbox;
+    /// Get the local inbox state for local-domain direct delivery.
+    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+        None
+    }
+    /// Take the external normal inbox reader for a local-domain block.
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        None
+    }
     /// Get the block id.
     fn id(&self) -> BlockId;
 
     /// Get a type-erased stream input by port id.
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error>;
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
     /// Connect a type-erased stream output by downcasting the destination reader.
     fn connect_stream_output(
         &mut self,
         id: &PortId,
-        reader: &mut dyn BufferReader,
+        reader: &mut dyn AnyBufferReader,
     ) -> Result<(), Error>;
 
     /// Message input port names declared by this block.

@@ -5,8 +5,8 @@ use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Result;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::buffer::AnyBufferReader;
+use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
@@ -41,7 +41,7 @@ pub trait KernelInterface {
     /// Stream output port names.
     fn stream_outputs(&self) -> Vec<String>;
     /// Bind stream ports to their owning block id, port ids, and inbox.
-    fn stream_ports_init(&mut self, block_id: BlockId, inbox: BlockInbox);
+    fn stream_ports_init(&mut self, block_id: BlockId, inboxes: PortInboxes);
     /// Validate that all stream ports are connected and ready to run.
     fn stream_ports_validate(&self) -> Result<(), Error>;
     /// Mark one stream input as finished because the upstream writer is done.
@@ -49,12 +49,12 @@ pub trait KernelInterface {
     /// Notify adjacent stream peers that this block is done.
     fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()>;
     /// Get a type-erased stream input by port id.
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn BufferReader, Error>;
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
     /// Connect a type-erased destination reader to one stream output.
     fn connect_stream_output(
         &mut self,
         id: &PortId,
-        reader: &mut dyn BufferReader,
+        reader: &mut dyn AnyBufferReader,
     ) -> Result<(), Error>;
 
     /// Message input port names.

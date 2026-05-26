@@ -14,6 +14,7 @@ use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::channel;
 use crate::runtime::config::config;
@@ -24,7 +25,7 @@ use crate::runtime::dev::ItemTag;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
-use crate::runtime::wrapped_kernel::WrappedKernel;
+use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 
 /// Native test harness for running one block without a [`Runtime`](crate::runtime::Runtime).
 ///
@@ -34,7 +35,7 @@ use crate::runtime::wrapped_kernel::WrappedKernel;
 /// [`Flowgraph`](crate::runtime::Flowgraph) would add noise.
 pub struct Mocker<K: KernelInterface> {
     /// Wrapped Block
-    block: WrappedKernel<K>,
+    block: NormalWrappedKernel<K>,
     message_sinks: Vec<Receiver<BlockMessage>>,
     messages: Vec<Vec<Pmt>>,
 }
@@ -60,7 +61,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
 
     /// Get mutable access to the wrapped kernel state used by `Kernel::work`.
     pub fn parts_mut(&mut self) -> (&mut K, &mut MessageOutputs, &mut BlockMeta) {
-        let WrappedKernel {
+        let NormalWrappedKernel {
             kernel, mo, meta, ..
         } = &mut self.block;
         (kernel, mo, meta)
@@ -82,7 +83,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
     /// sinks so tests can inspect emitted PMTs with [`Mocker::messages`] or
     /// [`Mocker::take_messages`].
     pub fn new(kernel: K) -> Self {
-        let mut block = WrappedKernel::new(kernel, BlockId(0));
+        let mut block = NormalWrappedKernel::new(kernel, BlockId(0));
         let mut messages = Vec::new();
         let mut message_sinks: Vec<Receiver<BlockMessage>> = Vec::new();
         let msg_len = config().queue_size;
@@ -121,7 +122,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
             block_on: false,
         };
 
-        let WrappedKernel {
+        let NormalWrappedKernel {
             meta, mo, kernel, ..
         } = &mut self.block;
         crate::runtime::block_on(kernel.call_handler(&mut io, mo, meta, id, p))
@@ -249,6 +250,8 @@ impl<T: Debug + Send + 'static> Default for Reader<T> {
 }
 
 impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
+    type Mode = ThreadSafeMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -349,6 +352,7 @@ impl<T: Clone + Debug + Send + 'static> Writer<T> {
 }
 
 impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
+    type Mode = ThreadSafeMode;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {

@@ -82,9 +82,10 @@ mod wasm_spin {
 }
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferInbox;
+use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::ConnectionState;
@@ -95,8 +96,8 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::config;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
 
 #[derive(Debug)]
@@ -195,33 +196,36 @@ impl<D: CpuSample> SharedState<D> for SendState<D> {
 
 /// Queue-backed CPU writer.
 #[derive(Debug)]
-pub struct Writer<D, S>
+pub struct Writer<D, S, M = ThreadSafeMode>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
-    core: PortCore,
-    state: ConnectionState<ConnectedWriter<D, S>>,
+    core: PortCore<M>,
+    state: ConnectionState<ConnectedWriter<D, S, M>>,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
 }
 
 #[derive(Debug)]
-struct ConnectedWriter<D, S>
+struct ConnectedWriter<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     state: S,
     reserved_items: usize,
-    reader: PortEndpoint,
+    reader: PortEndpoint<M>,
     _marker: PhantomData<D>,
 }
 
-impl<D, S> Writer<D, S>
+impl<D, S, M> Writer<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     /// Create a queue-backed CPU writer.
     pub fn new() -> Self {
@@ -234,24 +238,27 @@ where
     }
 }
 
-impl<D, S> Default for Writer<D, S>
+impl<D, S, M> Default for Writer<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D, S> BufferWriter for Writer<D, S>
+impl<D, S, M> BufferWriter for Writer<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
-    type Reader = Reader<D, S>;
+    type Mode = M;
+    type Reader = Reader<D, S, M>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -336,9 +343,7 @@ where
         let _ = connected
             .reader
             .inbox()
-            .send(BlockMessage::StreamInputDone {
-                input_id: connected.reader.port_id(),
-            })
+            .stream_input_done(connected.reader.port_id())
             .await;
     }
 
@@ -351,10 +356,11 @@ where
     }
 }
 
-impl<D, S> CpuBufferWriter for Writer<D, S>
+impl<D, S, M> CpuBufferWriter for Writer<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     type Item = D;
 
@@ -438,34 +444,37 @@ where
 
 /// Queue-backed CPU reader.
 #[derive(Debug)]
-pub struct Reader<D, S>
+pub struct Reader<D, S, M = ThreadSafeMode>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
-    core: PortCore,
-    state: ConnectionState<ConnectedReader<D, S>>,
+    core: PortCore<M>,
+    state: ConnectionState<ConnectedReader<D, S, M>>,
     current: Option<CurrentBuffer<D>>,
     tags: Vec<ItemTag>,
     finished: bool,
 }
 
 #[derive(Debug)]
-struct ConnectedReader<D, S>
+struct ConnectedReader<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     state: S,
     reserved_items: usize,
-    writer: PortEndpoint,
+    writer: PortEndpoint<M>,
     _marker: PhantomData<D>,
 }
 
-impl<D, S> Reader<D, S>
+impl<D, S, M> Reader<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     /// Create a queue-backed CPU reader.
     pub fn new() -> Self {
@@ -479,26 +488,29 @@ where
     }
 }
 
-impl<D, S> Default for Reader<D, S>
+impl<D, S, M> Default for Reader<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<D, S> BufferReader for Reader<D, S>
+impl<D, S, M> BufferReader for Reader<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
+    type Mode = M;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -515,9 +527,7 @@ where
         let _ = connected
             .writer
             .inbox()
-            .send(BlockMessage::StreamOutputDone {
-                output_id: connected.writer.port_id(),
-            })
+            .stream_output_done(connected.writer.port_id())
             .await;
     }
 
@@ -542,10 +552,11 @@ where
     }
 }
 
-impl<D, S> CpuBufferReader for Reader<D, S>
+impl<D, S, M> CpuBufferReader for Reader<D, S, M>
 where
     D: CpuSample,
     S: SharedState<D>,
+    M: BufferMode,
 {
     type Item = D;
 

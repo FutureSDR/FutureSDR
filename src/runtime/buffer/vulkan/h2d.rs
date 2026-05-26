@@ -20,6 +20,7 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
@@ -92,6 +93,7 @@ impl<T> BufferWriter for Writer<T>
 where
     T: BufferContents + CpuSample,
 {
+    type Mode = ThreadSafeMode;
     type Reader = Reader<T>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -292,6 +294,8 @@ impl<T> BufferReader for Reader<T>
 where
     T: BufferContents + CpuSample,
 {
+    type Mode = ThreadSafeMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

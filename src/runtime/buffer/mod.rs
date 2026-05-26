@@ -42,11 +42,14 @@ pub mod wgpu;
 pub mod zynq;
 
 use std::any::Any;
+use std::fmt::Debug;
 use std::future::Future;
 
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::LocalBlockInbox;
+use crate::runtime::dev::LocalBlockNotifier;
 use crate::runtime::dev::Tag;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
@@ -114,9 +117,161 @@ impl PortConfig {
     }
 }
 
+/// Wake-only handle stored by stream buffers for hot-path notifications.
+pub trait BufferNotifier: Clone + Debug + 'static {
+    /// Wake the owning block without sending a message.
+    fn notify(&self);
+}
+
+impl BufferNotifier for BlockNotifier {
+    #[inline(always)]
+    fn notify(&self) {
+        BlockNotifier::notify(self);
+    }
+}
+
+impl BufferNotifier for LocalBlockNotifier {
+    #[inline(always)]
+    fn notify(&self) {
+        LocalBlockNotifier::notify(self);
+    }
+}
+
+/// Wake/message handle stored by stream buffers.
+pub trait BufferInbox: Clone + Debug + 'static {
+    /// Wake the owning block without sending a message.
+    fn notify(&self);
+    /// Notify the destination block that one stream input port is done.
+    fn stream_input_done(&self, input_id: PortId) -> impl Future<Output = Result<(), Error>>;
+    /// Notify the destination block that one stream output port is done.
+    fn stream_output_done(&self, output_id: PortId) -> impl Future<Output = Result<(), Error>>;
+}
+
+impl BufferInbox for BlockInbox {
+    #[inline(always)]
+    fn notify(&self) {
+        BlockInbox::notify(self);
+    }
+
+    async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
+        BlockInbox::stream_input_done(self, input_id).await
+    }
+
+    async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
+        BlockInbox::stream_output_done(self, output_id).await
+    }
+}
+
+impl BufferInbox for LocalBlockInbox {
+    #[inline(always)]
+    fn notify(&self) {
+        LocalBlockInbox::notify(self);
+    }
+
+    async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
+        LocalBlockInbox::push(
+            self,
+            crate::runtime::BlockMessage::StreamInputDone { input_id },
+        );
+        Ok(())
+    }
+
+    async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
+        LocalBlockInbox::push(
+            self,
+            crate::runtime::BlockMessage::StreamOutputDone { output_id },
+        );
+        Ok(())
+    }
+}
+
+/// Stream-port inboxes available when a block's ports are initialized.
+#[derive(Clone, Debug)]
+pub struct PortInboxes {
+    thread_safe: BlockInbox,
+    local: Option<LocalBlockInbox>,
+}
+
+impl PortInboxes {
+    /// Create init handles for a normal/send-capable block.
+    pub fn thread_safe(thread_safe: BlockInbox) -> Self {
+        Self {
+            thread_safe,
+            local: None,
+        }
+    }
+
+    /// Create init handles for a local-domain block.
+    pub fn local(thread_safe: BlockInbox, local: LocalBlockInbox) -> Self {
+        Self {
+            thread_safe,
+            local: Some(local),
+        }
+    }
+
+    /// Get the send-capable ingress handle.
+    pub fn thread_safe_inbox(&self) -> BlockInbox {
+        self.thread_safe.clone()
+    }
+
+    /// Get the direct local-domain handle.
+    pub fn local_inbox(&self) -> LocalBlockInbox {
+        self.local
+            .clone()
+            .expect("local buffer used outside a local-domain block")
+    }
+}
+
+/// Selects which wake/message mechanism a buffer stores.
+pub trait BufferMode: 'static {
+    /// Inbox handle stored by buffers in this mode.
+    type Inbox: BufferInbox;
+    /// Wake-only handle stored on hot paths.
+    type Notifier: BufferNotifier;
+
+    /// Select this mode's inbox from the handles provided during port init.
+    fn inbox(inboxes: &PortInboxes) -> Self::Inbox;
+    /// Extract a wake-only notifier from this mode's inbox.
+    fn notifier(inbox: &Self::Inbox) -> Self::Notifier;
+}
+
+/// Send-capable wake mode for normal buffers.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ThreadSafeMode;
+
+impl BufferMode for ThreadSafeMode {
+    type Inbox = BlockInbox;
+    type Notifier = BlockNotifier;
+
+    fn inbox(inboxes: &PortInboxes) -> Self::Inbox {
+        inboxes.thread_safe_inbox()
+    }
+
+    fn notifier(inbox: &Self::Inbox) -> Self::Notifier {
+        inbox.notifier()
+    }
+}
+
+/// Same-thread local-domain wake mode for local buffers.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LocalMode;
+
+impl BufferMode for LocalMode {
+    type Inbox = LocalBlockInbox;
+    type Notifier = LocalBlockNotifier;
+
+    fn inbox(inboxes: &PortInboxes) -> Self::Inbox {
+        inboxes.local_inbox()
+    }
+
+    fn notifier(inbox: &Self::Inbox) -> Self::Notifier {
+        inbox.notifier()
+    }
+}
+
 /// Binding state shared by all stream ports.
 #[derive(Debug, Clone)]
-pub enum PortBinding {
+pub enum PortBinding<M: BufferMode = ThreadSafeMode> {
     /// Port is only constructed and not yet attached to a concrete block/port id.
     Unbound,
     /// Port is attached to a concrete block/port id inside a flowgraph.
@@ -126,18 +281,18 @@ pub enum PortBinding {
         /// Port id inside the owning block.
         port_id: PortId,
         /// Inbox used to notify the owning block.
-        inbox: BlockInbox,
+        inbox: M::Inbox,
     },
 }
 
 /// Shared per-port state that is independent from the concrete buffer backend.
 #[derive(Debug, Clone)]
-pub struct PortCore {
-    binding: PortBinding,
+pub struct PortCore<M: BufferMode = ThreadSafeMode> {
+    binding: PortBinding<M>,
     config: PortConfig,
 }
 
-impl PortCore {
+impl<M: BufferMode> PortCore<M> {
     /// Create an unbound port with empty configuration.
     pub const fn new_disconnected() -> Self {
         Self::with_config(PortConfig::new())
@@ -152,7 +307,7 @@ impl PortCore {
     }
 
     /// Bind the port to the given block/port id and inbox.
-    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    pub fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.binding = PortBinding::Bound {
             block_id,
             port_id,
@@ -166,7 +321,7 @@ impl PortCore {
     }
 
     /// The current binding state.
-    pub fn binding(&self) -> &PortBinding {
+    pub fn binding(&self) -> &PortBinding<M> {
         &self.binding
     }
 
@@ -203,17 +358,17 @@ impl PortCore {
     }
 
     /// Get the bound inbox.
-    pub fn inbox(&self) -> BlockInbox {
+    pub fn inbox(&self) -> M::Inbox {
         match &self.binding {
             PortBinding::Bound { inbox, .. } => inbox.clone(),
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
         }
     }
 
-    /// Get the notifier associated with the bound inbox.
-    pub fn notifier(&self) -> BlockNotifier {
+    /// Get the wake-only notifier associated with the bound inbox.
+    pub fn notifier(&self) -> M::Notifier {
         match &self.binding {
-            PortBinding::Bound { inbox, .. } => inbox.notifier(),
+            PortBinding::Bound { inbox, .. } => M::notifier(inbox),
             PortBinding::Unbound => panic!("port is not bound to a flowgraph"),
         }
     }
@@ -263,19 +418,19 @@ impl PortCore {
 
 /// A peer endpoint captured during connection setup.
 #[derive(Debug, Clone)]
-pub struct PortEndpoint {
-    inbox: BlockInbox,
+pub struct PortEndpoint<M: BufferMode = ThreadSafeMode> {
+    inbox: M::Inbox,
     port_id: PortId,
 }
 
-impl PortEndpoint {
+impl<M: BufferMode> PortEndpoint<M> {
     /// Create a new peer endpoint.
-    pub fn new(inbox: BlockInbox, port_id: PortId) -> Self {
+    pub fn new(inbox: M::Inbox, port_id: PortId) -> Self {
         Self { inbox, port_id }
     }
 
     /// Get the peer inbox.
-    pub fn inbox(&self) -> BlockInbox {
+    pub fn inbox(&self) -> M::Inbox {
         self.inbox.clone()
     }
 
@@ -287,20 +442,20 @@ impl PortEndpoint {
 
 /// Circuit-return path back to the start of an in-place circuit.
 #[derive(Debug, Clone)]
-pub(crate) struct CircuitReturn<Q> {
-    notifier: BlockNotifier,
+pub(crate) struct CircuitReturn<I, Q> {
+    inbox: I,
     queue: Q,
 }
 
-impl<Q> CircuitReturn<Q> {
+impl<I: BufferInbox, Q> CircuitReturn<I, Q> {
     /// Create a new circuit-return path.
-    pub(crate) fn new(notifier: BlockNotifier, queue: Q) -> Self {
-        Self { notifier, queue }
+    pub(crate) fn new(inbox: I, queue: Q) -> Self {
+        Self { inbox, queue }
     }
 
     /// Notify the circuit start that a buffer was returned or consumed.
     pub(crate) fn notify(&self) {
-        self.notifier.notify();
+        self.inbox.notify();
     }
 
     /// Access the queue used to return buffers to the circuit start.
@@ -397,15 +552,79 @@ pub trait SendBufferWriter:
 }
 
 /// Type-erased reader side of a stream buffer.
+pub trait AnyBufferReader: Any {
+    /// Return this reader as [`Any`] for runtime downcasting.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Initialize the reader from a block's available inbox handles.
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
+    /// Validate that this reader is connected and ready to run.
+    fn validate(&self) -> Result<(), Error>;
+    /// Mark this reader because the upstream writer is done.
+    fn finish(&mut self);
+    /// Return whether the upstream writer has marked this buffer as done.
+    fn finished(&self) -> bool;
+    /// Get the owning block id.
+    fn block_id(&self) -> BlockId;
+    /// Get the owning port id.
+    fn port_id(&self) -> PortId;
+}
+
+impl<T: BufferReader> AnyBufferReader for T {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        BufferReader::as_any_mut(self)
+    }
+
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+        BufferReader::init_from(self, block_id, port_id, inboxes);
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        BufferReader::validate(self)
+    }
+
+    fn finish(&mut self) {
+        BufferReader::finish(self);
+    }
+
+    fn finished(&self) -> bool {
+        BufferReader::finished(self)
+    }
+
+    fn block_id(&self) -> BlockId {
+        BufferReader::block_id(self)
+    }
+
+    fn port_id(&self) -> PortId {
+        BufferReader::port_id(self)
+    }
+}
+
+/// Reader side of a stream buffer.
 ///
-/// This is the primary local API. Native send-capable readers are derived from
-/// this trait through a blanket impl when the type and returned futures permit
-/// it.
+/// Native send-capable readers are derived from this trait through a blanket
+/// impl when the type and returned futures permit it.
 pub trait BufferReader: Any {
+    /// Wake/message mode used by this buffer.
+    type Mode: BufferMode;
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Initialize the reader with its owning block, port id, and inbox.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
+    fn init(
+        &mut self,
+        block_id: BlockId,
+        port_id: PortId,
+        inbox: <Self::Mode as BufferMode>::Inbox,
+    );
+    /// Initialize the reader from a block's available inbox handles.
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+        self.init(block_id, port_id, Self::Mode::inbox(inboxes));
+    }
+    /// Replace the inbox/wake handle for this already-bound reader.
+    fn set_inbox(&mut self, inbox: <Self::Mode as BufferMode>::Inbox) {
+        let block_id = self.block_id();
+        let port_id = self.port_id();
+        self.init(block_id, port_id, inbox);
+    }
     /// Validate that this reader is connected and ready to run.
     ///
     /// The runtime calls this during flowgraph startup before any block `init()`
@@ -430,16 +649,32 @@ pub trait BufferReader: Any {
 
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
-/// Type-erased writer side of a stream buffer.
+/// Writer side of a stream buffer.
 ///
-/// This is the primary local API. Native send-capable writers are derived from
-/// this trait through a blanket impl when the type, reader, and returned futures
-/// permit it.
+/// Native send-capable writers are derived from this trait through a blanket
+/// impl when the type, reader, and returned futures permit it.
 pub trait BufferWriter {
+    /// Wake/message mode used by this buffer.
+    type Mode: BufferMode;
     /// The corresponding local reader.
-    type Reader: BufferReader;
+    type Reader: BufferReader<Mode = Self::Mode>;
     /// Initialize the writer with its owning block, port id, and inbox.
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox);
+    fn init(
+        &mut self,
+        block_id: BlockId,
+        port_id: PortId,
+        inbox: <Self::Mode as BufferMode>::Inbox,
+    );
+    /// Initialize the writer from a block's available inbox handles.
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+        self.init(block_id, port_id, Self::Mode::inbox(inboxes));
+    }
+    /// Replace the inbox/wake handle for this already-bound writer.
+    fn set_inbox(&mut self, inbox: <Self::Mode as BufferMode>::Inbox) {
+        let block_id = self.block_id();
+        let port_id = self.port_id();
+        self.init(block_id, port_id, inbox);
+    }
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
     /// Connect the writer to a matching reader.
@@ -448,7 +683,7 @@ pub trait BufferWriter {
     /// startup. Implementations should store peer queues, not transfer samples.
     fn connect(&mut self, dest: &mut Self::Reader);
     /// Connect the writer to a type-erased local reader.
-    fn connect_dyn(&mut self, dest: &mut dyn BufferReader) -> Result<(), Error> {
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
         if let Some(concrete) = dest.as_any_mut().downcast_mut::<Self::Reader>() {
             self.connect(concrete);
             Ok(())

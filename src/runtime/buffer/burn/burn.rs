@@ -17,6 +17,7 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::config::config;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
@@ -244,10 +245,7 @@ where
     /// Close the in-place tensor circuit by connecting its end back to this
     /// writer.
     pub fn close_circuit(&mut self, end: &mut Reader<B, E, SR>) {
-        end.circuit_start = Some(CircuitReturn::new(
-            self.core.notifier(),
-            self.inbound.clone(),
-        ));
+        end.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
@@ -270,6 +268,7 @@ where
     SW: CpuSample,
     SR: CpuSample,
 {
+    type Mode = ThreadSafeMode;
     type Reader = Reader<B, E, SR>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
@@ -329,10 +328,7 @@ where
     type CircuitEnd = Reader<B, E, SR>;
 
     fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.circuit_start = Some(CircuitReturn::new(
-            self.core.notifier(),
-            self.inbound.clone(),
-        ));
+        dst.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
@@ -478,7 +474,7 @@ where
 {
     core: PortCore,
     state: ConnectionState<ConnectedReader<B, E, SR>>,
-    circuit_start: Option<CircuitReturn<EmptyBuffers<B, E, SR>>>,
+    circuit_start: Option<CircuitReturn<BlockInbox, EmptyBuffers<B, E, SR>>>,
     finished: bool,
     current: Option<(Buffer<B, E, SR>, usize)>,
 }
@@ -528,6 +524,8 @@ where
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
     SR: CpuSample,
 {
+    type Mode = ThreadSafeMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

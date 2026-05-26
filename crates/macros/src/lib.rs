@@ -604,7 +604,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let init_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    __FsdrInput::init(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
+                                    __FsdrInput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
                                 }
                             };
                             let validate_code = quote! {
@@ -644,7 +644,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let init_code = quote! {
                                 for i in 0..#len {
-                                    __FsdrInput::init(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
+                                    __FsdrInput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
                                 }
                             };
                             let validate_code = quote! {
@@ -685,7 +685,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    __FsdrInput::init(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), inbox.clone());
+                                    __FsdrInput::init_from(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), &inboxes);
                                 }
                             });
                             let init_code = quote! {
@@ -740,7 +740,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 names.push(#field_name_str.to_string());
                             };
                             let init_code = quote! {
-                                __FsdrInput::init(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), inbox.clone());
+                                __FsdrInput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
                             };
                             let validate_code = quote! {
                                 __FsdrInput::validate(&self.#field_name)?;
@@ -817,7 +817,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let init_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    __FsdrOutput::init(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
+                                    __FsdrOutput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
                                 }
                             };
                             let validate_code = quote! {
@@ -849,7 +849,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let init_code = quote! {
                                 for i in 0..#len {
-                                    __FsdrOutput::init(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), inbox.clone());
+                                    __FsdrOutput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
                                 }
                             };
                             let validate_code = quote! {
@@ -882,7 +882,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
-                                    __FsdrOutput::init(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), inbox.clone());
+                                    __FsdrOutput::init_from(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), &inboxes);
                                 }
                             });
                             let init_code = quote! {
@@ -925,7 +925,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 names.push(#field_name_str.to_string());
                             };
                             let init_code = quote! {
-                                __FsdrOutput::init(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), inbox.clone());
+                                __FsdrOutput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
                             };
                             let validate_code = quote! {
                                 __FsdrOutput::validate(&self.#field_name)?;
@@ -1168,7 +1168,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 names
             }
 
-            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inbox: ::futuresdr::runtime::dev::BlockInbox) {
+            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inboxes: ::futuresdr::runtime::dev::PortInboxes) {
                 use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
                 use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
                 use ::futuresdr::runtime::PortId;
@@ -1201,7 +1201,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 &mut self,
                 id: &::futuresdr::runtime::PortId,
             ) -> ::futuresdr::runtime::Result<
-                &mut dyn ::futuresdr::runtime::buffer::BufferReader,
+                &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
                 ::futuresdr::runtime::Error,
             > {
                 use ::futuresdr::runtime::Error;
@@ -1213,7 +1213,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             fn connect_stream_output(
                 &mut self,
                 id: &::futuresdr::runtime::PortId,
-                reader: &mut dyn ::futuresdr::runtime::buffer::BufferReader,
+                reader: &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
             ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
                 use ::futuresdr::runtime::Error;

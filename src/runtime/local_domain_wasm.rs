@@ -18,6 +18,8 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::block_inbox::BlockInboxReader;
+use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -313,7 +315,7 @@ fn spawn_local_domain_worker(worker_script: &str, domain_id: usize) -> Result<Wa
 }
 
 async fn run_domain_worker(init: WasmLocalDomainInit) {
-    let WasmLocalDomainInit { rx, terminate } = init;
+    let WasmLocalDomainInit { mut rx, terminate } = init;
     let mut state = LocalDomainState::new();
 
     while let Some(message) = rx.recv().await {
@@ -325,7 +327,7 @@ async fn run_domain_worker(init: WasmLocalDomainInit) {
             } => {
                 let block = builder();
                 let inbox = block.inbox();
-                let result = state.insert_block(local_id, block).map(|_| inbox);
+                let result = state.insert_block(local_id, block).map(|()| inbox);
                 if let Err(e) = &result {
                     error!("failed to insert local block: {e}");
                 }
@@ -336,7 +338,8 @@ async fn run_domain_worker(init: WasmLocalDomainInit) {
                 main_channel,
                 reply,
             } => {
-                let result = run_local_domain(&mut state, main_channel, terminate.clone()).await;
+                let result =
+                    run_local_domain(&mut state, main_channel, terminate.clone(), &mut rx).await;
                 let _ = reply.send(result);
                 if terminate.load(Ordering::Acquire) {
                     break;
@@ -381,16 +384,66 @@ impl LocalExecutor {
     }
 }
 
+async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalInboxHandle)>) {
+    if external.is_empty() {
+        futures::future::pending::<()>().await;
+    }
+
+    loop {
+        std::future::poll_fn(|cx| {
+            let mut ready = false;
+            for (inbox, local_inbox) in &mut external {
+                let notified = inbox.notified();
+                futures::pin_mut!(notified);
+                if Future::poll(notified, cx).is_ready() {
+                    if inbox.take_message_pending() {
+                        while let Some(msg) = inbox.try_recv() {
+                            local_inbox.push(msg);
+                        }
+                    } else {
+                        local_inbox.notify();
+                    }
+                    ready = true;
+                }
+            }
+
+            if ready {
+                std::task::Poll::Ready(())
+            } else {
+                std::task::Poll::Pending
+            }
+        })
+        .await;
+    }
+}
+
 async fn run_local_domain(
     state: &mut LocalDomainState,
     main_channel: Sender<FlowgraphMessage>,
     terminate: Arc<AtomicBool>,
+    domain_rx: &mut mpsc::Receiver<LocalDomainMessage>,
 ) -> Result<(), Error> {
     let executor = LocalExecutor::new();
     let mut tasks = Vec::new();
     let mut inboxes = Vec::new();
+    let mut external_inboxes = Vec::new();
 
-    for (local_id, slot) in state.block_slots_mut() {
+    let local_ids = state
+        .block_slots_mut()
+        .map(|(local_id, _)| local_id)
+        .collect::<Vec<_>>();
+
+    for local_id in local_ids {
+        if let (Some(external_inbox), Some(local_inbox)) =
+            (state.take_external_inbox(local_id), state.inbox(local_id))
+        {
+            external_inboxes.push((external_inbox, local_inbox));
+        }
+
+        let slot = state
+            .block_slots_mut()
+            .find_map(|(id, slot)| (id == local_id).then_some(slot))
+            .expect("local block slot disappeared");
         if let Some(block) = slot.take() {
             inboxes.push(block.as_ref().inbox());
             let main_channel = main_channel.clone();
@@ -401,6 +454,10 @@ async fn run_local_domain(
             })));
         }
     }
+
+    executor
+        .spawn(forward_external_inboxes(external_inboxes))
+        .detach();
 
     let mut finished = Vec::with_capacity(tasks.len());
     let mut terminating = false;
@@ -415,6 +472,21 @@ async fn run_local_domain(
                 drop(tasks.swap_remove(i));
             } else {
                 i += 1;
+            }
+        }
+
+        while let Ok(message) = domain_rx.try_recv() {
+            match message {
+                LocalDomainMessage::Terminate => terminating = true,
+                LocalDomainMessage::Build { reply, .. } => {
+                    let _ = reply.send(Err(Error::LockError));
+                }
+                LocalDomainMessage::Run { reply, .. } => {
+                    let _ = reply.send(Err(Error::LockError));
+                }
+                LocalDomainMessage::Exec(_) => {
+                    warn!("local domain received exec while running");
+                }
             }
         }
 

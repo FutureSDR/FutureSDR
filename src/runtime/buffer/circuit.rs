@@ -8,9 +8,10 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::buffer::BufferInbox;
+use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CircuitReturn;
@@ -26,8 +27,8 @@ use crate::runtime::buffer::PortConfig;
 use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
+use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::config::config;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -138,29 +139,32 @@ where
 }
 
 /// Circuit Writer
-pub struct Writer<T>
+pub struct Writer<T, M = ThreadSafeMode>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    core: PortCore,
-    state: ConnectionState<ConnectedWriter<T>>,
+    core: PortCore<M>,
+    state: ConnectionState<ConnectedWriter<T, M>>,
     inbound: EmptyBuffers<T>,
     buffer_size_in_items: usize,
     current: Option<Buffer<T>>,
     tags: Vec<ItemTag>,
 }
 
-struct ConnectedWriter<T>
+struct ConnectedWriter<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    reader: PortEndpoint,
+    reader: PortEndpoint<M>,
     outbound: FullBuffers<T>,
 }
 
-impl<T> Writer<T>
+impl<T, M> Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     /// Create circuit buffer writer
     pub fn new() -> Self {
@@ -175,30 +179,30 @@ where
     }
 
     /// Close the in-place circuit by connecting its end back to this writer.
-    pub fn close_circuit(&mut self, end: &mut Reader<T>) {
-        end.circuit_start = Some(CircuitReturn::new(
-            self.core.notifier(),
-            self.inbound.clone(),
-        ));
+    pub fn close_circuit(&mut self, end: &mut Reader<T, M>) {
+        end.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
-impl<T> Default for Writer<T>
+impl<T, M> Default for Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> BufferWriter for Writer<T>
+impl<T, M> BufferWriter for Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    type Reader = Reader<T>;
+    type Mode = M;
+    type Reader = Reader<T, M>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -234,9 +238,7 @@ where
             .connected()
             .reader
             .inbox()
-            .send(BlockMessage::StreamInputDone {
-                input_id: self.state.connected().reader.port_id(),
-            })
+            .stream_input_done(self.state.connected().reader.port_id())
             .await;
     }
 
@@ -249,23 +251,22 @@ where
     }
 }
 
-impl<T> CircuitWriter for Writer<T>
+impl<T, M> CircuitWriter for Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    type CircuitEnd = Reader<T>;
+    type CircuitEnd = Reader<T, M>;
 
     fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.circuit_start = Some(CircuitReturn::new(
-            self.core.notifier(),
-            self.inbound.clone(),
-        ));
+        dst.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
-impl<T> InplaceWriter for Writer<T>
+impl<T, M> InplaceWriter for Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     type Item = T;
     type Buffer = Buffer<T>;
@@ -299,9 +300,10 @@ where
     }
 }
 
-impl<T> CpuBufferWriter for Writer<T>
+impl<T, M> CpuBufferWriter for Writer<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     type Item = T;
 
@@ -362,28 +364,31 @@ where
 }
 
 /// Circuit Reader
-pub struct Reader<T>
+pub struct Reader<T, M = ThreadSafeMode>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    core: PortCore,
-    state: ConnectionState<ConnectedReader<T>>,
-    circuit_start: Option<CircuitReturn<EmptyBuffers<T>>>,
+    core: PortCore<M>,
+    state: ConnectionState<ConnectedReader<T, M>>,
+    circuit_start: Option<CircuitReturn<M::Inbox, EmptyBuffers<T>>>,
     finished: bool,
     current: Option<(Buffer<T>, usize)>,
 }
 
-struct ConnectedReader<T>
+struct ConnectedReader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
-    writer: PortEndpoint,
+    writer: PortEndpoint<M>,
     inbound: FullBuffers<T>,
 }
 
-impl<T> Reader<T>
+impl<T, M> Reader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     /// Create circuit buffer reader
     pub fn new() -> Self {
@@ -397,24 +402,27 @@ where
     }
 }
 
-impl<T> Default for Reader<T>
+impl<T, M> Default for Reader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> BufferReader for Reader<T>
+impl<T, M> BufferReader for Reader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
+    type Mode = M;
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: M::Inbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -432,9 +440,7 @@ where
             .connected()
             .writer
             .inbox()
-            .send(BlockMessage::StreamOutputDone {
-                output_id: self.state.connected().writer.port_id(),
-            })
+            .stream_output_done(self.state.connected().writer.port_id())
             .await;
     }
 
@@ -459,9 +465,10 @@ where
     }
 }
 
-impl<T> InplaceReader for Reader<T>
+impl<T, M> InplaceReader for Reader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     type Item = T;
     type Buffer = Buffer<T>;
@@ -494,9 +501,10 @@ where
     }
 }
 
-impl<T> CpuBufferReader for Reader<T>
+impl<T, M> CpuBufferReader for Reader<T, M>
 where
     T: CpuSample,
+    M: BufferMode,
 {
     type Item = T;
 

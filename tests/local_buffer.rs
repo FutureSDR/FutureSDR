@@ -21,8 +21,8 @@ use futuresdr::runtime::buffer::SendInplaceReader;
 #[cfg(not(target_arch = "wasm32"))]
 use futuresdr::runtime::buffer::SendInplaceWriter;
 use futuresdr::runtime::buffer::circuit;
-use futuresdr::runtime::dev::BlockInbox;
 use futuresdr::runtime::dev::Kernel;
+use futuresdr::runtime::dev::LocalBlockInbox;
 use futuresdr::runtime::dev::SendKernel;
 
 struct TestKernel;
@@ -75,13 +75,13 @@ fn local_cpu_buffer_moves_items() -> Result<()> {
         &mut writer,
         BlockId(0),
         PortId::new("out"),
-        BlockInbox::disconnected(),
+        LocalBlockInbox::default(),
     );
     BufferReader::init(
         &mut reader,
         BlockId(1),
         PortId::new("in"),
-        BlockInbox::disconnected(),
+        LocalBlockInbox::default(),
     );
 
     CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 5);
@@ -114,13 +114,13 @@ fn local_cpu_buffer_flushes_partial_buffer_on_finish() -> Result<()> {
         &mut writer,
         BlockId(0),
         PortId::new("out"),
-        BlockInbox::disconnected(),
+        LocalBlockInbox::default(),
     );
     BufferReader::init(
         &mut reader,
         BlockId(1),
         PortId::new("in"),
-        BlockInbox::disconnected(),
+        LocalBlockInbox::default(),
     );
 
     CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 8);

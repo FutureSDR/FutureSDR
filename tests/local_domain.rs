@@ -291,7 +291,7 @@ fn stream_connects_normal_source_to_local_sink() -> Result<()> {
 }
 
 #[test]
-fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
+fn add_local_uses_normal_buffers_inside_local_domain() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -305,6 +305,23 @@ fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
 
     let fg = rt.run(fg)?;
     assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
+fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let local = fg.local_domain()?;
+    let src = fg.add_local(local, NonSendLocalSource::new);
+    let snk = fg.add_local(local, NonSendLocalSink::new);
+
+    fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(snk.with(&fg, |b| b.n_received())?, 1);
 
     Ok(())
 }

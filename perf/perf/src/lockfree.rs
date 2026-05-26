@@ -11,6 +11,7 @@ use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
 use futuresdr::runtime::buffer::Tags;
+use futuresdr::runtime::buffer::ThreadSafeMode;
 use futuresdr::runtime::dev::BlockInbox;
 use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
@@ -111,12 +112,13 @@ impl<T, const MAX_READERS: usize> BufferWriter for Writer<T, MAX_READERS>
 where
     T: CpuSample,
 {
+    type Mode = ThreadSafeMode;
     type Reader = Reader<T, MAX_READERS>;
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.notifier = inbox.notifier();
+                self.notifier = inbox.notifier();
         self.inbox = inbox;
     }
 
@@ -328,6 +330,8 @@ impl<T, const MAX_READERS: usize> BufferReader for Reader<T, MAX_READERS>
 where
     T: CpuSample,
 {
+    type Mode = ThreadSafeMode;
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -335,7 +339,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-        self.notifier = inbox.notifier();
+                self.notifier = inbox.notifier();
         self.inbox = inbox;
     }
 

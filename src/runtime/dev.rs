@@ -9,6 +9,8 @@ pub use super::block::Block;
 pub use super::block::BlockObject;
 pub use super::block_inbox::BlockInbox;
 pub use super::block_inbox::BlockNotifier;
+pub use super::block_inbox::LocalBlockInbox;
+pub use super::block_inbox::LocalBlockNotifier;
 pub use super::block_meta::BlockMeta;
 pub use super::buffer::BufferReader;
 pub use super::buffer::BufferWriter;
@@ -23,6 +25,7 @@ pub use super::buffer::InplaceReader;
 pub use super::buffer::InplaceWriter;
 pub use super::buffer::LocalCpuReader;
 pub use super::buffer::LocalCpuWriter;
+pub use super::buffer::PortInboxes;
 pub use super::buffer::SendBufferReader;
 pub use super::buffer::SendBufferWriter;
 pub use super::buffer::SendCircuitWriter;
@@ -47,6 +50,7 @@ pub use super::work_io::WorkIo;
 /// block implementations.
 pub mod prelude {
     pub use crate::prelude::*;
+    pub use crate::runtime::buffer::PortInboxes;
     #[cfg(feature = "burn")]
     pub use crate::runtime::buffer::burn as burn_buffer;
     pub use crate::runtime::buffer::circuit;
@@ -74,6 +78,8 @@ pub mod prelude {
     pub use crate::runtime::dev::InplaceWriter;
     pub use crate::runtime::dev::ItemTag;
     pub use crate::runtime::dev::Kernel;
+    pub use crate::runtime::dev::LocalBlockInbox;
+    pub use crate::runtime::dev::LocalBlockNotifier;
     pub use crate::runtime::dev::LocalCpuReader;
     pub use crate::runtime::dev::LocalCpuWriter;
     pub use crate::runtime::dev::MessageOutputs;
