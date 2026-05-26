@@ -2,7 +2,7 @@
 #define NULL_RAND_FLOWGRAPH_HPP
 
 #include <gnuradio/top_block.h>
-#include <sched/copy_rand.h>
+#include <sched/copy_n.h>
 
 #include <boost/program_options.hpp>
 #include <iostream>

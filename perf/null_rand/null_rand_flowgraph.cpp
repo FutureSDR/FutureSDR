@@ -26,11 +26,11 @@ null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples
         auto head = blocks::head::make(4, samples);
         tb->connect(src, 0, head, 0);
 
-        auto prev = sched::copy_rand::make(sizeof(float), max_copy);
+        auto prev = sched::copy_n::make(sizeof(float), max_copy);
         tb->connect(head, 0, prev, 0);
 
         for(int stage = 1; stage < stages; stage++) {
-            auto block = sched::copy_rand::make(sizeof(float), max_copy);
+            auto block = sched::copy_n::make(sizeof(float), max_copy);
             tb->connect(prev, 0, block, 0);
             prev = block;
         }

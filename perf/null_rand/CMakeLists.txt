@@ -1,6 +1,6 @@
-project(NullRandFlowgraph)
-
 cmake_minimum_required(VERSION 3.8)
+
+project(NullRandFlowgraph)
 
 find_package(Gnuradio "3.9" REQUIRED COMPONENTS blocks)
 find_package(gnuradio-sched)

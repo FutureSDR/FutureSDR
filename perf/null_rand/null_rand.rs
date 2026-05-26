@@ -13,7 +13,8 @@ use futuresdr::runtime::dev::SendKernel;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use perf::CopyRand;
+use perf::CopyN;
+use perf::local_spsc;
 use perf::spsc;
 use std::time;
 
@@ -65,7 +66,7 @@ where
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
     NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
     Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
-    CopyRand<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    CopyN<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
     NullSink<f32, ReaderOf<B, f32>>: SendKernel + SendKernelInterface,
 {
     let mut fg = Flowgraph::new();
@@ -79,7 +80,7 @@ where
         let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
         ));
-        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+        let mut last = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             max_copy,
         ));
 
@@ -92,7 +93,7 @@ where
         cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
+            let block = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
             ));
             {
@@ -113,6 +114,58 @@ where
     Ok((fg, snks, cpu_mapping))
 }
 
+#[allow(clippy::type_complexity)]
+fn generate_local(
+    pipes: usize,
+    stages: usize,
+    samples: usize,
+    max_copy: usize,
+) -> Result<(
+    Flowgraph,
+    Vec<BlockRef<NullSink<f32, local_spsc::Reader<f32>>>>,
+)> {
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+    let core_ids = core_affinity::get_core_ids().expect("failed to get available CPU IDs");
+    assert_eq!(
+        core_ids.len(),
+        pipes,
+        "local config requires one available CPU per pipe; got {} CPUs ({:?}) for {} pipes",
+        core_ids.len(),
+        core_ids,
+        pipes
+    );
+
+    for core_id in core_ids {
+        let local = fg.local_domain_pinned(core_id.id)?;
+
+        let src = fg.add_local(local, NullSource::<f32, local_spsc::Writer<f32>>::new);
+        let head = fg.add_local(local, move || {
+            Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+        });
+        let mut last = fg.add_local(local, move || {
+            CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+        });
+
+        fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
+        fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
+
+        for _ in 1..stages {
+            let block = fg.add_local(local, move || {
+                CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+            });
+            fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
+            last = block;
+        }
+
+        let snk = fg.add_local(local, NullSink::<f32, local_spsc::Reader<f32>>::new);
+        fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+        snks.push(snk);
+    }
+
+    Ok((fg, snks))
+}
+
 fn main() -> Result<()> {
     let Args {
         run,
@@ -125,13 +178,26 @@ fn main() -> Result<()> {
 
     let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
     let scheduler = match config.as_str() {
+        "local" => "local",
         "smol1" => "smol1",
         "smoln" | "smoln-spsc" => "smoln",
         "flow" | "flow-spsc" => "flow",
         _ => panic!("unknown config"),
     };
 
-    let elapsed = if use_spsc {
+    let elapsed = if scheduler == "local" {
+        let (mut fg, snks) = generate_local(pipes, stages, samples, max_copy)?;
+        let runtime = Runtime::new();
+        let now = time::Instant::now();
+        fg = runtime.run(fg)?;
+        let elapsed = now.elapsed();
+
+        for s in snks {
+            assert_eq!(s.with(&fg, |b| b.n_received())?, samples);
+        }
+
+        elapsed
+    } else if use_spsc {
         let (mut fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
         let elapsed = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
