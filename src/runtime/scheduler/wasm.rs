@@ -77,8 +77,8 @@ pub(crate) fn reset_wasm_thread_metadata() {
     }
 }
 
-/// Web-worker handle used by the WASM scheduler.
-struct WasmWorker(Worker);
+/// Web-worker handle used by the WASM scheduler and WASM local domains.
+pub(crate) struct WasmWorker(Worker);
 
 // Web workers are created and owned by the scheduler, but the scheduler itself
 // has to satisfy the generic `Scheduler: Send` bound. The actual worker handle
@@ -87,7 +87,7 @@ unsafe impl Send for WasmWorker {}
 unsafe impl Sync for WasmWorker {}
 
 impl WasmWorker {
-    fn terminate(self) {
+    pub(crate) fn terminate(self) {
         self.0.terminate();
     }
 }
@@ -305,6 +305,37 @@ fn spawn_worker(
         &init,
         &JsValue::from_str("worker_index"),
         &JsValue::from_f64(worker_index as f64),
+    )?;
+    if let Err(e) = worker.post_message(&init) {
+        worker.terminate();
+        return Err(e);
+    }
+
+    Ok(WasmWorker(worker))
+}
+
+pub(crate) fn spawn_local_domain_worker(
+    worker_script: &str,
+    domain_id: usize,
+) -> Result<WasmWorker, JsValue> {
+    reset_wasm_thread_metadata();
+
+    let options = WorkerOptions::new();
+    options.set_type(WorkerType::Module);
+    let worker = Worker::new_with_options(worker_script, &options)?;
+    let init = js_sys::Object::new();
+
+    js_sys::Reflect::set(
+        &init,
+        &JsValue::from_str("type"),
+        &JsValue::from_str("futuresdr-wasm-local-domain-init"),
+    )?;
+    js_sys::Reflect::set(&init, &JsValue::from_str("module"), &wasm_bindgen::module())?;
+    js_sys::Reflect::set(&init, &JsValue::from_str("memory"), &wasm_bindgen::memory())?;
+    js_sys::Reflect::set(
+        &init,
+        &JsValue::from_str("domain_id"),
+        &JsValue::from_f64(domain_id as f64),
     )?;
     if let Err(e) = worker.post_message(&init) {
         worker.terminate();

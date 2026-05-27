@@ -8,11 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
-use web_sys::Worker;
-use web_sys::WorkerOptions;
-use web_sys::WorkerType;
 
 use crate::runtime::BlockMessage;
 use crate::runtime::Edge;
@@ -27,6 +23,8 @@ use crate::runtime::dev::BlockInbox;
 use crate::runtime::local_domain_common::LocalBlockBuilder;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::scheduler::wasm::WasmWorker;
+use crate::runtime::scheduler::wasm::spawn_local_domain_worker;
 
 pub(crate) struct LocalDomainRuntime {
     controller: LocalDomainController,
@@ -250,17 +248,6 @@ struct WasmLocalDomainInit {
     terminate: Arc<AtomicBool>,
 }
 
-struct WasmWorker(Worker);
-
-unsafe impl Send for WasmWorker {}
-unsafe impl Sync for WasmWorker {}
-
-impl WasmWorker {
-    fn terminate(self) {
-        self.0.terminate();
-    }
-}
-
 fn default_worker_script() -> String {
     crate::runtime::scheduler::wasm::worker_script()
 }
@@ -284,34 +271,6 @@ pub fn futuresdr_wasm_local_domain_worker_entry(domain_id: usize) {
             domain_id
         );
     }
-}
-
-fn spawn_local_domain_worker(worker_script: &str, domain_id: usize) -> Result<WasmWorker, JsValue> {
-    crate::runtime::scheduler::wasm::reset_wasm_thread_metadata();
-
-    let options = WorkerOptions::new();
-    options.set_type(WorkerType::Module);
-    let worker = Worker::new_with_options(worker_script, &options)?;
-    let init = js_sys::Object::new();
-
-    js_sys::Reflect::set(
-        &init,
-        &JsValue::from_str("type"),
-        &JsValue::from_str("futuresdr-wasm-local-domain-init"),
-    )?;
-    js_sys::Reflect::set(&init, &JsValue::from_str("module"), &wasm_bindgen::module())?;
-    js_sys::Reflect::set(&init, &JsValue::from_str("memory"), &wasm_bindgen::memory())?;
-    js_sys::Reflect::set(
-        &init,
-        &JsValue::from_str("domain_id"),
-        &JsValue::from_f64(domain_id as f64),
-    )?;
-    if let Err(e) = worker.post_message(&init) {
-        worker.terminate();
-        return Err(e);
-    }
-
-    Ok(WasmWorker(worker))
 }
 
 async fn run_domain_worker(init: WasmLocalDomainInit) {
