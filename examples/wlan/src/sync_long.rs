@@ -133,6 +133,7 @@ where
                 input_limit = std::cmp::min(input_limit, *index);
                 if input_limit < 80 {
                     self.input.consume(input_limit);
+                    io.call_again = true;
                     return Ok(());
                 }
             }
@@ -189,6 +190,32 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
+
+    #[test]
+    fn calls_again_after_dropping_short_prefix_before_tag() {
+        let mut block = SyncLong::<Reader<Complex32>, Writer<Complex32>>::new();
+        block.input.set_with_tags(
+            vec![Complex32::new(0.0, 0.0); 100],
+            vec![ItemTag {
+                index: 10,
+                tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
+            }],
+        );
+        block.output.reserve(128);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+
+        assert!(matches!(mocker.state, State::Sync(_)));
     }
 }
 

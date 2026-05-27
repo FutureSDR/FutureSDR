@@ -118,7 +118,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-                self.notifier = inbox.notifier();
+        self.notifier = inbox.notifier();
         self.inbox = inbox;
     }
 
@@ -339,7 +339,7 @@ where
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
-                self.notifier = inbox.notifier();
+        self.notifier = inbox.notifier();
         self.inbox = inbox;
     }
 

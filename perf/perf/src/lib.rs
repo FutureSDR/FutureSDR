@@ -1,5 +1,7 @@
 pub mod inplace;
+pub mod local_mpsc;
 pub mod local_spsc;
+pub mod local_spsc_tags;
 pub mod lockfree;
 pub mod spsc;
 

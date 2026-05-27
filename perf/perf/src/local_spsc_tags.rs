@@ -1,9 +1,11 @@
 use std::any::Any;
+use std::cell::Cell;
+use std::cell::RefCell;
 use std::fmt;
 use std::mem::size_of;
-use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::ptr;
+use std::rc::Rc;
+use std::slice;
 
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
@@ -13,43 +15,22 @@ use futuresdr::runtime::buffer::BufferWriter;
 use futuresdr::runtime::buffer::CpuBufferReader;
 use futuresdr::runtime::buffer::CpuBufferWriter;
 use futuresdr::runtime::buffer::CpuSample;
+use futuresdr::runtime::buffer::LocalMode;
 use futuresdr::runtime::buffer::Tags;
-use futuresdr::runtime::buffer::ThreadSafeMode;
-use futuresdr::runtime::dev::BlockInbox;
-use futuresdr::runtime::dev::BlockNotifier;
 use futuresdr::runtime::dev::ItemTag;
+use futuresdr::runtime::dev::LocalBlockInbox;
+use futuresdr::runtime::dev::LocalBlockNotifier;
 use futuresdr::tracing::warn;
-use once_cell::sync::Lazy;
 use vmcircbuffer::double_mapped_buffer::DoubleMappedBuffer;
 use vmcircbuffer::double_mapped_buffer::pagesize;
 
-static EMPTY_TAGS: Lazy<Vec<ItemTag>> = Lazy::new(Vec::new);
-
-#[repr(align(128))]
-struct PaddedAtomicUsize(AtomicUsize);
-
-impl PaddedAtomicUsize {
-    #[inline(always)]
-    fn new(value: usize) -> Self {
-        Self(AtomicUsize::new(value))
-    }
-
-    #[inline(always)]
-    fn load(&self, ordering: Ordering) -> usize {
-        self.0.load(ordering)
-    }
-
-    #[inline(always)]
-    fn store(&self, value: usize, ordering: Ordering) {
-        self.0.store(value, ordering);
-    }
-}
-
 struct Inner<T> {
-    buffer: DoubleMappedBuffer<T>,
+    _buffer: DoubleMappedBuffer<T>,
+    base: *mut T,
     capacity: usize,
-    write_pos: PaddedAtomicUsize,
-    read_pos: PaddedAtomicUsize,
+    write_pos: Cell<usize>,
+    read_pos: Cell<usize>,
+    tags: RefCell<Vec<ItemTag>>,
 }
 
 impl<T> Inner<T> {
@@ -68,18 +49,20 @@ pub struct Writer<T>
 where
     T: CpuSample,
 {
-    inbox: BlockInbox,
+    inbox: LocalBlockInbox,
     block_id: BlockId,
     port_id: PortId,
-    inner: Option<Arc<Inner<T>>>,
+    inner: *const Inner<T>,
+    inner_owner: Option<Rc<Inner<T>>>,
     connected: bool,
-    reader_inbox: BlockInbox,
+    reader_inbox: LocalBlockInbox,
     reader_input_id: PortId,
-    reader_notifier: BlockNotifier,
-    notifier: BlockNotifier,
+    reader_notifier: LocalBlockNotifier,
+    notifier: LocalBlockNotifier,
     tags: Vec<ItemTag>,
     last_space: usize,
     write_pos: usize,
+    write_offset: usize,
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
 }
@@ -90,18 +73,20 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inbox: BlockInbox::default(),
+            inbox: LocalBlockInbox::default(),
             block_id: BlockId::default(),
             port_id: PortId::default(),
-            inner: None,
+            inner: ptr::null(),
+            inner_owner: None,
             connected: false,
-            reader_inbox: BlockInbox::default(),
+            reader_inbox: LocalBlockInbox::default(),
             reader_input_id: PortId::default(),
-            reader_notifier: BlockNotifier::new(),
-            notifier: BlockNotifier::new(),
+            reader_notifier: LocalBlockNotifier::default(),
+            notifier: LocalBlockNotifier::default(),
             tags: Vec::new(),
             last_space: 0,
             write_pos: 0,
+            write_offset: 0,
             min_items: None,
             min_buffer_size_in_items: None,
         }
@@ -109,14 +94,17 @@ where
 
     #[inline(always)]
     fn slice_parts(&mut self) -> &mut [T] {
-        let inner = self.inner.as_ref().expect("writer not connected");
-        let read_pos = inner.read_pos.load(Ordering::Acquire);
-        let space = Inner::<T>::space(inner.capacity, read_pos, self.write_pos);
-        debug_assert!(space <= inner.capacity);
+        debug_assert!(!self.inner.is_null(), "writer not connected");
+        let inner = self.inner;
+        let inner_ref = unsafe { &*inner };
+        let capacity = inner_ref.capacity;
+        let read_pos = inner_ref.read_pos.get();
+        let space = Inner::<T>::space(capacity, read_pos, self.write_pos);
+        debug_assert!(space <= capacity);
+        let offset = self.write_offset;
         self.last_space = space;
 
-        let offset = self.write_pos % inner.capacity;
-        unsafe { &mut inner.buffer.slice_with_offset_mut(offset)[..space] }
+        unsafe { slice::from_raw_parts_mut(inner_ref.base.add(offset), space) }
     }
 }
 
@@ -134,7 +122,7 @@ where
     T: CpuSample,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("perf::spsc::Writer")
+        f.debug_struct("perf::local_spsc_tags::Writer")
             .field("port_id", &self.port_id)
             .field("connected", &self.connected)
             .finish()
@@ -145,10 +133,10 @@ impl<T> BufferWriter for Writer<T>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Mode = LocalMode;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.notifier = inbox.notifier();
@@ -156,7 +144,7 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.connected {
+        if self.inner_owner.is_some() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -167,7 +155,10 @@ where
     }
 
     fn connect(&mut self, dest: &mut Self::Reader) {
-        assert!(!self.connected, "perf::spsc only supports one reader");
+        assert!(
+            !self.connected,
+            "perf::local_spsc_tags only supports one reader"
+        );
 
         let page_size = pagesize();
         let mut buffer_size = page_size;
@@ -194,14 +185,17 @@ where
             buffer_size += page_size;
         }
 
-        let buffer = DoubleMappedBuffer::new(buffer_size / size_of::<T>())
+        let buffer: DoubleMappedBuffer<T> = DoubleMappedBuffer::new(buffer_size / size_of::<T>())
             .expect("failed to allocate SPSC buffer");
         let capacity = buffer.capacity();
-        let inner = Arc::new(Inner {
-            buffer,
+        let base = unsafe { buffer.slice().as_ptr().cast_mut() };
+        let inner = Rc::new(Inner {
+            _buffer: buffer,
+            base,
             capacity,
-            write_pos: PaddedAtomicUsize::new(0),
-            read_pos: PaddedAtomicUsize::new(0),
+            write_pos: Cell::new(0),
+            read_pos: Cell::new(0),
+            tags: RefCell::new(Vec::new()),
         });
 
         self.min_buffer_size_in_items = Some(capacity);
@@ -209,15 +203,19 @@ where
         self.reader_inbox = dest.inbox.clone();
         self.reader_input_id = dest.port_id.clone();
         self.reader_notifier = dest.notifier.clone();
-        self.inner = Some(inner.clone());
+        self.inner = Rc::as_ptr(&inner);
+        self.inner_owner = Some(inner.clone());
         self.connected = true;
         self.write_pos = 0;
+        self.write_offset = 0;
 
-        dest.inner = Some(inner);
+        dest.inner = Rc::as_ptr(&inner);
+        dest.inner_owner = Some(inner);
         dest.writer_inbox = self.inbox.clone();
         dest.writer_output_id = self.port_id.clone();
         dest.writer_notifier = self.notifier.clone();
         dest.read_pos = 0;
+        dest.read_offset = 0;
     }
 
     async fn notify_finished(&mut self) {
@@ -248,17 +246,8 @@ where
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         let tags = &mut self.tags as *mut Vec<ItemTag>;
-        let inner = self.inner.as_ref().expect("writer not connected");
-        let read_pos = inner.read_pos.load(Ordering::Acquire);
-        let space = Inner::<T>::space(inner.capacity, read_pos, self.write_pos);
-        debug_assert!(space <= inner.capacity);
-        self.last_space = space;
-
-        let offset = self.write_pos % inner.capacity;
-        unsafe {
-            let slice = &mut inner.buffer.slice_with_offset_mut(offset)[..space];
-            (slice, Tags::new(&mut *tags, 0))
-        }
+        let slice = self.slice_parts();
+        unsafe { (slice, Tags::new(&mut *tags, 0)) }
     }
 
     fn produce(&mut self, n: usize) {
@@ -267,16 +256,39 @@ where
             return;
         }
 
-        let inner = self.inner.as_ref().expect("writer not connected");
-        assert!(n <= self.last_space, "perf::spsc produced too much");
+        debug_assert!(!self.inner.is_null(), "writer not connected");
+        let inner = self.inner;
+        let inner_ref = unsafe { &*inner };
+        assert!(
+            n <= self.last_space,
+            "perf::local_spsc_tags produced too much"
+        );
 
-        let read_pos = inner.read_pos.load(Ordering::Acquire);
-        debug_assert!(Inner::<T>::space(inner.capacity, read_pos, self.write_pos) >= n);
+        let capacity = inner_ref.capacity;
+        let read_pos = inner_ref.read_pos.get();
+        debug_assert!(Inner::<T>::space(capacity, read_pos, self.write_pos) >= n);
+
+        {
+            let mut inner_tags = inner_ref.tags.borrow_mut();
+            for tag in self.tags.drain(..) {
+                if tag.index < n {
+                    let mut tag = tag;
+                    tag.index = self.write_pos.wrapping_add(tag.index);
+                    inner_tags.push(tag);
+                }
+            }
+        }
+
         self.write_pos = self.write_pos.wrapping_add(n);
 
-        inner.write_pos.store(self.write_pos, Ordering::Release);
+        let mut write_offset = self.write_offset + n;
+        if write_offset >= capacity {
+            write_offset -= capacity;
+        }
+        self.write_offset = write_offset;
+
+        inner_ref.write_pos.set(self.write_pos);
         self.last_space -= n;
-        self.tags.clear();
         self.reader_notifier.notify();
     }
 
@@ -295,7 +307,7 @@ where
     }
 
     fn max_items(&self) -> usize {
-        self.inner
+        self.inner_owner
             .as_ref()
             .map(|inner| inner.capacity)
             .or(self.min_buffer_size_in_items)
@@ -307,17 +319,20 @@ pub struct Reader<T>
 where
     T: CpuSample,
 {
-    inner: Option<Arc<Inner<T>>>,
+    inner: *const Inner<T>,
+    inner_owner: Option<Rc<Inner<T>>>,
     finished: bool,
-    writer_inbox: BlockInbox,
+    writer_inbox: LocalBlockInbox,
     writer_output_id: PortId,
-    writer_notifier: BlockNotifier,
+    writer_notifier: LocalBlockNotifier,
     block_id: BlockId,
     port_id: PortId,
-    inbox: BlockInbox,
-    notifier: BlockNotifier,
+    inbox: LocalBlockInbox,
+    notifier: LocalBlockNotifier,
     last_space: usize,
     read_pos: usize,
+    read_offset: usize,
+    tags: Vec<ItemTag>,
     min_items: Option<usize>,
     min_buffer_size_in_items: Option<usize>,
 }
@@ -328,17 +343,20 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inner: None,
+            inner: ptr::null(),
+            inner_owner: None,
             finished: false,
-            writer_inbox: BlockInbox::default(),
+            writer_inbox: LocalBlockInbox::default(),
             writer_output_id: PortId::default(),
-            writer_notifier: BlockNotifier::new(),
+            writer_notifier: LocalBlockNotifier::default(),
             block_id: BlockId::default(),
             port_id: PortId::default(),
-            inbox: BlockInbox::default(),
-            notifier: BlockNotifier::new(),
+            inbox: LocalBlockInbox::default(),
+            notifier: LocalBlockNotifier::default(),
             last_space: 0,
             read_pos: 0,
+            read_offset: 0,
+            tags: Vec::new(),
             min_items: None,
             min_buffer_size_in_items: None,
         }
@@ -359,7 +377,7 @@ where
     T: CpuSample,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("perf::spsc::Reader")
+        f.debug_struct("perf::local_spsc_tags::Reader")
             .field("port_id", &self.port_id)
             .field("finished", &self.finished)
             .finish()
@@ -370,13 +388,13 @@ impl<T> BufferReader for Reader<T>
 where
     T: CpuSample,
 {
-    type Mode = ThreadSafeMode;
+    type Mode = LocalMode;
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: LocalBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
         self.notifier = inbox.notifier();
@@ -384,7 +402,7 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.inner.is_some() {
+        if self.inner_owner.is_some() {
             Ok(())
         } else {
             Err(Error::ValidationError(format!(
@@ -425,18 +443,47 @@ where
     type Item = T;
 
     fn slice(&mut self) -> &[Self::Item] {
-        let inner = self.inner.as_ref().expect("reader not connected");
-        let write_pos = inner.write_pos.load(Ordering::Acquire);
+        debug_assert!(!self.inner.is_null(), "reader not connected");
+        let inner = self.inner;
+        let inner_ref = unsafe { &*inner };
+        let capacity = inner_ref.capacity;
+        let write_pos = inner_ref.write_pos.get();
         let avail = Inner::<T>::occupancy(self.read_pos, write_pos);
-        debug_assert!(avail <= inner.capacity);
+        debug_assert!(avail <= capacity);
+        let offset = self.read_offset;
         self.last_space = avail;
 
-        let offset = self.read_pos % inner.capacity;
-        unsafe { &inner.buffer.slice_with_offset(offset)[..avail] }
+        unsafe { slice::from_raw_parts(inner_ref.base.add(offset), avail) }
     }
 
     fn slice_with_tags(&mut self) -> (&[Self::Item], &Vec<ItemTag>) {
-        (self.slice(), &EMPTY_TAGS)
+        debug_assert!(!self.inner.is_null(), "reader not connected");
+        let inner = self.inner;
+        let inner_ref = unsafe { &*inner };
+        let capacity = inner_ref.capacity;
+        let write_pos = inner_ref.write_pos.get();
+        let avail = Inner::<T>::occupancy(self.read_pos, write_pos);
+        debug_assert!(avail <= capacity);
+        let offset = self.read_offset;
+        self.last_space = avail;
+
+        self.tags.clear();
+        {
+            let inner_tags = inner_ref.tags.borrow();
+            self.tags.extend(inner_tags.iter().filter_map(|tag| {
+                let rel = tag.index.wrapping_sub(self.read_pos);
+                if rel < avail {
+                    let mut tag = tag.clone();
+                    tag.index = rel;
+                    Some(tag)
+                } else {
+                    None
+                }
+            }));
+        }
+
+        let data = unsafe { slice::from_raw_parts(inner_ref.base.add(offset), avail) };
+        (data, &self.tags)
     }
 
     fn consume(&mut self, n: usize) {
@@ -444,34 +491,54 @@ where
             return;
         }
 
-        let inner = self.inner.as_ref().expect("reader not connected");
-        assert!(n <= self.last_space, "perf::spsc consumed too much");
+        debug_assert!(!self.inner.is_null(), "reader not connected");
+        let inner = self.inner;
+        let inner_ref = unsafe { &*inner };
+        assert!(
+            n <= self.last_space,
+            "perf::local_spsc_tags consumed too much"
+        );
 
-        let write_pos = inner.write_pos.load(Ordering::Acquire);
+        let capacity = inner_ref.capacity;
+        let write_pos = inner_ref.write_pos.get();
         debug_assert!(Inner::<T>::occupancy(self.read_pos, write_pos) >= n);
         self.read_pos = self.read_pos.wrapping_add(n);
 
-        inner.read_pos.store(self.read_pos, Ordering::Release);
+        {
+            let readable = Inner::<T>::occupancy(self.read_pos, write_pos);
+            inner_ref
+                .tags
+                .borrow_mut()
+                .retain(|tag| tag.index.wrapping_sub(self.read_pos) < readable);
+        }
+
+        let mut read_offset = self.read_offset + n;
+        if read_offset >= capacity {
+            read_offset -= capacity;
+        }
+        self.read_offset = read_offset;
+
+        inner_ref.read_pos.set(self.read_pos);
         self.last_space -= n;
         self.writer_notifier.notify();
     }
 
     fn set_min_items(&mut self, n: usize) {
-        if !self.writer_inbox.is_closed() {
+        if self.inner_owner.is_some() {
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_items = Some(n);
     }
 
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
-        if !self.writer_inbox.is_closed() {
+        if self.inner_owner.is_some() {
             warn!("buffer size configured after buffer is connected. This has no effect");
         }
         self.min_buffer_size_in_items = Some(n);
     }
 
     fn max_items(&self) -> usize {
-        self.inner
+        self.inner_owner
             .as_ref()
             .map(|inner| inner.capacity)
             .or(self.min_buffer_size_in_items)
@@ -482,6 +549,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futuresdr::runtime::dev::Tag;
 
     #[test]
     fn basic_transfer() {
@@ -505,7 +573,7 @@ mod tests {
         let mut r = Reader::<u32>::default();
         w.connect(&mut r);
 
-        let cap = w.inner.as_ref().unwrap().capacity;
+        let cap = w.inner_owner.as_ref().unwrap().capacity;
         {
             let out = w.slice();
             for (i, item) in out[..cap - 1].iter_mut().enumerate() {
@@ -538,6 +606,31 @@ mod tests {
         w.produce(0);
         assert!(r.slice_with_tags().1.is_empty());
         r.consume(0);
+    }
+
+    #[test]
+    fn tags_are_propagated_and_reindexed() {
+        let mut w = Writer::<u32>::default();
+        let mut r = Reader::<u32>::default();
+        w.connect(&mut r);
+
+        let (out, mut tags) = w.slice_with_tags();
+        out[..4].copy_from_slice(&[7, 8, 9, 10]);
+        tags.add_tag(1, Tag::NamedUsize("first".to_string(), 23));
+        tags.add_tag(3, Tag::NamedUsize("second".to_string(), 42));
+        w.produce(4);
+
+        let (input, in_tags) = r.slice_with_tags();
+        assert_eq!(&input[..4], &[7, 8, 9, 10]);
+        assert_eq!(in_tags.len(), 2);
+        assert_eq!(in_tags[0].index, 1);
+        assert_eq!(in_tags[1].index, 3);
+
+        r.consume(2);
+        let (input, in_tags) = r.slice_with_tags();
+        assert_eq!(&input[..2], &[9, 10]);
+        assert_eq!(in_tags.len(), 1);
+        assert_eq!(in_tags[0].index, 1);
     }
 
     #[test]
