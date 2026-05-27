@@ -318,6 +318,7 @@ where
 pub struct Writer<T: Clone + Debug + Send + 'static> {
     data: Vec<T>,
     tags: Vec<ItemTag>,
+    produced: usize,
     block_id: BlockId,
     port_id: PortId,
 }
@@ -327,6 +328,7 @@ impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
         Self {
             data: vec![],
             tags: vec![],
+            produced: 0,
             block_id: BlockId(0),
             port_id: PortId::new("output"),
         }
@@ -335,19 +337,25 @@ impl<T: Clone + Debug + Send + 'static> Default for Writer<T> {
 
 impl<T: Clone + Debug + Send + 'static> Writer<T> {
     /// Reserve writable capacity in the output buffer.
-    pub fn reserve(&mut self, n: usize) {
-        self.data = Vec::with_capacity(n);
+    pub fn reserve(&mut self, n: usize)
+    where
+        T: Default,
+    {
+        self.data.clear();
+        self.tags.clear();
+        self.produced = 0;
+        self.data.resize_with(n, T::default);
     }
     /// Clone all produced items and tags without clearing them.
     pub fn get(&self) -> (Vec<T>, Vec<ItemTag>) {
-        (self.data.clone(), self.tags.clone())
+        (self.data[..self.produced].to_vec(), self.tags.clone())
     }
     /// Drain all produced items and tags.
     pub fn take(&mut self) -> (Vec<T>, Vec<ItemTag>) {
-        (
-            std::mem::take(&mut self.data),
-            std::mem::take(&mut self.tags),
-        )
+        let mut data = std::mem::take(&mut self.data);
+        data.truncate(self.produced);
+        self.produced = 0;
+        (data, std::mem::take(&mut self.tags))
     }
 }
 
@@ -382,27 +390,20 @@ where
     type Item = T;
 
     fn slice(&mut self) -> &mut [Self::Item] {
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                self.data.as_mut_ptr().add(self.data.len()),
-                self.data.capacity() - self.data.len(),
-            )
-        }
+        &mut self.data[self.produced..]
     }
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
-        let s = unsafe {
-            std::slice::from_raw_parts_mut(
-                self.data.as_mut_ptr().add(self.data.len()),
-                self.data.capacity() - self.data.len(),
-            )
-        };
-        (s, Tags::new(&mut self.tags, self.data.len()))
+        (
+            &mut self.data[self.produced..],
+            Tags::new(&mut self.tags, self.produced),
+        )
     }
     fn produce(&mut self, n: usize) {
-        let curr_len = self.data.len();
-        unsafe {
-            self.data.set_len(curr_len + n);
-        }
+        assert!(
+            self.produced + n <= self.data.len(),
+            "mocker writer produced more items than reserved"
+        );
+        self.produced += n;
     }
 
     fn set_min_items(&mut self, _n: usize) {
@@ -414,6 +415,6 @@ where
     }
 
     fn max_items(&self) -> usize {
-        self.data.len()
+        self.data.len() - self.produced
     }
 }
