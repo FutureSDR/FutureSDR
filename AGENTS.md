@@ -18,6 +18,10 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 - It is important that the core runtime code (in `src/runtime`) that glues everything together is easy to comprehend and minimal.
 - Specific implementations that contain complexity (e.g., a buffer implementation, a scheduler implementation) can be highly optimized and complexity is ok.
 
+## Repository Instructions
+
+- Whenever files under `.pi/` or `AGENTS.md` are updated, make a dedicated git commit for those files before continuing with unrelated work; do not include other unstaged changes.
+
 ## Requirements
 
 - Stream connections for a directed acyclic graph. Circles or self-connections are not supported.
