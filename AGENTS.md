@@ -14,6 +14,7 @@ FutureSDR borrows ideas from the actor model, where a block is an actor that rea
 
 - FutureSDR is meant to experiment with novel concepts, API stability is not a goal right now. The main question is: how could an SDR framework in Rust look like?
 - FutureSDR code should be minimal, easy to understand, performant, composable, and follow Rust best-practices.
+- Avoid unnecessary traits and abstraction layers; prefer concrete, direct designs when they are sufficient.
 - The user-facing API (instantiate blocks, create a flowgraph, run the flowgraph) should be ergonomic and friendly.
 - It is important that the core runtime code (in `src/runtime`) that glues everything together is easy to comprehend and minimal.
 - Specific implementations that contain complexity (e.g., a buffer implementation, a scheduler implementation) can be highly optimized and complexity is ok.
