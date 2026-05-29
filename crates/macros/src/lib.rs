@@ -599,7 +599,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         Type::Path(type_path) if is_vec(type_path) => {
                             let name_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    names.push(format!("{}[{}]", #field_name_str, i));
+                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
                             let init_code = quote! {
@@ -628,7 +628,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return Ok(&mut self.#field_name[i]);
+                                        return Ok(f(&mut self.#field_name[i]));
                                     }
                                 }
                             };
@@ -639,7 +639,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let len = &array.len;
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}[{}]", #field_name_str, i));
+                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
                             let init_code = quote! {
@@ -668,7 +668,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return Ok(&mut self.#field_name[i]);
+                                        return Ok(f(&mut self.#field_name[i]));
                                     }
                                 }
                             };
@@ -676,11 +676,14 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
-                            let len = tuple.elems.len();
-                            let name_code = quote! {
-                                for i in 0..#len {
-                                    names.push(format!("{}.{}", #field_name_str, i));
+                            let name_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                                let index = syn::Index::from(i);
+                                quote! {
+                                    f(PortId::new(format!("{}.{}", #field_name_str, #index)), &mut self.#field_name.#index)?;
                                 }
+                            });
+                            let name_code = quote! {
+                                #(#name_code)*
                             };
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -725,7 +728,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 let index = syn::Index::from(i);
                                 quote!{
                                     if name == format!("{}.{}", #field_name_str, #index) {
-                                        return Ok(&mut self.#field_name.#index);
+                                        return Ok(f(&mut self.#field_name.#index));
                                     }
                                 }
                             });
@@ -737,7 +740,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         // Handle normal types
                         _ => {
                             let name_code = quote! {
-                                names.push(#field_name_str.to_string());
+                                f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
                             };
                             let init_code = quote! {
                                 __FsdrInput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
@@ -756,7 +759,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let get_input_code = quote! {
                                 if name == #field_name_str {
-                                    return Ok(&mut self.#field_name)
+                                    return Ok(f(&mut self.#field_name));
                                 }
                             };
                             Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
@@ -768,25 +771,13 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         _ => Vec::new(),
     };
 
-    let stream_inputs_names = stream_inputs
+    let stream_inputs_visit = stream_inputs
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<_>>();
-    let stream_inputs_init = stream_inputs
-        .iter()
-        .map(|x| x.1.clone())
-        .collect::<Vec<_>>();
-    let stream_inputs_validate = stream_inputs
-        .iter()
-        .map(|x| x.2.clone())
         .collect::<Vec<_>>();
     let stream_inputs_notify = stream_inputs
         .iter()
         .map(|x| x.3.clone())
-        .collect::<Vec<_>>();
-    let stream_inputs_finish = stream_inputs
-        .iter()
-        .map(|x| x.4.clone())
         .collect::<Vec<_>>();
     let stream_inputs_get = stream_inputs
         .iter()
@@ -812,7 +803,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         Type::Path(type_path) if is_vec(type_path) => {
                             let name_code = quote! {
                                 for i in 0..self.#field_name.len() {
-                                    names.push(format!("{}[{}]", #field_name_str, i));
+                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
                             let init_code = quote! {
@@ -833,7 +824,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return __FsdrOutput::connect_dyn(&mut self.#field_name[i], reader);
+                                        return Ok(f(&mut self.#field_name[i]));
                                     }
                                 }
                             };
@@ -844,7 +835,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let len = &array.len;
                             let name_code = quote! {
                                 for i in 0..#len {
-                                    names.push(format!("{}[{}]", #field_name_str, i));
+                                    f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
                             let init_code = quote! {
@@ -865,7 +856,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
                                     if name == format!("{}[{}]", #field_name_str, i) {
-                                        return __FsdrOutput::connect_dyn(&mut self.#field_name[i], reader);
+                                        return Ok(f(&mut self.#field_name[i]));
                                     }
                                 }
                             };
@@ -873,11 +864,14 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
-                            let len = tuple.elems.len();
-                            let name_code = quote! {
-                                for i in 0..#len {
-                                    names.push(format!("{}.{}", #field_name_str, i));
+                            let name_code = tuple.elems.iter().enumerate().map(|(i, _)| {
+                                let index = syn::Index::from(i);
+                                quote! {
+                                    f(PortId::new(format!("{}.{}", #field_name_str, #index)), &mut self.#field_name.#index)?;
                                 }
+                            });
+                            let name_code = quote! {
+                                #(#name_code)*
                             };
                             let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -910,7 +904,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 let index = syn::Index::from(i);
                                 quote!{
                                     if name == format!("{}.{}", #field_name_str, #index) {
-                                        return __FsdrOutput::connect_dyn(&mut self.#field_name.#index, reader);
+                                        return Ok(f(&mut self.#field_name.#index));
                                     }
                                 }
                             });
@@ -922,7 +916,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                         // Handle normal types
                         _ => {
                             let name_code = quote! {
-                                names.push(#field_name_str.to_string());
+                                f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
                             };
                             let init_code = quote! {
                                 __FsdrOutput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
@@ -935,7 +929,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let connect_code = quote! {
                                 if name == #field_name_str {
-                                    return __FsdrOutput::connect_dyn(&mut self.#field_name, reader);
+                                    return Ok(f(&mut self.#field_name));
                                 }
                             };
                             Some((name_code, init_code, validate_code, notify_code, connect_code))
@@ -947,23 +941,15 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         _ => Vec::new(),
     };
 
-    let stream_outputs_names = stream_outputs
+    let stream_outputs_visit = stream_outputs
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<_>>();
-    let stream_outputs_init = stream_outputs
-        .iter()
-        .map(|x| x.1.clone())
-        .collect::<Vec<_>>();
-    let stream_outputs_validate = stream_outputs
-        .iter()
-        .map(|x| x.2.clone())
         .collect::<Vec<_>>();
     let stream_outputs_notify = stream_outputs
         .iter()
         .map(|x| x.3.clone())
         .collect::<Vec<_>>();
-    let stream_outputs_connect = stream_outputs
+    let stream_outputs_get = stream_outputs
         .iter()
         .map(|x| x.4.clone())
         .collect::<Vec<_>>();
@@ -1157,70 +1143,59 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 static TYPE_NAME: &str = #type_name;
                 TYPE_NAME
             }
-            fn stream_inputs(&self) -> Vec<String> {
-                let mut names = vec![];
-                #(#stream_inputs_names)*
-                names
-            }
-            fn stream_outputs(&self) -> Vec<String> {
-                let mut names = vec![];
-                #(#stream_outputs_names)*
-                names
-            }
-
-            fn stream_ports_init(&mut self, block_id: ::futuresdr::runtime::BlockId, inboxes: ::futuresdr::runtime::dev::PortInboxes) {
-                use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
-                use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
+            fn visit_stream_inputs(
+                &mut self,
+                f: &mut dyn FnMut(
+                    ::futuresdr::runtime::PortId,
+                    &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
+                ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
+            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::PortId;
-                #(#stream_inputs_init)*
-                #(#stream_outputs_init)*
-            }
-            fn stream_ports_validate(&self) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
-                use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
-                use ::futuresdr::runtime::PortId;
-                #(#stream_inputs_validate)*
-                #(#stream_outputs_validate)*
+                #(#stream_inputs_visit)*
                 Ok(())
             }
-            fn stream_input_finish(&mut self, port_id: ::futuresdr::runtime::PortId) -> ::futuresdr::runtime::Result<(), futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
-                use ::futuresdr::runtime::Error;
-                use ::futuresdr::runtime::BlockPortCtx;
-                let port = port_id.name();
-                #(#stream_inputs_finish)*
-                Err(Error::InvalidStreamPort(BlockPortCtx::None, port_id))
-            }
-            async fn stream_ports_notify_finished(&mut self) {
-                use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
-                use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
-                #(#stream_inputs_notify)*
-                #(#stream_outputs_notify)*
-            }
-            fn stream_input(
+
+            fn visit_stream_outputs(
                 &mut self,
+                f: &mut dyn FnMut(
+                    ::futuresdr::runtime::PortId,
+                    &mut dyn ::futuresdr::runtime::buffer::AnyBufferWriter,
+                ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
+            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
+                use ::futuresdr::runtime::PortId;
+                #(#stream_outputs_visit)*
+                Ok(())
+            }
+
+            fn with_stream_input<'a, R>(
+                &'a mut self,
                 id: &::futuresdr::runtime::PortId,
-            ) -> ::futuresdr::runtime::Result<
-                &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
-                ::futuresdr::runtime::Error,
-            > {
+                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::AnyBufferReader) -> R,
+            ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
                 let name = id.name();
                 #(#stream_inputs_get)*
                 Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
             }
-            fn connect_stream_output(
-                &mut self,
+
+            fn with_stream_output<'a, R>(
+                &'a mut self,
                 id: &::futuresdr::runtime::PortId,
-                reader: &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
-            ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
-                use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
+                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::AnyBufferWriter) -> R,
+            ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
                 let name = id.name();
-                #(#stream_outputs_connect)*
+                #(#stream_outputs_get)*
                 Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+            }
+
+            async fn stream_ports_notify_finished(&mut self) {
+                use ::futuresdr::runtime::buffer::BufferReader as __FsdrInput;
+                use ::futuresdr::runtime::buffer::BufferWriter as __FsdrOutput;
+                #(#stream_inputs_notify)*
+                #(#stream_outputs_notify)*
             }
 
             fn message_inputs() -> &'static[&'static str] {

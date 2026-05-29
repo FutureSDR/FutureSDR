@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -200,10 +199,43 @@ enum StreamPlan {
     },
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct StreamEdge {
+    src_block: BlockId,
+    src_port: PortId,
+    dst_block: BlockId,
+    dst_port: PortId,
+    local: bool,
+}
+
+impl StreamEdge {
+    fn from_edge(edge: Edge, local: bool) -> Self {
+        Self {
+            src_block: edge.src_block,
+            src_port: edge.src_port,
+            dst_block: edge.dst_block,
+            dst_port: edge.dst_port,
+            local,
+        }
+    }
+
+    fn edge(&self) -> Edge {
+        Edge::new(
+            self.src_block,
+            self.src_port.clone(),
+            self.dst_block,
+            self.dst_port.clone(),
+        )
+    }
+
+    fn endpoints(&self) -> (BlockId, BlockId) {
+        (self.src_block, self.dst_block)
+    }
+}
+
 pub(crate) struct StartupSnapshot {
     inboxes: Vec<Option<BlockInbox>>,
     ids: Vec<BlockId>,
-    stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
 }
 
@@ -231,6 +263,7 @@ struct LocalDomainContextInner<'a> {
     next_block_id: usize,
     next_local_id: usize,
     entries: Vec<LocalDomainContextEntry>,
+    stream_edges: Vec<StreamEdge>,
     state: &'a mut LocalDomainState,
 }
 
@@ -257,13 +290,18 @@ impl<'a> LocalDomainContext<'a> {
                 next_block_id,
                 next_local_id,
                 entries: Vec::new(),
+                stream_edges: Vec::new(),
                 state,
             }),
         }
     }
 
-    fn take_entries(&self) -> Vec<LocalDomainContextEntry> {
-        std::mem::take(&mut self.inner.borrow_mut().entries)
+    fn take_entries(&self) -> (Vec<LocalDomainContextEntry>, Vec<StreamEdge>) {
+        let mut inner = self.inner.borrow_mut();
+        (
+            std::mem::take(&mut inner.entries),
+            std::mem::take(&mut inner.stream_edges),
+        )
     }
 
     /// Add a block to this local domain.
@@ -316,8 +354,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B,
-        FD: FnOnce(&mut KD) -> &mut B::Reader,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -336,8 +374,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B,
-        FD: FnOnce(&mut KD) -> &mut B::Reader,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         let mut inner = self.inner.borrow_mut();
         if src_block.flowgraph_id != inner.flowgraph_id {
@@ -383,7 +421,7 @@ impl<'a> LocalDomainContext<'a> {
             )?;
             Flowgraph::connect_stream_ports(src_port(src), dst_port(dst))
         };
-        inner.state.add_stream_edge(edge);
+        inner.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 
@@ -399,8 +437,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B,
-        FD: FnOnce(&mut KD) -> &mut B::Reader,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.stream_local_async(src_block, src_port, dst_block, dst_port)
             .await
@@ -737,7 +775,7 @@ pub struct Flowgraph {
     pub(crate) id: FlowgraphId,
     pub(crate) blocks: Vec<BlockEntry>,
     pub(crate) local_domains: Vec<LocalDomainRuntime>,
-    pub(crate) stream_edges: Vec<Edge>,
+    pub(crate) stream_edges: Vec<StreamEdge>,
     pub(crate) message_edges: Vec<Edge>,
 }
 
@@ -850,7 +888,7 @@ impl Flowgraph {
         let next_block_id = self.blocks.len();
         let next_local_id = self.local_domains[domain_id].block_count();
         let flowgraph_id = self.id;
-        let (ret, entries) = self.local_domains[domain_id]
+        let (ret, (entries, stream_edges)) = self.local_domains[domain_id]
             .exec(move |state| {
                 Box::pin(async move {
                     let ctx = LocalDomainContext::new(
@@ -867,6 +905,7 @@ impl Flowgraph {
             .await?;
 
         self.commit_local_context_entries(domain_id, entries);
+        self.stream_edges.extend(stream_edges);
 
         Ok(ret)
     }
@@ -1494,14 +1533,13 @@ impl Flowgraph {
                     let src =
                         Self::local_state_kernel_mut::<KS>(state, src.local_id, src.block_id)?;
                     let src_port = src_port(src);
-                    let writer = Arc::new(Mutex::new(Some(std::mem::take(src_port))));
+                    let writer = Arc::new(async_lock::Mutex::new(Some(std::mem::take(src_port))));
                     let dst_writer = Arc::clone(&writer);
 
                     let edge_result = dst_handle
                         .exec(move |state| {
-                            let result = (|| {
-                                let mut writer_guard =
-                                    dst_writer.lock().map_err(|_| Error::LockError)?;
+                            Box::pin(async move {
+                                let mut writer_guard = dst_writer.lock().await;
                                 let writer = writer_guard.as_mut().ok_or(Error::LockError)?;
                                 let dst = Self::local_state_kernel_mut::<KD>(
                                     state,
@@ -1509,12 +1547,11 @@ impl Flowgraph {
                                     dst.block_id,
                                 )?;
                                 Ok(Self::connect_stream_ports(writer, dst_port(dst)))
-                            })();
-                            Box::pin(futures::future::ready(result))
+                            })
                         })
                         .await;
 
-                    let mut writer_guard = writer.lock().map_err(|_| Error::LockError)?;
+                    let mut writer_guard = writer.lock().await;
                     *src_port = writer_guard.take().ok_or(Error::LockError)?;
                     edge_result
                 })
@@ -1649,7 +1686,7 @@ impl Flowgraph {
     }
 
     async fn connect_local_local_stream_dyn_async(
-        &self,
+        &mut self,
         src: LocalEndpoint,
         src_port_id: PortId,
         dst: LocalEndpoint,
@@ -1744,8 +1781,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: SendBufferWriter + Default + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -1764,8 +1801,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: SendBufferWriter + Default + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -1805,7 +1842,7 @@ impl Flowgraph {
                 .await?
             }
         };
-        self.stream_edges.push(edge);
+        self.stream_edges.push(StreamEdge::from_edge(edge, false));
         Ok(())
     }
 
@@ -1826,8 +1863,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -1846,8 +1883,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: Fn(&mut KS) -> &mut B + Send + 'static,
+        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -1874,7 +1911,7 @@ impl Flowgraph {
                 ));
             }
         };
-        self.stream_edges.push(edge);
+        self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 
@@ -1898,8 +1935,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         CW: CircuitWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut CW,
-        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd,
+        FS: Fn(&mut KS) -> &mut CW + Send + 'static,
+        FD: Fn(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
     {
         crate::runtime::block_on(
             self.close_circuit_async::<KS, KD, CW, FS, FD>(
@@ -1920,8 +1957,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         CW: CircuitWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut CW,
-        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd,
+        FS: Fn(&mut KS) -> &mut CW + Send + 'static,
+        FD: Fn(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -1933,9 +1970,8 @@ impl Flowgraph {
     /// Connect stream ports by block id and port name.
     ///
     /// This dynamic API skips the compile-time port type checks provided by
-    /// [`Flowgraph::stream`]. Port existence and buffer compatibility are still
-    /// validated while the connection is created and again during flowgraph
-    /// startup.
+    /// [`Flowgraph::stream`]. Port existence and buffer compatibility are
+    /// validated while the connection is created.
     ///
     /// Prefer the typed API when the concrete block types are known. The dynamic
     /// API is useful when a runtime option selects between different block
@@ -2016,7 +2052,7 @@ impl Flowgraph {
                     .await?
             }
         };
-        self.stream_edges.push(edge);
+        self.stream_edges.push(StreamEdge::from_edge(edge, false));
         Ok(())
     }
 
@@ -2073,7 +2109,7 @@ impl Flowgraph {
             }
         };
 
-        self.stream_edges.push(edge);
+        self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 
@@ -2170,15 +2206,42 @@ impl Flowgraph {
     ) -> Result<Flowgraph, Error> {
         debug!("in run_flowgraph");
 
+        if let Err(e) = self.validate_stream_graph() {
+            let _ = initialized.send(Err(e.clone()));
+            return Err(e);
+        }
+        let stream_edges = self
+            .stream_edges
+            .iter()
+            .map(StreamEdge::edge)
+            .collect::<Vec<_>>();
+        let snapshot = match self.startup_snapshot() {
+            Ok(snapshot) => snapshot,
+            Err(e) => {
+                let _ = initialized.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
         let StartupSnapshot {
             mut inboxes,
             ids,
-            stream_edges,
             message_edges,
-        } = self.startup_snapshot()?.await?;
+        } = match snapshot.await {
+            Ok(snapshot) => snapshot,
+            Err(e) => {
+                let _ = initialized.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
         let stream_edges_desc = Self::edge_endpoints(&stream_edges);
         let message_edges_desc = Self::edge_endpoints(&message_edges);
-        let blocks = self.take_blocks()?;
+        let blocks = match self.take_blocks() {
+            Ok(blocks) => blocks,
+            Err(e) => {
+                let _ = initialized.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
         let block_tasks = scheduler.run_domain(blocks, &main_channel);
         let local_tasks = self.run_local_domains(main_channel.clone()).await?;
 
@@ -2432,6 +2495,70 @@ impl Flowgraph {
         Ok((inboxes, ids))
     }
 
+    pub(crate) fn validate_stream_graph(&self) -> Result<(), Error> {
+        let mut adjacency = vec![Vec::new(); self.blocks.len()];
+        for edge in &self.stream_edges {
+            let (src, dst) = edge.endpoints();
+            if src == dst {
+                return Err(Error::ValidationError(format!(
+                    "stream self-connections are not supported ({src:?})"
+                )));
+            }
+            if src.0 >= self.blocks.len() {
+                return Err(Error::InvalidBlock(src));
+            }
+            if dst.0 >= self.blocks.len() {
+                return Err(Error::InvalidBlock(dst));
+            }
+            if edge.local {
+                match self.stream_plan_by_id(src, dst)? {
+                    StreamPlan::LocalLocalSame { .. } => {}
+                    StreamPlan::LocalLocalCross { .. } => {
+                        return Err(Error::ValidationError(
+                            "stream connections between different local domains are not supported"
+                                .to_string(),
+                        ));
+                    }
+                    _ => {
+                        return Err(Error::ValidationError(
+                            "local stream connections require source and destination blocks in the same local domain"
+                                .to_string(),
+                        ));
+                    }
+                }
+            }
+            adjacency[src.0].push(dst.0);
+        }
+
+        fn visit(node: usize, adjacency: &[Vec<usize>], marks: &mut [u8]) -> bool {
+            match marks[node] {
+                1 => return false,
+                2 => return true,
+                _ => {}
+            }
+
+            marks[node] = 1;
+            for &next in &adjacency[node] {
+                if !visit(next, adjacency, marks) {
+                    return false;
+                }
+            }
+            marks[node] = 2;
+            true
+        }
+
+        let mut marks = vec![0; self.blocks.len()];
+        for node in 0..self.blocks.len() {
+            if !visit(node, &adjacency, &mut marks) {
+                return Err(Error::ValidationError(
+                    "stream connections must form a directed acyclic graph".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn startup_snapshot(
         &self,
     ) -> Result<
@@ -2439,7 +2566,6 @@ impl Flowgraph {
         Error,
     > {
         let (inboxes, ids) = self.inboxes()?;
-        let mut stream_edges = self.stream_edges.clone();
         let mut message_edges = self.message_edges.clone();
         let domain_handles = self
             .local_domains
@@ -2449,15 +2575,13 @@ impl Flowgraph {
 
         Ok(async move {
             for domain in domain_handles {
-                let (domain_stream_edges, domain_message_edges) = domain.topology_async().await?;
-                stream_edges.extend(domain_stream_edges);
+                let (_, domain_message_edges) = domain.topology_async().await?;
                 message_edges.extend(domain_message_edges);
             }
 
             Ok(StartupSnapshot {
                 inboxes,
                 ids,
-                stream_edges,
                 message_edges,
             })
         })

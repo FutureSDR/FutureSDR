@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futuresdr::blocks::Copy;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::MessageSource;
@@ -12,11 +13,10 @@ fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
     let fft: BlockId = fg.add(Fft::new(16) as Fft).into();
     let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new()).into();
-    let result = fg.stream_dyn(fft, "output", sink, "input");
-
-    match result {
+    match fg.stream_dyn(fft, "output", sink, "input") {
         Err(Error::ValidationError(_)) => Ok(()),
-        e => panic!("Expected ValidationError got {e:?}"),
+        Err(e) => panic!("Expected ValidationError got {e:?}"),
+        Ok(_) => panic!("Expected ValidationError got Ok(..)"),
     }
 }
 
@@ -67,6 +67,39 @@ fn message_invalid_out_port() -> Result<()> {
         }
         _ => panic!("Expected InvalidMessagePort"),
     };
+    Ok(())
+}
+
+#[test]
+fn stream_self_connection_is_rejected() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let copy = fg.add(Copy::<f32>::new());
+
+    match fg.stream(&copy, |b| b.output(), &copy, |b| b.input()) {
+        Err(Error::LockError) => Ok(()),
+        Err(Error::ValidationError(msg)) => {
+            assert!(msg.contains("self-connections"));
+            Ok(())
+        }
+        Err(e) => panic!("Expected self-connection error got {e:?}"),
+        Ok(_) => panic!("Expected self-connection error got Ok(..)"),
+    }
+}
+
+#[test]
+fn stream_cycle_is_rejected_at_startup() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let a = fg.add(Copy::<f32>::new());
+    let b = fg.add(Copy::<f32>::new());
+
+    fg.stream(&a, |b| b.output(), &b, |b| b.input())?;
+    fg.stream(&b, |b| b.output(), &a, |b| b.input())?;
+
+    match Runtime::new().run(fg) {
+        Err(Error::ValidationError(msg)) => assert!(msg.contains("directed acyclic graph")),
+        Err(e) => panic!("Expected ValidationError got {e:?}"),
+        Ok(_) => panic!("Expected ValidationError got Ok(..)"),
+    }
     Ok(())
 }
 

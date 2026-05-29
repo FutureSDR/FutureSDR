@@ -25,7 +25,6 @@ pub(crate) struct LocalDomainState {
     blocks: Vec<Option<Box<dyn LocalBlock>>>,
     inboxes: Vec<Option<LocalInboxHandle>>,
     external_inboxes: Vec<Option<BlockInboxReader>>,
-    stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
 }
 
@@ -35,13 +34,8 @@ impl LocalDomainState {
             blocks: Vec::new(),
             inboxes: Vec::new(),
             external_inboxes: Vec::new(),
-            stream_edges: Vec::new(),
             message_edges: Vec::new(),
         }
-    }
-
-    pub(crate) fn add_stream_edge(&mut self, edge: Edge) {
-        self.stream_edges.push(edge);
     }
 
     pub(crate) fn add_message_edge(&mut self, edge: Edge) {
@@ -49,7 +43,7 @@ impl LocalDomainState {
     }
 
     pub(crate) fn topology(&self) -> (Vec<Edge>, Vec<Edge>) {
-        (self.stream_edges.clone(), self.message_edges.clone())
+        (Vec::new(), self.message_edges.clone())
     }
 
     pub(crate) fn insert_block(

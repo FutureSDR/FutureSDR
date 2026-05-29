@@ -6,6 +6,7 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::buffer::AnyBufferReader;
+use crate::runtime::buffer::AnyBufferWriter;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
@@ -36,26 +37,30 @@ pub trait KernelInterface {
     fn is_blocking() -> bool;
     /// Static block type name.
     fn type_name() -> &'static str;
-    /// Stream input port names.
-    fn stream_inputs(&self) -> Vec<String>;
-    /// Stream output port names.
-    fn stream_outputs(&self) -> Vec<String>;
-    /// Bind stream ports to their owning block id, port ids, and inbox.
-    fn stream_ports_init(&mut self, block_id: BlockId, inboxes: PortInboxes);
-    /// Validate that all stream ports are connected and ready to run.
-    fn stream_ports_validate(&self) -> Result<(), Error>;
-    /// Mark one stream input as finished because the upstream writer is done.
-    fn stream_input_finish(&mut self, port_id: PortId) -> Result<(), Error>;
+    /// Visit all stream input ports.
+    fn visit_stream_inputs(
+        &mut self,
+        f: &mut dyn FnMut(PortId, &mut dyn AnyBufferReader) -> Result<(), Error>,
+    ) -> Result<(), Error>;
+    /// Visit all stream output ports.
+    fn visit_stream_outputs(
+        &mut self,
+        f: &mut dyn FnMut(PortId, &mut dyn AnyBufferWriter) -> Result<(), Error>,
+    ) -> Result<(), Error>;
+    /// Access one type-erased stream input by port id.
+    fn with_stream_input<'a, R>(
+        &'a mut self,
+        id: &PortId,
+        f: impl FnOnce(&'a mut dyn AnyBufferReader) -> R,
+    ) -> Result<R, Error>;
+    /// Access one type-erased stream output by port id.
+    fn with_stream_output<'a, R>(
+        &'a mut self,
+        id: &PortId,
+        f: impl FnOnce(&'a mut dyn AnyBufferWriter) -> R,
+    ) -> Result<R, Error>;
     /// Notify adjacent stream peers that this block is done.
     fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()>;
-    /// Get a type-erased stream input by port id.
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
-    /// Connect a type-erased destination reader to one stream output.
-    fn connect_stream_output(
-        &mut self,
-        id: &PortId,
-        reader: &mut dyn AnyBufferReader,
-    ) -> Result<(), Error>;
 
     /// Message input port names.
     fn message_inputs() -> &'static [&'static str];
@@ -70,4 +75,64 @@ pub trait KernelInterface {
         id: PortId,
         _p: Pmt,
     ) -> impl Future<Output = Result<Pmt, Error>>;
+}
+
+pub(crate) fn stream_inputs<K: KernelInterface>(kernel: &mut K) -> Result<Vec<String>, Error> {
+    let mut names = Vec::new();
+    kernel.visit_stream_inputs(&mut |name, _| {
+        names.push(name.name().to_string());
+        Ok(())
+    })?;
+    Ok(names)
+}
+
+pub(crate) fn stream_outputs<K: KernelInterface>(kernel: &mut K) -> Result<Vec<String>, Error> {
+    let mut names = Vec::new();
+    kernel.visit_stream_outputs(&mut |name, _| {
+        names.push(name.name().to_string());
+        Ok(())
+    })?;
+    Ok(names)
+}
+
+pub(crate) fn stream_ports_init<K: KernelInterface>(
+    kernel: &mut K,
+    block_id: BlockId,
+    inboxes: PortInboxes,
+) -> Result<(), Error> {
+    kernel.visit_stream_inputs(&mut |name, port| {
+        port.init_from(block_id, name, &inboxes);
+        Ok(())
+    })?;
+    kernel.visit_stream_outputs(&mut |name, port| {
+        port.init_from(block_id, name, &inboxes);
+        Ok(())
+    })
+}
+
+pub(crate) fn stream_ports_validate<K: KernelInterface>(kernel: &mut K) -> Result<(), Error> {
+    kernel.visit_stream_inputs(&mut |_, port| port.validate())?;
+    kernel.visit_stream_outputs(&mut |_, port| port.validate())
+}
+
+pub(crate) fn stream_input_finish<K: KernelInterface>(
+    kernel: &mut K,
+    port_id: PortId,
+) -> Result<(), Error> {
+    kernel.with_stream_input(&port_id, |port| port.finish())
+}
+
+pub(crate) fn stream_input<'a, K: KernelInterface>(
+    kernel: &'a mut K,
+    id: &PortId,
+) -> Result<&'a mut dyn AnyBufferReader, Error> {
+    kernel.with_stream_input(id, |port| port)
+}
+
+pub(crate) fn connect_stream_output<K: KernelInterface>(
+    kernel: &mut K,
+    id: &PortId,
+    reader: &mut dyn AnyBufferReader,
+) -> Result<(), Error> {
+    kernel.with_stream_output(id, |port| port.connect_dyn(reader))?
 }

@@ -649,11 +649,47 @@ pub trait BufferReader: Any {
 
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
+/// Type-erased writer side of a stream buffer.
+pub trait AnyBufferWriter {
+    /// Initialize the writer from a block's available inbox handles.
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
+    /// Validate that this writer is connected and ready to run.
+    fn validate(&self) -> Result<(), Error>;
+    /// Connect the writer to a type-erased reader.
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
+    /// Get the owning block id.
+    fn block_id(&self) -> BlockId;
+    /// Get the owning port id.
+    fn port_id(&self) -> PortId;
+}
+
+impl<T: BufferWriter> AnyBufferWriter for T {
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+        BufferWriter::init_from(self, block_id, port_id, inboxes);
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        BufferWriter::validate(self)
+    }
+
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+        BufferWriter::connect_dyn(self, dest)
+    }
+
+    fn block_id(&self) -> BlockId {
+        BufferWriter::block_id(self)
+    }
+
+    fn port_id(&self) -> PortId {
+        BufferWriter::port_id(self)
+    }
+}
+
 /// Writer side of a stream buffer.
 ///
 /// Native send-capable writers are derived from this trait through a blanket
 /// impl when the type, reader, and returned futures permit it.
-pub trait BufferWriter {
+pub trait BufferWriter: Any {
     /// Wake/message mode used by this buffer.
     type Mode: BufferMode;
     /// The corresponding local reader.
