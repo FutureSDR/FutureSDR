@@ -2033,26 +2033,33 @@ impl Flowgraph {
         let dst_block_id = dst_block_id.into();
         let dst_port_id = dst_port_id.into();
 
-        let edge = match self.stream_plan_by_id(src_block_id, dst_block_id)? {
-            StreamPlan::NormalNormal { src, dst } => {
-                self.connect_normal_normal_stream_dyn(src, &src_port_id, dst, &dst_port_id)?
-            }
-            StreamPlan::LocalLocalSame { .. } | StreamPlan::LocalLocalCross { .. } => {
+        let (edge, local) = match self.stream_plan_by_id(src_block_id, dst_block_id)? {
+            StreamPlan::NormalNormal { src, dst } => (
+                self.connect_normal_normal_stream_dyn(src, &src_port_id, dst, &dst_port_id)?,
+                false,
+            ),
+            StreamPlan::LocalLocalSame { src, dst } => (
+                self.connect_local_local_stream_dyn_async(src, src_port_id, dst, dst_port_id)
+                    .await?,
+                true,
+            ),
+            StreamPlan::LocalLocalCross { .. } => {
                 return Err(Error::ValidationError(
-                    "stream_dyn does not connect local-local streams; use stream_local_dyn for same-domain local stream buffers"
-                        .to_string(),
+                    "stream_dyn cannot connect blocks in different local domains yet".to_string(),
                 ));
             }
-            StreamPlan::LocalToNormal { src, dst } => {
+            StreamPlan::LocalToNormal { src, dst } => (
                 self.connect_local_normal_stream_dyn_async(src, src_port_id, dst, dst_port_id)
-                    .await?
-            }
-            StreamPlan::NormalToLocal { src, dst } => {
+                    .await?,
+                false,
+            ),
+            StreamPlan::NormalToLocal { src, dst } => (
                 self.connect_normal_local_stream_dyn_async(src, src_port_id, dst, dst_port_id)
-                    .await?
-            }
+                    .await?,
+                false,
+            ),
         };
-        self.stream_edges.push(StreamEdge::from_edge(edge, false));
+        self.stream_edges.push(StreamEdge::from_edge(edge, local));
         Ok(())
     }
 

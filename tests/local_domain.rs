@@ -367,7 +367,7 @@ fn stream_dyn_connects_local_source_to_normal_blocks() -> Result<()> {
 }
 
 #[test]
-fn stream_dyn_rejects_local_local_and_stream_local_dyn_connects() -> Result<()> {
+fn stream_dyn_connects_same_domain_local_buffers() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
@@ -377,11 +377,7 @@ fn stream_dyn_rejects_local_local_and_stream_local_dyn_connects() -> Result<()> 
     });
     let snk = fg.add_local(local, NullSink::<u8, LocalCpuReader<u8>>::new);
 
-    assert_validation_contains(
-        fg.stream_dyn(src, "output", snk, "input"),
-        "stream_local_dyn",
-    );
-    fg.stream_local_dyn(src, "output", snk, "input")?;
+    fg.stream_dyn(src, "output", snk, "input")?;
 
     let fg = rt.run(fg)?;
     assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
