@@ -19,6 +19,7 @@ use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::buffer::AnyBufferReader;
+use crate::runtime::buffer::AnySendBufferWriter;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config;
@@ -486,6 +487,21 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         reader: &mut dyn AnyBufferReader,
     ) -> Result<(), Error> {
         crate::runtime::kernel_interface::connect_stream_output(&mut self.kernel, id, reader)
+    }
+
+    fn take_send_stream_output(
+        &mut self,
+        id: &PortId,
+    ) -> Result<Box<dyn AnySendBufferWriter>, Error> {
+        crate::runtime::kernel_interface::take_send_stream_output(&mut self.kernel, id)
+    }
+
+    fn replace_send_stream_output(
+        &mut self,
+        id: &PortId,
+        writer: Box<dyn AnySendBufferWriter>,
+    ) -> Result<(), Error> {
+        crate::runtime::kernel_interface::replace_send_stream_output(&mut self.kernel, id, writer)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {

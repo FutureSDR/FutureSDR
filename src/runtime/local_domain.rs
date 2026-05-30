@@ -442,6 +442,7 @@ mod tests {
     use crate::runtime::block::LocalBlock;
     use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::buffer::AnyBufferReader;
+    use crate::runtime::buffer::AnySendBufferWriter;
 
     struct WaitForTerminate {
         id: BlockId,
@@ -477,6 +478,27 @@ mod tests {
             &mut self,
             id: &PortId,
             _reader: &mut dyn AnyBufferReader,
+        ) -> Result<(), Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                id.clone(),
+            ))
+        }
+
+        fn take_send_stream_output(
+            &mut self,
+            id: &PortId,
+        ) -> Result<Box<dyn AnySendBufferWriter>, Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                id.clone(),
+            ))
+        }
+
+        fn replace_send_stream_output(
+            &mut self,
+            id: &PortId,
+            _writer: Box<dyn AnySendBufferWriter>,
         ) -> Result<(), Error> {
             Err(Error::InvalidStreamPort(
                 BlockPortCtx::Id(self.id),

@@ -7,6 +7,7 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriter;
+use crate::runtime::buffer::AnySendBufferWriter;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
@@ -135,4 +136,19 @@ pub(crate) fn connect_stream_output<K: KernelInterface>(
     reader: &mut dyn AnyBufferReader,
 ) -> Result<(), Error> {
     kernel.with_stream_output(id, |port| port.connect_dyn(reader))?
+}
+
+pub(crate) fn take_send_stream_output<K: KernelInterface>(
+    kernel: &mut K,
+    id: &PortId,
+) -> Result<Box<dyn AnySendBufferWriter>, Error> {
+    kernel.with_stream_output(id, |port| port.take_send_writer())?
+}
+
+pub(crate) fn replace_send_stream_output<K: KernelInterface>(
+    kernel: &mut K,
+    id: &PortId,
+    writer: Box<dyn AnySendBufferWriter>,
+) -> Result<(), Error> {
+    kernel.with_stream_output(id, |port| port.replace_send_writer(writer))?
 }

@@ -649,29 +649,22 @@ pub trait BufferReader: Any {
 
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
-/// Type-erased writer side of a stream buffer.
-pub trait AnyBufferWriter {
-    /// Initialize the writer from a block's available inbox handles.
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
-    /// Validate that this writer is connected and ready to run.
-    fn validate(&self) -> Result<(), Error>;
+/// Type-erased send-capable writer side of a stream buffer.
+pub trait AnySendBufferWriter: Send {
     /// Connect the writer to a type-erased reader.
     fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
     /// Get the owning block id.
     fn block_id(&self) -> BlockId;
     /// Get the owning port id.
     fn port_id(&self) -> PortId;
+    /// Convert the writer into boxed [`Any`] for restoring it to its concrete port.
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
 }
 
-impl<T: BufferWriter> AnyBufferWriter for T {
-    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
-        BufferWriter::init_from(self, block_id, port_id, inboxes);
-    }
-
-    fn validate(&self) -> Result<(), Error> {
-        BufferWriter::validate(self)
-    }
-
+impl<T> AnySendBufferWriter for T
+where
+    T: SendBufferWriter + Default + 'static,
+{
     fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
         BufferWriter::connect_dyn(self, dest)
     }
@@ -682,6 +675,85 @@ impl<T: BufferWriter> AnyBufferWriter for T {
 
     fn port_id(&self) -> PortId {
         BufferWriter::port_id(self)
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> {
+        self
+    }
+}
+
+/// Type-erased writer side of a stream buffer.
+pub trait AnyBufferWriter {
+    /// Initialize the writer from a block's available inbox handles.
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
+    /// Validate that this writer is connected and ready to run.
+    fn validate(&self) -> Result<(), Error>;
+    /// Connect the writer to a type-erased reader.
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
+    /// Temporarily take this writer as a send-capable erased writer.
+    fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error>;
+    /// Restore a writer that was previously taken with [`AnyBufferWriter::take_send_writer`].
+    fn replace_send_writer(&mut self, writer: Box<dyn AnySendBufferWriter>) -> Result<(), Error>;
+    /// Get the owning block id.
+    fn block_id(&self) -> BlockId;
+    /// Get the owning port id.
+    fn port_id(&self) -> PortId;
+}
+
+impl<T> AnyBufferWriter for T
+where
+    T: BufferWriter + 'static,
+{
+    default fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+        BufferWriter::init_from(self, block_id, port_id, inboxes);
+    }
+
+    default fn validate(&self) -> Result<(), Error> {
+        BufferWriter::validate(self)
+    }
+
+    default fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+        BufferWriter::connect_dyn(self, dest)
+    }
+
+    default fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error> {
+        Err(Error::ValidationError(
+            "stream writer is not send-capable".to_string(),
+        ))
+    }
+
+    default fn replace_send_writer(
+        &mut self,
+        _writer: Box<dyn AnySendBufferWriter>,
+    ) -> Result<(), Error> {
+        Err(Error::ValidationError(
+            "stream writer is not send-capable".to_string(),
+        ))
+    }
+
+    default fn block_id(&self) -> BlockId {
+        BufferWriter::block_id(self)
+    }
+
+    default fn port_id(&self) -> PortId {
+        BufferWriter::port_id(self)
+    }
+}
+
+impl<T> AnyBufferWriter for T
+where
+    T: SendBufferWriter + Default + 'static,
+{
+    fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error> {
+        Ok(Box::new(std::mem::take(self)))
+    }
+
+    fn replace_send_writer(&mut self, writer: Box<dyn AnySendBufferWriter>) -> Result<(), Error> {
+        let writer = writer.into_any().downcast::<T>().map_err(|_| {
+            Error::ValidationError("send stream writer has unexpected type".to_string())
+        })?;
+        *self = *writer;
+        Ok(())
     }
 }
 

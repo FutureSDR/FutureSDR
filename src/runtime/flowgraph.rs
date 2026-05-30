@@ -1722,6 +1722,96 @@ impl Flowgraph {
             .await
     }
 
+    async fn connect_cross_local_stream_dyn_async(
+        &mut self,
+        src: LocalEndpoint,
+        src_port_id: PortId,
+        dst: LocalEndpoint,
+        dst_port_id: PortId,
+    ) -> Result<Edge, Error> {
+        let src_handle = self
+            .local_domains
+            .get(src.domain_id)
+            .ok_or(Error::InvalidBlock(src.block_id))?
+            .handle();
+        let dst_handle = self
+            .local_domains
+            .get(dst.domain_id)
+            .ok_or(Error::InvalidBlock(dst.block_id))?
+            .handle();
+
+        let take_port = src_port_id.clone();
+        let writer = src_handle
+            .exec(move |state| {
+                let result = (|| {
+                    let src_block = state.block_mut(src.local_id, src.block_id)?;
+                    src_block
+                        .take_send_stream_output(&take_port)
+                        .map_err(|e| match e {
+                            Error::InvalidStreamPort(_, port) => {
+                                Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
+                            }
+                            o => o,
+                        })
+                })();
+                Box::pin(futures::future::ready(result))
+            })
+            .await?;
+
+        let writer = Arc::new(async_lock::Mutex::new(Some(writer)));
+        let dst_writer = Arc::clone(&writer);
+        let dst_port = dst_port_id.clone();
+        let edge_src_port = src_port_id.clone();
+        let edge_dst_port = dst_port_id.clone();
+        let connect_result = dst_handle
+            .exec(move |state| {
+                Box::pin(async move {
+                    let mut writer_guard = dst_writer.lock().await;
+                    let writer = writer_guard.as_mut().ok_or(Error::LockError)?;
+                    let result = (|| {
+                        let dst_block = state.block_mut(dst.local_id, dst.block_id)?;
+                        let reader = dst_block.stream_input(&dst_port).map_err(|e| match e {
+                            Error::InvalidStreamPort(_, port) => {
+                                Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
+                            }
+                            o => o,
+                        })?;
+                        writer.connect_dyn(reader)?;
+                        Ok(Edge::new(
+                            src.block_id,
+                            edge_src_port,
+                            dst.block_id,
+                            edge_dst_port,
+                        ))
+                    })();
+                    result
+                })
+            })
+            .await;
+
+        let writer = writer.lock().await.take().ok_or(Error::LockError)?;
+        let restore_port = src_port_id.clone();
+        let restore_result = src_handle
+            .exec(move |state| {
+                let result = (|| {
+                    let src_block = state.block_mut(src.local_id, src.block_id)?;
+                    src_block
+                        .replace_send_stream_output(&restore_port, writer)
+                        .map_err(|e| match e {
+                            Error::InvalidStreamPort(_, port) => {
+                                Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
+                            }
+                            o => o,
+                        })
+                })();
+                Box::pin(futures::future::ready(result))
+            })
+            .await;
+
+        restore_result?;
+        Ok(connect_result?)
+    }
+
     async fn connect_local_normal_stream_dyn_async(
         &mut self,
         src: LocalEndpoint,
@@ -2043,11 +2133,11 @@ impl Flowgraph {
                     .await?,
                 true,
             ),
-            StreamPlan::LocalLocalCross { .. } => {
-                return Err(Error::ValidationError(
-                    "stream_dyn cannot connect blocks in different local domains yet".to_string(),
-                ));
-            }
+            StreamPlan::LocalLocalCross { src, dst } => (
+                self.connect_cross_local_stream_dyn_async(src, src_port_id, dst, dst_port_id)
+                    .await?,
+                false,
+            ),
             StreamPlan::LocalToNormal { src, dst } => (
                 self.connect_local_normal_stream_dyn_async(src, src_port_id, dst, dst_port_id)
                     .await?,

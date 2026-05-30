@@ -10,6 +10,7 @@ use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::buffer::AnyBufferReader;
+use crate::runtime::buffer::AnySendBufferWriter;
 use crate::runtime::channel::mpsc::Sender;
 
 /// Object-safe runtime interface shared by normal and local block wrappers.
@@ -39,6 +40,17 @@ pub trait BlockObject: Any {
         &mut self,
         id: &PortId,
         reader: &mut dyn AnyBufferReader,
+    ) -> Result<(), Error>;
+    /// Temporarily take a send-capable stream output for cross-domain connection setup.
+    fn take_send_stream_output(
+        &mut self,
+        id: &PortId,
+    ) -> Result<Box<dyn AnySendBufferWriter>, Error>;
+    /// Restore a stream output that was temporarily taken for cross-domain connection setup.
+    fn replace_send_stream_output(
+        &mut self,
+        id: &PortId,
+        writer: Box<dyn AnySendBufferWriter>,
     ) -> Result<(), Error>;
 
     /// Message input port names declared by this block.

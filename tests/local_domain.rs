@@ -345,6 +345,44 @@ fn stream_connects_different_local_domains_with_send_buffer() -> Result<()> {
 }
 
 #[test]
+fn stream_dyn_connects_different_local_domains_with_send_buffer() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let source_domain = fg.local_domain()?;
+    let sink_domain = fg.local_domain()?;
+    let src = fg.add_local(source_domain, NonSendLocalSource::new);
+    let snk = fg.add_local(sink_domain, NonSendLocalSink::new);
+
+    fg.stream_dyn(src, "output", snk, "input")?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(snk.with(&fg, |b| b.n_received())?, 1);
+
+    Ok(())
+}
+
+#[test]
+fn stream_dyn_connects_different_local_domains_with_generic_send_buffer() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let source_domain = fg.local_domain()?;
+    let sink_domain = fg.local_domain()?;
+    let src = fg.add_local(source_domain, || {
+        VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3, 4])
+    });
+    let snk = fg.add_local(sink_domain, NullSink::<u8, DefaultCpuReader<u8>>::new);
+
+    fg.stream_dyn(src, "output", snk, "input")?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
 fn stream_dyn_connects_local_source_to_normal_blocks() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
@@ -502,6 +540,10 @@ fn local_streams_reject_different_domains() -> Result<()> {
     assert!(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input())
             .is_err()
+    );
+    assert_validation_contains(
+        fg.stream_dyn(src, "output", snk, "input"),
+        "not send-capable",
     );
 
     Ok(())
