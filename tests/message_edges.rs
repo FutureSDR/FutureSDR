@@ -76,7 +76,7 @@ fn connect_once_to_sink(
         Some(domain) => fg.add_local(domain, CountMsg::new),
         None => fg.add(CountMsg::new()),
     };
-    fg.message(&src, "out", &snk, "in")?;
+    fg.message(src.id(), "out", snk.id(), "in")?;
     Ok(snk)
 }
 

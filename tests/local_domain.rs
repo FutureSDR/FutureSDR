@@ -541,10 +541,8 @@ fn local_streams_reject_different_domains() -> Result<()> {
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input())
             .is_err()
     );
-    assert_validation_contains(
-        fg.stream_dyn(src, "output", snk, "input"),
-        "not send-capable",
-    );
+    fg.stream_dyn(src, "output", snk, "input")?;
+    assert_validation_contains(Runtime::new().run(fg).map(drop), "not send-capable");
 
     Ok(())
 }

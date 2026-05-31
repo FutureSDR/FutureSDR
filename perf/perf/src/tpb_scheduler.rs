@@ -2,11 +2,12 @@ use async_executor::Executor;
 use async_executor::Task;
 use futuresdr::futures::channel::oneshot;
 use futuresdr::futures::future::Future;
-use futuresdr::runtime::BlockId;
-use futuresdr::runtime::FlowgraphMessage;
-use futuresdr::runtime::channel::mpsc::Sender;
+use futuresdr::runtime::Error;
 use futuresdr::runtime::config;
-use futuresdr::runtime::dev::Block;
+use futuresdr::runtime::scheduler::LocalDomainSpec;
+use futuresdr::runtime::scheduler::LocalRunningDomain;
+use futuresdr::runtime::scheduler::NormalDomainSpec;
+use futuresdr::runtime::scheduler::NormalRunningDomain;
 use futuresdr::runtime::scheduler::Scheduler;
 use futuresdr::tracing::warn;
 use once_cell::sync::Lazy;
@@ -85,24 +86,22 @@ impl TpbScheduler {
 }
 
 impl Scheduler for TpbScheduler {
-    fn run_domain(
-        &self,
-        blocks: Vec<Box<dyn Block>>,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
-        // spawn block executors
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
+        let (blocks, main_channel) = spec.into_blocks();
         let mut tasks = Vec::with_capacity(blocks.len());
-        for block in blocks {
+        for (id, block) in blocks {
             let main_channel = main_channel.clone();
-
             tasks.push(self.spawn(async move {
                 let mut block = block;
-                let id = block.id();
                 block.run(main_channel).await;
                 (id, block)
             }));
         }
-        tasks
+        Ok(NormalRunningDomain::new(tasks))
+    }
+
+    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain, Error> {
+        spec.start()
     }
 
     fn spawn<T: Send + 'static>(

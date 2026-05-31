@@ -19,6 +19,8 @@ mod scheduler;
 pub use scheduler::DomainTopology;
 pub use scheduler::LocalDomainSpec;
 pub use scheduler::LocalRunningDomain;
+pub use scheduler::NormalBlock;
+pub use scheduler::NormalBlocks;
 pub use scheduler::NormalDomainSpec;
 pub use scheduler::NormalRunningDomain;
 pub use scheduler::RunningDomain;

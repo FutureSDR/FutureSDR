@@ -13,7 +13,8 @@ fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
     let fft: BlockId = fg.add(Fft::new(16) as Fft).into();
     let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new()).into();
-    match fg.stream_dyn(fft, "output", sink, "input") {
+    fg.stream_dyn(fft, "output", sink, "input")?;
+    match Runtime::new().run(fg) {
         Err(Error::ValidationError(_)) => Ok(()),
         Err(e) => panic!("Expected ValidationError got {e:?}"),
         Ok(_) => panic!("Expected ValidationError got Ok(..)"),

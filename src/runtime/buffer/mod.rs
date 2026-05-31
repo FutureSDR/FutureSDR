@@ -753,6 +753,7 @@ pub trait BufferWriterTokenPolicy<W>: BufferMode {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode
 where
     W: BufferWriter<Mode = ThreadSafeMode> + Default + Send + 'static,
@@ -767,6 +768,12 @@ where
     ) -> Result<(), Error> {
         crate::runtime::buffer::replace_send_token(writer, token)
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode where
+    W: BufferWriter<Mode = ThreadSafeMode> + 'static
+{
 }
 
 impl<W> BufferWriterTokenPolicy<W> for LocalMode where W: BufferWriter<Mode = LocalMode> {}
