@@ -104,19 +104,21 @@ impl ThreadSafeInbox {
 /// Inbox bundle for blocks that execute inside a local domain.
 pub(crate) struct LocalDomainInbox {
     external_tx: BlockInbox,
-    external_rx: Option<BlockInboxReader>,
+    thread_safe_tx: BlockInbox,
+    thread_safe_rx: Option<BlockInboxReader>,
     local_tx: LocalBlockInbox,
     local_rx: Option<LocalBlockInboxReader>,
 }
 
 impl LocalDomainInbox {
-    fn new() -> Self {
-        let (external_tx, external_rx) =
+    fn new(external_tx: BlockInbox) -> Self {
+        let (thread_safe_tx, thread_safe_rx) =
             crate::runtime::block_inbox::channel(config::config().queue_size);
         let (local_tx, local_rx, _) = LocalBlockInboxReader::pair();
         Self {
             external_tx,
-            external_rx: Some(external_rx),
+            thread_safe_tx,
+            thread_safe_rx: Some(thread_safe_rx),
             local_tx,
             local_rx: Some(local_rx),
         }
@@ -166,7 +168,7 @@ impl WrappedKernelInbox for LocalDomainInbox {
     type RunInbox = LocalBlockInboxReader;
 
     fn init_arg(&self) -> PortInboxes {
-        PortInboxes::local(self.external_tx.clone(), self.local_tx.clone())
+        PortInboxes::local(self.thread_safe_tx.clone(), self.local_tx.clone())
     }
 
     fn external_inbox(&self) -> BlockInbox {
@@ -188,7 +190,7 @@ impl WrappedKernelInbox for LocalDomainInbox {
     }
 
     fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        self.external_rx.take()
+        self.thread_safe_rx.take()
     }
 }
 
@@ -220,9 +222,9 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
-    /// Create typed block wrapper with a local-domain inbox.
-    pub fn new_local(mut kernel: K, id: BlockId) -> Self {
-        let inbox = LocalDomainInbox::new();
+    /// Create typed block wrapper with an explicit external inbox.
+    pub fn new_local_with_external(mut kernel: K, id: BlockId, external: BlockInbox) -> Self {
+        let inbox = LocalDomainInbox::new(external);
         crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)

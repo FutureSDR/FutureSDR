@@ -34,6 +34,7 @@ use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
+use crate::runtime::local_domain::LocalDomainHandle;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::scheduler::DomainTopology;
@@ -273,6 +274,7 @@ struct LocalDomainContextEntry {
 struct LocalDomainContextInner<'a> {
     flowgraph_id: FlowgraphId,
     domain_id: usize,
+    domain_handle: LocalDomainHandle,
     next_block_id: usize,
     next_local_id: usize,
     entries: Vec<LocalDomainContextEntry>,
@@ -292,6 +294,7 @@ impl<'a> LocalDomainContext<'a> {
     fn new(
         flowgraph_id: FlowgraphId,
         domain_id: usize,
+        domain_handle: LocalDomainHandle,
         next_block_id: usize,
         next_local_id: usize,
         state: &'a mut LocalDomainState,
@@ -300,6 +303,7 @@ impl<'a> LocalDomainContext<'a> {
             inner: RefCell::new(LocalDomainContextInner {
                 flowgraph_id,
                 domain_id,
+                domain_handle,
                 next_block_id,
                 next_local_id,
                 entries: Vec::new(),
@@ -332,7 +336,8 @@ impl<'a> LocalDomainContext<'a> {
             local_id,
         };
 
-        let mut block = LocalWrappedKernel::new_local(block, block_id);
+        let external = BlockInbox::domain_proxy(inner.domain_handle.clone(), block_id);
+        let mut block = LocalWrappedKernel::new_local_with_external(block, block_id, external);
         block
             .meta
             .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
@@ -901,12 +906,14 @@ impl Flowgraph {
         let next_block_id = self.blocks.len();
         let next_local_id = self.local_domains[domain_id].block_count();
         let flowgraph_id = self.id;
+        let domain_handle = self.local_domains[domain_id].handle();
         let (ret, (entries, stream_edges)) = self.local_domains[domain_id]
             .exec(move |state| {
                 Box::pin(async move {
                     let ctx = LocalDomainContext::new(
                         flowgraph_id,
                         domain_id,
+                        domain_handle,
                         next_block_id,
                         next_local_id,
                         state,
@@ -1078,11 +1085,14 @@ impl Flowgraph {
             local_id,
         };
         let block_id = self.reserve_block_id(placement, K::message_inputs());
+        let domain_handle = self.local_domains[domain_id].handle();
+        let external = BlockInbox::domain_proxy(domain_handle, block_id);
         let inbox = self.local_domains[domain_id]
             .build(
                 local_id,
                 Box::new(move || {
-                    let mut block = LocalWrappedKernel::new_local(block(), block_id);
+                    let mut block =
+                        LocalWrappedKernel::new_local_with_external(block(), block_id, external);
                     block
                         .meta
                         .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));

@@ -16,6 +16,7 @@ use std::task::Waker;
 use crate::runtime::BlockMessage;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
+use crate::runtime::local_domain::LocalDomainHandle;
 
 #[derive(Debug)]
 struct ThreadSafeNotifyState {
@@ -120,28 +121,70 @@ impl Future for Notified {
     }
 }
 
-/// Sender-side actor inbox for a normal thread-safe block.
+/// Sender-side actor inbox for a block.
 ///
-/// Message outputs and runtime control paths use `BlockInbox` to enqueue
-/// internal messages and wake the destination block. Local-domain blocks expose
-/// one of these externally; their local domain reads it and forwards into the
-/// direct local inbox used by the block task.
+/// Normal-domain blocks expose a direct thread-safe inbox. Local-domain blocks
+/// expose a domain proxy for runtime/control/message ingress; the domain owns
+/// and forwards into the private local inbox used by the block task.
+#[doc(hidden)]
 #[derive(Clone)]
-pub struct BlockInbox {
-    control: mpsc::Sender<BlockMessage>,
+pub struct ThreadSafeBlockInbox {
+    tx: mpsc::Sender<BlockMessage>,
     notifier: BlockNotifier,
+}
+
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct DomainMailbox {
+    domain: LocalDomainHandle,
+}
+
+/// Sender-side actor inbox variants.
+#[derive(Clone)]
+pub enum BlockInbox {
+    /// Direct thread-safe inbox for a normal-domain block.
+    #[doc(hidden)]
+    ThreadSafe(ThreadSafeBlockInbox),
+    /// Send-safe proxy to a local-domain block.
+    #[doc(hidden)]
+    DomainProxy {
+        domain: DomainMailbox,
+        block_id: crate::runtime::BlockId,
+    },
 }
 
 impl fmt::Debug for BlockInbox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlockInbox").finish_non_exhaustive()
+        match self {
+            Self::ThreadSafe(_) => f
+                .debug_struct("BlockInbox::ThreadSafe")
+                .finish_non_exhaustive(),
+            Self::DomainProxy { block_id, .. } => f
+                .debug_struct("BlockInbox::DomainProxy")
+                .field("block_id", block_id)
+                .finish_non_exhaustive(),
+        }
     }
 }
 
 impl BlockInbox {
-    /// Create a sender-side block inbox from an mpsc sender and notifier.
+    /// Create a sender-side thread-safe block inbox from an mpsc sender and notifier.
     pub(crate) fn new(control: mpsc::Sender<BlockMessage>, notifier: BlockNotifier) -> Self {
-        Self { control, notifier }
+        Self::ThreadSafe(ThreadSafeBlockInbox {
+            tx: control,
+            notifier,
+        })
+    }
+
+    /// Create a sender-side domain proxy for a local-domain block.
+    pub(crate) fn domain_proxy(
+        domain: LocalDomainHandle,
+        block_id: crate::runtime::BlockId,
+    ) -> Self {
+        Self::DomainProxy {
+            domain: DomainMailbox { domain },
+            block_id,
+        }
     }
 
     /// Create an inbox that is disconnected from any reader.
@@ -153,18 +196,29 @@ impl BlockInbox {
     /// Get a wake-only notifier for the destination block.
     #[inline(always)]
     pub fn notifier(&self) -> BlockNotifier {
-        self.notifier.clone()
+        match self {
+            Self::ThreadSafe(thread_safe) => thread_safe.notifier.clone(),
+            Self::DomainProxy { .. } => BlockNotifier::new(),
+        }
     }
 
     /// Wake the destination block without sending a message.
     #[inline(always)]
     pub fn notify(&self) {
-        self.notifier.notify();
+        match self {
+            Self::ThreadSafe(thread_safe) => thread_safe.notifier.notify(),
+            Self::DomainProxy { domain, block_id } => {
+                let _ = domain.domain.notify_block(*block_id);
+            }
+        }
     }
 
     /// Return whether the underlying receiver has been closed.
     pub fn is_closed(&self) -> bool {
-        self.control.is_closed()
+        match self {
+            Self::ThreadSafe(thread_safe) => thread_safe.tx.is_closed(),
+            Self::DomainProxy { domain, .. } => domain.domain.is_closed(),
+        }
     }
 
     /// Notify the destination block that one stream input port is done.
@@ -180,10 +234,15 @@ impl BlockInbox {
 
     /// Enqueue a block message and wake the destination block on success.
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
-        self.control.send(msg).await?;
-        self.notifier.set_message_pending();
-        self.notifier.notify();
-        Ok(())
+        match self {
+            Self::ThreadSafe(thread_safe) => {
+                thread_safe.tx.send(msg).await?;
+                thread_safe.notifier.set_message_pending();
+                thread_safe.notifier.notify();
+                Ok(())
+            }
+            Self::DomainProxy { domain, block_id } => domain.domain.post(*block_id, msg).await,
+        }
     }
 }
 

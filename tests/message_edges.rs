@@ -1,7 +1,10 @@
 use anyhow::Result;
+use futuresdr::runtime::BlockRef;
+use futuresdr::runtime::Flowgraph;
+use futuresdr::runtime::LocalDomain;
+use futuresdr::runtime::Runtime;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::macros::Block;
-use futuresdr::runtime::{Flowgraph, Runtime};
 
 #[derive(Block)]
 #[message_outputs(out)]
@@ -64,18 +67,41 @@ impl CountMsg {
 
 impl Kernel for CountMsg {}
 
+fn connect_once_to_sink(
+    fg: &mut Flowgraph,
+    domain: Option<LocalDomain>,
+) -> Result<BlockRef<CountMsg>> {
+    let src = fg.add(OnceMsg::new());
+    let snk = match domain {
+        Some(domain) => fg.add_local(domain, CountMsg::new),
+        None => fg.add(CountMsg::new()),
+    };
+    fg.message(&src, "out", &snk, "in")?;
+    Ok(snk)
+}
+
 #[test]
 fn message_edges_are_reapplied_without_duplicates() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let src = fg.add(OnceMsg::new());
-    let snk = fg.add(CountMsg::new());
-    fg.message(&src, "out", &snk, "in")?;
+    let snk = connect_once_to_sink(&mut fg, None)?;
 
     let fg = Runtime::new().run(fg)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 1);
 
     let fg = Runtime::new().run(fg)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 2);
+
+    Ok(())
+}
+
+#[test]
+fn message_edges_can_target_local_domain_blocks() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let domain = fg.local_domain()?;
+    let snk = connect_once_to_sink(&mut fg, Some(domain))?;
+
+    let fg = Runtime::new().run(fg)?;
+    assert_eq!(snk.with(&fg, |b| b.received)?, 1);
 
     Ok(())
 }

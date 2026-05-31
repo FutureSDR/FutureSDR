@@ -104,6 +104,10 @@ pub(crate) struct LocalDomainHandle {
 }
 
 impl LocalDomainHandle {
+    pub(crate) fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
     pub(crate) async fn topology_async(&self) -> Result<(Vec<Edge>, Vec<Edge>), Error> {
         self.exec(|state| Box::pin(async move { Ok(state.topology()) }))
             .await
@@ -131,6 +135,23 @@ impl LocalDomainHandle {
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
         rx.await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
+    }
+
+    pub(crate) async fn post(
+        &self,
+        block_id: crate::runtime::BlockId,
+        message: BlockMessage,
+    ) -> Result<(), Error> {
+        self.tx
+            .send(LocalDomainMessage::Post { block_id, message })
+            .await
+            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
+    }
+
+    pub(crate) fn notify_block(&self, block_id: crate::runtime::BlockId) -> Result<(), Error> {
+        self.tx
+            .try_send(LocalDomainMessage::Notify { block_id })
+            .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))
     }
 
     pub(crate) fn start_run(
@@ -260,6 +281,16 @@ async fn run_domain_thread(
                 let _ = reply.send(result);
             }
             LocalDomainMessage::Exec(f) => f(&mut state).await,
+            LocalDomainMessage::Post { block_id, message } => {
+                if let Err(e) = state.push_message(block_id, message) {
+                    warn!("failed to post to local block: {e}");
+                }
+            }
+            LocalDomainMessage::Notify { block_id } => {
+                if let Err(e) = state.notify_block(block_id) {
+                    warn!("failed to notify local block: {e}");
+                }
+            }
             LocalDomainMessage::Run {
                 main_channel,
                 reply,
@@ -389,6 +420,16 @@ async fn run_local_domain(
                         }
                         LocalDomainMessage::Exec(_) => {
                             warn!("local domain received exec while running");
+                        }
+                        LocalDomainMessage::Post { block_id, message } => {
+                            if let Err(e) = state.push_message(block_id, message) {
+                                warn!("failed to post to local block: {e}");
+                            }
+                        }
+                        LocalDomainMessage::Notify { block_id } => {
+                            if let Err(e) = state.notify_block(block_id) {
+                                warn!("failed to notify local block: {e}");
+                            }
                         }
                     },
                     futures::future::Either::Right((

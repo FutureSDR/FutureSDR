@@ -23,6 +23,7 @@ pub(crate) type LocalDomainAsyncExec = Box<
 
 pub(crate) struct LocalDomainState {
     blocks: Vec<Option<Box<dyn LocalBlock>>>,
+    block_ids: Vec<Option<BlockId>>,
     inboxes: Vec<Option<LocalInboxHandle>>,
     external_inboxes: Vec<Option<BlockInboxReader>>,
     message_edges: Vec<Edge>,
@@ -32,6 +33,7 @@ impl LocalDomainState {
     pub(crate) fn new() -> Self {
         Self {
             blocks: Vec::new(),
+            block_ids: Vec::new(),
             inboxes: Vec::new(),
             external_inboxes: Vec::new(),
             message_edges: Vec::new(),
@@ -54,6 +56,9 @@ impl LocalDomainState {
         if self.blocks.len() <= local_id {
             self.blocks.resize_with(local_id + 1, || None);
         }
+        if self.block_ids.len() <= local_id {
+            self.block_ids.resize_with(local_id + 1, || None);
+        }
         if self.inboxes.len() <= local_id {
             self.inboxes.resize_with(local_id + 1, || None);
         }
@@ -65,6 +70,7 @@ impl LocalDomainState {
                 "local block slot {local_id} was inserted more than once"
             )));
         }
+        self.block_ids[local_id] = Some(block.id());
         self.inboxes[local_id] = block.local_inbox_state();
         self.external_inboxes[local_id] = block.take_external_inbox_reader();
         self.blocks[local_id] = Some(block);
@@ -85,6 +91,34 @@ impl LocalDomainState {
 
     pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalInboxHandle> {
         self.inboxes.get(local_id).and_then(Clone::clone)
+    }
+
+    pub(crate) fn local_id_for_block(&self, block_id: BlockId) -> Option<usize> {
+        self.block_ids
+            .iter()
+            .position(|id| id.as_ref() == Some(&block_id))
+    }
+
+    pub(crate) fn push_message(
+        &self,
+        block_id: BlockId,
+        message: crate::runtime::BlockMessage,
+    ) -> Result<(), Error> {
+        let local_id = self
+            .local_id_for_block(block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
+        inbox.push(message);
+        Ok(())
+    }
+
+    pub(crate) fn notify_block(&self, block_id: BlockId) -> Result<(), Error> {
+        let local_id = self
+            .local_id_for_block(block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
+        inbox.notify();
+        Ok(())
     }
 
     pub(crate) fn block(
@@ -148,6 +182,13 @@ pub(crate) enum LocalDomainMessage {
         reply: oneshot::Sender<Result<BlockInbox, Error>>,
     },
     Exec(LocalDomainAsyncExec),
+    Post {
+        block_id: BlockId,
+        message: crate::runtime::BlockMessage,
+    },
+    Notify {
+        block_id: BlockId,
+    },
     Run {
         main_channel: Sender<FlowgraphMessage>,
         reply: oneshot::Sender<Result<(), Error>>,
