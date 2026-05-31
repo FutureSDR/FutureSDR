@@ -247,6 +247,7 @@ pub(crate) struct StartupSnapshot {
 
 struct PreparedFlowgraph {
     startup: StartupSnapshot,
+    stream_edges: Vec<Edge>,
     stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     normal_topology: DomainTopology,
@@ -1493,13 +1494,17 @@ impl Flowgraph {
         })
     }
 
-    fn connect_stream_ports<B: BufferWriter>(src_port: &mut B, dst_port: &mut B::Reader) -> Edge {
-        let edge = Edge::new(
+    fn stream_ports_edge<B: BufferWriter>(src_port: &mut B, dst_port: &mut B::Reader) -> Edge {
+        Edge::new(
             src_port.block_id(),
             src_port.port_id(),
             dst_port.block_id(),
             dst_port.port_id(),
-        );
+        )
+    }
+
+    fn connect_stream_ports<B: BufferWriter>(src_port: &mut B, dst_port: &mut B::Reader) -> Edge {
+        let edge = Self::stream_ports_edge(src_port, dst_port);
         src_port.connect(dst_port);
         edge
     }
@@ -1543,7 +1548,7 @@ impl Flowgraph {
         ))
     }
 
-    async fn connect_local_local_stream_async<KS, KD, B, FS, FD>(
+    async fn local_local_stream_edge_async<KS, KD, B, FS, FD>(
         &self,
         src: LocalEndpoint,
         src_port: FS,
@@ -1574,14 +1579,14 @@ impl Flowgraph {
                         (src.local_id, src.block_id),
                         (dst.local_id, dst.block_id),
                     )?;
-                    Ok(Self::connect_stream_ports(src_port(src), dst_port(dst)))
+                    Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
                 })();
                 Box::pin(futures::future::ready(result))
             })
             .await
     }
 
-    async fn connect_cross_local_stream_async<KS, KD, B, FS, FD>(
+    async fn cross_local_stream_edge_async<KS, KD, B, FS, FD>(
         &self,
         src: LocalEndpoint,
         src_port: FS,
@@ -1606,36 +1611,34 @@ impl Flowgraph {
             .ok_or(Error::InvalidBlock(dst.block_id))?
             .handle();
 
-        src_handle
+        let (src_block_id, src_port_id) = src_handle
             .exec(move |state| {
-                Box::pin(async move {
+                let result = (|| {
                     let src =
                         Self::local_state_kernel_mut::<KS>(state, src.local_id, src.block_id)?;
-                    let src_port = src_port(src);
-                    let writer = Arc::new(async_lock::Mutex::new(Some(std::mem::take(src_port))));
-                    let dst_writer = Arc::clone(&writer);
-
-                    let edge_result = dst_handle
-                        .exec(move |state| {
-                            Box::pin(async move {
-                                let mut writer_guard = dst_writer.lock().await;
-                                let writer = writer_guard.as_mut().ok_or(Error::LockError)?;
-                                let dst = Self::local_state_kernel_mut::<KD>(
-                                    state,
-                                    dst.local_id,
-                                    dst.block_id,
-                                )?;
-                                Ok(Self::connect_stream_ports(writer, dst_port(dst)))
-                            })
-                        })
-                        .await;
-
-                    let mut writer_guard = writer.lock().await;
-                    *src_port = writer_guard.take().ok_or(Error::LockError)?;
-                    edge_result
-                })
+                    let port = src_port(src);
+                    Ok((port.block_id(), port.port_id()))
+                })();
+                Box::pin(futures::future::ready(result))
             })
-            .await
+            .await?;
+        let (dst_block_id, dst_port_id) = dst_handle
+            .exec(move |state| {
+                let result = (|| {
+                    let dst =
+                        Self::local_state_kernel_mut::<KD>(state, dst.local_id, dst.block_id)?;
+                    let port = dst_port(dst);
+                    Ok((port.block_id(), port.port_id()))
+                })();
+                Box::pin(futures::future::ready(result))
+            })
+            .await?;
+        Ok(Edge::new(
+            src_block_id,
+            src_port_id,
+            dst_block_id,
+            dst_port_id,
+        ))
     }
 
     fn wrapped_kernel_mut<K: 'static>(
@@ -1684,56 +1687,6 @@ impl Flowgraph {
 
         self.blocks[normal_id.0].block = Some(normal);
         result
-    }
-
-    async fn connect_local_normal_stream_async<KS, KD, B, FS, FD>(
-        &mut self,
-        src: LocalEndpoint,
-        src_port: FS,
-        dst_id: BlockId,
-        dst_port: FD,
-    ) -> Result<Edge, Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: SendBufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
-    {
-        self.with_normal_local_blocks_mut_async(dst_id, src, move |dst, src_block| {
-            let src = Self::local_kernel_mut::<KS>(src_block, src.block_id)?;
-            let dst = Self::wrapped_kernel_mut::<KD>(dst, dst_id)?;
-            Ok(Self::connect_stream_ports(
-                src_port(src),
-                dst_port(&mut dst.kernel),
-            ))
-        })
-        .await
-    }
-
-    async fn connect_normal_local_stream_async<KS, KD, B, FS, FD>(
-        &mut self,
-        src_id: BlockId,
-        src_port: FS,
-        dst: LocalEndpoint,
-        dst_port: FD,
-    ) -> Result<Edge, Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: SendBufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
-    {
-        self.with_normal_local_blocks_mut_async(src_id, dst, move |src, dst_block| {
-            let src = Self::wrapped_kernel_mut::<KS>(src, src_id)?;
-            let dst = Self::local_kernel_mut::<KD>(dst_block, dst.block_id)?;
-            Ok(Self::connect_stream_ports(
-                src_port(&mut src.kernel),
-                dst_port(dst),
-            ))
-        })
-        .await
     }
 
     fn connect_normal_normal_stream_dyn(
@@ -1983,30 +1936,41 @@ impl Flowgraph {
                 dst: dst_id,
             } => {
                 let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
-                Self::connect_stream_ports(src_port(&mut src.kernel), dst_port(&mut dst.kernel))
+                Self::stream_ports_edge(src_port(&mut src.kernel), dst_port(&mut dst.kernel))
             }
             StreamPlan::LocalLocalSame { src, dst } => {
-                self.connect_local_local_stream_async::<KS, KD, B, FS, FD>(
+                self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
                     src, src_port, dst, dst_port,
                 )
                 .await?
             }
             StreamPlan::LocalLocalCross { src, dst } => {
-                self.connect_cross_local_stream_async::<KS, KD, B, FS, FD>(
+                self.cross_local_stream_edge_async::<KS, KD, B, FS, FD>(
                     src, src_port, dst, dst_port,
                 )
                 .await?
             }
             StreamPlan::LocalToNormal { src, dst } => {
-                self.connect_local_normal_stream_async::<KS, KD, B, FS, FD>(
-                    src, src_port, dst, dst_port,
-                )
+                let dst_id = dst;
+                self.with_normal_local_blocks_mut_async(dst_id, src, move |dst_block, src_block| {
+                    let src = Self::local_kernel_mut::<KS>(src_block, src.block_id)?;
+                    let dst = Self::wrapped_kernel_mut::<KD>(dst_block, dst_id)?;
+                    Ok(Self::stream_ports_edge(
+                        src_port(src),
+                        dst_port(&mut dst.kernel),
+                    ))
+                })
                 .await?
             }
             StreamPlan::NormalToLocal { src, dst } => {
-                self.connect_normal_local_stream_async::<KS, KD, B, FS, FD>(
-                    src, src_port, dst, dst_port,
-                )
+                self.with_normal_local_blocks_mut_async(src, dst, move |src_block, dst_block| {
+                    let src = Self::wrapped_kernel_mut::<KS>(src_block, src)?;
+                    let dst = Self::local_kernel_mut::<KD>(dst_block, dst.block_id)?;
+                    Ok(Self::stream_ports_edge(
+                        src_port(&mut src.kernel),
+                        dst_port(dst),
+                    ))
+                })
                 .await?
             }
         };
@@ -2061,7 +2025,7 @@ impl Flowgraph {
         let edge = match Self::stream_plan(src_id, src_block.placement, dst_id, dst_block.placement)
         {
             StreamPlan::LocalLocalSame { src, dst } => {
-                self.connect_local_local_stream_async::<KS, KD, B, FS, FD>(
+                self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
                     src, src_port, dst, dst_port,
                 )
                 .await?
@@ -2329,6 +2293,105 @@ impl Flowgraph {
         Ok(())
     }
 
+    async fn stream_input_connected(
+        &mut self,
+        block_id: BlockId,
+        port_id: &PortId,
+    ) -> Result<bool, Error> {
+        match self.placement(block_id)? {
+            BlockPlacement::Normal => {
+                let block = self.raw_block_mut(block_id)?;
+                let reader = block.stream_input(port_id).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                    }
+                    other => other,
+                })?;
+                Ok(reader.validate().is_ok())
+            }
+            BlockPlacement::Local {
+                domain_id,
+                local_id,
+            } => {
+                let port_id = port_id.clone();
+                self.local_domains[domain_id]
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = state.block_mut(local_id, block_id)?;
+                            let reader = block.stream_input(&port_id).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => {
+                                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                                }
+                                other => other,
+                            })?;
+                            Ok(reader.validate().is_ok())
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
+        if self
+            .stream_input_connected(edge.dst_block, &edge.dst_port)
+            .await?
+        {
+            return Ok(());
+        }
+
+        match self.stream_plan_by_id(edge.src_block, edge.dst_block)? {
+            StreamPlan::NormalNormal { src, dst } => {
+                self.connect_normal_normal_stream_dyn(src, &edge.src_port, dst, &edge.dst_port)?;
+            }
+            StreamPlan::LocalLocalSame { src, dst } => {
+                self.connect_local_local_stream_dyn_async(
+                    src,
+                    edge.src_port.clone(),
+                    dst,
+                    edge.dst_port.clone(),
+                )
+                .await?;
+            }
+            StreamPlan::LocalLocalCross { src, dst } => {
+                self.connect_cross_local_stream_dyn_async(
+                    src,
+                    edge.src_port.clone(),
+                    dst,
+                    edge.dst_port.clone(),
+                )
+                .await?;
+            }
+            StreamPlan::LocalToNormal { src, dst } => {
+                self.connect_local_normal_stream_dyn_async(
+                    src,
+                    edge.src_port.clone(),
+                    dst,
+                    edge.dst_port.clone(),
+                )
+                .await?;
+            }
+            StreamPlan::NormalToLocal { src, dst } => {
+                self.connect_normal_local_stream_dyn_async(
+                    src,
+                    edge.src_port.clone(),
+                    dst,
+                    edge.dst_port.clone(),
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        for edge in edges {
+            self.apply_stream_edge(edge).await?;
+        }
+        Ok(())
+    }
+
     async fn clear_message_connections(&mut self) -> Result<(), Error> {
         for entry in self.blocks.iter_mut() {
             if let Some(block) = entry.block.as_mut() {
@@ -2490,6 +2553,7 @@ impl Flowgraph {
                 .collect();
             Ok(PreparedFlowgraph {
                 startup,
+                stream_edges,
                 stream_edges_desc,
                 message_edges_desc,
                 normal_topology,
@@ -2522,6 +2586,7 @@ impl Flowgraph {
         };
         let PreparedFlowgraph {
             startup,
+            stream_edges,
             stream_edges_desc,
             message_edges_desc,
             normal_topology,
@@ -2532,6 +2597,10 @@ impl Flowgraph {
             ids,
             message_edges,
         } = startup;
+        if let Err(e) = self.apply_stream_edges(&stream_edges).await {
+            let _ = initialized.send(Err(e.clone()));
+            return Err(e);
+        }
         if let Err(e) = self.apply_message_edges(&message_edges).await {
             let _ = initialized.send(Err(e.clone()));
             return Err(e);
