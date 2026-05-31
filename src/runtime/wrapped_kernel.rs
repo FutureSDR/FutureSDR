@@ -511,6 +511,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn message_inputs(&self) -> &'static [&'static str] {
         K::message_inputs()
     }
+    fn message_outputs(&self) -> &'static [&'static str] {
+        K::message_outputs()
+    }
+    fn clear_message_outputs(&mut self) {
+        self.mo.clear();
+    }
     fn connect(
         &mut self,
         src_port: &PortId,

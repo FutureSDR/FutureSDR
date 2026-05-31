@@ -1096,6 +1096,55 @@ impl Flowgraph {
         self.block_ref(block_id, placement)
     }
 
+    async fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
+        let dst_inputs = self
+            .blocks
+            .get(edge.dst_block.0)
+            .map(|entry| entry.message_inputs)
+            .ok_or(Error::InvalidBlock(edge.dst_block))?;
+        if !dst_inputs.contains(&edge.dst_port.name()) {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(edge.dst_block),
+                edge.dst_port.clone(),
+            ));
+        }
+
+        match self.placement(edge.src_block)? {
+            BlockPlacement::Normal => {
+                let src_block = self.raw_block(edge.src_block)?;
+                if !src_block.message_outputs().contains(&edge.src_port.name()) {
+                    return Err(Error::InvalidMessagePort(
+                        BlockPortCtx::Id(edge.src_block),
+                        edge.src_port.clone(),
+                    ));
+                }
+            }
+            BlockPlacement::Local {
+                domain_id,
+                local_id,
+            } => {
+                let src_port = edge.src_port.clone();
+                let src_block_id = edge.src_block;
+                self.local_domains[domain_id]
+                    .exec(move |state| {
+                        let result = (|| {
+                            let src_block = state.block(local_id, src_block_id)?;
+                            if !src_block.message_outputs().contains(&src_port.name()) {
+                                return Err(Error::InvalidMessagePort(
+                                    BlockPortCtx::Id(src_block_id),
+                                    src_port,
+                                ));
+                            }
+                            Ok(())
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_block_ref<K>(&self, block: &BlockRef<K>) -> Result<(), Error> {
         if block.flowgraph_id != self.id {
             return Err(Error::ValidationError(format!(
@@ -2233,8 +2282,8 @@ impl Flowgraph {
     ///
     /// Message connections are type-erased and may form arbitrary topologies,
     /// including cycles and self-connections. The destination message input is
-    /// validated immediately; the source output is validated when the connection
-    /// is registered with the source block.
+    /// and the source message output are validated immediately. The concrete
+    /// output handler list is populated from this logical edge at startup.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn message(
         &mut self,
@@ -2264,52 +2313,77 @@ impl Flowgraph {
         let dst_block_id = dst_block_id.into();
         let dst_port_id = dst_port_id.into();
 
-        let dst_inputs = self
-            .blocks
-            .get(dst_block_id.0)
-            .map(|entry| entry.message_inputs)
-            .ok_or(Error::InvalidBlock(dst_block_id))?;
-        if !dst_inputs.contains(&dst_port_id.name()) {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(dst_block_id),
-                dst_port_id.clone(),
-            ));
+        let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
+        self.validate_message_edge(&edge).await?;
+        self.message_edges.push(edge);
+        Ok(())
+    }
+
+    async fn clear_message_connections(&mut self) -> Result<(), Error> {
+        for entry in self.blocks.iter_mut() {
+            if let Some(block) = entry.block.as_mut() {
+                block.clear_message_outputs();
+            }
         }
+
+        let handles = self
+            .local_domains
+            .iter()
+            .map(LocalDomainRuntime::handle)
+            .collect::<Vec<_>>();
+        for handle in handles {
+            handle
+                .exec(|state| {
+                    let result = (|| {
+                        for (_, slot) in state.block_slots_mut() {
+                            if let Some(block) = slot.as_mut() {
+                                block.clear_message_outputs();
+                            }
+                        }
+                        Ok(())
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
         let dst_box = self
             .blocks
-            .get(dst_block_id.0)
+            .get(edge.dst_block.0)
             .and_then(|entry| entry.inbox.as_ref())
             .cloned()
-            .ok_or(Error::InvalidBlock(dst_block_id))?;
-        match self.placement(src_block_id)? {
+            .ok_or(Error::InvalidBlock(edge.dst_block))?;
+        match self.placement(edge.src_block)? {
             BlockPlacement::Normal => {
-                let src_block = self.raw_block_mut(src_block_id)?;
-                src_block.connect(&src_port_id, dst_box, &dst_port_id)?;
+                let src_block = self.raw_block_mut(edge.src_block)?;
+                src_block.connect(&edge.src_port, dst_box, &edge.dst_port)?;
             }
             BlockPlacement::Local {
                 domain_id,
                 local_id,
-                ..
             } => {
-                let src_port = src_port_id.clone();
-                let dst_port = dst_port_id.clone();
                 self.local_domains[domain_id]
                     .exec(move |state| {
                         let result = (|| {
-                            let src_block = state.block_mut(local_id, src_block_id)?;
-                            src_block.connect(&src_port, dst_box, &dst_port)
+                            let src_block = state.block_mut(local_id, edge.src_block)?;
+                            src_block.connect(&edge.src_port, dst_box, &edge.dst_port)
                         })();
                         Box::pin(futures::future::ready(result))
                     })
                     .await?;
             }
         }
-        self.message_edges.push(Edge::new(
-            src_block_id,
-            src_port_id,
-            dst_block_id,
-            dst_port_id,
-        ));
+        Ok(())
+    }
+
+    async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        self.clear_message_connections().await?;
+        for edge in edges.iter().cloned() {
+            self.apply_message_edge(edge).await?;
+        }
         Ok(())
     }
 
@@ -2446,8 +2520,12 @@ impl Flowgraph {
         let StartupSnapshot {
             mut inboxes,
             ids,
-            message_edges: _,
+            message_edges,
         } = startup;
+        if let Err(e) = self.apply_message_edges(&message_edges).await {
+            let _ = initialized.send(Err(e.clone()));
+            return Err(e);
+        }
         let blocks = match self.take_blocks() {
             Ok(blocks) => blocks,
             Err(e) => {

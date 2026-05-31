@@ -33,6 +33,11 @@ impl MessageOutput {
         self.handlers.push((port, sender));
     }
 
+    /// Remove all connected downstream handlers.
+    fn clear(&mut self) {
+        self.handlers.clear();
+    }
+
     /// Notify connected downstream message ports that this block is finished.
     async fn notify_finished(&mut self) {
         for (port_id, sender) in self.handlers.iter_mut() {
@@ -109,6 +114,12 @@ impl MessageOutputs {
     pub async fn notify_finished(&mut self) {
         for o in self.outputs.iter_mut() {
             o.notify_finished().await;
+        }
+    }
+    /// Remove all connected downstream handlers.
+    pub fn clear(&mut self) {
+        for o in self.outputs.iter_mut() {
+            o.clear();
         }
     }
     /// Get a mutable output port by id.
