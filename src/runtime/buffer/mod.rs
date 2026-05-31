@@ -649,38 +649,127 @@ pub trait BufferReader: Any {
 
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
-/// Type-erased send-capable writer side of a stream buffer.
-pub trait AnySendBufferWriter: Send {
-    /// Connect the writer to a type-erased reader.
+/// Type-erased token for connecting a stream writer without moving it.
+pub trait AnyBufferWriterToken {
+    /// Connect the token's writer to a type-erased reader.
     fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
-    /// Get the owning block id.
-    fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
-    /// Convert the writer into boxed [`Any`] for restoring it to its concrete port.
+}
+
+struct BorrowedBufferWriterToken<'a, T: BufferWriter + ?Sized> {
+    writer: &'a mut T,
+}
+
+impl<T> AnyBufferWriterToken for BorrowedBufferWriterToken<'_, T>
+where
+    T: BufferWriter + ?Sized,
+{
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+        BufferWriter::connect_dyn(self.writer, dest)
+    }
+}
+
+/// Type-erased sendable token for connecting a stream writer across domains.
+pub trait AnySendBufferWriterToken: AnyBufferWriterToken + Send {
+    /// Convert the token back into boxed [`Any`] for restoring its concrete writer.
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
 }
 
-impl<T> AnySendBufferWriter for T
+/// Owned sendable writer token used by buffers that opt into cross-domain setup.
+pub struct SendBufferWriterToken<T: BufferWriter + Send + 'static> {
+    writer: T,
+}
+
+impl<T> SendBufferWriterToken<T>
 where
-    T: SendBufferWriter + Default + 'static,
+    T: BufferWriter + Send + 'static,
 {
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
-        BufferWriter::connect_dyn(self, dest)
-    }
-
-    fn block_id(&self) -> BlockId {
-        BufferWriter::block_id(self)
-    }
-
-    fn port_id(&self) -> PortId {
-        BufferWriter::port_id(self)
-    }
-
-    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> {
-        self
+    /// Create a token from an owned writer.
+    pub fn new(writer: T) -> Self {
+        Self { writer }
     }
 }
+
+impl<T> AnyBufferWriterToken for SendBufferWriterToken<T>
+where
+    T: BufferWriter + Send + 'static,
+{
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+        BufferWriter::connect_dyn(&mut self.writer, dest)
+    }
+}
+
+impl<T> AnySendBufferWriterToken for SendBufferWriterToken<T>
+where
+    T: BufferWriter + Send + 'static,
+{
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> {
+        let Self { writer } = *self;
+        Box::new(writer)
+    }
+}
+
+/// Take a sendable token from a writer by replacing it with its default value.
+pub fn take_send_token<T>(writer: &mut T) -> Result<Box<dyn AnySendBufferWriterToken>, Error>
+where
+    T: BufferWriter + Default + Send + 'static,
+{
+    Ok(Box::new(SendBufferWriterToken::new(std::mem::take(writer))))
+}
+
+/// Restore a writer from a sendable token that was created from the same type.
+pub fn replace_send_token<T>(
+    writer: &mut T,
+    token: Box<dyn AnySendBufferWriterToken>,
+) -> Result<(), Error>
+where
+    T: BufferWriter + Send + 'static,
+{
+    let restored = token
+        .into_any()
+        .downcast::<T>()
+        .map_err(|_| Error::ValidationError("send stream token has unexpected type".to_string()))?;
+    *writer = *restored;
+    Ok(())
+}
+
+/// Mode-level policy for sendable stream-writer tokens.
+#[doc(hidden)]
+pub trait BufferWriterTokenPolicy<W>: BufferMode {
+    /// Temporarily take a writer as a sendable cross-domain token.
+    fn take_send_token(_writer: &mut W) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+        Err(Error::ValidationError(
+            "stream writer is not send-capable".to_string(),
+        ))
+    }
+
+    /// Restore a writer that was previously taken as a sendable token.
+    fn replace_send_token(
+        _writer: &mut W,
+        _token: Box<dyn AnySendBufferWriterToken>,
+    ) -> Result<(), Error> {
+        Err(Error::ValidationError(
+            "stream writer is not send-capable".to_string(),
+        ))
+    }
+}
+
+impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode
+where
+    W: BufferWriter<Mode = ThreadSafeMode> + Default + Send + 'static,
+{
+    fn take_send_token(writer: &mut W) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+        crate::runtime::buffer::take_send_token(writer)
+    }
+
+    fn replace_send_token(
+        writer: &mut W,
+        token: Box<dyn AnySendBufferWriterToken>,
+    ) -> Result<(), Error> {
+        crate::runtime::buffer::replace_send_token(writer, token)
+    }
+}
+
+impl<W> BufferWriterTokenPolicy<W> for LocalMode where W: BufferWriter<Mode = LocalMode> {}
 
 /// Type-erased writer side of a stream buffer.
 pub trait AnyBufferWriter {
@@ -688,72 +777,41 @@ pub trait AnyBufferWriter {
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
-    /// Connect the writer to a type-erased reader.
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
-    /// Temporarily take this writer as a send-capable erased writer.
-    fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error>;
-    /// Restore a writer that was previously taken with [`AnyBufferWriter::take_send_writer`].
-    fn replace_send_writer(&mut self, writer: Box<dyn AnySendBufferWriter>) -> Result<(), Error>;
-    /// Get the owning block id.
-    fn block_id(&self) -> BlockId;
-    /// Get the owning port id.
-    fn port_id(&self) -> PortId;
+    /// Create an in-domain token for connecting this writer.
+    fn token(&mut self) -> Box<dyn AnyBufferWriterToken + '_>;
+    /// Temporarily take this writer as a sendable cross-domain token.
+    fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
+    /// Restore a writer that was previously taken with [`AnyBufferWriter::take_send_token`].
+    fn replace_send_token(&mut self, token: Box<dyn AnySendBufferWriterToken>)
+    -> Result<(), Error>;
 }
 
 impl<T> AnyBufferWriter for T
 where
     T: BufferWriter + 'static,
+    T::Mode: BufferWriterTokenPolicy<T>,
 {
-    default fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
+    fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
         BufferWriter::init_from(self, block_id, port_id, inboxes);
     }
 
-    default fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), Error> {
         BufferWriter::validate(self)
     }
 
-    default fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
-        BufferWriter::connect_dyn(self, dest)
+    fn token(&mut self) -> Box<dyn AnyBufferWriterToken + '_> {
+        Box::new(BorrowedBufferWriterToken { writer: self })
     }
 
-    default fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error> {
-        Err(Error::ValidationError(
-            "stream writer is not send-capable".to_string(),
-        ))
+    fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+        T::Mode::take_send_token(self)
     }
 
-    default fn replace_send_writer(
+    fn replace_send_token(
         &mut self,
-        _writer: Box<dyn AnySendBufferWriter>,
+        token: Box<dyn AnySendBufferWriterToken>,
     ) -> Result<(), Error> {
-        Err(Error::ValidationError(
-            "stream writer is not send-capable".to_string(),
-        ))
-    }
-
-    default fn block_id(&self) -> BlockId {
-        BufferWriter::block_id(self)
-    }
-
-    default fn port_id(&self) -> PortId {
-        BufferWriter::port_id(self)
-    }
-}
-
-impl<T> AnyBufferWriter for T
-where
-    T: SendBufferWriter + Default + 'static,
-{
-    fn take_send_writer(&mut self) -> Result<Box<dyn AnySendBufferWriter>, Error> {
-        Ok(Box::new(std::mem::take(self)))
-    }
-
-    fn replace_send_writer(&mut self, writer: Box<dyn AnySendBufferWriter>) -> Result<(), Error> {
-        let writer = writer.into_any().downcast::<T>().map_err(|_| {
-            Error::ValidationError("send stream writer has unexpected type".to_string())
-        })?;
-        *self = *writer;
-        Ok(())
+        T::Mode::replace_send_token(self, token)
     }
 }
 

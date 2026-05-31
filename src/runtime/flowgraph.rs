@@ -1447,14 +1447,21 @@ impl Flowgraph {
             o => o,
         })?;
 
-        src_block
-            .connect_stream_output(src_port_id, reader)
+        let mut token = src_block
+            .stream_output_token(src_port_id)
             .map_err(|e| match e {
                 Error::InvalidStreamPort(_, port) => {
                     Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
                 }
                 o => o,
             })?;
+
+        token.connect_dyn(reader).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+            }
+            o => o,
+        })?;
 
         Ok(Edge::new(
             src_block_id,
@@ -1741,12 +1748,12 @@ impl Flowgraph {
             .handle();
 
         let take_port = src_port_id.clone();
-        let writer = src_handle
+        let token = src_handle
             .exec(move |state| {
                 let result = (|| {
                     let src_block = state.block_mut(src.local_id, src.block_id)?;
                     src_block
-                        .take_send_stream_output(&take_port)
+                        .take_send_stream_output_token(&take_port)
                         .map_err(|e| match e {
                             Error::InvalidStreamPort(_, port) => {
                                 Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
@@ -1758,17 +1765,17 @@ impl Flowgraph {
             })
             .await?;
 
-        let writer = Arc::new(async_lock::Mutex::new(Some(writer)));
-        let dst_writer = Arc::clone(&writer);
+        let token = Arc::new(async_lock::Mutex::new(Some(token)));
+        let dst_token = Arc::clone(&token);
         let dst_port = dst_port_id.clone();
         let edge_src_port = src_port_id.clone();
         let edge_dst_port = dst_port_id.clone();
         let connect_result = dst_handle
             .exec(move |state| {
                 Box::pin(async move {
-                    let mut writer_guard = dst_writer.lock().await;
-                    let writer = writer_guard.as_mut().ok_or(Error::LockError)?;
-                    let result = (|| {
+                    let mut token_guard = dst_token.lock().await;
+                    let token = token_guard.as_mut().ok_or(Error::LockError)?;
+                    (|| {
                         let dst_block = state.block_mut(dst.local_id, dst.block_id)?;
                         let reader = dst_block.stream_input(&dst_port).map_err(|e| match e {
                             Error::InvalidStreamPort(_, port) => {
@@ -1776,27 +1783,26 @@ impl Flowgraph {
                             }
                             o => o,
                         })?;
-                        writer.connect_dyn(reader)?;
+                        token.connect_dyn(reader)?;
                         Ok(Edge::new(
                             src.block_id,
                             edge_src_port,
                             dst.block_id,
                             edge_dst_port,
                         ))
-                    })();
-                    result
+                    })()
                 })
             })
             .await;
 
-        let writer = writer.lock().await.take().ok_or(Error::LockError)?;
+        let token = token.lock().await.take().ok_or(Error::LockError)?;
         let restore_port = src_port_id.clone();
         let restore_result = src_handle
             .exec(move |state| {
                 let result = (|| {
                     let src_block = state.block_mut(src.local_id, src.block_id)?;
                     src_block
-                        .replace_send_stream_output(&restore_port, writer)
+                        .replace_send_stream_output_token(&restore_port, token)
                         .map_err(|e| match e {
                             Error::InvalidStreamPort(_, port) => {
                                 Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
@@ -1809,7 +1815,7 @@ impl Flowgraph {
             .await;
 
         restore_result?;
-        Ok(connect_result?)
+        connect_result
     }
 
     async fn connect_local_normal_stream_dyn_async(

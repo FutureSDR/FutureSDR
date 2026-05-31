@@ -19,7 +19,8 @@ use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnySendBufferWriter;
+use crate::runtime::buffer::AnyBufferWriterToken;
+use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config;
@@ -481,27 +482,30 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error> {
         crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
     }
-    fn connect_stream_output(
+    fn stream_output_token(
         &mut self,
         id: &PortId,
-        reader: &mut dyn AnyBufferReader,
-    ) -> Result<(), Error> {
-        crate::runtime::kernel_interface::connect_stream_output(&mut self.kernel, id, reader)
+    ) -> Result<Box<dyn AnyBufferWriterToken + '_>, Error> {
+        crate::runtime::kernel_interface::stream_output_token(&mut self.kernel, id)
     }
 
-    fn take_send_stream_output(
+    fn take_send_stream_output_token(
         &mut self,
         id: &PortId,
-    ) -> Result<Box<dyn AnySendBufferWriter>, Error> {
-        crate::runtime::kernel_interface::take_send_stream_output(&mut self.kernel, id)
+    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+        crate::runtime::kernel_interface::take_send_stream_output_token(&mut self.kernel, id)
     }
 
-    fn replace_send_stream_output(
+    fn replace_send_stream_output_token(
         &mut self,
         id: &PortId,
-        writer: Box<dyn AnySendBufferWriter>,
+        token: Box<dyn AnySendBufferWriterToken>,
     ) -> Result<(), Error> {
-        crate::runtime::kernel_interface::replace_send_stream_output(&mut self.kernel, id, writer)
+        crate::runtime::kernel_interface::replace_send_stream_output_token(
+            &mut self.kernel,
+            id,
+            token,
+        )
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {

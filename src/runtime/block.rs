@@ -10,7 +10,8 @@ use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnySendBufferWriter;
+use crate::runtime::buffer::AnyBufferWriterToken;
+use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::channel::mpsc::Sender;
 
 /// Object-safe runtime interface shared by normal and local block wrappers.
@@ -35,22 +36,21 @@ pub trait BlockObject: Any {
 
     /// Get a type-erased stream input by port id.
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
-    /// Connect a type-erased stream output by downcasting the destination reader.
-    fn connect_stream_output(
+    /// Create an in-domain token for connecting a stream output.
+    fn stream_output_token(
         &mut self,
         id: &PortId,
-        reader: &mut dyn AnyBufferReader,
-    ) -> Result<(), Error>;
-    /// Temporarily take a send-capable stream output for cross-domain connection setup.
-    fn take_send_stream_output(
+    ) -> Result<Box<dyn AnyBufferWriterToken + '_>, Error>;
+    /// Temporarily take a sendable stream output token for cross-domain setup.
+    fn take_send_stream_output_token(
         &mut self,
         id: &PortId,
-    ) -> Result<Box<dyn AnySendBufferWriter>, Error>;
-    /// Restore a stream output that was temporarily taken for cross-domain connection setup.
-    fn replace_send_stream_output(
+    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
+    /// Restore a stream output token that was temporarily taken for cross-domain setup.
+    fn replace_send_stream_output_token(
         &mut self,
         id: &PortId,
-        writer: Box<dyn AnySendBufferWriter>,
+        token: Box<dyn AnySendBufferWriterToken>,
     ) -> Result<(), Error>;
 
     /// Message input port names declared by this block.

@@ -7,7 +7,8 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriter;
-use crate::runtime::buffer::AnySendBufferWriter;
+use crate::runtime::buffer::AnyBufferWriterToken;
+use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
@@ -130,25 +131,24 @@ pub(crate) fn stream_input<'a, K: KernelInterface>(
     kernel.with_stream_input(id, |port| port)
 }
 
-pub(crate) fn connect_stream_output<K: KernelInterface>(
-    kernel: &mut K,
+pub(crate) fn stream_output_token<'a, K: KernelInterface>(
+    kernel: &'a mut K,
     id: &PortId,
-    reader: &mut dyn AnyBufferReader,
-) -> Result<(), Error> {
-    kernel.with_stream_output(id, |port| port.connect_dyn(reader))?
+) -> Result<Box<dyn AnyBufferWriterToken + 'a>, Error> {
+    kernel.with_stream_output(id, |port| port.token())
 }
 
-pub(crate) fn take_send_stream_output<K: KernelInterface>(
+pub(crate) fn take_send_stream_output_token<K: KernelInterface>(
     kernel: &mut K,
     id: &PortId,
-) -> Result<Box<dyn AnySendBufferWriter>, Error> {
-    kernel.with_stream_output(id, |port| port.take_send_writer())?
+) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+    kernel.with_stream_output(id, |port| port.take_send_token())?
 }
 
-pub(crate) fn replace_send_stream_output<K: KernelInterface>(
+pub(crate) fn replace_send_stream_output_token<K: KernelInterface>(
     kernel: &mut K,
     id: &PortId,
-    writer: Box<dyn AnySendBufferWriter>,
+    token: Box<dyn AnySendBufferWriterToken>,
 ) -> Result<(), Error> {
-    kernel.with_stream_output(id, |port| port.replace_send_writer(writer))?
+    kernel.with_stream_output(id, |port| port.replace_send_token(token))?
 }

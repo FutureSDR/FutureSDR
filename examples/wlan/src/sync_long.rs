@@ -193,32 +193,6 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use futuresdr::runtime::mocker::Mocker;
-    use futuresdr::runtime::mocker::Reader;
-    use futuresdr::runtime::mocker::Writer;
-
-    #[test]
-    fn calls_again_after_dropping_short_prefix_before_tag() {
-        let mut block = SyncLong::<Reader<Complex32>, Writer<Complex32>>::new();
-        block.input.set_with_tags(
-            vec![Complex32::new(0.0, 0.0); 100],
-            vec![ItemTag {
-                index: 10,
-                tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
-            }],
-        );
-        block.output.reserve(128);
-
-        let mut mocker = Mocker::new(block);
-        mocker.run();
-
-        assert!(matches!(mocker.state, State::Sync(_)));
-    }
-}
-
 const LONG: [Complex32; 64] = [
     Complex32::new(1.3868, -0.0000),
     Complex32::new(-0.0455, 1.0679),
@@ -285,3 +259,29 @@ const LONG: [Complex32; 64] = [
     Complex32::new(0.3528, -0.9865),
     Complex32::new(-0.0455, -1.0679),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::runtime::mocker::Mocker;
+    use futuresdr::runtime::mocker::Reader;
+    use futuresdr::runtime::mocker::Writer;
+
+    #[test]
+    fn calls_again_after_dropping_short_prefix_before_tag() {
+        let mut block = SyncLong::<Reader<Complex32>, Writer<Complex32>>::new();
+        block.input.set_with_tags(
+            vec![Complex32::new(0.0, 0.0); 100],
+            vec![ItemTag {
+                index: 10,
+                tag: Tag::NamedF32("wifi_start".to_string(), 0.0),
+            }],
+        );
+        block.output.reserve(128);
+
+        let mut mocker = Mocker::new(block);
+        mocker.run();
+
+        assert!(matches!(mocker.state, State::Sync(_)));
+    }
+}
