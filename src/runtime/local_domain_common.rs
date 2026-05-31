@@ -2,7 +2,6 @@ use futures::Future;
 use std::pin::Pin;
 
 use crate::runtime::BlockId;
-use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::BlockObject;
@@ -26,7 +25,6 @@ pub(crate) struct LocalDomainState {
     block_ids: Vec<Option<BlockId>>,
     inboxes: Vec<Option<LocalInboxHandle>>,
     external_inboxes: Vec<Option<BlockInboxReader>>,
-    message_edges: Vec<Edge>,
 }
 
 impl LocalDomainState {
@@ -36,16 +34,7 @@ impl LocalDomainState {
             block_ids: Vec::new(),
             inboxes: Vec::new(),
             external_inboxes: Vec::new(),
-            message_edges: Vec::new(),
         }
-    }
-
-    pub(crate) fn add_message_edge(&mut self, edge: Edge) {
-        self.message_edges.push(edge);
-    }
-
-    pub(crate) fn topology(&self) -> (Vec<Edge>, Vec<Edge>) {
-        (Vec::new(), self.message_edges.clone())
     }
 
     pub(crate) fn insert_block(

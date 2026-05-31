@@ -281,6 +281,7 @@ struct LocalDomainContextInner<'a> {
     next_local_id: usize,
     entries: Vec<LocalDomainContextEntry>,
     stream_edges: Vec<StreamEdge>,
+    message_edges: Vec<Edge>,
     state: &'a mut LocalDomainState,
 }
 
@@ -310,16 +311,18 @@ impl<'a> LocalDomainContext<'a> {
                 next_local_id,
                 entries: Vec::new(),
                 stream_edges: Vec::new(),
+                message_edges: Vec::new(),
                 state,
             }),
         }
     }
 
-    fn take_entries(&self) -> (Vec<LocalDomainContextEntry>, Vec<StreamEdge>) {
+    fn take_entries(&self) -> (Vec<LocalDomainContextEntry>, Vec<StreamEdge>, Vec<Edge>) {
         let mut inner = self.inner.borrow_mut();
         (
             std::mem::take(&mut inner.entries),
             std::mem::take(&mut inner.stream_edges),
+            std::mem::take(&mut inner.message_edges),
         )
     }
 
@@ -549,10 +552,14 @@ impl<'a> LocalDomainContext<'a> {
                 dst_port_id.clone(),
             ));
         }
-        let dst_box = dst_block.inbox();
-        let src_block = inner.state.block_mut(src_local, src_block_id)?;
-        src_block.connect(&src_port_id, dst_box, &dst_port_id)?;
-        inner.state.add_message_edge(Edge::new(
+        let src_block = inner.state.block(src_local, src_block_id)?;
+        if !src_block.message_outputs().contains(&src_port_id.name()) {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(src_block_id),
+                src_port_id.clone(),
+            ));
+        }
+        inner.message_edges.push(Edge::new(
             src_block_id,
             src_port_id,
             dst_block_id,
@@ -909,7 +916,7 @@ impl Flowgraph {
         let next_local_id = self.local_domains[domain_id].block_count();
         let flowgraph_id = self.id;
         let domain_handle = self.local_domains[domain_id].handle();
-        let (ret, (entries, stream_edges)) = self.local_domains[domain_id]
+        let (ret, (entries, stream_edges, message_edges)) = self.local_domains[domain_id]
             .exec(move |state| {
                 Box::pin(async move {
                     let ctx = LocalDomainContext::new(
@@ -928,6 +935,7 @@ impl Flowgraph {
 
         self.commit_local_context_entries(domain_id, entries);
         self.stream_edges.extend(stream_edges);
+        self.message_edges.extend(message_edges);
 
         Ok(ret)
     }
@@ -3055,19 +3063,9 @@ impl Flowgraph {
         Error,
     > {
         let (inboxes, ids) = self.inboxes()?;
-        let mut message_edges = self.message_edges.clone();
-        let domain_handles = self
-            .local_domains
-            .iter()
-            .map(LocalDomainRuntime::handle)
-            .collect::<Vec<_>>();
+        let message_edges = self.message_edges.clone();
 
         Ok(async move {
-            for domain in domain_handles {
-                let (_, domain_message_edges) = domain.topology_async().await?;
-                message_edges.extend(domain_message_edges);
-            }
-
             Ok(StartupSnapshot {
                 inboxes,
                 ids,

@@ -7,37 +7,28 @@ use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::macros::Block;
 
 #[derive(Block)]
+#[message_inputs(trigger)]
 #[message_outputs(out)]
-struct OnceMsg {
-    sent: bool,
-}
+struct TriggerMsg;
 
-impl OnceMsg {
+impl TriggerMsg {
     fn new() -> Self {
-        Self { sent: false }
-    }
-}
-
-impl Kernel for OnceMsg {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
-        self.sent = false;
-        Ok(())
+        Self
     }
 
-    async fn work(
+    async fn trigger(
         &mut self,
-        io: &mut WorkIo,
+        _io: &mut WorkIo,
         mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
-    ) -> Result<()> {
-        if !self.sent {
-            mo.post("out", Pmt::U32(1)).await?;
-            self.sent = true;
-        }
-        io.finished = true;
-        Ok(())
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        mo.post("out", Pmt::U32(1)).await?;
+        Ok(Pmt::Ok)
     }
 }
+
+impl Kernel for TriggerMsg {}
 
 #[derive(Block)]
 #[message_inputs(r#in)]
@@ -67,28 +58,39 @@ impl CountMsg {
 
 impl Kernel for CountMsg {}
 
-fn connect_once_to_sink(
+fn connect_trigger_to_sink(
     fg: &mut Flowgraph,
     domain: Option<LocalDomain>,
-) -> Result<BlockRef<CountMsg>> {
-    let src = fg.add(OnceMsg::new());
+) -> Result<(BlockRef<TriggerMsg>, BlockRef<CountMsg>)> {
+    let src = fg.add(TriggerMsg::new());
     let snk = match domain {
         Some(domain) => fg.add_local(domain, CountMsg::new),
         None => fg.add(CountMsg::new()),
     };
     fg.message(src.id(), "out", snk.id(), "in")?;
-    Ok(snk)
+    Ok((src, snk))
+}
+
+fn trigger_once(
+    rt: &Runtime,
+    fg: Flowgraph,
+    src: BlockRef<TriggerMsg>,
+) -> Result<Flowgraph, futuresdr::runtime::Error> {
+    let running = rt.start(fg)?;
+    futuresdr::runtime::block_on(running.post(src, "trigger", Pmt::Null))?;
+    futuresdr::runtime::block_on(running.stop_and_wait())
 }
 
 #[test]
 fn message_edges_are_reapplied_without_duplicates() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let snk = connect_once_to_sink(&mut fg, None)?;
+    let (src, snk) = connect_trigger_to_sink(&mut fg, None)?;
+    let rt = Runtime::new();
 
-    let fg = Runtime::new().run(fg)?;
+    let fg = trigger_once(&rt, fg, src)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 1);
 
-    let fg = Runtime::new().run(fg)?;
+    let fg = trigger_once(&rt, fg, src)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 2);
 
     Ok(())
@@ -98,10 +100,32 @@ fn message_edges_are_reapplied_without_duplicates() -> Result<()> {
 fn message_edges_can_target_local_domain_blocks() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
-    let snk = connect_once_to_sink(&mut fg, Some(domain))?;
+    let (src, snk) = connect_trigger_to_sink(&mut fg, Some(domain))?;
+    let rt = Runtime::new();
 
-    let fg = Runtime::new().run(fg)?;
+    let fg = trigger_once(&rt, fg, src)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 1);
+
+    Ok(())
+}
+
+#[test]
+fn local_domain_context_message_edges_are_logical_and_reusable() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let domain = fg.local_domain()?;
+    let (src, snk) = fg.domain_run(domain, |ctx| {
+        let src = ctx.add(TriggerMsg::new());
+        let snk = ctx.add(CountMsg::new());
+        ctx.message(src, "out", snk, "in")?;
+        Ok((src, snk))
+    })?;
+
+    let rt = Runtime::new();
+    let fg = trigger_once(&rt, fg, src)?;
+    assert_eq!(snk.with(&fg, |b| b.received)?, 1);
+
+    let fg = trigger_once(&rt, fg, src)?;
+    assert_eq!(snk.with(&fg, |b| b.received)?, 2);
 
     Ok(())
 }

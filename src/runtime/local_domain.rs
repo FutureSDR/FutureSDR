@@ -6,7 +6,6 @@ use std::pin::Pin;
 use std::thread;
 
 use crate::runtime::BlockMessage;
-use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block_inbox::BlockInboxReader;
@@ -106,11 +105,6 @@ pub(crate) struct LocalDomainHandle {
 impl LocalDomainHandle {
     pub(crate) fn is_closed(&self) -> bool {
         self.tx.is_closed()
-    }
-
-    pub(crate) async fn topology_async(&self) -> Result<(Vec<Edge>, Vec<Edge>), Error> {
-        self.exec(|state| Box::pin(async move { Ok(state.topology()) }))
-            .await
     }
 
     pub(crate) async fn exec<R>(
