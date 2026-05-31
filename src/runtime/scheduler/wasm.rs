@@ -27,6 +27,10 @@ use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::Block;
 use crate::runtime::channel::mpsc::Sender;
+use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::LocalRunningDomain;
+use crate::runtime::scheduler::NormalDomainSpec;
+use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
 
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =
@@ -201,16 +205,22 @@ impl WasmScheduler {
 }
 
 impl Scheduler for WasmScheduler {
-    fn run_domain(
+    fn start_normal_domain(
         &self,
-        blocks: Vec<Box<dyn Block>>,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
+        spec: NormalDomainSpec,
+    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+        let (blocks, topology, main_channel) = spec.into_parts();
+        let _ = (
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
         let n_blocks = blocks.len();
         let n_threads = self.inner.workers.len();
         let mut tasks = Vec::with_capacity(n_blocks);
 
-        for (block_index, block) in blocks.into_iter().enumerate() {
+        for (block_index, (id, block)) in blocks.into_iter().enumerate() {
+            debug_assert_eq!(id, block.id());
             debug_assert!(
                 !block.is_blocking(),
                 "blocking blocks must remain on the local runtime path"
@@ -225,7 +235,22 @@ impl Scheduler for WasmScheduler {
             ));
         }
 
-        tasks
+        Ok(NormalRunningDomain::new(tasks))
+    }
+
+    fn start_local_domain(
+        &self,
+        spec: LocalDomainSpec,
+    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
+        let (domain_id, handle, slots, topology, main_channel) = spec.into_parts();
+        let _ = (
+            slots,
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
+        let completion = handle.start_run(main_channel)?;
+        Ok(LocalRunningDomain::new(domain_id, completion))
     }
 
     fn spawn<T: Send + 'static>(
@@ -260,15 +285,39 @@ impl WasmMainScheduler {
 }
 
 impl Scheduler for WasmMainScheduler {
-    fn run_domain(
+    fn start_normal_domain(
         &self,
-        blocks: Vec<Box<dyn Block>>,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
-        blocks
+        spec: NormalDomainSpec,
+    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+        let (blocks, topology, main_channel) = spec.into_parts();
+        let _ = (
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
+        let tasks = blocks
             .into_iter()
-            .map(|block| spawn_wasm_main_block(block, main_channel.clone()))
-            .collect()
+            .map(|(id, block)| {
+                debug_assert_eq!(id, block.id());
+                spawn_wasm_main_block(block, main_channel.clone())
+            })
+            .collect();
+        Ok(NormalRunningDomain::new(tasks))
+    }
+
+    fn start_local_domain(
+        &self,
+        spec: LocalDomainSpec,
+    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
+        let (domain_id, handle, slots, topology, main_channel) = spec.into_parts();
+        let _ = (
+            slots,
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
+        let completion = handle.start_run(main_channel)?;
+        Ok(LocalRunningDomain::new(domain_id, completion))
     }
 
     fn spawn<T: Send + 'static>(

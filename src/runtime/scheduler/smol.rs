@@ -8,12 +8,12 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
-use crate::runtime::BlockId;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::block::Block;
-use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
+use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::LocalRunningDomain;
+use crate::runtime::scheduler::NormalDomainSpec;
+use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
 
 static SMOL: Lazy<Mutex<Slab<Arc<Executor<'_>>>>> = Lazy::new(|| Mutex::new(Slab::new()));
@@ -107,14 +107,19 @@ impl SmolScheduler {
 }
 
 impl Scheduler for SmolScheduler {
-    fn run_domain(
+    fn start_normal_domain(
         &self,
-        blocks: Vec<Box<dyn Block>>,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Vec<Task<(BlockId, Box<dyn Block>)>> {
-        // spawn block executors
+        spec: NormalDomainSpec,
+    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+        let (blocks, topology, main_channel) = spec.into_parts();
+        let _ = (
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
         let mut tasks = Vec::with_capacity(blocks.len());
-        for block in blocks {
+        for (id, block) in blocks {
+            debug_assert_eq!(id, block.id());
             debug_assert!(
                 !block.is_blocking(),
                 "blocking blocks must be placed in local domains before scheduling"
@@ -122,13 +127,27 @@ impl Scheduler for SmolScheduler {
             let main_channel = main_channel.clone();
             let task = self.spawn(async move {
                 let mut block = block;
-                let id = block.id();
                 block.run(main_channel).await;
                 (id, block)
             });
             tasks.push(task);
         }
-        tasks
+        Ok(NormalRunningDomain::new(tasks))
+    }
+
+    fn start_local_domain(
+        &self,
+        spec: LocalDomainSpec,
+    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
+        let (domain_id, handle, slots, topology, main_channel) = spec.into_parts();
+        let _ = (
+            slots,
+            topology.blocks(),
+            topology.stream_edges(),
+            topology.message_edges(),
+        );
+        let completion = handle.start_run(main_channel)?;
+        Ok(LocalRunningDomain::new(domain_id, completion))
     }
 
     fn spawn<T: Send + 'static>(

@@ -16,7 +16,14 @@ mod smol;
 pub use crate::runtime::scheduler::smol::SmolScheduler;
 #[allow(clippy::module_inception)]
 mod scheduler;
+pub use scheduler::DomainTopology;
+pub use scheduler::LocalDomainSpec;
+pub use scheduler::LocalRunningDomain;
+pub use scheduler::NormalDomainSpec;
+pub use scheduler::NormalRunningDomain;
+pub use scheduler::RunningDomain;
 pub use scheduler::Scheduler;
+pub use scheduler::StoppedDomain;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

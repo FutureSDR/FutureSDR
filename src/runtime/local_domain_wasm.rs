@@ -85,16 +85,8 @@ impl LocalDomainRuntime {
         self.controller.exec(f).await
     }
 
-    pub(crate) async fn run_if_needed(
-        &mut self,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<Option<oneshot::Receiver<Result<(), Error>>>, Error> {
-        if self.blocks == 0 {
-            return Ok(None);
-        }
-        let task = self.controller.run(main_channel).await?;
+    pub(crate) fn mark_running(&mut self) {
         self.running = true;
-        Ok(Some(task))
     }
 
     pub(crate) fn mark_stopped(&mut self) {
@@ -142,6 +134,20 @@ impl LocalDomainHandle {
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
         rx.await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
+    }
+
+    pub(crate) fn start_run(
+        &self,
+        main_channel: Sender<FlowgraphMessage>,
+    ) -> Result<oneshot::Receiver<Result<(), Error>>, Error> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .try_send(LocalDomainMessage::Run {
+                main_channel,
+                reply,
+            })
+            .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))?;
+        Ok(rx)
     }
 }
 
@@ -209,21 +215,6 @@ impl LocalDomainController {
         R: Send + 'static,
     {
         self.handle().exec(f).await
-    }
-
-    pub(crate) async fn run(
-        &self,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<oneshot::Receiver<Result<(), Error>>, Error> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(LocalDomainMessage::Run {
-                main_channel,
-                reply,
-            })
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
-        Ok(rx)
     }
 }
 

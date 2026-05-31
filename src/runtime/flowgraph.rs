@@ -36,7 +36,12 @@ use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::scheduler::DomainTopology;
+use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::NormalDomainSpec;
+use crate::runtime::scheduler::RunningDomain;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::StoppedDomain;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
 use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 
@@ -237,6 +242,14 @@ pub(crate) struct StartupSnapshot {
     inboxes: Vec<Option<BlockInbox>>,
     ids: Vec<BlockId>,
     message_edges: Vec<Edge>,
+}
+
+struct PreparedFlowgraph {
+    startup: StartupSnapshot,
+    stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+    message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+    normal_topology: DomainTopology,
+    local_specs: Vec<LocalDomainSpec>,
 }
 
 /// Handle for a local scheduling domain inside a [`Flowgraph`].
@@ -2300,6 +2313,107 @@ impl Flowgraph {
         Ok(())
     }
 
+    fn domain_topology(
+        block_ids: &[BlockId],
+        stream_edges: &[Edge],
+        message_edges: &[Edge],
+    ) -> DomainTopology {
+        let relevant = |edge: &Edge| {
+            block_ids.contains(&edge.src_block) || block_ids.contains(&edge.dst_block)
+        };
+        DomainTopology::new(
+            block_ids.to_vec(),
+            stream_edges
+                .iter()
+                .filter(|edge| relevant(edge))
+                .cloned()
+                .collect(),
+            message_edges
+                .iter()
+                .filter(|edge| relevant(edge))
+                .cloned()
+                .collect(),
+        )
+    }
+
+    fn prepare(
+        &self,
+        main_channel: Sender<FlowgraphMessage>,
+    ) -> Result<
+        impl std::future::Future<Output = Result<PreparedFlowgraph, Error>> + Send + 'static,
+        Error,
+    > {
+        self.validate_stream_graph()?;
+        let stream_edges = self
+            .stream_edges
+            .iter()
+            .map(StreamEdge::edge)
+            .collect::<Vec<_>>();
+        let normal_block_ids = self
+            .blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(block_id, entry)| {
+                matches!(entry.placement, BlockPlacement::Normal).then_some(BlockId(block_id))
+            })
+            .collect::<Vec<_>>();
+        let local_domain_slots = self
+            .local_domains
+            .iter()
+            .enumerate()
+            .filter_map(|(domain_id, domain)| {
+                let slots = self
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(block_id, entry)| match entry.placement {
+                        BlockPlacement::Local {
+                            domain_id: entry_domain,
+                            local_id,
+                        } if entry_domain == domain_id => Some((BlockId(block_id), local_id)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                if slots.is_empty() {
+                    return None;
+                }
+                let block_ids = slots
+                    .iter()
+                    .map(|(block_id, _)| *block_id)
+                    .collect::<Vec<_>>();
+                Some((domain_id, domain.handle(), slots, block_ids))
+            })
+            .collect::<Vec<_>>();
+        let startup = self.startup_snapshot()?;
+
+        Ok(async move {
+            let startup = startup.await?;
+            let stream_edges_desc = Self::edge_endpoints(&stream_edges);
+            let message_edges_desc = Self::edge_endpoints(&startup.message_edges);
+            let normal_topology =
+                Self::domain_topology(&normal_block_ids, &stream_edges, &startup.message_edges);
+            let local_specs = local_domain_slots
+                .into_iter()
+                .map(|(domain_id, handle, slots, block_ids)| {
+                    LocalDomainSpec::new(
+                        domain_id,
+                        handle,
+                        slots,
+                        Self::domain_topology(&block_ids, &stream_edges, &startup.message_edges),
+                        main_channel.clone(),
+                    )
+                })
+                .collect();
+            Ok(PreparedFlowgraph {
+                startup,
+                stream_edges_desc,
+                message_edges_desc,
+                normal_topology,
+                local_specs,
+            })
+        })
+    }
+
     pub(crate) async fn run_flowgraph<S: Scheduler>(
         mut self,
         scheduler: S,
@@ -2309,35 +2423,31 @@ impl Flowgraph {
     ) -> Result<Flowgraph, Error> {
         debug!("in run_flowgraph");
 
-        if let Err(e) = self.validate_stream_graph() {
-            let _ = initialized.send(Err(e.clone()));
-            return Err(e);
-        }
-        let stream_edges = self
-            .stream_edges
-            .iter()
-            .map(StreamEdge::edge)
-            .collect::<Vec<_>>();
-        let snapshot = match self.startup_snapshot() {
-            Ok(snapshot) => snapshot,
+        let prepared = match self.prepare(main_channel.clone()) {
+            Ok(prepare) => match prepare.await {
+                Ok(prepared) => prepared,
+                Err(e) => {
+                    let _ = initialized.send(Err(e.clone()));
+                    return Err(e);
+                }
+            },
             Err(e) => {
                 let _ = initialized.send(Err(e.clone()));
                 return Err(e);
             }
         };
+        let PreparedFlowgraph {
+            startup,
+            stream_edges_desc,
+            message_edges_desc,
+            normal_topology,
+            local_specs,
+        } = prepared;
         let StartupSnapshot {
             mut inboxes,
             ids,
-            message_edges,
-        } = match snapshot.await {
-            Ok(snapshot) => snapshot,
-            Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
-                return Err(e);
-            }
-        };
-        let stream_edges_desc = Self::edge_endpoints(&stream_edges);
-        let message_edges_desc = Self::edge_endpoints(&message_edges);
+            message_edges: _,
+        } = startup;
         let blocks = match self.take_blocks() {
             Ok(blocks) => blocks,
             Err(e) => {
@@ -2345,8 +2455,32 @@ impl Flowgraph {
                 return Err(e);
             }
         };
-        let block_tasks = scheduler.run_domain(blocks, &main_channel);
-        let local_tasks = self.run_local_domains(main_channel.clone()).await?;
+        let normal_domain = match scheduler.start_normal_domain(NormalDomainSpec::new(
+            blocks,
+            normal_topology,
+            main_channel.clone(),
+        )) {
+            Ok(domain) => domain,
+            Err(e) => {
+                let _ = initialized.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
+        let mut domains = Vec::with_capacity(1 + local_specs.len());
+        domains.push(RunningDomain::Normal(normal_domain));
+        for spec in local_specs {
+            let domain_id = spec.domain_id;
+            match scheduler.start_local_domain(spec) {
+                Ok(domain) => {
+                    self.local_domains[domain_id].mark_running();
+                    domains.push(RunningDomain::Local(domain));
+                }
+                Err(e) => {
+                    let _ = initialized.send(Err(e.clone()));
+                    return Err(e);
+                }
+            }
+        }
 
         let run_result: Result<(), Error> = async {
             debug!("init blocks");
@@ -2558,23 +2692,37 @@ impl Flowgraph {
             }
         }
 
-        let mut finished_blocks = Vec::with_capacity(block_tasks.len());
-        for task in block_tasks {
-            finished_blocks.push(task.await);
+        let mut finished_blocks = Vec::new();
+        let mut stopped_local_domains = Vec::new();
+        let mut join_result = Ok(());
+        for domain in domains {
+            match domain.join().await {
+                Ok(StoppedDomain::Normal(blocks)) => finished_blocks.extend(blocks),
+                Ok(StoppedDomain::Local(domain_id)) => stopped_local_domains.push(domain_id),
+                Err(e) => {
+                    if join_result.is_ok() {
+                        join_result = Err(e);
+                    }
+                }
+            }
         }
         self.restore_blocks(finished_blocks)?;
-
-        self.join_local_domains(local_tasks).await?;
+        for domain_id in stopped_local_domains {
+            if let Some(domain) = self.local_domains.get_mut(domain_id) {
+                domain.mark_stopped();
+            }
+        }
+        join_result?;
 
         run_result?;
         Ok(self)
     }
 
-    pub(crate) fn take_blocks(&mut self) -> Result<Vec<Box<dyn Block>>, Error> {
+    pub(crate) fn take_blocks(&mut self) -> Result<Vec<(BlockId, Box<dyn Block>)>, Error> {
         let mut blocks = Vec::with_capacity(self.blocks.len());
-        for entry in self.blocks.iter_mut() {
+        for (id, entry) in self.blocks.iter_mut().enumerate() {
             if let Some(block) = entry.block.take() {
-                blocks.push(block);
+                blocks.push((BlockId(id), block));
             }
         }
         Ok(blocks)
@@ -2690,19 +2838,6 @@ impl Flowgraph {
         })
     }
 
-    pub(crate) async fn run_local_domains(
-        &mut self,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<Vec<oneshot::Receiver<Result<(), Error>>>, Error> {
-        let mut tasks = Vec::new();
-        for domain in self.local_domains.iter_mut() {
-            if let Some(task) = domain.run_if_needed(main_channel.clone()).await? {
-                tasks.push(task);
-            }
-        }
-        Ok(tasks)
-    }
-
     pub(crate) fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
         edges.iter().map(Edge::endpoints).collect()
     }
@@ -2723,26 +2858,6 @@ impl Flowgraph {
         }
 
         Ok(())
-    }
-
-    pub(crate) async fn join_local_domains(
-        &mut self,
-        tasks: Vec<oneshot::Receiver<Result<(), Error>>>,
-    ) -> Result<(), Error> {
-        let mut result = Ok(());
-        for task in tasks {
-            let task_result = task
-                .await
-                .map_err(|_| Error::RuntimeError("local domain task canceled".to_string()))
-                .and_then(|result| result);
-            if result.is_ok() {
-                result = task_result;
-            }
-        }
-        for domain in self.local_domains.iter_mut() {
-            domain.mark_stopped();
-        }
-        result
     }
 }
 
