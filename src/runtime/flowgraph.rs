@@ -2094,8 +2094,60 @@ impl Flowgraph {
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
-        let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_block.id, dst_block.id)?;
-        src_port(&mut src.kernel).close_circuit(dst_port(&mut dst.kernel));
+        let src_id = src_block.id;
+        let dst_id = dst_block.id;
+        match Self::stream_plan(src_id, src_block.placement, dst_id, dst_block.placement) {
+            StreamPlan::NormalNormal {
+                src: src_id,
+                dst: dst_id,
+            } => {
+                let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
+                src_port(&mut src.kernel).close_circuit(dst_port(&mut dst.kernel));
+            }
+            StreamPlan::LocalLocalSame { src, dst } => {
+                let domain = self
+                    .local_domains
+                    .get(src.domain_id)
+                    .ok_or(Error::InvalidBlock(src.block_id))?;
+                domain
+                    .exec(move |state| {
+                        let result = (|| {
+                            let (src, dst) = Self::two_local_state_kernels_mut::<KS, KD>(
+                                state,
+                                (src.local_id, src.block_id),
+                                (dst.local_id, dst.block_id),
+                            )?;
+                            src_port(src).close_circuit(dst_port(dst));
+                            Ok(())
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await?;
+            }
+            StreamPlan::LocalLocalCross { .. } => {
+                return Err(Error::ValidationError(
+                    "circuit close between different local domains is not supported".to_string(),
+                ));
+            }
+            StreamPlan::LocalToNormal { src, dst } => {
+                self.with_normal_local_blocks_mut_async(dst, src, move |dst_block, src_block| {
+                    let src = Self::local_kernel_mut::<KS>(src_block, src.block_id)?;
+                    let dst = Self::wrapped_kernel_mut::<KD>(dst_block, dst)?;
+                    src_port(src).close_circuit(dst_port(&mut dst.kernel));
+                    Ok(())
+                })
+                .await?;
+            }
+            StreamPlan::NormalToLocal { src, dst } => {
+                self.with_normal_local_blocks_mut_async(src, dst, move |src_block, dst_block| {
+                    let src = Self::wrapped_kernel_mut::<KS>(src_block, src)?;
+                    let dst = Self::local_kernel_mut::<KD>(dst_block, dst.block_id)?;
+                    src_port(&mut src.kernel).close_circuit(dst_port(dst));
+                    Ok(())
+                })
+                .await?;
+            }
+        }
         Ok(())
     }
 
