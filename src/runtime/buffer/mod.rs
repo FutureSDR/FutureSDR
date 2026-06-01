@@ -48,7 +48,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::future::Future;
 
-use crate::runtime::block_inbox::ThreadSafeBlockInbox;
+use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
 use crate::runtime::dev::LocalBlockInbox;
@@ -150,18 +150,18 @@ pub trait BufferInbox: Clone + Debug + 'static {
     fn stream_output_done(&self, output_id: PortId) -> impl Future<Output = Result<(), Error>>;
 }
 
-impl BufferInbox for ThreadSafeBlockInbox {
+impl BufferInbox for BlockInbox {
     #[inline(always)]
     fn notify(&self) {
-        ThreadSafeBlockInbox::notify(self);
+        BlockInbox::notify(self);
     }
 
     async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
-        ThreadSafeBlockInbox::stream_input_done(self, input_id).await
+        BlockInbox::stream_input_done(self, input_id).await
     }
 
     async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
-        ThreadSafeBlockInbox::stream_output_done(self, output_id).await
+        BlockInbox::stream_output_done(self, output_id).await
     }
 }
 
@@ -191,13 +191,13 @@ impl BufferInbox for LocalBlockInbox {
 /// Stream-port inboxes available when a block's ports are initialized.
 #[derive(Clone, Debug)]
 pub struct PortInboxes {
-    thread_safe: ThreadSafeBlockInbox,
+    thread_safe: BlockInbox,
     local: Option<LocalBlockInbox>,
 }
 
 impl PortInboxes {
     /// Create init handles for a normal/send-capable block.
-    pub fn thread_safe(thread_safe: ThreadSafeBlockInbox) -> Self {
+    pub fn thread_safe(thread_safe: BlockInbox) -> Self {
         Self {
             thread_safe,
             local: None,
@@ -205,7 +205,7 @@ impl PortInboxes {
     }
 
     /// Create init handles for a local-domain block.
-    pub fn local(thread_safe: ThreadSafeBlockInbox, local: LocalBlockInbox) -> Self {
+    pub fn local(thread_safe: BlockInbox, local: LocalBlockInbox) -> Self {
         Self {
             thread_safe,
             local: Some(local),
@@ -213,7 +213,7 @@ impl PortInboxes {
     }
 
     /// Get the send-capable ingress handle.
-    pub fn thread_safe_inbox(&self) -> ThreadSafeBlockInbox {
+    pub fn thread_safe_inbox(&self) -> BlockInbox {
         self.thread_safe.clone()
     }
 
@@ -243,7 +243,7 @@ pub trait BufferMode: 'static {
 pub struct ThreadSafeMode;
 
 impl BufferMode for ThreadSafeMode {
-    type Inbox = ThreadSafeBlockInbox;
+    type Inbox = BlockInbox;
     type Notifier = BlockNotifier;
 
     fn inbox(inboxes: &PortInboxes) -> Self::Inbox {
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn built_in_modes_use_concrete_inboxes() {
-        assert_mode_inbox::<ThreadSafeMode, ThreadSafeBlockInbox>();
+        assert_mode_inbox::<ThreadSafeMode, BlockInbox>();
         assert_mode_inbox::<LocalMode, LocalBlockInbox>();
     }
 }

@@ -6,13 +6,13 @@ use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block_inbox::push_current_local_message;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockEndpoint;
 
-/// One external downstream message handler reached through a send-safe inbox.
+/// One external downstream message handler reached through a send-safe endpoint.
 #[derive(Debug)]
 struct ExternalMessageHandler {
     port: PortId,
-    inbox: BlockInbox,
+    endpoint: BlockEndpoint,
 }
 
 /// One same-domain local downstream message handler.
@@ -46,10 +46,10 @@ impl MessageOutput {
     }
 
     /// Connect this output to one external downstream message input.
-    fn connect_external(&mut self, port: PortId, sender: BlockInbox) {
+    fn connect_external(&mut self, port: PortId, sender: BlockEndpoint) {
         self.external_handlers.push(ExternalMessageHandler {
             port,
-            inbox: sender,
+            endpoint: sender,
         });
     }
 
@@ -72,7 +72,7 @@ impl MessageOutput {
         }
         for handler in &self.external_handlers {
             let _ = handler
-                .inbox
+                .endpoint
                 .send(BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: Pmt::Finished,
@@ -94,7 +94,7 @@ impl MessageOutput {
         }
         for handler in &self.external_handlers {
             let _ = handler
-                .inbox
+                .endpoint
                 .send(BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: p.clone(),
@@ -138,17 +138,17 @@ impl MessageOutputs {
             .await;
         Ok(())
     }
-    /// Connect one message output port to a downstream block inbox.
+    /// Connect one message output port to a downstream block endpoint.
     pub fn connect(
         &mut self,
         src_port: &PortId,
-        dst_block_inbox: BlockInbox,
+        dst_block_endpoint: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error> {
         let block_id = self.block_id;
         self.output_mut(src_port)
             .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
-            .connect_external(dst_port.clone(), dst_block_inbox);
+            .connect_external(dst_port.clone(), dst_block_endpoint);
         Ok(())
     }
     /// Connect one message output port to a downstream same-domain local block.

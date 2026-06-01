@@ -21,8 +21,8 @@ use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::vulkan::Buffer;
+use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
-use crate::runtime::dev::ThreadSafeBlockInbox;
 
 #[self_referencing]
 #[derive(Debug)]
@@ -91,7 +91,7 @@ where
     type Mode = ThreadSafeMode;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -189,7 +189,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

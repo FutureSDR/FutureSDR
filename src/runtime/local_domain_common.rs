@@ -9,7 +9,7 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
-use crate::runtime::block_inbox::BlockInbox;
+use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::channel::mpsc::Sender;
@@ -202,7 +202,7 @@ pub(crate) enum LocalDomainMessage {
     Build {
         local_id: usize,
         builder: LocalBlockBuilder,
-        reply: oneshot::Sender<Result<BlockInbox, Error>>,
+        reply: oneshot::Sender<Result<BlockEndpoint, Error>>,
     },
     Exec(LocalDomainAsyncExec),
     Post {

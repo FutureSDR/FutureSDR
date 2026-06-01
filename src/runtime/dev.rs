@@ -7,11 +7,11 @@
 pub use super::block::Block;
 #[doc(hidden)]
 pub use super::block::BlockObject;
+pub use super::block_inbox::BlockEndpoint;
 pub use super::block_inbox::BlockInbox;
 pub use super::block_inbox::BlockNotifier;
 pub use super::block_inbox::LocalBlockInbox;
 pub use super::block_inbox::LocalBlockNotifier;
-pub use super::block_inbox::ThreadSafeBlockInbox;
 pub use super::block_meta::BlockMeta;
 pub use super::buffer::BufferReader;
 pub use super::buffer::BufferWriter;
@@ -59,6 +59,7 @@ pub mod prelude {
     pub use crate::runtime::channel::mpsc;
     pub use crate::runtime::channel::oneshot;
     pub use crate::runtime::dev::Block;
+    pub use crate::runtime::dev::BlockEndpoint;
     pub use crate::runtime::dev::BlockInbox;
     pub use crate::runtime::dev::BlockMeta;
     pub use crate::runtime::dev::BlockNotifier;
@@ -84,7 +85,6 @@ pub mod prelude {
     pub use crate::runtime::dev::SendInplaceReader;
     pub use crate::runtime::dev::SendInplaceWriter;
     pub use crate::runtime::dev::Tag;
-    pub use crate::runtime::dev::ThreadSafeBlockInbox;
     pub use crate::runtime::dev::TypedBlockGuard;
     pub use crate::runtime::dev::TypedBlockGuardMut;
     pub use crate::runtime::dev::WorkIo;

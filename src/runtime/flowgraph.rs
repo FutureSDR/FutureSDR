@@ -28,7 +28,7 @@ use crate::runtime::buffer::SendBufferWriter;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
@@ -256,7 +256,7 @@ impl StreamEdge {
 }
 
 pub(crate) struct StartupSnapshot {
-    inboxes: Vec<Option<BlockInbox>>,
+    endpoints: Vec<Option<BlockEndpoint>>,
     ids: Vec<BlockId>,
 }
 
@@ -284,7 +284,7 @@ pub struct LocalDomain {
 
 struct LocalDomainContextEntry {
     placement: BlockPlacement,
-    inbox: BlockInbox,
+    inbox: BlockEndpoint,
     message_inputs: &'static [&'static str],
 }
 
@@ -356,7 +356,7 @@ impl<'a> LocalDomainContext<'a> {
             local_id,
         };
 
-        let external = BlockInbox::domain_proxy(inner.domain_inbox.clone(), block_id);
+        let external = BlockEndpoint::domain_proxy(inner.domain_inbox.clone(), block_id);
         let mut block = LocalWrappedKernel::new_local_with_external(block, block_id, external);
         block
             .meta
@@ -549,7 +549,7 @@ impl<'a> LocalDomainContext<'a> {
 pub(crate) struct BlockEntry {
     block: Option<Box<dyn Block>>,
     placement: BlockPlacement,
-    inbox: Option<BlockInbox>,
+    inbox: Option<BlockEndpoint>,
     message_inputs: &'static [&'static str],
 }
 
@@ -566,7 +566,7 @@ impl BlockEntry {
     fn with_block(
         block: Box<dyn Block>,
         placement: BlockPlacement,
-        inbox: BlockInbox,
+        inbox: BlockEndpoint,
         message_inputs: &'static [&'static str],
     ) -> Self {
         Self {
@@ -1245,7 +1245,7 @@ impl Flowgraph {
     fn add_normal_block<K>(
         &mut self,
         block: Box<dyn Block>,
-        inbox: BlockInbox,
+        inbox: BlockEndpoint,
         message_inputs: &'static [&'static str],
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
@@ -1322,7 +1322,7 @@ impl Flowgraph {
         };
         let block_id = self.reserve_block_id(placement, K::message_inputs());
         let domain_inbox = self.local_domains[domain_id].inbox();
-        let external = BlockInbox::domain_proxy(domain_inbox, block_id);
+        let external = BlockEndpoint::domain_proxy(domain_inbox, block_id);
         let inbox = match self.local_domains[domain_id]
             .build(
                 local_id,
@@ -2796,8 +2796,8 @@ impl Flowgraph {
         }
     }
 
-    async fn terminate_inboxes(inboxes: &mut [Option<BlockInbox>]) {
-        for inbox in inboxes.iter_mut().flatten() {
+    async fn terminate_endpoints(endpoints: &mut [Option<BlockEndpoint>]) {
+        for inbox in endpoints.iter_mut().flatten() {
             if inbox.send(BlockMessage::Terminate).await.is_err() {
                 debug!("runtime tried to terminate block that was already terminated");
             }
@@ -2838,10 +2838,10 @@ impl Flowgraph {
 
     async fn cleanup_started_domains(
         &mut self,
-        inboxes: &mut [Option<BlockInbox>],
+        endpoints: &mut [Option<BlockEndpoint>],
         mut domains: Vec<RunningDomain>,
     ) {
-        Self::terminate_inboxes(inboxes).await;
+        Self::terminate_endpoints(endpoints).await;
         Self::stop_domains(&mut domains).await;
         if let Err(e) = self.join_domains(domains).await {
             warn!("error while cleaning up started domains: {e}");
@@ -2874,7 +2874,7 @@ impl Flowgraph {
             normal_topology,
             local_specs,
         } = prepared;
-        let StartupSnapshot { mut inboxes, ids } = startup;
+        let StartupSnapshot { mut endpoints, ids } = startup;
         if let Err(e) = self.apply_stream_edges(&stream_edges).await {
             Self::send_initialized_error(&mut initialized, e.clone());
             return Err(e);
@@ -2911,7 +2911,7 @@ impl Flowgraph {
                     domains.push(RunningDomain::Local(domain));
                 }
                 Err(e) => {
-                    self.cleanup_started_domains(&mut inboxes, domains).await;
+                    self.cleanup_started_domains(&mut endpoints, domains).await;
                     Self::send_initialized_error(&mut initialized, e.clone());
                     return Err(e);
                 }
@@ -2922,7 +2922,7 @@ impl Flowgraph {
             debug!("init blocks");
             // init blocks
             let mut active_blocks = 0u32;
-            for inbox in inboxes.iter_mut().flatten() {
+            for inbox in endpoints.iter_mut().flatten() {
                 inbox.send(BlockMessage::Initialize).await?;
                 active_blocks += 1;
             }
@@ -2966,7 +2966,7 @@ impl Flowgraph {
             }
 
             debug!("running blocks");
-            for inbox in inboxes.iter_mut().flatten() {
+            for inbox in endpoints.iter_mut().flatten() {
                 inbox.notify();
                 if inbox.is_closed() {
                     debug!("runtime wanted to start block that already terminated");
@@ -3003,7 +3003,7 @@ impl Flowgraph {
                         data,
                         tx,
                     } => {
-                        if let Some(Some(inbox)) = inboxes.get_mut(block_id.0) {
+                        if let Some(Some(inbox)) = endpoints.get_mut(block_id.0) {
                             if inbox
                                 .send(BlockMessage::Post { port_id, data })
                                 .await
@@ -3024,7 +3024,7 @@ impl Flowgraph {
                         tx,
                     } => {
                         let (block_tx, block_rx) = oneshot::channel::<Result<Pmt, Error>>();
-                        if let Some(Some(inbox)) = inboxes.get_mut(block_id.0) {
+                        if let Some(Some(inbox)) = endpoints.get_mut(block_id.0) {
                             if inbox
                                 .send(BlockMessage::Call {
                                     port_id,
@@ -3051,13 +3051,13 @@ impl Flowgraph {
                         }
                         active_blocks -= 1;
                         if !terminated {
-                            Self::terminate_inboxes(&mut inboxes).await;
+                            Self::terminate_endpoints(&mut endpoints).await;
                             Self::stop_domains(&mut domains).await;
                             terminated = true;
                         }
                     }
                     FlowgraphMessage::BlockDescription { block_id, tx } => {
-                        if let Some(Some(b)) = inboxes.get_mut(block_id.0) {
+                        if let Some(Some(b)) = endpoints.get_mut(block_id.0) {
                             let (b_tx, rx) = oneshot::channel::<BlockDescription>();
                             if b.send(BlockMessage::BlockDescription { tx: b_tx })
                                 .await
@@ -3081,7 +3081,7 @@ impl Flowgraph {
                         let mut blocks = Vec::new();
                         for id in ids.iter() {
                             let (b_tx, rx) = oneshot::channel::<BlockDescription>();
-                            if let Some(Some(inbox)) = inboxes.get_mut(id.0)
+                            if let Some(Some(inbox)) = endpoints.get_mut(id.0)
                                 && inbox
                                     .send(BlockMessage::BlockDescription { tx: b_tx })
                                     .await
@@ -3106,7 +3106,7 @@ impl Flowgraph {
                     }
                     FlowgraphMessage::Terminate => {
                         if !terminated {
-                            Self::terminate_inboxes(&mut inboxes).await;
+                            Self::terminate_endpoints(&mut endpoints).await;
                             terminated = true;
                         }
                     }
@@ -3124,7 +3124,7 @@ impl Flowgraph {
 
         if let Err(e) = run_result {
             let startup_failed = initialized.is_some();
-            Self::terminate_inboxes(&mut inboxes).await;
+            Self::terminate_endpoints(&mut endpoints).await;
             Self::stop_domains(&mut domains).await;
             if let Err(join_error) = self.join_domains(domains).await {
                 warn!("error while joining domains after failure: {join_error}");
@@ -3151,10 +3151,16 @@ impl Flowgraph {
         Ok(blocks)
     }
 
-    pub(crate) fn inboxes(
+    pub(crate) fn endpoints(
         &self,
-    ) -> Result<(Vec<Option<crate::runtime::dev::BlockInbox>>, Vec<BlockId>), Error> {
-        let mut inboxes = Vec::with_capacity(self.blocks.len());
+    ) -> Result<
+        (
+            Vec<Option<crate::runtime::dev::BlockEndpoint>>,
+            Vec<BlockId>,
+        ),
+        Error,
+    > {
+        let mut endpoints = Vec::with_capacity(self.blocks.len());
         let mut ids = Vec::with_capacity(self.blocks.len());
         for (id, entry) in self.blocks.iter().enumerate() {
             let block_id = BlockId(id);
@@ -3163,10 +3169,10 @@ impl Flowgraph {
                 .as_ref()
                 .cloned()
                 .ok_or(Error::InvalidBlock(block_id))?;
-            inboxes.push(Some(inbox));
+            endpoints.push(Some(inbox));
             ids.push(block_id);
         }
-        Ok((inboxes, ids))
+        Ok((endpoints, ids))
     }
 
     pub(crate) fn validate_stream_graph(&self) -> Result<(), Error> {
@@ -3247,8 +3253,8 @@ impl Flowgraph {
     }
 
     pub(crate) fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
-        let (inboxes, ids) = self.inboxes()?;
-        Ok(StartupSnapshot { inboxes, ids })
+        let (endpoints, ids) = self.endpoints()?;
+        Ok(StartupSnapshot { endpoints, ids })
     }
 
     pub(crate) fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {

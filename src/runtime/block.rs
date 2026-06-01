@@ -7,7 +7,7 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
 use crate::runtime::Result;
-use crate::runtime::block_inbox::BlockInbox;
+use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
@@ -22,8 +22,8 @@ pub trait BlockObject: Any {
     /// Return this block as mutable [`Any`] for downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    /// Get the sender-side inbox of the block.
-    fn inbox(&self) -> BlockInbox;
+    /// Get the send-safe endpoint of the block.
+    fn inbox(&self) -> BlockEndpoint;
     /// Get the local inbox handle for local-domain direct delivery.
     fn local_inbox(&self) -> Option<LocalBlockInbox> {
         None
@@ -60,11 +60,11 @@ pub trait BlockObject: Any {
     fn message_outputs(&self) -> &'static [&'static str] {
         &[]
     }
-    /// Connect one message output port to a downstream block inbox.
+    /// Connect one message output port to a downstream block endpoint.
     fn connect(
         &mut self,
         src_port: &PortId,
-        sender: BlockInbox,
+        sender: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error>;
 

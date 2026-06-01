@@ -21,7 +21,7 @@ use crate::runtime::block_inbox::enter_local_dispatch_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain_common::LocalBlockBuilder;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainState;
@@ -75,7 +75,7 @@ impl LocalDomainRuntime {
         &self,
         local_id: usize,
         builder: LocalBlockBuilder,
-    ) -> Result<BlockInbox, Error> {
+    ) -> Result<BlockEndpoint, Error> {
         self.controller.build(local_id, builder).await
     }
 
@@ -239,7 +239,7 @@ impl LocalDomainController {
         &self,
         local_id: usize,
         builder: LocalBlockBuilder,
-    ) -> Result<BlockInbox, Error> {
+    ) -> Result<BlockEndpoint, Error> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(LocalDomainMessage::Build {

@@ -20,8 +20,8 @@ use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::zynq::BufferEmpty;
 use crate::runtime::buffer::zynq::BufferFull;
+use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
-use crate::runtime::dev::ThreadSafeBlockInbox;
 
 #[derive(Debug)]
 struct CurrentBuffer {
@@ -97,7 +97,7 @@ where
     type Mode = ThreadSafeMode;
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -200,7 +200,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

@@ -17,7 +17,7 @@ use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain_common::LocalBlockBuilder;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainState;
@@ -73,7 +73,7 @@ impl LocalDomainRuntime {
         &self,
         local_id: usize,
         builder: LocalBlockBuilder,
-    ) -> Result<BlockInbox, Error> {
+    ) -> Result<BlockEndpoint, Error> {
         self.controller.build(local_id, builder).await
     }
 
@@ -244,7 +244,7 @@ impl LocalDomainController {
         &self,
         local_id: usize,
         builder: LocalBlockBuilder,
-    ) -> Result<BlockInbox, Error> {
+    ) -> Result<BlockEndpoint, Error> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(LocalDomainMessage::Build {
@@ -545,7 +545,7 @@ mod tests {
 
     struct WaitForTerminate {
         id: BlockId,
-        inbox: BlockInbox,
+        inbox: BlockEndpoint,
         inbox_rx: BlockInboxReader,
     }
 
@@ -558,7 +558,7 @@ mod tests {
             self
         }
 
-        fn inbox(&self) -> BlockInbox {
+        fn inbox(&self) -> BlockEndpoint {
             self.inbox.clone()
         }
 
@@ -611,7 +611,7 @@ mod tests {
         fn connect(
             &mut self,
             _src_port: &PortId,
-            _sender: BlockInbox,
+            _sender: BlockEndpoint,
             _dst_port: &PortId,
         ) -> Result<(), Error> {
             Ok(())

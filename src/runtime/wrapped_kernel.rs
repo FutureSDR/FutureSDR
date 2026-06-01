@@ -14,17 +14,17 @@ use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
+use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
-use crate::runtime::block_inbox::ThreadSafeBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriterToken;
 use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config;
-use crate::runtime::dev::BlockInbox;
+use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::MessageOutputs;
@@ -97,7 +97,7 @@ impl WrappedInbox for LocalBlockInboxReader {
 
 /// Inbox bundle for normal thread-safe blocks.
 pub(crate) struct ThreadSafeInbox {
-    tx: ThreadSafeBlockInbox,
+    tx: BlockInbox,
     rx: Option<BlockInboxReader>,
 }
 
@@ -111,15 +111,15 @@ impl ThreadSafeInbox {
 
 /// Inbox bundle for blocks that execute inside a local domain.
 pub(crate) struct LocalBlockInboxes {
-    external_tx: BlockInbox,
-    thread_safe_tx: ThreadSafeBlockInbox,
+    external_tx: BlockEndpoint,
+    thread_safe_tx: BlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
     local_tx: LocalBlockInbox,
     local_rx: Option<LocalBlockInboxReader>,
 }
 
 impl LocalBlockInboxes {
-    fn new(external_tx: BlockInbox) -> Self {
+    fn new(external_tx: BlockEndpoint) -> Self {
         let (thread_safe_tx, thread_safe_rx) =
             crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
         let (local_tx, local_rx) = LocalBlockInboxReader::pair();
@@ -137,7 +137,7 @@ pub(crate) trait WrappedKernelInbox {
     type RunInbox: WrappedInbox;
 
     fn init_arg(&self) -> PortInboxes;
-    fn external_inbox(&self) -> BlockInbox;
+    fn external_inbox(&self) -> BlockEndpoint;
     fn take_run_inbox(&mut self) -> Self::RunInbox;
     fn put_run_inbox(&mut self, inbox: Self::RunInbox);
 
@@ -157,7 +157,7 @@ impl WrappedKernelInbox for ThreadSafeInbox {
         PortInboxes::thread_safe(self.tx.clone())
     }
 
-    fn external_inbox(&self) -> BlockInbox {
+    fn external_inbox(&self) -> BlockEndpoint {
         self.tx.clone().into()
     }
 
@@ -179,7 +179,7 @@ impl WrappedKernelInbox for LocalBlockInboxes {
         PortInboxes::local(self.thread_safe_tx.clone(), self.local_tx.clone())
     }
 
-    fn external_inbox(&self) -> BlockInbox {
+    fn external_inbox(&self) -> BlockEndpoint {
         self.external_tx.clone()
     }
 
@@ -231,7 +231,7 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     /// Create typed block wrapper with an explicit external inbox.
-    pub fn new_local_with_external(mut kernel: K, id: BlockId, external: BlockInbox) -> Self {
+    pub fn new_local_with_external(mut kernel: K, id: BlockId, external: BlockEndpoint) -> Self {
         let inbox = LocalBlockInboxes::new(external);
         crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
@@ -486,7 +486,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn inbox(&self) -> BlockInbox {
+    fn inbox(&self) -> BlockEndpoint {
         self.inbox.external_inbox()
     }
     fn local_inbox(&self) -> Option<LocalBlockInbox> {
@@ -537,7 +537,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn connect(
         &mut self,
         src_port: &PortId,
-        dst_box: BlockInbox,
+        dst_box: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error> {
         self.mo.connect(src_port, dst_box, dst_port)
