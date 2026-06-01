@@ -4,6 +4,7 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::CircuitReturn;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -27,34 +28,20 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
-type EmptyBuffers<B, E, SR> = Arc<Mutex<Vec<Option<Buffer<B, E, SR>>>>>;
+type BufferPermits = Arc<AtomicUsize>;
+type PermitReturn = CircuitReturn<BlockInbox, BufferPermits>;
 type FullBuffers<B, E, SR> = Arc<Mutex<VecDeque<Buffer<B, E, SR>>>>;
 
-enum BufferState<B, E = Float, S = f32>
+enum BufferState<B, E = Float>
 where
     B: Backend,
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    S: CpuSample,
 {
     Tensor(Tensor<B, 1, E>),
     Data(TensorData),
-    Empty(PhantomData<S>),
-}
-
-impl<B, E, S> BufferState<B, E, S>
-where
-    B: Backend,
-    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    S: CpuSample,
-{
-    fn cast<SO: CpuSample>(self) -> BufferState<B, E, SO> {
-        match self {
-            BufferState::Tensor(t) => BufferState::Tensor(t),
-            BufferState::Data(d) => BufferState::Data(d),
-            BufferState::Empty(_) => BufferState::Empty(PhantomData),
-        }
-    }
 }
 
 /// In-place buffer
@@ -65,9 +52,11 @@ where
     S: CpuSample,
 {
     valid: usize,
-    state: BufferState<B, E, S>,
+    state: Option<BufferState<B, E>>,
     device: B::Device,
     tags: Vec<ItemTag>,
+    permit_return: Option<PermitReturn>,
+    _p: PhantomData<S>,
 }
 
 impl<B, E, S> Buffer<B, E, S>
@@ -83,9 +72,11 @@ where
         let data = TensorData::zeros::<E::Elem, _>([items]);
         Self {
             valid: 0,
-            state: BufferState::Data(data),
+            state: Some(BufferState::Data(data)),
             device: device.clone(),
             tags: Vec::new(),
+            permit_return: None,
+            _p: PhantomData,
         }
     }
 
@@ -94,57 +85,74 @@ where
         let device = tensor.device();
         Self {
             valid: tensor.shape().num_elements(),
-            state: BufferState::Tensor(tensor),
+            state: Some(BufferState::Tensor(tensor)),
             device,
             tags: Vec::new(),
+            permit_return: None,
+            _p: PhantomData,
         }
     }
 
     /// Consume the buffer to create a Tensor
-    pub fn into_tensor(self) -> Tensor<B, 1, E> {
-        match self.state {
+    pub fn into_tensor(mut self) -> Tensor<B, 1, E> {
+        match self.state.take().expect("burn buffer state missing") {
             BufferState::Tensor(t) => t.slice(0..self.valid),
             BufferState::Data(d) => Tensor::from_data(d, &self.device).slice(0..self.valid),
-            BufferState::Empty(_) => unreachable!(),
         }
     }
 
-    fn cast<SO: CpuSample>(self) -> Buffer<B, E, SO> {
-        let Self {
-            valid,
-            state,
-            device,
-            tags,
-        } = self;
+    fn cast<SO: CpuSample>(mut self) -> Buffer<B, E, SO> {
         Buffer {
-            valid,
-            state: state.cast(),
-            device,
-            tags,
+            valid: self.valid,
+            state: self.state.take(),
+            device: self.device.clone(),
+            tags: std::mem::take(&mut self.tags),
+            permit_return: self.permit_return.take(),
+            _p: PhantomData,
         }
+    }
+
+    fn arm(&mut self, permit_return: PermitReturn) {
+        self.permit_return = Some(permit_return);
+    }
+
+    fn has_permit(&self) -> bool {
+        self.permit_return.is_some()
     }
 
     fn ensure_data(&mut self) {
-        if matches!(self.state, BufferState::Tensor(_))
-            && let BufferState::Tensor(t) =
-                std::mem::replace(&mut self.state, BufferState::Empty(PhantomData))
+        if matches!(self.state.as_ref(), Some(BufferState::Tensor(_)))
+            && let BufferState::Tensor(t) = self.state.take().expect("burn buffer state missing")
         {
-            self.state = BufferState::Data(t.into_data());
+            self.state = Some(BufferState::Data(t.into_data()));
         }
     }
 
     /// Number of elements in the buffer
     pub fn num_tensor_elements(&self) -> usize {
-        match &self.state {
+        match self.state.as_ref().expect("burn buffer state missing") {
             BufferState::Tensor(t) => t.shape().num_elements(),
             BufferState::Data(d) => d.num_elements(),
-            BufferState::Empty(_) => unreachable!(),
         }
     }
     /// Number of elements in the buffer
     pub fn num_host_elements(&self) -> usize {
         let elem = self.num_tensor_elements();
         elem * size_of::<E::Elem>() / size_of::<S>()
+    }
+}
+
+impl<B, E, S> Drop for Buffer<B, E, S>
+where
+    B: Backend,
+    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
+    S: CpuSample,
+{
+    fn drop(&mut self) {
+        if let Some(permit_return) = self.permit_return.take() {
+            permit_return.queue().fetch_add(1, Ordering::Release);
+            permit_return.notify();
+        }
     }
 }
 
@@ -162,8 +170,8 @@ where
 
     fn slice(&mut self) -> &mut [Self::Item] {
         self.ensure_data();
-        match self.state {
-            BufferState::Data(ref mut d) => {
+        match self.state.as_mut().expect("burn buffer state missing") {
+            BufferState::Data(d) => {
                 let s = &mut d.as_mut_slice::<E::Elem>().unwrap()[0..self.valid];
                 let len = size_of_val(s) / size_of::<S>();
                 unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr() as *mut S, len) }
@@ -174,8 +182,8 @@ where
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], &mut Vec<ItemTag>) {
         self.ensure_data();
-        match self.state {
-            BufferState::Data(ref mut d) => {
+        match self.state.as_mut().expect("burn buffer state missing") {
+            BufferState::Data(d) => {
                 let s = &mut d.as_mut_slice::<E::Elem>().unwrap()[0..self.valid];
                 let len = size_of_val(s) / size_of::<S>();
                 let s = unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr() as *mut S, len) };
@@ -197,7 +205,7 @@ where
     core: PortCore,
     state: ConnectionState<ConnectedWriter<B, E, SR>>,
     device: Option<Device<B>>,
-    inbound: EmptyBuffers<B, E, SR>,
+    permits: BufferPermits,
     buffer_size_in_items: usize,
     current: Option<(Buffer<B, E, SW>, usize)>,
     tags: Vec<ItemTag>,
@@ -220,13 +228,13 @@ where
     SW: CpuSample,
     SR: CpuSample,
 {
-    /// Create circuit buffer writer
+    /// Create Burn buffer writer
     pub fn new() -> Self {
         Self {
             core: PortCore::with_config(PortConfig::with_min_items(1)),
             state: ConnectionState::disconnected(),
             device: None,
-            inbound: Arc::new(Mutex::new(Vec::new())),
+            permits: Arc::new(AtomicUsize::new(0)),
             buffer_size_in_items: config().buffer_size / std::mem::size_of::<SW>(),
             current: None,
             tags: Vec::new(),
@@ -238,6 +246,38 @@ where
     /// This is required to create tensors
     pub fn set_device(&mut self, device: &B::Device) {
         self.device = Some(device.clone());
+    }
+
+    fn try_acquire_permit(&self) -> bool {
+        self.permits
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
+            .is_ok()
+    }
+
+    fn release_permit(&self) {
+        self.permits.fetch_add(1, Ordering::Release);
+        if self.core.is_bound() {
+            self.core.inbox().notify();
+        }
+    }
+
+    fn permit_return(&self) -> PermitReturn {
+        CircuitReturn::new(self.core.inbox(), self.permits.clone())
+    }
+
+    fn new_armed_buffer<S>(&self) -> Option<Buffer<B, E, S>>
+    where
+        S: CpuSample,
+    {
+        let Some(ref d) = self.device else {
+            self.release_permit();
+            warn!("cannot create buffers/tensors, device not set");
+            return None;
+        };
+        let mut b = Buffer::with_items(self.buffer_size_in_items, d);
+        b.set_valid(b.num_host_elements());
+        b.arm(self.permit_return());
+        Some(b)
     }
 }
 
@@ -320,7 +360,14 @@ where
     type Item = SW;
     type Buffer = Buffer<B, E, SW>;
 
-    fn put_full_buffer(&mut self, buffer: Self::Buffer) {
+    fn put_full_buffer(&mut self, mut buffer: Self::Buffer) {
+        if !buffer.has_permit() {
+            if !self.try_acquire_permit() {
+                warn!("cannot submit burn buffer, no empty-buffer permit available");
+                return;
+            }
+            buffer.arm(self.permit_return());
+        }
         self.state
             .connected()
             .outbound
@@ -331,35 +378,22 @@ where
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {
-        self.inbound.lock().unwrap().pop().and_then(|b| {
-            let b: Option<Buffer<B, E, SW>> = b.map(Buffer::cast);
-            if let Some(mut b) = b {
-                b.set_valid(b.num_host_elements());
-                Some(b)
-            } else if let Some(ref d) = self.device {
-                let mut b = Buffer::with_items(self.buffer_size_in_items, d);
-                b.set_valid(b.num_host_elements());
-                Some(b)
-            } else {
-                warn!("cannot create buffers/tensors, device not set");
-                None
-            }
-        })
+        if self.try_acquire_permit() {
+            self.new_armed_buffer()
+        } else {
+            None
+        }
     }
 
     fn has_more_buffers(&mut self) -> bool {
-        !self.inbound.lock().unwrap().is_empty()
+        self.permits.load(Ordering::Acquire) > 0
     }
 
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
         self.buffer_size_in_items = n_items;
-        if let Some(ref d) = self.device {
-            let mut q = self.inbound.lock().unwrap();
-            for _ in 0..n_buffers {
-                q.push(Some(Buffer::with_items(n_items, d)));
-            }
-        } else {
-            warn!("cannot create buffers/tensors, device not set");
+        self.permits.fetch_add(n_buffers, Ordering::Release);
+        if n_buffers > 0 && self.core.is_bound() {
+            self.core.inbox().notify();
         }
     }
 }
@@ -375,24 +409,13 @@ where
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         if self.current.is_none() {
-            match self.inbound.lock().unwrap().pop() {
-                Some(Some(mut b)) => {
-                    b.valid = b.num_tensor_elements();
-                    b.tags.clear();
-                    self.current = Some((b.cast(), 0));
-                }
-                Some(None) => {
-                    if let Some(ref d) = self.device {
-                        let mut b = Buffer::with_items(self.buffer_size_in_items, d);
-                        b.set_valid(b.num_host_elements());
-                        self.current = Some((b, 0));
-                    } else {
-                        warn!("cannot create buffer, device not set");
-                    }
-                }
-                None => {
+            if self.try_acquire_permit() {
+                self.current = self.new_armed_buffer().map(|b| (b, 0));
+                if self.current.is_none() {
                     return (&mut [], Tags::new(&mut self.tags, 0));
                 }
+            } else {
+                return (&mut [], Tags::new(&mut self.tags, 0));
             }
         }
 
@@ -422,7 +445,7 @@ where
 
             self.state.connected().reader.inbox().notify();
 
-            if !self.inbound.lock().unwrap().is_empty() {
+            if self.permits.load(Ordering::Acquire) > 0 {
                 self.core.inbox().notify();
             }
         }
@@ -438,12 +461,12 @@ where
     }
 
     fn max_items(&self) -> usize {
-        warn!("max_items not implemented for circuit writer");
+        warn!("max_items not implemented for burn writer");
         1
     }
 }
 
-/// Circuit Reader
+/// Burn Reader
 pub struct Reader<B, E = Float, SR = f32>
 where
     B: Backend,
@@ -472,7 +495,7 @@ where
     E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
     SR: CpuSample,
 {
-    /// Create circuit buffer reader
+    /// Create Burn buffer reader
     pub fn new() -> Self {
         Self {
             core: PortCore::new_disconnected(),
@@ -614,15 +637,15 @@ where
     }
 
     fn set_min_items(&mut self, _n: usize) {
-        warn!("set_min_items not implemented for circuit reader");
+        warn!("set_min_items not implemented for burn reader");
     }
 
     fn set_min_buffer_size_in_items(&mut self, _n: usize) {
-        warn!("set_min_buffer_size_in_items not implemented for circuit reader");
+        warn!("set_min_buffer_size_in_items not implemented for burn reader");
     }
 
     fn max_items(&self) -> usize {
-        warn!("max_items not implemented for circuit reader");
+        warn!("max_items not implemented for burn reader");
         1
     }
 }

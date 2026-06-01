@@ -95,7 +95,7 @@ let snk = VectorSink::new(4);
 connect!(fg, src > apply > snk);
 ```
 
-The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink lets each consumed buffer drop so it returns to the source side. In this snippet, `inplace::VectorSource`, `inplace::Apply`, and `inplace::VectorSink` are the custom blocks from the in-place example.
+The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink lets each consumed buffer drop so it returns to the source side. Backends that consume storage into framework-owned objects may return a capacity permit on drop and allocate replacement storage when that permit is reused. In this snippet, `inplace::VectorSource`, `inplace::Apply`, and `inplace::VectorSink` are the custom blocks from the in-place example.
 
 This concept is inspired by [qsdr](https://github.com/daniestevez/qsdr), which also explores in-place work APIs for SDR-style flowgraphs.
 
