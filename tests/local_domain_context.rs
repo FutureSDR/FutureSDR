@@ -8,7 +8,7 @@ use futuresdr::runtime::buffer::LocalCpuWriter;
 
 fn run_and_check(fg: Flowgraph, snk: BlockRef<NullSink<u8, LocalCpuReader<u8>>>) -> Result<()> {
     let fg = Runtime::new().run(fg)?;
-    let received = snk.with(&fg, |snk| snk.n_received())?;
+    let received = fg.with(&snk, |snk| snk.n_received())?;
     assert_eq!(received, 10);
     Ok(())
 }

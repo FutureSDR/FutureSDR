@@ -235,7 +235,7 @@ fn connect_macro_supports_local_stream_operator() -> Result<()> {
     connect!(fg, src ~> snk);
 
     let fg = Runtime::new().run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
     Ok(())
 }
@@ -266,7 +266,7 @@ fn flowgraph_runs_local_domain_blocks() -> Result<()> {
 
     let fg = rt.run(fg)?;
     assert_eq!(fg.block(&snk)?.n_received(), 4);
-    assert!(src.with(&fg, |_| true)?);
+    assert!(fg.with(&src, |_| true)?);
 
     Ok(())
 }
@@ -285,7 +285,7 @@ fn stream_connects_normal_source_to_local_sink() -> Result<()> {
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
     Ok(())
 }
@@ -304,7 +304,7 @@ fn add_local_uses_normal_buffers_inside_local_domain() -> Result<()> {
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
     Ok(())
 }
@@ -321,7 +321,7 @@ fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 1);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 1);
 
     Ok(())
 }
@@ -339,7 +339,7 @@ fn stream_connects_different_local_domains_with_send_buffer() -> Result<()> {
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 1);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 1);
 
     Ok(())
 }
@@ -357,7 +357,7 @@ fn stream_dyn_connects_different_local_domains_with_send_buffer() -> Result<()> 
     fg.stream_dyn(src, "output", snk, "input")?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 1);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 1);
 
     Ok(())
 }
@@ -377,7 +377,7 @@ fn stream_dyn_connects_different_local_domains_with_generic_send_buffer() -> Res
     fg.stream_dyn(src, "output", snk, "input")?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
     Ok(())
 }
@@ -418,7 +418,7 @@ fn stream_dyn_connects_same_domain_local_buffers() -> Result<()> {
     fg.stream_dyn(src, "output", snk, "input")?;
 
     let fg = rt.run(fg)?;
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 4);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
     Ok(())
 }
@@ -523,7 +523,7 @@ fn blocking_add_runs_in_private_local_domain() -> Result<()> {
     let fg = rt.run(fg)?;
 
     assert!(worked.load(Ordering::SeqCst));
-    assert!(blk.with(&fg, |_| true)?);
+    assert!(fg.with(&blk, |_| true)?);
     Ok(())
 }
 

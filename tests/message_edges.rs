@@ -89,7 +89,7 @@ fn message_edge_delivers_once() -> Result<()> {
     let rt = Runtime::new();
 
     let fg = trigger_once(&rt, fg, src)?;
-    assert_eq!(snk.with(&fg, |b| b.received)?, 1);
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
 
     Ok(())
 }
@@ -102,7 +102,7 @@ fn message_edges_can_target_local_domain_blocks() -> Result<()> {
     let rt = Runtime::new();
 
     let fg = trigger_once(&rt, fg, src)?;
-    assert_eq!(snk.with(&fg, |b| b.received)?, 1);
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
 
     Ok(())
 }
@@ -120,7 +120,7 @@ fn local_domain_context_message_edge_delivers_once() -> Result<()> {
 
     let rt = Runtime::new();
     let fg = trigger_once(&rt, fg, src)?;
-    assert_eq!(snk.with(&fg, |b| b.received)?, 1);
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
 
     Ok(())
 }
