@@ -185,21 +185,13 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
     blocks.sort_by_key(|b| b.to_string());
     blocks.dedup();
 
-    let block_decls = blocks.iter().map(|block| match mode {
-        ConnectMode::Async => quote! {
-            let #block = #fg.connect_add_async(#block).await?;
-        },
-        ConnectMode::BlockingNative => quote! {
-            let #block = #fg.connect_add(#block)?;
-        },
+    let block_decls = blocks.iter().map(|block| {
+        quote! {
+            let #block = #fg.connect_add(#block).await?;
+        }
     });
 
-    let connect_add_trait = match mode {
-        ConnectMode::Async => quote! { use ::futuresdr::runtime::__private::ConnectAddAsync as _; },
-        ConnectMode::BlockingNative => {
-            quote! { use ::futuresdr::runtime::__private::ConnectAdd as _; }
-        }
-    };
+    let connect_add_trait = quote! { use ::futuresdr::runtime::__private::ConnectAdd as _; };
 
     let body = quote! {
         #connect_add_trait
