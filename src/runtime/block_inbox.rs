@@ -163,7 +163,10 @@ impl fmt::Debug for BlockInbox {
 
 impl BlockInbox {
     /// Create a sender-side thread-safe block inbox from an mpsc sender and notifier.
-    pub(crate) fn new(control: mpsc::Sender<BlockMessage>, notifier: BlockNotifier) -> Self {
+    pub(crate) fn thread_safe(
+        control: mpsc::Sender<BlockMessage>,
+        notifier: BlockNotifier,
+    ) -> Self {
         Self::ThreadSafe(ThreadSafeBlockInbox {
             tx: control,
             notifier,
@@ -281,7 +284,7 @@ pub(crate) fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
     let (control, receiver) = mpsc::channel::<BlockMessage>(size);
     let notifier = BlockNotifier::new();
     (
-        BlockInbox::new(control, notifier.clone()),
+        BlockInbox::thread_safe(control, notifier.clone()),
         BlockInboxReader::new(receiver, notifier),
     )
 }

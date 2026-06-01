@@ -96,7 +96,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
                 .mo
                 .connect(
                     &PortId::new(*n),
-                    BlockInbox::new(tx, BlockNotifier::new()),
+                    BlockInbox::thread_safe(tx, BlockNotifier::new()),
                     &PortId::new("input"),
                 )
                 .unwrap();
