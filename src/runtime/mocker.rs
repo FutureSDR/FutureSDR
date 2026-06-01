@@ -189,7 +189,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
             for (n, r) in self.message_sinks.iter_mut().enumerate() {
                 while let Ok(m) = r.try_recv() {
                     match m {
-                        BlockMessage::Call { data, .. } => {
+                        BlockMessage::Post { data, .. } => {
                             self.messages[n].push(data);
                         }
                         _ => panic!("Mocked Block produced unexpected BlockMessage {m:?}"),

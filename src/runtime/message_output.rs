@@ -64,7 +64,7 @@ impl MessageOutput {
         for handler in &self.local_handlers {
             let _ = push_current_local_message(
                 handler.local_id,
-                BlockMessage::Call {
+                BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: Pmt::Finished,
                 },
@@ -73,7 +73,7 @@ impl MessageOutput {
         for handler in &self.external_handlers {
             let _ = handler
                 .inbox
-                .send(BlockMessage::Call {
+                .send(BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: Pmt::Finished,
                 })
@@ -86,7 +86,7 @@ impl MessageOutput {
         for handler in &self.local_handlers {
             let _ = push_current_local_message(
                 handler.local_id,
-                BlockMessage::Call {
+                BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: p.clone(),
                 },
@@ -95,7 +95,7 @@ impl MessageOutput {
         for handler in &self.external_handlers {
             let _ = handler
                 .inbox
-                .send(BlockMessage::Call {
+                .send(BlockMessage::Post {
                     port_id: handler.port.clone(),
                     data: p.clone(),
                 })
@@ -197,7 +197,7 @@ mod tests {
 
         assert!(matches!(
             rx.try_recv(),
-            Some(BlockMessage::Call { port_id, data })
+            Some(BlockMessage::Post { port_id, data })
                 if port_id == PortId::from("in") && data == Pmt::U32(7)
         ));
     }

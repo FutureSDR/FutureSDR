@@ -31,8 +31,7 @@ impl<B: Backend> Kernel for TimeIt<B> {
         _mo: &mut MessageOutputs,
         _b: &mut BlockMeta,
     ) -> Result<()> {
-        while let Some(b) = self.input.get_full_buffer() {
-            self.input.put_empty_buffer(b);
+        while let Some(_b) = self.input.get_full_buffer() {
             if self.start.is_none() {
                 self.start = Some(Instant::now());
             }

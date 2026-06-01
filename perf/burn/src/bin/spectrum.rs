@@ -95,7 +95,6 @@ impl Kernel for Fft {
 
             let _ = self.output.get_empty_buffer().unwrap();
             self.output.put_full_buffer(Buffer::from_tensor(mag));
-            self.input.notify_consumed_buffer();
 
             if self.input.has_more_buffers() {
                 io.call_again = true;
@@ -195,8 +194,6 @@ fn main() -> Result<()> {
     );
 
     connect!(fg, src.outputs[0] > convert > fft > snk);
-    connect!(fg, convert < fft);
-    connect!(fg, fft < snk);
 
     Runtime::new().run(fg)?;
     Ok(())

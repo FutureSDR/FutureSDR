@@ -8,6 +8,8 @@ use std::thread;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::block_inbox::enter_local_dispatch_context;
@@ -139,6 +141,24 @@ impl LocalDomainHandle {
     ) -> Result<(), Error> {
         self.tx
             .send(LocalDomainMessage::Post { block_id, message })
+            .await
+            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
+    }
+
+    pub(crate) async fn call(
+        &self,
+        block_id: crate::runtime::BlockId,
+        port_id: PortId,
+        data: Pmt,
+        reply: oneshot::Sender<Result<Pmt, Error>>,
+    ) -> Result<(), Error> {
+        self.tx
+            .send(LocalDomainMessage::Call {
+                block_id,
+                port_id,
+                data,
+                reply,
+            })
             .await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
     }
@@ -279,6 +299,16 @@ async fn run_domain_thread(
             LocalDomainMessage::Post { block_id, message } => {
                 if let Err(e) = state.push_message(block_id, message) {
                     warn!("failed to post to local block: {e}");
+                }
+            }
+            LocalDomainMessage::Call {
+                block_id,
+                port_id,
+                data,
+                reply,
+            } => {
+                if let Err(e) = state.push_call(block_id, port_id, data, reply) {
+                    warn!("failed to call local block: {e}");
                 }
             }
             LocalDomainMessage::Notify { block_id } => {
@@ -427,6 +457,16 @@ async fn run_local_domain(
                         LocalDomainMessage::Post { block_id, message } => {
                             if let Err(e) = state.push_message(block_id, message) {
                                 warn!("failed to post to local block: {e}");
+                            }
+                        }
+                        LocalDomainMessage::Call {
+                            block_id,
+                            port_id,
+                            data,
+                            reply,
+                        } => {
+                            if let Err(e) = state.push_call(block_id, port_id, data, reply) {
+                                warn!("failed to call local block: {e}");
                             }
                         }
                         LocalDomainMessage::Notify { block_id } => {

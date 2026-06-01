@@ -79,14 +79,13 @@ Implementations normally use the peer `BlockInbox` or `BlockNotifier` stored dur
 
 ## In-Place Circuits
 
-In-place buffers move owned chunks through the graph. The forward path is connected like a normal stream. A second circuit-closing connection wires the final consumer back to the source so empty buffers can be reused:
+In-place buffers move owned chunks through the graph. They are connected like normal streams:
 
 ```rust
 connect!(fg, src > apply > snk);
-connect!(fg, src < snk);
 ```
 
-Implement `CircuitWriter` when your writer can close that return path. The `<` operator calls `Flowgraph::close_circuit()`, which delegates to `CircuitWriter::close_circuit()`.
+A buffer carries its origin return handle while it is in flight. When the final owner drops the buffer, it automatically returns to the source writer's empty-buffer queue and wakes that writer. There is no separate circuit-closing connection or `<` operator.
 
 ## Validation and Testing
 

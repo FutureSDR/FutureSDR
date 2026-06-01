@@ -14,7 +14,6 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CircuitReturn;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuSample;
@@ -24,8 +23,6 @@ use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
-
-type ReturnQueue<T> = Arc<Mutex<Vec<Buffer<T>>>>;
 
 #[self_referencing]
 #[derive(Debug)]
@@ -144,7 +141,6 @@ pub struct Reader<T: BufferContents + CpuSample> {
     current: Option<CurrentBuffer<T>>,
     core: PortCore,
     state: ConnectionState<ConnectedReader<T>>,
-    circuit_start: Option<CircuitReturn<BlockInbox, ReturnQueue<T>>>,
     tags: Vec<ItemTag>,
     finished: bool,
 }
@@ -165,15 +161,9 @@ where
             current: None,
             core: PortCore::new_disconnected(),
             state: ConnectionState::disconnected(),
-            circuit_start: None,
             tags: Vec::new(),
             finished: false,
         }
-    }
-
-    /// Close the circuit back to the matching host-to-device writer.
-    pub fn close_circuit(&mut self, circuit_start_inbox: BlockInbox, outbound: ReturnQueue<T>) {
-        self.circuit_start = Some(CircuitReturn::new(circuit_start_inbox, outbound));
     }
 }
 
@@ -201,7 +191,7 @@ where
     }
 
     fn validate(&self) -> Result<(), Error> {
-        if self.state.is_connected() && self.circuit_start.is_some() {
+        if self.state.is_connected() {
             Ok(())
         } else {
             Err(self.core.not_connected_error())
@@ -285,19 +275,7 @@ where
         debug_assert!(offset <= capacity);
 
         if offset == capacity {
-            let buffer = self.current.take().unwrap();
-            self.circuit_start
-                .as_ref()
-                .unwrap()
-                .queue()
-                .lock()
-                .unwrap()
-                .push(Buffer {
-                    buffer: buffer.into_heads().buffer,
-                    offset: 0,
-                });
-
-            self.circuit_start.as_ref().unwrap().notify();
+            let _ = self.current.take().unwrap();
             self.core.inbox().notify();
         }
     }

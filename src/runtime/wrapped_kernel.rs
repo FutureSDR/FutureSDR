@@ -348,20 +348,20 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                         BlockMessage::StreamOutputDone { .. } => {
                             work_io.finished = true;
                         }
-                        BlockMessage::Call { port_id, data } => {
+                        BlockMessage::Post { port_id, data } => {
                             match kernel
                                 .call_handler(&mut work_io, mo, meta, port_id, data)
                                 .await
                             {
                                 Err(Error::InvalidMessagePort(_, port_id)) => {
                                     error!(
-                                        "{}: BlockMessage::Call -> Invalid Handler {port_id:?}.",
+                                        "{}: BlockMessage::Post -> Invalid Handler {port_id:?}.",
                                         instance_name
                                     );
                                 }
                                 Err(e @ Error::HandlerError(..)) => {
                                     error!(
-                                        "{}: BlockMessage::Call -> {e}. Terminating.",
+                                        "{}: BlockMessage::Post -> {e}. Terminating.",
                                         instance_name
                                     );
                                     return Err(e);
@@ -369,14 +369,14 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                                 _ => {}
                             }
                         }
-                        BlockMessage::Callback { port_id, data, tx } => {
+                        BlockMessage::Call { port_id, data, tx } => {
                             match kernel
                                 .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
                                 .await
                             {
                                 Err(e @ Error::HandlerError(..)) => {
                                     error!(
-                                        "{}: BlockMessage::Callback -> {e}. Terminating.",
+                                        "{}: BlockMessage::Call -> {e}. Terminating.",
                                         instance_name
                                     );
                                     let _ = tx.send(Err(Error::InvalidMessagePort(

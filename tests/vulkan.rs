@@ -63,7 +63,6 @@ fn fg_vulkan() -> Result<()> {
     }
 
     connect!(fg, src > vulkan > snk);
-    connect!(fg, src < snk);
 
     let fg = Runtime::new().run(fg)?;
 

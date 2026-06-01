@@ -241,7 +241,12 @@ impl BlockInbox {
                 thread_safe.notifier.notify();
                 Ok(())
             }
-            Self::DomainProxy { domain, block_id } => domain.domain.post(*block_id, msg).await,
+            Self::DomainProxy { domain, block_id } => match msg {
+                BlockMessage::Call { port_id, data, tx } => {
+                    domain.domain.call(*block_id, port_id, data, tx).await
+                }
+                msg => domain.domain.post(*block_id, msg).await,
+            },
         }
     }
 }

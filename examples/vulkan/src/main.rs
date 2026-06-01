@@ -75,7 +75,6 @@ fn run_vulkan(orig: Vec<f32>) -> Result<Vec<f32>> {
     }
 
     connect!(fg, src > vulkan > snk);
-    connect!(fg, src < snk);
 
     let now = Instant::now();
     let fg = Runtime::new().run(fg)?;

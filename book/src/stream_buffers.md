@@ -75,7 +75,7 @@ In-place buffers have a different API from normal CPU buffers:
 
 That means in-place processing usually needs blocks written for the in-place API. See the [in-place example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/inplace) for complete source.
 
-Reusable buffers need to return to the start of the pipeline. FutureSDR models this as a circuit. First connect the forward stream edges as usual, then close the circuit from the source to the final sink with `<`:
+Reusable buffers return to the start of the pipeline automatically. Each in-place buffer carries its origin return handle while it is in flight; when the final owner drops it, it returns to the source writer's empty-buffer queue and wakes that writer. Connect the forward stream edges as usual:
 
 ```rust
 use futuresdr::prelude::*;
@@ -93,10 +93,9 @@ let apply = Apply::new();
 let snk = VectorSink::new(4);
 
 connect!(fg, src > apply > snk);
-connect!(fg, src < snk);
 ```
 
-The `<` connection closes the return path for empty buffers. The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink returns each consumed buffer to the source side. In this snippet, `inplace::VectorSource`, `inplace::Apply`, and `inplace::VectorSink` are the custom blocks from the in-place example.
+The source injects a fixed number of reusable buffers, processing blocks mutate and forward them, and the sink lets each consumed buffer drop so it returns to the source side. In this snippet, `inplace::VectorSource`, `inplace::Apply`, and `inplace::VectorSink` are the custom blocks from the in-place example.
 
 This concept is inspired by [qsdr](https://github.com/daniestevez/qsdr), which also explores in-place work APIs for SDR-style flowgraphs.
 
@@ -118,7 +117,6 @@ let apply = InplaceApply::new();
 let snk = VectorSink::new(4);
 
 connect!(fg, src > apply > snk);
-connect!(fg, src < snk);
 ```
 
 Here the standard `VectorSource` writes into a circuit writer, the in-place `Apply` block mutates the buffer chunk, and the standard `VectorSink` reads from a circuit reader.

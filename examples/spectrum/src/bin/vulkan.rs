@@ -69,7 +69,6 @@ fn main() -> Result<()> {
         .build();
 
     connect!(fg, src.outputs[0] > fft > power > log > keep > snk);
-    connect!(fg, power < keep);
 
     Runtime::new().run(fg)?;
     Ok(())

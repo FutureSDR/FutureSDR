@@ -64,7 +64,7 @@ impl FlowgraphHandle {
         let block_id = block_id.into();
         let (tx, rx) = oneshot::channel::<Result<(), Error>>();
         self.inbox
-            .send(FlowgraphMessage::BlockCall {
+            .send(FlowgraphMessage::BlockPost {
                 block_id,
                 port_id: port_id.into(),
                 data,
@@ -88,7 +88,7 @@ impl FlowgraphHandle {
         let block_id = block_id.into();
         let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
         self.inbox
-            .send(FlowgraphMessage::BlockCallback {
+            .send(FlowgraphMessage::BlockCall {
                 block_id,
                 port_id: port_id.into(),
                 data,

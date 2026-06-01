@@ -665,7 +665,6 @@ impl Kernel for Fft {
                 .pending_readbacks
                 .push_back(PendingReadback { slot, receiver });
 
-            self.input.put_empty_buffer(b);
             if self.input.has_more_buffers() {
                 io.call_again = true;
             }
@@ -707,8 +706,6 @@ fn main() -> Result<()> {
     );
 
     connect!(fg, src.outputs[0] > fft > snk);
-    connect!(fg, src.outputs[0] < fft);
-    connect!(fg, fft < snk);
 
     Runtime::new().run(fg)?;
     Ok(())

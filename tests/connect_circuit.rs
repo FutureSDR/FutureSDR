@@ -155,7 +155,6 @@ where
     ) -> Result<()> {
         if let Some(mut buffer) = self.input.get_full_buffer() {
             self.items.extend_from_slice(buffer.slice());
-            self.input.put_empty_buffer(buffer);
 
             if self.input.has_more_buffers() {
                 io.call_again = true;
@@ -182,7 +181,6 @@ fn connect_circuit_executes() -> Result<()> {
     let snk: CircuitSink = CircuitSink::new(expected.len());
 
     connect!(fg, src > apply > snk);
-    connect!(fg, src < snk);
 
     let fg = Runtime::new().run(fg)?;
     let snk = fg.block(&snk)?;
@@ -192,7 +190,7 @@ fn connect_circuit_executes() -> Result<()> {
 }
 
 #[test]
-fn connect_circuit_description_omits_closure_edge() -> Result<()> {
+fn connect_circuit_description_lists_stream_edges() -> Result<()> {
     let pattern = vec![3, 5, 8, 13, 21];
 
     let mut fg = Flowgraph::new();
@@ -202,7 +200,6 @@ fn connect_circuit_description_omits_closure_edge() -> Result<()> {
     let snk: CircuitSink = CircuitSink::new(1024);
 
     connect!(fg, src > apply > snk);
-    connect!(fg, src < snk);
 
     let expected_edges = vec![
         (

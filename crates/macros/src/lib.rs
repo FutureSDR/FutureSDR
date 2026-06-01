@@ -73,10 +73,6 @@ use syn::token;
 /// stream connections for non-`Send` buffers are indicated as `~>`. Message
 /// connections are indicated as `|`.
 ///
-/// Circuit-capable buffers are still connected with normal stream connections.
-/// The `<` operator performs the additional circuit-closing step that sends
-/// buffers back from the downstream end to the upstream start.
-///
 /// If a block uses non-standard port names it is possible to use triples, e.g.:
 ///
 /// ```ignore
@@ -148,19 +144,6 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
                     };
                     quote! {
                         #fg.#method(
-                            &#src_block,
-                            |b| b.#src_port,
-                            &#dst_block,
-                            |b| b.#dst_port,
-                        ).await?;
-                    }
-                }
-                ConnectionType::Circuit => {
-                    let src_port = port_method(src_port, quote!(output()));
-                    let dst_port = port_method(&dst.input, quote!(input()));
-                    let dst_block = &dst.block;
-                    quote! {
-                        #fg.close_circuit_async(
                             &#src_block,
                             |b| b.#src_port,
                             &#dst_block,
@@ -288,7 +271,13 @@ impl Parse for ConnectionString {
         let source: Source = input.parse()?;
         let mut connections = Vec::new();
 
-        while let Ok(ct) = input.parse::<ConnectionType>() {
+        while !input.is_empty() && !input.peek(Token![;]) {
+            if input.peek(Token![<]) {
+                return Err(input.error(
+                    "the `<` circuit-close operator was removed; in-place buffers recycle when dropped",
+                ));
+            }
+            let ct: ConnectionType = input.parse()?;
             let dest: Endpoint = input.parse()?;
             connections.push((ct, dest));
         }
@@ -305,7 +294,6 @@ enum ConnectionType {
     Stream,
     LocalStream,
     Message,
-    Circuit,
 }
 
 impl Parse for ConnectionType {
@@ -320,11 +308,8 @@ impl Parse for ConnectionType {
         } else if input.peek(Token![|]) {
             input.parse::<Token![|]>()?;
             Ok(Self::Message)
-        } else if input.peek(Token![<]) {
-            input.parse::<Token![<]>()?;
-            Ok(Self::Circuit)
         } else {
-            Err(input.error("expected `>`, `~>`, `|`, or `<` to specify the connection type"))
+            Err(input.error("expected `>`, `~>`, or `|` to specify the connection type"))
         }
     }
 }

@@ -21,9 +21,9 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
+use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::SendBufferWriter;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
@@ -178,6 +178,21 @@ impl LocalEndpoint {
             block_id,
             domain_id,
             local_id,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum StreamEndpoint {
+    Normal(BlockId),
+    Local(LocalEndpoint),
+}
+
+impl StreamEndpoint {
+    fn block_id(self) -> BlockId {
+        match self {
+            Self::Normal(block_id) => block_id,
+            Self::Local(endpoint) => endpoint.block_id,
         }
     }
 }
@@ -442,7 +457,7 @@ impl<'a> LocalDomainContext<'a> {
                 (src_local, src_block.id),
                 (dst_local, dst_block.id),
             )?;
-            Flowgraph::connect_stream_ports(src_port(src), dst_port(dst))
+            Flowgraph::stream_ports_edge(src_port(src), dst_port(dst))
         };
         inner.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
@@ -1765,12 +1780,6 @@ impl Flowgraph {
         )
     }
 
-    fn connect_stream_ports<B: BufferWriter>(src_port: &mut B, dst_port: &mut B::Reader) -> Edge {
-        let edge = Self::stream_ports_edge(src_port, dst_port);
-        src_port.connect(dst_port);
-        edge
-    }
-
     fn connect_stream_ports_dyn(
         src_block_id: BlockId,
         src_port_id: &PortId,
@@ -1848,107 +1857,106 @@ impl Flowgraph {
             .await
     }
 
-    async fn cross_local_stream_edge_async<KS, KD, B, FS, FD>(
-        &self,
-        src: LocalEndpoint,
+    async fn typed_stream_output_port_id_async<KS, B, FS>(
+        &mut self,
+        endpoint: StreamEndpoint,
         src_port: FS,
-        dst: LocalEndpoint,
+    ) -> Result<PortId, Error>
+    where
+        KS: 'static,
+        B: BufferWriter,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+    {
+        match endpoint {
+            StreamEndpoint::Normal(block_id) => {
+                let block = self.get_typed_wrapped_block_mut_by_id::<KS>(block_id)?;
+                Ok(src_port(&mut block.kernel).port_id())
+            }
+            StreamEndpoint::Local(endpoint) => {
+                let domain = self
+                    .local_domains
+                    .get(endpoint.domain_id)
+                    .ok_or(Error::InvalidBlock(endpoint.block_id))?;
+                domain
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = Self::local_state_kernel_mut::<KS>(
+                                state,
+                                endpoint.local_id,
+                                endpoint.block_id,
+                            )?;
+                            Ok(src_port(block).port_id())
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn typed_stream_input_port_id_async<KD, B, FD>(
+        &mut self,
+        endpoint: StreamEndpoint,
+        dst_port: FD,
+    ) -> Result<PortId, Error>
+    where
+        KD: 'static,
+        B: BufferWriter,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
+    {
+        match endpoint {
+            StreamEndpoint::Normal(block_id) => {
+                let block = self.get_typed_wrapped_block_mut_by_id::<KD>(block_id)?;
+                Ok(dst_port(&mut block.kernel).port_id())
+            }
+            StreamEndpoint::Local(endpoint) => {
+                let domain = self
+                    .local_domains
+                    .get(endpoint.domain_id)
+                    .ok_or(Error::InvalidBlock(endpoint.block_id))?;
+                domain
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = Self::local_state_kernel_mut::<KD>(
+                                state,
+                                endpoint.local_id,
+                                endpoint.block_id,
+                            )?;
+                            Ok(dst_port(block).port_id())
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn cross_domain_stream_edge_async<KS, KD, B, FS, FD>(
+        &mut self,
+        src: StreamEndpoint,
+        src_port: FS,
+        dst: StreamEndpoint,
         dst_port: FD,
     ) -> Result<Edge, Error>
     where
         KS: 'static,
         KD: 'static,
-        B: SendBufferWriter + Default + 'static,
+        B: BufferWriter,
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        let src_handle = self
-            .local_domains
-            .get(src.domain_id)
-            .ok_or(Error::InvalidBlock(src.block_id))?
-            .handle();
-        let dst_handle = self
-            .local_domains
-            .get(dst.domain_id)
-            .ok_or(Error::InvalidBlock(dst.block_id))?
-            .handle();
-
-        let (src_block_id, src_port_id) = src_handle
-            .exec(move |state| {
-                let result = (|| {
-                    let src =
-                        Self::local_state_kernel_mut::<KS>(state, src.local_id, src.block_id)?;
-                    let port = src_port(src);
-                    Ok((port.block_id(), port.port_id()))
-                })();
-                Box::pin(futures::future::ready(result))
-            })
+        let src_port_id = self
+            .typed_stream_output_port_id_async::<KS, B, FS>(src, src_port)
             .await?;
-        let (dst_block_id, dst_port_id) = dst_handle
-            .exec(move |state| {
-                let result = (|| {
-                    let dst =
-                        Self::local_state_kernel_mut::<KD>(state, dst.local_id, dst.block_id)?;
-                    let port = dst_port(dst);
-                    Ok((port.block_id(), port.port_id()))
-                })();
-                Box::pin(futures::future::ready(result))
-            })
+        let dst_port_id = self
+            .typed_stream_input_port_id_async::<KD, B, FD>(dst, dst_port)
             .await?;
         Ok(Edge::new(
-            src_block_id,
+            src.block_id(),
             src_port_id,
-            dst_block_id,
+            dst.block_id(),
             dst_port_id,
         ))
-    }
-
-    fn wrapped_kernel_mut<K: 'static>(
-        block: &mut dyn BlockObject,
-        block_id: BlockId,
-    ) -> Result<&mut NormalWrappedKernel<K>, Error> {
-        block
-            .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<K>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    block_id,
-                    std::any::type_name::<K>()
-                ))
-            })
-    }
-
-    async fn with_normal_local_blocks_mut_async<R, F>(
-        &mut self,
-        normal_id: BlockId,
-        local: LocalEndpoint,
-        f: F,
-    ) -> Result<R, Error>
-    where
-        F: FnOnce(&mut dyn BlockObject, &mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
-        R: Send + 'static,
-    {
-        let normal = self.blocks[normal_id.0]
-            .block
-            .take()
-            .ok_or(Error::LockError)?;
-
-        let (normal, result) = self.local_domains[local.domain_id]
-            .exec(move |state| {
-                Box::pin(async move {
-                    let mut normal = normal;
-                    let result = (|| {
-                        let local = state.block_mut(local.local_id, local.block_id)?;
-                        f(normal.as_mut(), local)
-                    })();
-                    Ok((normal, result))
-                })
-            })
-            .await?;
-
-        self.blocks[normal_id.0].block = Some(normal);
-        result
     }
 
     fn connect_normal_normal_stream_dyn(
@@ -2016,133 +2024,174 @@ impl Flowgraph {
             .await
     }
 
-    async fn connect_cross_local_stream_dyn_async(
+    async fn take_send_stream_output_token(
         &mut self,
-        src: LocalEndpoint,
+        endpoint: StreamEndpoint,
+        port_id: &PortId,
+    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+        match endpoint {
+            StreamEndpoint::Normal(block_id) => self
+                .raw_block_mut(block_id)?
+                .take_send_stream_output_token(port_id)
+                .map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                    }
+                    o => o,
+                }),
+            StreamEndpoint::Local(endpoint) => {
+                let handle = self
+                    .local_domains
+                    .get(endpoint.domain_id)
+                    .ok_or(Error::InvalidBlock(endpoint.block_id))?
+                    .handle();
+                let port_id = port_id.clone();
+                handle
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
+                            block
+                                .take_send_stream_output_token(&port_id)
+                                .map_err(|e| match e {
+                                    Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                        BlockPortCtx::Id(endpoint.block_id),
+                                        port,
+                                    ),
+                                    o => o,
+                                })
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn replace_send_stream_output_token(
+        &mut self,
+        endpoint: StreamEndpoint,
+        port_id: &PortId,
+        token: Box<dyn AnySendBufferWriterToken>,
+    ) -> Result<(), Error> {
+        match endpoint {
+            StreamEndpoint::Normal(block_id) => self
+                .raw_block_mut(block_id)?
+                .replace_send_stream_output_token(port_id, token)
+                .map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                    }
+                    o => o,
+                }),
+            StreamEndpoint::Local(endpoint) => {
+                let handle = self
+                    .local_domains
+                    .get(endpoint.domain_id)
+                    .ok_or(Error::InvalidBlock(endpoint.block_id))?
+                    .handle();
+                let port_id = port_id.clone();
+                handle
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
+                            block
+                                .replace_send_stream_output_token(&port_id, token)
+                                .map_err(|e| match e {
+                                    Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                        BlockPortCtx::Id(endpoint.block_id),
+                                        port,
+                                    ),
+                                    o => o,
+                                })
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn connect_send_token_to_input(
+        &mut self,
+        token: Arc<async_lock::Mutex<Option<Box<dyn AnySendBufferWriterToken>>>>,
+        src_block_id: BlockId,
+        dst: StreamEndpoint,
+        dst_port_id: PortId,
+    ) -> Result<(), Error> {
+        match dst {
+            StreamEndpoint::Normal(dst_block_id) => {
+                let mut token = token.lock().await;
+                let token = token.as_mut().ok_or(Error::LockError)?;
+                let dst_block = self.raw_block_mut(dst_block_id)?;
+                let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(dst_block_id), port)
+                    }
+                    o => o,
+                })?;
+                token.connect_dyn(reader).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
+                    }
+                    o => o,
+                })
+            }
+            StreamEndpoint::Local(dst) => {
+                let handle = self
+                    .local_domains
+                    .get(dst.domain_id)
+                    .ok_or(Error::InvalidBlock(dst.block_id))?
+                    .handle();
+                handle
+                    .exec(move |state| {
+                        Box::pin(async move {
+                            let mut token = token.lock().await;
+                            let token = token.as_mut().ok_or(Error::LockError)?;
+                            let dst_block = state.block_mut(dst.local_id, dst.block_id)?;
+                            let reader =
+                                dst_block.stream_input(&dst_port_id).map_err(|e| match e {
+                                    Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                        BlockPortCtx::Id(dst.block_id),
+                                        port,
+                                    ),
+                                    o => o,
+                                })?;
+                            token.connect_dyn(reader).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => {
+                                    Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
+                                }
+                                o => o,
+                            })
+                        })
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn connect_cross_domain_stream_dyn_async(
+        &mut self,
+        src: StreamEndpoint,
         src_port_id: PortId,
-        dst: LocalEndpoint,
+        dst: StreamEndpoint,
         dst_port_id: PortId,
     ) -> Result<Edge, Error> {
-        let src_handle = self
-            .local_domains
-            .get(src.domain_id)
-            .ok_or(Error::InvalidBlock(src.block_id))?
-            .handle();
-        let dst_handle = self
-            .local_domains
-            .get(dst.domain_id)
-            .ok_or(Error::InvalidBlock(dst.block_id))?
-            .handle();
-
-        let take_port = src_port_id.clone();
-        let token = src_handle
-            .exec(move |state| {
-                let result = (|| {
-                    let src_block = state.block_mut(src.local_id, src.block_id)?;
-                    src_block
-                        .take_send_stream_output_token(&take_port)
-                        .map_err(|e| match e {
-                            Error::InvalidStreamPort(_, port) => {
-                                Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
-                            }
-                            o => o,
-                        })
-                })();
-                Box::pin(futures::future::ready(result))
-            })
+        let src_block_id = src.block_id();
+        let dst_block_id = dst.block_id();
+        let token = self
+            .take_send_stream_output_token(src, &src_port_id)
             .await?;
-
         let token = Arc::new(async_lock::Mutex::new(Some(token)));
-        let dst_token = Arc::clone(&token);
-        let dst_port = dst_port_id.clone();
-        let edge_src_port = src_port_id.clone();
-        let edge_dst_port = dst_port_id.clone();
-        let connect_result = dst_handle
-            .exec(move |state| {
-                Box::pin(async move {
-                    let mut token_guard = dst_token.lock().await;
-                    let token = token_guard.as_mut().ok_or(Error::LockError)?;
-                    (|| {
-                        let dst_block = state.block_mut(dst.local_id, dst.block_id)?;
-                        let reader = dst_block.stream_input(&dst_port).map_err(|e| match e {
-                            Error::InvalidStreamPort(_, port) => {
-                                Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
-                            }
-                            o => o,
-                        })?;
-                        token.connect_dyn(reader)?;
-                        Ok(Edge::new(
-                            src.block_id,
-                            edge_src_port,
-                            dst.block_id,
-                            edge_dst_port,
-                        ))
-                    })()
-                })
-            })
-            .await;
+
+        let connect_result = self
+            .connect_send_token_to_input(Arc::clone(&token), src_block_id, dst, dst_port_id.clone())
+            .await
+            .map(|()| Edge::new(src_block_id, src_port_id.clone(), dst_block_id, dst_port_id));
 
         let token = token.lock().await.take().ok_or(Error::LockError)?;
-        let restore_port = src_port_id.clone();
-        let restore_result = src_handle
-            .exec(move |state| {
-                let result = (|| {
-                    let src_block = state.block_mut(src.local_id, src.block_id)?;
-                    src_block
-                        .replace_send_stream_output_token(&restore_port, token)
-                        .map_err(|e| match e {
-                            Error::InvalidStreamPort(_, port) => {
-                                Error::InvalidStreamPort(BlockPortCtx::Id(src.block_id), port)
-                            }
-                            o => o,
-                        })
-                })();
-                Box::pin(futures::future::ready(result))
-            })
-            .await;
-
-        restore_result?;
+        self.replace_send_stream_output_token(src, &src_port_id, token)
+            .await?;
         connect_result
-    }
-
-    async fn connect_local_normal_stream_dyn_async(
-        &mut self,
-        src: LocalEndpoint,
-        src_port_id: PortId,
-        dst_id: BlockId,
-        dst_port_id: PortId,
-    ) -> Result<Edge, Error> {
-        self.with_normal_local_blocks_mut_async(dst_id, src, move |dst_block, src_block| {
-            Self::connect_stream_ports_dyn(
-                src.block_id,
-                &src_port_id,
-                src_block,
-                dst_id,
-                &dst_port_id,
-                dst_block,
-            )
-        })
-        .await
-    }
-
-    async fn connect_normal_local_stream_dyn_async(
-        &mut self,
-        src_id: BlockId,
-        src_port_id: PortId,
-        dst: LocalEndpoint,
-        dst_port_id: PortId,
-    ) -> Result<Edge, Error> {
-        self.with_normal_local_blocks_mut_async(src_id, dst, move |src_block, dst_block| {
-            Self::connect_stream_ports_dyn(
-                src_id,
-                &src_port_id,
-                src_block,
-                dst.block_id,
-                &dst_port_id,
-                dst_block,
-            )
-        })
-        .await
     }
 
     /// Connect stream ports through typed block handles owned by this flowgraph.
@@ -2207,32 +2256,30 @@ impl Flowgraph {
                 .await?
             }
             StreamPlan::LocalLocalCross { src, dst } => {
-                self.cross_local_stream_edge_async::<KS, KD, B, FS, FD>(
-                    src, src_port, dst, dst_port,
+                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
+                    StreamEndpoint::Local(src),
+                    src_port,
+                    StreamEndpoint::Local(dst),
+                    dst_port,
                 )
                 .await?
             }
             StreamPlan::LocalToNormal { src, dst } => {
-                let dst_id = dst;
-                self.with_normal_local_blocks_mut_async(dst_id, src, move |dst_block, src_block| {
-                    let src = Self::local_kernel_mut::<KS>(src_block, src.block_id)?;
-                    let dst = Self::wrapped_kernel_mut::<KD>(dst_block, dst_id)?;
-                    Ok(Self::stream_ports_edge(
-                        src_port(src),
-                        dst_port(&mut dst.kernel),
-                    ))
-                })
+                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
+                    StreamEndpoint::Local(src),
+                    src_port,
+                    StreamEndpoint::Normal(dst),
+                    dst_port,
+                )
                 .await?
             }
             StreamPlan::NormalToLocal { src, dst } => {
-                self.with_normal_local_blocks_mut_async(src, dst, move |src_block, dst_block| {
-                    let src = Self::wrapped_kernel_mut::<KS>(src_block, src)?;
-                    let dst = Self::local_kernel_mut::<KD>(dst_block, dst.block_id)?;
-                    Ok(Self::stream_ports_edge(
-                        src_port(&mut src.kernel),
-                        dst_port(dst),
-                    ))
-                })
+                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
+                    StreamEndpoint::Normal(src),
+                    src_port,
+                    StreamEndpoint::Local(dst),
+                    dst_port,
+                )
                 .await?
             }
         };
@@ -2306,110 +2353,6 @@ impl Flowgraph {
             }
         };
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
-        Ok(())
-    }
-
-    /// Close a circuit between already connected circuit-capable buffers.
-    ///
-    /// Circuit-capable buffers are still connected like normal stream buffers with
-    /// [`Flowgraph::stream`]. Closing the circuit is the additional step that
-    /// makes the downstream end return buffers to the upstream start.
-    ///
-    /// This is the typed block-level circuit-closing API used by the
-    /// [`connect`](crate::runtime::macros::connect) macro's `<` operator.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn close_circuit<KS, KD, CW, FS, FD>(
-        &mut self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        CW: CircuitWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut CW + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
-    {
-        crate::runtime::block_on(
-            self.close_circuit_async::<KS, KD, CW, FS, FD>(
-                src_block, src_port, dst_block, dst_port,
-            ),
-        )
-    }
-
-    /// Async counterpart to [`Flowgraph::close_circuit`].
-    pub async fn close_circuit_async<KS, KD, CW, FS, FD>(
-        &mut self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        CW: CircuitWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut CW + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
-    {
-        self.validate_block_ref(src_block)?;
-        self.validate_block_ref(dst_block)?;
-        let src_id = src_block.id;
-        let dst_id = dst_block.id;
-        match Self::stream_plan(src_id, src_block.placement, dst_id, dst_block.placement) {
-            StreamPlan::NormalNormal {
-                src: src_id,
-                dst: dst_id,
-            } => {
-                let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
-                src_port(&mut src.kernel).close_circuit(dst_port(&mut dst.kernel));
-            }
-            StreamPlan::LocalLocalSame { src, dst } => {
-                let domain = self
-                    .local_domains
-                    .get(src.domain_id)
-                    .ok_or(Error::InvalidBlock(src.block_id))?;
-                domain
-                    .exec(move |state| {
-                        let result = (|| {
-                            let (src, dst) = Self::two_local_state_kernels_mut::<KS, KD>(
-                                state,
-                                (src.local_id, src.block_id),
-                                (dst.local_id, dst.block_id),
-                            )?;
-                            src_port(src).close_circuit(dst_port(dst));
-                            Ok(())
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await?;
-            }
-            StreamPlan::LocalLocalCross { .. } => {
-                return Err(Error::ValidationError(
-                    "circuit close between different local domains is not supported".to_string(),
-                ));
-            }
-            StreamPlan::LocalToNormal { src, dst } => {
-                self.with_normal_local_blocks_mut_async(dst, src, move |dst_block, src_block| {
-                    let src = Self::local_kernel_mut::<KS>(src_block, src.block_id)?;
-                    let dst = Self::wrapped_kernel_mut::<KD>(dst_block, dst)?;
-                    src_port(src).close_circuit(dst_port(&mut dst.kernel));
-                    Ok(())
-                })
-                .await?;
-            }
-            StreamPlan::NormalToLocal { src, dst } => {
-                self.with_normal_local_blocks_mut_async(src, dst, move |src_block, dst_block| {
-                    let src = Self::wrapped_kernel_mut::<KS>(src_block, src)?;
-                    let dst = Self::local_kernel_mut::<KD>(dst_block, dst.block_id)?;
-                    src_port(&mut src.kernel).close_circuit(dst_port(dst));
-                    Ok(())
-                })
-                .await?;
-            }
-        }
         Ok(())
     }
 
@@ -2690,28 +2633,28 @@ impl Flowgraph {
                 .await?;
             }
             StreamPlan::LocalLocalCross { src, dst } => {
-                self.connect_cross_local_stream_dyn_async(
-                    src,
+                self.connect_cross_domain_stream_dyn_async(
+                    StreamEndpoint::Local(src),
                     edge.src_port.clone(),
-                    dst,
+                    StreamEndpoint::Local(dst),
                     edge.dst_port.clone(),
                 )
                 .await?;
             }
             StreamPlan::LocalToNormal { src, dst } => {
-                self.connect_local_normal_stream_dyn_async(
-                    src,
+                self.connect_cross_domain_stream_dyn_async(
+                    StreamEndpoint::Local(src),
                     edge.src_port.clone(),
-                    dst,
+                    StreamEndpoint::Normal(dst),
                     edge.dst_port.clone(),
                 )
                 .await?;
             }
             StreamPlan::NormalToLocal { src, dst } => {
-                self.connect_normal_local_stream_dyn_async(
-                    src,
+                self.connect_cross_domain_stream_dyn_async(
+                    StreamEndpoint::Normal(src),
                     edge.src_port.clone(),
-                    dst,
+                    StreamEndpoint::Local(dst),
                     edge.dst_port.clone(),
                 )
                 .await?;
@@ -3029,7 +2972,7 @@ impl Flowgraph {
                 })?;
 
                 match m {
-                    FlowgraphMessage::BlockCall {
+                    FlowgraphMessage::BlockPost {
                         block_id,
                         port_id,
                         data,
@@ -3037,7 +2980,7 @@ impl Flowgraph {
                     } => {
                         if let Some(Some(inbox)) = inboxes.get_mut(block_id.0) {
                             if inbox
-                                .send(BlockMessage::Call { port_id, data })
+                                .send(BlockMessage::Post { port_id, data })
                                 .await
                                 .is_ok()
                             {
@@ -3049,7 +2992,7 @@ impl Flowgraph {
                             let _ = tx.send(Err(Error::InvalidBlock(block_id)));
                         }
                     }
-                    FlowgraphMessage::BlockCallback {
+                    FlowgraphMessage::BlockCall {
                         block_id,
                         port_id,
                         data,
@@ -3058,7 +3001,7 @@ impl Flowgraph {
                         let (block_tx, block_rx) = oneshot::channel::<Result<Pmt, Error>>();
                         if let Some(Some(inbox)) = inboxes.get_mut(block_id.0) {
                             if inbox
-                                .send(BlockMessage::Callback {
+                                .send(BlockMessage::Call {
                                     port_id,
                                     data,
                                     tx: block_tx,

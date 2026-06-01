@@ -233,7 +233,6 @@ where
     ) -> Result<()> {
         if let Some(mut b) = self.input.get_full_buffer() {
             self.n_received += b.slice().len();
-            self.input.put_empty_buffer(b);
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

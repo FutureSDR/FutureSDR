@@ -86,7 +86,6 @@ impl Kernel for Fft {
             let first = mag.slice(s![..half]).to_owned();
             let mag = stack(Axis(0), &[second.view(), first.view()]).expect("stack failed");
 
-            self.input.put_empty_buffer(b);
             let mut b = self.output.get_empty_buffer().unwrap();
             b.slice().copy_from_slice(mag.as_slice().unwrap());
             self.output.put_full_buffer(b);
@@ -119,8 +118,6 @@ fn main() -> Result<()> {
     );
 
     connect!(fg, src.outputs[0] > fft > snk);
-    connect!(fg, src.outputs[0] < fft);
-    connect!(fg, fft < snk);
 
     Runtime::new().run(fg)?;
     Ok(())

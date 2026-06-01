@@ -4,8 +4,6 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CircuitReturn;
-use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -241,12 +239,6 @@ where
     pub fn set_device(&mut self, device: &B::Device) {
         self.device = Some(device.clone());
     }
-
-    /// Close the in-place tensor circuit by connecting its end back to this
-    /// writer.
-    pub fn close_circuit(&mut self, end: &mut Reader<B, E, SR>) {
-        end.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
-    }
 }
 
 impl<B, E, SW, SR> Default for Writer<B, E, SW, SR>
@@ -315,20 +307,6 @@ where
 
     fn port_id(&self) -> PortId {
         self.core.port_id()
-    }
-}
-
-impl<B, E, SW, SR> CircuitWriter for Writer<B, E, SW, SR>
-where
-    B: Backend,
-    E: TensorKind<B> + BasicOps<B> + Send + Sync + 'static,
-    SW: CpuSample,
-    SR: CpuSample,
-{
-    type CircuitEnd = Reader<B, E, SR>;
-
-    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
@@ -474,7 +452,6 @@ where
 {
     core: PortCore,
     state: ConnectionState<ConnectedReader<B, E, SR>>,
-    circuit_start: Option<CircuitReturn<BlockInbox, EmptyBuffers<B, E, SR>>>,
     finished: bool,
     current: Option<(Buffer<B, E, SR>, usize)>,
 }
@@ -500,7 +477,6 @@ where
         Self {
             core: PortCore::new_disconnected(),
             state: ConnectionState::disconnected(),
-            circuit_start: None,
             finished: false,
             current: None,
         }
@@ -591,20 +567,6 @@ where
     fn has_more_buffers(&mut self) -> bool {
         !self.state.connected().inbound.lock().unwrap().is_empty()
     }
-
-    fn put_empty_buffer(&mut self, buffer: Self::Buffer) {
-        if let Some(circuit_start) = self.circuit_start.as_ref() {
-            circuit_start.queue().lock().unwrap().push(Some(buffer));
-            circuit_start.notify();
-        }
-    }
-
-    fn notify_consumed_buffer(&mut self) {
-        if let Some(circuit_start) = self.circuit_start.as_ref() {
-            circuit_start.queue().lock().unwrap().push(None);
-            circuit_start.notify();
-        }
-    }
 }
 
 impl<B, E, SR> CpuBufferReader for Reader<B, E, SR>
@@ -643,18 +605,7 @@ where
         *o += n;
 
         if *o == c.valid {
-            let (b, _) = self.current.take().unwrap();
-            match self.circuit_start.as_ref() {
-                Some(circuit_start) => {
-                    circuit_start.queue().lock().unwrap().push(Some(b));
-                    circuit_start.notify();
-                }
-                None => {
-                    debug!(
-                        "burn reader used as cpu buffer reader but not connected to circuit start. dropping buffer."
-                    );
-                }
-            }
+            let _ = self.current.take().unwrap();
 
             if !self.state.connected().inbound.lock().unwrap().is_empty() {
                 self.core.inbox().notify();

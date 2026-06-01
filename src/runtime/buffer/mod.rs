@@ -884,25 +884,6 @@ where
 {
 }
 
-/// Buffer writer that can close an in-place circuit to a matching end.
-///
-/// Circuit-capable buffers are still connected with the normal
-/// [`BufferWriter::connect`] stream connection. Closing the circuit is the
-/// additional step that wires the downstream end back to the upstream start so
-/// buffers can circulate.
-pub trait CircuitWriter: BufferWriter {
-    /// The circuit end type accepted by this writer.
-    type CircuitEnd;
-
-    /// Close the circuit to the given end.
-    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd);
-}
-
-/// Send-capable circuit writer marker.
-pub trait SendCircuitWriter: CircuitWriter + SendBufferWriter {}
-
-impl<T> SendCircuitWriter for T where T: CircuitWriter + SendBufferWriter {}
-
 /// Trait alias-style marker for sample types supported by CPU buffers.
 pub trait CpuSample: Default + Clone + std::fmt::Debug + Send + Sync + 'static {}
 
@@ -1003,10 +984,6 @@ pub trait InplaceReader: BufferReader + Default {
     fn get_full_buffer(&mut self) -> Option<Self::Buffer>;
     /// Return whether more full buffers are immediately available.
     fn has_more_buffers(&mut self) -> bool;
-    /// Return an empty buffer to the beginning of the circuit.
-    fn put_empty_buffer(&mut self, buffer: Self::Buffer);
-    /// Notify the circuit start that we consumed a buffer.
-    fn notify_consumed_buffer(&mut self);
 }
 
 /// Writer half of an in-place circuit buffer.

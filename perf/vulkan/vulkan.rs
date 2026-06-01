@@ -63,7 +63,6 @@ fn main() -> Result<()> {
     }
 
     connect!(fg, src > vulkan > snk);
-    connect!(fg, src < snk);
 
     let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
     let now = time::Instant::now();

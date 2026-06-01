@@ -136,7 +136,6 @@ fn generate_inplace(
 
         let snk = fg.add(IpSink::new());
         fg.stream_dyn(last, "output", snk, "input")?;
-        connect!(fg, src < snk);
 
         pipe_block_ids.push(snk.id());
         snks.push(snk);

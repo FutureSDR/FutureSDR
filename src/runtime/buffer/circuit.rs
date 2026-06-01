@@ -15,7 +15,6 @@ use crate::runtime::buffer::BufferMode;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CircuitReturn;
-use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferReader;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -35,8 +34,8 @@ use crate::runtime::dev::ItemTag;
 type Queue<T> = ConcurrentQueue<T>;
 #[cfg(target_arch = "wasm32")]
 type Queue<T> = Mutex<VecDeque<T>>;
-type EmptyBuffers<T> = Arc<Queue<Option<Buffer<T>>>>;
-type FullBuffers<T> = Arc<Queue<Buffer<T>>>;
+type EmptyBuffers<T, M> = Arc<Queue<Buffer<T, M>>>;
+type FullBuffers<T, M> = Arc<Queue<Buffer<T, M>>>;
 
 fn queue_new<T>() -> Queue<T> {
     #[cfg(not(target_arch = "wasm32"))]
@@ -59,6 +58,18 @@ fn queue_push<T>(queue: &Queue<T>, item: T) {
     #[cfg(target_arch = "wasm32")]
     {
         queue.lock().unwrap().push_back(item);
+    }
+}
+
+fn queue_try_push<T>(queue: &Queue<T>, item: T) -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        queue.push(item).is_ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        queue.lock().unwrap().push_back(item);
+        true
     }
 }
 
@@ -95,8 +106,8 @@ fn queue_is_empty<T>(queue: &Queue<T>) -> bool {
     }
 }
 
-/// In-place buffer
-pub struct Buffer<T>
+/// In-place buffer storage.
+struct BufferStorage<T>
 where
     T: CpuSample,
 {
@@ -105,11 +116,10 @@ where
     tags: Vec<ItemTag>,
 }
 
-impl<T> Buffer<T>
+impl<T> BufferStorage<T>
 where
     T: CpuSample,
 {
-    /// Create buffer
     fn with_items(items: usize) -> Self {
         Self {
             valid: 0,
@@ -117,24 +127,99 @@ where
             tags: Vec::new(),
         }
     }
+
+    fn reset(&mut self) {
+        self.valid = 0;
+        self.tags.clear();
+    }
 }
 
-impl<T> InplaceBuffer for Buffer<T>
+/// In-place buffer.
+///
+/// Buffers remember the writer queue they originated from while they are in
+/// flight. If the final owner drops the buffer instead of forwarding it, the
+/// buffer automatically returns to that origin queue.
+pub struct Buffer<T, M = ThreadSafeMode>
 where
     T: CpuSample,
+    M: BufferMode,
+{
+    storage: Option<BufferStorage<T>>,
+    origin: Option<CircuitReturn<M::Inbox, EmptyBuffers<T, M>>>,
+}
+
+impl<T, M> Buffer<T, M>
+where
+    T: CpuSample,
+    M: BufferMode,
+{
+    /// Create buffer.
+    fn with_items(items: usize) -> Self {
+        Self {
+            storage: Some(BufferStorage::with_items(items)),
+            origin: None,
+        }
+    }
+
+    fn storage(&self) -> &BufferStorage<T> {
+        self.storage
+            .as_ref()
+            .expect("circuit buffer storage missing")
+    }
+
+    fn storage_mut(&mut self) -> &mut BufferStorage<T> {
+        self.storage
+            .as_mut()
+            .expect("circuit buffer storage missing")
+    }
+
+    fn arm(&mut self, origin: CircuitReturn<M::Inbox, EmptyBuffers<T, M>>) {
+        self.origin = Some(origin);
+    }
+}
+
+impl<T, M> Drop for Buffer<T, M>
+where
+    T: CpuSample,
+    M: BufferMode,
+{
+    fn drop(&mut self) {
+        let Some(origin) = self.origin.take() else {
+            return;
+        };
+        let Some(mut storage) = self.storage.take() else {
+            return;
+        };
+        storage.reset();
+        let returned = Buffer {
+            storage: Some(storage),
+            origin: None,
+        };
+        if queue_try_push(origin.queue(), returned) {
+            origin.notify();
+        }
+    }
+}
+
+impl<T, M> InplaceBuffer for Buffer<T, M>
+where
+    T: CpuSample,
+    M: BufferMode,
 {
     type Item = T;
 
     fn set_valid(&mut self, valid: usize) {
-        self.valid = valid;
+        self.storage_mut().valid = valid;
     }
 
     fn slice(&mut self) -> &mut [Self::Item] {
-        &mut self.buffer[0..self.valid]
+        let storage = self.storage_mut();
+        &mut storage.buffer[0..storage.valid]
     }
 
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], &mut Vec<ItemTag>) {
-        (&mut self.buffer[0..self.valid], &mut self.tags)
+        let storage = self.storage_mut();
+        (&mut storage.buffer[0..storage.valid], &mut storage.tags)
     }
 }
 
@@ -146,9 +231,9 @@ where
 {
     core: PortCore<M>,
     state: ConnectionState<ConnectedWriter<T, M>>,
-    inbound: EmptyBuffers<T>,
+    inbound: EmptyBuffers<T, M>,
     buffer_size_in_items: usize,
-    current: Option<Buffer<T>>,
+    current: Option<Buffer<T, M>>,
     tags: Vec<ItemTag>,
 }
 
@@ -158,7 +243,7 @@ where
     M: BufferMode,
 {
     reader: PortEndpoint<M>,
-    outbound: FullBuffers<T>,
+    outbound: FullBuffers<T, M>,
 }
 
 impl<T, M> Writer<T, M>
@@ -176,11 +261,6 @@ where
             current: None,
             tags: Vec::new(),
         }
-    }
-
-    /// Close the in-place circuit by connecting its end back to this writer.
-    pub fn close_circuit(&mut self, end: &mut Reader<T, M>) {
-        end.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
     }
 }
 
@@ -251,25 +331,13 @@ where
     }
 }
 
-impl<T, M> CircuitWriter for Writer<T, M>
-where
-    T: CpuSample,
-    M: BufferMode,
-{
-    type CircuitEnd = Reader<T, M>;
-
-    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.circuit_start = Some(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
-    }
-}
-
 impl<T, M> InplaceWriter for Writer<T, M>
 where
     T: CpuSample,
     M: BufferMode,
 {
     type Item = T;
-    type Buffer = Buffer<T>;
+    type Buffer = Buffer<T, M>;
 
     fn put_full_buffer(&mut self, buffer: Self::Buffer) {
         queue_push(&self.state.connected().outbound, buffer);
@@ -277,14 +345,12 @@ where
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {
-        queue_pop_back(&self.inbound).map(|b| {
-            if let Some(mut b) = b {
-                b.valid = b.buffer.len();
-                b.tags.clear();
-                b
-            } else {
-                Buffer::with_items(self.buffer_size_in_items)
-            }
+        queue_pop_back(&self.inbound).map(|mut buffer| {
+            let storage = buffer.storage_mut();
+            storage.valid = storage.buffer.len();
+            storage.tags.clear();
+            buffer.arm(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
+            buffer
         })
     }
 
@@ -295,7 +361,7 @@ where
     fn inject_buffers_with_items(&mut self, n_buffers: usize, n_items: usize) {
         self.buffer_size_in_items = n_items;
         for _ in 0..n_buffers {
-            queue_push(&self.inbound, Some(Buffer::with_items(n_items)));
+            queue_push(&self.inbound, Buffer::with_items(n_items));
         }
     }
 }
@@ -310,13 +376,10 @@ where
     fn slice_with_tags(&mut self) -> (&mut [Self::Item], Tags<'_>) {
         if self.current.is_none() {
             match queue_pop_back(&self.inbound) {
-                Some(Some(mut b)) => {
-                    b.valid = 0;
-                    b.tags.clear();
-                    self.current = Some(b);
-                }
-                Some(None) => {
-                    self.current = Some(Buffer::with_items(self.buffer_size_in_items));
+                Some(mut buffer) => {
+                    buffer.storage_mut().reset();
+                    buffer.arm(CircuitReturn::new(self.core.inbox(), self.inbound.clone()));
+                    self.current = Some(buffer);
                 }
                 None => {
                     return (&mut [], Tags::new(&mut self.tags, 0));
@@ -325,7 +388,12 @@ where
         }
 
         let c = self.current.as_mut().unwrap();
-        (&mut c.buffer[c.valid..], Tags::new(&mut c.tags, c.valid))
+        let storage = c.storage_mut();
+        let valid = storage.valid;
+        (
+            &mut storage.buffer[valid..],
+            Tags::new(&mut storage.tags, valid),
+        )
     }
 
     fn produce(&mut self, n: usize) {
@@ -334,9 +402,10 @@ where
         }
 
         let c = self.current.as_mut().unwrap();
-        debug_assert!(n <= c.buffer.len() - c.valid);
-        c.valid += n;
-        if (c.buffer.len() - c.valid) < self.core.min_items().unwrap_or(1) {
+        let storage = c.storage_mut();
+        debug_assert!(n <= storage.buffer.len() - storage.valid);
+        storage.valid += n;
+        if (storage.buffer.len() - storage.valid) < self.core.min_items().unwrap_or(1) {
             let c = self.current.take().unwrap();
             queue_push(&self.state.connected().outbound, c);
 
@@ -371,9 +440,8 @@ where
 {
     core: PortCore<M>,
     state: ConnectionState<ConnectedReader<T, M>>,
-    circuit_start: Option<CircuitReturn<M::Inbox, EmptyBuffers<T>>>,
     finished: bool,
-    current: Option<(Buffer<T>, usize)>,
+    current: Option<(Buffer<T, M>, usize)>,
 }
 
 struct ConnectedReader<T, M>
@@ -382,7 +450,7 @@ where
     M: BufferMode,
 {
     writer: PortEndpoint<M>,
-    inbound: FullBuffers<T>,
+    inbound: FullBuffers<T, M>,
 }
 
 impl<T, M> Reader<T, M>
@@ -395,7 +463,6 @@ where
         Self {
             core: PortCore::new_disconnected(),
             state: ConnectionState::disconnected(),
-            circuit_start: None,
             finished: false,
             current: None,
         }
@@ -471,7 +538,7 @@ where
     M: BufferMode,
 {
     type Item = T;
-    type Buffer = Buffer<T>;
+    type Buffer = Buffer<T, M>;
 
     fn get_full_buffer(&mut self) -> Option<Self::Buffer> {
         queue_pop(&self.state.connected().inbound)
@@ -479,25 +546,6 @@ where
 
     fn has_more_buffers(&mut self) -> bool {
         !queue_is_empty(&self.state.connected().inbound)
-    }
-
-    fn put_empty_buffer(&mut self, mut buffer: Self::Buffer) {
-        buffer.tags.clear();
-        if let Some(circuit_start) = self.circuit_start.as_ref() {
-            queue_push(circuit_start.queue(), Some(buffer));
-            circuit_start.notify();
-        } else {
-            warn!("Put empty buffer in unconnected circuit reader. Dropping buffer.")
-        }
-    }
-
-    fn notify_consumed_buffer(&mut self) {
-        if let Some(circuit_start) = self.circuit_start.as_ref() {
-            queue_push(circuit_start.queue(), None);
-            circuit_start.notify();
-        } else {
-            warn!("Dropped buffer in unconnected circuit reader. Dropping buffer.")
-        }
     }
 }
 
@@ -522,7 +570,8 @@ where
         }
 
         let (c, o) = self.current.as_mut().unwrap();
-        (&c.buffer[*o..c.valid], &c.tags)
+        let storage = c.storage();
+        (&storage.buffer[*o..storage.valid], &storage.tags)
     }
 
     fn consume(&mut self, n: usize) {
@@ -531,23 +580,12 @@ where
         }
 
         let (c, o) = self.current.as_mut().unwrap();
-        debug_assert!(n <= c.valid - *o);
+        let valid = c.storage().valid;
+        debug_assert!(n <= valid - *o);
         *o += n;
 
-        if *o == c.valid {
-            let (mut b, _) = self.current.take().unwrap();
-            b.tags.clear();
-            match self.circuit_start.as_ref() {
-                Some(circuit_start) => {
-                    queue_push(circuit_start.queue(), Some(b));
-                    circuit_start.notify();
-                }
-                None => {
-                    warn!(
-                        "circuit reader used as cpu buffer reader but not connected to circuit start. dropping buffer."
-                    );
-                }
-            }
+        if *o == valid {
+            let _ = self.current.take().unwrap();
 
             if !queue_is_empty(&self.state.connected().inbound) {
                 self.core.inbox().notify();

@@ -253,7 +253,18 @@ pub enum FlowgraphMessage {
         /// The Block that ran into an error.
         block_id: BlockId,
     },
-    /// Call handler of block (ignoring result)
+    /// Post a message to a block handler without waiting for handler completion.
+    BlockPost {
+        /// Block Id
+        block_id: BlockId,
+        /// Message handler Id
+        port_id: PortId,
+        /// Input data
+        data: Pmt,
+        /// Back channel for runtime forwarding result
+        tx: oneshot::Sender<Result<(), Error>>,
+    },
+    /// Call a block handler and wait for its return value.
     BlockCall {
         /// Block Id
         block_id: BlockId,
@@ -261,18 +272,7 @@ pub enum FlowgraphMessage {
         port_id: PortId,
         /// Input data
         data: Pmt,
-        /// Back channel for result
-        tx: oneshot::Sender<Result<(), Error>>,
-    },
-    /// Call handler of block
-    BlockCallback {
-        /// Block Id
-        block_id: BlockId,
-        /// Message handler Id
-        port_id: PortId,
-        /// Input data
-        data: Pmt,
-        /// Back channel for result
+        /// Back channel for handler result
         tx: oneshot::Sender<Result<Pmt, Error>>,
     },
     /// Get [`FlowgraphDescription`]
@@ -313,15 +313,15 @@ pub(crate) enum BlockMessage {
         /// Stream output Id
         output_id: PortId,
     },
-    /// Call handler (return value is ignored)
-    Call {
+    /// Post to a message handler without waiting for handler completion.
+    Post {
         /// Message handler Id
         port_id: PortId,
         /// [`Pmt`] input data
         data: Pmt,
     },
-    /// Call handler
-    Callback {
+    /// Call a message handler and wait for its return value.
+    Call {
         /// Message handler Id
         port_id: PortId,
         /// [`Pmt`] input data

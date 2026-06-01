@@ -13,7 +13,6 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::CircuitWriter;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferWriter;
 use crate::runtime::buffer::CpuSample;
@@ -24,8 +23,6 @@ use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::vulkan::Buffer;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
-
-use super::d2h;
 
 #[self_referencing]
 #[derive(Debug)]
@@ -72,11 +69,6 @@ where
     /// Add a reusable Vulkan buffer to the circuit.
     pub fn add_buffer(&mut self, buffer: Buffer<T>) {
         self.inbound.lock().unwrap().push(buffer);
-    }
-
-    /// Close the circuit to a Vulkan device-to-host reader.
-    pub fn close_circuit(&mut self, end: &mut d2h::Reader<T>) {
-        end.close_circuit(self.core.inbox(), self.inbound.clone());
     }
 }
 
@@ -157,17 +149,6 @@ where
 
     fn port_id(&self) -> PortId {
         self.core.port_id()
-    }
-}
-
-impl<T> CircuitWriter for Writer<T>
-where
-    T: BufferContents + CpuSample,
-{
-    type CircuitEnd = d2h::Reader<T>;
-
-    fn close_circuit(&mut self, dst: &mut Self::CircuitEnd) {
-        dst.close_circuit(self.core.inbox(), self.inbound.clone());
     }
 }
 

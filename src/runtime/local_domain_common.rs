@@ -2,8 +2,11 @@ use futures::Future;
 use std::pin::Pin;
 
 use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
+use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockInbox;
@@ -91,13 +94,44 @@ impl LocalDomainState {
     pub(crate) fn push_message(
         &self,
         block_id: BlockId,
-        message: crate::runtime::BlockMessage,
+        message: BlockMessage,
     ) -> Result<(), Error> {
         let local_id = self
             .local_id_for_block(block_id)
             .ok_or(Error::InvalidBlock(block_id))?;
         let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
         inbox.push(message);
+        Ok(())
+    }
+
+    pub(crate) fn push_call(
+        &self,
+        block_id: BlockId,
+        port_id: PortId,
+        data: Pmt,
+        reply: oneshot::Sender<Result<Pmt, Error>>,
+    ) -> Result<(), Error> {
+        let local_id = match self.local_id_for_block(block_id) {
+            Some(local_id) => local_id,
+            None => {
+                let e = Error::InvalidBlock(block_id);
+                let _ = reply.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
+        let inbox = match self.inbox(local_id) {
+            Some(inbox) => inbox,
+            None => {
+                let e = Error::InvalidBlock(block_id);
+                let _ = reply.send(Err(e.clone()));
+                return Err(e);
+            }
+        };
+        inbox.push(BlockMessage::Call {
+            port_id,
+            data,
+            tx: reply,
+        });
         Ok(())
     }
 
@@ -173,7 +207,13 @@ pub(crate) enum LocalDomainMessage {
     Exec(LocalDomainAsyncExec),
     Post {
         block_id: BlockId,
-        message: crate::runtime::BlockMessage,
+        message: BlockMessage,
+    },
+    Call {
+        block_id: BlockId,
+        port_id: PortId,
+        data: Pmt,
+        reply: oneshot::Sender<Result<Pmt, Error>>,
     },
     Notify {
         block_id: BlockId,

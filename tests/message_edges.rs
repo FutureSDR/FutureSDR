@@ -124,3 +124,20 @@ fn local_domain_context_message_edge_delivers_once() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn running_call_can_target_local_domain_block() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let domain = fg.local_domain()?;
+    let snk = fg.add_local(domain, CountMsg::new);
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let reply = futuresdr::runtime::block_on(running.call(snk, "in", Pmt::U32(1)))?;
+    assert_eq!(reply, Pmt::U64(1));
+
+    let fg = futuresdr::runtime::block_on(running.stop_and_wait())?;
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
+
+    Ok(())
+}
