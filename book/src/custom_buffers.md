@@ -85,7 +85,7 @@ In-place buffers move owned chunks through the graph. They are connected like no
 connect!(fg, src > apply > snk);
 ```
 
-A buffer carries its origin return handle while it is in flight. When the final owner drops the buffer, it automatically returns to the source writer's empty-buffer queue and wakes that writer. If backend-specific ownership consumes the original storage, the drop path may return an equivalent capacity permit instead and let the writer allocate replacement storage later. There is no separate circuit-closing connection or `<` operator.
+A buffer carries its origin return handle while it is in flight. When the final owner drops the buffer, it automatically returns to the source writer's empty-buffer queue and wakes that writer. If backend-specific ownership consumes the original storage, the drop path may return an equivalent capacity permit instead and let the writer allocate replacement storage later. `put_full_buffer()` should return an error rather than silently dropping data if no output capacity or permit is available. There is no separate circuit-closing connection or `<` operator.
 
 ## Accelerator Handoff Buffers
 

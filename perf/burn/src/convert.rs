@@ -67,7 +67,7 @@ impl<B: Backend> Kernel for Convert<B> {
 
         if m == output.len() / 2 {
             let (b, _) = self.current.take().unwrap();
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
             if self.output.has_more_buffers() {
                 io.call_again = true;
             }

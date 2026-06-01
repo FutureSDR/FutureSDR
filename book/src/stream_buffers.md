@@ -70,7 +70,7 @@ This can help for simple transformations, such as adding a constant to every sam
 In-place buffers have a different API from normal CPU buffers:
 
 - `SendInplaceReader::get_full_buffer()` receives a full reusable buffer chunk.
-- `SendInplaceWriter::put_full_buffer()` forwards the same chunk after processing.
+- `SendInplaceWriter::put_full_buffer()` forwards the same chunk after processing and returns an error if no output capacity/permit is available.
 - `InplaceBuffer::slice()` gives mutable access to the chunk contents.
 
 That means in-place processing usually needs blocks written for the in-place API. See the [in-place example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/inplace) for complete source.

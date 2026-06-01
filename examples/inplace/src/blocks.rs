@@ -45,7 +45,7 @@ where
             self.offset += m;
             b.set_valid(m);
 
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
 
             if self.offset == self.items.len() {
                 io.finished = true;
@@ -107,7 +107,7 @@ where
         if let Some(mut b) = self.input.get_full_buffer() {
             let data = b.slice();
             data.iter_mut().for_each(|i| *i = i.wrapping_add(1));
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

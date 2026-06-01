@@ -44,7 +44,7 @@ where
         if let Some(mut b) = self.output.get_empty_buffer() {
             let n = b.slice().len();
             b.set_valid(n);
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
             if self.output.has_more_buffers() {
                 io.call_again = true;
             }
@@ -102,7 +102,7 @@ where
             let m = std::cmp::min(self.remaining as usize, b.slice().len());
             b.set_valid(m);
             self.remaining -= m as u64;
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
 
             if self.remaining == 0 {
                 io.finished = true;
@@ -169,7 +169,7 @@ where
     ) -> Result<()> {
         if let Some(mut b) = self.input.get_full_buffer() {
             b.slice().iter_mut().for_each(|x| *x = x.wrapping_add(1));
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

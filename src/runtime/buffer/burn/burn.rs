@@ -360,11 +360,12 @@ where
     type Item = SW;
     type Buffer = Buffer<B, E, SW>;
 
-    fn put_full_buffer(&mut self, mut buffer: Self::Buffer) {
+    fn put_full_buffer(&mut self, mut buffer: Self::Buffer) -> Result<(), Error> {
         if !buffer.has_permit() {
             if !self.try_acquire_permit() {
-                warn!("cannot submit burn buffer, no empty-buffer permit available");
-                return;
+                return Err(Error::RuntimeError(
+                    "cannot submit burn buffer, no empty-buffer permit available".to_string(),
+                ));
             }
             buffer.arm(self.permit_return());
         }
@@ -375,6 +376,7 @@ where
             .unwrap()
             .push_back(buffer.cast());
         self.state.connected().reader.inbox().notify();
+        Ok(())
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {

@@ -100,8 +100,7 @@ impl Kernel for Fft {
             let mag = Tensor::cat(vec![first_half, second_half], 0);
             let mag = mag.log().div_scalar(std::f32::consts::LN_10);
 
-            let _ = self.output.get_empty_buffer().unwrap();
-            self.output.put_full_buffer(Buffer::from_tensor(mag));
+            self.output.put_full_buffer(Buffer::from_tensor(mag))?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

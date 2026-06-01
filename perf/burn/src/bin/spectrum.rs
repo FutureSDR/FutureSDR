@@ -93,8 +93,7 @@ impl Kernel for Fft {
             let first_half = mag.slice(half..);
             let mag = Tensor::cat(vec![first_half, second_half], 0);
 
-            let _ = self.output.get_empty_buffer().unwrap();
-            self.output.put_full_buffer(Buffer::from_tensor(mag));
+            self.output.put_full_buffer(Buffer::from_tensor(mag))?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;
@@ -156,7 +155,7 @@ impl Kernel for Convert {
 
         if m == output.len() / 2 {
             let (b, _) = self.current.take().unwrap();
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
             if self.output.has_more_buffers() {
                 io.call_again = true;
             }

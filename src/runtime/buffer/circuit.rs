@@ -339,9 +339,10 @@ where
     type Item = T;
     type Buffer = Buffer<T, M>;
 
-    fn put_full_buffer(&mut self, buffer: Self::Buffer) {
+    fn put_full_buffer(&mut self, buffer: Self::Buffer) -> Result<(), Error> {
         queue_push(&self.state.connected().outbound, buffer);
         self.state.connected().reader.inbox().notify();
+        Ok(())
     }
 
     fn get_empty_buffer(&mut self) -> Option<Self::Buffer> {

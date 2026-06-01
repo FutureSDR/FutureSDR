@@ -997,7 +997,7 @@ pub trait InplaceWriter: BufferWriter + Default {
     type Buffer: InplaceBuffer<Item = Self::Item>;
 
     /// Submit a full buffer to the downstream reader.
-    fn put_full_buffer(&mut self, buffer: Self::Buffer);
+    fn put_full_buffer(&mut self, buffer: Self::Buffer) -> Result<(), Error>;
 
     /// Get an empty buffer, if one is available.
     ///

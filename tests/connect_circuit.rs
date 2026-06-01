@@ -44,7 +44,7 @@ where
             data[..n].clone_from_slice(&self.items[self.offset..self.offset + n]);
             self.offset += n;
             buffer.set_valid(n);
-            self.output.put_full_buffer(buffer);
+            self.output.put_full_buffer(buffer)?;
 
             if self.offset == self.items.len() {
                 if self.repeat {
@@ -102,7 +102,7 @@ where
                 .slice()
                 .iter_mut()
                 .for_each(|item| *item = item.wrapping_add(1));
-            self.output.put_full_buffer(buffer);
+            self.output.put_full_buffer(buffer)?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

@@ -150,8 +150,7 @@ impl Kernel for Fft {
             let shift = mag.gather(0, self.fft_shift.clone());
             let shift = shift.log().div_scalar(std::f32::consts::LN_10);
 
-            let _ = self.output.get_empty_buffer().unwrap();
-            self.output.put_full_buffer(Buffer::from_tensor(shift));
+            self.output.put_full_buffer(Buffer::from_tensor(shift))?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

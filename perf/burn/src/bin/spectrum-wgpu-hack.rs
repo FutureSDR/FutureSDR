@@ -540,7 +540,7 @@ fn reduce_power_mean_shift_log(
                 out.slice()[..FFT_SIZE].copy_from_slice(vals);
             }
             state.readback_bufs[pending.slot].unmap();
-            self.output.put_full_buffer(out);
+            self.output.put_full_buffer(out)?;
             return Ok(true);
         }
 
@@ -564,7 +564,7 @@ fn reduce_power_mean_shift_log(
             out.slice()[..FFT_SIZE].copy_from_slice(vals);
         }
         state.readback_bufs[pending.slot].unmap();
-        self.output.put_full_buffer(out);
+        self.output.put_full_buffer(out)?;
         Ok(true)
     }
 }

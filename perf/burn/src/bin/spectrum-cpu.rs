@@ -88,7 +88,7 @@ impl Kernel for Fft {
 
             let mut b = self.output.get_empty_buffer().unwrap();
             b.slice().copy_from_slice(mag.as_slice().unwrap());
-            self.output.put_full_buffer(b);
+            self.output.put_full_buffer(b)?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;

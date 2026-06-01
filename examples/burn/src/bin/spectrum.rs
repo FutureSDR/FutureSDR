@@ -80,8 +80,7 @@ impl Kernel for Fft {
             let mag = t.powi_scalar(2).sum_dim(2).mean_dim(0).reshape([FFT_SIZE]);
             let shift = mag.gather(0, self.fft_shift.clone());
 
-            let _ = self.output.get_empty_buffer().unwrap();
-            self.output.put_full_buffer(Buffer::from_tensor(shift));
+            self.output.put_full_buffer(Buffer::from_tensor(shift))?;
 
             if self.input.has_more_buffers() {
                 io.call_again = true;
