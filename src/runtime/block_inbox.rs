@@ -375,49 +375,6 @@ struct LocalInboxState {
 #[derive(Clone, Debug)]
 pub struct LocalBlockInbox(Rc<LocalInboxState>);
 
-thread_local! {
-    static LOCAL_DISPATCH_CONTEXT: RefCell<Option<Vec<Option<LocalBlockInbox>>>> = const { RefCell::new(None) };
-}
-
-/// Guard returned while a local domain dispatch context is installed.
-pub(crate) struct LocalDispatchContextGuard {
-    previous: Option<Vec<Option<LocalBlockInbox>>>,
-}
-
-impl Drop for LocalDispatchContextGuard {
-    fn drop(&mut self) {
-        LOCAL_DISPATCH_CONTEXT.with(|context| {
-            context.replace(self.previous.take());
-        });
-    }
-}
-
-/// Install a domain-local dispatch context for direct local message delivery.
-pub(crate) fn enter_local_dispatch_context(
-    inboxes: Vec<Option<LocalBlockInbox>>,
-) -> LocalDispatchContextGuard {
-    let previous = LOCAL_DISPATCH_CONTEXT.with(|context| context.replace(Some(inboxes)));
-    LocalDispatchContextGuard { previous }
-}
-
-/// Deliver a message to a local-domain inbox through the current dispatch context.
-pub(crate) fn deliver_local_message(local_id: usize, message: BlockMessage) -> Result<(), Error> {
-    LOCAL_DISPATCH_CONTEXT.with(|context| {
-        let context = context.borrow();
-        let inbox = context
-            .as_ref()
-            .and_then(|inboxes| inboxes.get(local_id))
-            .and_then(Option::as_ref)
-            .ok_or_else(|| {
-                Error::RuntimeError(format!(
-                    "local message handler has no dispatch inbox for local block slot {local_id}"
-                ))
-            })?;
-        inbox.push(message);
-        Ok(())
-    })
-}
-
 impl LocalInboxState {
     fn new(notifier: LocalBlockNotifier) -> Self {
         Self {

@@ -542,15 +542,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     ) -> Result<(), Error> {
         self.mo.connect(src_port, dst_box, dst_port)
     }
-    fn connect_local(
-        &mut self,
-        src_port: &PortId,
-        dst_local_id: usize,
-        dst_port: &PortId,
-    ) -> Result<(), Error> {
-        self.mo.connect_local(src_port, dst_local_id, dst_port)
-    }
-
     fn type_name(&self) -> &str {
         K::type_name()
     }

@@ -2,7 +2,6 @@ use std::any::Any;
 use std::fmt;
 
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
@@ -67,19 +66,6 @@ pub trait BlockObject: Any {
         sender: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error>;
-
-    /// Connect one message output port to a same-domain local block.
-    fn connect_local(
-        &mut self,
-        src_port: &PortId,
-        _dst_local_id: usize,
-        _dst_port: &PortId,
-    ) -> Result<(), Error> {
-        Err(Error::InvalidMessagePort(
-            BlockPortCtx::Id(self.id()),
-            src_port.clone(),
-        ))
-    }
 
     /// Get the static type name of the block.
     fn type_name(&self) -> &str;
