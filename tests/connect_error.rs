@@ -88,6 +88,24 @@ fn stream_self_connection_is_rejected() -> Result<()> {
 }
 
 #[test]
+fn stream_duplicate_input_is_rejected_at_startup() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src0 = fg.add(NullSource::<f32>::new());
+    let src1 = fg.add(NullSource::<f32>::new());
+    let snk = fg.add(NullSink::<f32>::new());
+
+    fg.stream_dyn(src0, "output", snk, "input")?;
+    fg.stream_dyn(src1, "output", snk, "input")?;
+
+    match Runtime::new().run(fg) {
+        Err(Error::ValidationError(msg)) => assert!(msg.contains("more than one connection")),
+        Err(e) => panic!("Expected ValidationError got {e:?}"),
+        Ok(_) => panic!("Expected ValidationError got Ok(..)"),
+    }
+    Ok(())
+}
+
+#[test]
 fn stream_cycle_is_rejected_at_startup() -> Result<()> {
     let mut fg = Flowgraph::new();
     let a = fg.add(Copy::<f32>::new());

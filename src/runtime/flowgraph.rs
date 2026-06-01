@@ -243,12 +243,12 @@ impl StreamEdge {
 pub(crate) struct StartupSnapshot {
     inboxes: Vec<Option<BlockInbox>>,
     ids: Vec<BlockId>,
-    message_edges: Vec<Edge>,
 }
 
 struct PreparedFlowgraph {
     startup: StartupSnapshot,
     stream_edges: Vec<Edge>,
+    message_edges: Vec<Edge>,
     stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     normal_topology: DomainTopology,
@@ -2676,13 +2676,6 @@ impl Flowgraph {
     }
 
     async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
-        if self
-            .stream_input_connected(edge.dst_block, &edge.dst_port)
-            .await?
-        {
-            return Ok(());
-        }
-
         match self.stream_plan_by_id(edge.src_block, edge.dst_block)? {
             StreamPlan::NormalNormal { src, dst } => {
                 self.connect_normal_normal_stream_dyn(src, &edge.src_port, dst, &edge.dst_port)?;
@@ -2822,18 +2815,15 @@ impl Flowgraph {
     }
 
     fn prepare(
-        &self,
+        &mut self,
         main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<
-        impl std::future::Future<Output = Result<PreparedFlowgraph, Error>> + Send + 'static,
-        Error,
-    > {
+    ) -> Result<PreparedFlowgraph, Error> {
         self.validate_stream_graph()?;
-        let stream_edges = self
-            .stream_edges
-            .iter()
-            .map(StreamEdge::edge)
+        let stream_edges = std::mem::take(&mut self.stream_edges)
+            .into_iter()
+            .map(|edge| edge.edge())
             .collect::<Vec<_>>();
+        let message_edges = std::mem::take(&mut self.message_edges);
         let normal_block_ids = self
             .blocks
             .iter()
@@ -2870,33 +2860,30 @@ impl Flowgraph {
             })
             .collect::<Vec<_>>();
         let startup = self.startup_snapshot()?;
-
-        Ok(async move {
-            let startup = startup.await?;
-            let stream_edges_desc = Self::edge_endpoints(&stream_edges);
-            let message_edges_desc = Self::edge_endpoints(&startup.message_edges);
-            let normal_topology =
-                Self::domain_topology(&normal_block_ids, &stream_edges, &startup.message_edges);
-            let local_specs = local_domain_slots
-                .into_iter()
-                .map(|(domain_id, handle, slots, block_ids)| {
-                    LocalDomainSpec::new(
-                        domain_id,
-                        handle,
-                        slots,
-                        Self::domain_topology(&block_ids, &stream_edges, &startup.message_edges),
-                        main_channel.clone(),
-                    )
-                })
-                .collect();
-            Ok(PreparedFlowgraph {
-                startup,
-                stream_edges,
-                stream_edges_desc,
-                message_edges_desc,
-                normal_topology,
-                local_specs,
+        let stream_edges_desc = Self::edge_endpoints(&stream_edges);
+        let message_edges_desc = Self::edge_endpoints(&message_edges);
+        let normal_topology =
+            Self::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
+        let local_specs = local_domain_slots
+            .into_iter()
+            .map(|(domain_id, handle, slots, block_ids)| {
+                LocalDomainSpec::new(
+                    domain_id,
+                    handle,
+                    slots,
+                    Self::domain_topology(&block_ids, &stream_edges, &message_edges),
+                    main_channel.clone(),
+                )
             })
+            .collect();
+        Ok(PreparedFlowgraph {
+            startup,
+            stream_edges,
+            message_edges,
+            stream_edges_desc,
+            message_edges_desc,
+            normal_topology,
+            local_specs,
         })
     }
 
@@ -2910,13 +2897,7 @@ impl Flowgraph {
         debug!("in run_flowgraph");
 
         let prepared = match self.prepare(main_channel.clone()) {
-            Ok(prepare) => match prepare.await {
-                Ok(prepared) => prepared,
-                Err(e) => {
-                    let _ = initialized.send(Err(e.clone()));
-                    return Err(e);
-                }
-            },
+            Ok(prepared) => prepared,
             Err(e) => {
                 let _ = initialized.send(Err(e.clone()));
                 return Err(e);
@@ -2925,16 +2906,13 @@ impl Flowgraph {
         let PreparedFlowgraph {
             startup,
             stream_edges,
+            message_edges,
             stream_edges_desc,
             message_edges_desc,
             normal_topology,
             local_specs,
         } = prepared;
-        let StartupSnapshot {
-            mut inboxes,
-            ids,
-            message_edges,
-        } = startup;
+        let StartupSnapshot { mut inboxes, ids } = startup;
         if let Err(e) = self.apply_stream_edges(&stream_edges).await {
             let _ = initialized.send(Err(e.clone()));
             return Err(e);
@@ -3243,6 +3221,7 @@ impl Flowgraph {
 
     pub(crate) fn validate_stream_graph(&self) -> Result<(), Error> {
         let mut adjacency = vec![Vec::new(); self.blocks.len()];
+        let mut connected_inputs = Vec::with_capacity(self.stream_edges.len());
         for edge in &self.stream_edges {
             let (src, dst) = edge.endpoints();
             if src == dst {
@@ -3256,6 +3235,18 @@ impl Flowgraph {
             if dst.0 >= self.blocks.len() {
                 return Err(Error::InvalidBlock(dst));
             }
+            if connected_inputs
+                .iter()
+                .any(|(block, port)| *block == dst && port == &edge.dst_port)
+            {
+                return Err(Error::ValidationError(format!(
+                    "stream input {:?}.{} has more than one connection",
+                    dst,
+                    edge.dst_port.name()
+                )));
+            }
+            connected_inputs.push((dst, edge.dst_port.clone()));
+
             if edge.local {
                 match self.stream_plan_by_id(src, dst)? {
                     StreamPlan::LocalLocalSame { .. } => {}
@@ -3305,22 +3296,9 @@ impl Flowgraph {
         Ok(())
     }
 
-    pub(crate) fn startup_snapshot(
-        &self,
-    ) -> Result<
-        impl std::future::Future<Output = Result<StartupSnapshot, Error>> + Send + 'static,
-        Error,
-    > {
+    pub(crate) fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
         let (inboxes, ids) = self.inboxes()?;
-        let message_edges = self.message_edges.clone();
-
-        Ok(async move {
-            Ok(StartupSnapshot {
-                inboxes,
-                ids,
-                message_edges,
-            })
-        })
+        Ok(StartupSnapshot { inboxes, ids })
     }
 
     pub(crate) fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
