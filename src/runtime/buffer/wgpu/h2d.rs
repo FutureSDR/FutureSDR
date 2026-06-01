@@ -397,6 +397,9 @@ where
     }
 
     /// Return an empty staging buffer to the writer.
+    ///
+    /// This is the explicit reusable-resource return path for WGPU H2D
+    /// handoff buffers. These tokens are not in-place circuit buffers.
     pub fn submit(&mut self, buffer: BufferEmpty<D>) {
         let Some(instance) = self.instance.clone() else {
             panic!("H2D reader: set_instance() must be called before submit");
@@ -455,6 +458,9 @@ where
     }
 
     /// Get the next full staging buffer, if available.
+    ///
+    /// The returned token must be handled by the accelerator block and returned
+    /// explicitly; it does not carry an in-place circuit drop-recycle handle.
     pub fn get_buffer(&mut self) -> Option<BufferFull<D>> {
         let slot_id = self.ready_ids.lock().unwrap().pop_front()?;
         let mut slots = self.slots.lock().unwrap();

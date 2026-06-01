@@ -63,12 +63,18 @@ where
     }
 
     /// Take all empty DMA buffers available for device output.
+    ///
+    /// The returned tokens are explicit Zynq DMA handoff resources, not
+    /// in-place circuit buffers with drop-based recycling.
     pub fn buffers(&mut self) -> Vec<BufferEmpty> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
     }
 
     /// Submit a full DMA buffer to the downstream CPU reader.
+    ///
+    /// This is the explicit handoff path from DMA-producing code to the CPU
+    /// reader; it is not an in-place circuit close/recycle operation.
     pub fn submit(&mut self, buffer: BufferFull) {
         self.outbound.lock().unwrap().push_back(buffer);
         self.state.connected().reader.inbox().notify();

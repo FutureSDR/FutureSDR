@@ -30,14 +30,17 @@ pub mod circular;
 pub mod slab;
 
 // ==================== VULKAN =======================
+/// Vulkan accelerator handoff buffers.
 #[cfg(feature = "vulkan")]
 pub mod vulkan;
 
 // ==================== WGPU =======================
+/// WGPU accelerator handoff buffers.
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
 
 // -==================== ZYNQ ========================
+/// Xilinx Zynq DMA handoff buffers.
 #[cfg(all(feature = "zynq", target_os = "linux"))]
 pub mod zynq;
 

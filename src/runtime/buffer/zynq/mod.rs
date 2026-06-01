@@ -1,4 +1,8 @@
-//! Zynq custom buffers
+//! Xilinx Zynq DMA handoff buffers.
+//!
+//! These buffers are regular stream buffers with DMA-specific resource tokens.
+//! They are not in-place circuit buffers; reusable DMA buffers are handed out
+//! and returned through explicit Zynq buffer APIs.
 use xilinx_dma::DmaBuffer;
 
 mod d2h;

@@ -87,6 +87,12 @@ connect!(fg, src > apply > snk);
 
 A buffer carries its origin return handle while it is in flight. When the final owner drops the buffer, it automatically returns to the source writer's empty-buffer queue and wakes that writer. There is no separate circuit-closing connection or `<` operator.
 
+## Accelerator Handoff Buffers
+
+GPU, tensor, and DMA buffers may expose backend-specific resource tokens instead of the in-place circuit traits. For example, Vulkan, WGPU, and Zynq buffers move storage buffers, mapped staging buffers, or DMA buffers through explicit APIs such as `get_buffer()`, `buffers()`, and `submit()`.
+
+These tokens are regular accelerator handoff resources unless the implementation also implements `InplaceWriter` / `InplaceReader` / `InplaceBuffer`. The in-place drop-recycle rule does not automatically apply to them. Document which side owns each token, how a block returns it to the reusable pool, and what happens if a token is dropped instead of returned.
+
 ## Validation and Testing
 
 Validation should catch unconnected ports, wrong peer state, and missing hardware resources before any block `init()` method runs. Prefer returning `Error::ValidationError` with the owning block and port context when possible.

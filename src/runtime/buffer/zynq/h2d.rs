@@ -251,12 +251,18 @@ where
     }
 
     /// Return an empty DMA buffer to the writer.
+    ///
+    /// This is the explicit reusable-resource return path for Zynq H2D
+    /// handoff buffers. These tokens are not in-place circuit buffers.
     pub fn submit(&mut self, buffer: BufferEmpty) {
         self.outbound.lock().unwrap().push(buffer);
         self.state.connected().writer.inbox().notify();
     }
 
     /// Get the next full DMA buffer, if available.
+    ///
+    /// The returned token must be handled by the accelerator block and returned
+    /// explicitly; it does not carry an in-place circuit drop-recycle handle.
     pub fn get_buffer(&mut self) -> Option<BufferFull> {
         let mut vec = self.inbound.lock().unwrap();
         vec.pop_front()

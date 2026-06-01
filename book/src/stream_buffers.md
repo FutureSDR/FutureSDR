@@ -132,6 +132,8 @@ Accelerator buffers use the same connection model but expose APIs that match the
 
 These buffer APIs are intentionally not standardized beyond `BufferWriter` / `BufferReader` and their send-capable marker counterparts. A GPU block may need mapped buffers. A DMA block may need hardware buffer handles. A tensor buffer may need framework-specific tensor ownership.
 
+Vulkan, WGPU, and Zynq buffers are accelerator handoff buffers, not in-place circuit buffers. They do not get the `InplaceBuffer` drop-recycle guarantee unless an implementation explicitly exposes the in-place traits. Instead, their reusable resource lifecycle is explicit: accelerator blocks take full or empty resource tokens with APIs such as `get_buffer()` or `buffers()`, and return them with APIs such as `submit()` or by consuming the CPU-side reader completely. Dropping such a token may release or lose that resource from the reusable pool, depending on the backend.
+
 Accelerator buffer implementations typically also implement CPU buffer traits at the host boundary:
 
 - Host-to-device writers implement `CpuBufferWriter` and, when send-capable, `SendCpuBufferWriter`, so a CPU source can write samples into an upload buffer.

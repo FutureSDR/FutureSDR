@@ -61,6 +61,9 @@ where
     }
 
     /// Submit a full GPU buffer to the downstream CPU reader.
+    ///
+    /// This is an explicit Vulkan handoff token return path, not an in-place
+    /// circuit drop-recycle path.
     pub fn submit(&mut self, buffer: Buffer<T>) {
         self.state
             .connected()

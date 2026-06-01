@@ -64,6 +64,9 @@ where
     }
 
     /// Take all empty readback buffers available for device output.
+    ///
+    /// The returned tokens are explicit WGPU handoff resources, not in-place
+    /// circuit buffers with drop-based recycling.
     pub fn buffers(&mut self) -> Vec<BufferEmpty<D>> {
         let mut vec = self.inbound.lock().unwrap();
         std::mem::take(&mut vec)
@@ -95,6 +98,9 @@ where
     }
 
     /// Submit a full readback buffer to the downstream CPU reader.
+    ///
+    /// This is the explicit handoff path from the accelerator block to the CPU
+    /// reader; it is not an in-place circuit close/recycle operation.
     pub fn submit(&mut self, buffer: BufferFull<D>) {
         self.outbound.lock().unwrap().push_back(buffer);
         self.state.connected().reader.inbox().notify();

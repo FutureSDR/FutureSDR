@@ -1,4 +1,8 @@
-//! Vulkan custom buffers
+//! Vulkan accelerator handoff buffers.
+//!
+//! These buffers are regular stream buffers with Vulkan-specific resource
+//! tokens. They are not in-place circuit buffers; reusable GPU buffers are
+//! handed out and returned through the explicit Vulkan buffer APIs.
 use std::sync::Arc;
 use vulkano::DeviceSize;
 use vulkano::VulkanLibrary;

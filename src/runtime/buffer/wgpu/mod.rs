@@ -1,4 +1,8 @@
-//! WGPU custom buffers
+//! WGPU accelerator handoff buffers.
+//!
+//! These buffers are regular stream buffers with WGPU-specific resource tokens.
+//! They are not in-place circuit buffers; reusable staging/readback resources
+//! are handed out and returned through explicit WGPU buffer APIs.
 mod d2h;
 pub use d2h::Reader as D2HReader;
 pub use d2h::Writer as D2HWriter;

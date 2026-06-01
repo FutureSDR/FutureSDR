@@ -66,7 +66,7 @@ where
         }
     }
 
-    /// Add a reusable Vulkan buffer to the circuit.
+    /// Add a reusable Vulkan buffer to the upload pool.
     pub fn add_buffer(&mut self, buffer: Buffer<T>) {
         self.inbound.lock().unwrap().push(buffer);
     }
@@ -256,6 +256,10 @@ where
     }
 
     /// Take all full buffers that are ready for the device side.
+    ///
+    /// These are explicit Vulkan handoff tokens, not in-place circuit buffers.
+    /// Return/reuse them through the Vulkan buffer API used by the downstream
+    /// accelerator block.
     pub fn buffers(&mut self) -> Vec<Buffer<T>> {
         let mut vec = self.state.connected().inbound.lock().unwrap();
         std::mem::take(&mut vec)
