@@ -3,6 +3,10 @@ use clap::Parser;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::runtime::__private::SendKernelInterface;
+use futuresdr::runtime::dev::SendCpuBufferReader;
+use futuresdr::runtime::dev::SendCpuBufferWriter;
+use futuresdr::runtime::dev::SendKernel;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
@@ -33,7 +37,7 @@ struct Args {
 }
 
 pub trait BufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + SendCpuBufferWriter + 'static;
 }
 
 pub struct SlabBuffer;
@@ -59,7 +63,11 @@ fn generate<B>(
 )>
 where
     B: BufferType,
-    ReaderOf<B, i32>: CpuBufferReader<Item = i32> + 'static,
+    ReaderOf<B, i32>: CpuBufferReader<Item = i32> + SendCpuBufferReader + 'static,
+    NullSource<i32, B::Writer<i32>>: SendKernel + SendKernelInterface,
+    Head<i32, ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
+    Add<ReaderOf<B, i32>, B::Writer<i32>>: SendKernel + SendKernelInterface,
+    NullSink<i32, ReaderOf<B, i32>>: SendKernel + SendKernelInterface,
 {
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
@@ -141,27 +149,23 @@ fn generate_inplace(
 fn run_flowgraph(
     config: &str,
     pipes: usize,
-    mut fg: Flowgraph,
+    fg: Flowgraph,
     pipe_blocks: Vec<Vec<BlockId>>,
-) -> Result<(Flowgraph, time::Duration)> {
-    let elapsed;
-
+) -> Result<(TerminatedFlowgraph, time::Duration)> {
     if config == "smoln" || config == "inplace-smol" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else if config == "flow" || config == "slab" || config == "inplace-flow" {
         assert_eq!(pipes, pipe_blocks.len());
         let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else {
         panic!("unknown config");
     }
-
-    Ok((fg, elapsed))
 }
 
 fn main() -> Result<()> {

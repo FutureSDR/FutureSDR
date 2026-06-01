@@ -94,28 +94,25 @@ where
     Ok((fg, snks))
 }
 
-fn run_flowgraph(scheduler: &str, mut fg: Flowgraph) -> Result<(Flowgraph, time::Duration)> {
-    let elapsed;
+fn run_flowgraph(scheduler: &str, fg: Flowgraph) -> Result<(TerminatedFlowgraph, time::Duration)> {
     if scheduler == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else if scheduler == "smoln" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else if scheduler == "flow" {
         let runtime = Runtime::with_scheduler(FlowScheduler::new());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else {
         panic!("unknown scheduler");
     }
-
-    Ok((fg, elapsed))
 }
 
 fn main() -> Result<()> {

@@ -186,34 +186,34 @@ fn main() -> Result<()> {
     };
 
     let elapsed = if scheduler == "local" {
-        let (mut fg, snks) = generate_local(pipes, stages, samples, max_copy)?;
+        let (fg, snks) = generate_local(pipes, stages, samples, max_copy)?;
         let runtime = Runtime::new();
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
+        let fg = runtime.run(fg)?;
         let elapsed = now.elapsed();
 
         for s in snks {
-            assert_eq!(s.with(&fg, |b| b.n_received())?, samples);
+            assert_eq!(fg.with(&s, |b| b.n_received())?, samples);
         }
 
         elapsed
     } else if use_spsc {
-        let (mut fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
-        let elapsed = if scheduler == "smol1" {
+        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else if scheduler == "smoln" {
             let runtime = Runtime::with_scheduler(SmolScheduler::default());
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else if scheduler == "flow" {
             let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else {
             panic!("unknown scheduler");
         };
@@ -225,22 +225,22 @@ fn main() -> Result<()> {
 
         elapsed
     } else {
-        let (mut fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, max_copy)?;
-        let elapsed = if scheduler == "smol1" {
+        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else if scheduler == "smoln" {
             let runtime = Runtime::with_scheduler(SmolScheduler::default());
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else if scheduler == "flow" {
             let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
             let now = time::Instant::now();
-            fg = runtime.run(fg)?;
-            now.elapsed()
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
         } else {
             panic!("unknown scheduler");
         };

@@ -36,7 +36,7 @@ async fn run_inner() -> Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     let fg = Runtime::new().run_async(fg).await?;
 
-    let v = snk.with_async(&fg, |snk| snk.items().clone()).await?;
+    let v = fg.with_async(&snk, |snk| snk.items().clone()).await?;
 
     assert_eq!(v.len(), n_items);
     for i in 0..v.len() {

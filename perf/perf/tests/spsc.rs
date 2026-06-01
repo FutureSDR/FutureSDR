@@ -38,7 +38,7 @@ fn local_flowgraph_spsc_finishes() -> Result<()> {
 
     let fg = Runtime::new().run(fg)?;
 
-    assert_eq!(snk.with(&fg, |b| b.n_received())?, 100_000);
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 100_000);
 
     Ok(())
 }

@@ -4,6 +4,10 @@ use futuresdr::blocks::Copy;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
+use futuresdr::runtime::__private::SendKernelInterface;
+use futuresdr::runtime::dev::SendCpuBufferReader;
+use futuresdr::runtime::dev::SendCpuBufferWriter;
+use futuresdr::runtime::dev::SendKernel;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
@@ -25,7 +29,7 @@ struct Args {
 }
 
 pub trait BufferType {
-    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + 'static;
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T> + SendCpuBufferWriter + 'static;
 }
 
 pub struct SlabBuffer;
@@ -56,7 +60,11 @@ fn generate<B>(
 )>
 where
     B: BufferType,
-    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
+    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
+    NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    Copy<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    NullSink<f32, ReaderOf<B, f32>>: SendKernel + SendKernelInterface,
 {
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
@@ -96,31 +104,27 @@ where
 
 fn run_flowgraph(
     config: &str,
-    mut fg: Flowgraph,
+    fg: Flowgraph,
     pipe_blocks: Vec<Vec<BlockId>>,
-) -> Result<(Flowgraph, time::Duration)> {
-    let elapsed;
-
+) -> Result<(TerminatedFlowgraph, time::Duration)> {
     if config == "smol1" {
         let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else if config == "smoln" || config == "smoln-spsc" {
         let runtime = Runtime::with_scheduler(SmolScheduler::default());
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else if config == "flow" || config == "slab" || config == "flow-spsc" {
         let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
         let now = time::Instant::now();
-        fg = runtime.run(fg)?;
-        elapsed = now.elapsed();
+        let fg = runtime.run(fg)?;
+        Ok((fg, now.elapsed()))
     } else {
         panic!("unknown config");
     }
-
-    Ok((fg, elapsed))
 }
 
 fn main() -> Result<()> {
