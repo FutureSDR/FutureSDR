@@ -701,3 +701,68 @@ where
         self.core.min_buffer_size_in_items().unwrap_or(usize::MAX)
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use crate::runtime::block_inbox::LocalBlockInboxReader;
+    use crate::runtime::buffer::local;
+
+    fn local_inbox() -> crate::runtime::block_inbox::LocalBlockInbox {
+        let (inbox, _rx, _) = LocalBlockInboxReader::pair();
+        inbox
+    }
+
+    #[test]
+    fn local_cpu_buffer_moves_items() -> Result<(), Error> {
+        let mut writer = local::Writer::<u8>::default();
+        let mut reader = local::Reader::<u8>::default();
+
+        BufferWriter::init(&mut writer, BlockId(0), PortId::new("out"), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortId::new("in"), local_inbox());
+
+        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 5);
+        CpuBufferReader::set_min_items(&mut reader, 1);
+        BufferWriter::connect(&mut writer, &mut reader);
+
+        BufferWriter::validate(&writer)?;
+        BufferReader::validate(&reader)?;
+
+        let out = CpuBufferWriter::slice(&mut writer);
+        out[..4].copy_from_slice(&[1, 2, 3, 4]);
+        CpuBufferWriter::produce(&mut writer, 4);
+        crate::runtime::block_on(BufferWriter::notify_finished(&mut writer));
+
+        let input = CpuBufferReader::slice(&mut reader);
+        assert_eq!(input, &[1, 2, 3, 4]);
+
+        CpuBufferReader::consume(&mut reader, 4);
+        assert!(CpuBufferReader::slice(&mut reader).is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn local_cpu_buffer_flushes_partial_buffer_on_finish() -> Result<(), Error> {
+        let mut writer = local::Writer::<u8>::default();
+        let mut reader = local::Reader::<u8>::default();
+
+        BufferWriter::init(&mut writer, BlockId(0), PortId::new("out"), local_inbox());
+        BufferReader::init(&mut reader, BlockId(1), PortId::new("in"), local_inbox());
+
+        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 8);
+        BufferWriter::connect(&mut writer, &mut reader);
+
+        let out = CpuBufferWriter::slice(&mut writer);
+        out[..3].copy_from_slice(&[9, 8, 7]);
+        CpuBufferWriter::produce(&mut writer, 3);
+        assert!(CpuBufferReader::slice(&mut reader).is_empty());
+
+        crate::runtime::block_on(BufferWriter::notify_finished(&mut writer));
+
+        let input = CpuBufferReader::slice(&mut reader);
+        assert_eq!(input, &[9, 8, 7]);
+
+        Ok(())
+    }
+}

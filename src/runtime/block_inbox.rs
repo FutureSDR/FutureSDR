@@ -178,12 +178,6 @@ impl BlockInbox {
         Self::DomainProxy { domain, block_id }
     }
 
-    /// Create an inbox that is disconnected from any reader.
-    pub fn disconnected() -> Self {
-        let (control, _) = mpsc::channel::<BlockMessage>(0);
-        Self::new(control, BlockNotifier::new())
-    }
-
     /// Get a wake-only notifier for the destination block.
     #[inline(always)]
     pub fn notifier(&self) -> BlockNotifier {
@@ -239,12 +233,6 @@ impl BlockInbox {
                 msg => domain.post(*block_id, msg).await,
             },
         }
-    }
-}
-
-impl Default for BlockInbox {
-    fn default() -> Self {
-        Self::disconnected()
     }
 }
 
@@ -431,12 +419,6 @@ impl LocalInboxState {
 }
 
 impl LocalBlockInbox {
-    /// Create a disconnected local inbox.
-    pub fn disconnected() -> Self {
-        let notifier = LocalBlockNotifier::new();
-        Self(Rc::new(LocalInboxState::new(notifier)))
-    }
-
     pub(crate) fn notify(&self) {
         self.0.notifier.notify();
     }
@@ -470,12 +452,6 @@ impl LocalBlockInbox {
 
     fn take_message_pending(&self) -> bool {
         self.0.message_pending.replace(false)
-    }
-}
-
-impl Default for LocalBlockInbox {
-    fn default() -> Self {
-        Self::disconnected()
     }
 }
 
