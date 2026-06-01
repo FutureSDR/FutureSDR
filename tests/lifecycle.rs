@@ -167,7 +167,10 @@ fn init_failure_stops_started_domains_before_start_returns() -> Result<()> {
         move || WaitBlock::new(local)
     });
 
-    let _ = expect_start_err(fg, "initialization");
+    assert!(matches!(
+        expect_start_err(fg, "init failed"),
+        Error::RuntimeError(msg) if msg == "init failed"
+    ));
 
     assert_eq!(normal.init(), 1);
     assert_eq!(normal.deinit(), 1);
@@ -227,8 +230,8 @@ fn run_failure_stops_domains(fail_local: bool) -> Result<()> {
     ));
 
     match running.wait() {
-        Ok(_) => bail!("expected runtime error after handler failure"),
-        Err(Error::RuntimeError(msg)) => assert!(msg.contains("block")),
+        Ok(_) => bail!("expected error after handler failure"),
+        Err(Error::HandlerError(msg)) => assert!(msg.contains("run failed")),
         Err(e) => bail!("unexpected error: {e}"),
     }
 

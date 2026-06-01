@@ -572,7 +572,10 @@ where
                     .to_string();
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
-                    .send(FlowgraphMessage::BlockError { block_id: self.id })
+                    .send(FlowgraphMessage::BlockError {
+                        block_id: self.id,
+                        error: e,
+                    })
                     .await;
             }
         }
@@ -600,7 +603,10 @@ where
                     .to_string();
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
-                    .send(FlowgraphMessage::BlockError { block_id: self.id })
+                    .send(FlowgraphMessage::BlockError {
+                        block_id: self.id,
+                        error: e,
+                    })
                     .await;
             }
         }
@@ -625,7 +631,10 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
                     .to_string();
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
-                    .send(FlowgraphMessage::BlockError { block_id: self.id })
+                    .send(FlowgraphMessage::BlockError {
+                        block_id: self.id,
+                        error: e,
+                    })
                     .await;
             }
         }

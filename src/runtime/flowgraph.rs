@@ -2974,7 +2974,7 @@ impl Flowgraph {
             // wait until all blocks are initialized
             let mut i = active_blocks;
             let mut queue = Vec::new();
-            let mut block_error = false;
+            let mut block_error = None;
             loop {
                 if i == 0 {
                     break;
@@ -2986,11 +2986,13 @@ impl Flowgraph {
 
                 match m {
                     FlowgraphMessage::Initialized => i -= 1,
-                    FlowgraphMessage::BlockError { block_id } => {
+                    FlowgraphMessage::BlockError { block_id, error } => {
                         i -= 1;
                         active_blocks -= 1;
-                        block_error = true;
                         error!("flowgraph init: block {:?} reported an error", block_id);
+                        if block_error.is_none() {
+                            block_error = Some(error);
+                        }
                     }
                     x => {
                         debug!(
@@ -3002,10 +3004,8 @@ impl Flowgraph {
                 }
             }
 
-            if block_error {
-                return Err(Error::RuntimeError(
-                    "a block failed during initialization".to_string(),
-                ));
+            if let Some(error) = block_error {
+                return Err(error);
             }
 
             debug!("running blocks");
@@ -3088,8 +3088,10 @@ impl Flowgraph {
                     FlowgraphMessage::BlockDone { .. } => {
                         active_blocks -= 1;
                     }
-                    FlowgraphMessage::BlockError { .. } => {
-                        block_error = true;
+                    FlowgraphMessage::BlockError { error, .. } => {
+                        if block_error.is_none() {
+                            block_error = Some(error);
+                        }
                         active_blocks -= 1;
                         if !terminated {
                             Self::terminate_inboxes(&mut inboxes).await;
@@ -3155,8 +3157,8 @@ impl Flowgraph {
                 }
             }
 
-            if block_error {
-                Err(Error::RuntimeError("A block raised an error".to_string()))
+            if let Some(error) = block_error {
+                Err(error)
             } else {
                 Ok(())
             }

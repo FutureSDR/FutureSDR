@@ -252,6 +252,8 @@ pub enum FlowgraphMessage {
     BlockError {
         /// The Block that ran into an error.
         block_id: BlockId,
+        /// The error returned by the block.
+        error: Error,
     },
     /// Post a message to a block handler without waiting for handler completion.
     BlockPost {

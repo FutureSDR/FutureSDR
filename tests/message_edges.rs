@@ -214,7 +214,7 @@ fn assert_handler_error(result: std::result::Result<Pmt, futuresdr::runtime::Err
 fn wait_for_handler_failure(running: futuresdr::runtime::RunningFlowgraph) {
     assert!(matches!(
         running.wait(),
-        Err(futuresdr::runtime::Error::RuntimeError(msg)) if msg.contains("block") || msg.contains("Block")
+        Err(futuresdr::runtime::Error::HandlerError(msg)) if msg.contains("boom")
     ));
 }
 
