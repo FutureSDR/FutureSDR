@@ -2,12 +2,12 @@ use crate::runtime;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::Error;
-use crate::runtime::Flowgraph;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
 use crate::runtime::Result;
+use crate::runtime::TerminatedFlowgraph;
 
 /// A running [`Flowgraph`] together with its control handle and completion task.
 ///
@@ -15,9 +15,9 @@ use crate::runtime::Result;
 /// and by `Runtime::start` on native targets.
 /// It can be split into a [`FlowgraphHandle`] and [`FlowgraphTask`], or used
 /// directly to post messages, request descriptions, stop the flowgraph, and
-/// wait for its finished [`Flowgraph`].
+/// wait for its [`TerminatedFlowgraph`].
 ///
-/// Waiting consumes `RunningFlowgraph` because the finished flowgraph is
+/// Waiting consumes `RunningFlowgraph` because the terminated flowgraph is
 /// returned to the caller. Clone [`RunningFlowgraph::handle`] first when other
 /// tasks need to keep sending control messages while one task waits.
 pub struct RunningFlowgraph {
@@ -48,14 +48,14 @@ impl RunningFlowgraph {
         (self.task, self.handle)
     }
 
-    /// Await flowgraph termination and return the finished [`Flowgraph`].
-    pub async fn wait_async(self) -> Result<Flowgraph, Error> {
+    /// Await flowgraph termination and return the final [`TerminatedFlowgraph`].
+    pub async fn wait_async(self) -> Result<TerminatedFlowgraph, Error> {
         self.task.await
     }
 
-    /// Block until the flowgraph terminates and return the finished [`Flowgraph`].
+    /// Block until the flowgraph terminates and return the final [`TerminatedFlowgraph`].
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn wait(self) -> Result<Flowgraph, Error> {
+    pub fn wait(self) -> Result<TerminatedFlowgraph, Error> {
         crate::runtime::block_on(self.wait_async())
     }
 
@@ -99,9 +99,9 @@ impl RunningFlowgraph {
 
     /// Stop the running flowgraph and wait until it terminates.
     ///
-    /// Returns the finished [`Flowgraph`] after all block tasks have stopped and
-    /// their block state has been restored into the graph.
-    pub async fn stop_and_wait(self) -> Result<Flowgraph, Error> {
+    /// Returns the final [`TerminatedFlowgraph`] after all block tasks have
+    /// stopped and their block state has been collected for inspection.
+    pub async fn stop_and_wait(self) -> Result<TerminatedFlowgraph, Error> {
         self.handle.stop().await?;
         self.wait_async().await
     }

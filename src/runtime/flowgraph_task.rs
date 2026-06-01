@@ -4,18 +4,18 @@ use std::task;
 use std::task::Poll;
 
 use crate::runtime::Error;
-use crate::runtime::Flowgraph;
 use crate::runtime::Result;
+use crate::runtime::TerminatedFlowgraph;
 use crate::runtime::scheduler::Task;
 
 enum TaskState {
-    Running(Task<Result<Flowgraph, Error>>),
+    Running(Task<Result<TerminatedFlowgraph, Error>>),
     Completed,
 }
 
 /// Completion future for a started [`Flowgraph`](crate::runtime::Flowgraph).
 ///
-/// A `FlowgraphTask` can be awaited to retrieve the finished flowgraph after
+/// A `FlowgraphTask` can be awaited to retrieve the terminated flowgraph after
 /// runtime execution completes. On native targets, dropping it before
 /// completion detaches the underlying runtime task so the flowgraph keeps
 /// running in the background. Keep and await this task when shutdown ordering or
@@ -25,7 +25,7 @@ pub struct FlowgraphTask {
 }
 
 impl FlowgraphTask {
-    pub(crate) fn new(task: Task<Result<Flowgraph, Error>>) -> Self {
+    pub(crate) fn new(task: Task<Result<TerminatedFlowgraph, Error>>) -> Self {
         Self {
             state: TaskState::Running(task),
         }
@@ -33,7 +33,7 @@ impl FlowgraphTask {
 }
 
 impl std::future::Future for FlowgraphTask {
-    type Output = Result<Flowgraph, Error>;
+    type Output = Result<TerminatedFlowgraph, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match &mut self.state {

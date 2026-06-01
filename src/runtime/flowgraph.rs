@@ -377,8 +377,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -397,8 +397,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         let mut inner = self.inner.borrow_mut();
         if src_block.flowgraph_id != inner.flowgraph_id {
@@ -460,8 +460,8 @@ impl<'a> LocalDomainContext<'a> {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.stream_local_async(src_block, src_port, dst_block, dst_port)
             .await
@@ -774,7 +774,9 @@ impl<K> From<&BlockRef<K>> for BlockId {
 /// A directed graph of blocks and their stream/message connections.
 ///
 /// A [`Flowgraph`] owns the blocks until it is passed to a
-/// [`Runtime`](crate::runtime::Runtime). It is typically built with the
+/// [`Runtime`](crate::runtime::Runtime). It is a one-shot construction object:
+/// running it consumes the graph and returns a [`TerminatedFlowgraph`] for final
+/// state inspection. It is typically built with the
 /// [`connect`](crate::runtime::macros::connect) macro, which adds blocks and
 /// wires their default or named ports in one step.
 ///
@@ -804,6 +806,104 @@ pub struct Flowgraph {
     pub(crate) local_domains: Vec<LocalDomainRuntime>,
     pub(crate) stream_edges: Vec<StreamEdge>,
     pub(crate) message_edges: Vec<Edge>,
+}
+
+/// Final state of a [`Flowgraph`] after runtime execution has stopped.
+///
+/// A `TerminatedFlowgraph` is returned by [`Runtime::run`](crate::runtime::Runtime::run)
+/// and by waiting on a [`RunningFlowgraph`](crate::runtime::RunningFlowgraph).
+/// It exposes block state for inspection but cannot be started again.
+pub struct TerminatedFlowgraph {
+    inner: Flowgraph,
+}
+
+impl TerminatedFlowgraph {
+    pub(crate) fn new(inner: Flowgraph) -> Self {
+        Self { inner }
+    }
+
+    /// Get typed shared access to a normal block's final state.
+    ///
+    /// Local-domain blocks should be inspected with [`Self::with`].
+    pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
+        self.inner.block(block)
+    }
+
+    /// Get typed mutable access to a normal block's final state.
+    ///
+    /// Local-domain blocks should be inspected or mutated with [`Self::with_mut`].
+    pub fn block_mut<K: 'static>(
+        &mut self,
+        block: &BlockRef<K>,
+    ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
+        self.inner.block_mut(block)
+    }
+
+    /// Access a block's final state through a closure.
+    ///
+    /// This works for both normal and local-domain blocks.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with<K, R>(
+        &self,
+        block: &BlockRef<K>,
+        f: impl FnOnce(&K) -> R + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        block.with(&self.inner, f)
+    }
+
+    /// Async counterpart to [`Self::with`].
+    pub async fn with_async<K, R>(
+        &self,
+        block: &BlockRef<K>,
+        f: impl FnOnce(&K) -> R + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        block.with_async(&self.inner, f).await
+    }
+
+    /// Mutably access a block's final state through a closure.
+    ///
+    /// This works for both normal and local-domain blocks.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_mut<K, R>(
+        &mut self,
+        block: &BlockRef<K>,
+        f: impl FnOnce(&mut K) -> R + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        block.with_mut(&mut self.inner, f)
+    }
+
+    /// Async counterpart to [`Self::with_mut`].
+    pub async fn with_mut_async<K, R>(
+        &mut self,
+        block: &BlockRef<K>,
+        f: impl FnOnce(&mut K) -> R + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        block.with_mut_async(&mut self.inner, f).await
+    }
+}
+
+impl Deref for TerminatedFlowgraph {
+    type Target = Flowgraph;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl Flowgraph {
@@ -1911,8 +2011,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: SendBufferWriter + Default + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -1931,8 +2031,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: SendBufferWriter + Default + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -2004,8 +2104,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         crate::runtime::block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
@@ -2024,8 +2124,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         B: BufferWriter + 'static,
-        FS: Fn(&mut KS) -> &mut B + Send + 'static,
-        FD: Fn(&mut KD) -> &mut B::Reader + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -2076,8 +2176,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         CW: CircuitWriter + 'static,
-        FS: Fn(&mut KS) -> &mut CW + Send + 'static,
-        FD: Fn(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut CW + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
     {
         crate::runtime::block_on(
             self.close_circuit_async::<KS, KD, CW, FS, FD>(
@@ -2098,8 +2198,8 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
         CW: CircuitWriter + 'static,
-        FS: Fn(&mut KS) -> &mut CW + Send + 'static,
-        FD: Fn(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
+        FS: FnOnce(&mut KS) -> &mut CW + Send + 'static,
+        FD: FnOnce(&mut KD) -> &mut CW::CircuitEnd + Send + 'static,
     {
         self.validate_block_ref(src_block)?;
         self.validate_block_ref(dst_block)?;
@@ -2481,36 +2581,6 @@ impl Flowgraph {
         Ok(())
     }
 
-    async fn clear_message_connections(&mut self) -> Result<(), Error> {
-        for entry in self.blocks.iter_mut() {
-            if let Some(block) = entry.block.as_mut() {
-                block.clear_message_outputs();
-            }
-        }
-
-        let handles = self
-            .local_domains
-            .iter()
-            .map(LocalDomainRuntime::handle)
-            .collect::<Vec<_>>();
-        for handle in handles {
-            handle
-                .exec(|state| {
-                    let result = {
-                        for (_, slot) in state.block_slots_mut() {
-                            if let Some(block) = slot.as_mut() {
-                                block.clear_message_outputs();
-                            }
-                        }
-                        Ok(())
-                    };
-                    Box::pin(futures::future::ready(result))
-                })
-                .await?;
-        }
-        Ok(())
-    }
-
     async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
         let src_placement = self.placement(edge.src_block)?;
         let dst_placement = self.placement(edge.dst_block)?;
@@ -2569,7 +2639,6 @@ impl Flowgraph {
     }
 
     async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
-        self.clear_message_connections().await?;
         for edge in edges.iter().cloned() {
             self.apply_message_edge(edge).await?;
         }
@@ -2684,7 +2753,7 @@ impl Flowgraph {
         main_channel: Sender<FlowgraphMessage>,
         main_rx: Receiver<FlowgraphMessage>,
         initialized: oneshot::Sender<Result<(), Error>>,
-    ) -> Result<Flowgraph, Error> {
+    ) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
 
         let prepared = match self.prepare(main_channel.clone()) {
@@ -2988,7 +3057,7 @@ impl Flowgraph {
         join_result?;
 
         run_result?;
-        Ok(self)
+        Ok(TerminatedFlowgraph::new(self))
     }
 
     pub(crate) fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {

@@ -15,6 +15,7 @@ use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::FlowgraphTask;
 use crate::runtime::RunningFlowgraph;
+use crate::runtime::TerminatedFlowgraph;
 use crate::runtime::channel::mpsc::channel;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
@@ -131,9 +132,9 @@ impl<S: Scheduler> Runtime<S> {
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
     ///
     /// This consumes the input flowgraph, runs it until every block finishes or
-    /// an error stops execution, and returns the finished flowgraph so block
-    /// state can be inspected.
-    pub async fn run_async(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
+    /// an error stops execution, and returns a [`TerminatedFlowgraph`] so final
+    /// block state can be inspected.
+    pub async fn run_async(&self, fg: Flowgraph) -> Result<TerminatedFlowgraph, Error> {
         self.start_async(fg).await?.wait_async().await
     }
 
@@ -167,7 +168,7 @@ impl<S: Scheduler> Runtime<S> {
     /// Start a [`Flowgraph`] on the [`Runtime`] and block until it terminates.
     ///
     /// This is the synchronous counterpart of [`Runtime::run_async`].
-    pub fn run(&self, fg: Flowgraph) -> Result<Flowgraph, Error> {
+    pub fn run(&self, fg: Flowgraph) -> Result<TerminatedFlowgraph, Error> {
         let running = runtime::block_on(self.start_async(fg))?;
         running.wait()
     }

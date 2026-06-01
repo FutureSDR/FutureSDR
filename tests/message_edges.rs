@@ -3,6 +3,7 @@ use futuresdr::runtime::BlockRef;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::LocalDomain;
 use futuresdr::runtime::Runtime;
+use futuresdr::runtime::TerminatedFlowgraph;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::macros::Block;
 
@@ -75,23 +76,20 @@ fn trigger_once(
     rt: &Runtime,
     fg: Flowgraph,
     src: BlockRef<TriggerMsg>,
-) -> Result<Flowgraph, futuresdr::runtime::Error> {
+) -> Result<TerminatedFlowgraph, futuresdr::runtime::Error> {
     let running = rt.start(fg)?;
     futuresdr::runtime::block_on(running.call(src, "trigger", Pmt::Null))?;
     futuresdr::runtime::block_on(running.stop_and_wait())
 }
 
 #[test]
-fn message_edges_are_reapplied_without_duplicates() -> Result<()> {
+fn message_edge_delivers_once() -> Result<()> {
     let mut fg = Flowgraph::new();
     let (src, snk) = connect_trigger_to_sink(&mut fg, None)?;
     let rt = Runtime::new();
 
     let fg = trigger_once(&rt, fg, src)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 1);
-
-    let fg = trigger_once(&rt, fg, src)?;
-    assert_eq!(snk.with(&fg, |b| b.received)?, 2);
 
     Ok(())
 }
@@ -110,7 +108,7 @@ fn message_edges_can_target_local_domain_blocks() -> Result<()> {
 }
 
 #[test]
-fn local_domain_context_message_edges_are_logical_and_reusable() -> Result<()> {
+fn local_domain_context_message_edge_delivers_once() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
     let (src, snk) = fg.domain_run(domain, |ctx| {
@@ -123,9 +121,6 @@ fn local_domain_context_message_edges_are_logical_and_reusable() -> Result<()> {
     let rt = Runtime::new();
     let fg = trigger_once(&rt, fg, src)?;
     assert_eq!(snk.with(&fg, |b| b.received)?, 1);
-
-    let fg = trigger_once(&rt, fg, src)?;
-    assert_eq!(snk.with(&fg, |b| b.received)?, 2);
 
     Ok(())
 }

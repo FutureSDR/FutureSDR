@@ -131,7 +131,7 @@ impl FlowgraphHandle {
 
     /// Send a stop message to the [`crate::runtime::Flowgraph`].
     ///
-    /// Does not wait until the [`crate::runtime::Flowgraph`] is actually terminated.
+    /// Does not wait until the running flowgraph is actually terminated.
     pub async fn stop(&self) -> Result<(), Error> {
         self.inbox
             .send(FlowgraphMessage::Terminate)
@@ -140,14 +140,14 @@ impl FlowgraphHandle {
         Ok(())
     }
 
-    /// Stop the [`crate::runtime::Flowgraph`].
+    /// Stop the running flowgraph.
     ///
     /// Send a terminate message to the [`crate::runtime::Flowgraph`] and wait until it shuts down.
     ///
     /// This method observes shutdown through the control channel closing. It
-    /// does not return the finished [`crate::runtime::Flowgraph`]; use
+    /// does not return the final [`crate::runtime::TerminatedFlowgraph`]; use
     /// [`crate::runtime::RunningFlowgraph::stop_and_wait`] when the caller needs
-    /// to recover and inspect the finished graph.
+    /// to recover and inspect final block state.
     pub async fn stop_and_wait(&self) -> Result<(), Error> {
         self.stop().await.map_err(|_| Error::FlowgraphTerminated)?;
         while !self.inbox.is_closed() {

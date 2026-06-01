@@ -78,6 +78,7 @@ pub use flowgraph::BlockRef;
 pub use flowgraph::Flowgraph;
 pub use flowgraph::LocalDomain;
 pub use flowgraph::LocalDomainContext;
+pub use flowgraph::TerminatedFlowgraph;
 pub use flowgraph_handle::FlowgraphBlockHandle;
 pub use flowgraph_handle::FlowgraphHandle;
 pub use flowgraph_task::FlowgraphTask;

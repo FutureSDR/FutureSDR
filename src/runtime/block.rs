@@ -60,8 +60,6 @@ pub trait BlockObject: Any {
     fn message_outputs(&self) -> &'static [&'static str] {
         &[]
     }
-    /// Remove all concrete message-output connections.
-    fn clear_message_outputs(&mut self) {}
     /// Connect one message output port to a downstream block inbox.
     fn connect(
         &mut self,
