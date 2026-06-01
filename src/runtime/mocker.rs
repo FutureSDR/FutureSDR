@@ -18,7 +18,6 @@ use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::channel;
 use crate::runtime::config::config;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
@@ -97,7 +96,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
                 .mo
                 .connect(
                     &PortId::new(*n),
-                    BlockInbox::thread_safe(tx, BlockNotifier::new()),
+                    ThreadSafeBlockInbox::new(tx, BlockNotifier::new()).into(),
                     &PortId::new("input"),
                 )
                 .unwrap();

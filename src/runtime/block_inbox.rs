@@ -183,11 +183,6 @@ impl ThreadSafeBlockInbox {
         self.notifier.notify();
     }
 
-    /// Return whether the underlying receiver has been closed.
-    pub fn is_closed(&self) -> bool {
-        self.tx.is_closed()
-    }
-
     /// Notify the destination block that one stream input port is done.
     pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), crate::runtime::Error> {
         self.send(BlockMessage::StreamInputDone { input_id }).await
@@ -215,26 +210,9 @@ impl From<ThreadSafeBlockInbox> for BlockInbox {
 }
 
 impl BlockInbox {
-    /// Create a sender-side thread-safe block inbox from an mpsc sender and notifier.
-    pub(crate) fn thread_safe(
-        control: mpsc::Sender<BlockMessage>,
-        notifier: BlockNotifier,
-    ) -> Self {
-        ThreadSafeBlockInbox::new(control, notifier).into()
-    }
-
     /// Create a sender-side domain proxy for a local-domain block.
     pub(crate) fn domain_proxy(domain: LocalDomainInbox, block_id: BlockId) -> Self {
         Self::DomainProxy { domain, block_id }
-    }
-
-    /// Get a wake-only notifier for the destination block.
-    #[inline(always)]
-    pub fn notifier(&self) -> BlockNotifier {
-        match self {
-            Self::ThreadSafe(thread_safe) => thread_safe.notifier(),
-            Self::DomainProxy { .. } => BlockNotifier::new(),
-        }
     }
 
     /// Wake the destination block without sending a message.
@@ -251,20 +229,9 @@ impl BlockInbox {
     /// Return whether the underlying receiver has been closed.
     pub fn is_closed(&self) -> bool {
         match self {
-            Self::ThreadSafe(thread_safe) => thread_safe.is_closed(),
+            Self::ThreadSafe(thread_safe) => thread_safe.tx.is_closed(),
             Self::DomainProxy { domain, .. } => domain.is_closed(),
         }
-    }
-
-    /// Notify the destination block that one stream input port is done.
-    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), crate::runtime::Error> {
-        self.send(BlockMessage::StreamInputDone { input_id }).await
-    }
-
-    /// Notify the destination block that one stream output port is done.
-    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), crate::runtime::Error> {
-        self.send(BlockMessage::StreamOutputDone { output_id })
-            .await
     }
 
     /// Enqueue a block message and wake the destination block on success.
@@ -315,7 +282,6 @@ impl BlockInboxReader {
     }
 
     /// Future that resolves when the block is woken.
-    #[allow(dead_code)]
     pub fn notified(&self) -> Notified {
         self.notifier.notified()
     }
@@ -329,13 +295,6 @@ pub(crate) fn thread_safe_channel(size: usize) -> (ThreadSafeBlockInbox, BlockIn
         ThreadSafeBlockInbox::new(control, notifier.clone()),
         BlockInboxReader::new(receiver, notifier),
     )
-}
-
-/// Create a paired external sender/reader block inbox with a coalescing notifier.
-#[cfg(test)]
-pub(crate) fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
-    let (tx, rx) = thread_safe_channel(size);
-    (tx.into(), rx)
 }
 
 #[derive(Debug, Default)]
@@ -481,18 +440,6 @@ impl LocalBlockInbox {
         self.notify();
     }
 
-    /// Notify the destination local block that one stream input port is done.
-    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), crate::runtime::Error> {
-        self.push(BlockMessage::StreamInputDone { input_id });
-        Ok(())
-    }
-
-    /// Notify the destination local block that one stream output port is done.
-    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), crate::runtime::Error> {
-        self.push(BlockMessage::StreamOutputDone { output_id });
-        Ok(())
-    }
-
     /// Get a wake-only notifier for this local block.
     pub fn notifier(&self) -> LocalBlockNotifier {
         self.0.notifier.clone()
@@ -630,7 +577,7 @@ mod tests {
 
     #[test]
     fn send_enqueues_and_wakes_reader() {
-        let (tx, mut rx) = channel(1);
+        let (tx, mut rx) = thread_safe_channel(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -654,7 +601,7 @@ mod tests {
 
     #[test]
     fn recv_waits_for_message() {
-        let (tx, mut rx) = channel(1);
+        let (tx, mut rx) = thread_safe_channel(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -666,7 +613,7 @@ mod tests {
 
     #[test]
     fn notify_wakes_without_message() {
-        let (tx, mut rx) = channel(1);
+        let (tx, mut rx) = thread_safe_channel(1);
 
         tx.notify();
 
@@ -688,7 +635,7 @@ mod tests {
 
     #[test]
     fn multiple_sends_coalesce_but_keep_messages() {
-        let (tx, mut rx) = channel(4);
+        let (tx, mut rx) = thread_safe_channel(4);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
         block_on(tx.send(BlockMessage::Terminate)).unwrap();

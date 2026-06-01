@@ -647,10 +647,10 @@ mod tests {
         crate::runtime::block_on(controller.build(
             0,
             Box::new(|| {
-                let (inbox, inbox_rx) = crate::runtime::block_inbox::channel(4);
+                let (inbox, inbox_rx) = crate::runtime::block_inbox::thread_safe_channel(4);
                 Box::new(WaitForTerminate {
                     id: BlockId(0),
-                    inbox,
+                    inbox: inbox.into(),
                     inbox_rx,
                 })
             }),
