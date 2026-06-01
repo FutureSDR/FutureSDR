@@ -182,6 +182,13 @@ impl LocalDomainHandle {
             .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))?;
         Ok(rx)
     }
+
+    pub(crate) async fn stop_run(&self) -> Result<(), Error> {
+        self.tx
+            .send(LocalDomainMessage::Terminate)
+            .await
+            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
+    }
 }
 
 impl LocalDomainController {
@@ -376,7 +383,8 @@ async fn run_local_domain(
     domain_rx: &mut mpsc::Receiver<LocalDomainMessage>,
 ) -> Result<(), Error> {
     let mut tasks = FuturesUnordered::new();
-    let mut inboxes = Vec::new();
+    let mut local_stop_inboxes = Vec::new();
+    let mut external_stop_inboxes = Vec::new();
     let mut external_inboxes = Vec::new();
 
     let local_ids = state
@@ -392,8 +400,9 @@ async fn run_local_domain(
     }
 
     for local_id in local_ids {
+        let local_inbox = state.inbox(local_id);
         if let (Some(external_inbox), Some(local_inbox)) =
-            (state.take_external_inbox(local_id), state.inbox(local_id))
+            (state.take_external_inbox(local_id), local_inbox.clone())
         {
             external_inboxes.push((external_inbox, local_inbox));
         }
@@ -403,7 +412,11 @@ async fn run_local_domain(
             .find_map(|(id, slot)| (id == local_id).then_some(slot))
             .expect("local block slot disappeared");
         if let Some(block) = slot.take() {
-            inboxes.push(block.as_ref().inbox());
+            if let Some(local_inbox) = local_inbox {
+                local_stop_inboxes.push(local_inbox);
+            } else {
+                external_stop_inboxes.push(block.as_ref().inbox());
+            }
             let main_channel = main_channel.clone();
             let task = ex.spawn(async move {
                 let mut block = block;
@@ -485,7 +498,10 @@ async fn run_local_domain(
                 }
 
                 if terminating {
-                    for inbox in &inboxes {
+                    for inbox in &local_stop_inboxes {
+                        inbox.push(BlockMessage::Terminate);
+                    }
+                    for inbox in &external_stop_inboxes {
                         if inbox.send(BlockMessage::Terminate).await.is_err() {
                             debug!(
                                 "local domain tried to terminate block that was already terminated"

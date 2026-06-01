@@ -304,6 +304,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                     work_io.finished = true;
                     work_io.call_again = true;
                 }
+                BlockMessage::Terminate => {
+                    debug!("{} terminating before initialization", instance_name);
+                    return Ok(());
+                }
                 t => warn!("{} unhandled message during init {:?}", instance_name, t),
             }
         }

@@ -185,6 +185,13 @@ impl LocalDomainHandle {
             .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))?;
         Ok(rx)
     }
+
+    pub(crate) async fn stop_run(&self) -> Result<(), Error> {
+        self.tx
+            .send(LocalDomainMessage::Terminate)
+            .await
+            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
+    }
 }
 
 impl LocalDomainController {
@@ -431,7 +438,8 @@ async fn run_local_domain(
 ) -> Result<(), Error> {
     let executor = LocalExecutor::new();
     let mut tasks = Vec::new();
-    let mut inboxes = Vec::new();
+    let mut local_stop_inboxes = Vec::new();
+    let mut external_stop_inboxes = Vec::new();
     let mut external_inboxes = Vec::new();
 
     let local_ids = state
@@ -447,8 +455,9 @@ async fn run_local_domain(
     }
 
     for local_id in local_ids {
+        let local_inbox = state.inbox(local_id);
         if let (Some(external_inbox), Some(local_inbox)) =
-            (state.take_external_inbox(local_id), state.inbox(local_id))
+            (state.take_external_inbox(local_id), local_inbox.clone())
         {
             external_inboxes.push((external_inbox, local_inbox));
         }
@@ -458,7 +467,11 @@ async fn run_local_domain(
             .find_map(|(id, slot)| (id == local_id).then_some(slot))
             .expect("local block slot disappeared");
         if let Some(block) = slot.take() {
-            inboxes.push(block.as_ref().inbox());
+            if let Some(local_inbox) = local_inbox {
+                local_stop_inboxes.push(local_inbox);
+            } else {
+                external_stop_inboxes.push(block.as_ref().inbox());
+            }
             let main_channel = main_channel.clone();
             tasks.push(Box::pin(executor.spawn(async move {
                 let mut block = block;
@@ -475,6 +488,7 @@ async fn run_local_domain(
     let _local_dispatch = enter_local_dispatch_context(dispatch_inboxes);
     let mut finished = Vec::with_capacity(tasks.len());
     let mut terminating = false;
+    let mut terminate_requested = false;
 
     while !tasks.is_empty() {
         let ran = executor.run_available();
@@ -524,13 +538,21 @@ async fn run_local_domain(
             }
         }
 
-        if !terminating && terminate.load(Ordering::Acquire) {
-            for inbox in inboxes.iter() {
+        if !terminate_requested && terminate.load(Ordering::Acquire) {
+            terminating = true;
+            terminate_requested = true;
+        }
+
+        if terminating {
+            for inbox in local_stop_inboxes.iter() {
+                inbox.push(BlockMessage::Terminate);
+            }
+            for inbox in external_stop_inboxes.iter() {
                 if inbox.send(BlockMessage::Terminate).await.is_err() {
                     debug!("local domain tried to terminate block that was already terminated");
                 }
             }
-            terminating = true;
+            terminating = false;
         }
 
         if tasks.is_empty() {

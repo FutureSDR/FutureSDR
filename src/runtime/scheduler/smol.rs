@@ -147,7 +147,7 @@ impl Scheduler for SmolScheduler {
             topology.message_edges(),
         );
         let completion = handle.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, completion))
+        Ok(LocalRunningDomain::new(domain_id, handle, completion))
     }
 
     fn spawn<T: Send + 'static>(

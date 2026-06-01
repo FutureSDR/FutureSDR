@@ -135,7 +135,11 @@ impl LocalDomainSpec {
     /// Start this local domain using its existing handle.
     pub fn start(self) -> Result<LocalRunningDomain, Error> {
         let completion = self.handle.start_run(self.main_channel)?;
-        Ok(LocalRunningDomain::new(self.domain_id, completion))
+        Ok(LocalRunningDomain::new(
+            self.domain_id,
+            self.handle,
+            completion,
+        ))
     }
 }
 
@@ -163,16 +167,27 @@ impl NormalRunningDomain {
 /// Running local-domain state returned by a scheduler.
 pub struct LocalRunningDomain {
     domain_id: usize,
+    handle: LocalDomainHandle,
     completion: oneshot::Receiver<Result<(), Error>>,
 }
 
 impl LocalRunningDomain {
     /// Create a running local domain from its completion receiver.
-    pub(crate) fn new(domain_id: usize, completion: oneshot::Receiver<Result<(), Error>>) -> Self {
+    pub(crate) fn new(
+        domain_id: usize,
+        handle: LocalDomainHandle,
+        completion: oneshot::Receiver<Result<(), Error>>,
+    ) -> Self {
         Self {
             domain_id,
+            handle,
             completion,
         }
+    }
+
+    /// Request the local-domain run loop to stop.
+    pub(crate) async fn stop(&mut self) -> Result<(), Error> {
+        self.handle.stop_run().await
     }
 
     /// Await the local-domain run loop.
@@ -195,7 +210,10 @@ pub enum RunningDomain {
 impl RunningDomain {
     /// Stop this running domain.
     pub async fn stop(&mut self) -> Result<(), Error> {
-        Ok(())
+        match self {
+            RunningDomain::Normal(_) => Ok(()),
+            RunningDomain::Local(domain) => domain.stop().await,
+        }
     }
 
     /// Join this domain and return its stopped state.

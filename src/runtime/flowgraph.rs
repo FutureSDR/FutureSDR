@@ -2830,6 +2830,67 @@ impl Flowgraph {
         })
     }
 
+    fn send_initialized_error(
+        initialized: &mut Option<oneshot::Sender<Result<(), Error>>>,
+        error: Error,
+    ) {
+        if let Some(initialized) = initialized.take() {
+            let _ = initialized.send(Err(error));
+        }
+    }
+
+    async fn terminate_inboxes(inboxes: &mut [Option<BlockInbox>]) {
+        for inbox in inboxes.iter_mut().flatten() {
+            if inbox.send(BlockMessage::Terminate).await.is_err() {
+                debug!("runtime tried to terminate block that was already terminated");
+            }
+        }
+    }
+
+    async fn stop_domains(domains: &mut [RunningDomain]) {
+        for domain in domains {
+            if let Err(e) = domain.stop().await {
+                debug!("runtime tried to stop domain that was already terminated: {e}");
+            }
+        }
+    }
+
+    async fn join_domains(&mut self, domains: Vec<RunningDomain>) -> Result<NormalBlocks, Error> {
+        let mut finished_blocks = Vec::new();
+        let mut stopped_local_domains = Vec::new();
+        let mut join_result = Ok(());
+        for domain in domains {
+            match domain.join().await {
+                Ok(StoppedDomain::Normal(blocks)) => finished_blocks.extend(blocks),
+                Ok(StoppedDomain::Local(domain_id)) => stopped_local_domains.push(domain_id),
+                Err(e) => {
+                    if join_result.is_ok() {
+                        join_result = Err(e);
+                    }
+                }
+            }
+        }
+        for domain_id in stopped_local_domains {
+            if let Some(domain) = self.local_domains.get_mut(domain_id) {
+                domain.mark_stopped();
+            }
+        }
+        join_result?;
+        Ok(finished_blocks)
+    }
+
+    async fn cleanup_started_domains(
+        &mut self,
+        inboxes: &mut [Option<BlockInbox>],
+        mut domains: Vec<RunningDomain>,
+    ) {
+        Self::terminate_inboxes(inboxes).await;
+        Self::stop_domains(&mut domains).await;
+        if let Err(e) = self.join_domains(domains).await {
+            warn!("error while cleaning up started domains: {e}");
+        }
+    }
+
     pub(crate) async fn run_flowgraph<S: Scheduler>(
         mut self,
         scheduler: S,
@@ -2838,11 +2899,12 @@ impl Flowgraph {
         initialized: oneshot::Sender<Result<(), Error>>,
     ) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
+        let mut initialized = Some(initialized);
 
         let prepared = match self.prepare(main_channel.clone()) {
             Ok(prepared) => prepared,
             Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
+                Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
@@ -2857,17 +2919,17 @@ impl Flowgraph {
         } = prepared;
         let StartupSnapshot { mut inboxes, ids } = startup;
         if let Err(e) = self.apply_stream_edges(&stream_edges).await {
-            let _ = initialized.send(Err(e.clone()));
+            Self::send_initialized_error(&mut initialized, e.clone());
             return Err(e);
         }
         if let Err(e) = self.apply_message_edges(&message_edges).await {
-            let _ = initialized.send(Err(e.clone()));
+            Self::send_initialized_error(&mut initialized, e.clone());
             return Err(e);
         }
         let blocks = match self.take_blocks() {
             Ok(blocks) => blocks,
             Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
+                Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
@@ -2878,7 +2940,7 @@ impl Flowgraph {
         )) {
             Ok(domain) => domain,
             Err(e) => {
-                let _ = initialized.send(Err(e.clone()));
+                Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
@@ -2892,7 +2954,8 @@ impl Flowgraph {
                     domains.push(RunningDomain::Local(domain));
                 }
                 Err(e) => {
-                    let _ = initialized.send(Err(e.clone()));
+                    self.cleanup_started_domains(&mut inboxes, domains).await;
+                    Self::send_initialized_error(&mut initialized, e.clone());
                     return Err(e);
                 }
             }
@@ -2939,6 +3002,12 @@ impl Flowgraph {
                 }
             }
 
+            if block_error {
+                return Err(Error::RuntimeError(
+                    "a block failed during initialization".to_string(),
+                ));
+            }
+
             debug!("running blocks");
             for inbox in inboxes.iter_mut().flatten() {
                 inbox.notify();
@@ -2951,13 +3020,12 @@ impl Flowgraph {
                 main_channel.try_send(m)?;
             }
 
-            initialized.send(Ok(())).map_err(|_| {
+            let initialized_tx = initialized.take().ok_or_else(|| {
+                Error::RuntimeError("flowgraph initialization was already reported".to_string())
+            })?;
+            initialized_tx.send(Ok(())).map_err(|_| {
                 Error::RuntimeError("main thread panic during flowgraph init".to_string())
             })?;
-
-            if block_error {
-                main_channel.try_send(FlowgraphMessage::Terminate)?;
-            }
 
             let mut terminated = false;
 
@@ -3023,7 +3091,11 @@ impl Flowgraph {
                     FlowgraphMessage::BlockError { .. } => {
                         block_error = true;
                         active_blocks -= 1;
-                        let _ = main_channel.send(FlowgraphMessage::Terminate).await;
+                        if !terminated {
+                            Self::terminate_inboxes(&mut inboxes).await;
+                            Self::stop_domains(&mut domains).await;
+                            terminated = true;
+                        }
                     }
                     FlowgraphMessage::BlockDescription { block_id, tx } => {
                         if let Some(Some(b)) = inboxes.get_mut(block_id.0) {
@@ -3075,13 +3147,7 @@ impl Flowgraph {
                     }
                     FlowgraphMessage::Terminate => {
                         if !terminated {
-                            for inbox in inboxes.iter_mut().flatten() {
-                                if inbox.send(BlockMessage::Terminate).await.is_err() {
-                                    debug!(
-                                        "runtime tried to terminate block that was already terminated"
-                                    );
-                                }
-                            }
+                            Self::terminate_inboxes(&mut inboxes).await;
                             terminated = true;
                         }
                     }
@@ -3097,37 +3163,22 @@ impl Flowgraph {
         }
         .await;
 
-        if run_result.is_err() {
-            for inbox in inboxes.iter_mut().flatten() {
-                if inbox.send(BlockMessage::Terminate).await.is_err() {
-                    debug!("runtime tried to terminate block during shutdown cleanup");
-                }
+        if let Err(e) = run_result {
+            let startup_failed = initialized.is_some();
+            Self::terminate_inboxes(&mut inboxes).await;
+            Self::stop_domains(&mut domains).await;
+            if let Err(join_error) = self.join_domains(domains).await {
+                warn!("error while joining domains after failure: {join_error}");
             }
+            if startup_failed {
+                Self::send_initialized_error(&mut initialized, e.clone());
+            }
+            return Err(e);
         }
 
-        let mut finished_blocks = Vec::new();
-        let mut stopped_local_domains = Vec::new();
-        let mut join_result = Ok(());
-        for domain in domains {
-            match domain.join().await {
-                Ok(StoppedDomain::Normal(blocks)) => finished_blocks.extend(blocks),
-                Ok(StoppedDomain::Local(domain_id)) => stopped_local_domains.push(domain_id),
-                Err(e) => {
-                    if join_result.is_ok() {
-                        join_result = Err(e);
-                    }
-                }
-            }
-        }
+        let finished_blocks = self.join_domains(domains).await?;
         self.restore_blocks(finished_blocks)?;
-        for domain_id in stopped_local_domains {
-            if let Some(domain) = self.local_domains.get_mut(domain_id) {
-                domain.mark_stopped();
-            }
-        }
-        join_result?;
 
-        run_result?;
         Ok(TerminatedFlowgraph::new(self))
     }
 
