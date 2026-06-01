@@ -15,6 +15,7 @@ use std::task::Waker;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
 use crate::runtime::local_domain::LocalDomainInbox;
@@ -188,18 +189,18 @@ impl BlockInbox {
     }
 
     /// Notify the destination block that one stream input port is done.
-    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), crate::runtime::Error> {
+    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
         self.send(BlockMessage::StreamInputDone { input_id }).await
     }
 
     /// Notify the destination block that one stream output port is done.
-    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), crate::runtime::Error> {
+    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
         self.send(BlockMessage::StreamOutputDone { output_id })
             .await
     }
 
     /// Enqueue a block message and wake the destination block on success.
-    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
+    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         self.tx.send(msg).await?;
         self.notifier.set_message_pending();
         self.notifier.notify();
@@ -239,7 +240,7 @@ impl BlockEndpoint {
     }
 
     /// Enqueue a block message and wake the destination block on success.
-    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
+    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         match self {
             Self::Direct(inbox) => inbox.send(msg).await,
             Self::DomainProxy { domain, block_id } => match msg {
@@ -399,25 +400,22 @@ pub(crate) fn enter_local_dispatch_context(
     LocalDispatchContextGuard { previous }
 }
 
-/// Push a message to a local-domain inbox through the current dispatch context.
-pub(crate) fn push_current_local_message(
-    local_id: usize,
-    message: BlockMessage,
-) -> Result<(), crate::runtime::Error> {
-    let inbox = LOCAL_DISPATCH_CONTEXT.with(|context| {
-        context
-            .borrow()
+/// Deliver a message to a local-domain inbox through the current dispatch context.
+pub(crate) fn deliver_local_message(local_id: usize, message: BlockMessage) -> Result<(), Error> {
+    LOCAL_DISPATCH_CONTEXT.with(|context| {
+        let context = context.borrow();
+        let inbox = context
             .as_ref()
-            .and_then(|inboxes| inboxes.get(local_id).cloned().flatten())
-    });
-
-    let inbox = inbox.ok_or_else(|| {
-        crate::runtime::Error::RuntimeError(format!(
-            "local message handler has no dispatch inbox for local block slot {local_id}"
-        ))
-    })?;
-    inbox.push(message);
-    Ok(())
+            .and_then(|inboxes| inboxes.get(local_id))
+            .and_then(Option::as_ref)
+            .ok_or_else(|| {
+                Error::RuntimeError(format!(
+                    "local message handler has no dispatch inbox for local block slot {local_id}"
+                ))
+            })?;
+        inbox.push(message);
+        Ok(())
+    })
 }
 
 impl LocalInboxState {

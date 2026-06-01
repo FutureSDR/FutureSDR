@@ -5,7 +5,7 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::block_inbox::push_current_local_message;
+use crate::runtime::block_inbox::deliver_local_message;
 use crate::runtime::dev::BlockEndpoint;
 
 /// One external downstream message handler reached through a send-safe endpoint.
@@ -62,7 +62,7 @@ impl MessageOutput {
     /// Notify connected downstream message ports that this block is finished.
     async fn notify_finished(&mut self) {
         for handler in &self.local_handlers {
-            let _ = push_current_local_message(
+            let _ = deliver_local_message(
                 handler.local_id,
                 BlockMessage::Post {
                     port_id: handler.port.clone(),
@@ -84,7 +84,7 @@ impl MessageOutput {
     /// Post data to all connected downstream message inputs.
     async fn post(&mut self, p: Pmt) {
         for handler in &self.local_handlers {
-            let _ = push_current_local_message(
+            let _ = deliver_local_message(
                 handler.local_id,
                 BlockMessage::Post {
                     port_id: handler.port.clone(),
