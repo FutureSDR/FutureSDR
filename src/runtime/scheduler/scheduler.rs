@@ -84,11 +84,6 @@ impl NormalDomainSpec {
     pub fn into_parts(self) -> (NormalBlocks, DomainTopology, Sender<FlowgraphMessage>) {
         (self.blocks, self.topology, self.main_channel)
     }
-
-    /// Take the normal blocks and main flowgraph channel out of this spec.
-    pub fn into_blocks(self) -> (NormalBlocks, Sender<FlowgraphMessage>) {
-        (self.blocks, self.main_channel)
-    }
 }
 
 /// Specification for an existing local scheduling domain.
