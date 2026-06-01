@@ -147,6 +147,25 @@ fn local_domain_context_message_edge_delivers_once() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn local_domain_context_message_edge_can_use_existing_blocks() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let domain = fg.local_domain()?;
+    let src = fg.add_local(domain, TriggerMsg::new);
+    let snk = fg.add_local(domain, CountMsg::new);
+
+    fg.domain_run(domain, move |ctx| {
+        ctx.message(src, "out", snk, "in")?;
+        Ok(())
+    })?;
+
+    let rt = Runtime::new();
+    let fg = trigger_once(&rt, fg, src)?;
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
+
+    Ok(())
+}
+
 fn post_then_call_count(
     rt: &Runtime,
     fg: Flowgraph,

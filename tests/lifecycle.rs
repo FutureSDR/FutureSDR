@@ -83,6 +83,15 @@ impl Kernel for InitFail {
 }
 
 #[derive(Block)]
+struct InitRuntimeError;
+
+impl Kernel for InitRuntimeError {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+        Err(Error::ValidationError("init validation failed".to_string()).into())
+    }
+}
+
+#[derive(Block)]
 #[message_inputs(fail)]
 struct FailOnCall;
 
@@ -176,6 +185,19 @@ fn init_failure_stops_started_domains_before_start_returns() -> Result<()> {
     assert_eq!(normal.deinit(), 1);
     assert_eq!(local.init(), 1);
     assert_eq!(local.deinit(), 1);
+    Ok(())
+}
+
+#[test]
+fn init_failure_preserves_runtime_error_variant() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    fg.add(InitRuntimeError);
+
+    assert!(matches!(
+        expect_start_err(fg, "init validation failed"),
+        Error::ValidationError(msg) if msg == "init validation failed"
+    ));
+
     Ok(())
 }
 

@@ -513,52 +513,14 @@ impl<'a> LocalDomainContext<'a> {
         let dst_port_id = dst_port_id.into();
         let mut inner = self.inner.borrow_mut();
 
-        let first_block_id = inner.next_block_id - inner.entries.len();
-        let src_placement = inner
-            .entries
-            .get(
-                src_block_id
-                    .0
-                    .checked_sub(first_block_id)
-                    .ok_or(Error::InvalidBlock(src_block_id))?,
-            )
-            .map(|entry| entry.placement)
+        let src_local = inner
+            .state
+            .local_id_for_block(src_block_id)
             .ok_or(Error::InvalidBlock(src_block_id))?;
-        let dst_placement = inner
-            .entries
-            .get(
-                dst_block_id
-                    .0
-                    .checked_sub(first_block_id)
-                    .ok_or(Error::InvalidBlock(dst_block_id))?,
-            )
-            .map(|entry| entry.placement)
+        let dst_local = inner
+            .state
+            .local_id_for_block(dst_block_id)
             .ok_or(Error::InvalidBlock(dst_block_id))?;
-
-        let (
-            BlockPlacement::Local {
-                domain_id: src_domain,
-                local_id: src_local,
-                ..
-            },
-            BlockPlacement::Local {
-                domain_id: dst_domain,
-                local_id: dst_local,
-                ..
-            },
-        ) = (src_placement, dst_placement)
-        else {
-            return Err(Error::ValidationError(
-                "local-domain context message connections require local blocks".to_string(),
-            ));
-        };
-
-        if src_domain != inner.domain_id || dst_domain != inner.domain_id {
-            return Err(Error::ValidationError(
-                "local-domain context message connections require blocks in this domain"
-                    .to_string(),
-            ));
-        }
 
         let dst_block = inner.state.block(dst_local, dst_block_id)?;
         if !dst_block.message_inputs().contains(&dst_port_id.name()) {
