@@ -85,10 +85,10 @@ fn connect_trigger_to_sink(
     fg: &mut Flowgraph,
     domain: Option<LocalDomain>,
 ) -> Result<(BlockRef<TriggerMsg>, BlockRef<CountMsg>)> {
-    let src = fg.add(TriggerMsg::new());
+    let src = fg.add(TriggerMsg::new())?;
     let snk = match domain {
-        Some(domain) => fg.add_local(domain, CountMsg::new),
-        None => fg.add(CountMsg::new()),
+        Some(domain) => fg.add_local(domain, CountMsg::new)?,
+        None => fg.add(CountMsg::new())?,
     };
     fg.message(src.id(), "out", snk.id(), "in")?;
     Ok((src, snk))
@@ -151,8 +151,8 @@ fn local_domain_context_message_edge_delivers_once() -> Result<()> {
 fn local_domain_context_message_edge_can_use_existing_blocks() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
-    let src = fg.add_local(domain, TriggerMsg::new);
-    let snk = fg.add_local(domain, CountMsg::new);
+    let src = fg.add_local(domain, TriggerMsg::new)?;
+    let snk = fg.add_local(domain, CountMsg::new)?;
 
     fg.domain_run(domain, move |ctx| {
         ctx.message(src, "out", snk, "in")?;
@@ -181,7 +181,7 @@ fn post_then_call_count(
 #[test]
 fn running_post_then_call_can_target_normal_block() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let snk = fg.add(CountMsg::new());
+    let snk = fg.add(CountMsg::new())?;
 
     let rt = Runtime::new();
     let fg = post_then_call_count(&rt, fg, snk)?;
@@ -194,7 +194,7 @@ fn running_post_then_call_can_target_normal_block() -> Result<()> {
 fn running_post_then_call_can_target_local_domain_block() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
-    let snk = fg.add_local(domain, CountMsg::new);
+    let snk = fg.add_local(domain, CountMsg::new)?;
 
     let rt = Runtime::new();
     let fg = post_then_call_count(&rt, fg, snk)?;
@@ -206,7 +206,7 @@ fn running_post_then_call_can_target_local_domain_block() -> Result<()> {
 #[test]
 fn running_call_preserves_invalid_message_port_error() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let snk = fg.add(CountMsg::new());
+    let snk = fg.add(CountMsg::new())?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;
@@ -240,7 +240,7 @@ fn wait_for_handler_failure(running: futuresdr::runtime::RunningFlowgraph) {
 #[test]
 fn running_call_preserves_handler_error_from_normal_block() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let fail = fg.add(FailMsg::new());
+    let fail = fg.add(FailMsg::new())?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;
@@ -255,7 +255,7 @@ fn running_call_preserves_handler_error_from_normal_block() -> Result<()> {
 fn running_call_preserves_handler_error_from_local_block() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
-    let fail = fg.add_local(domain, FailMsg::new);
+    let fail = fg.add_local(domain, FailMsg::new)?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;
@@ -270,7 +270,7 @@ fn running_call_preserves_handler_error_from_local_block() -> Result<()> {
 fn running_call_can_target_local_domain_block() -> Result<()> {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain()?;
-    let snk = fg.add_local(domain, CountMsg::new);
+    let snk = fg.add_local(domain, CountMsg::new)?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;

@@ -50,13 +50,13 @@ fn main() -> Result<()> {
             let mut prev = block;
 
             for _ in 2..=stages {
-                let block = fg.add(MessageCopy::new());
+                let block = fg.add(MessageCopy::new())?;
                 fg.message(prev, "out", block, "in")?;
                 this_pipe.push(block.id());
                 prev = block;
             }
 
-            let snk = fg.add(MessageSink::new());
+            let snk = fg.add(MessageSink::new())?;
             fg.message(prev, "out", snk, "in")?;
             this_pipe.push(snk.id());
             snks.push(snk);
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         }
 
         let now = time::Instant::now();
-        fg = if config == "smol1" {
+        let fg = if config == "smol1" {
             Runtime::with_scheduler(SmolScheduler::new(1, false)).run(fg)?
         } else if config == "smoln" {
             Runtime::with_scheduler(SmolScheduler::default()).run(fg)?

@@ -84,14 +84,14 @@ fn main() -> Result<()> {
                     .sample_rate(args.rate)
                     .gain(args.gain)
                     .build_source()?,
-            )
+            )?
             .into(),
             "outputs[0]",
         )
     };
 
     let (src, output_name): (BlockId, &'static str) = if let Some(samples) = args.samples {
-        let sample_counter: BlockId = fg.add(Head::<Complex<f32>>::new(samples)).into();
+        let sample_counter: BlockId = fg.add(Head::<Complex<f32>>::new(samples))?.into();
         fg.stream_dyn(src, output_name, sample_counter, "input")?;
         (sample_counter, "output")
     } else {
@@ -118,7 +118,7 @@ fn main() -> Result<()> {
             last_power_print = Instant::now();
         }
         *i
-    }));
+    }))?;
 
     fg.stream_dyn(src, output_name, powermeter, "input")?;
 

@@ -147,7 +147,7 @@ impl<K> DerefMut for TypedBlockGuardMut<'_, K> {
 /// use futuresdr::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
-/// let snk = fg.add(NullSink::<u8>::new());
+/// let snk = fg.add(NullSink::<u8>::new())?;
 ///
 /// assert_eq!(snk.id(), snk.get(&fg)?.id());
 /// # Ok::<(), futuresdr::runtime::Error>(())
@@ -1176,7 +1176,7 @@ impl Flowgraph {
     /// for inspecting/mutating the block before the flowgraph is started. Blocks
     /// marked as blocking are placed in an internal local domain so their async
     /// API may perform blocking work without occupying a normal scheduler worker.
-    pub fn add<K>(&mut self, block: K) -> BlockRef<K>
+    pub fn add<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
         K: SendKernel + SendKernelInterface + 'static,
     {
@@ -1187,25 +1187,25 @@ impl Flowgraph {
         #[cfg(target_arch = "wasm32")]
         {
             if <K as KernelInterface>::is_blocking() {
-                panic!("Flowgraph::add cannot add blocking blocks on wasm32; use add_async");
+                return Err(Error::RuntimeError(
+                    "Flowgraph::add cannot add blocking blocks on wasm32; use add_async"
+                        .to_string(),
+                ));
             }
-            self.add_normal_kernel(block)
+            Ok(self.add_normal_kernel(block))
         }
     }
 
     /// Asynchronously add a block and return a typed reference to it.
-    pub async fn add_async<K>(&mut self, block: K) -> BlockRef<K>
+    pub async fn add_async<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
         K: SendKernel + SendKernelInterface + 'static,
     {
         if <K as KernelInterface>::is_blocking() {
-            let domain_id = self.local_domains.len();
-            self.local_domains
-                .push(LocalDomainRuntime::new().expect("failed to create local domain"));
-            self.add_kernel_to_domain_async(domain_id, move || block)
-                .await
+            let domain = self.local_domain()?;
+            self.add_local_async(domain, move || block).await
         } else {
-            self.add_normal_kernel(block)
+            Ok(self.add_normal_kernel(block))
         }
     }
 
@@ -1274,13 +1274,11 @@ impl Flowgraph {
         &mut self,
         domain: LocalDomain,
         block: impl FnOnce() -> K + Send + 'static,
-    ) -> BlockRef<K>
+    ) -> Result<BlockRef<K>, Error>
     where
         K: Kernel + KernelInterface + 'static,
     {
-        let domain_id = self
-            .validate_local_domain(domain)
-            .expect("local domain belongs to another flowgraph");
+        let domain_id = self.validate_local_domain(domain)?;
         self.add_kernel_to_domain(domain_id, block)
     }
 
@@ -1289,13 +1287,11 @@ impl Flowgraph {
         &mut self,
         domain: LocalDomain,
         block: impl FnOnce() -> K + Send + 'static,
-    ) -> BlockRef<K>
+    ) -> Result<BlockRef<K>, Error>
     where
         K: Kernel + KernelInterface + 'static,
     {
-        let domain_id = self
-            .validate_local_domain(domain)
-            .expect("local domain belongs to another flowgraph");
+        let domain_id = self.validate_local_domain(domain)?;
         self.add_kernel_to_domain_async(domain_id, block).await
     }
 
@@ -1304,7 +1300,7 @@ impl Flowgraph {
         &mut self,
         domain_id: usize,
         block: impl FnOnce() -> K + Send + 'static,
-    ) -> BlockRef<K>
+    ) -> Result<BlockRef<K>, Error>
     where
         K: Kernel + KernelInterface + 'static,
     {
@@ -1315,7 +1311,7 @@ impl Flowgraph {
         &mut self,
         domain_id: usize,
         block: impl FnOnce() -> K + Send + 'static,
-    ) -> BlockRef<K>
+    ) -> Result<BlockRef<K>, Error>
     where
         K: Kernel + KernelInterface + 'static,
     {
@@ -1327,7 +1323,7 @@ impl Flowgraph {
         let block_id = self.reserve_block_id(placement, K::message_inputs());
         let domain_handle = self.local_domains[domain_id].handle();
         let external = BlockInbox::domain_proxy(domain_handle, block_id);
-        let inbox = self.local_domains[domain_id]
+        let inbox = match self.local_domains[domain_id]
             .build(
                 local_id,
                 Box::new(move || {
@@ -1340,10 +1336,19 @@ impl Flowgraph {
                 }),
             )
             .await
-            .expect("failed to build block in local domain");
+        {
+            Ok(inbox) => inbox,
+            Err(e) => {
+                if self.blocks.len() == block_id.0 + 1 {
+                    self.blocks.pop();
+                }
+                self.local_domains[domain_id].unreserve_last_block(local_id);
+                return Err(e);
+            }
+        };
         let entry = &mut self.blocks[block_id.0];
         entry.inbox = Some(inbox);
-        self.block_ref(block_id, placement)
+        Ok(self.block_ref(block_id, placement))
     }
 
     async fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
@@ -2343,8 +2348,8 @@ impl Flowgraph {
     ///     let head = Head::<u8>::new(1234);
     ///     let snk = NullSink::<u8>::new();
     ///
-    ///     let src = fg.add(src);
-    ///     let head = fg.add(head);
+    ///     let src = fg.add(src)?;
+    ///     let head = fg.add(head)?;
     ///
     ///     // dynamic stream connection by port name
     ///     fg.stream_dyn(src, "output", head, "input")?;

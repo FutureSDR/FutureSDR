@@ -23,9 +23,9 @@ pub use scheduler::NormalBlock;
 pub use scheduler::NormalBlocks;
 pub use scheduler::NormalDomainSpec;
 pub use scheduler::NormalRunningDomain;
-pub use scheduler::RunningDomain;
+pub(crate) use scheduler::RunningDomain;
 pub use scheduler::Scheduler;
-pub use scheduler::StoppedDomain;
+pub(crate) use scheduler::StoppedDomain;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

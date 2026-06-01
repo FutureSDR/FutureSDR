@@ -113,17 +113,9 @@ impl FailOnCall {
 
 impl Kernel for FailOnCall {}
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct FailLocalScheduler {
     inner: SmolScheduler,
-}
-
-impl Default for FailLocalScheduler {
-    fn default() -> Self {
-        Self {
-            inner: SmolScheduler::default(),
-        }
-    }
 }
 
 impl Scheduler for FailLocalScheduler {
@@ -168,13 +160,13 @@ fn init_failure_stops_started_domains_before_start_returns() -> Result<()> {
     let local = Counters::default();
 
     let mut fg = Flowgraph::new();
-    fg.add(WaitBlock::new(normal.clone()));
-    fg.add(InitFail);
+    fg.add(WaitBlock::new(normal.clone()))?;
+    fg.add(InitFail)?;
     let domain = fg.local_domain()?;
     fg.add_local(domain, {
         let local = local.clone();
         move || WaitBlock::new(local)
-    });
+    })?;
 
     assert!(matches!(
         expect_start_err(fg, "init failed"),
@@ -191,7 +183,7 @@ fn init_failure_stops_started_domains_before_start_returns() -> Result<()> {
 #[test]
 fn init_failure_preserves_runtime_error_variant() -> Result<()> {
     let mut fg = Flowgraph::new();
-    fg.add(InitRuntimeError);
+    fg.add(InitRuntimeError)?;
 
     assert!(matches!(
         expect_start_err(fg, "init validation failed"),
@@ -207,12 +199,12 @@ fn local_domain_start_failure_stops_started_normal_domain() -> Result<()> {
     let local = Counters::default();
 
     let mut fg = Flowgraph::new();
-    fg.add(WaitBlock::new(normal.clone()));
+    fg.add(WaitBlock::new(normal.clone()))?;
     let domain = fg.local_domain()?;
     fg.add_local(domain, {
         let local = local.clone();
         move || WaitBlock::new(local)
-    });
+    })?;
 
     let rt = Runtime::with_scheduler(FailLocalScheduler::default());
     match rt.start(fg) {
@@ -231,16 +223,16 @@ fn run_failure_stops_domains(fail_local: bool) -> Result<()> {
     let local = Counters::default();
 
     let mut fg = Flowgraph::new();
-    fg.add(WaitBlock::new(normal.clone()));
+    fg.add(WaitBlock::new(normal.clone()))?;
     let domain = fg.local_domain()?;
     fg.add_local(domain, {
         let local = local.clone();
         move || WaitBlock::new(local)
-    });
+    })?;
     let fail = if fail_local {
-        fg.add_local(domain, FailOnCall::new)
+        fg.add_local(domain, FailOnCall::new)?
     } else {
-        fg.add(FailOnCall::new())
+        fg.add(FailOnCall::new())?
     };
 
     let rt = Runtime::new();

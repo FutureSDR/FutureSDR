@@ -77,7 +77,7 @@ fn main() -> Result<()> {
                 .antenna(args.antenna)
                 .build_source()?;
 
-            fg.add(src).into()
+            fg.add(src)?.into()
         }
     };
 
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
     }
     let interp_block = fg.add(FirBuilder::resampling::<Complex32, Complex32>(
         interp, decim,
-    ));
+    ))?;
     if args.file.is_some() {
         fg.stream_dyn(src, "output", interp_block, "input")?;
     } else {

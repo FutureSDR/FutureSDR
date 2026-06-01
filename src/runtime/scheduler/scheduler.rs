@@ -215,7 +215,7 @@ impl LocalRunningDomain {
 }
 
 /// Running scheduling domain.
-pub enum RunningDomain {
+pub(crate) enum RunningDomain {
     /// The implicit normal send-capable domain.
     Normal(NormalRunningDomain),
     /// A local non-`Send` scheduling domain.
@@ -224,7 +224,7 @@ pub enum RunningDomain {
 
 impl RunningDomain {
     /// Stop this running domain.
-    pub async fn stop(&mut self) -> Result<(), Error> {
+    pub(crate) async fn stop(&mut self) -> Result<(), Error> {
         match self {
             RunningDomain::Normal(_) => Ok(()),
             RunningDomain::Local(domain) => domain.stop().await,
@@ -241,7 +241,7 @@ impl RunningDomain {
 }
 
 /// Stopped scheduling-domain state.
-pub enum StoppedDomain {
+pub(crate) enum StoppedDomain {
     /// Blocks returned by the normal domain.
     Normal(NormalBlocks),
     /// Stopped local-domain id.

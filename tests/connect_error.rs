@@ -11,8 +11,8 @@ use std::time::Duration;
 #[test]
 fn connect_type_error() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let fft: BlockId = fg.add(Fft::new(16) as Fft).into();
-    let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new()).into();
+    let fft: BlockId = fg.add(Fft::new(16) as Fft)?.into();
+    let sink: BlockId = fg.add(NullSink::<[Complex<f32>; 16]>::new())?.into();
     fg.stream_dyn(fft, "output", sink, "input")?;
     match Runtime::new().run(fg) {
         Err(Error::ValidationError(_)) => Ok(()),
@@ -25,9 +25,9 @@ fn connect_type_error() -> Result<()> {
 fn message_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add(source);
+    let source = fg.add(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add(sink);
+    let sink = fg.add(sink)?;
 
     let result = fg.message(source, "out", sink, "non_existent");
     assert!(result.is_err());
@@ -50,9 +50,9 @@ fn message_invalid_in_port() -> Result<()> {
 fn message_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = MessageSource::new(Pmt::Ok, Duration::from_secs(1), Some(1));
-    let source = fg.add(source);
+    let source = fg.add(source)?;
     let sink = MessageSink::new();
-    let sink = fg.add(sink);
+    let sink = fg.add(sink)?;
 
     let result = fg.message(source, "fictitious", sink, "in");
     assert!(result.is_err());
@@ -74,7 +74,7 @@ fn message_invalid_out_port() -> Result<()> {
 #[test]
 fn stream_self_connection_is_rejected() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let copy = fg.add(Copy::<f32>::new());
+    let copy = fg.add(Copy::<f32>::new())?;
 
     match fg.stream(&copy, |b| b.output(), &copy, |b| b.input()) {
         Err(Error::LockError) => Ok(()),
@@ -90,9 +90,9 @@ fn stream_self_connection_is_rejected() -> Result<()> {
 #[test]
 fn stream_duplicate_input_is_rejected_at_startup() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let src0 = fg.add(NullSource::<f32>::new());
-    let src1 = fg.add(NullSource::<f32>::new());
-    let snk = fg.add(NullSink::<f32>::new());
+    let src0 = fg.add(NullSource::<f32>::new())?;
+    let src1 = fg.add(NullSource::<f32>::new())?;
+    let snk = fg.add(NullSink::<f32>::new())?;
 
     fg.stream_dyn(src0, "output", snk, "input")?;
     fg.stream_dyn(src1, "output", snk, "input")?;
@@ -108,8 +108,8 @@ fn stream_duplicate_input_is_rejected_at_startup() -> Result<()> {
 #[test]
 fn stream_cycle_is_rejected_at_startup() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let a = fg.add(Copy::<f32>::new());
-    let b = fg.add(Copy::<f32>::new());
+    let a = fg.add(Copy::<f32>::new())?;
+    let b = fg.add(Copy::<f32>::new())?;
 
     fg.stream(&a, |b| b.output(), &b, |b| b.input())?;
     fg.stream(&b, |b| b.output(), &a, |b| b.input())?;
@@ -126,9 +126,9 @@ fn stream_cycle_is_rejected_at_startup() -> Result<()> {
 fn stream_invalid_in_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add(source);
+    let source = fg.add(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add(sink);
+    let sink = fg.add(sink)?;
 
     let result = fg.stream_dyn(source, "output", sink, "non_existent");
     assert!(result.is_err());
@@ -151,9 +151,9 @@ fn stream_invalid_in_port() -> Result<()> {
 fn stream_invalid_out_port() -> Result<()> {
     let mut fg = Flowgraph::new();
     let source = NullSource::<f32>::new();
-    let source = fg.add(source);
+    let source = fg.add(source)?;
     let sink = NullSink::<f32>::new();
-    let sink = fg.add(sink);
+    let sink = fg.add(sink)?;
 
     let result = fg.stream_dyn(source, "fictitious", sink, "input");
     assert!(result.is_err());

@@ -36,10 +36,10 @@ fn main() -> Result<()> {
     // TRANSMITTER
     // ========================================
     let mac: Mac = Mac::new();
-    let mac = fg.add(mac);
-    let modulator = modulator(&mut fg);
+    let mac = fg.add(mac)?;
+    let modulator = modulator(&mut fg)?;
     let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add(iq_delay);
+    let iq_delay = fg.add(iq_delay)?;
     let snk = fg.add(
         Builder::new("")?
             .frequency(args.tx_freq)
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
             .gain(args.tx_gain)
             .min_in_buffer_size(98304)
             .build_sink()?,
-    );
+    )?;
 
     fg.stream_dyn(mac, "output", modulator, "input")?;
     fg.stream_dyn(modulator, "output", iq_delay, "input")?;

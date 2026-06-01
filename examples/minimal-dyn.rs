@@ -12,9 +12,9 @@ fn main() -> Result<()> {
     let snk = NullSink::<u8>::new();
 
     // type erasure for src
-    let src = fg.add(src);
+    let src = fg.add(src)?;
 
-    let head = fg.add(head);
+    let head = fg.add(head)?;
 
     // untyped connect
     fg.stream_dyn(src, "output", head, "input")?;

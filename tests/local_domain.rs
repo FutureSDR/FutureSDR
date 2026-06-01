@@ -202,16 +202,16 @@ impl Kernel for NonSendLocalSink {
 #[test]
 fn local_to_local_and_local_to_normal() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
 
     let local = fg.local_domain()?;
 
     let src = fg.add_local(local, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
+    })?;
     let head = fg.add_local(local, || {
         Head::<u8, LocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3)
-    });
+    })?;
 
     fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
     fg.stream(&head, |b| b.output(), &snk, |b| b.input())?;
@@ -229,8 +229,8 @@ fn connect_macro_supports_local_stream_operator() -> Result<()> {
 
     let src = fg.add_local(local, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk = fg.add_local(local, NullSink::<u8, LocalCpuReader<u8>>::new);
+    })?;
+    let snk = fg.add_local(local, NullSink::<u8, LocalCpuReader<u8>>::new)?;
 
     connect!(fg, src ~> snk);
 
@@ -244,7 +244,7 @@ fn connect_macro_supports_local_stream_operator() -> Result<()> {
 fn local_domain_accepts_non_send_blocks() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
-    fg.add_local(local, NonSendLocalBlock::new);
+    fg.add_local(local, NonSendLocalBlock::new)?;
 
     Runtime::new().run(fg)?;
     Ok(())
@@ -258,8 +258,8 @@ fn flowgraph_runs_local_domain_blocks() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    })?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
 
     assert!(src.with(&fg, |_| true)?);
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
@@ -279,8 +279,8 @@ fn stream_connects_normal_source_to_local_sink() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![
         1, 2, 3, 4,
-    ]));
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    ]))?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -298,8 +298,8 @@ fn stream_dyn_connects_normal_source_to_local_sink() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![
         1, 2, 3, 4,
-    ]));
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    ]))?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
 
@@ -317,8 +317,8 @@ fn add_local_uses_normal_buffers_inside_local_domain() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    })?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -334,8 +334,8 @@ fn stream_connects_same_domain_local_blocks_with_send_buffer() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let local = fg.local_domain()?;
-    let src = fg.add_local(local, NonSendLocalSource::new);
-    let snk = fg.add_local(local, NonSendLocalSink::new);
+    let src = fg.add_local(local, NonSendLocalSource::new)?;
+    let snk = fg.add_local(local, NonSendLocalSink::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -352,8 +352,8 @@ fn stream_connects_different_local_domains_with_send_buffer() -> Result<()> {
 
     let source_domain = fg.local_domain()?;
     let sink_domain = fg.local_domain()?;
-    let src = fg.add_local(source_domain, NonSendLocalSource::new);
-    let snk = fg.add_local(sink_domain, NonSendLocalSink::new);
+    let src = fg.add_local(source_domain, NonSendLocalSource::new)?;
+    let snk = fg.add_local(sink_domain, NonSendLocalSink::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -370,8 +370,8 @@ fn stream_dyn_connects_different_local_domains_with_send_buffer() -> Result<()> 
 
     let source_domain = fg.local_domain()?;
     let sink_domain = fg.local_domain()?;
-    let src = fg.add_local(source_domain, NonSendLocalSource::new);
-    let snk = fg.add_local(sink_domain, NonSendLocalSink::new);
+    let src = fg.add_local(source_domain, NonSendLocalSource::new)?;
+    let snk = fg.add_local(sink_domain, NonSendLocalSink::new)?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
 
@@ -390,8 +390,8 @@ fn stream_dyn_connects_different_local_domains_with_generic_send_buffer() -> Res
     let sink_domain = fg.local_domain()?;
     let src = fg.add_local(source_domain, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk = fg.add_local(sink_domain, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    })?;
+    let snk = fg.add_local(sink_domain, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
 
@@ -409,9 +409,9 @@ fn stream_dyn_connects_local_source_to_normal_blocks() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk0 = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
-    let snk1 = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    })?;
+    let snk0 = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
+    let snk1 = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
 
     fg.stream_dyn(src, "output", snk0, "input")?;
     fg.stream_dyn(src, "output", snk1, "input")?;
@@ -431,8 +431,8 @@ fn stream_dyn_connects_same_domain_local_buffers() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
-    let snk = fg.add_local(local, NullSink::<u8, LocalCpuReader<u8>>::new);
+    })?;
+    let snk = fg.add_local(local, NullSink::<u8, LocalCpuReader<u8>>::new)?;
 
     fg.stream_dyn(src, "output", snk, "input")?;
 
@@ -445,8 +445,8 @@ fn stream_dyn_connects_same_domain_local_buffers() -> Result<()> {
 #[test]
 fn stream_local_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]));
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]))?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
     assert_validation_contains(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input()),
         "same local domain",
@@ -456,8 +456,8 @@ fn stream_local_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1])
-    });
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    })?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
     assert_validation_contains(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input()),
         "same local domain",
@@ -465,8 +465,8 @@ fn stream_local_rejects_non_local_and_cross_domain_edges() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]));
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]))?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
     assert_validation_contains(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input()),
         "same local domain",
@@ -476,9 +476,9 @@ fn stream_local_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let local_a = fg.local_domain()?;
     let src = fg.add_local(local_a, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1])
-    });
+    })?;
     let local_b = fg.local_domain()?;
-    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new);
+    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new)?;
     assert_validation_contains(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input()),
         "different local domains",
@@ -490,8 +490,8 @@ fn stream_local_rejects_non_local_and_cross_domain_edges() -> Result<()> {
 #[test]
 fn stream_local_dyn_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let mut fg = Flowgraph::new();
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]));
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]))?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
     assert_validation_contains(
         fg.stream_local_dyn(src, "output", snk, "input"),
         "same local domain",
@@ -501,8 +501,8 @@ fn stream_local_dyn_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let local = fg.local_domain()?;
     let src = fg.add_local(local, || {
         VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1])
-    });
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    })?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
     assert_validation_contains(
         fg.stream_local_dyn(src, "output", snk, "input"),
         "same local domain",
@@ -510,8 +510,8 @@ fn stream_local_dyn_rejects_non_local_and_cross_domain_edges() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]));
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1]))?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
     assert_validation_contains(
         fg.stream_local_dyn(src, "output", snk, "input"),
         "same local domain",
@@ -521,9 +521,9 @@ fn stream_local_dyn_rejects_non_local_and_cross_domain_edges() -> Result<()> {
     let local_a = fg.local_domain()?;
     let src = fg.add_local(local_a, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1])
-    });
+    })?;
     let local_b = fg.local_domain()?;
-    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new);
+    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new)?;
     assert_validation_contains(
         fg.stream_local_dyn(src, "output", snk, "input"),
         "different local domains",
@@ -537,7 +537,7 @@ fn blocking_add_runs_in_private_local_domain() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
     let worked = Arc::new(AtomicBool::new(false));
-    let blk = fg.add(BlockingNoop::new(worked.clone()));
+    let blk = fg.add(BlockingNoop::new(worked.clone()))?;
 
     let fg = rt.run(fg)?;
 
@@ -552,9 +552,9 @@ fn local_streams_reject_different_domains() -> Result<()> {
     let local_a = fg.local_domain()?;
     let src = fg.add_local(local_a, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1])
-    });
+    })?;
     let local_b = fg.local_domain()?;
-    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new);
+    let snk = fg.add_local(local_b, NullSink::<u8, LocalCpuReader<u8>>::new)?;
 
     assert!(
         fg.stream_local(&src, |b| b.output(), &snk, |b| b.input())

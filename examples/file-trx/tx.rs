@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         .sample_rate(args.sample_rate)
         .gain(args.gain)
         .build_sink()?;
-    let snk = fg.add(snk);
+    let snk = fg.add(snk)?;
 
     fg.stream_dyn(src, "output", snk, "inputs[0]")?;
 

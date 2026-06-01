@@ -19,7 +19,7 @@ use crate::runtime::dev::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add(TagDebug::<Complex32>::new("foo"));
+/// let sink = fg.add(TagDebug::<Complex32>::new("foo")).unwrap();
 /// ```
 #[derive(Block)]
 pub struct TagDebug<T, I = DefaultCpuReader<T>>

@@ -76,13 +76,13 @@ where
 
     for p in 0..pipes {
         let executor = p % n_executors;
-        let src = fg.add(NullSource::<f32, B::Writer<f32>>::new());
+        let src = fg.add(NullSource::<f32, B::Writer<f32>>::new())?;
         let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
-        ));
+        ))?;
         let mut last = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             max_copy,
-        ));
+        ))?;
 
         {
             connect!(fg, src > head > last);
@@ -95,7 +95,7 @@ where
         for _ in 1..stages {
             let block = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
                 max_copy,
-            ));
+            ))?;
             {
                 connect!(fg, last > block);
             }
@@ -103,7 +103,7 @@ where
             last = block;
         }
 
-        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new());
+        let snk = fg.add(NullSink::<f32, ReaderOf<B, f32>>::new())?;
         {
             connect!(fg, last > snk);
         }
@@ -139,13 +139,13 @@ fn generate_local(
     for core_id in core_ids {
         let local = fg.local_domain_pinned(core_id.id)?;
 
-        let src = fg.add_local(local, NullSource::<f32, local_spsc::Writer<f32>>::new);
+        let src = fg.add_local(local, NullSource::<f32, local_spsc::Writer<f32>>::new)?;
         let head = fg.add_local(local, move || {
             Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
-        });
+        })?;
         let mut last = fg.add_local(local, move || {
             CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
-        });
+        })?;
 
         fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
         fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
@@ -153,12 +153,12 @@ fn generate_local(
         for _ in 1..stages {
             let block = fg.add_local(local, move || {
                 CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
-            });
+            })?;
             fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
             last = block;
         }
 
-        let snk = fg.add_local(local, NullSink::<f32, local_spsc::Reader<f32>>::new);
+        let snk = fg.add_local(local, NullSink::<f32, local_spsc::Reader<f32>>::new)?;
         fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
         snks.push(snk);
     }

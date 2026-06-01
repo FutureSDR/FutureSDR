@@ -17,7 +17,7 @@ use crate::runtime::dev::prelude::*;
 ///
 /// let mut fg = Flowgraph::new();
 ///
-/// let sink = fg.add(NullSink::<Complex<f32>>::new());
+/// let sink = fg.add(NullSink::<Complex<f32>>::new()).unwrap();
 /// ```
 #[derive(Block)]
 pub struct NullSink<T: CpuSample, I: CpuBufferReader<Item = T> = DefaultCpuReader<T>> {

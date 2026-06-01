@@ -29,7 +29,7 @@ where
     type Added = BlockRef<K>;
 
     fn connect_add(self, block: K) -> Result<Self::Added, Error> {
-        Ok(self.add(block))
+        self.add(block)
     }
 }
 
@@ -40,7 +40,7 @@ where
     type Added = BlockRef<K>;
 
     async fn connect_add_async(self, block: K) -> Result<Self::Added, Error> {
-        Ok(self.add_async(block).await)
+        self.add_async(block).await
     }
 }
 

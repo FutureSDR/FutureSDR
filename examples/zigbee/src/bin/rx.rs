@@ -47,7 +47,7 @@ fn main() -> Result<()> {
 
     let (src, output): (BlockId, _) = match args.file {
         Some(file) => (
-            fg.add(FileSource::<Complex32>::new(file, false)).into(),
+            fg.add(FileSource::<Complex32>::new(file, false))?.into(),
             "output",
         ),
         None => (
@@ -58,7 +58,7 @@ fn main() -> Result<()> {
                     .gain(args.gain)
                     .antenna(args.antenna)
                     .build_source()?,
-            )
+            )?
             .into(),
             "outputs[0]",
         ),
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
         last = *i;
         iir = (1.0 - alpha) * iir + alpha * phase;
         phase - iir
-    }));
+    }))?;
 
     fg.stream_dyn(src, output, avg, "input")?;
 

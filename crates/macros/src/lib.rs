@@ -49,12 +49,12 @@ use syn::token;
 ///
 /// ```ignore
 /// // Add all the blocks to the `Flowgraph`...
-/// let src = fg.add(src);
-/// let shift = fg.add(shift);
-/// let resamp1 = fg.add(resamp1);
-/// let demod = fg.add(demod);
-/// let resamp2 = fg.add(resamp2);
-/// let snk = fg.add(snk);
+/// let src = fg.add(src)?;
+/// let shift = fg.add(shift)?;
+/// let resamp1 = fg.add(resamp1)?;
+/// let demod = fg.add(demod)?;
+/// let resamp2 = fg.add(resamp2)?;
+/// let snk = fg.add(snk)?;
 ///
 /// // ... and connect the ports appropriately
 /// fg.stream(&src, |b| b.output(), &shift, |b| b.input())?;

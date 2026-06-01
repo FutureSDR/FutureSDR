@@ -14,11 +14,11 @@ fn main() -> Result<()> {
 
     let src = fg.add_local(local, || {
         VectorSource::<u8, LocalCpuWriter<u8>>::new(vec![1, 2, 3, 4])
-    });
+    })?;
     let head = fg.add_local(local, || {
         Head::<u8, LocalCpuReader<u8>, DefaultCpuWriter<u8>>::new(3)
-    });
-    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new());
+    })?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
 
     fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
     fg.stream(&head, |b| b.output(), &snk, |b| b.input())?;

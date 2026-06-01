@@ -139,18 +139,18 @@ fn opti(args: Args) -> Result<()> {
     let file = args.file.clone();
     let src = fg.add_local(local0, move || {
         FileSource::<Complex32, LocalMpscComplexWriter>::new(&file, false)
-    });
+    })?;
     let delay = fg.add_local(local0, || {
         Delay::<Complex32, LocalMpscComplexReader, LocalMpscComplexWriter>::new(16)
-    });
+    })?;
     let complex_to_mag_2 = fg.add_local(local0, || {
         Apply::<_, _, _, LocalMpscComplexReader, LocalSpscF32Writer>::with_buffers(
             |i: &Complex32| i.norm_sqr(),
         )
-    });
+    })?;
     let float_avg = fg.add_local(local0, || {
         MovingAverage::<f32, LocalSpscF32Reader, LocalSpscF32Writer>::new(64)
-    });
+    })?;
     let mult_conj = fg.add_local(local0, || {
         Combine::<
             _,
@@ -161,15 +161,15 @@ fn opti(args: Args) -> Result<()> {
             LocalMpscComplexReader,
             LocalSpscComplexWriter,
         >::with_buffers(|a: &Complex32, b: &Complex32| a * b.conj())
-    });
+    })?;
     let complex_avg = fg.add_local(local0, || {
         MovingAverage::<Complex32, LocalSpscComplexReader, LocalMpscComplexWriter>::new(48)
-    });
+    })?;
     let divide_mag = fg.add_local(local0, || {
         Combine::<_, _, _, _, LocalMpscComplexReader, LocalSpscF32Reader, LocalSpscF32Writer>::with_buffers(
             |a: &Complex32, b: &f32| a.norm() / b,
         )
-    });
+    })?;
     let sync_short = fg.add_local(local0, || {
         SyncShort::<
             LocalMpscComplexReader,
@@ -177,18 +177,18 @@ fn opti(args: Args) -> Result<()> {
             LocalSpscF32Reader,
             CircularComplexWriter,
         >::new()
-    });
+    })?;
 
     let sync_long = fg.add_local(local1, || {
         SyncLong::<CircularComplexReader, LocalSpscTagsComplexWriter>::new()
-    });
+    })?;
     let fft = fg.add_local(local1, || {
         Fft::<LocalSpscTagsComplexReader, LocalSpscTagsComplexWriter>::with_buffers(64)
-    });
+    })?;
     let frame_equalizer = fg.add_local(local1, || {
         FrameEqualizer::<LocalSpscTagsComplexReader, LocalSpscTagsU8Writer>::new()
-    });
-    let decoder = fg.add_local(local1, || Decoder::<LocalSpscTagsU8Reader>::new());
+    })?;
+    let decoder = fg.add_local(local1, || Decoder::<LocalSpscTagsU8Reader>::new())?;
 
     connect!(fg, src ~> delay;
         src ~> complex_to_mag_2 ~> float_avg;

@@ -70,15 +70,15 @@ fn main() -> Result<()> {
         (src.into(), "outputs[0]")
     };
 
-    let delay = fg.add(Delay::<Complex32>::new(16));
+    let delay = fg.add(Delay::<Complex32>::new(16))?;
     fg.stream_dyn(prev, output, delay, "input")?;
 
-    let complex_to_mag_2 = fg.add(Apply::new(|i: &Complex32| i.norm_sqr()));
+    let complex_to_mag_2 = fg.add(Apply::new(|i: &Complex32| i.norm_sqr()))?;
     let float_avg = MovingAverage::<f32>::new(64);
     fg.stream_dyn(prev, output, complex_to_mag_2, "input")?;
     connect!(fg, complex_to_mag_2 > float_avg);
 
-    let mult_conj = fg.add(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()));
+    let mult_conj = fg.add(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))?;
     let complex_avg = MovingAverage::<Complex32>::new(48);
     fg.stream_dyn(prev, output, mult_conj, "in0")?;
     connect!(fg, mult_conj > complex_avg;

@@ -120,7 +120,7 @@ fn fg_terminate() -> Result<()> {
 fn fg_handle_survives_runtime_and_task_drop() -> Result<()> {
     let mut fg = Flowgraph::new();
     let terminated = Arc::new(AtomicBool::new(false));
-    let blk = fg.add(StopOnMessage::new(terminated.clone()));
+    let blk = fg.add(StopOnMessage::new(terminated.clone()))?;
 
     let runtime = Runtime::new();
     let running = runtime.start(fg)?;

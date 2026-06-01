@@ -28,9 +28,9 @@ use std::path;
 ///     sample_format: hound::SampleFormat::Float,
 /// };
 /// let mut fg = Flowgraph::new();
-/// let src = fg.add(VectorSource::<f32>::new(vec![1.45, 2.4, 3.14, 4.2]));
-/// let snk = fg.add(WavSink::<f32>::new(path, spec));
-/// Runtime::new().run(fg)?;
+/// let src = fg.add(VectorSource::<f32>::new(vec![1.45, 2.4, 3.14, 4.2])).unwrap();
+/// let snk = fg.add(WavSink::<f32>::new(path, spec)).unwrap();
+/// Runtime::new().run(fg).unwrap();
 /// # Ok::<(), futuresdr::runtime::Error>(())
 /// ```
 #[derive(Block)]

@@ -47,6 +47,12 @@ impl LocalDomainRuntime {
         local_id
     }
 
+    pub(crate) fn unreserve_last_block(&mut self, local_id: usize) {
+        if self.blocks == local_id + 1 {
+            self.blocks -= 1;
+        }
+    }
+
     pub(crate) fn block_count(&self) -> usize {
         self.blocks
     }

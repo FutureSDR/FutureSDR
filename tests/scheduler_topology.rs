@@ -107,8 +107,8 @@ fn third_party_scheduler_can_inspect_domain_topology() -> Result<()> {
 
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3]));
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3]))?;
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 

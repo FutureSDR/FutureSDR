@@ -69,7 +69,7 @@ pub fn build_lora_tx(
         sync_word,
         preamble_len.unwrap_or(default_values::preamble_len(sf)),
         pad,
-    )?);
+    )?)?;
     Ok(transmitter)
 }
 
