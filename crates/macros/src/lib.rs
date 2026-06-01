@@ -3,7 +3,7 @@
 //! The main entry points are:
 //!
 //! - `connect!`, which adds blocks to a flowgraph and wires stream, local
-//!   stream, message, and circuit connections.
+//!   stream, and message connections.
 //! - `#[derive(Block)]`, which generates the runtime interface for block kernels.
 use proc_macro::TokenStream;
 use quote::quote;

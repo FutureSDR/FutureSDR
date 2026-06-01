@@ -374,19 +374,25 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                                 .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
                                 .await
                             {
+                                Ok(p) => {
+                                    let _ = tx.send(Ok(p));
+                                }
+                                Err(Error::InvalidMessagePort(_, port_id)) => {
+                                    let _ = tx.send(Err(Error::InvalidMessagePort(
+                                        BlockPortCtx::Id(self.id),
+                                        port_id,
+                                    )));
+                                }
                                 Err(e @ Error::HandlerError(..)) => {
                                     error!(
                                         "{}: BlockMessage::Call -> {e}. Terminating.",
                                         instance_name
                                     );
-                                    let _ = tx.send(Err(Error::InvalidMessagePort(
-                                        BlockPortCtx::Id(self.id),
-                                        port_id,
-                                    )));
+                                    let _ = tx.send(Err(e.clone()));
                                     return Err(e);
                                 }
-                                res => {
-                                    let _ = tx.send(res);
+                                Err(e) => {
+                                    let _ = tx.send(Err(e));
                                 }
                             }
                         }

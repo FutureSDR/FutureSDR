@@ -166,6 +166,7 @@ features = [
 criterion = { version = "0.8", features = ["html_reports"] }
 float-cmp = "0.10"
 rand = "0.10"
+trybuild = "1.0"
 vulkano-shaders = "0.35"
 
 [profile.release]

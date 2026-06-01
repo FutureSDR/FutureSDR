@@ -3009,10 +3009,7 @@ impl Flowgraph {
                                 .await
                                 .is_ok()
                             {
-                                match block_rx.await? {
-                                    Ok(p) => tx.send(Ok(p)).ok(),
-                                    Err(e) => tx.send(Err(Error::HandlerError(e.to_string()))).ok(),
-                                };
+                                let _ = tx.send(block_rx.await?);
                             } else {
                                 let _ = tx.send(Err(Error::BlockTerminated));
                             }

@@ -291,6 +291,25 @@ fn stream_connects_normal_source_to_local_sink() -> Result<()> {
 }
 
 #[test]
+fn stream_dyn_connects_normal_source_to_local_sink() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let local = fg.local_domain()?;
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![
+        1, 2, 3, 4,
+    ]));
+    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new);
+
+    fg.stream_dyn(src, "output", snk, "input")?;
+
+    let fg = rt.run(fg)?;
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
 fn add_local_uses_normal_buffers_inside_local_domain() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();

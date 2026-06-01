@@ -190,6 +190,26 @@ fn connect_circuit_executes() -> Result<()> {
 }
 
 #[test]
+fn inplace_buffers_recycle_on_drop_through_chain() -> Result<()> {
+    let input: Vec<i32> = (0..17).collect();
+    let expected: Vec<i32> = input.iter().map(|item| item + 1).collect();
+
+    let mut fg = Flowgraph::new();
+    let mut src: CircuitSource = CircuitSource::new(input, false);
+    src.output().inject_buffers_with_items(1, 2);
+    let apply: AddOne = AddOne::new();
+    let snk: CircuitSink = CircuitSink::new(expected.len());
+
+    connect!(fg, src > apply > snk);
+
+    let fg = Runtime::new().run(fg)?;
+    let snk = fg.block(&snk)?;
+
+    assert_eq!(snk.items(), expected);
+    Ok(())
+}
+
+#[test]
 fn connect_circuit_description_lists_stream_edges() -> Result<()> {
     let pattern = vec![3, 5, 8, 13, 21];
 

@@ -1,0 +1,5 @@
+error: the `<` circuit-close operator was removed; in-place buffers recycle when dropped
+ --> tests/ui/connect_less_operator.rs:5:22
+  |
+5 |     connect!(fg, src < snk);
+  |                      ^

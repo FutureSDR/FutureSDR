@@ -6,12 +6,8 @@ The scheduler trait is:
 
 ```rust
 pub trait Scheduler: Clone + Send + 'static {
-    #[cfg(not(target_arch = "wasm32"))]
-    fn run_domain(
-        &self,
-        blocks: Vec<Box<dyn Block>>,
-        main_channel: &Sender<FlowgraphMessage>,
-    ) -> Vec<Task<(BlockId, Box<dyn Block>)>>;
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain>;
+    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain>;
 
     fn spawn<T: Send + 'static>(
         &self,
@@ -20,18 +16,20 @@ pub trait Scheduler: Clone + Send + 'static {
 }
 ```
 
-`run_domain()` receives the normal send-capable blocks in a flowgraph. It must spawn each block, call `block.run(main_channel).await`, and return task handles that yield `(BlockId, Box<dyn Block>)`. The runtime waits for those tasks and restores the finished block objects into the returned flowgraph.
+`start_normal_domain()` receives the normal send-capable blocks and domain topology. It usually spawns each block, calls `block.run(main_channel).await`, and returns task handles through `NormalRunningDomain`. The runtime waits for those tasks and restores the finished block objects into the returned flowgraph.
+
+`start_local_domain()` receives a handle to an already-created local domain plus the local block slots assigned to it. The scheduler activates that existing domain; it does not create the local-domain thread or worker itself.
 
 `spawn()` runs general async tasks on the scheduler. `Runtime::spawn()`, `Runtime::spawn_background()`, and control-plane internals use this method.
 
 ## Normal vs Local Work
 
-Schedulers handle only the normal scheduling domain. The runtime manages local domains separately for:
+Schedulers manage scheduling domains. The implicit normal domain contains send-capable block tasks. Local domains are created by the flowgraph for:
 
 - blocks added through `Flowgraph::add_local()`,
 - blocks marked with `#[blocking]`.
 
-That separation lets scheduler implementations assume that `run_domain()` receives send-capable block tasks. Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler.
+Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler.
 
 ## Starting Point
 
@@ -44,7 +42,7 @@ A minimal native scheduler usually needs:
 
 - a clonable handle to an executor,
 - worker thread lifecycle management,
-- an implementation of `run_domain()` that spawns every block and returns its task,
+- an implementation of `start_normal_domain()` that spawns every normal block and returns its tasks,
 - an implementation of `spawn()` for unrelated async tasks.
 
 ## Selecting a Scheduler

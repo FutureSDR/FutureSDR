@@ -26,7 +26,7 @@ The three runs differ as follows:
 2. In-place: Uses custom `VectorSource`, `Apply`, and `VectorSink` blocks built on `SendInplaceReader` and `SendInplaceWriter`.
 3. Hybrid: Uses the standard FutureSDR `VectorSource` and `VectorSink` together with the custom in-place `Apply` block.
 
-For the in-place and hybrid variants, the source injects reusable buffers into the circuit. The sink then returns consumed buffers so they can be reused instead of reallocated.
+For the in-place and hybrid variants, the source injects reusable buffers into the circuit. Buffers carry their return path and recycle automatically when the final owner drops them, so blocks do not manually return consumed buffers.
 
 Each run measures and prints its execution time:
 
