@@ -186,8 +186,8 @@ mod tests {
 
     #[test]
     fn local_handler_pushes_through_current_local_context() {
-        let (_tx, mut rx, handle) = LocalBlockInboxReader::pair();
-        let _guard = enter_local_dispatch_context(vec![Some(handle)]);
+        let (inbox, mut rx) = LocalBlockInboxReader::pair();
+        let _guard = enter_local_dispatch_context(vec![Some(inbox)]);
         let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
 
         outputs

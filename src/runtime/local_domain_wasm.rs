@@ -16,7 +16,7 @@ use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block_inbox::BlockInboxReader;
-use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::enter_local_dispatch_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
@@ -404,7 +404,7 @@ impl LocalExecutor {
     }
 }
 
-async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalInboxHandle)>) {
+async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalBlockInbox)>) {
     if external.is_empty() {
         futures::future::pending::<()>().await;
     }

@@ -370,16 +370,13 @@ struct LocalInboxState {
 #[derive(Clone, Debug)]
 pub struct LocalBlockInbox(Rc<LocalInboxState>);
 
-/// Handle used by the local-domain dispatcher for direct delivery.
-pub type LocalInboxHandle = LocalBlockInbox;
-
 thread_local! {
-    static LOCAL_DISPATCH_CONTEXT: RefCell<Option<Vec<Option<LocalInboxHandle>>>> = const { RefCell::new(None) };
+    static LOCAL_DISPATCH_CONTEXT: RefCell<Option<Vec<Option<LocalBlockInbox>>>> = const { RefCell::new(None) };
 }
 
 /// Guard returned while a local domain dispatch context is installed.
 pub(crate) struct LocalDispatchContextGuard {
-    previous: Option<Vec<Option<LocalInboxHandle>>>,
+    previous: Option<Vec<Option<LocalBlockInbox>>>,
 }
 
 impl Drop for LocalDispatchContextGuard {
@@ -392,7 +389,7 @@ impl Drop for LocalDispatchContextGuard {
 
 /// Install a domain-local dispatch context for direct local message delivery.
 pub(crate) fn enter_local_dispatch_context(
-    inboxes: Vec<Option<LocalInboxHandle>>,
+    inboxes: Vec<Option<LocalBlockInbox>>,
 ) -> LocalDispatchContextGuard {
     let previous = LOCAL_DISPATCH_CONTEXT.with(|context| context.replace(Some(inboxes)));
     LocalDispatchContextGuard { previous }
@@ -457,31 +454,29 @@ impl LocalBlockInbox {
 /// Receiver-side actor inbox for local-domain blocks.
 #[derive(Debug)]
 pub(crate) struct LocalBlockInboxReader {
-    state: LocalBlockInbox,
+    inbox: LocalBlockInbox,
 }
 
 impl LocalBlockInboxReader {
-    pub(crate) fn pair() -> (LocalBlockInbox, LocalBlockInboxReader, LocalInboxHandle) {
+    /// Create a local sender/reader pair sharing one inbox queue and notifier.
+    pub(crate) fn pair() -> (LocalBlockInbox, LocalBlockInboxReader) {
         let notifier = LocalBlockNotifier::new();
-        let state = LocalBlockInbox(Rc::new(LocalInboxState::new(notifier)));
-        (
-            state.clone(),
-            LocalBlockInboxReader {
-                state: state.clone(),
-            },
-            state,
-        )
+        let inbox = LocalBlockInbox(Rc::new(LocalInboxState::new(notifier)));
+        let reader = LocalBlockInboxReader {
+            inbox: inbox.clone(),
+        };
+        (inbox, reader)
     }
 
     /// Try to receive a queued block message without blocking.
     pub fn try_recv(&mut self) -> Option<BlockMessage> {
-        self.state.try_recv()
+        self.inbox.try_recv()
     }
 
     /// Wait for the next queued block message.
     pub async fn recv(&mut self) -> Option<BlockMessage> {
         loop {
-            if let Some(msg) = self.state.try_recv() {
+            if let Some(msg) = self.inbox.try_recv() {
                 return Some(msg);
             }
             self.notified().await;
@@ -490,18 +485,18 @@ impl LocalBlockInboxReader {
 
     /// Consume a pending message bit.
     pub fn take_message_pending(&self) -> bool {
-        self.state.take_message_pending()
+        self.inbox.take_message_pending()
     }
 
     /// Consume a pending wakeup notification bit.
     pub fn take_pending(&self) -> bool {
-        self.state.0.notifier.take_pending()
+        self.inbox.0.notifier.take_pending()
     }
 
     /// Future that resolves when the block is woken.
     pub fn notified(&self) -> LocalNotified {
         LocalNotified {
-            state: self.state.0.notifier.clone(),
+            state: self.inbox.0.notifier.clone(),
         }
     }
 }
@@ -548,8 +543,8 @@ mod tests {
 
     #[test]
     fn local_coalesces_multiple_notifies() {
-        let (_, rx, _) = LocalBlockInboxReader::pair();
-        let n = rx.state.notifier();
+        let (_, rx) = LocalBlockInboxReader::pair();
+        let n = rx.inbox.notifier();
         n.notify();
         n.notify();
         n.notify();
@@ -568,8 +563,8 @@ mod tests {
 
     #[test]
     fn local_notified_completes_after_notify() {
-        let (_, rx, _) = LocalBlockInboxReader::pair();
-        let n = rx.state.notifier();
+        let (_, rx) = LocalBlockInboxReader::pair();
+        let n = rx.inbox.notifier();
         n.notify();
         block_on(rx.notified());
         assert!(!rx.take_pending());
@@ -589,7 +584,7 @@ mod tests {
 
     #[test]
     fn local_send_enqueues_and_wakes_reader() {
-        let (tx, mut rx, _) = LocalBlockInboxReader::pair();
+        let (tx, mut rx) = LocalBlockInboxReader::pair();
 
         tx.push(BlockMessage::Initialize);
 
@@ -624,7 +619,7 @@ mod tests {
 
     #[test]
     fn local_notify_wakes_without_message() {
-        let (tx, mut rx, _) = LocalBlockInboxReader::pair();
+        let (tx, mut rx) = LocalBlockInboxReader::pair();
 
         tx.notify();
 

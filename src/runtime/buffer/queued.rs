@@ -709,7 +709,7 @@ mod tests {
     use crate::runtime::buffer::local;
 
     fn local_inbox() -> crate::runtime::block_inbox::LocalBlockInbox {
-        let (inbox, _rx, _) = LocalBlockInboxReader::pair();
+        let (inbox, _rx) = LocalBlockInboxReader::pair();
         inbox
     }
 

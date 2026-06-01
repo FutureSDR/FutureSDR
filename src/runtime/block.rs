@@ -9,7 +9,7 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
-use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriterToken;
 use crate::runtime::buffer::AnySendBufferWriterToken;
@@ -24,8 +24,8 @@ pub trait BlockObject: Any {
 
     /// Get the sender-side inbox of the block.
     fn inbox(&self) -> BlockInbox;
-    /// Get the local inbox state for local-domain direct delivery.
-    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+    /// Get the local inbox handle for local-domain direct delivery.
+    fn local_inbox(&self) -> Option<LocalBlockInbox> {
         None
     }
     /// Take the external normal inbox reader for a local-domain block.

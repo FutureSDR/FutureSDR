@@ -17,7 +17,6 @@ use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
-use crate::runtime::block_inbox::LocalInboxHandle;
 use crate::runtime::block_inbox::ThreadSafeBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriterToken;
@@ -123,7 +122,7 @@ impl LocalBlockInboxes {
     fn new(external_tx: BlockInbox) -> Self {
         let (thread_safe_tx, thread_safe_rx) =
             crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
-        let (local_tx, local_rx, _) = LocalBlockInboxReader::pair();
+        let (local_tx, local_rx) = LocalBlockInboxReader::pair();
         Self {
             external_tx,
             thread_safe_tx,
@@ -142,7 +141,7 @@ pub(crate) trait WrappedKernelInbox {
     fn take_run_inbox(&mut self) -> Self::RunInbox;
     fn put_run_inbox(&mut self, inbox: Self::RunInbox);
 
-    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+    fn local_inbox(&self) -> Option<LocalBlockInbox> {
         None
     }
 
@@ -194,7 +193,7 @@ impl WrappedKernelInbox for LocalBlockInboxes {
         self.local_rx = Some(inbox);
     }
 
-    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
+    fn local_inbox(&self) -> Option<LocalBlockInbox> {
         Some(self.local_tx.clone())
     }
 
@@ -490,8 +489,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn inbox(&self) -> BlockInbox {
         self.inbox.external_inbox()
     }
-    fn local_inbox_state(&self) -> Option<LocalInboxHandle> {
-        self.inbox.local_inbox_state()
+    fn local_inbox(&self) -> Option<LocalBlockInbox> {
+        self.inbox.local_inbox()
     }
     fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
         self.inbox.take_external_inbox_reader()

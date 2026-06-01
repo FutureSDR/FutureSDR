@@ -11,7 +11,7 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
-use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 
@@ -26,7 +26,7 @@ pub(crate) type LocalDomainAsyncExec = Box<
 pub(crate) struct LocalDomainState {
     blocks: Vec<Option<Box<dyn LocalBlock>>>,
     block_ids: Vec<Option<BlockId>>,
-    inboxes: Vec<Option<LocalInboxHandle>>,
+    inboxes: Vec<Option<LocalBlockInbox>>,
     external_inboxes: Vec<Option<BlockInboxReader>>,
 }
 
@@ -63,7 +63,7 @@ impl LocalDomainState {
             )));
         }
         self.block_ids[local_id] = Some(block.id());
-        self.inboxes[local_id] = block.local_inbox_state();
+        self.inboxes[local_id] = block.local_inbox();
         self.external_inboxes[local_id] = block.take_external_inbox_reader();
         self.blocks[local_id] = Some(block);
         Ok(())
@@ -81,7 +81,7 @@ impl LocalDomainState {
             .and_then(Option::take)
     }
 
-    pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalInboxHandle> {
+    pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
         self.inboxes.get(local_id).and_then(Clone::clone)
     }
 
