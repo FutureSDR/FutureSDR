@@ -213,15 +213,15 @@ impl Scheduler for FlowScheduler {
         &self,
         spec: LocalDomainSpec,
     ) -> Result<LocalRunningDomain, crate::runtime::Error> {
-        let (domain_id, handle, slots, topology, main_channel) = spec.into_parts();
+        let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
         let _ = (
             slots,
             topology.blocks(),
             topology.stream_edges(),
             topology.message_edges(),
         );
-        let completion = handle.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, handle, completion))
+        let completion = inbox.start_run(main_channel)?;
+        Ok(LocalRunningDomain::new(domain_id, inbox, completion))
     }
 
     fn spawn<T: Send + 'static>(

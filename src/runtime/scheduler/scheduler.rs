@@ -7,7 +7,7 @@ use crate::runtime::FlowgraphMessage;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::dev::Block;
-use crate::runtime::local_domain::LocalDomainHandle;
+use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::Task;
 
 /// A normal-domain block paired with its global block id.
@@ -89,7 +89,7 @@ impl NormalDomainSpec {
 /// Specification for an existing local scheduling domain.
 pub struct LocalDomainSpec {
     pub(crate) domain_id: usize,
-    pub(crate) handle: LocalDomainHandle,
+    pub(crate) inbox: LocalDomainInbox,
     pub(crate) slots: Vec<(BlockId, usize)>,
     pub(crate) topology: DomainTopology,
     pub(crate) main_channel: Sender<FlowgraphMessage>,
@@ -99,14 +99,14 @@ impl LocalDomainSpec {
     /// Create a local-domain specification.
     pub(crate) fn new(
         domain_id: usize,
-        handle: LocalDomainHandle,
+        inbox: LocalDomainInbox,
         slots: Vec<(BlockId, usize)>,
         topology: DomainTopology,
         main_channel: Sender<FlowgraphMessage>,
     ) -> Self {
         Self {
             domain_id,
-            handle,
+            inbox,
             slots,
             topology,
             main_channel,
@@ -133,26 +133,26 @@ impl LocalDomainSpec {
         self,
     ) -> (
         usize,
-        LocalDomainHandle,
+        LocalDomainInbox,
         Vec<(BlockId, usize)>,
         DomainTopology,
         Sender<FlowgraphMessage>,
     ) {
         (
             self.domain_id,
-            self.handle,
+            self.inbox,
             self.slots,
             self.topology,
             self.main_channel,
         )
     }
 
-    /// Start this local domain using its existing handle.
+    /// Start this local domain using its existing inbox.
     pub fn start(self) -> Result<LocalRunningDomain, Error> {
-        let completion = self.handle.start_run(self.main_channel)?;
+        let completion = self.inbox.start_run(self.main_channel)?;
         Ok(LocalRunningDomain::new(
             self.domain_id,
-            self.handle,
+            self.inbox,
             completion,
         ))
     }
@@ -182,7 +182,7 @@ impl NormalRunningDomain {
 /// Running local-domain state returned by a scheduler.
 pub struct LocalRunningDomain {
     domain_id: usize,
-    handle: LocalDomainHandle,
+    inbox: LocalDomainInbox,
     completion: oneshot::Receiver<Result<(), Error>>,
 }
 
@@ -190,19 +190,19 @@ impl LocalRunningDomain {
     /// Create a running local domain from its completion receiver.
     pub(crate) fn new(
         domain_id: usize,
-        handle: LocalDomainHandle,
+        inbox: LocalDomainInbox,
         completion: oneshot::Receiver<Result<(), Error>>,
     ) -> Self {
         Self {
             domain_id,
-            handle,
+            inbox,
             completion,
         }
     }
 
     /// Request the local-domain run loop to stop.
     pub(crate) async fn stop(&mut self) -> Result<(), Error> {
-        self.handle.stop_run().await
+        self.inbox.stop_run().await
     }
 
     /// Await the local-domain run loop.
@@ -252,7 +252,7 @@ pub(crate) enum StoppedDomain {
 ///
 /// A scheduler decides how normal block tasks and detached async tasks are run.
 /// Local-domain execution resources are created with the flowgraph's local
-/// domains; the scheduler receives handles and activates those existing domains.
+/// domains; the scheduler receives inboxes and activates those existing domains.
 pub trait Scheduler: Clone + Send + 'static {
     /// Start the implicit normal send-capable scheduling domain.
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error>;

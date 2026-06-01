@@ -16,7 +16,7 @@ use std::task::Waker;
 use crate::runtime::BlockMessage;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
-use crate::runtime::local_domain::LocalDomainHandle;
+use crate::runtime::local_domain::LocalDomainInbox;
 
 #[derive(Debug)]
 struct ThreadSafeNotifyState {
@@ -68,14 +68,6 @@ impl BlockNotifier {
         }
     }
 
-    fn set_message_pending(&self) {
-        self.state.message_pending.store(true, Ordering::Release);
-    }
-
-    fn take_message_pending(&self) -> bool {
-        self.state.message_pending.swap(false, Ordering::AcqRel)
-    }
-
     /// Consume a pending notification bit.
     #[inline(always)]
     pub fn take_pending(&self) -> bool {
@@ -87,6 +79,14 @@ impl BlockNotifier {
         Notified {
             state: self.state.clone(),
         }
+    }
+
+    fn set_message_pending(&self) {
+        self.state.message_pending.store(true, Ordering::Release);
+    }
+
+    fn take_message_pending(&self) -> bool {
+        self.state.message_pending.swap(false, Ordering::AcqRel)
     }
 }
 
@@ -133,12 +133,6 @@ pub struct ThreadSafeBlockInbox {
     notifier: BlockNotifier,
 }
 
-#[doc(hidden)]
-#[derive(Clone)]
-pub struct DomainMailbox {
-    domain: LocalDomainHandle,
-}
-
 /// Sender-side actor inbox variants.
 #[derive(Clone)]
 pub enum BlockInbox {
@@ -148,7 +142,7 @@ pub enum BlockInbox {
     /// Send-safe proxy to a local-domain block.
     #[doc(hidden)]
     DomainProxy {
-        domain: DomainMailbox,
+        domain: LocalDomainInbox,
         block_id: crate::runtime::BlockId,
     },
 }
@@ -178,13 +172,10 @@ impl BlockInbox {
 
     /// Create a sender-side domain proxy for a local-domain block.
     pub(crate) fn domain_proxy(
-        domain: LocalDomainHandle,
+        domain: LocalDomainInbox,
         block_id: crate::runtime::BlockId,
     ) -> Self {
-        Self::DomainProxy {
-            domain: DomainMailbox { domain },
-            block_id,
-        }
+        Self::DomainProxy { domain, block_id }
     }
 
     /// Create an inbox that is disconnected from any reader.
@@ -208,7 +199,7 @@ impl BlockInbox {
         match self {
             Self::ThreadSafe(thread_safe) => thread_safe.notifier.notify(),
             Self::DomainProxy { domain, block_id } => {
-                let _ = domain.domain.notify_block(*block_id);
+                let _ = domain.notify_block(*block_id);
             }
         }
     }
@@ -217,7 +208,7 @@ impl BlockInbox {
     pub fn is_closed(&self) -> bool {
         match self {
             Self::ThreadSafe(thread_safe) => thread_safe.tx.is_closed(),
-            Self::DomainProxy { domain, .. } => domain.domain.is_closed(),
+            Self::DomainProxy { domain, .. } => domain.is_closed(),
         }
     }
 
@@ -243,9 +234,9 @@ impl BlockInbox {
             }
             Self::DomainProxy { domain, block_id } => match msg {
                 BlockMessage::Call { port_id, data, tx } => {
-                    domain.domain.call(*block_id, port_id, data, tx).await
+                    domain.call(*block_id, port_id, data, tx).await
                 }
-                msg => domain.domain.post(*block_id, msg).await,
+                msg => domain.post(*block_id, msg).await,
             },
         }
     }

@@ -34,7 +34,7 @@ use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
 
 pub(crate) type NormalWrappedKernel<K> = WrappedKernel<K, ThreadSafeInbox>;
-pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalDomainInbox>;
+pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalBlockInboxes>;
 
 fn kernel_error(error: anyhow::Error) -> Error {
     match error.downcast::<Error>() {
@@ -109,7 +109,7 @@ impl ThreadSafeInbox {
 }
 
 /// Inbox bundle for blocks that execute inside a local domain.
-pub(crate) struct LocalDomainInbox {
+pub(crate) struct LocalBlockInboxes {
     external_tx: BlockInbox,
     thread_safe_tx: BlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
@@ -117,7 +117,7 @@ pub(crate) struct LocalDomainInbox {
     local_rx: Option<LocalBlockInboxReader>,
 }
 
-impl LocalDomainInbox {
+impl LocalBlockInboxes {
     fn new(external_tx: BlockInbox) -> Self {
         let (thread_safe_tx, thread_safe_rx) =
             crate::runtime::block_inbox::channel(config::config().queue_size);
@@ -171,7 +171,7 @@ impl WrappedKernelInbox for ThreadSafeInbox {
     }
 }
 
-impl WrappedKernelInbox for LocalDomainInbox {
+impl WrappedKernelInbox for LocalBlockInboxes {
     type RunInbox = LocalBlockInboxReader;
 
     fn init_arg(&self) -> PortInboxes {
@@ -231,7 +231,7 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     /// Create typed block wrapper with an explicit external inbox.
     pub fn new_local_with_external(mut kernel: K, id: BlockId, external: BlockInbox) -> Self {
-        let inbox = LocalDomainInbox::new(external);
+        let inbox = LocalBlockInboxes::new(external);
         crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)

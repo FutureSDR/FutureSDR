@@ -34,7 +34,7 @@ use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
-use crate::runtime::local_domain::LocalDomainHandle;
+use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::scheduler::DomainTopology;
@@ -291,7 +291,7 @@ struct LocalDomainContextEntry {
 struct LocalDomainContextInner<'a> {
     flowgraph_id: FlowgraphId,
     domain_id: usize,
-    domain_handle: LocalDomainHandle,
+    domain_inbox: LocalDomainInbox,
     next_block_id: usize,
     next_local_id: usize,
     entries: Vec<LocalDomainContextEntry>,
@@ -312,7 +312,7 @@ impl<'a> LocalDomainContext<'a> {
     fn new(
         flowgraph_id: FlowgraphId,
         domain_id: usize,
-        domain_handle: LocalDomainHandle,
+        domain_inbox: LocalDomainInbox,
         next_block_id: usize,
         next_local_id: usize,
         state: &'a mut LocalDomainState,
@@ -321,7 +321,7 @@ impl<'a> LocalDomainContext<'a> {
             inner: RefCell::new(LocalDomainContextInner {
                 flowgraph_id,
                 domain_id,
-                domain_handle,
+                domain_inbox,
                 next_block_id,
                 next_local_id,
                 entries: Vec::new(),
@@ -356,7 +356,7 @@ impl<'a> LocalDomainContext<'a> {
             local_id,
         };
 
-        let external = BlockInbox::domain_proxy(inner.domain_handle.clone(), block_id);
+        let external = BlockInbox::domain_proxy(inner.domain_inbox.clone(), block_id);
         let mut block = LocalWrappedKernel::new_local_with_external(block, block_id, external);
         block
             .meta
@@ -1145,14 +1145,14 @@ impl Flowgraph {
         let next_block_id = self.blocks.len();
         let next_local_id = self.local_domains[domain_id].block_count();
         let flowgraph_id = self.id;
-        let domain_handle = self.local_domains[domain_id].handle();
+        let domain_inbox = self.local_domains[domain_id].inbox();
         let (ret, (entries, stream_edges, message_edges)) = self.local_domains[domain_id]
             .exec(move |state| {
                 Box::pin(async move {
                     let ctx = LocalDomainContext::new(
                         flowgraph_id,
                         domain_id,
-                        domain_handle,
+                        domain_inbox,
                         next_block_id,
                         next_local_id,
                         state,
@@ -1321,8 +1321,8 @@ impl Flowgraph {
             local_id,
         };
         let block_id = self.reserve_block_id(placement, K::message_inputs());
-        let domain_handle = self.local_domains[domain_id].handle();
-        let external = BlockInbox::domain_proxy(domain_handle, block_id);
+        let domain_inbox = self.local_domains[domain_id].inbox();
+        let external = BlockInbox::domain_proxy(domain_inbox, block_id);
         let inbox = match self.local_domains[domain_id]
             .build(
                 local_id,
@@ -2007,13 +2007,13 @@ impl Flowgraph {
                     o => o,
                 }),
             StreamEndpoint::Local(endpoint) => {
-                let handle = self
+                let inbox = self
                     .local_domains
                     .get(endpoint.domain_id)
                     .ok_or(Error::InvalidBlock(endpoint.block_id))?
-                    .handle();
+                    .inbox();
                 let port_id = port_id.clone();
-                handle
+                inbox
                     .exec(move |state| {
                         let result = (|| {
                             let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
@@ -2051,13 +2051,13 @@ impl Flowgraph {
                     o => o,
                 }),
             StreamEndpoint::Local(endpoint) => {
-                let handle = self
+                let inbox = self
                     .local_domains
                     .get(endpoint.domain_id)
                     .ok_or(Error::InvalidBlock(endpoint.block_id))?
-                    .handle();
+                    .inbox();
                 let port_id = port_id.clone();
-                handle
+                inbox
                     .exec(move |state| {
                         let result = (|| {
                             let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
@@ -2104,12 +2104,12 @@ impl Flowgraph {
                 })
             }
             StreamEndpoint::Local(dst) => {
-                let handle = self
+                let inbox = self
                     .local_domains
                     .get(dst.domain_id)
                     .ok_or(Error::InvalidBlock(dst.block_id))?
-                    .handle();
-                handle
+                    .inbox();
+                inbox
                     .exec(move |state| {
                         Box::pin(async move {
                             let mut token = token.lock().await;
@@ -2766,7 +2766,7 @@ impl Flowgraph {
                     .iter()
                     .map(|(block_id, _)| *block_id)
                     .collect::<Vec<_>>();
-                Some((domain_id, domain.handle(), slots, block_ids))
+                Some((domain_id, domain.inbox(), slots, block_ids))
             })
             .collect::<Vec<_>>();
         let startup = self.startup_snapshot()?;
@@ -2776,10 +2776,10 @@ impl Flowgraph {
             Self::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
         let local_specs = local_domain_slots
             .into_iter()
-            .map(|(domain_id, handle, slots, block_ids)| {
+            .map(|(domain_id, inbox, slots, block_ids)| {
                 LocalDomainSpec::new(
                     domain_id,
-                    handle,
+                    inbox,
                     slots,
                     Self::domain_topology(&block_ids, &stream_edges, &message_edges),
                     main_channel.clone(),

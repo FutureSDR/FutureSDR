@@ -67,8 +67,8 @@ impl LocalDomainRuntime {
         self.running
     }
 
-    pub(crate) fn handle(&self) -> LocalDomainHandle {
-        self.controller.handle()
+    pub(crate) fn inbox(&self) -> LocalDomainInbox {
+        self.controller.inbox()
     }
 
     pub(crate) async fn build(
@@ -109,12 +109,13 @@ pub(crate) struct LocalDomainController {
     domain_id: Option<usize>,
 }
 
+#[doc(hidden)]
 #[derive(Clone)]
-pub(crate) struct LocalDomainHandle {
+pub struct LocalDomainInbox {
     tx: Sender<LocalDomainMessage>,
 }
 
-impl LocalDomainHandle {
+impl LocalDomainInbox {
     pub(crate) fn is_closed(&self) -> bool {
         self.tx.is_closed()
     }
@@ -228,8 +229,8 @@ impl LocalDomainController {
         })
     }
 
-    pub(crate) fn handle(&self) -> LocalDomainHandle {
-        LocalDomainHandle {
+    pub(crate) fn inbox(&self) -> LocalDomainInbox {
+        LocalDomainInbox {
             tx: self.tx.clone(),
         }
     }
@@ -263,7 +264,7 @@ impl LocalDomainController {
     where
         R: Send + 'static,
     {
-        self.handle().exec(f).await
+        self.inbox().exec(f).await
     }
 }
 
