@@ -44,12 +44,12 @@ impl DomainTopology {
     }
 
     /// Logical stream edges relevant for this domain.
-    pub(crate) fn stream_edges(&self) -> &[Edge] {
+    pub fn stream_edges(&self) -> &[Edge] {
         &self.stream_edges
     }
 
     /// Logical message edges relevant for this domain.
-    pub(crate) fn message_edges(&self) -> &[Edge] {
+    pub fn message_edges(&self) -> &[Edge] {
         &self.message_edges
     }
 }
@@ -75,8 +75,13 @@ impl NormalDomainSpec {
         }
     }
 
-    /// Take the normal blocks and topology out of this spec.
-    pub(crate) fn into_parts(self) -> (NormalBlocks, DomainTopology, Sender<FlowgraphMessage>) {
+    /// Inspect the topology metadata that accompanies this normal domain.
+    pub fn topology(&self) -> &DomainTopology {
+        &self.topology
+    }
+
+    /// Take the normal blocks, topology, and main flowgraph channel out of this spec.
+    pub fn into_parts(self) -> (NormalBlocks, DomainTopology, Sender<FlowgraphMessage>) {
         (self.blocks, self.topology, self.main_channel)
     }
 
@@ -111,6 +116,21 @@ impl LocalDomainSpec {
             topology,
             main_channel,
         }
+    }
+
+    /// Get the local domain id.
+    pub fn domain_id(&self) -> usize {
+        self.domain_id
+    }
+
+    /// Get the `(global block id, local slot id)` pairs assigned to this domain.
+    pub fn slots(&self) -> &[(BlockId, usize)] {
+        &self.slots
+    }
+
+    /// Inspect the topology metadata that accompanies this local domain.
+    pub fn topology(&self) -> &DomainTopology {
+        &self.topology
     }
 
     /// Take local-domain start parameters out of this spec.

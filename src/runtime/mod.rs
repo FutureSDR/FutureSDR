@@ -96,8 +96,15 @@ pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
 
-#[derive(Debug, Clone)]
-pub(crate) struct Edge {
+/// A logical directed edge between two block ports.
+///
+/// Schedulers receive edge values through
+/// [`scheduler::DomainTopology`](crate::runtime::scheduler::DomainTopology) so
+/// third-party scheduler implementations can inspect stream and message
+/// topology when making placement decisions. Edge values are immutable graph
+/// metadata; changing graph semantics remains the runtime's responsibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edge {
     pub(crate) src_block: BlockId,
     pub(crate) src_port: PortId,
     pub(crate) dst_block: BlockId,
@@ -119,7 +126,28 @@ impl Edge {
         }
     }
 
-    pub(crate) fn endpoints(&self) -> (BlockId, PortId, BlockId, PortId) {
+    /// Source block id.
+    pub fn src_block(&self) -> BlockId {
+        self.src_block
+    }
+
+    /// Source port id.
+    pub fn src_port(&self) -> &PortId {
+        &self.src_port
+    }
+
+    /// Destination block id.
+    pub fn dst_block(&self) -> BlockId {
+        self.dst_block
+    }
+
+    /// Destination port id.
+    pub fn dst_port(&self) -> &PortId {
+        &self.dst_port
+    }
+
+    /// Return the source block/port followed by the destination block/port.
+    pub fn endpoints(&self) -> (BlockId, PortId, BlockId, PortId) {
         (
             self.src_block,
             self.src_port.clone(),
