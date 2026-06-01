@@ -590,37 +590,6 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<K> LocalBlock for NormalWrappedKernel<K>
-where
-    K: SendKernel + SendKernelInterface + 'static,
-{
-    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match self.run_impl(main_inbox.clone()).await {
-            Ok(_) => {
-                let _ = main_inbox
-                    .send(FlowgraphMessage::BlockDone { block_id: self.id })
-                    .await;
-                return;
-            }
-            Err(e) => {
-                let instance_name = self
-                    .meta
-                    .instance_name()
-                    .unwrap_or("<instance name not set>")
-                    .to_string();
-                error!("{}: Error in Block.run() {:?}", instance_name, e);
-                let _ = main_inbox
-                    .send(FlowgraphMessage::BlockError {
-                        block_id: self.id,
-                        error: e,
-                    })
-                    .await;
-            }
-        }
-    }
-}
-
-#[async_trait::async_trait(?Send)]
 impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K> {
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {

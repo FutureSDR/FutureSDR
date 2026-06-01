@@ -1630,9 +1630,6 @@ impl Flowgraph {
         if let Some(block) = block.as_any().downcast_ref::<LocalWrappedKernel<K>>() {
             return Ok(&block.kernel);
         }
-        if let Some(block) = block.as_any().downcast_ref::<NormalWrappedKernel<K>>() {
-            return Ok(&block.kernel);
-        }
         Err(Error::ValidationError(format!(
             "local block {:?} has unexpected type for {}",
             block_id,
@@ -1648,13 +1645,6 @@ impl Flowgraph {
             return block
                 .as_any_mut()
                 .downcast_mut::<LocalWrappedKernel<K>>()
-                .map(|block| &mut block.kernel)
-                .ok_or(Error::LockError);
-        }
-        if block.as_any().is::<NormalWrappedKernel<K>>() {
-            return block
-                .as_any_mut()
-                .downcast_mut::<NormalWrappedKernel<K>>()
                 .map(|block| &mut block.kernel)
                 .ok_or(Error::LockError);
         }
