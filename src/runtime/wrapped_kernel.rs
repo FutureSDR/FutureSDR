@@ -19,7 +19,7 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
 use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnyBufferWriterToken;
+use crate::runtime::buffer::AnyBufferWriter;
 use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
@@ -500,11 +500,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error> {
         crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
     }
-    fn stream_output_token(
-        &mut self,
-        id: &PortId,
-    ) -> Result<Box<dyn AnyBufferWriterToken + '_>, Error> {
-        crate::runtime::kernel_interface::stream_output_token(&mut self.kernel, id)
+    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error> {
+        crate::runtime::kernel_interface::stream_output(&mut self.kernel, id)
     }
 
     fn take_send_stream_output_token(

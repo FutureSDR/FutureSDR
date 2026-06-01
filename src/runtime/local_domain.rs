@@ -532,7 +532,7 @@ mod tests {
     use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::buffer::AnyBufferReader;
-    use crate::runtime::buffer::AnyBufferWriterToken;
+    use crate::runtime::buffer::AnyBufferWriter;
     use crate::runtime::buffer::AnySendBufferWriterToken;
 
     struct WaitForTerminate {
@@ -565,10 +565,7 @@ mod tests {
             ))
         }
 
-        fn stream_output_token(
-            &mut self,
-            id: &PortId,
-        ) -> Result<Box<dyn AnyBufferWriterToken + '_>, Error> {
+        fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error> {
             Err(Error::InvalidStreamPort(
                 BlockPortCtx::Id(self.id),
                 id.clone(),

@@ -670,27 +670,10 @@ pub trait BufferReader: Any {
 
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
-/// Type-erased token for connecting a stream writer without moving it.
-pub trait AnyBufferWriterToken {
+/// Type-erased sendable token for connecting a stream writer across domains.
+pub trait AnySendBufferWriterToken: Send {
     /// Connect the token's writer to a type-erased reader.
     fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
-}
-
-struct BorrowedBufferWriterToken<'a, T: BufferWriter + ?Sized> {
-    writer: &'a mut T,
-}
-
-impl<T> AnyBufferWriterToken for BorrowedBufferWriterToken<'_, T>
-where
-    T: BufferWriter + ?Sized,
-{
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
-        BufferWriter::connect_dyn(self.writer, dest)
-    }
-}
-
-/// Type-erased sendable token for connecting a stream writer across domains.
-pub trait AnySendBufferWriterToken: AnyBufferWriterToken + Send {
     /// Convert the token back into boxed [`Any`] for restoring its concrete writer.
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
 }
@@ -710,19 +693,14 @@ where
     }
 }
 
-impl<T> AnyBufferWriterToken for SendBufferWriterToken<T>
+impl<T> AnySendBufferWriterToken for SendBufferWriterToken<T>
 where
     T: BufferWriter + Send + 'static,
 {
     fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
         BufferWriter::connect_dyn(&mut self.writer, dest)
     }
-}
 
-impl<T> AnySendBufferWriterToken for SendBufferWriterToken<T>
-where
-    T: BufferWriter + Send + 'static,
-{
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send> {
         let Self { writer } = *self;
         Box::new(writer)
@@ -805,8 +783,8 @@ pub trait AnyBufferWriter {
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
-    /// Create an in-domain token for connecting this writer.
-    fn token(&mut self) -> Box<dyn AnyBufferWriterToken + '_>;
+    /// Connect this writer to a type-erased reader.
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
     /// Temporarily take this writer as a sendable cross-domain token.
     fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
     /// Restore a writer that was previously taken with [`AnyBufferWriter::take_send_token`].
@@ -827,8 +805,8 @@ where
         BufferWriter::validate(self)
     }
 
-    fn token(&mut self) -> Box<dyn AnyBufferWriterToken + '_> {
-        Box::new(BorrowedBufferWriterToken { writer: self })
+    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+        BufferWriter::connect_dyn(self, dest)
     }
 
     fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {

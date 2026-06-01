@@ -10,7 +10,7 @@ use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnyBufferWriterToken;
+use crate::runtime::buffer::AnyBufferWriter;
 use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::channel::mpsc::Sender;
 
@@ -36,11 +36,8 @@ pub trait BlockObject: Any {
 
     /// Get a type-erased stream input by port id.
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
-    /// Create an in-domain token for connecting a stream output.
-    fn stream_output_token(
-        &mut self,
-        id: &PortId,
-    ) -> Result<Box<dyn AnyBufferWriterToken + '_>, Error>;
+    /// Get a type-erased stream output by port id.
+    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error>;
     /// Temporarily take a sendable stream output token for cross-domain setup.
     fn take_send_stream_output_token(
         &mut self,

@@ -1752,16 +1752,14 @@ impl Flowgraph {
             o => o,
         })?;
 
-        let mut token = src_block
-            .stream_output_token(src_port_id)
-            .map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
-                }
-                o => o,
-            })?;
+        let writer = src_block.stream_output(src_port_id).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+            }
+            o => o,
+        })?;
 
-        token.connect_dyn(reader).map_err(|e| match e {
+        writer.connect_dyn(reader).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
                 Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
             }
@@ -2494,7 +2492,7 @@ impl Flowgraph {
         match self.placement(block_id)? {
             BlockPlacement::Normal => {
                 let block = self.raw_block_mut(block_id)?;
-                let _token = block.stream_output_token(port_id).map_err(|e| match e {
+                let _writer = block.stream_output(port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
                     }
@@ -2510,13 +2508,12 @@ impl Flowgraph {
                     .exec(move |state| {
                         let result = (|| {
                             let block = state.block_mut(local_id, block_id)?;
-                            let _token =
-                                block.stream_output_token(&port_id).map_err(|e| match e {
-                                    Error::InvalidStreamPort(_, port) => {
-                                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                                    }
-                                    other => other,
-                                })?;
+                            let _writer = block.stream_output(&port_id).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => {
+                                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                                }
+                                other => other,
+                            })?;
                             Ok(())
                         })();
                         Box::pin(futures::future::ready(result))
