@@ -18,8 +18,8 @@ use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::config::config;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::ThreadSafeBlockInbox;
 use burn::prelude::*;
 use burn::tensor::BasicOps;
 use burn::tensor::TensorKind;
@@ -32,7 +32,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 type BufferPermits = Arc<AtomicUsize>;
-type PermitReturn = CircuitReturn<BlockInbox, BufferPermits>;
+type PermitReturn = CircuitReturn<ThreadSafeBlockInbox, BufferPermits>;
 type FullBuffers<B, E, SR> = Arc<Mutex<VecDeque<Buffer<B, E, SR>>>>;
 
 enum BufferState<B, E = Float>
@@ -303,7 +303,7 @@ where
     type Mode = ThreadSafeMode;
     type Reader = Reader<B, E, SR>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -531,7 +531,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

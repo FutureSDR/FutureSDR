@@ -22,8 +22,8 @@ use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::buffer::wgpu::InputBufferEmpty as BufferEmpty;
 use crate::runtime::buffer::wgpu::InputBufferFull as BufferFull;
-use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::ThreadSafeBlockInbox;
 
 const UNMANAGED_SLOT_ID: usize = usize::MAX;
 
@@ -196,7 +196,7 @@ where
     type Mode = ThreadSafeMode;
     type Reader = Reader<D>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 
@@ -500,7 +500,7 @@ where
         self
     }
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: ThreadSafeBlockInbox) {
         self.core.init(block_id, port_id, inbox);
     }
 

@@ -18,6 +18,7 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::block_inbox::ThreadSafeBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriterToken;
 use crate::runtime::buffer::AnySendBufferWriterToken;
@@ -97,13 +98,14 @@ impl WrappedInbox for LocalBlockInboxReader {
 
 /// Inbox bundle for normal thread-safe blocks.
 pub(crate) struct ThreadSafeInbox {
-    tx: BlockInbox,
+    tx: ThreadSafeBlockInbox,
     rx: Option<BlockInboxReader>,
 }
 
 impl ThreadSafeInbox {
     fn new() -> Self {
-        let (tx, rx) = crate::runtime::block_inbox::channel(config::config().queue_size);
+        let (tx, rx) =
+            crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
         Self { tx, rx: Some(rx) }
     }
 }
@@ -111,7 +113,7 @@ impl ThreadSafeInbox {
 /// Inbox bundle for blocks that execute inside a local domain.
 pub(crate) struct LocalBlockInboxes {
     external_tx: BlockInbox,
-    thread_safe_tx: BlockInbox,
+    thread_safe_tx: ThreadSafeBlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
     local_tx: LocalBlockInbox,
     local_rx: Option<LocalBlockInboxReader>,
@@ -120,7 +122,7 @@ pub(crate) struct LocalBlockInboxes {
 impl LocalBlockInboxes {
     fn new(external_tx: BlockInbox) -> Self {
         let (thread_safe_tx, thread_safe_rx) =
-            crate::runtime::block_inbox::channel(config::config().queue_size);
+            crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
         let (local_tx, local_rx, _) = LocalBlockInboxReader::pair();
         Self {
             external_tx,
@@ -157,7 +159,7 @@ impl WrappedKernelInbox for ThreadSafeInbox {
     }
 
     fn external_inbox(&self) -> BlockInbox {
-        self.tx.clone()
+        self.tx.clone().into()
     }
 
     fn take_run_inbox(&mut self) -> Self::RunInbox {

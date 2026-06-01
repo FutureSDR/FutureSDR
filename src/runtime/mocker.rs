@@ -23,6 +23,7 @@ use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
 use crate::runtime::dev::MessageOutputs;
+use crate::runtime::dev::ThreadSafeBlockInbox;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::wrapped_kernel::NormalWrappedKernel;
@@ -255,7 +256,7 @@ impl<T: Debug + Send + 'static> BufferReader for Reader<T> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: ThreadSafeBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }
@@ -363,7 +364,7 @@ impl<T: Clone + Debug + Send + 'static> BufferWriter for Writer<T> {
     type Mode = ThreadSafeMode;
     type Reader = Reader<T>;
 
-    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: BlockInbox) {
+    fn init(&mut self, block_id: BlockId, port_id: PortId, _inbox: ThreadSafeBlockInbox) {
         self.block_id = block_id;
         self.port_id = port_id;
     }

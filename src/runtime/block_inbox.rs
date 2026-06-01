@@ -13,6 +13,7 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 
+use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
@@ -127,7 +128,7 @@ impl Future for Notified {
 /// expose a domain proxy for runtime/control/message ingress; the domain owns
 /// and forwards into the private local inbox used by the block task.
 #[doc(hidden)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ThreadSafeBlockInbox {
     tx: mpsc::Sender<BlockMessage>,
     notifier: BlockNotifier,
@@ -143,7 +144,7 @@ pub enum BlockInbox {
     #[doc(hidden)]
     DomainProxy {
         domain: LocalDomainInbox,
-        block_id: crate::runtime::BlockId,
+        block_id: BlockId,
     },
 }
 
@@ -161,23 +162,69 @@ impl fmt::Debug for BlockInbox {
     }
 }
 
+impl ThreadSafeBlockInbox {
+    /// Create a sender-side thread-safe block inbox from an mpsc sender and notifier.
+    pub(crate) fn new(control: mpsc::Sender<BlockMessage>, notifier: BlockNotifier) -> Self {
+        Self {
+            tx: control,
+            notifier,
+        }
+    }
+
+    /// Get a wake-only notifier for the destination block.
+    #[inline(always)]
+    pub fn notifier(&self) -> BlockNotifier {
+        self.notifier.clone()
+    }
+
+    /// Wake the destination block without sending a message.
+    #[inline(always)]
+    pub fn notify(&self) {
+        self.notifier.notify();
+    }
+
+    /// Return whether the underlying receiver has been closed.
+    pub fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
+    /// Notify the destination block that one stream input port is done.
+    pub async fn stream_input_done(&self, input_id: PortId) -> Result<(), crate::runtime::Error> {
+        self.send(BlockMessage::StreamInputDone { input_id }).await
+    }
+
+    /// Notify the destination block that one stream output port is done.
+    pub async fn stream_output_done(&self, output_id: PortId) -> Result<(), crate::runtime::Error> {
+        self.send(BlockMessage::StreamOutputDone { output_id })
+            .await
+    }
+
+    /// Enqueue a block message and wake the destination block on success.
+    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
+        self.tx.send(msg).await?;
+        self.notifier.set_message_pending();
+        self.notifier.notify();
+        Ok(())
+    }
+}
+
+impl From<ThreadSafeBlockInbox> for BlockInbox {
+    fn from(inbox: ThreadSafeBlockInbox) -> Self {
+        Self::ThreadSafe(inbox)
+    }
+}
+
 impl BlockInbox {
     /// Create a sender-side thread-safe block inbox from an mpsc sender and notifier.
     pub(crate) fn thread_safe(
         control: mpsc::Sender<BlockMessage>,
         notifier: BlockNotifier,
     ) -> Self {
-        Self::ThreadSafe(ThreadSafeBlockInbox {
-            tx: control,
-            notifier,
-        })
+        ThreadSafeBlockInbox::new(control, notifier).into()
     }
 
     /// Create a sender-side domain proxy for a local-domain block.
-    pub(crate) fn domain_proxy(
-        domain: LocalDomainInbox,
-        block_id: crate::runtime::BlockId,
-    ) -> Self {
+    pub(crate) fn domain_proxy(domain: LocalDomainInbox, block_id: BlockId) -> Self {
         Self::DomainProxy { domain, block_id }
     }
 
@@ -185,7 +232,7 @@ impl BlockInbox {
     #[inline(always)]
     pub fn notifier(&self) -> BlockNotifier {
         match self {
-            Self::ThreadSafe(thread_safe) => thread_safe.notifier.clone(),
+            Self::ThreadSafe(thread_safe) => thread_safe.notifier(),
             Self::DomainProxy { .. } => BlockNotifier::new(),
         }
     }
@@ -194,7 +241,7 @@ impl BlockInbox {
     #[inline(always)]
     pub fn notify(&self) {
         match self {
-            Self::ThreadSafe(thread_safe) => thread_safe.notifier.notify(),
+            Self::ThreadSafe(thread_safe) => thread_safe.notify(),
             Self::DomainProxy { domain, block_id } => {
                 let _ = domain.notify_block(*block_id);
             }
@@ -204,7 +251,7 @@ impl BlockInbox {
     /// Return whether the underlying receiver has been closed.
     pub fn is_closed(&self) -> bool {
         match self {
-            Self::ThreadSafe(thread_safe) => thread_safe.tx.is_closed(),
+            Self::ThreadSafe(thread_safe) => thread_safe.is_closed(),
             Self::DomainProxy { domain, .. } => domain.is_closed(),
         }
     }
@@ -223,12 +270,7 @@ impl BlockInbox {
     /// Enqueue a block message and wake the destination block on success.
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), crate::runtime::Error> {
         match self {
-            Self::ThreadSafe(thread_safe) => {
-                thread_safe.tx.send(msg).await?;
-                thread_safe.notifier.set_message_pending();
-                thread_safe.notifier.notify();
-                Ok(())
-            }
+            Self::ThreadSafe(thread_safe) => thread_safe.send(msg).await,
             Self::DomainProxy { domain, block_id } => match msg {
                 BlockMessage::Call { port_id, data, tx } => {
                     domain.call(*block_id, port_id, data, tx).await
@@ -279,14 +321,21 @@ impl BlockInboxReader {
     }
 }
 
-/// Create a paired sender/reader block inbox with a coalescing notifier.
-pub(crate) fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
+/// Create a paired concrete thread-safe sender/reader block inbox with a coalescing notifier.
+pub(crate) fn thread_safe_channel(size: usize) -> (ThreadSafeBlockInbox, BlockInboxReader) {
     let (control, receiver) = mpsc::channel::<BlockMessage>(size);
     let notifier = BlockNotifier::new();
     (
-        BlockInbox::thread_safe(control, notifier.clone()),
+        ThreadSafeBlockInbox::new(control, notifier.clone()),
         BlockInboxReader::new(receiver, notifier),
     )
+}
+
+/// Create a paired external sender/reader block inbox with a coalescing notifier.
+#[cfg(test)]
+pub(crate) fn channel(size: usize) -> (BlockInbox, BlockInboxReader) {
+    let (tx, rx) = thread_safe_channel(size);
+    (tx.into(), rx)
 }
 
 #[derive(Debug, Default)]
