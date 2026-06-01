@@ -77,7 +77,7 @@ fn trigger_once(
     src: BlockRef<TriggerMsg>,
 ) -> Result<Flowgraph, futuresdr::runtime::Error> {
     let running = rt.start(fg)?;
-    futuresdr::runtime::block_on(running.post(src, "trigger", Pmt::Null))?;
+    futuresdr::runtime::block_on(running.call(src, "trigger", Pmt::Null))?;
     futuresdr::runtime::block_on(running.stop_and_wait())
 }
 

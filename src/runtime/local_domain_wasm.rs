@@ -15,6 +15,7 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalInboxHandle;
+use crate::runtime::block_inbox::enter_local_dispatch_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -407,6 +408,13 @@ async fn run_local_domain(
         .block_slots_mut()
         .map(|(local_id, _)| local_id)
         .collect::<Vec<_>>();
+    let mut dispatch_inboxes = Vec::new();
+    for local_id in local_ids.iter().copied() {
+        if dispatch_inboxes.len() <= local_id {
+            dispatch_inboxes.resize_with(local_id + 1, || None);
+        }
+        dispatch_inboxes[local_id] = state.inbox(local_id);
+    }
 
     for local_id in local_ids {
         if let (Some(external_inbox), Some(local_inbox)) =
@@ -434,6 +442,7 @@ async fn run_local_domain(
         .spawn(forward_external_inboxes(external_inboxes))
         .detach();
 
+    let _local_dispatch = enter_local_dispatch_context(dispatch_inboxes);
     let mut finished = Vec::with_capacity(tasks.len());
     let mut terminating = false;
 

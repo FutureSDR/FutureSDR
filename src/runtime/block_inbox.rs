@@ -378,6 +378,52 @@ pub struct LocalBlockInbox(Rc<LocalInboxState>);
 /// Handle used by the local-domain dispatcher for direct delivery.
 pub type LocalInboxHandle = LocalBlockInbox;
 
+thread_local! {
+    static LOCAL_DISPATCH_CONTEXT: RefCell<Option<Vec<Option<LocalInboxHandle>>>> = const { RefCell::new(None) };
+}
+
+/// Guard returned while a local domain dispatch context is installed.
+pub(crate) struct LocalDispatchContextGuard {
+    previous: Option<Vec<Option<LocalInboxHandle>>>,
+}
+
+impl Drop for LocalDispatchContextGuard {
+    fn drop(&mut self) {
+        LOCAL_DISPATCH_CONTEXT.with(|context| {
+            context.replace(self.previous.take());
+        });
+    }
+}
+
+/// Install a domain-local dispatch context for direct local message delivery.
+pub(crate) fn enter_local_dispatch_context(
+    inboxes: Vec<Option<LocalInboxHandle>>,
+) -> LocalDispatchContextGuard {
+    let previous = LOCAL_DISPATCH_CONTEXT.with(|context| context.replace(Some(inboxes)));
+    LocalDispatchContextGuard { previous }
+}
+
+/// Push a message to a local-domain inbox through the current dispatch context.
+pub(crate) fn push_current_local_message(
+    local_id: usize,
+    message: BlockMessage,
+) -> Result<(), crate::runtime::Error> {
+    let inbox = LOCAL_DISPATCH_CONTEXT.with(|context| {
+        context
+            .borrow()
+            .as_ref()
+            .and_then(|inboxes| inboxes.get(local_id).cloned().flatten())
+    });
+
+    let inbox = inbox.ok_or_else(|| {
+        crate::runtime::Error::RuntimeError(format!(
+            "local message handler has no dispatch inbox for local block slot {local_id}"
+        ))
+    })?;
+    inbox.push(message);
+    Ok(())
+}
+
 impl LocalInboxState {
     fn new(notifier: LocalBlockNotifier) -> Self {
         Self {

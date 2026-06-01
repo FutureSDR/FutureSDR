@@ -5,13 +5,29 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::block_inbox::push_current_local_message;
 use crate::runtime::dev::BlockInbox;
+
+/// One external downstream message handler reached through a send-safe inbox.
+#[derive(Debug)]
+struct ExternalMessageHandler {
+    port: PortId,
+    inbox: BlockInbox,
+}
+
+/// One same-domain local downstream message handler.
+#[derive(Debug)]
+struct LocalMessageHandler {
+    local_id: usize,
+    port: PortId,
+}
 
 /// One named message output port and its connected downstream handlers.
 #[derive(Debug)]
 struct MessageOutput {
     name: String,
-    handlers: Vec<(PortId, BlockInbox)>,
+    external_handlers: Vec<ExternalMessageHandler>,
+    local_handlers: Vec<LocalMessageHandler>,
 }
 
 impl MessageOutput {
@@ -19,7 +35,8 @@ impl MessageOutput {
     fn new(name: &str) -> MessageOutput {
         MessageOutput {
             name: name.to_string(),
-            handlers: Vec::new(),
+            external_handlers: Vec::new(),
+            local_handlers: Vec::new(),
         }
     }
 
@@ -28,22 +45,42 @@ impl MessageOutput {
         &self.name
     }
 
-    /// Connect this output to one downstream message input.
-    fn connect(&mut self, port: PortId, sender: BlockInbox) {
-        self.handlers.push((port, sender));
+    /// Connect this output to one external downstream message input.
+    fn connect_external(&mut self, port: PortId, sender: BlockInbox) {
+        self.external_handlers.push(ExternalMessageHandler {
+            port,
+            inbox: sender,
+        });
+    }
+
+    /// Connect this output to one same-domain local downstream message input.
+    fn connect_local(&mut self, local_id: usize, port: PortId) {
+        self.local_handlers
+            .push(LocalMessageHandler { local_id, port });
     }
 
     /// Remove all connected downstream handlers.
     fn clear(&mut self) {
-        self.handlers.clear();
+        self.external_handlers.clear();
+        self.local_handlers.clear();
     }
 
     /// Notify connected downstream message ports that this block is finished.
     async fn notify_finished(&mut self) {
-        for (port_id, sender) in self.handlers.iter_mut() {
-            let _ = sender
+        for handler in &self.local_handlers {
+            let _ = push_current_local_message(
+                handler.local_id,
+                BlockMessage::Call {
+                    port_id: handler.port.clone(),
+                    data: Pmt::Finished,
+                },
+            );
+        }
+        for handler in &self.external_handlers {
+            let _ = handler
+                .inbox
                 .send(BlockMessage::Call {
-                    port_id: port_id.clone(),
+                    port_id: handler.port.clone(),
                     data: Pmt::Finished,
                 })
                 .await;
@@ -52,10 +89,20 @@ impl MessageOutput {
 
     /// Post data to all connected downstream message inputs.
     async fn post(&mut self, p: Pmt) {
-        for (port_id, sender) in self.handlers.iter_mut() {
-            let _ = sender
+        for handler in &self.local_handlers {
+            let _ = push_current_local_message(
+                handler.local_id,
+                BlockMessage::Call {
+                    port_id: handler.port.clone(),
+                    data: p.clone(),
+                },
+            );
+        }
+        for handler in &self.external_handlers {
+            let _ = handler
+                .inbox
                 .send(BlockMessage::Call {
-                    port_id: port_id.clone(),
+                    port_id: handler.port.clone(),
                     data: p.clone(),
                 })
                 .await;
@@ -107,7 +154,20 @@ impl MessageOutputs {
         let block_id = self.block_id;
         self.output_mut(src_port)
             .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
-            .connect(dst_port.clone(), dst_block_inbox);
+            .connect_external(dst_port.clone(), dst_block_inbox);
+        Ok(())
+    }
+    /// Connect one message output port to a downstream same-domain local block.
+    pub(crate) fn connect_local(
+        &mut self,
+        src_port: &PortId,
+        dst_local_id: usize,
+        dst_port: &PortId,
+    ) -> Result<(), Error> {
+        let block_id = self.block_id;
+        self.output_mut(src_port)
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
+            .connect_local(dst_local_id, dst_port.clone());
         Ok(())
     }
     /// Tell all downstream message receivers that we are done.
@@ -127,5 +187,30 @@ impl MessageOutputs {
         self.outputs
             .iter_mut()
             .find(|item| item.name() == port.name())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::block_inbox::LocalBlockInboxReader;
+    use crate::runtime::block_inbox::enter_local_dispatch_context;
+
+    #[test]
+    fn local_handler_pushes_through_current_local_context() {
+        let (_tx, mut rx, handle) = LocalBlockInboxReader::pair();
+        let _guard = enter_local_dispatch_context(vec![Some(handle)]);
+        let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
+
+        outputs
+            .connect_local(&PortId::from("out"), 0, &PortId::from("in"))
+            .unwrap();
+        crate::runtime::block_on(outputs.post("out", Pmt::U32(7))).unwrap();
+
+        assert!(matches!(
+            rx.try_recv(),
+            Some(BlockMessage::Call { port_id, data })
+                if port_id == PortId::from("in") && data == Pmt::U32(7)
+        ));
     }
 }

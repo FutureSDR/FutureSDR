@@ -2512,13 +2512,40 @@ impl Flowgraph {
     }
 
     async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
+        let src_placement = self.placement(edge.src_block)?;
+        let dst_placement = self.placement(edge.dst_block)?;
+
+        if let (
+            BlockPlacement::Local {
+                domain_id: src_domain,
+                local_id: src_local,
+            },
+            BlockPlacement::Local {
+                domain_id: dst_domain,
+                local_id: dst_local,
+            },
+        ) = (src_placement, dst_placement)
+            && src_domain == dst_domain
+        {
+            self.local_domains[src_domain]
+                .exec(move |state| {
+                    let result = (|| {
+                        let src_block = state.block_mut(src_local, edge.src_block)?;
+                        src_block.connect_local(&edge.src_port, dst_local, &edge.dst_port)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await?;
+            return Ok(());
+        }
+
         let dst_box = self
             .blocks
             .get(edge.dst_block.0)
             .and_then(|entry| entry.inbox.as_ref())
             .cloned()
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
-        match self.placement(edge.src_block)? {
+        match src_placement {
             BlockPlacement::Normal => {
                 let src_block = self.raw_block_mut(edge.src_block)?;
                 src_block.connect(&edge.src_port, dst_box, &edge.dst_port)?;
