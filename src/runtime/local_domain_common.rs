@@ -63,7 +63,7 @@ impl LocalDomainState {
             )));
         }
         self.block_ids[local_id] = Some(block.id());
-        self.inboxes[local_id] = block.local_inbox();
+        self.inboxes[local_id] = Some(block.local_inbox());
         self.external_inboxes[local_id] = block.take_external_inbox_reader();
         self.blocks[local_id] = Some(block);
         Ok(())

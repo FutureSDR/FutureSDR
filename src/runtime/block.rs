@@ -23,14 +23,6 @@ pub trait BlockObject: Any {
 
     /// Get the send-safe endpoint of the block.
     fn inbox(&self) -> BlockEndpoint;
-    /// Get the local inbox handle for local-domain direct delivery.
-    fn local_inbox(&self) -> Option<LocalBlockInbox> {
-        None
-    }
-    /// Take the external normal inbox reader for a local-domain block.
-    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        None
-    }
     /// Get the block id.
     fn id(&self) -> BlockId;
 
@@ -66,8 +58,6 @@ pub trait BlockObject: Any {
 
     /// Get the static type name of the block.
     fn type_name(&self) -> &str;
-    /// Whether this block is flagged for a local blocking domain.
-    fn is_blocking(&self) -> bool;
 }
 
 /// Runtime object-safe interface for wrapped kernel instances.
@@ -77,6 +67,11 @@ pub trait BlockObject: Any {
 /// is mainly useful for runtime extensions.
 #[async_trait::async_trait]
 pub trait Block: BlockObject + Send {
+    /// Whether this block is flagged for a local blocking domain.
+    fn is_blocking(&self) -> bool {
+        false
+    }
+
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
 }
@@ -95,6 +90,13 @@ impl fmt::Debug for dyn Block {
 /// required to be `Send`; local-domain blocks never move between worker threads.
 #[async_trait::async_trait(?Send)]
 pub(crate) trait LocalBlock: BlockObject {
+    /// Get the local inbox handle for local-domain direct delivery.
+    fn local_inbox(&self) -> LocalBlockInbox;
+    /// Take the external normal inbox reader for forwarding into the local domain.
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        None
+    }
+
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
 }
 

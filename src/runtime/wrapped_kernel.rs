@@ -138,14 +138,6 @@ pub(crate) trait WrappedKernelInbox {
     fn external_inbox(&self) -> BlockEndpoint;
     fn take_run_inbox(&mut self) -> Self::RunInbox;
     fn put_run_inbox(&mut self, inbox: Self::RunInbox);
-
-    fn local_inbox(&self) -> Option<LocalBlockInbox> {
-        None
-    }
-
-    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        None
-    }
 }
 
 impl WrappedKernelInbox for ThreadSafeInbox {
@@ -189,14 +181,6 @@ impl WrappedKernelInbox for LocalBlockInboxes {
 
     fn put_run_inbox(&mut self, inbox: Self::RunInbox) {
         self.local_rx = Some(inbox);
-    }
-
-    fn local_inbox(&self) -> Option<LocalBlockInbox> {
-        Some(self.local_tx.clone())
-    }
-
-    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        self.thread_safe_rx.take()
     }
 }
 
@@ -487,12 +471,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn inbox(&self) -> BlockEndpoint {
         self.inbox.external_inbox()
     }
-    fn local_inbox(&self) -> Option<LocalBlockInbox> {
-        self.inbox.local_inbox()
-    }
-    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        self.inbox.take_external_inbox_reader()
-    }
     fn id(&self) -> BlockId {
         self.id
     }
@@ -540,9 +518,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn type_name(&self) -> &str {
         K::type_name()
     }
-    fn is_blocking(&self) -> bool {
-        K::is_blocking()
-    }
 }
 
 #[async_trait::async_trait]
@@ -550,6 +525,10 @@ impl<K> Block for NormalWrappedKernel<K>
 where
     K: SendKernel + SendKernelInterface + 'static,
 {
+    fn is_blocking(&self) -> bool {
+        K::is_blocking()
+    }
+
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {
@@ -578,6 +557,14 @@ where
 
 #[async_trait::async_trait(?Send)]
 impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K> {
+    fn local_inbox(&self) -> LocalBlockInbox {
+        self.inbox.local_tx.clone()
+    }
+
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+        self.inbox.thread_safe_rx.take()
+    }
+
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {

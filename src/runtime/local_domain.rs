@@ -433,42 +433,55 @@ async fn run_local_domain(
     let finished = ex
         .run(async {
             let mut finished = Vec::with_capacity(n_tasks);
-            let mut terminating = false;
+            let mut shutdown_requested = false;
 
             while finished.len() < n_tasks {
+                if shutdown_requested {
+                    match tasks.next().await {
+                        Some(done) => finished.push(done),
+                        None => break,
+                    }
+                    continue;
+                }
+
                 let next_task = tasks.next();
                 futures::pin_mut!(next_task);
                 let next_domain = domain_rx.recv();
                 futures::pin_mut!(next_domain);
 
-                match futures::future::select(
+                let request_shutdown = match futures::future::select(
                     next_task,
                     futures::future::select(next_domain, &mut *terminate_rx),
                 )
                 .await
                 {
-                    futures::future::Either::Left((Some(done), _)) => finished.push(done),
+                    futures::future::Either::Left((Some(done), _)) => {
+                        finished.push(done);
+                        false
+                    }
                     futures::future::Either::Left((None, _)) => break,
                     futures::future::Either::Right((
                         futures::future::Either::Left((Some(message), _)),
                         _,
                     )) => match message {
-                        LocalDomainMessage::Terminate => {
-                            terminating = true;
-                        }
+                        LocalDomainMessage::Terminate => true,
                         LocalDomainMessage::Build { reply, .. } => {
                             let _ = reply.send(Err(Error::LockError));
+                            false
                         }
                         LocalDomainMessage::Run { reply, .. } => {
                             let _ = reply.send(Err(Error::LockError));
+                            false
                         }
                         LocalDomainMessage::Exec(_) => {
                             warn!("local domain received exec while running");
+                            false
                         }
                         LocalDomainMessage::Post { block_id, message } => {
                             if let Err(e) = state.push_message(block_id, message) {
                                 warn!("failed to post to local block: {e}");
                             }
+                            false
                         }
                         LocalDomainMessage::Call {
                             block_id,
@@ -479,23 +492,25 @@ async fn run_local_domain(
                             if let Err(e) = state.push_call(block_id, port_id, data, reply) {
                                 warn!("failed to call local block: {e}");
                             }
+                            false
                         }
                         LocalDomainMessage::Notify { block_id } => {
                             if let Err(e) = state.notify_block(block_id) {
                                 warn!("failed to notify local block: {e}");
                             }
+                            false
                         }
                     },
                     futures::future::Either::Right((
                         futures::future::Either::Left((None, _)),
                         _,
-                    )) => terminating = true,
+                    )) => true,
                     futures::future::Either::Right((futures::future::Either::Right((_, _)), _)) => {
-                        terminating = true;
+                        true
                     }
-                }
+                };
 
-                if terminating {
+                if request_shutdown {
                     for inbox in &local_stop_inboxes {
                         inbox.push(BlockMessage::Terminate);
                     }
@@ -506,7 +521,7 @@ async fn run_local_domain(
                             );
                         }
                     }
-                    terminating = false;
+                    shutdown_requested = true;
                 }
             }
 
@@ -530,7 +545,8 @@ mod tests {
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;
     use crate::runtime::block_inbox::BlockInbox;
-    use crate::runtime::block_inbox::BlockInboxReader;
+    use crate::runtime::block_inbox::LocalBlockInbox;
+    use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::AnyBufferReader;
     use crate::runtime::buffer::AnyBufferWriter;
     use crate::runtime::buffer::AnySendBufferWriterToken;
@@ -538,7 +554,8 @@ mod tests {
     struct WaitForTerminate {
         id: BlockId,
         inbox: BlockEndpoint,
-        inbox_rx: BlockInboxReader,
+        local_inbox: LocalBlockInbox,
+        local_inbox_rx: LocalBlockInboxReader,
     }
 
     impl BlockObject for WaitForTerminate {
@@ -609,16 +626,16 @@ mod tests {
         fn type_name(&self) -> &str {
             "WaitForTerminate"
         }
-
-        fn is_blocking(&self) -> bool {
-            false
-        }
     }
 
     #[async_trait::async_trait(?Send)]
     impl LocalBlock for WaitForTerminate {
+        fn local_inbox(&self) -> LocalBlockInbox {
+            self.local_inbox.clone()
+        }
+
         async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-            while let Some(message) = self.inbox_rx.recv().await {
+            while let Some(message) = self.local_inbox_rx.recv().await {
                 if matches!(message, BlockMessage::Terminate) {
                     break;
                 }
@@ -636,11 +653,13 @@ mod tests {
         crate::runtime::block_on(controller.build(
             0,
             Box::new(|| {
-                let (inbox, inbox_rx) = BlockInbox::pair(4);
+                let (inbox, _inbox_rx) = BlockInbox::pair(4);
+                let (local_inbox, local_inbox_rx) = LocalBlockInboxReader::pair();
                 Box::new(WaitForTerminate {
                     id: BlockId(0),
                     inbox: inbox.into(),
-                    inbox_rx,
+                    local_inbox,
+                    local_inbox_rx,
                 })
             }),
         ))?;
