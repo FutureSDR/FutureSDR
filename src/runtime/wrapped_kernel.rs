@@ -103,8 +103,7 @@ pub(crate) struct ThreadSafeInbox {
 
 impl ThreadSafeInbox {
     fn new() -> Self {
-        let (tx, rx) =
-            crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
+        let (tx, rx) = BlockInbox::pair(config::config().queue_size);
         Self { tx, rx: Some(rx) }
     }
 }
@@ -120,8 +119,7 @@ pub(crate) struct LocalBlockInboxes {
 
 impl LocalBlockInboxes {
     fn new(external_tx: BlockEndpoint) -> Self {
-        let (thread_safe_tx, thread_safe_rx) =
-            crate::runtime::block_inbox::thread_safe_channel(config::config().queue_size);
+        let (thread_safe_tx, thread_safe_rx) = BlockInbox::pair(config::config().queue_size);
         let (local_tx, local_rx) = LocalBlockInboxReader::pair();
         Self {
             external_tx,

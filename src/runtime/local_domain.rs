@@ -529,6 +529,7 @@ mod tests {
     use crate::runtime::PortId;
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;
+    use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::buffer::AnyBufferReader;
     use crate::runtime::buffer::AnyBufferWriterToken;
@@ -638,7 +639,7 @@ mod tests {
         crate::runtime::block_on(controller.build(
             0,
             Box::new(|| {
-                let (inbox, inbox_rx) = crate::runtime::block_inbox::thread_safe_channel(4);
+                let (inbox, inbox_rx) = BlockInbox::pair(4);
                 Box::new(WaitForTerminate {
                     id: BlockId(0),
                     inbox: inbox.into(),

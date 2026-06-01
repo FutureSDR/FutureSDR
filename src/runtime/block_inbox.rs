@@ -176,6 +176,16 @@ impl BlockInbox {
         }
     }
 
+    /// Create a paired concrete sender/reader block inbox with a coalescing notifier.
+    pub(crate) fn pair(size: usize) -> (BlockInbox, BlockInboxReader) {
+        let (control, receiver) = mpsc::channel::<BlockMessage>(size);
+        let notifier = BlockNotifier::new();
+        (
+            BlockInbox::new(control, notifier.clone()),
+            BlockInboxReader::new(receiver, notifier),
+        )
+    }
+
     /// Get a wake-only notifier for the destination block.
     #[inline(always)]
     pub fn notifier(&self) -> BlockNotifier {
@@ -290,16 +300,6 @@ impl BlockInboxReader {
     pub fn notified(&self) -> Notified {
         self.notifier.notified()
     }
-}
-
-/// Create a paired concrete thread-safe sender/reader block inbox with a coalescing notifier.
-pub(crate) fn thread_safe_channel(size: usize) -> (BlockInbox, BlockInboxReader) {
-    let (control, receiver) = mpsc::channel::<BlockMessage>(size);
-    let notifier = BlockNotifier::new();
-    (
-        BlockInbox::new(control, notifier.clone()),
-        BlockInboxReader::new(receiver, notifier),
-    )
 }
 
 #[derive(Debug, Default)]
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn send_enqueues_and_wakes_reader() {
-        let (tx, mut rx) = thread_safe_channel(1);
+        let (tx, mut rx) = BlockInbox::pair(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     fn recv_waits_for_message() {
-        let (tx, mut rx) = thread_safe_channel(1);
+        let (tx, mut rx) = BlockInbox::pair(1);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn notify_wakes_without_message() {
-        let (tx, mut rx) = thread_safe_channel(1);
+        let (tx, mut rx) = BlockInbox::pair(1);
 
         tx.notify();
 
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn multiple_sends_coalesce_but_keep_messages() {
-        let (tx, mut rx) = thread_safe_channel(4);
+        let (tx, mut rx) = BlockInbox::pair(4);
 
         block_on(tx.send(BlockMessage::Initialize)).unwrap();
         block_on(tx.send(BlockMessage::Terminate)).unwrap();
