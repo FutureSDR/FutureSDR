@@ -493,7 +493,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         dst: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error> {
-        self.mo.connect_message(src_port, dst, dst_port)
+        self.mo.connect(src_port, dst, dst_port)
     }
     fn type_name(&self) -> &str {
         K::type_name()

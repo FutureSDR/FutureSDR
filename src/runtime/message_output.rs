@@ -36,7 +36,7 @@ impl MessageOutput {
     }
 
     /// Connect this output to one downstream message input.
-    fn connect_message(&mut self, port: PortId, dst: BlockEndpoint) {
+    fn connect(&mut self, port: PortId, dst: BlockEndpoint) {
         self.handlers.push(MessageHandler {
             port,
             endpoint: dst,
@@ -105,7 +105,7 @@ impl MessageOutputs {
         Ok(())
     }
     /// Connect one message output port to a downstream block endpoint.
-    pub fn connect_message(
+    pub fn connect(
         &mut self,
         src_port: &PortId,
         dst_block_endpoint: BlockEndpoint,
@@ -114,7 +114,7 @@ impl MessageOutputs {
         let block_id = self.block_id;
         self.output_mut(src_port)
             .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
-            .connect_message(dst_port.clone(), dst_block_endpoint);
+            .connect(dst_port.clone(), dst_block_endpoint);
         Ok(())
     }
     /// Tell all downstream message receivers that we are done.
@@ -145,7 +145,7 @@ mod tests {
         let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
 
         outputs
-            .connect_message(&PortId::from("out"), endpoint, &PortId::from("in"))
+            .connect(&PortId::from("out"), endpoint, &PortId::from("in"))
             .unwrap();
         crate::runtime::block_on(outputs.post("out", Pmt::U32(7))).unwrap();
 
