@@ -89,12 +89,12 @@ impl Scheduler for TpbScheduler {
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let (blocks, _topology, main_channel) = spec.into_parts();
         let mut tasks = Vec::with_capacity(blocks.len());
-        for (id, block) in blocks {
+        for block in blocks {
             let main_channel = main_channel.clone();
             tasks.push(self.spawn(async move {
                 let mut block = block;
                 block.run(main_channel).await;
-                (id, block)
+                block
             }));
         }
         Ok(NormalRunningDomain::new(tasks))
