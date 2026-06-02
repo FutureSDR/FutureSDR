@@ -12,7 +12,7 @@ use crate::runtime::kernel_interface::SendKernelInterface;
 pub trait AddToFlowgraph<B> {
     type Added;
 
-    async fn add(self, block: B) -> Result<Self::Added, Error>;
+    async fn add_to_flowgraph(self, block: B) -> Result<Self::Added, Error>;
 }
 
 impl<K> AddToFlowgraph<K> for &mut Flowgraph
@@ -21,7 +21,7 @@ where
 {
     type Added = BlockRef<K>;
 
-    async fn add(self, block: K) -> Result<Self::Added, Error> {
+    async fn add_to_flowgraph(self, block: K) -> Result<Self::Added, Error> {
         self.add_async(block).await
     }
 }
@@ -29,7 +29,7 @@ where
 impl<K: 'static> AddToFlowgraph<BlockRef<K>> for &mut Flowgraph {
     type Added = BlockRef<K>;
 
-    async fn add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
+    async fn add_to_flowgraph(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
         self.validate_block_ref(&block)?;
         Ok(block)
     }
@@ -41,7 +41,7 @@ where
 {
     type Added = BlockRef<K>;
 
-    async fn add(self, block: K) -> Result<Self::Added, Error> {
+    async fn add_to_flowgraph(self, block: K) -> Result<Self::Added, Error> {
         Ok(self.add(block))
     }
 }
@@ -49,7 +49,7 @@ where
 impl<'ctx, 'borrow, K: 'static> AddToFlowgraph<BlockRef<K>> for &'borrow LocalDomainContext<'ctx> {
     type Added = BlockRef<K>;
 
-    async fn add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
+    async fn add_to_flowgraph(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
         Ok(block)
     }
 }

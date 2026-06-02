@@ -187,7 +187,7 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
 
     let block_decls = blocks.iter().map(|block| {
         quote! {
-            let #block = #fg.add(#block).await?;
+            let #block = #fg.add_to_flowgraph(#block).await?;
         }
     });
 
