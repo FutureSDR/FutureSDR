@@ -1129,7 +1129,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 &mut self,
                 f: &mut dyn FnMut(
                     ::futuresdr::runtime::PortId,
-                    &mut dyn ::futuresdr::runtime::buffer::AnyBufferReader,
+                    &mut dyn ::futuresdr::runtime::buffer::DynBufferReader,
                 ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
             ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::PortId;
@@ -1141,7 +1141,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 &mut self,
                 f: &mut dyn FnMut(
                     ::futuresdr::runtime::PortId,
-                    &mut dyn ::futuresdr::runtime::buffer::AnyBufferWriter,
+                    &mut dyn ::futuresdr::runtime::buffer::DynBufferWriter,
                 ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error>,
             ) -> ::futuresdr::runtime::Result<(), ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::PortId;
@@ -1152,7 +1152,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             fn with_stream_input<'a, R>(
                 &'a mut self,
                 id: &::futuresdr::runtime::PortId,
-                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::AnyBufferReader) -> R,
+                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::DynBufferReader) -> R,
             ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
@@ -1164,7 +1164,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             fn with_stream_output<'a, R>(
                 &'a mut self,
                 id: &::futuresdr::runtime::PortId,
-                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::AnyBufferWriter) -> R,
+                f: impl FnOnce(&'a mut dyn ::futuresdr::runtime::buffer::DynBufferWriter) -> R,
             ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;

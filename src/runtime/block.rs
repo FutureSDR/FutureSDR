@@ -9,8 +9,8 @@ use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
-use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnyBufferWriter;
+use crate::runtime::buffer::DynBufferReader;
+use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::channel::mpsc::Sender;
 
 /// Object-safe runtime interface shared by normal and local block wrappers.
@@ -26,9 +26,9 @@ pub trait BlockObject: Any {
     fn id(&self) -> BlockId;
 
     /// Get a type-erased stream input by port id.
-    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
+    fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error>;
     /// Get a type-erased stream output by port id.
-    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error>;
+    fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error>;
     /// Message input port names declared by this block.
     fn message_inputs(&self) -> &'static [&'static str];
     /// Message output port names declared by this block.

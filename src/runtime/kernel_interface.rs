@@ -5,8 +5,8 @@ use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Result;
-use crate::runtime::buffer::AnyBufferReader;
-use crate::runtime::buffer::AnyBufferWriter;
+use crate::runtime::buffer::DynBufferReader;
+use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
@@ -40,24 +40,24 @@ pub trait KernelInterface {
     /// Visit all stream input ports.
     fn visit_stream_inputs(
         &mut self,
-        f: &mut dyn FnMut(PortId, &mut dyn AnyBufferReader) -> Result<(), Error>,
+        f: &mut dyn FnMut(PortId, &mut dyn DynBufferReader) -> Result<(), Error>,
     ) -> Result<(), Error>;
     /// Visit all stream output ports.
     fn visit_stream_outputs(
         &mut self,
-        f: &mut dyn FnMut(PortId, &mut dyn AnyBufferWriter) -> Result<(), Error>,
+        f: &mut dyn FnMut(PortId, &mut dyn DynBufferWriter) -> Result<(), Error>,
     ) -> Result<(), Error>;
     /// Access one type-erased stream input by port id.
     fn with_stream_input<'a, R>(
         &'a mut self,
         id: &PortId,
-        f: impl FnOnce(&'a mut dyn AnyBufferReader) -> R,
+        f: impl FnOnce(&'a mut dyn DynBufferReader) -> R,
     ) -> Result<R, Error>;
     /// Access one type-erased stream output by port id.
     fn with_stream_output<'a, R>(
         &'a mut self,
         id: &PortId,
-        f: impl FnOnce(&'a mut dyn AnyBufferWriter) -> R,
+        f: impl FnOnce(&'a mut dyn DynBufferWriter) -> R,
     ) -> Result<R, Error>;
     /// Notify adjacent stream peers that this block is done.
     fn stream_ports_notify_finished(&mut self) -> impl Future<Output = ()>;
@@ -125,13 +125,13 @@ pub(crate) fn stream_input_finish<K: KernelInterface>(
 pub(crate) fn stream_input<'a, K: KernelInterface>(
     kernel: &'a mut K,
     id: &PortId,
-) -> Result<&'a mut dyn AnyBufferReader, Error> {
+) -> Result<&'a mut dyn DynBufferReader, Error> {
     kernel.with_stream_input(id, |port| port)
 }
 
 pub(crate) fn stream_output<'a, K: KernelInterface>(
     kernel: &'a mut K,
     id: &PortId,
-) -> Result<&'a mut dyn AnyBufferWriter, Error> {
+) -> Result<&'a mut dyn DynBufferWriter, Error> {
     kernel.with_stream_output(id, |port| port)
 }

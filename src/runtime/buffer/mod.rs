@@ -573,7 +573,7 @@ pub trait SendBufferWriter:
 }
 
 /// Type-erased reader side of a stream buffer.
-pub trait AnyBufferReader: Any {
+pub trait DynBufferReader: Any {
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Initialize the reader from a block's available inbox handles.
@@ -590,7 +590,7 @@ pub trait AnyBufferReader: Any {
     fn port_id(&self) -> PortId;
 }
 
-impl<T: BufferReader> AnyBufferReader for T {
+impl<T: BufferReader> DynBufferReader for T {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         BufferReader::as_any_mut(self)
     }
@@ -671,9 +671,9 @@ pub trait BufferReader: Any {
 impl<T> SendBufferReader for T where T: BufferReader<notify_finished(..): Send> + Send + 'static {}
 
 /// Type-erased sendable token for connecting a stream writer across domains.
-pub trait AnySendBufferWriterToken: Send {
+pub trait DynSendBufferWriterToken: Send {
     /// Connect the token's writer to a type-erased reader.
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
+    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error>;
     /// Convert the token back into boxed [`Any`] for restoring its concrete writer.
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
 }
@@ -693,11 +693,11 @@ where
     }
 }
 
-impl<T> AnySendBufferWriterToken for SendBufferWriterToken<T>
+impl<T> DynSendBufferWriterToken for SendBufferWriterToken<T>
 where
     T: BufferWriter + Send + 'static,
 {
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
         BufferWriter::connect_dyn(&mut self.writer, dest)
     }
 
@@ -708,7 +708,7 @@ where
 }
 
 /// Take a sendable token from a writer by replacing it with its default value.
-pub fn take_send_token<T>(writer: &mut T) -> Result<Box<dyn AnySendBufferWriterToken>, Error>
+pub fn take_send_token<T>(writer: &mut T) -> Result<Box<dyn DynSendBufferWriterToken>, Error>
 where
     T: BufferWriter + Default + Send + 'static,
 {
@@ -718,7 +718,7 @@ where
 /// Restore a writer from a sendable token that was created from the same type.
 pub fn replace_send_token<T>(
     writer: &mut T,
-    token: Box<dyn AnySendBufferWriterToken>,
+    token: Box<dyn DynSendBufferWriterToken>,
 ) -> Result<(), Error>
 where
     T: BufferWriter + Send + 'static,
@@ -735,7 +735,7 @@ where
 #[doc(hidden)]
 pub trait BufferWriterTokenPolicy<W>: BufferMode {
     /// Temporarily take a writer as a sendable cross-domain token.
-    fn take_send_token(_writer: &mut W) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+    fn take_send_token(_writer: &mut W) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
         Err(Error::ValidationError(
             "stream writer is not send-capable".to_string(),
         ))
@@ -744,7 +744,7 @@ pub trait BufferWriterTokenPolicy<W>: BufferMode {
     /// Restore a writer that was previously taken as a sendable token.
     fn replace_send_token(
         _writer: &mut W,
-        _token: Box<dyn AnySendBufferWriterToken>,
+        _token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
         Err(Error::ValidationError(
             "stream writer is not send-capable".to_string(),
@@ -757,13 +757,13 @@ impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode
 where
     W: BufferWriter<Mode = ThreadSafeMode> + Default + Send + 'static,
 {
-    fn take_send_token(writer: &mut W) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+    fn take_send_token(writer: &mut W) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
         crate::runtime::buffer::take_send_token(writer)
     }
 
     fn replace_send_token(
         writer: &mut W,
-        token: Box<dyn AnySendBufferWriterToken>,
+        token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
         crate::runtime::buffer::replace_send_token(writer, token)
     }
@@ -778,21 +778,21 @@ impl<W> BufferWriterTokenPolicy<W> for ThreadSafeMode where
 impl<W> BufferWriterTokenPolicy<W> for LocalMode where W: BufferWriter<Mode = LocalMode> {}
 
 /// Type-erased writer side of a stream buffer.
-pub trait AnyBufferWriter {
+pub trait DynBufferWriter {
     /// Initialize the writer from a block's available inbox handles.
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
     /// Validate that this writer is connected and ready to run.
     fn validate(&self) -> Result<(), Error>;
     /// Connect this writer to a type-erased reader.
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error>;
+    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error>;
     /// Temporarily take this writer as a sendable cross-domain token.
-    fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
-    /// Restore a writer that was previously taken with [`AnyBufferWriter::take_send_token`].
-    fn replace_send_token(&mut self, token: Box<dyn AnySendBufferWriterToken>)
+    fn take_send_token(&mut self) -> Result<Box<dyn DynSendBufferWriterToken>, Error>;
+    /// Restore a writer that was previously taken with [`DynBufferWriter::take_send_token`].
+    fn replace_send_token(&mut self, token: Box<dyn DynSendBufferWriterToken>)
     -> Result<(), Error>;
 }
 
-impl<T> AnyBufferWriter for T
+impl<T> DynBufferWriter for T
 where
     T: BufferWriter + 'static,
     T::Mode: BufferWriterTokenPolicy<T>,
@@ -805,17 +805,17 @@ where
         BufferWriter::validate(self)
     }
 
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
         BufferWriter::connect_dyn(self, dest)
     }
 
-    fn take_send_token(&mut self) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+    fn take_send_token(&mut self) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
         T::Mode::take_send_token(self)
     }
 
     fn replace_send_token(
         &mut self,
-        token: Box<dyn AnySendBufferWriterToken>,
+        token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
         T::Mode::replace_send_token(self, token)
     }
@@ -855,7 +855,7 @@ pub trait BufferWriter: Any {
     /// startup. Implementations should store peer queues, not transfer samples.
     fn connect(&mut self, dest: &mut Self::Reader);
     /// Connect the writer to a type-erased local reader.
-    fn connect_dyn(&mut self, dest: &mut dyn AnyBufferReader) -> Result<(), Error> {
+    fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
         if let Some(concrete) = dest.as_any_mut().downcast_mut::<Self::Reader>() {
             self.connect(concrete);
             Ok(())

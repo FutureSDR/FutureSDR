@@ -21,9 +21,9 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
-use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::DynSendBufferWriterToken;
 use crate::runtime::buffer::SendBufferWriter;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
@@ -1983,7 +1983,7 @@ impl Flowgraph {
         &mut self,
         endpoint: StreamEndpoint,
         port_id: &PortId,
-    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
+    ) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
         match endpoint {
             StreamEndpoint::Normal(block_id) => {
                 let writer = self
@@ -2039,7 +2039,7 @@ impl Flowgraph {
         &mut self,
         endpoint: StreamEndpoint,
         port_id: &PortId,
-        token: Box<dyn AnySendBufferWriterToken>,
+        token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
         match endpoint {
             StreamEndpoint::Normal(block_id) => {
@@ -2094,7 +2094,7 @@ impl Flowgraph {
 
     async fn connect_send_token_to_input(
         &mut self,
-        token: Arc<async_lock::Mutex<Option<Box<dyn AnySendBufferWriterToken>>>>,
+        token: Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
         src_block_id: BlockId,
         dst: StreamEndpoint,
         dst_port_id: PortId,
