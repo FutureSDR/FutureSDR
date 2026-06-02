@@ -589,7 +589,7 @@ mod tests {
             ))
         }
 
-        fn take_send_stream_output_token(
+        fn take_connect_token(
             &mut self,
             id: &PortId,
         ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
@@ -599,7 +599,7 @@ mod tests {
             ))
         }
 
-        fn replace_send_stream_output_token(
+        fn put_connect_token(
             &mut self,
             id: &PortId,
             _token: Box<dyn AnySendBufferWriterToken>,
@@ -617,7 +617,7 @@ mod tests {
         fn connect(
             &mut self,
             _src_port: &PortId,
-            _sender: BlockEndpoint,
+            _dst: BlockEndpoint,
             _dst_port: &PortId,
         ) -> Result<(), Error> {
             Ok(())

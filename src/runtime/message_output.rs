@@ -36,10 +36,10 @@ impl MessageOutput {
     }
 
     /// Connect this output to one downstream message input.
-    fn connect(&mut self, port: PortId, sender: BlockEndpoint) {
+    fn connect(&mut self, port: PortId, dst: BlockEndpoint) {
         self.handlers.push(MessageHandler {
             port,
-            endpoint: sender,
+            endpoint: dst,
         });
     }
 

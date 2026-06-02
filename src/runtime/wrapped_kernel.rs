@@ -482,23 +482,19 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         crate::runtime::kernel_interface::stream_output(&mut self.kernel, id)
     }
 
-    fn take_send_stream_output_token(
+    fn take_connect_token(
         &mut self,
         id: &PortId,
     ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
-        crate::runtime::kernel_interface::take_send_stream_output_token(&mut self.kernel, id)
+        crate::runtime::kernel_interface::take_connect_token(&mut self.kernel, id)
     }
 
-    fn replace_send_stream_output_token(
+    fn put_connect_token(
         &mut self,
         id: &PortId,
         token: Box<dyn AnySendBufferWriterToken>,
     ) -> Result<(), Error> {
-        crate::runtime::kernel_interface::replace_send_stream_output_token(
-            &mut self.kernel,
-            id,
-            token,
-        )
+        crate::runtime::kernel_interface::put_connect_token(&mut self.kernel, id, token)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {
@@ -510,10 +506,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     fn connect(
         &mut self,
         src_port: &PortId,
-        dst_box: BlockEndpoint,
+        dst: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error> {
-        self.mo.connect(src_port, dst_box, dst_port)
+        self.mo.connect(src_port, dst, dst_port)
     }
     fn type_name(&self) -> &str {
         K::type_name()

@@ -137,14 +137,14 @@ pub(crate) fn stream_output<'a, K: KernelInterface>(
     kernel.with_stream_output(id, |port| port)
 }
 
-pub(crate) fn take_send_stream_output_token<K: KernelInterface>(
+pub(crate) fn take_connect_token<K: KernelInterface>(
     kernel: &mut K,
     id: &PortId,
 ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
     kernel.with_stream_output(id, |port| port.take_send_token())?
 }
 
-pub(crate) fn replace_send_stream_output_token<K: KernelInterface>(
+pub(crate) fn put_connect_token<K: KernelInterface>(
     kernel: &mut K,
     id: &PortId,
     token: Box<dyn AnySendBufferWriterToken>,

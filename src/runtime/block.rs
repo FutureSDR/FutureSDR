@@ -30,13 +30,13 @@ pub trait BlockObject: Any {
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
     /// Get a type-erased stream output by port id.
     fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error>;
-    /// Temporarily take a sendable stream output token for cross-domain setup.
-    fn take_send_stream_output_token(
+    /// Temporarily take a stream output connection token for cross-domain setup.
+    fn take_connect_token(
         &mut self,
         id: &PortId,
     ) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
-    /// Restore a stream output token that was temporarily taken for cross-domain setup.
-    fn replace_send_stream_output_token(
+    /// Put back a stream output connection token that was temporarily taken.
+    fn put_connect_token(
         &mut self,
         id: &PortId,
         token: Box<dyn AnySendBufferWriterToken>,
@@ -52,7 +52,7 @@ pub trait BlockObject: Any {
     fn connect(
         &mut self,
         src_port: &PortId,
-        sender: BlockEndpoint,
+        dst: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error>;
 
