@@ -43,19 +43,6 @@ impl MessageOutput {
         });
     }
 
-    /// Notify connected downstream message ports that this block is finished.
-    async fn notify_finished(&mut self) {
-        for handler in &self.handlers {
-            let _ = handler
-                .endpoint
-                .send(BlockMessage::Post {
-                    port_id: handler.port.clone(),
-                    data: Pmt::Finished,
-                })
-                .await;
-        }
-    }
-
     /// Post data to all connected downstream message inputs.
     async fn post(&mut self, p: Pmt) {
         for handler in &self.handlers {
@@ -120,7 +107,7 @@ impl MessageOutputs {
     /// Tell all downstream message receivers that we are done.
     pub async fn notify_finished(&mut self) {
         for o in self.outputs.iter_mut() {
-            o.notify_finished().await;
+            o.post(Pmt::Finished).await;
         }
     }
     /// Get a mutable output port by id.
