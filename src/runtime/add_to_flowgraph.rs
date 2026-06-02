@@ -9,47 +9,47 @@ use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
 
 #[doc(hidden)]
-pub trait ConnectAdd<B> {
+pub trait AddToFlowgraph<B> {
     type Added;
 
-    async fn connect_add(self, block: B) -> Result<Self::Added, Error>;
+    async fn add(self, block: B) -> Result<Self::Added, Error>;
 }
 
-impl<K> ConnectAdd<K> for &mut Flowgraph
+impl<K> AddToFlowgraph<K> for &mut Flowgraph
 where
     K: SendKernel + SendKernelInterface + 'static,
 {
     type Added = BlockRef<K>;
 
-    async fn connect_add(self, block: K) -> Result<Self::Added, Error> {
+    async fn add(self, block: K) -> Result<Self::Added, Error> {
         self.add_async(block).await
     }
 }
 
-impl<K: 'static> ConnectAdd<BlockRef<K>> for &mut Flowgraph {
+impl<K: 'static> AddToFlowgraph<BlockRef<K>> for &mut Flowgraph {
     type Added = BlockRef<K>;
 
-    async fn connect_add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
+    async fn add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
         self.validate_block_ref(&block)?;
         Ok(block)
     }
 }
 
-impl<'ctx, 'borrow, K> ConnectAdd<K> for &'borrow LocalDomainContext<'ctx>
+impl<'ctx, 'borrow, K> AddToFlowgraph<K> for &'borrow LocalDomainContext<'ctx>
 where
     K: Kernel + KernelInterface + 'static,
 {
     type Added = BlockRef<K>;
 
-    async fn connect_add(self, block: K) -> Result<Self::Added, Error> {
+    async fn add(self, block: K) -> Result<Self::Added, Error> {
         Ok(self.add(block))
     }
 }
 
-impl<'ctx, 'borrow, K: 'static> ConnectAdd<BlockRef<K>> for &'borrow LocalDomainContext<'ctx> {
+impl<'ctx, 'borrow, K: 'static> AddToFlowgraph<BlockRef<K>> for &'borrow LocalDomainContext<'ctx> {
     type Added = BlockRef<K>;
 
-    async fn connect_add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
+    async fn add(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
         Ok(block)
     }
 }

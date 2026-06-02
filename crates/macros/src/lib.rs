@@ -187,14 +187,15 @@ fn generate_connect(connect_input: ConnectInput, mode: ConnectMode) -> proc_macr
 
     let block_decls = blocks.iter().map(|block| {
         quote! {
-            let #block = #fg.connect_add(#block).await?;
+            let #block = #fg.add(#block).await?;
         }
     });
 
-    let connect_add_trait = quote! { use ::futuresdr::runtime::__private::ConnectAdd as _; };
+    let add_to_flowgraph_trait =
+        quote! { use ::futuresdr::runtime::__private::AddToFlowgraph as _; };
 
     let body = quote! {
-        #connect_add_trait
+        #add_to_flowgraph_trait
         #(#block_decls)*
         #(#connections)*
         ::core::result::Result::Ok::<_, ::futuresdr::runtime::Error>((#(#blocks),*))

@@ -16,6 +16,7 @@ use thiserror::Error;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::oneshot;
 
+mod add_to_flowgraph;
 mod block;
 mod block_inbox;
 mod block_meta;
@@ -24,7 +25,6 @@ pub mod buffer;
 /// Async channels used by runtime and block implementation APIs.
 pub mod channel;
 pub mod config;
-mod connect_add;
 /// Developer-facing APIs for implementing custom blocks and runtime extensions.
 pub mod dev;
 
@@ -170,7 +170,7 @@ pub fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
 /// expansions can reference generated implementation details.
 #[doc(hidden)]
 pub mod __private {
-    pub use super::connect_add::ConnectAdd;
+    pub use super::add_to_flowgraph::AddToFlowgraph;
 
     pub use super::kernel_interface::KernelInterface;
     pub use super::kernel_interface::SendKernelInterface;
