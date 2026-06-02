@@ -185,7 +185,7 @@ impl Default for Config {
     #[cfg(debug_assertions)]
     fn default() -> Self {
         Config {
-            queue_size: 8192,
+            queue_size: 128,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
             slab_reserved: 0,
@@ -200,7 +200,7 @@ impl Default for Config {
     #[cfg(not(debug_assertions))]
     fn default() -> Self {
         Config {
-            queue_size: 8192,
+            queue_size: 128,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
             slab_reserved: 0,

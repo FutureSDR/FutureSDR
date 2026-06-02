@@ -8,7 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
-futuresdr = { path = "../..", features = ["vulkan"] }
+futuresdr = { path = "../..", default-features = false, features = ["vulkan"] }
 rand = "0.10"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 vulkano = { version = "0.35" }

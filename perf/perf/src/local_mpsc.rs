@@ -5,6 +5,7 @@ use std::mem::size_of;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BufferInbox;
 use futuresdr::runtime::buffer::BufferNotifier;
 use futuresdr::runtime::buffer::BufferReader;
 use futuresdr::runtime::buffer::BufferWriter;

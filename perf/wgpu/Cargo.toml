@@ -15,7 +15,7 @@ path = "src/bin/perf.rs"
 
 [dependencies]
 anyhow = "1.0"
-futuresdr = { path = "../..", features = ["wgpu"] }
+futuresdr = { path = "../..", default-features = false, features = ["wgpu"] }
 rand = "0.10"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 web-time = { version = "1.1" }
