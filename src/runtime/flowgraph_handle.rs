@@ -40,6 +40,11 @@ impl FlowgraphHandle {
         FlowgraphHandle { inbox }
     }
 
+    /// Return whether this flowgraph's control inbox has closed.
+    pub fn is_terminated(&self) -> bool {
+        self.inbox.is_closed()
+    }
+
     /// Get a handle scoped to one block in the running flowgraph.
     ///
     /// The block id is not validated until an operation is performed on the

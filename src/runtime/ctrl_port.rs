@@ -64,41 +64,42 @@ async fn flowgraph_description<S: Scheduler + Sync>(
     Path(fg): Path<usize>,
     State(rt): State<RuntimeHandle<S>>,
 ) -> Result<Json<FlowgraphDescription>, StatusCode> {
-    let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(fg) = fg.await
-        && let Ok(d) = fg.describe().await
-    {
-        return Ok(Json::from(d));
-    }
-    Err(StatusCode::BAD_REQUEST)
+    let Some(fg) = rt.get_flowgraph(FlowgraphId(fg)).await else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    fg.describe()
+        .await
+        .map(Json::from)
+        .map_err(status_from_error)
 }
 
 async fn block_description<S: Scheduler + Sync>(
     Path((fg, blk)): Path<(usize, BlockId)>,
     State(rt): State<RuntimeHandle<S>>,
 ) -> Result<Json<BlockDescription>, StatusCode> {
-    let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(fg) = fg.await
-        && let Ok(d) = fg.describe_block(blk).await
-    {
-        return Ok(Json::from(d));
-    }
+    let Some(fg) = rt.get_flowgraph(FlowgraphId(fg)).await else {
+        return Err(StatusCode::NOT_FOUND);
+    };
 
-    Err(StatusCode::BAD_REQUEST)
+    fg.describe_block(blk)
+        .await
+        .map(Json::from)
+        .map_err(status_from_error)
 }
 
 async fn handler_id<S: Scheduler + Sync>(
     Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
     State(rt): State<RuntimeHandle<S>>,
 ) -> Result<Json<Pmt>, StatusCode> {
-    let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(fg) = fg.await
-        && let Ok(ret) = fg.call(blk, handler, Pmt::Null).await
-    {
-        return Ok(Json::from(ret));
-    }
+    let Some(fg) = rt.get_flowgraph(FlowgraphId(fg)).await else {
+        return Err(StatusCode::NOT_FOUND);
+    };
 
-    Err(StatusCode::BAD_REQUEST)
+    fg.call(blk, handler, Pmt::Null)
+        .await
+        .map(Json::from)
+        .map_err(status_from_error)
 }
 
 async fn handler_id_post<S: Scheduler + Sync>(
@@ -106,14 +107,27 @@ async fn handler_id_post<S: Scheduler + Sync>(
     State(rt): State<RuntimeHandle<S>>,
     Json(pmt): Json<Pmt>,
 ) -> Result<Json<Pmt>, StatusCode> {
-    let fg = rt.get_flowgraph(FlowgraphId(fg));
-    if let Some(fg) = fg.await
-        && let Ok(ret) = fg.call(blk, handler, pmt).await
-    {
-        return Ok(Json::from(ret));
-    }
+    let Some(fg) = rt.get_flowgraph(FlowgraphId(fg)).await else {
+        return Err(StatusCode::NOT_FOUND);
+    };
 
-    Err(StatusCode::BAD_REQUEST)
+    fg.call(blk, handler, pmt)
+        .await
+        .map(Json::from)
+        .map_err(status_from_error)
+}
+
+fn status_from_error(error: crate::runtime::Error) -> StatusCode {
+    match error {
+        crate::runtime::Error::FlowgraphTerminated | crate::runtime::Error::BlockTerminated => {
+            StatusCode::GONE
+        }
+        crate::runtime::Error::InvalidBlock(_)
+        | crate::runtime::Error::InvalidMessagePort(_, _)
+        | crate::runtime::Error::InvalidStreamPort(_, _)
+        | crate::runtime::Error::InvalidParameter => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }
 
 pub struct ControlPort<S> {

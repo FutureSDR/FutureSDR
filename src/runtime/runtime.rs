@@ -289,7 +289,12 @@ impl<S: Scheduler> RuntimeHandle<S> {
     /// the runtime handle. The returned handle may still fail later if the
     /// flowgraph has already terminated.
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        self.flowgraphs.lock().await.get(id.0).cloned()
+        self.flowgraphs
+            .lock()
+            .await
+            .get(id.0)
+            .filter(|handle| !handle.is_terminated())
+            .cloned()
     }
 
     /// Get the ids of flowgraphs known to this runtime handle.
@@ -299,6 +304,7 @@ impl<S: Scheduler> RuntimeHandle<S> {
             .await
             .iter()
             .enumerate()
+            .filter(|(_, handle)| !handle.is_terminated())
             .map(|x| FlowgraphId(x.0))
             .collect()
     }
@@ -321,4 +327,39 @@ async fn start_flowgraph<S: Scheduler>(
 
     let handle = FlowgraphHandle::new(fg_inbox);
     Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use crate::blocks::MessageSourceBuilder;
+    use crate::runtime::Pmt;
+    use std::time::Duration;
+
+    #[test]
+    fn terminated_flowgraphs_are_not_returned_by_registry() {
+        let scheduler = DefaultScheduler::default();
+        let handle = RuntimeHandle {
+            scheduler,
+            flowgraphs: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        runtime::block_on(async {
+            let mut fg = Flowgraph::new();
+            fg.add(
+                MessageSourceBuilder::new(Pmt::Null, Duration::from_millis(1))
+                    .n_messages(1)
+                    .build(),
+            )
+            .unwrap();
+
+            let running = handle.start(fg).await.unwrap();
+            assert_eq!(handle.get_flowgraphs().await, vec![FlowgraphId(0)]);
+
+            running.wait_async().await.unwrap();
+
+            assert!(handle.get_flowgraph(FlowgraphId(0)).await.is_none());
+            assert!(handle.get_flowgraphs().await.is_empty());
+        });
+    }
 }
