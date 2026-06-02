@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
+use crate::runtime::Error;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::LocalDomainSpec;
@@ -107,10 +108,7 @@ impl SmolScheduler {
 }
 
 impl Scheduler for SmolScheduler {
-    fn start_normal_domain(
-        &self,
-        spec: NormalDomainSpec,
-    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let (blocks, topology, main_channel) = spec.into_parts();
         let _ = (
             topology.blocks(),
@@ -134,10 +132,7 @@ impl Scheduler for SmolScheduler {
         Ok(NormalRunningDomain::new(tasks))
     }
 
-    fn start_local_domain(
-        &self,
-        spec: LocalDomainSpec,
-    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
+    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain, Error> {
         let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
         let _ = (
             slots,
