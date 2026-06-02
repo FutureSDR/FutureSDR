@@ -310,7 +310,7 @@ async fn run_domain_thread(
             }
             LocalDomainMessage::Exec(f) => f(&mut state).await,
             LocalDomainMessage::Post { block_id, message } => {
-                if let Err(e) = state.push_message(block_id, message) {
+                if let Err(e) = state.push_message(block_id, message).await {
                     warn!("failed to post to local block: {e}");
                 }
             }
@@ -320,7 +320,7 @@ async fn run_domain_thread(
                 data,
                 reply,
             } => {
-                if let Err(e) = state.push_call(block_id, port_id, data, reply) {
+                if let Err(e) = state.push_call(block_id, port_id, data, reply).await {
                     warn!("failed to call local block: {e}");
                 }
             }
@@ -354,30 +354,34 @@ async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalBloc
     }
 
     loop {
+        let mut ready = Vec::new();
         std::future::poll_fn(|cx| {
-            let mut ready = false;
-            for (inbox, local_inbox) in &mut external {
+            for (idx, (inbox, _)) in external.iter_mut().enumerate() {
                 let notified = inbox.notified();
                 futures::pin_mut!(notified);
                 if Future::poll(notified, cx).is_ready() {
-                    if inbox.take_message_pending() {
-                        while let Some(msg) = inbox.try_recv() {
-                            local_inbox.push(msg);
-                        }
-                    } else {
-                        local_inbox.notify();
-                    }
-                    ready = true;
+                    ready.push((idx, inbox.take_message_pending()));
                 }
             }
 
-            if ready {
-                std::task::Poll::Ready(())
-            } else {
+            if ready.is_empty() {
                 std::task::Poll::Pending
+            } else {
+                std::task::Poll::Ready(())
             }
         })
         .await;
+
+        for (idx, message_pending) in ready {
+            let (inbox, local_inbox) = &mut external[idx];
+            if message_pending {
+                while let Some(msg) = inbox.try_recv() {
+                    let _ = local_inbox.send(msg).await;
+                }
+            } else {
+                local_inbox.notify();
+            }
+        }
     }
 }
 
@@ -478,7 +482,7 @@ async fn run_local_domain(
                             false
                         }
                         LocalDomainMessage::Post { block_id, message } => {
-                            if let Err(e) = state.push_message(block_id, message) {
+                            if let Err(e) = state.push_message(block_id, message).await {
                                 warn!("failed to post to local block: {e}");
                             }
                             false
@@ -489,7 +493,7 @@ async fn run_local_domain(
                             data,
                             reply,
                         } => {
-                            if let Err(e) = state.push_call(block_id, port_id, data, reply) {
+                            if let Err(e) = state.push_call(block_id, port_id, data, reply).await {
                                 warn!("failed to call local block: {e}");
                             }
                             false
@@ -512,7 +516,7 @@ async fn run_local_domain(
 
                 if request_shutdown {
                     for inbox in &local_stop_inboxes {
-                        inbox.push(BlockMessage::Terminate);
+                        let _ = inbox.send(BlockMessage::Terminate).await;
                     }
                     for inbox in &external_stop_inboxes {
                         if inbox.send(BlockMessage::Terminate).await.is_err() {

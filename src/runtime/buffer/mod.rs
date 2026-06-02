@@ -172,19 +172,19 @@ impl BufferInbox for LocalBlockInbox {
     }
 
     async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
-        LocalBlockInbox::push(
+        LocalBlockInbox::send(
             self,
             crate::runtime::BlockMessage::StreamInputDone { input_id },
-        );
-        Ok(())
+        )
+        .await
     }
 
     async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
-        LocalBlockInbox::push(
+        LocalBlockInbox::send(
             self,
             crate::runtime::BlockMessage::StreamOutputDone { output_id },
-        );
-        Ok(())
+        )
+        .await
     }
 }
 

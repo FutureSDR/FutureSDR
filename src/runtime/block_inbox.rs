@@ -54,7 +54,7 @@ impl fmt::Debug for BlockNotifier {
 
 impl BlockNotifier {
     /// Create a new thread-safe notifier.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             state: Arc::new(ThreadSafeNotifyState::default()),
         }
@@ -186,6 +186,11 @@ impl BlockInbox {
         self.notifier.clone()
     }
 
+    /// Return whether the underlying receiver has been closed.
+    pub fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
     /// Wake the destination block without sending a message.
     #[inline(always)]
     pub fn notify(&self) {
@@ -209,6 +214,19 @@ impl BlockInbox {
         self.notifier.set_message_pending();
         self.notifier.notify();
         Ok(())
+    }
+}
+
+impl Default for BlockNotifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for BlockInbox {
+    fn default() -> Self {
+        let (inbox, _reader) = Self::pair(1);
+        inbox
     }
 }
 
@@ -308,7 +326,8 @@ struct LocalNotifyState {
 pub struct LocalBlockNotifier(Rc<LocalNotifyState>);
 
 impl LocalBlockNotifier {
-    fn new() -> Self {
+    /// Create a new local-domain notifier.
+    pub fn new() -> Self {
         Self(Rc::new(LocalNotifyState::default()))
     }
 
@@ -355,6 +374,8 @@ impl LocalNotifyState {
 #[derive(Debug)]
 struct LocalInboxState {
     queue: RefCell<VecDeque<BlockMessage>>,
+    capacity: usize,
+    send_wakers: RefCell<Vec<Waker>>,
     message_pending: Cell<bool>,
     notifier: LocalBlockNotifier,
 }
@@ -365,11 +386,44 @@ pub struct LocalBlockInbox(Rc<LocalInboxState>);
 
 impl LocalInboxState {
     fn new(notifier: LocalBlockNotifier) -> Self {
+        let queue = VecDeque::with_capacity(crate::runtime::config::config().queue_size);
+        let capacity = queue.capacity();
         Self {
-            queue: RefCell::new(VecDeque::new()),
+            queue: RefCell::new(queue),
+            capacity,
+            send_wakers: RefCell::new(Vec::new()),
             message_pending: Cell::new(false),
             notifier,
         }
+    }
+
+    fn wake_senders(&self) {
+        for waker in self.send_wakers.borrow_mut().drain(..) {
+            waker.wake();
+        }
+    }
+
+    fn register_sender(&self, waker: &Waker) {
+        let mut send_wakers = self.send_wakers.borrow_mut();
+        if !send_wakers
+            .iter()
+            .any(|registered| registered.will_wake(waker))
+        {
+            send_wakers.push(waker.clone());
+        }
+    }
+}
+
+impl Default for LocalBlockNotifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for LocalBlockInbox {
+    fn default() -> Self {
+        let (inbox, _reader) = LocalBlockInboxReader::pair();
+        inbox
     }
 }
 
@@ -378,10 +432,24 @@ impl LocalBlockInbox {
         self.0.notifier.notify();
     }
 
-    pub(crate) fn push(&self, msg: BlockMessage) {
-        self.0.queue.borrow_mut().push_back(msg);
+    fn try_send(&self, msg: BlockMessage) -> Result<(), BlockMessage> {
+        let mut queue = self.0.queue.borrow_mut();
+        if queue.len() == self.0.capacity {
+            return Err(msg);
+        }
+
+        queue.push_back(msg);
         self.0.message_pending.set(true);
         self.notify();
+        Ok(())
+    }
+
+    pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
+        LocalSend {
+            inbox: self.clone(),
+            msg: Some(msg),
+        }
+        .await
     }
 
     /// Get a wake-only notifier for this local block.
@@ -390,11 +458,50 @@ impl LocalBlockInbox {
     }
 
     fn try_recv(&self) -> Option<BlockMessage> {
-        self.0.queue.borrow_mut().pop_front()
+        let msg = self.0.queue.borrow_mut().pop_front();
+        if msg.is_some() {
+            self.0.wake_senders();
+        }
+        msg
     }
 
     fn take_message_pending(&self) -> bool {
         self.0.message_pending.replace(false)
+    }
+}
+
+struct LocalSend {
+    inbox: LocalBlockInbox,
+    msg: Option<BlockMessage>,
+}
+
+impl Unpin for LocalSend {}
+
+impl Future for LocalSend {
+    type Output = Result<(), Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let Some(msg) = this.msg.take() else {
+            return Poll::Ready(Ok(()));
+        };
+
+        match this.inbox.try_send(msg) {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(msg) => {
+                this.msg = Some(msg);
+                this.inbox.0.register_sender(cx.waker());
+
+                let msg = this.msg.take().expect("local send message missing");
+                match this.inbox.try_send(msg) {
+                    Ok(()) => Poll::Ready(Ok(())),
+                    Err(msg) => {
+                        this.msg = Some(msg);
+                        Poll::Pending
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -533,12 +640,32 @@ mod tests {
     fn local_send_enqueues_and_wakes_reader() {
         let (tx, mut rx) = LocalBlockInboxReader::pair();
 
-        tx.push(BlockMessage::Initialize);
+        block_on(tx.send(BlockMessage::Initialize)).unwrap();
 
         assert!(rx.take_pending());
         assert!(rx.take_message_pending());
         assert!(!rx.take_message_pending());
         assert!(matches!(rx.try_recv(), Some(BlockMessage::Initialize)));
+    }
+
+    #[test]
+    fn local_queue_is_bounded_by_allocated_capacity() {
+        let (tx, mut rx) = LocalBlockInboxReader::pair();
+        let capacity = tx.0.capacity;
+
+        for _ in 0..capacity {
+            assert!(tx.try_send(BlockMessage::Terminate).is_ok());
+        }
+
+        assert!(matches!(
+            tx.try_send(BlockMessage::Initialize),
+            Err(BlockMessage::Initialize)
+        ));
+
+        for _ in 0..capacity {
+            assert!(matches!(rx.try_recv(), Some(BlockMessage::Terminate)));
+        }
+        assert!(rx.try_recv().is_none());
     }
 
     #[test]

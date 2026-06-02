@@ -91,7 +91,7 @@ impl LocalDomainState {
             .position(|id| id.as_ref() == Some(&block_id))
     }
 
-    pub(crate) fn push_message(
+    pub(crate) async fn push_message(
         &self,
         block_id: BlockId,
         message: BlockMessage,
@@ -100,11 +100,10 @@ impl LocalDomainState {
             .local_id_for_block(block_id)
             .ok_or(Error::InvalidBlock(block_id))?;
         let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
-        inbox.push(message);
-        Ok(())
+        inbox.send(message).await
     }
 
-    pub(crate) fn push_call(
+    pub(crate) async fn push_call(
         &self,
         block_id: BlockId,
         port_id: PortId,
@@ -127,12 +126,13 @@ impl LocalDomainState {
                 return Err(e);
             }
         };
-        inbox.push(BlockMessage::Call {
-            port_id,
-            data,
-            tx: reply,
-        });
-        Ok(())
+        inbox
+            .send(BlockMessage::Call {
+                port_id,
+                data,
+                tx: reply,
+            })
+            .await
     }
 
     pub(crate) fn notify_block(&self, block_id: BlockId) -> Result<(), Error> {
