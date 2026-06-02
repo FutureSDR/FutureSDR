@@ -226,7 +226,7 @@ impl BlockEndpoint {
 
     /// Wake the destination block without sending a message.
     #[inline(always)]
-    pub fn notify(&self) {
+    pub(crate) fn notify(&self) {
         match self {
             Self::Direct(inbox) => inbox.notify(),
             Self::DomainProxy { domain, block_id } => {
@@ -236,7 +236,7 @@ impl BlockEndpoint {
     }
 
     /// Return whether the underlying receiver has been closed.
-    pub fn is_closed(&self) -> bool {
+    pub(crate) fn is_closed(&self) -> bool {
         match self {
             Self::Direct(inbox) => inbox.tx.is_closed(),
             Self::DomainProxy { domain, .. } => domain.is_closed(),
