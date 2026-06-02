@@ -20,7 +20,6 @@ use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriter;
-use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::config;
@@ -482,34 +481,19 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         crate::runtime::kernel_interface::stream_output(&mut self.kernel, id)
     }
 
-    fn take_connect_token(
-        &mut self,
-        id: &PortId,
-    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
-        crate::runtime::kernel_interface::take_connect_token(&mut self.kernel, id)
-    }
-
-    fn put_connect_token(
-        &mut self,
-        id: &PortId,
-        token: Box<dyn AnySendBufferWriterToken>,
-    ) -> Result<(), Error> {
-        crate::runtime::kernel_interface::put_connect_token(&mut self.kernel, id, token)
-    }
-
     fn message_inputs(&self) -> &'static [&'static str] {
         K::message_inputs()
     }
     fn message_outputs(&self) -> &'static [&'static str] {
         K::message_outputs()
     }
-    fn connect(
+    fn connect_message(
         &mut self,
         src_port: &PortId,
         dst: BlockEndpoint,
         dst_port: &PortId,
     ) -> Result<(), Error> {
-        self.mo.connect(src_port, dst, dst_port)
+        self.mo.connect_message(src_port, dst, dst_port)
     }
     fn type_name(&self) -> &str {
         K::type_name()

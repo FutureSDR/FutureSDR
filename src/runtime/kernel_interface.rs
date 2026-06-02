@@ -7,7 +7,6 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriter;
-use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::buffer::PortInboxes;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
@@ -135,19 +134,4 @@ pub(crate) fn stream_output<'a, K: KernelInterface>(
     id: &PortId,
 ) -> Result<&'a mut dyn AnyBufferWriter, Error> {
     kernel.with_stream_output(id, |port| port)
-}
-
-pub(crate) fn take_connect_token<K: KernelInterface>(
-    kernel: &mut K,
-    id: &PortId,
-) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
-    kernel.with_stream_output(id, |port| port.take_send_token())?
-}
-
-pub(crate) fn put_connect_token<K: KernelInterface>(
-    kernel: &mut K,
-    id: &PortId,
-    token: Box<dyn AnySendBufferWriterToken>,
-) -> Result<(), Error> {
-    kernel.with_stream_output(id, |port| port.replace_send_token(token))?
 }

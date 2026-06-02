@@ -549,7 +549,6 @@ mod tests {
     use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::AnyBufferReader;
     use crate::runtime::buffer::AnyBufferWriter;
-    use crate::runtime::buffer::AnySendBufferWriterToken;
 
     struct WaitForTerminate {
         id: BlockId,
@@ -589,32 +588,11 @@ mod tests {
             ))
         }
 
-        fn take_connect_token(
-            &mut self,
-            id: &PortId,
-        ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
-            Err(Error::InvalidStreamPort(
-                BlockPortCtx::Id(self.id),
-                id.clone(),
-            ))
-        }
-
-        fn put_connect_token(
-            &mut self,
-            id: &PortId,
-            _token: Box<dyn AnySendBufferWriterToken>,
-        ) -> Result<(), Error> {
-            Err(Error::InvalidStreamPort(
-                BlockPortCtx::Id(self.id),
-                id.clone(),
-            ))
-        }
-
         fn message_inputs(&self) -> &'static [&'static str] {
             &[]
         }
 
-        fn connect(
+        fn connect_message(
             &mut self,
             _src_port: &PortId,
             _dst: BlockEndpoint,

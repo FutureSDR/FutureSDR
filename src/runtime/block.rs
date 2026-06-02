@@ -11,7 +11,6 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::buffer::AnyBufferReader;
 use crate::runtime::buffer::AnyBufferWriter;
-use crate::runtime::buffer::AnySendBufferWriterToken;
 use crate::runtime::channel::mpsc::Sender;
 
 /// Object-safe runtime interface shared by normal and local block wrappers.
@@ -30,18 +29,6 @@ pub trait BlockObject: Any {
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferReader, Error>;
     /// Get a type-erased stream output by port id.
     fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn AnyBufferWriter, Error>;
-    /// Temporarily take a stream output connection token for cross-domain setup.
-    fn take_connect_token(
-        &mut self,
-        id: &PortId,
-    ) -> Result<Box<dyn AnySendBufferWriterToken>, Error>;
-    /// Put back a stream output connection token that was temporarily taken.
-    fn put_connect_token(
-        &mut self,
-        id: &PortId,
-        token: Box<dyn AnySendBufferWriterToken>,
-    ) -> Result<(), Error>;
-
     /// Message input port names declared by this block.
     fn message_inputs(&self) -> &'static [&'static str];
     /// Message output port names declared by this block.
@@ -49,7 +36,7 @@ pub trait BlockObject: Any {
         &[]
     }
     /// Connect one message output port to a downstream block endpoint.
-    fn connect(
+    fn connect_message(
         &mut self,
         src_port: &PortId,
         dst: BlockEndpoint,

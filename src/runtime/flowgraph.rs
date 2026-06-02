@@ -1979,21 +1979,29 @@ impl Flowgraph {
             .await
     }
 
-    async fn take_connect_token(
+    async fn take_stream_output_send_token(
         &mut self,
         endpoint: StreamEndpoint,
         port_id: &PortId,
     ) -> Result<Box<dyn AnySendBufferWriterToken>, Error> {
         match endpoint {
-            StreamEndpoint::Normal(block_id) => self
-                .raw_block_mut(block_id)?
-                .take_connect_token(port_id)
-                .map_err(|e| match e {
+            StreamEndpoint::Normal(block_id) => {
+                let writer = self
+                    .raw_block_mut(block_id)?
+                    .stream_output(port_id)
+                    .map_err(|e| match e {
+                        Error::InvalidStreamPort(_, port) => {
+                            Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                        }
+                        o => o,
+                    })?;
+                writer.take_send_token().map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
                     }
                     o => o,
-                }),
+                })
+            }
             StreamEndpoint::Local(endpoint) => {
                 let inbox = self
                     .local_domains
@@ -2005,7 +2013,14 @@ impl Flowgraph {
                     .exec(move |state| {
                         let result = (|| {
                             let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
-                            block.take_connect_token(&port_id).map_err(|e| match e {
+                            let writer = block.stream_output(&port_id).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                    BlockPortCtx::Id(endpoint.block_id),
+                                    port,
+                                ),
+                                o => o,
+                            })?;
+                            writer.take_send_token().map_err(|e| match e {
                                 Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
                                     BlockPortCtx::Id(endpoint.block_id),
                                     port,
@@ -2020,22 +2035,30 @@ impl Flowgraph {
         }
     }
 
-    async fn put_connect_token(
+    async fn replace_stream_output_send_token(
         &mut self,
         endpoint: StreamEndpoint,
         port_id: &PortId,
         token: Box<dyn AnySendBufferWriterToken>,
     ) -> Result<(), Error> {
         match endpoint {
-            StreamEndpoint::Normal(block_id) => self
-                .raw_block_mut(block_id)?
-                .put_connect_token(port_id, token)
-                .map_err(|e| match e {
+            StreamEndpoint::Normal(block_id) => {
+                let writer = self
+                    .raw_block_mut(block_id)?
+                    .stream_output(port_id)
+                    .map_err(|e| match e {
+                        Error::InvalidStreamPort(_, port) => {
+                            Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                        }
+                        o => o,
+                    })?;
+                writer.replace_send_token(token).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
                     }
                     o => o,
-                }),
+                })
+            }
             StreamEndpoint::Local(endpoint) => {
                 let inbox = self
                     .local_domains
@@ -2047,15 +2070,20 @@ impl Flowgraph {
                     .exec(move |state| {
                         let result = (|| {
                             let block = state.block_mut(endpoint.local_id, endpoint.block_id)?;
-                            block
-                                .put_connect_token(&port_id, token)
-                                .map_err(|e| match e {
-                                    Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
-                                        BlockPortCtx::Id(endpoint.block_id),
-                                        port,
-                                    ),
-                                    o => o,
-                                })
+                            let writer = block.stream_output(&port_id).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                    BlockPortCtx::Id(endpoint.block_id),
+                                    port,
+                                ),
+                                o => o,
+                            })?;
+                            writer.replace_send_token(token).map_err(|e| match e {
+                                Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
+                                    BlockPortCtx::Id(endpoint.block_id),
+                                    port,
+                                ),
+                                o => o,
+                            })
                         })();
                         Box::pin(futures::future::ready(result))
                     })
@@ -2131,7 +2159,9 @@ impl Flowgraph {
     ) -> Result<Edge, Error> {
         let src_block_id = src.block_id();
         let dst_block_id = dst.block_id();
-        let token = self.take_connect_token(src, &src_port_id).await?;
+        let token = self
+            .take_stream_output_send_token(src, &src_port_id)
+            .await?;
         let token = Arc::new(async_lock::Mutex::new(Some(token)));
 
         let connect_result = self
@@ -2140,7 +2170,8 @@ impl Flowgraph {
             .map(|()| Edge::new(src_block_id, src_port_id.clone(), dst_block_id, dst_port_id));
 
         let token = token.lock().await.take().ok_or(Error::LockError)?;
-        self.put_connect_token(src, &src_port_id, token).await?;
+        self.replace_stream_output_send_token(src, &src_port_id, token)
+            .await?;
         connect_result
     }
 
@@ -2631,7 +2662,7 @@ impl Flowgraph {
         match src_placement {
             BlockPlacement::Normal => {
                 let src_block = self.raw_block_mut(edge.src_block)?;
-                src_block.connect(&edge.src_port, dst, &edge.dst_port)?;
+                src_block.connect_message(&edge.src_port, dst, &edge.dst_port)?;
             }
             BlockPlacement::Local {
                 domain_id,
@@ -2641,7 +2672,7 @@ impl Flowgraph {
                     .exec(move |state| {
                         let result = (|| {
                             let src_block = state.block_mut(local_id, edge.src_block)?;
-                            src_block.connect(&edge.src_port, dst, &edge.dst_port)
+                            src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
                         })();
                         Box::pin(futures::future::ready(result))
                     })

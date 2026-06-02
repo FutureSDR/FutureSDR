@@ -94,7 +94,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
             message_sinks.push(rx);
             block
                 .mo
-                .connect(
+                .connect_message(
                     &PortId::new(*n),
                     BlockInbox::new(tx, BlockNotifier::new()).into(),
                     &PortId::new("input"),
