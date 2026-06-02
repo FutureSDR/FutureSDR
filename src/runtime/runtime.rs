@@ -195,9 +195,9 @@ impl<S: Scheduler + Sync> Runtime<S> {
         };
 
         Runtime {
-            scheduler,
+            scheduler: scheduler.clone(),
             flowgraphs,
-            _control_port: ControlPort::new(handle, routes),
+            _control_port: ControlPort::new(handle, scheduler, routes),
         }
     }
 }

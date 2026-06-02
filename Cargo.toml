@@ -27,7 +27,7 @@ default = ["ctrl_port", "tracing_max_level_debug", "tracing_release_max_level_in
 aaronia_http = ["seify/aaronia_http"]
 audio = ["dep:cpal", "dep:hound", "dep:rodio"]
 burn = ["dep:burn"]
-ctrl_port = ["dep:axum", "dep:tokio", "dep:tower-http"]
+ctrl_port = ["dep:axum", "dep:hyper", "dep:tower-http", "dep:tower-service"]
 flow_scheduler = ["dep:spin"]
 hackrf = ["seify/hackrfone"]
 rtlsdr = ["seify/rtlsdr"]
@@ -112,7 +112,15 @@ async-io = "2.6"
 async-net = "2.0"
 async-task = "4.7"
 async-tungstenite = "0.34"
-axum = { version = "0.8", optional = true }
+axum = { version = "0.8", default-features = false, features = [
+    "form",
+    "json",
+    "matched-path",
+    "original-uri",
+    "query",
+    "tower-log",
+    "tracing",
+], optional = true }
 blocking = "1.6"
 concurrent-queue = { version = "2.5" }
 core_affinity = "0.8"
@@ -122,8 +130,9 @@ ouroboros = { version = "0.18", optional = true }
 rodio = { version = "0.22", default-features = false, features = [
     "symphonia-all",
 ], optional = true }
-tokio = { version = "1", features = ["rt"], optional = true }
-tower-http = { version = "0.6", features = ["add-extension", "cors", "fs"], optional = true }
+hyper = { version = "1", default-features = false, features = ["http1", "server"], optional = true }
+tower-http = { version = "0.6", default-features = false, features = ["cors"], optional = true }
+tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = { version = "0.0.14", features = ["generic"] }
 vulkano = { version = "0.35", optional = true }
