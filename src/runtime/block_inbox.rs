@@ -54,7 +54,7 @@ impl fmt::Debug for BlockNotifier {
 
 impl BlockNotifier {
     /// Create a new thread-safe notifier.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: Arc::new(ThreadSafeNotifyState::default()),
         }
@@ -72,12 +72,12 @@ impl BlockNotifier {
 
     /// Consume a pending notification bit.
     #[inline(always)]
-    pub fn take_pending(&self) -> bool {
+    pub(crate) fn take_pending(&self) -> bool {
         self.state.pending.swap(false, Ordering::AcqRel)
     }
 
     /// Return a future that resolves on the next pending notification.
-    pub fn notified(&self) -> Notified {
+    pub(crate) fn notified(&self) -> Notified {
         Notified {
             state: self.state.clone(),
         }
@@ -92,16 +92,10 @@ impl BlockNotifier {
     }
 }
 
-impl Default for BlockNotifier {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Future returned by [`BlockNotifier::notified`].
 ///
 /// Polling this future consumes one pending notification bit.
-pub struct Notified {
+pub(crate) struct Notified {
     state: Arc<ThreadSafeNotifyState>,
 }
 
@@ -287,17 +281,17 @@ impl BlockInboxReader {
     }
 
     /// Consume a pending message bit.
-    pub fn take_message_pending(&self) -> bool {
+    pub(crate) fn take_message_pending(&self) -> bool {
         self.notifier.take_message_pending()
     }
 
     /// Consume a pending wakeup notification bit.
-    pub fn take_pending(&self) -> bool {
+    pub(crate) fn take_pending(&self) -> bool {
         self.notifier.take_pending()
     }
 
     /// Future that resolves when the block is woken.
-    pub fn notified(&self) -> Notified {
+    pub(crate) fn notified(&self) -> Notified {
         self.notifier.notified()
     }
 }
@@ -332,12 +326,6 @@ impl LocalBlockNotifier {
     #[inline(always)]
     fn set_waker(&self, waker: Waker) {
         self.0.set_waker(waker);
-    }
-}
-
-impl Default for LocalBlockNotifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -428,12 +416,12 @@ impl LocalBlockInboxReader {
     }
 
     /// Try to receive a queued block message without blocking.
-    pub fn try_recv(&mut self) -> Option<BlockMessage> {
+    pub(crate) fn try_recv(&mut self) -> Option<BlockMessage> {
         self.inbox.try_recv()
     }
 
     /// Wait for the next queued block message.
-    pub async fn recv(&mut self) -> Option<BlockMessage> {
+    pub(crate) async fn recv(&mut self) -> Option<BlockMessage> {
         loop {
             if let Some(msg) = self.inbox.try_recv() {
                 return Some(msg);
@@ -443,17 +431,17 @@ impl LocalBlockInboxReader {
     }
 
     /// Consume a pending message bit.
-    pub fn take_message_pending(&self) -> bool {
+    pub(crate) fn take_message_pending(&self) -> bool {
         self.inbox.take_message_pending()
     }
 
     /// Consume a pending wakeup notification bit.
-    pub fn take_pending(&self) -> bool {
+    pub(crate) fn take_pending(&self) -> bool {
         self.inbox.0.notifier.take_pending()
     }
 
     /// Future that resolves when the block is woken.
-    pub fn notified(&self) -> LocalNotified {
+    pub(crate) fn notified(&self) -> LocalNotified {
         LocalNotified {
             state: self.inbox.0.notifier.clone(),
         }
@@ -461,7 +449,7 @@ impl LocalBlockInboxReader {
 }
 
 /// Future returned by [`LocalBlockInboxReader::notified`].
-pub struct LocalNotified {
+pub(crate) struct LocalNotified {
     state: LocalBlockNotifier,
 }
 

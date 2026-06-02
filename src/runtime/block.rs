@@ -32,9 +32,7 @@ pub trait BlockObject: Any {
     /// Message input port names declared by this block.
     fn message_inputs(&self) -> &'static [&'static str];
     /// Message output port names declared by this block.
-    fn message_outputs(&self) -> &'static [&'static str] {
-        &[]
-    }
+    fn message_outputs(&self) -> &'static [&'static str];
     /// Connect one message output port to a downstream block endpoint.
     fn connect_message(
         &mut self,
@@ -55,9 +53,7 @@ pub trait BlockObject: Any {
 #[async_trait::async_trait]
 pub trait Block: BlockObject + Send {
     /// Whether this block is flagged for a local blocking domain.
-    fn is_blocking(&self) -> bool {
-        false
-    }
+    fn is_blocking(&self) -> bool;
 
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
@@ -80,9 +76,7 @@ pub(crate) trait LocalBlock: BlockObject {
     /// Get the local inbox handle for local-domain direct delivery.
     fn local_inbox(&self) -> LocalBlockInbox;
     /// Take the external normal inbox reader for forwarding into the local domain.
-    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
-        None
-    }
+    fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader>;
 
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
 }

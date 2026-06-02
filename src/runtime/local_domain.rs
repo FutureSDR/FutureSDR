@@ -592,6 +592,10 @@ mod tests {
             &[]
         }
 
+        fn message_outputs(&self) -> &'static [&'static str] {
+            &[]
+        }
+
         fn connect_message(
             &mut self,
             _src_port: &PortId,
@@ -610,6 +614,10 @@ mod tests {
     impl LocalBlock for WaitForTerminate {
         fn local_inbox(&self) -> LocalBlockInbox {
             self.local_inbox.clone()
+        }
+
+        fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+            None
         }
 
         async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
