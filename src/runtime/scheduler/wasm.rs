@@ -23,7 +23,6 @@ use web_sys::Worker;
 use web_sys::WorkerOptions;
 use web_sys::WorkerType;
 
-use crate::runtime::BlockId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::Block;
 use crate::runtime::channel::mpsc::Sender;
@@ -219,8 +218,7 @@ impl Scheduler for WasmScheduler {
         let n_threads = self.inner.workers.len();
         let mut tasks = Vec::with_capacity(n_blocks);
 
-        for (block_index, (id, block)) in blocks.into_iter().enumerate() {
-            debug_assert_eq!(id, block.id());
+        for (block_index, block) in blocks.into_iter().enumerate() {
             debug_assert!(
                 !block.is_blocking(),
                 "blocking blocks must remain on the local runtime path"
@@ -297,10 +295,7 @@ impl Scheduler for WasmMainScheduler {
         );
         let tasks = blocks
             .into_iter()
-            .map(|(id, block)| {
-                debug_assert_eq!(id, block.id());
-                spawn_wasm_main_block(block, main_channel.clone())
-            })
+            .map(|block| spawn_wasm_main_block(block, main_channel.clone()))
             .collect();
         Ok(NormalRunningDomain::new(tasks))
     }
@@ -399,12 +394,11 @@ fn spawn_wasm_block(
     block: Box<dyn Block>,
     main_channel: Sender<FlowgraphMessage>,
     queue_index: usize,
-) -> Task<(BlockId, Box<dyn Block>)> {
+) -> Task<Box<dyn Block>> {
     let future = async move {
         let mut block = block;
-        let id = block.id();
         block.run(main_channel).await;
-        (id, block)
+        block
     };
 
     Task::new(executor.spawn_executor(future, queue_index))
@@ -413,12 +407,11 @@ fn spawn_wasm_block(
 fn spawn_wasm_main_block(
     block: Box<dyn Block>,
     main_channel: Sender<FlowgraphMessage>,
-) -> Task<(BlockId, Box<dyn Block>)> {
+) -> Task<Box<dyn Block>> {
     let future = async move {
         let mut block = block;
-        let id = block.id();
         block.run(main_channel).await;
-        (id, block)
+        block
     };
 
     Task::new(spawn_main(future))

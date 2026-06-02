@@ -10,8 +10,8 @@ use crate::runtime::dev::Block;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::Task;
 
-/// A normal-domain block paired with its global block id.
-pub type NormalBlock = (BlockId, Box<dyn Block>);
+/// A normal-domain block.
+pub type NormalBlock = Box<dyn Block>;
 
 /// Normal-domain blocks passed from the flowgraph to a scheduler.
 pub type NormalBlocks = Vec<NormalBlock>;

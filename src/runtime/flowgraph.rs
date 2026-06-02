@@ -3141,9 +3141,9 @@ impl Flowgraph {
 
     pub(crate) fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {
         let mut blocks = Vec::with_capacity(self.blocks.len());
-        for (id, entry) in self.blocks.iter_mut().enumerate() {
+        for entry in self.blocks.iter_mut() {
             if let Some(block) = entry.block.take() {
-                blocks.push((BlockId(id), block));
+                blocks.push(block);
             }
         }
         Ok(blocks)
@@ -3260,7 +3260,8 @@ impl Flowgraph {
     }
 
     pub(crate) fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        for (id, block) in blocks {
+        for block in blocks {
+            let id = block.id();
             let entry = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
             if entry.block.is_some() {
                 return Err(Error::RuntimeError(format!(

@@ -146,13 +146,13 @@ impl Scheduler for FlowScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (mut blocks_by_id, topology, main_channel) = spec.into_parts();
+        let (mut blocks, topology, main_channel) = spec.into_parts();
         let _ = (
             topology.blocks(),
             topology.stream_edges(),
             topology.message_edges(),
         );
-        let n_blocks = blocks_by_id.len();
+        let n_blocks = blocks.len();
         let n_cores = self.inner.workers.len();
         let mut spawned: HashSet<BlockId> = HashSet::new();
         let mut tasks = Vec::with_capacity(n_blocks);
@@ -168,7 +168,7 @@ impl Scheduler for FlowScheduler {
             }
 
             for block_id in block_ids {
-                let Some(pos) = blocks_by_id.iter().position(|(id, _)| id == block_id) else {
+                let Some(pos) = blocks.iter().position(|block| block.id() == *block_id) else {
                     warn!(
                         "flowsched mapping references unknown block id {:?}",
                         block_id
@@ -182,7 +182,7 @@ impl Scheduler for FlowScheduler {
                     );
                     continue;
                 }
-                let (_, block) = blocks_by_id.swap_remove(pos);
+                let block = blocks.swap_remove(pos);
                 tasks.push(spawn_block_on_executor(
                     &self.inner.executor,
                     block,
@@ -193,7 +193,8 @@ impl Scheduler for FlowScheduler {
         }
 
         // Spawn remaining blocks using the default mapper.
-        for (id, block) in blocks_by_id.into_iter() {
+        for block in blocks.into_iter() {
+            let id = block.id();
             if spawned.contains(&id) {
                 continue;
             }
@@ -243,7 +244,7 @@ fn spawn_block_on_executor(
     block: Box<dyn Block>,
     main_channel: Sender<FlowgraphMessage>,
     queue_index: usize,
-) -> Task<(BlockId, Box<dyn Block>)> {
+) -> Task<Box<dyn Block>> {
     debug_assert!(
         !block.is_blocking(),
         "blocking blocks must be placed in local domains before scheduling"
@@ -251,9 +252,8 @@ fn spawn_block_on_executor(
     executor.spawn_executor(
         async move {
             let mut block = block;
-            let id = block.id();
             block.run(main_channel).await;
-            (id, block)
+            block
         },
         queue_index,
     )

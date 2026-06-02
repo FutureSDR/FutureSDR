@@ -118,8 +118,7 @@ impl Scheduler for SmolScheduler {
             topology.message_edges(),
         );
         let mut tasks = Vec::with_capacity(blocks.len());
-        for (id, block) in blocks {
-            debug_assert_eq!(id, block.id());
+        for block in blocks {
             debug_assert!(
                 !block.is_blocking(),
                 "blocking blocks must be placed in local domains before scheduling"
@@ -128,7 +127,7 @@ impl Scheduler for SmolScheduler {
             let task = self.spawn(async move {
                 let mut block = block;
                 block.run(main_channel).await;
-                (id, block)
+                block
             });
             tasks.push(task);
         }
