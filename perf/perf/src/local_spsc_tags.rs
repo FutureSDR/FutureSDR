@@ -31,6 +31,8 @@ struct Inner<T> {
     capacity: usize,
     write_pos: Cell<usize>,
     read_pos: Cell<usize>,
+    // Tags are stored relative to the current reader position, matching the
+    // metadata convention used by the normal circular buffer.
     tags: RefCell<Vec<ItemTag>>,
 }
 
@@ -269,14 +271,12 @@ where
         let read_pos = inner_ref.read_pos.get();
         debug_assert!(Inner::<T>::space(capacity, read_pos, self.write_pos) >= n);
 
+        let readable_before = Inner::<T>::occupancy(read_pos, self.write_pos);
         {
             let mut inner_tags = inner_ref.tags.borrow_mut();
-            for tag in self.tags.drain(..) {
-                if tag.index < n {
-                    let mut tag = tag;
-                    tag.index = self.write_pos.wrapping_add(tag.index);
-                    inner_tags.push(tag);
-                }
+            for mut tag in self.tags.drain(..) {
+                tag.index += readable_before;
+                inner_tags.push(tag);
             }
         }
 
@@ -469,19 +469,8 @@ where
         self.last_space = avail;
 
         self.tags.clear();
-        {
-            let inner_tags = inner_ref.tags.borrow();
-            self.tags.extend(inner_tags.iter().filter_map(|tag| {
-                let rel = tag.index.wrapping_sub(self.read_pos);
-                if rel < avail {
-                    let mut tag = tag.clone();
-                    tag.index = rel;
-                    Some(tag)
-                } else {
-                    None
-                }
-            }));
-        }
+        self.tags.extend(inner_ref.tags.borrow().iter().cloned());
+        debug_assert!(self.tags.iter().all(|tag| tag.index < avail));
 
         let data = unsafe { slice::from_raw_parts(inner_ref.base.add(offset), avail) };
         (data, &self.tags)
@@ -506,11 +495,11 @@ where
         self.read_pos = self.read_pos.wrapping_add(n);
 
         {
-            let readable = Inner::<T>::occupancy(self.read_pos, write_pos);
-            inner_ref
-                .tags
-                .borrow_mut()
-                .retain(|tag| tag.index.wrapping_sub(self.read_pos) < readable);
+            let mut tags = inner_ref.tags.borrow_mut();
+            tags.retain(|tag| tag.index >= n);
+            for tag in tags.iter_mut() {
+                tag.index -= n;
+            }
         }
 
         let mut read_offset = self.read_offset + n;
