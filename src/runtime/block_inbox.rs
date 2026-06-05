@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::task::Context;
 use std::task::Poll;
@@ -19,6 +20,18 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
 use crate::runtime::local_domain::LocalDomainInbox;
+
+static NEXT_LOCAL_DOMAIN_KEY: AtomicUsize = AtomicUsize::new(0);
+
+/// Runtime-unique identity for one local-domain execution resource.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) struct LocalDomainKey(usize);
+
+impl LocalDomainKey {
+    pub(crate) fn new() -> Self {
+        Self(NEXT_LOCAL_DOMAIN_KEY.fetch_add(1, Ordering::Relaxed))
+    }
+}
 
 #[derive(Debug)]
 struct ThreadSafeNotifyState {
@@ -248,7 +261,11 @@ impl BlockEndpoint {
         match self {
             Self::Direct(inbox) => inbox.notify(),
             Self::DomainProxy { domain, block_id } => {
-                let _ = domain.notify_block(*block_id);
+                if let Some(inbox) = current_local_inbox(domain.key(), *block_id) {
+                    inbox.notify();
+                } else {
+                    let _ = domain.notify_block(*block_id);
+                }
             }
         }
     }
@@ -265,12 +282,23 @@ impl BlockEndpoint {
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         match self {
             Self::Direct(inbox) => inbox.send(msg).await,
-            Self::DomainProxy { domain, block_id } => match msg {
-                BlockMessage::Call { port_id, data, tx } => {
-                    domain.call(*block_id, port_id, data, tx).await
+            Self::DomainProxy { domain, block_id } => {
+                if has_current_local_inbox(domain.key(), *block_id) {
+                    return LocalEndpointSend {
+                        key: domain.key(),
+                        block_id: *block_id,
+                        msg: Some(msg),
+                    }
+                    .await;
                 }
-                msg => domain.post(*block_id, msg).await,
-            },
+
+                match msg {
+                    BlockMessage::Call { port_id, data, tx } => {
+                        domain.call(*block_id, port_id, data, tx).await
+                    }
+                    msg => domain.post(*block_id, msg).await,
+                }
+            }
         }
     }
 }
@@ -467,6 +495,110 @@ impl LocalBlockInbox {
 
     fn take_message_pending(&self) -> bool {
         self.0.message_pending.replace(false)
+    }
+}
+
+#[derive(Debug)]
+struct CurrentLocalDomain {
+    key: LocalDomainKey,
+    inboxes: Vec<(BlockId, LocalBlockInbox)>,
+}
+
+thread_local! {
+    static CURRENT_LOCAL_DOMAIN: RefCell<Option<CurrentLocalDomain>> = const { RefCell::new(None) };
+}
+
+/// Guard for a same-thread local-domain fast-path context.
+pub(crate) struct LocalDomainContextGuard {
+    previous: Option<CurrentLocalDomain>,
+}
+
+impl Drop for LocalDomainContextGuard {
+    fn drop(&mut self) {
+        CURRENT_LOCAL_DOMAIN.with(|current| {
+            current.replace(self.previous.take());
+        });
+    }
+}
+
+/// Install the current local-domain context for tasks polled on this thread.
+pub(crate) fn enter_local_domain_context(
+    key: LocalDomainKey,
+    inboxes: Vec<(BlockId, LocalBlockInbox)>,
+) -> LocalDomainContextGuard {
+    CURRENT_LOCAL_DOMAIN.with(|current| LocalDomainContextGuard {
+        previous: current.replace(Some(CurrentLocalDomain { key, inboxes })),
+    })
+}
+
+fn current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> Option<LocalBlockInbox> {
+    CURRENT_LOCAL_DOMAIN.with(|current| {
+        let current = current.borrow();
+        let current = current.as_ref()?;
+        if current.key != key {
+            return None;
+        }
+
+        current
+            .inboxes
+            .iter()
+            .find_map(|(id, inbox)| (*id == block_id).then(|| inbox.clone()))
+    })
+}
+
+fn has_current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> bool {
+    CURRENT_LOCAL_DOMAIN.with(|current| {
+        let current = current.borrow();
+        current.as_ref().is_some_and(|current| {
+            current.key == key && current.inboxes.iter().any(|(id, _)| *id == block_id)
+        })
+    })
+}
+
+struct LocalEndpointSend {
+    key: LocalDomainKey,
+    block_id: BlockId,
+    msg: Option<BlockMessage>,
+}
+
+impl Unpin for LocalEndpointSend {}
+
+impl Future for LocalEndpointSend {
+    type Output = Result<(), Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let Some(msg) = this.msg.take() else {
+            return Poll::Ready(Ok(()));
+        };
+
+        let Some(inbox) = current_local_inbox(this.key, this.block_id) else {
+            return Poll::Ready(Err(Error::RuntimeError(
+                "local-domain fast path polled outside its domain context".to_string(),
+            )));
+        };
+
+        match inbox.try_send(msg) {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(msg) => {
+                this.msg = Some(msg);
+                inbox.0.register_sender(cx.waker());
+
+                let msg = this.msg.take().expect("local send message missing");
+                let Some(inbox) = current_local_inbox(this.key, this.block_id) else {
+                    return Poll::Ready(Err(Error::RuntimeError(
+                        "local-domain fast path polled outside its domain context".to_string(),
+                    )));
+                };
+                match inbox.try_send(msg) {
+                    Ok(()) => Poll::Ready(Ok(())),
+                    Err(msg) => {
+                        this.msg = Some(msg);
+                        Poll::Pending
+                    }
+                }
+            }
+        }
     }
 }
 

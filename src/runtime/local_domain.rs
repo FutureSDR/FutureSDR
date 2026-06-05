@@ -12,6 +12,8 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
+use crate::runtime::block_inbox::LocalDomainKey;
+use crate::runtime::block_inbox::enter_local_domain_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -101,6 +103,7 @@ impl LocalDomainRuntime {
 
 pub(crate) struct LocalDomainController {
     tx: Sender<LocalDomainMessage>,
+    key: LocalDomainKey,
     terminate_tx: Option<oneshot::Sender<()>>,
     join: Option<thread::JoinHandle<()>>,
 }
@@ -109,9 +112,14 @@ pub(crate) struct LocalDomainController {
 #[derive(Clone)]
 pub struct LocalDomainInbox {
     tx: Sender<LocalDomainMessage>,
+    key: LocalDomainKey,
 }
 
 impl LocalDomainInbox {
+    pub(crate) fn key(&self) -> LocalDomainKey {
+        self.key
+    }
+
     pub(crate) fn is_closed(&self) -> bool {
         self.tx.is_closed()
     }
@@ -205,6 +213,7 @@ impl LocalDomainController {
 
     pub(crate) fn new_pinned(cpuid: Option<usize>) -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
+        let key = LocalDomainKey::new();
         let (terminate_tx, terminate_rx) = oneshot::channel();
         let thread_name = cpuid
             .map(|cpuid| format!("futuresdr-local-{cpuid}"))
@@ -220,7 +229,7 @@ impl LocalDomainController {
                         warn!("failed to pin local domain thread to core id {}", cpuid);
                     }
                 }
-                crate::runtime::block_on(run_domain_thread(rx, terminate_rx))
+                crate::runtime::block_on(run_domain_thread(rx, terminate_rx, key))
             })
             .map_err(|e| {
                 Error::RuntimeError(format!("failed to spawn local domain thread: {e}"))
@@ -228,6 +237,7 @@ impl LocalDomainController {
 
         Ok(Self {
             tx,
+            key,
             terminate_tx: Some(terminate_tx),
             join: Some(join),
         })
@@ -236,6 +246,7 @@ impl LocalDomainController {
     pub(crate) fn inbox(&self) -> LocalDomainInbox {
         LocalDomainInbox {
             tx: self.tx.clone(),
+            key: self.key,
         }
     }
 
@@ -290,6 +301,7 @@ impl Drop for LocalDomainController {
 async fn run_domain_thread(
     mut rx: mpsc::Receiver<LocalDomainMessage>,
     mut terminate_rx: oneshot::Receiver<()>,
+    key: LocalDomainKey,
 ) {
     let mut state = LocalDomainState::new();
 
@@ -339,6 +351,7 @@ async fn run_domain_thread(
                     main_channel,
                     &mut terminate_rx,
                     &mut rx,
+                    key,
                 )
                 .await;
                 let _ = reply.send(result);
@@ -391,6 +404,7 @@ async fn run_local_domain(
     main_channel: Sender<FlowgraphMessage>,
     terminate_rx: &mut oneshot::Receiver<()>,
     domain_rx: &mut mpsc::Receiver<LocalDomainMessage>,
+    key: LocalDomainKey,
 ) -> Result<(), Error> {
     let mut tasks = FuturesUnordered::new();
     let mut local_stop_inboxes = Vec::new();
@@ -434,6 +448,7 @@ async fn run_local_domain(
         .detach();
 
     let n_tasks = tasks.len();
+    let _local_context = enter_local_domain_context(key, state.inboxes_by_block());
     let finished = ex
         .run(async {
             let mut finished = Vec::with_capacity(n_tasks);

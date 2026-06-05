@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futuresdr::blocks::Head;
+use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
@@ -94,6 +95,33 @@ impl Kernel for ImmediateFinish {
         _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
+        io.finished = true;
+        Ok(())
+    }
+}
+
+#[derive(Block)]
+#[message_outputs(out)]
+struct BurstMessageSource {
+    messages: u64,
+}
+
+impl BurstMessageSource {
+    fn new(messages: u64) -> Self {
+        Self { messages }
+    }
+}
+
+impl Kernel for BurstMessageSource {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        for i in 0..self.messages {
+            mo.post("out", Pmt::U64(i)).await?;
+        }
         io.finished = true;
         Ok(())
     }
@@ -267,6 +295,25 @@ fn local_finished_message_reaches_local_sink() -> Result<()> {
     fg.message(src, "out", snk, "in")?;
 
     Runtime::new().run(fg)?;
+    Ok(())
+}
+
+#[test]
+fn local_domain_message_burst_larger_than_queue_completes() -> Result<()> {
+    let messages = (futuresdr::runtime::config::config().queue_size as u64)
+        .saturating_mul(2)
+        .saturating_add(1);
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+    let src = fg.add_local(local, move || BurstMessageSource::new(messages))?;
+    let copy = fg.add_local(local, MessageCopy::new)?;
+    let snk = fg.add_local(local, MessageSink::new)?;
+
+    fg.message(src, "out", copy, "in")?;
+    fg.message(copy, "out", snk, "in")?;
+
+    let fg = Runtime::new().run(fg)?;
+    assert_eq!(fg.with(&snk, |b| b.received())?, messages);
     Ok(())
 }
 

@@ -85,6 +85,14 @@ impl LocalDomainState {
         self.inboxes.get(local_id).and_then(Clone::clone)
     }
 
+    pub(crate) fn inboxes_by_block(&self) -> Vec<(BlockId, LocalBlockInbox)> {
+        self.block_ids
+            .iter()
+            .zip(self.inboxes.iter())
+            .filter_map(|(block_id, inbox)| Some((*block_id.as_ref()?, inbox.clone()?)))
+            .collect()
+    }
+
     pub(crate) fn local_id_for_block(&self, block_id: BlockId) -> Option<usize> {
         self.block_ids
             .iter()

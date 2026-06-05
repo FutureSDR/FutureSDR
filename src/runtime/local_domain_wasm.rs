@@ -17,6 +17,8 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
+use crate::runtime::block_inbox::LocalDomainKey;
+use crate::runtime::block_inbox::enter_local_domain_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -103,6 +105,7 @@ impl LocalDomainRuntime {
 
 pub(crate) struct LocalDomainController {
     tx: Sender<LocalDomainMessage>,
+    key: LocalDomainKey,
     terminate: Arc<AtomicBool>,
     worker: Option<WasmWorker>,
     domain_id: Option<usize>,
@@ -112,9 +115,14 @@ pub(crate) struct LocalDomainController {
 #[derive(Clone)]
 pub struct LocalDomainInbox {
     tx: Sender<LocalDomainMessage>,
+    key: LocalDomainKey,
 }
 
 impl LocalDomainInbox {
+    pub(crate) fn key(&self) -> LocalDomainKey {
+        self.key
+    }
+
     pub(crate) fn is_closed(&self) -> bool {
         self.tx.is_closed()
     }
@@ -203,9 +211,11 @@ impl LocalDomainInbox {
 impl LocalDomainController {
     pub(crate) fn new() -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(crate::runtime::config::config().queue_size);
+        let key = LocalDomainKey::new();
         let terminate = Arc::new(AtomicBool::new(false));
         let init = WasmLocalDomainInit {
             rx,
+            key,
             terminate: terminate.clone(),
         };
         let domain_id = WASM_LOCAL_DOMAINS.lock().unwrap().insert(init);
@@ -222,6 +232,7 @@ impl LocalDomainController {
 
         Ok(Self {
             tx,
+            key,
             terminate,
             worker: Some(worker),
             domain_id: Some(domain_id),
@@ -231,6 +242,7 @@ impl LocalDomainController {
     pub(crate) fn inbox(&self) -> LocalDomainInbox {
         LocalDomainInbox {
             tx: self.tx.clone(),
+            key: self.key,
         }
     }
 
@@ -285,6 +297,7 @@ static WASM_LOCAL_DOMAINS: once_cell::sync::Lazy<Mutex<Slab<WasmLocalDomainInit>
 
 struct WasmLocalDomainInit {
     rx: mpsc::Receiver<LocalDomainMessage>,
+    key: LocalDomainKey,
     terminate: Arc<AtomicBool>,
 }
 
@@ -314,7 +327,11 @@ pub fn futuresdr_wasm_local_domain_worker_entry(domain_id: usize) {
 }
 
 async fn run_domain_worker(init: WasmLocalDomainInit) {
-    let WasmLocalDomainInit { mut rx, terminate } = init;
+    let WasmLocalDomainInit {
+        mut rx,
+        key,
+        terminate,
+    } = init;
     let mut state = LocalDomainState::new();
 
     while let Some(message) = rx.recv().await {
@@ -358,7 +375,8 @@ async fn run_domain_worker(init: WasmLocalDomainInit) {
                 reply,
             } => {
                 let result =
-                    run_local_domain(&mut state, main_channel, terminate.clone(), &mut rx).await;
+                    run_local_domain(&mut state, main_channel, terminate.clone(), &mut rx, key)
+                        .await;
                 let _ = reply.send(result);
                 if terminate.load(Ordering::Acquire) {
                     break;
@@ -445,6 +463,7 @@ async fn run_local_domain(
     main_channel: Sender<FlowgraphMessage>,
     terminate: Arc<AtomicBool>,
     domain_rx: &mut mpsc::Receiver<LocalDomainMessage>,
+    key: LocalDomainKey,
 ) -> Result<(), Error> {
     let executor = LocalExecutor::new();
     let mut tasks = Vec::new();
@@ -488,6 +507,7 @@ async fn run_local_domain(
         .spawn(forward_external_inboxes(external_inboxes))
         .detach();
 
+    let _local_context = enter_local_domain_context(key, state.inboxes_by_block());
     let mut finished = Vec::with_capacity(tasks.len());
     let mut terminating = false;
     let mut terminate_requested = false;
