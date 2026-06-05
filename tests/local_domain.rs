@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futuresdr::blocks::Head;
+use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
@@ -78,6 +79,22 @@ impl Kernel for NonSendLocalBlock {
             }));
             io.block_on();
         }
+        Ok(())
+    }
+}
+
+#[derive(Block)]
+#[message_outputs(out)]
+struct ImmediateFinish;
+
+impl Kernel for ImmediateFinish {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        io.finished = true;
         Ok(())
     }
 }
@@ -237,6 +254,19 @@ fn connect_macro_supports_local_stream_operator() -> Result<()> {
     let fg = Runtime::new().run(fg)?;
     assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
 
+    Ok(())
+}
+
+#[test]
+fn local_finished_message_reaches_local_sink() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+    let src = fg.add_local(local, || ImmediateFinish)?;
+    let snk = fg.add_local(local, MessageSink::new)?;
+
+    fg.message(src, "out", snk, "in")?;
+
+    Runtime::new().run(fg)?;
     Ok(())
 }
 
