@@ -11,9 +11,7 @@ fn main() -> Result<()> {
     let head = Head::<u8>::new(1234);
     let snk = NullSink::<u8>::new();
 
-    // type erasure for src
     let src = fg.add(src)?;
-
     let head = fg.add(head)?;
 
     // untyped connect
