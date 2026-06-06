@@ -11,7 +11,7 @@ focus on portability, performance, and developer ergonomics.
 - **Accelerators:** FutureSDR integrates with accelerators through custom buffers
   that provide direct access to accelerator memory (e.g., DMA buffers, GPU
   staging buffers, machine-learning tensors). Developers can implement their own
-  buffers or reuse existing ones for Xilinx Zynq DMA, Vulkan GPU, and
+  buffers or reuse existing ones for Xilinx Zynq DMA, WGPU GPU, and
   [Burn](https://burn.dev), a Rust machine-learning framework.
 - **Custom Schedulers:** FutureSDR uses an async runtime that schedules
   data-processing workloads as user-space tasks. This architecture lets you plug

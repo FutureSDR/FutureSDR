@@ -29,11 +29,6 @@ pub mod circular;
 /// Queue-backed slab CPU buffer.
 pub mod slab;
 
-// ==================== VULKAN =======================
-/// Vulkan accelerator handoff buffers.
-#[cfg(feature = "vulkan")]
-pub mod vulkan;
-
 // ==================== WGPU =======================
 /// WGPU accelerator handoff buffers.
 #[cfg(feature = "wgpu")]

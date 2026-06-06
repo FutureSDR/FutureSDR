@@ -60,9 +60,6 @@ jobs:
       - name: Run cargo fmt (perf/perf)
         run: cargo fmt --all --manifest-path=perf/perf/Cargo.toml -- --check
 
-      - name: Run cargo fmt (perf/vulkan)
-        run: cargo fmt --all --manifest-path=perf/vulkan/Cargo.toml -- --check
-
       - name: Run cargo fmt (perf/wgpu)
         run: cargo fmt --all --manifest-path=perf/wgpu/Cargo.toml -- --check
 
@@ -170,7 +167,7 @@ jobs:
         run: sudo apt-get -y install libsoapysdr-dev
 
       - name: Run cargo clippy (main)
-        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,vulkan,zeromq,audio,flow_scheduler,seify_dummy,soapy,zynq,wgpu -- -D warnings
+        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,zeromq,audio,flow_scheduler,seify_dummy,soapy,zynq,wgpu -- -D warnings
 
       - name: Run cargo clippy (futuredsp)
         run: cargo clippy --lib --manifest-path=crates/futuredsp/Cargo.toml -- -D warnings
@@ -237,9 +234,6 @@ jobs:
 
       - name: Run cargo clippy (perf/perf)
         run: cargo clippy --all-targets --all-features --manifest-path=perf/perf/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy (perf/vulkan)
-        run: cargo clippy --all-targets --manifest-path=perf/vulkan/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/wgpu)
         run: cargo clippy --all-targets --manifest-path=perf/wgpu/Cargo.toml -- -D warnings

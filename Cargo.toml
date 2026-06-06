@@ -36,7 +36,6 @@ seify_dummy = ["seify/dummy"]
 soapy = ["seify/soapy"]
 tracing_max_level_debug = ["tracing/max_level_debug"]
 tracing_release_max_level_info = ["tracing/release_max_level_info"]
-vulkan = ["dep:vulkano", "dep:ouroboros"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
 zynq = ["dep:xilinx-dma"]
@@ -56,10 +55,6 @@ harness = false
 [[test]]
 name = "flowgraph"
 required-features = ["flow_scheduler"]
-
-[[test]]
-name = "vulkan"
-required-features = ["vulkan"]
 
 [[test]]
 name = "seify"
@@ -126,7 +121,6 @@ concurrent-queue = { version = "2.5" }
 core_affinity = "0.8"
 cpal = { version = "0.17", optional = true }
 hound = { version = "3.5", optional = true }
-ouroboros = { version = "0.18", optional = true }
 rodio = { version = "0.22", default-features = false, features = [
     "symphonia-all",
 ], optional = true }
@@ -135,7 +129,6 @@ tower-http = { version = "0.6", default-features = false, features = ["cors"], o
 tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = { version = "0.0.14", features = ["generic"] }
-vulkano = { version = "0.35", optional = true }
 zmq = { version = "0.10", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -176,7 +169,6 @@ criterion = { version = "0.8", features = ["html_reports"] }
 float-cmp = "0.10"
 rand = "0.10"
 trybuild = "1.0"
-vulkano-shaders = "0.35"
 
 [profile.release]
 codegen-units = 1

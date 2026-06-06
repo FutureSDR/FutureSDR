@@ -127,12 +127,11 @@ Accelerator buffers use the same connection model but expose APIs that match the
 
 - Xilinx Zynq DMA buffers move chunks through AXI DMA-backed memory.
 - WGPU buffers use [`wgpu`](https://wgpu.rs/) resources and can run in native or browser environments.
-- Vulkan buffers use Vulkan storage buffers.
 - Burn buffers use [Burn](https://burn.dev/) tensors for machine-learning workloads.
 
 These buffer APIs are intentionally not standardized beyond `BufferWriter` / `BufferReader` and their send-capable marker counterparts. A GPU block may need mapped buffers. A DMA block may need hardware buffer handles. A tensor buffer may need framework-specific tensor ownership.
 
-Vulkan, WGPU, and Zynq buffers are accelerator handoff buffers, not in-place circuit buffers. They do not get the `InplaceBuffer` drop-recycle guarantee unless an implementation explicitly exposes the in-place traits. Instead, their reusable resource lifecycle is explicit: accelerator blocks take full or empty resource tokens with APIs such as `get_buffer()` or `buffers()`, and return them with APIs such as `submit()` or by consuming the CPU-side reader completely. Dropping such a token may release or lose that resource from the reusable pool, depending on the backend.
+WGPU and Zynq buffers are accelerator handoff buffers, not in-place circuit buffers. They do not get the `InplaceBuffer` drop-recycle guarantee unless an implementation explicitly exposes the in-place traits. Instead, their reusable resource lifecycle is explicit: accelerator blocks take full or empty resource tokens with APIs such as `get_buffer()` or `buffers()`, and return them with APIs such as `submit()` or by consuming the CPU-side reader completely. Dropping such a token may release or lose that resource from the reusable pool, depending on the backend.
 
 Accelerator buffer implementations typically also implement CPU buffer traits at the host boundary:
 
@@ -163,7 +162,6 @@ connect!(fg, src > gpu > snk);
 See the complete accelerator examples:
 
 - [WGPU example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/wgpu)
-- [Vulkan example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/vulkan)
 - [Zynq example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/zynq)
 - [Burn example](https://github.com/FutureSDR/FutureSDR/tree/main/examples/burn)
 

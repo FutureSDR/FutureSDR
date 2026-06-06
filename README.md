@@ -38,8 +38,7 @@ stream-based or message-based data processing. Blocks can be combined to a
 
 * Single and multi-threaded schedulers, including examples for
   application-specific implementations.
-* Portable GPU acceleration using the Vulkan API (supports Linux, Windows,
-  Android, ...).
+* Portable GPU acceleration using WGPU (supports native and browser targets).
 * User space DMA driver for Xilinx Zynq to interface FPGAs.
 
 ## Development

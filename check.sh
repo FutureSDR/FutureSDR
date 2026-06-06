@@ -29,7 +29,6 @@ cd ${SCRIPTPATH}/perf/msg && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null_rand && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null_rand_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/perf && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/perf/vulkan && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/wgpu && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
@@ -64,7 +63,7 @@ cd ${SCRIPTPATH}/examples/zynq && ${CARGO_FMT} --check
 # CLIPPY
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=burn,vulkan,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
@@ -78,7 +77,6 @@ cd ${SCRIPTPATH}/perf/fir && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/msg && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/null_rand && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/perf && cargo clippy --all-targets --all-features -- -D warnings
-cd ${SCRIPTPATH}/perf/vulkan && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
@@ -131,7 +129,7 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-u
 # Test
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,zynq -j 4
+cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,zynq -j 4
 cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
@@ -145,7 +143,6 @@ cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/null_rand && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
-cd ${SCRIPTPATH}/perf/vulkan && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/wgpu && cargo test --all-targets
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets

@@ -84,7 +84,6 @@
 //! ## Hardware Acceleration
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
-//! | `Vulkan` | Interface GPU w/ Vulkan. | ❌ | `vulkan` |
 //! | `Wgpu` | Interface GPU w/ native API. | ✅ | `wgpu` |
 //! | `Zynq` | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
 //! | `ZynqSync` | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
@@ -223,10 +222,6 @@ mod vector_sink;
 pub use vector_sink::VectorSink;
 mod vector_source;
 pub use vector_source::VectorSource;
-#[cfg(feature = "vulkan")]
-mod vulkan;
-#[cfg(feature = "vulkan")]
-pub use vulkan::Vulkan;
 /// WASM-specific blocks (target wasm32-unknown-unknown)
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
