@@ -90,13 +90,13 @@ impl WrappedInbox for LocalBlockInboxReader {
 /// Inbox bundle for normal thread-safe blocks.
 pub(crate) struct ThreadSafeInbox {
     tx: BlockInbox,
-    rx: Option<BlockInboxReader>,
+    rx: BlockInboxReader,
 }
 
 impl ThreadSafeInbox {
     fn new() -> Self {
         let (tx, rx) = BlockInbox::pair(config::config().queue_size);
-        Self { tx, rx: Some(rx) }
+        Self { tx, rx }
     }
 }
 
@@ -106,7 +106,7 @@ pub(crate) struct LocalBlockInboxes {
     thread_safe_tx: BlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
     local_tx: LocalBlockInbox,
-    local_rx: Option<LocalBlockInboxReader>,
+    local_rx: LocalBlockInboxReader,
 }
 
 impl LocalBlockInboxes {
@@ -118,7 +118,7 @@ impl LocalBlockInboxes {
             thread_safe_tx,
             thread_safe_rx: Some(thread_safe_rx),
             local_tx,
-            local_rx: Some(local_rx),
+            local_rx,
         }
     }
 }
@@ -128,8 +128,7 @@ pub(crate) trait WrappedKernelInbox {
 
     fn init_arg(&self) -> PortInboxes;
     fn external_inbox(&self) -> BlockEndpoint;
-    fn take_run_inbox(&mut self) -> Self::RunInbox;
-    fn put_run_inbox(&mut self, inbox: Self::RunInbox);
+    fn run_inbox_mut(&mut self) -> &mut Self::RunInbox;
 }
 
 impl WrappedKernelInbox for ThreadSafeInbox {
@@ -143,14 +142,8 @@ impl WrappedKernelInbox for ThreadSafeInbox {
         self.tx.clone().into()
     }
 
-    fn take_run_inbox(&mut self) -> Self::RunInbox {
-        self.rx
-            .take()
-            .expect("normal block inbox missing while running")
-    }
-
-    fn put_run_inbox(&mut self, inbox: Self::RunInbox) {
-        self.rx = Some(inbox);
+    fn run_inbox_mut(&mut self) -> &mut Self::RunInbox {
+        &mut self.rx
     }
 }
 
@@ -165,14 +158,8 @@ impl WrappedKernelInbox for LocalBlockInboxes {
         self.external_tx.clone()
     }
 
-    fn take_run_inbox(&mut self) -> Self::RunInbox {
-        self.local_rx
-            .take()
-            .expect("local block inbox missing while running")
-    }
-
-    fn put_run_inbox(&mut self, inbox: Self::RunInbox) {
-        self.local_rx = Some(inbox);
+    fn run_inbox_mut(&mut self) -> &mut Self::RunInbox {
+        &mut self.local_rx
     }
 }
 
@@ -229,7 +216,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     }
 
     async fn run_with_inbox<RI>(
-        &mut self,
+        id: BlockId,
+        meta: &mut BlockMeta,
+        mo: &mut MessageOutputs,
+        kernel: &mut K,
         main_inbox: Sender<FlowgraphMessage>,
         inbox: &mut RI,
     ) -> Result<(), Error>
@@ -237,14 +227,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         K: Kernel,
         RI: WrappedInbox,
     {
-        let instance_name = self
-            .meta
-            .instance_name()
-            .unwrap_or(K::type_name())
-            .to_owned();
-        let WrappedKernel {
-            meta, mo, kernel, ..
-        } = self;
+        let instance_name = meta.instance_name().unwrap_or(K::type_name()).to_owned();
 
         crate::runtime::kernel_interface::stream_ports_validate(kernel)?;
 
@@ -311,7 +294,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                                 K::message_outputs().iter().map(|n| n.to_string()).collect();
 
                             let description = BlockDescription {
-                                id: self.id,
+                                id,
                                 type_name: K::type_name().to_string(),
                                 instance_name: instance_name.clone(),
                                 stream_inputs,
@@ -365,7 +348,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                                 }
                                 Err(Error::InvalidMessagePort(_, port_id)) => {
                                     let _ = tx.send(Err(Error::InvalidMessagePort(
-                                        BlockPortCtx::Id(self.id),
+                                        BlockPortCtx::Id(id),
                                         port_id,
                                     )));
                                 }
@@ -444,10 +427,14 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     where
         K: Kernel,
     {
-        let mut inbox = self.inbox.take_run_inbox();
-        let result = self.run_with_inbox(main_inbox, &mut inbox).await;
-        self.inbox.put_run_inbox(inbox);
-        result
+        let WrappedKernel {
+            id,
+            meta,
+            mo,
+            kernel,
+            inbox,
+        } = self;
+        Self::run_with_inbox(*id, meta, mo, kernel, main_inbox, inbox.run_inbox_mut()).await
     }
 }
 
