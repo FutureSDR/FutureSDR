@@ -42,7 +42,7 @@ cargo build
 cargo build --features=burn,zeromq,audio,flow_scheduler,seify_dummy,wgpu
 
 # Run all tests (main workspace)
-cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,zynq
+cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu
 
 # Run a single test
 cargo test --test flowgraph
@@ -53,7 +53,7 @@ cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
 cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
 
 # Lint (matches the root check script)
-cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,wgpu,seify_dummy -- -D warnings
 
 # Format (repository convention uses nightly rustfmt)
 cargo fmt --all
@@ -128,7 +128,7 @@ Buffers are the transport layer between blocks. Implementations:
 - `circuit` — in-place circuit buffer (avoids copies)
 - `wgpu` — GPU memory via WGPU (feature: `wgpu`)
 - `burn` — for Burn ML framework (feature: `burn`)
-- `zynq` — Xilinx Zynq FPGA DMA (feature: `zynq`, Linux only)
+- Zynq FPGA DMA buffers live in the independent `examples/zynq` crate
 
 Buffer traits: `SendBufferReader` / `SendBufferWriter` (send-capable generic), `BufferReader` / `BufferWriter` (local generic), `SendCpuBufferReader` / `SendCpuBufferWriter` and `CpuBufferReader` / `CpuBufferWriter` (CPU-specific with `slice()`/`consume()`/`produce()`), `SendInplaceReader` / `SendInplaceWriter` (in-place).
 
@@ -173,4 +173,3 @@ let (output, _tags) = mocker.output().get();
 - `audio` — Audio blocks (cpal/rodio/hound)
 - `zeromq` — ZeroMQ source/sink blocks
 - `seify` / `seify_dummy` — SDR hardware abstraction (RTL-SDR, HackRF, SoapySDR, etc.)
-- `zynq` — Xilinx Zynq FPGA DMA support (Linux only)
