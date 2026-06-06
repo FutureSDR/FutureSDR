@@ -78,7 +78,6 @@ impl Kernel for NonSendLocalBlock {
             self.block_on = Some(Box::pin(async move {
                 let _state = state;
             }));
-            io.block_on();
         }
         Ok(())
     }

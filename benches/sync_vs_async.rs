@@ -69,7 +69,6 @@ pub fn sync_vs_async(c: &mut Criterion) {
         let mut io = WorkIo {
             call_again: false,
             finished: false,
-            block_on: false,
         };
 
         b.iter(move || {
@@ -93,7 +92,6 @@ pub fn sync_vs_async(c: &mut Criterion) {
         let mut io = WorkIo {
             call_again: false,
             finished: false,
-            block_on: false,
         };
 
         b.iter(move || {

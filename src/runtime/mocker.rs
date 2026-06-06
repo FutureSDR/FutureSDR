@@ -119,7 +119,6 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
         let mut io = WorkIo {
             call_again: false,
             finished: false,
-            block_on: false,
         };
 
         let NormalWrappedKernel {
@@ -176,7 +175,6 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
         let mut io = WorkIo {
             call_again: false,
             finished: false,
-            block_on: false,
         };
 
         loop {

@@ -58,7 +58,6 @@ impl Kernel for MessageSource {
         }
 
         self.timer = Some(Timer::after(self.t_last + self.interval - Instant::now()));
-        io.block_on();
 
         Ok(())
     }
@@ -98,7 +97,6 @@ impl Kernel for MessageSource {
         }
 
         self.timer = Some(Timer::after(self.t_last + self.interval - Instant::now()));
-        io.block_on();
 
         Ok(())
     }

@@ -101,7 +101,6 @@ where
         }
 
         self.timer = Some(Timer::after(std::time::Duration::from_millis(100)));
-        io.block_on();
 
         Ok(())
     }
@@ -159,7 +158,6 @@ where
         }
 
         self.timer = Some(Timer::after(std::time::Duration::from_millis(100)));
-        io.block_on();
 
         Ok(())
     }

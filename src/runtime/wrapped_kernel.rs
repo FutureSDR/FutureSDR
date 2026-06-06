@@ -234,7 +234,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         let mut work_io = WorkIo {
             call_again: true,
             finished: false,
-            block_on: false,
         };
 
         loop {
@@ -393,27 +392,21 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             }
 
             if !work_io.call_again {
-                if work_io.block_on {
-                    match <K as Kernel>::block_on(kernel) {
-                        Some(f) => {
-                            let notified = inbox.notified();
-                            futures::pin_mut!(notified);
-                            let _ = futures::future::select(f, notified).await;
-                        }
-                        None => {
-                            inbox.notified().await;
-                        }
+                match <K as Kernel>::block_on(kernel) {
+                    Some(f) => {
+                        let notified = inbox.notified();
+                        futures::pin_mut!(notified);
+                        let _ = futures::future::select(f, notified).await;
                     }
-                } else {
-                    inbox.notified().await;
+                    None => {
+                        inbox.notified().await;
+                    }
                 }
-                work_io.block_on = false;
                 work_io.call_again = true;
                 continue;
             }
 
             work_io.call_again = false;
-            work_io.block_on = false;
             if let Err(e) = kernel.work(&mut work_io, mo, meta).await {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
                 return Err(e.into());

@@ -82,10 +82,13 @@ pub trait Kernel {
     /// Typed future that may be used to wake the block again.
     type BlockOn: Future<Output = ()> + 'static = std::future::Pending<()>;
 
-    /// Return the typed future that should wake this block again.
+    /// Return a typed future that may wake this block again.
     ///
-    /// This is queried after [`WorkIo::block_on`] has been set. Returning
-    /// `None` falls back to waiting only for inbox/stream notifications.
+    /// When `work()` does not request an immediate call and the block is not
+    /// finished, the runtime waits for inbox/stream notifications. If this
+    /// method returns `Some`, the runtime also awaits that future and calls
+    /// `work()` again when either the future resolves or a notification arrives.
+    /// Return `None` while no block-specific future should be polled.
     fn block_on(&mut self) -> Option<Pin<&mut Self::BlockOn>> {
         None
     }

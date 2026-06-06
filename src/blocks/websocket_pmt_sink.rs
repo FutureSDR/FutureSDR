@@ -92,6 +92,8 @@ impl Kernel for WebsocketPmtSink {
         _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
+        self.block_on = None;
+
         if let Some(ref mut conn) = self.conn {
             let msg = match self.pmts.pop_front() {
                 Some(Pmt::VecCF32(v)) => {
@@ -198,7 +200,6 @@ impl Kernel for WebsocketPmtSink {
                     self.block_on = Some(Box::pin(async move {
                         l.readable().await.unwrap();
                     }));
-                    io.block_on();
                 }
             }
         }

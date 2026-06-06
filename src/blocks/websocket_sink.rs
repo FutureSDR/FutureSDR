@@ -94,6 +94,8 @@ where
         _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
+        self.block_on = None;
+
         if self.input.finished() {
             io.finished = true;
         }
@@ -187,7 +189,6 @@ where
                     self.block_on = Some(Box::pin(async move {
                         l.readable().await.unwrap();
                     }));
-                    io.block_on();
                 }
             }
         }
