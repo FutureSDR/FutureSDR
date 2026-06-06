@@ -2,14 +2,14 @@ use anyhow::Result;
 use clap::Parser;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::blocks::Zynq;
-use futuresdr::blocks::ZynqSync;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::zynq::D2HReader;
-use futuresdr::runtime::buffer::zynq::H2DWriter;
 use rand::RngExt;
 use rand::distr::Uniform;
 use std::time::Instant;
+use zynq::Zynq;
+use zynq::ZynqSync;
+use zynq::buffer::D2HReader;
+use zynq::buffer::H2DWriter;
 
 #[derive(Parser, Debug)]
 struct Args {

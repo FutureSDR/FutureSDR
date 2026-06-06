@@ -8,5 +8,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
-futuresdr = { path = "../..", features = ["zynq"] }
+futuresdr = { path = "../..", default-features = false }
 rand = "0.10"
+xilinx-dma = { version = "0.0.11", features = ["async"] }

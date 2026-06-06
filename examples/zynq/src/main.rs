@@ -1,12 +1,12 @@
 use anyhow::Result;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
-use futuresdr::blocks::Zynq;
 use futuresdr::prelude::*;
-use futuresdr::runtime::buffer::zynq::D2HReader;
-use futuresdr::runtime::buffer::zynq::H2DWriter;
 use rand::RngExt;
 use rand::distr::Uniform;
+use zynq::Zynq;
+use zynq::buffer::D2HReader;
+use zynq::buffer::H2DWriter;
 
 fn main() -> Result<()> {
     let mut fg = Flowgraph::new();

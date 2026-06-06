@@ -6,22 +6,22 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use xilinx_dma::DmaBuffer;
 
-use crate::runtime::BlockId;
-use crate::runtime::BlockMessage;
-use crate::runtime::Error;
-use crate::runtime::PortId;
-use crate::runtime::buffer::BufferReader;
-use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::ConnectionState;
-use crate::runtime::buffer::CpuBufferReader;
-use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::PortCore;
-use crate::runtime::buffer::PortEndpoint;
-use crate::runtime::buffer::ThreadSafeMode;
-use crate::runtime::buffer::zynq::BufferEmpty;
-use crate::runtime::buffer::zynq::BufferFull;
-use crate::runtime::dev::BlockInbox;
-use crate::runtime::dev::ItemTag;
+use crate::buffer::BufferEmpty;
+use crate::buffer::BufferFull;
+use futuresdr::runtime::BlockId;
+use futuresdr::runtime::Error;
+use futuresdr::runtime::PortId;
+use futuresdr::runtime::buffer::BufferReader;
+use futuresdr::runtime::buffer::BufferWriter;
+use futuresdr::runtime::buffer::ConnectionState;
+use futuresdr::runtime::buffer::CpuBufferReader;
+use futuresdr::runtime::buffer::CpuSample;
+use futuresdr::runtime::buffer::PortCore;
+use futuresdr::runtime::buffer::PortEndpoint;
+use futuresdr::runtime::buffer::ThreadSafeMode;
+use futuresdr::runtime::dev::BlockInbox;
+use futuresdr::runtime::dev::ItemTag;
+use futuresdr::tracing::warn;
 
 #[derive(Debug)]
 struct CurrentBuffer {
@@ -123,15 +123,8 @@ where
     }
 
     async fn notify_finished(&mut self) {
-        let _ = self
-            .state
-            .connected()
-            .reader
-            .inbox()
-            .send(BlockMessage::StreamInputDone {
-                input_id: self.state.connected().reader.port_id(),
-            })
-            .await;
+        let reader = &self.state.connected().reader;
+        let _ = reader.inbox().stream_input_done(reader.port_id()).await;
     }
 
     fn block_id(&self) -> BlockId {
@@ -217,15 +210,8 @@ where
             return;
         }
 
-        let _ = self
-            .state
-            .connected()
-            .writer
-            .inbox()
-            .send(BlockMessage::StreamOutputDone {
-                output_id: self.state.connected().writer.port_id(),
-            })
-            .await;
+        let writer = &self.state.connected().writer;
+        let _ = writer.inbox().stream_output_done(writer.port_id()).await;
     }
 
     fn finish(&mut self) {

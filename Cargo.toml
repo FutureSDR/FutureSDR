@@ -38,7 +38,6 @@ tracing_max_level_debug = ["tracing/max_level_debug"]
 tracing_release_max_level_info = ["tracing/release_max_level_info"]
 wgpu = ["dep:wgpu"]
 zeromq = ["dep:zmq"]
-zynq = ["dep:xilinx-dma"]
 
 [[bench]]
 name = "apply"
@@ -130,9 +129,6 @@ tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = { version = "0.0.14", features = ["generic"] }
 zmq = { version = "0.10", optional = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-xilinx-dma = { version = "0.0.11", features = ["async"], optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 tracing-android = "0.2"

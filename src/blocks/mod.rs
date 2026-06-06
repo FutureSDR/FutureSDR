@@ -85,8 +85,6 @@
 //! | Block | Usage | WebAssembly? | Feature |
 //! |---|---|---|---|
 //! | `Wgpu` | Interface GPU w/ native API. | ✅ | `wgpu` |
-//! | `Zynq` | Interface Zynq FPGA w/ AXI DMA (async mode). | ❌ | `zynq` |
-//! | `ZynqSync` | Interface Zynq FPGA w/ AXI DMA (sync mode). | ❌ | `zynq` |
 //!
 //! ## WASM-specific (target `wasm32-unknown-unknown`)
 //! | Block | Usage | WebAssembly? |
@@ -245,11 +243,3 @@ mod wgpu;
 pub use self::wgpu::Wgpu;
 #[cfg(feature = "zeromq")]
 pub mod zeromq;
-#[cfg(all(feature = "zynq", target_os = "linux"))]
-mod zynq;
-#[cfg(all(feature = "zynq", target_os = "linux"))]
-pub use zynq::Zynq;
-#[cfg(all(feature = "zynq", target_os = "linux"))]
-mod zynq_sync;
-#[cfg(all(feature = "zynq", target_os = "linux"))]
-pub use zynq_sync::ZynqSync;

@@ -1,12 +1,12 @@
 use xilinx_dma::AxiDmaAsync;
 use xilinx_dma::DmaBuffer;
 
-use crate::runtime::buffer::CpuSample;
-use crate::runtime::buffer::zynq::BufferEmpty;
-use crate::runtime::buffer::zynq::BufferFull;
-use crate::runtime::buffer::zynq::D2HWriter;
-use crate::runtime::buffer::zynq::H2DReader;
-use crate::runtime::dev::prelude::*;
+use crate::buffer::BufferEmpty;
+use crate::buffer::BufferFull;
+use crate::buffer::D2HWriter;
+use crate::buffer::H2DReader;
+use futuresdr::runtime::buffer::CpuSample;
+use futuresdr::runtime::dev::prelude::*;
 
 /// Interface Zynq FPGA w/ AXI DMA (async mode).
 ///
@@ -20,7 +20,7 @@ use crate::runtime::dev::prelude::*;
 ///
 /// # Usage
 /// ```ignore
-/// use futuresdr::blocks::Zynq;
+/// use zynq::Zynq;
 ///
 /// let zynq = Zynq::<u32, u32>::new(
 ///     "dma_h2d",

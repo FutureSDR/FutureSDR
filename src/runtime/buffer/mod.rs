@@ -34,11 +34,6 @@ pub mod slab;
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
 
-// -==================== ZYNQ ========================
-/// Xilinx Zynq DMA handoff buffers.
-#[cfg(all(feature = "zynq", target_os = "linux"))]
-pub mod zynq;
-
 use std::any::Any;
 use std::fmt::Debug;
 use std::future::Future;

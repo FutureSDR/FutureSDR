@@ -54,7 +54,6 @@ FutureSDR supports several features that you may want to enable.
 - `tracing_release_max_level_info`: compile out messages more detailed than `info` in release mode
 - `wgpu`: enable WGPU buffers and blocks
 - `zeromq`: enable ZeroMQ source and sink
-- `zynq`: enable Xilinx Zynq DMA buffers
 
 For example:
 
