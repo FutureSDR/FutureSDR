@@ -35,13 +35,6 @@ use crate::runtime::kernel_interface::SendKernelInterface;
 pub(crate) type NormalWrappedKernel<K> = WrappedKernel<K, ThreadSafeInbox>;
 pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalBlockInboxes>;
 
-fn kernel_error(error: anyhow::Error) -> Error {
-    match error.downcast::<Error>() {
-        Ok(error) => error,
-        Err(error) => Error::RuntimeError(error.to_string()),
-    }
-}
-
 pub(crate) trait WrappedInbox {
     fn try_recv(&mut self) -> Option<BlockMessage>;
     fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_;
@@ -274,7 +267,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                                 "{}: Error during initialization. Terminating.",
                                 instance_name
                             );
-                            return Err(kernel_error(e));
+                            return Err(e.into());
                         }
                         _ => {
                             main_inbox
@@ -411,7 +404,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                             "{}: Error in deinit (). Terminating. ({:?})",
                             instance_name, e
                         );
-                        return Err(kernel_error(e));
+                        return Err(e.into());
                     }
                 };
             }
@@ -440,7 +433,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             work_io.block_on = false;
             if let Err(e) = kernel.work(&mut work_io, mo, meta).await {
                 error!("{}: Error in work(). Terminating. ({:?})", instance_name, e);
-                return Err(kernel_error(e));
+                return Err(e.into());
             }
         }
 

@@ -403,6 +403,15 @@ pub enum Error {
     SeifyError(String),
 }
 
+impl From<anyhow::Error> for Error {
+    fn from(value: anyhow::Error) -> Self {
+        match value.downcast::<Self>() {
+            Ok(error) => error,
+            Err(error) => Self::RuntimeError(error.to_string()),
+        }
+    }
+}
+
 #[cfg(feature = "seify")]
 impl From<seify::Error> for Error {
     fn from(value: seify::Error) -> Self {
