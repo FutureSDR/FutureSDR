@@ -39,10 +39,10 @@ The root workspace contains `.`, `crates/futuredsp`, `crates/macros`, and `crate
 cargo build
 
 # Build with specific features
-cargo build --features=burn,vulkan,zeromq,audio,flow_scheduler,seify_dummy,wgpu
+cargo build --features=burn,zeromq,audio,flow_scheduler,seify_dummy,wgpu
 
 # Run all tests (main workspace)
-cargo test --all-targets --workspace --features=vulkan,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,zynq
+cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,zynq
 
 # Run a single test
 cargo test --test flowgraph
@@ -53,7 +53,7 @@ cargo test --all-targets --manifest-path=crates/futuredsp/Cargo.toml
 cargo test --all-targets --all-features --manifest-path=crates/types/Cargo.toml
 
 # Lint (matches the root check script)
-cargo clippy --all-targets --workspace --features=burn,vulkan,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
+cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,zynq,wgpu,seify_dummy -- -D warnings
 
 # Format (repository convention uses nightly rustfmt)
 cargo fmt --all
@@ -126,7 +126,6 @@ Buffers are the transport layer between blocks. Implementations:
 - `circular` — double-mapped circular buffer; default for CPU-to-CPU on non-WASM (maps to `DefaultCpuReader/Writer`)
 - `slab` — slab buffer; default on WASM
 - `circuit` — in-place circuit buffer (avoids copies)
-- `vulkan` — GPU memory via Vulkan API (feature: `vulkan`)
 - `wgpu` — GPU memory via WGPU (feature: `wgpu`)
 - `burn` — for Burn ML framework (feature: `burn`)
 - `zynq` — Xilinx Zynq FPGA DMA (feature: `zynq`, Linux only)
@@ -168,7 +167,6 @@ let (output, _tags) = mocker.output().get();
 
 ## Key Features / Feature Flags
 
-- `vulkan` — Vulkan GPU buffer support
 - `wgpu` — WGPU GPU buffer support
 - `burn` — Burn ML framework integration
 - `flow_scheduler` — FlowScheduler (requires `spin`)
