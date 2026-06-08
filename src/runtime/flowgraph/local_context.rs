@@ -127,6 +127,32 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         result
     }
 
+    pub(crate) fn validate_block_ref<K>(&self, block: &BlockRef<K>) -> Result<(), Error> {
+        let inner = self.inner.borrow();
+        if block.flowgraph_id != inner.flowgraph_id {
+            return Err(Error::ValidationError(format!(
+                "block {:?} belongs to another flowgraph",
+                block.id
+            )));
+        }
+
+        let BlockPlacement::Local {
+            domain_id,
+            local_id,
+        } = block.placement
+        else {
+            return Err(Error::ValidationError(
+                "local-domain context requires local blocks".to_string(),
+            ));
+        };
+        if domain_id != inner.domain_id
+            || inner.state.local_id_for_block(block.id) != Some(local_id)
+        {
+            return Err(Error::InvalidBlock(block.id));
+        }
+        Ok(())
+    }
+
     /// Add a block to this local domain.
     pub fn add<K>(&self, block: K) -> BlockRef<K>
     where
@@ -250,7 +276,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         Ok(())
     }
 
-    /// Async send-capable stream alias for local-domain contexts.
+    /// Same-domain stream alias for local-domain contexts.
     pub async fn stream_async<KS, KD, B, FS, FD>(
         &self,
         src_block: &BlockRef<KS>,

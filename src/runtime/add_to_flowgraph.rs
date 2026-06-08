@@ -55,6 +55,7 @@ where
     type Added = BlockRef<K>;
 
     async fn add_to_flowgraph(self, block: BlockRef<K>) -> Result<Self::Added, Error> {
+        self.validate_block_ref(&block)?;
         Ok(block)
     }
 }

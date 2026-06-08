@@ -30,7 +30,7 @@ Schedulers manage the implicit normal domain, which contains send-capable block 
 
 Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler. A local domain can select a local scheduler type with `fg.local_domain_with_scheduler::<MyLocalScheduler>()`; `fg.local_domain()` uses the built-in basic local scheduler.
 
-Custom local schedulers implement `LocalScheduler`. The low-level `run()` hook drives the local non-`Send` executor, while `run_local_domain()` receives a `LocalDomainRunSpec` with opaque primitives for inspecting topology, taking runnable local blocks, handling domain events, stopping blocks, and restoring stopped block state. Most implementations should customize `spawn()` / `run()` and delegate to `spec.run_basic(self)`.
+Custom local schedulers implement `LocalScheduler`. The low-level `run()` hook drives the local non-`Send` executor, while `run_local_domain()` receives a `LocalDomainRunSpec` with opaque primitives for inspecting topology, taking runnable local blocks, handling domain events, stopping blocks, and restoring stopped block state. Most implementations should customize `spawn()` / `run()` and delegate to `BasicLocalScheduler::run_basic(self, spec)`.
 
 ## Starting Point
 
