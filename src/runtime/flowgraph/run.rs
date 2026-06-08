@@ -8,6 +8,32 @@ struct StartedFlowgraph {
     domains: Vec<RunningDomain>,
 }
 
+struct FlowgraphRunner<S> {
+    flowgraph: Flowgraph,
+    scheduler: S,
+    main_channel: Sender<FlowgraphMessage>,
+    main_rx: Receiver<FlowgraphMessage>,
+    initialized: Option<oneshot::Sender<Result<(), Error>>>,
+}
+
+pub(crate) async fn run_flowgraph<S: Scheduler>(
+    flowgraph: Flowgraph,
+    scheduler: S,
+    main_channel: Sender<FlowgraphMessage>,
+    main_rx: Receiver<FlowgraphMessage>,
+    initialized: oneshot::Sender<Result<(), Error>>,
+) -> Result<TerminatedFlowgraph, Error> {
+    FlowgraphRunner {
+        flowgraph,
+        scheduler,
+        main_channel,
+        main_rx,
+        initialized: Some(initialized),
+    }
+    .run()
+    .await
+}
+
 impl Flowgraph {
     fn domain_topology(
         block_ids: &[BlockId],
@@ -102,6 +128,121 @@ impl Flowgraph {
         })
     }
 
+    fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {
+        let mut blocks = Vec::with_capacity(self.blocks.len());
+        for entry in self.blocks.iter_mut() {
+            if let Some(block) = entry.take_normal_block()? {
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
+    }
+
+    fn endpoints(
+        &self,
+    ) -> Result<
+        (
+            Vec<Option<crate::runtime::dev::BlockEndpoint>>,
+            Vec<BlockId>,
+        ),
+        Error,
+    > {
+        let mut endpoints = Vec::with_capacity(self.blocks.len());
+        let mut ids = Vec::with_capacity(self.blocks.len());
+        for (id, entry) in self.blocks.iter().enumerate() {
+            let block_id = BlockId(id);
+            endpoints.push(Some(entry.endpoint().clone()));
+            ids.push(block_id);
+        }
+        Ok((endpoints, ids))
+    }
+
+    fn validate_stream_graph(&self) -> Result<(), Error> {
+        let mut adjacency = vec![Vec::new(); self.blocks.len()];
+        let mut connected_inputs = Vec::with_capacity(self.stream_edges.len());
+        for edge in &self.stream_edges {
+            let (src, dst) = edge.endpoints();
+            if src == dst {
+                return Err(Error::ValidationError(format!(
+                    "stream self-connections are not supported ({src:?})"
+                )));
+            }
+            if src.0 >= self.blocks.len() {
+                return Err(Error::InvalidBlock(src));
+            }
+            if dst.0 >= self.blocks.len() {
+                return Err(Error::InvalidBlock(dst));
+            }
+            if connected_inputs
+                .iter()
+                .any(|(block, port)| *block == dst && port == &edge.edge.dst_port)
+            {
+                return Err(Error::ValidationError(format!(
+                    "stream input {:?}.{} has more than one connection",
+                    dst,
+                    edge.edge.dst_port.name()
+                )));
+            }
+            connected_inputs.push((dst, edge.edge.dst_port.clone()));
+
+            if edge.local_only {
+                let src_location = self.location(src)?;
+                let dst_location = self.location(dst)?;
+                Self::same_local_stream_locations(src_location, dst_location, false)?;
+            }
+            adjacency[src.0].push(dst.0);
+        }
+
+        fn visit(node: usize, adjacency: &[Vec<usize>], marks: &mut [u8]) -> bool {
+            match marks[node] {
+                1 => return false,
+                2 => return true,
+                _ => {}
+            }
+
+            marks[node] = 1;
+            for &next in &adjacency[node] {
+                if !visit(next, adjacency, marks) {
+                    return false;
+                }
+            }
+            marks[node] = 2;
+            true
+        }
+
+        let mut marks = vec![0; self.blocks.len()];
+        for node in 0..self.blocks.len() {
+            if !visit(node, &adjacency, &mut marks) {
+                return Err(Error::ValidationError(
+                    "stream connections must form a directed acyclic graph".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
+        let (endpoints, ids) = self.endpoints()?;
+        Ok(StartupSnapshot { endpoints, ids })
+    }
+
+    fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
+        edges.iter().map(Edge::endpoints).collect()
+    }
+
+    fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
+        for block in blocks {
+            let id = block.id();
+            let entry = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
+            entry.restore_normal_block(block)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<S: Scheduler> FlowgraphRunner<S> {
     fn send_initialized_error(
         initialized: &mut Option<oneshot::Sender<Result<(), Error>>>,
         error: Error,
@@ -143,7 +284,7 @@ impl Flowgraph {
             }
         }
         for domain_id in stopped_local_domains {
-            if let Some(domain) = self.local_domains.get_mut(domain_id) {
+            if let Some(domain) = self.flowgraph.local_domains.get_mut(domain_id) {
                 domain.mark_stopped();
             }
         }
@@ -163,12 +304,8 @@ impl Flowgraph {
         }
     }
 
-    async fn apply_edges_and_start_domains<S: Scheduler>(
-        &mut self,
-        scheduler: S,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<StartedFlowgraph, Error> {
-        let prepared = self.prepare(main_channel.clone())?;
+    async fn apply_edges_and_start_domains(&mut self) -> Result<StartedFlowgraph, Error> {
+        let prepared = self.flowgraph.prepare(self.main_channel.clone())?;
         let PreparedFlowgraph {
             startup,
             stream_edges,
@@ -180,14 +317,15 @@ impl Flowgraph {
         } = prepared;
         let StartupSnapshot { mut endpoints, ids } = startup;
 
-        self.apply_stream_edges(&stream_edges).await?;
-        self.apply_message_edges(&message_edges).await?;
+        let mut connector = super::connect::FlowgraphConnector::new(&mut self.flowgraph);
+        connector.apply_stream_edges(&stream_edges).await?;
+        connector.apply_message_edges(&message_edges).await?;
 
-        let blocks = self.take_blocks()?;
-        let normal_domain = scheduler.start_normal_domain(NormalDomainSpec::new(
+        let blocks = self.flowgraph.take_blocks()?;
+        let normal_domain = self.scheduler.start_normal_domain(NormalDomainSpec::new(
             blocks,
             normal_topology,
-            main_channel.clone(),
+            self.main_channel.clone(),
         ))?;
 
         let mut domains = Vec::with_capacity(1 + local_specs.len());
@@ -196,7 +334,7 @@ impl Flowgraph {
             let domain_id = spec.domain_id;
             match spec.start() {
                 Ok(domain) => {
-                    self.local_domains[domain_id].mark_running();
+                    self.flowgraph.local_domains[domain_id].mark_running();
                     domains.push(RunningDomain::Local(domain));
                 }
                 Err(e) => {
@@ -426,21 +564,11 @@ impl Flowgraph {
         }
     }
 
-    pub(crate) async fn run_flowgraph<S: Scheduler>(
-        mut self,
-        scheduler: S,
-        main_channel: Sender<FlowgraphMessage>,
-        main_rx: Receiver<FlowgraphMessage>,
-        initialized: oneshot::Sender<Result<(), Error>>,
-    ) -> Result<TerminatedFlowgraph, Error> {
+    async fn run(mut self) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
-        let mut initialized = Some(initialized);
-        let scheduler_keepalive = scheduler.clone();
+        let mut initialized = self.initialized.take();
 
-        let started = match self
-            .apply_edges_and_start_domains(scheduler, main_channel.clone())
-            .await
-        {
+        let started = match self.apply_edges_and_start_domains().await {
             Ok(started) => started,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
@@ -457,8 +585,8 @@ impl Flowgraph {
 
         let run_result = match Self::initialize_blocks(
             &mut endpoints,
-            &main_rx,
-            &main_channel,
+            &self.main_rx,
+            &self.main_channel,
             &mut initialized,
         )
         .await
@@ -471,7 +599,7 @@ impl Flowgraph {
                     &stream_edges_desc,
                     &message_edges_desc,
                     active_blocks,
-                    &main_rx,
+                    &self.main_rx,
                 )
                 .await
             }
@@ -492,122 +620,8 @@ impl Flowgraph {
         }
 
         let finished_blocks = self.join_domains(domains).await?;
-        self.restore_blocks(finished_blocks)?;
-        drop(scheduler_keepalive);
+        self.flowgraph.restore_blocks(finished_blocks)?;
 
-        Ok(TerminatedFlowgraph::new(self))
-    }
-
-    fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {
-        let mut blocks = Vec::with_capacity(self.blocks.len());
-        for entry in self.blocks.iter_mut() {
-            if let Some(block) = entry.take_normal_block()? {
-                blocks.push(block);
-            }
-        }
-        Ok(blocks)
-    }
-
-    fn endpoints(
-        &self,
-    ) -> Result<
-        (
-            Vec<Option<crate::runtime::dev::BlockEndpoint>>,
-            Vec<BlockId>,
-        ),
-        Error,
-    > {
-        let mut endpoints = Vec::with_capacity(self.blocks.len());
-        let mut ids = Vec::with_capacity(self.blocks.len());
-        for (id, entry) in self.blocks.iter().enumerate() {
-            let block_id = BlockId(id);
-            endpoints.push(Some(entry.endpoint().clone()));
-            ids.push(block_id);
-        }
-        Ok((endpoints, ids))
-    }
-
-    fn validate_stream_graph(&self) -> Result<(), Error> {
-        let mut adjacency = vec![Vec::new(); self.blocks.len()];
-        let mut connected_inputs = Vec::with_capacity(self.stream_edges.len());
-        for edge in &self.stream_edges {
-            let (src, dst) = edge.endpoints();
-            if src == dst {
-                return Err(Error::ValidationError(format!(
-                    "stream self-connections are not supported ({src:?})"
-                )));
-            }
-            if src.0 >= self.blocks.len() {
-                return Err(Error::InvalidBlock(src));
-            }
-            if dst.0 >= self.blocks.len() {
-                return Err(Error::InvalidBlock(dst));
-            }
-            if connected_inputs
-                .iter()
-                .any(|(block, port)| *block == dst && port == &edge.edge.dst_port)
-            {
-                return Err(Error::ValidationError(format!(
-                    "stream input {:?}.{} has more than one connection",
-                    dst,
-                    edge.edge.dst_port.name()
-                )));
-            }
-            connected_inputs.push((dst, edge.edge.dst_port.clone()));
-
-            if edge.local_only {
-                let src_location = self.location(src)?;
-                let dst_location = self.location(dst)?;
-                Self::same_local_stream_locations(src_location, dst_location, false)?;
-            }
-            adjacency[src.0].push(dst.0);
-        }
-
-        fn visit(node: usize, adjacency: &[Vec<usize>], marks: &mut [u8]) -> bool {
-            match marks[node] {
-                1 => return false,
-                2 => return true,
-                _ => {}
-            }
-
-            marks[node] = 1;
-            for &next in &adjacency[node] {
-                if !visit(next, adjacency, marks) {
-                    return false;
-                }
-            }
-            marks[node] = 2;
-            true
-        }
-
-        let mut marks = vec![0; self.blocks.len()];
-        for node in 0..self.blocks.len() {
-            if !visit(node, &adjacency, &mut marks) {
-                return Err(Error::ValidationError(
-                    "stream connections must form a directed acyclic graph".to_string(),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
-        let (endpoints, ids) = self.endpoints()?;
-        Ok(StartupSnapshot { endpoints, ids })
-    }
-
-    fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
-        edges.iter().map(Edge::endpoints).collect()
-    }
-
-    fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        for block in blocks {
-            let id = block.id();
-            let entry = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
-            entry.restore_normal_block(block)?;
-        }
-
-        Ok(())
+        Ok(TerminatedFlowgraph::new(self.flowgraph))
     }
 }

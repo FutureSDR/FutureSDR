@@ -61,6 +61,7 @@ mod types;
 
 pub use local_context::LocalDomain;
 pub use local_context::LocalDomainContext;
+pub(crate) use run::run_flowgraph;
 pub use terminated::TerminatedFlowgraph;
 pub use types::BlockRef;
 pub use types::TypedBlockGuard;

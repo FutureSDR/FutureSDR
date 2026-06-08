@@ -33,6 +33,24 @@ impl StreamOutputSendTokenLease {
     }
 }
 
+pub(super) struct FlowgraphConnector<'a> {
+    flowgraph: &'a mut Flowgraph,
+}
+
+impl<'a> FlowgraphConnector<'a> {
+    pub(super) fn new(flowgraph: &'a mut Flowgraph) -> Self {
+        Self { flowgraph }
+    }
+
+    pub(super) async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        self.flowgraph.apply_stream_edges(edges).await
+    }
+
+    pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        self.flowgraph.apply_message_edges(edges).await
+    }
+}
+
 impl Flowgraph {
     pub(super) fn stream_ports_edge<B: BufferWriter>(
         src_port: &mut B,

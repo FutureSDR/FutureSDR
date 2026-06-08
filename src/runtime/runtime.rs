@@ -319,8 +319,13 @@ async fn start_flowgraph<S: Scheduler>(
 
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
     let scheduler_clone = scheduler.clone();
-    let task =
-        scheduler.spawn(fg.run_flowgraph(scheduler_clone, fg_inbox.clone(), fg_inbox_rx, tx));
+    let task = scheduler.spawn(crate::runtime::flowgraph::run_flowgraph(
+        fg,
+        scheduler_clone,
+        fg_inbox.clone(),
+        fg_inbox_rx,
+        tx,
+    ));
 
     rx.await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
