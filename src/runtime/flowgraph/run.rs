@@ -1,17 +1,15 @@
-use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Edge;
 use crate::runtime::Error;
-use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::dev::BlockEndpoint;
+use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::NormalBlocks;
@@ -34,6 +32,7 @@ struct FlowgraphRunner<S> {
     main_channel: Sender<FlowgraphMessage>,
     main_rx: Receiver<FlowgraphMessage>,
     initialized: Option<oneshot::Sender<Result<(), Error>>>,
+    control: Option<oneshot::Sender<RunningFlowgraphControl>>,
 }
 
 pub(crate) async fn run_flowgraph<S: Scheduler>(
@@ -42,6 +41,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     main_channel: Sender<FlowgraphMessage>,
     main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<Result<(), Error>>,
+    control: oneshot::Sender<RunningFlowgraphControl>,
 ) -> Result<TerminatedFlowgraph, Error> {
     FlowgraphRunner {
         flowgraph,
@@ -49,6 +49,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         main_channel,
         main_rx,
         initialized: Some(initialized),
+        control: Some(control),
     }
     .run()
     .await
@@ -61,6 +62,23 @@ impl<S: Scheduler> FlowgraphRunner<S> {
     ) {
         if let Some(initialized) = initialized.take() {
             let _ = initialized.send(Err(error));
+        }
+    }
+
+    fn publish_control(
+        &mut self,
+        endpoints: &[Option<BlockEndpoint>],
+        ids: &[BlockId],
+        stream_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
+        message_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
+    ) {
+        if let Some(control) = self.control.take() {
+            let _ = control.send(RunningFlowgraphControl::new(
+                endpoints.to_vec(),
+                ids.to_vec(),
+                stream_edges_desc.to_vec(),
+                message_edges_desc.to_vec(),
+            ));
         }
     }
 
@@ -231,9 +249,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
     async fn run_control_loop(
         endpoints: &mut [Option<BlockEndpoint>],
         domains: &mut [RunningDomain],
-        ids: &[BlockId],
-        stream_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
-        message_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
         mut active_blocks: u32,
         main_rx: &Receiver<FlowgraphMessage>,
     ) -> Result<(), Error> {
@@ -246,51 +261,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             })?;
 
             match message {
-                FlowgraphMessage::BlockPost {
-                    block_id,
-                    port_id,
-                    data,
-                    tx,
-                } => {
-                    if let Some(Some(inbox)) = endpoints.get_mut(block_id.0) {
-                        if inbox
-                            .send(BlockMessage::Post { port_id, data })
-                            .await
-                            .is_ok()
-                        {
-                            let _ = tx.send(Ok(()));
-                        } else {
-                            let _ = tx.send(Err(Error::BlockTerminated));
-                        }
-                    } else {
-                        let _ = tx.send(Err(Error::InvalidBlock(block_id)));
-                    }
-                }
-                FlowgraphMessage::BlockCall {
-                    block_id,
-                    port_id,
-                    data,
-                    tx,
-                } => {
-                    let (block_tx, block_rx) = oneshot::channel::<Result<Pmt, Error>>();
-                    if let Some(Some(inbox)) = endpoints.get_mut(block_id.0) {
-                        if inbox
-                            .send(BlockMessage::Call {
-                                port_id,
-                                data,
-                                tx: block_tx,
-                            })
-                            .await
-                            .is_ok()
-                        {
-                            let _ = tx.send(block_rx.await?);
-                        } else {
-                            let _ = tx.send(Err(Error::BlockTerminated));
-                        }
-                    } else {
-                        let _ = tx.send(Err(Error::InvalidBlock(block_id)));
-                    }
-                }
                 FlowgraphMessage::BlockDone { .. } => {
                     active_blocks -= 1;
                 }
@@ -303,55 +273,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
                         Self::terminate_endpoints(endpoints).await;
                         Self::stop_domains(domains).await;
                         terminated = true;
-                    }
-                }
-                FlowgraphMessage::BlockDescription { block_id, tx } => {
-                    if let Some(Some(block)) = endpoints.get_mut(block_id.0) {
-                        let (block_tx, rx) = oneshot::channel::<BlockDescription>();
-                        if block
-                            .send(BlockMessage::BlockDescription { tx: block_tx })
-                            .await
-                            .is_ok()
-                        {
-                            if let Ok(block) = rx.await {
-                                let _ = tx.send(Ok(block));
-                            } else {
-                                let _ = tx.send(Err(Error::RuntimeError(format!(
-                                    "Block {block_id:?} terminated or crashed"
-                                ))));
-                            }
-                        } else {
-                            let _ = tx.send(Err(Error::BlockTerminated));
-                        }
-                    } else {
-                        let _ = tx.send(Err(Error::InvalidBlock(block_id)));
-                    }
-                }
-                FlowgraphMessage::FlowgraphDescription { tx } => {
-                    let mut blocks = Vec::new();
-                    for id in ids {
-                        let (block_tx, rx) = oneshot::channel::<BlockDescription>();
-                        if let Some(Some(inbox)) = endpoints.get_mut(id.0)
-                            && inbox
-                                .send(BlockMessage::BlockDescription { tx: block_tx })
-                                .await
-                                .is_ok()
-                        {
-                            blocks.push(rx.await?);
-                        }
-                    }
-
-                    if tx
-                        .send(FlowgraphDescription {
-                            blocks,
-                            stream_edges: stream_edges_desc.to_vec(),
-                            message_edges: message_edges_desc.to_vec(),
-                        })
-                        .is_err()
-                    {
-                        error!(
-                            "Failed to send flowgraph description. Receiver may have disconnected."
-                        );
                     }
                 }
                 FlowgraphMessage::Terminate => {
@@ -393,6 +314,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             local_specs,
         } = prepared;
         let StartupSnapshot { mut endpoints, ids } = startup;
+        self.publish_control(&endpoints, &ids, &stream_edges_desc, &message_edges_desc);
 
         if let Err(e) = self.apply_edges(&stream_edges, &message_edges).await {
             Self::send_initialized_error(&mut initialized, e.clone());
@@ -419,16 +341,8 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         .await
         {
             Ok(active_blocks) => {
-                Self::run_control_loop(
-                    &mut endpoints,
-                    &mut domains,
-                    &ids,
-                    &stream_edges_desc,
-                    &message_edges_desc,
-                    active_blocks,
-                    &self.main_rx,
-                )
-                .await
+                Self::run_control_loop(&mut endpoints, &mut domains, active_blocks, &self.main_rx)
+                    .await
             }
             Err(e) => Err(e),
         };

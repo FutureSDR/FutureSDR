@@ -19,6 +19,7 @@ use crate::runtime::TerminatedFlowgraph;
 use crate::runtime::channel::mpsc::channel;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
+use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::scheduler::SmolScheduler;
@@ -318,6 +319,7 @@ async fn start_flowgraph<S: Scheduler>(
     let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
+    let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
     let scheduler_clone = scheduler.clone();
     let task = scheduler.spawn(crate::runtime::flowgraph::run_flowgraph(
         fg,
@@ -325,12 +327,16 @@ async fn start_flowgraph<S: Scheduler>(
         fg_inbox.clone(),
         fg_inbox_rx,
         tx,
+        control_tx,
     ));
 
     rx.await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
+    let control = control_rx.await.map_err(|_| {
+        Error::RuntimeError("run_flowgraph did not publish control endpoints".to_string())
+    })?;
 
-    let handle = FlowgraphHandle::new(fg_inbox);
+    let handle = FlowgraphHandle::new(fg_inbox, control);
     Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
 }
 

@@ -1,7 +1,9 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphMessage;
@@ -10,6 +12,31 @@ use crate::runtime::PortId;
 use crate::runtime::Timer;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
+use crate::runtime::dev::BlockEndpoint;
+
+#[derive(Debug)]
+pub(crate) struct RunningFlowgraphControl {
+    endpoints: Vec<Option<BlockEndpoint>>,
+    ids: Vec<BlockId>,
+    stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+}
+
+impl RunningFlowgraphControl {
+    pub(crate) fn new(
+        endpoints: Vec<Option<BlockEndpoint>>,
+        ids: Vec<BlockId>,
+        stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+        message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    ) -> Self {
+        Self {
+            endpoints,
+            ids,
+            stream_edges,
+            message_edges,
+        }
+    }
+}
 
 /// Clonable control handle for a running [`crate::runtime::Flowgraph`].
 ///
@@ -23,6 +50,7 @@ use crate::runtime::channel::oneshot;
 #[derive(Debug, Clone)]
 pub struct FlowgraphHandle {
     inbox: Sender<FlowgraphMessage>,
+    control: Arc<RunningFlowgraphControl>,
 }
 
 /// Control handle scoped to one block in a running [`crate::runtime::Flowgraph`].
@@ -36,13 +64,31 @@ pub struct FlowgraphBlockHandle {
 }
 
 impl FlowgraphHandle {
-    pub(crate) fn new(inbox: Sender<FlowgraphMessage>) -> FlowgraphHandle {
-        FlowgraphHandle { inbox }
+    pub(crate) fn new(
+        inbox: Sender<FlowgraphMessage>,
+        control: RunningFlowgraphControl,
+    ) -> FlowgraphHandle {
+        FlowgraphHandle {
+            inbox,
+            control: Arc::new(control),
+        }
     }
 
     /// Return whether this flowgraph's control inbox has closed.
     pub fn is_terminated(&self) -> bool {
         self.inbox.is_closed()
+    }
+
+    fn endpoint(&self, block_id: BlockId) -> Result<BlockEndpoint, Error> {
+        if self.is_terminated() {
+            return Err(Error::FlowgraphTerminated);
+        }
+        self.control
+            .endpoints
+            .get(block_id.0)
+            .and_then(Option::as_ref)
+            .cloned()
+            .ok_or(Error::InvalidBlock(block_id))
     }
 
     /// Get a handle scoped to one block in the running flowgraph.
@@ -67,17 +113,14 @@ impl FlowgraphHandle {
         data: Pmt,
     ) -> Result<(), Error> {
         let block_id = block_id.into();
-        let (tx, rx) = oneshot::channel::<Result<(), Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockPost {
-                block_id,
+        let endpoint = self.endpoint(block_id)?;
+        endpoint
+            .send(BlockMessage::Post {
                 port_id: port_id.into(),
                 data,
-                tx,
             })
             .await
-            .or(Err(Error::InvalidBlock(block_id)))?;
-        rx.await?
+            .map_err(|_| Error::BlockTerminated)
     }
 
     /// Call a handler and return its result.
@@ -91,16 +134,16 @@ impl FlowgraphHandle {
         data: Pmt,
     ) -> Result<Pmt, Error> {
         let block_id = block_id.into();
+        let endpoint = self.endpoint(block_id)?;
         let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockCall {
-                block_id,
+        endpoint
+            .send(BlockMessage::Call {
                 port_id: port_id.into(),
                 data,
                 tx,
             })
             .await
-            .map_err(|_| Error::InvalidBlock(block_id))?;
+            .map_err(|_| Error::BlockTerminated)?;
         rx.await?
     }
 
@@ -110,13 +153,24 @@ impl FlowgraphHandle {
     /// message edges. It is the same shape served by the native control-port
     /// API.
     pub async fn describe(&self) -> Result<FlowgraphDescription, Error> {
-        let (tx, rx) = oneshot::channel::<FlowgraphDescription>();
-        self.inbox
-            .send(FlowgraphMessage::FlowgraphDescription { tx })
-            .await
-            .or(Err(Error::FlowgraphTerminated))?;
-        let d = rx.await.or(Err(Error::FlowgraphTerminated))?;
-        Ok(d)
+        if self.is_terminated() {
+            return Err(Error::FlowgraphTerminated);
+        }
+
+        let mut blocks = Vec::new();
+        for id in &self.control.ids {
+            match self.describe_block(*id).await {
+                Ok(block) => blocks.push(block),
+                Err(Error::BlockTerminated) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(FlowgraphDescription {
+            blocks,
+            stream_edges: self.control.stream_edges.clone(),
+            message_edges: self.control.message_edges.clone(),
+        })
     }
 
     /// Describe one block in the running flowgraph.
@@ -125,13 +179,13 @@ impl FlowgraphHandle {
         block_id: impl Into<BlockId>,
     ) -> Result<BlockDescription, Error> {
         let block_id = block_id.into();
-        let (tx, rx) = oneshot::channel::<Result<BlockDescription, Error>>();
-        self.inbox
-            .send(FlowgraphMessage::BlockDescription { block_id, tx })
+        let endpoint = self.endpoint(block_id)?;
+        let (tx, rx) = oneshot::channel::<BlockDescription>();
+        endpoint
+            .send(BlockMessage::BlockDescription { tx })
             .await
-            .map_err(|_| Error::InvalidBlock(block_id))?;
-        let d = rx.await.map_err(|_| Error::InvalidBlock(block_id))??;
-        Ok(d)
+            .map_err(|_| Error::BlockTerminated)?;
+        rx.await.map_err(|_| Error::BlockTerminated)
     }
 
     /// Send a stop message to the [`crate::runtime::Flowgraph`].

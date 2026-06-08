@@ -275,40 +275,6 @@ pub enum FlowgraphMessage {
         /// The error returned by the block.
         error: Error,
     },
-    /// Post a message to a block handler without waiting for handler completion.
-    BlockPost {
-        /// Block Id
-        block_id: BlockId,
-        /// Message handler Id
-        port_id: PortId,
-        /// Input data
-        data: Pmt,
-        /// Back channel for runtime forwarding result
-        tx: oneshot::Sender<Result<(), Error>>,
-    },
-    /// Call a block handler and wait for its return value.
-    BlockCall {
-        /// Block Id
-        block_id: BlockId,
-        /// Message handler Id
-        port_id: PortId,
-        /// Input data
-        data: Pmt,
-        /// Back channel for handler result
-        tx: oneshot::Sender<Result<Pmt, Error>>,
-    },
-    /// Get [`FlowgraphDescription`]
-    FlowgraphDescription {
-        /// Back channel for result
-        tx: oneshot::Sender<FlowgraphDescription>,
-    },
-    /// Get [`BlockDescription`]
-    BlockDescription {
-        /// Block Id
-        block_id: BlockId,
-        /// Back channel for result
-        tx: oneshot::Sender<Result<BlockDescription, Error>>,
-    },
 }
 
 /// Block inbox message type
