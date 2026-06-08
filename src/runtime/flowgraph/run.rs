@@ -1,6 +1,5 @@
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
-use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
@@ -10,18 +9,18 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
-use crate::runtime::scheduler::DomainTopology;
-use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::NormalBlocks;
-use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::RunningDomain;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::StoppedDomain;
 
 use super::Flowgraph;
 use super::connector::FlowgraphConnector;
+use super::prepare::ConnectionPlan;
+use super::prepare::DomainStartPlan;
 use super::prepare::FlowgraphCompiler;
 use super::prepare::RuntimePlan;
+use super::prepare::RuntimePlanParts;
 use super::prepare::StartupSnapshot;
 use super::storage;
 use super::terminated::TerminatedFlowgraph;
@@ -134,32 +133,28 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    fn compile_runtime_plan(&mut self) -> Result<RuntimePlan, Error> {
+    fn compile_plan(&mut self) -> Result<RuntimePlan, Error> {
         FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).compile()
     }
 
-    async fn apply_edges(
-        &mut self,
-        stream_edges: &[Edge],
-        message_edges: &[Edge],
-    ) -> Result<(), Error> {
+    async fn apply_connections(&mut self, connections: &ConnectionPlan) -> Result<(), Error> {
         let mut connector = FlowgraphConnector::new(&mut self.flowgraph);
-        connector.apply_stream_edges(stream_edges).await?;
-        connector.apply_message_edges(message_edges).await
+        connector
+            .apply_stream_edges(connections.stream_edges())
+            .await?;
+        connector
+            .apply_message_edges(connections.message_edges())
+            .await
     }
 
     async fn start_domains(
         &mut self,
         endpoints: &mut [Option<BlockEndpoint>],
-        normal_topology: DomainTopology,
-        local_specs: Vec<LocalDomainSpec>,
+        domain_plan: DomainStartPlan,
     ) -> Result<Vec<RunningDomain>, Error> {
         let blocks = storage::take_normal_blocks(&mut self.flowgraph.blocks)?;
-        let normal_domain = self.scheduler.start_normal_domain(NormalDomainSpec::new(
-            blocks,
-            normal_topology,
-            self.main_channel.clone(),
-        ))?;
+        let (normal_spec, local_specs) = domain_plan.into_specs(blocks);
+        let normal_domain = self.scheduler.start_normal_domain(normal_spec)?;
 
         let mut domains = Vec::with_capacity(1 + local_specs.len());
         domains.push(RunningDomain::Normal(normal_domain));
@@ -179,7 +174,8 @@ impl<S: Scheduler> FlowgraphRunner<S> {
 
         Ok(domains)
     }
-    async fn initialize_blocks(
+
+    async fn initialize(
         endpoints: &mut [Option<BlockEndpoint>],
         main_rx: &Receiver<FlowgraphMessage>,
         initialized: &mut Option<oneshot::Sender<Result<(), Error>>>,
@@ -241,7 +237,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         Ok(active_blocks)
     }
 
-    async fn run_lifecycle_loop(
+    async fn drive_until_complete(
         endpoints: &mut [Option<BlockEndpoint>],
         domains: &mut [RunningDomain],
         mut active_blocks: u32,
@@ -290,38 +286,41 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
+    async fn recover_stopped_domains(&mut self, domains: Vec<RunningDomain>) -> Result<(), Error> {
+        let finished_blocks = self.join_domains(domains).await?;
+        storage::restore_normal_blocks(&mut self.flowgraph.blocks, finished_blocks)
+    }
+
     async fn run(mut self) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
         let mut initialized = self.initialized.take();
 
-        let prepared = match self.compile_runtime_plan() {
-            Ok(prepared) => prepared,
+        let plan = match self.compile_plan() {
+            Ok(plan) => plan,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
-        let RuntimePlan {
-            startup,
-            stream_edges,
-            message_edges,
-            stream_edges_desc,
-            message_edges_desc,
-            normal_topology,
-            local_specs,
-        } = prepared;
-        let StartupSnapshot { mut endpoints, ids } = startup;
-        self.publish_control(&endpoints, &ids, &stream_edges_desc, &message_edges_desc);
+        let RuntimePlanParts {
+            control,
+            connections,
+            domains: domain_plan,
+        } = plan.into_parts();
+        let StartupSnapshot { mut endpoints, ids } = control.startup;
+        self.publish_control(
+            &endpoints,
+            &ids,
+            &control.stream_edges_desc,
+            &control.message_edges_desc,
+        );
 
-        if let Err(e) = self.apply_edges(&stream_edges, &message_edges).await {
+        if let Err(e) = self.apply_connections(&connections).await {
             Self::send_initialized_error(&mut initialized, e.clone());
             return Err(e);
         }
 
-        let mut domains = match self
-            .start_domains(&mut endpoints, normal_topology, local_specs)
-            .await
-        {
+        let mut domains = match self.start_domains(&mut endpoints, domain_plan).await {
             Ok(domains) => domains,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
@@ -330,9 +329,9 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         };
 
         let run_result =
-            match Self::initialize_blocks(&mut endpoints, &self.main_rx, &mut initialized).await {
+            match Self::initialize(&mut endpoints, &self.main_rx, &mut initialized).await {
                 Ok(active_blocks) => {
-                    Self::run_lifecycle_loop(
+                    Self::drive_until_complete(
                         &mut endpoints,
                         &mut domains,
                         active_blocks,
@@ -356,9 +355,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             return Err(e);
         }
 
-        let finished_blocks = self.join_domains(domains).await?;
-        storage::restore_normal_blocks(&mut self.flowgraph.blocks, finished_blocks)?;
-
+        self.recover_stopped_domains(domains).await?;
         Ok(TerminatedFlowgraph::new(self.flowgraph))
     }
 }

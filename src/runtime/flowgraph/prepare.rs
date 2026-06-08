@@ -9,6 +9,8 @@ use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::NormalBlocks;
+use crate::runtime::scheduler::NormalDomainSpec;
 
 use super::Flowgraph;
 use super::storage;
@@ -37,52 +39,61 @@ struct GraphPlan {
     local_domains: Vec<LocalDomainPlan>,
 }
 
-pub(super) struct RuntimePlan {
+pub(super) struct ControlPlan {
     pub(super) startup: StartupSnapshot,
-    pub(super) stream_edges: Vec<Edge>,
-    pub(super) message_edges: Vec<Edge>,
     pub(super) stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     pub(super) message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    pub(super) normal_topology: DomainTopology,
-    pub(super) local_specs: Vec<LocalDomainSpec>,
 }
 
-impl RuntimePlan {
-    fn from_graph_plan(plan: GraphPlan, main_channel: Sender<FlowgraphMessage>) -> Self {
-        let GraphPlan {
-            startup,
-            stream_edges,
-            message_edges,
-            stream_edges_desc,
-            message_edges_desc,
-            normal_block_ids,
-            local_domains,
-        } = plan;
+pub(super) struct ConnectionPlan {
+    stream_edges: Vec<Edge>,
+    message_edges: Vec<Edge>,
+}
 
-        let normal_topology =
-            Self::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
-        let local_specs = local_domains
-            .into_iter()
-            .map(|domain| {
-                LocalDomainSpec::new(
-                    domain.domain_id,
-                    domain.inbox,
-                    domain.slots,
-                    Self::domain_topology(&domain.block_ids, &stream_edges, &message_edges),
-                    main_channel.clone(),
-                )
-            })
-            .collect();
-
+impl ConnectionPlan {
+    fn new(stream_edges: Vec<Edge>, message_edges: Vec<Edge>) -> Self {
         Self {
-            startup,
             stream_edges,
             message_edges,
-            stream_edges_desc,
-            message_edges_desc,
+        }
+    }
+
+    pub(super) fn stream_edges(&self) -> &[Edge] {
+        &self.stream_edges
+    }
+
+    pub(super) fn message_edges(&self) -> &[Edge] {
+        &self.message_edges
+    }
+}
+
+pub(super) struct DomainStartPlan {
+    normal_topology: DomainTopology,
+    local_specs: Vec<LocalDomainSpec>,
+    main_channel: Sender<FlowgraphMessage>,
+}
+
+impl DomainStartPlan {
+    fn new(
+        normal_topology: DomainTopology,
+        local_specs: Vec<LocalDomainSpec>,
+        main_channel: Sender<FlowgraphMessage>,
+    ) -> Self {
+        Self {
             normal_topology,
             local_specs,
+            main_channel,
         }
+    }
+
+    pub(super) fn into_specs(
+        self,
+        normal_blocks: NormalBlocks,
+    ) -> (NormalDomainSpec, Vec<LocalDomainSpec>) {
+        (
+            NormalDomainSpec::new(normal_blocks, self.normal_topology, self.main_channel),
+            self.local_specs,
+        )
     }
 
     fn domain_topology(
@@ -106,6 +117,69 @@ impl RuntimePlan {
                 .cloned()
                 .collect(),
         )
+    }
+}
+
+pub(super) struct RuntimePlan {
+    control: ControlPlan,
+    connections: ConnectionPlan,
+    domains: DomainStartPlan,
+}
+
+pub(super) struct RuntimePlanParts {
+    pub(super) control: ControlPlan,
+    pub(super) connections: ConnectionPlan,
+    pub(super) domains: DomainStartPlan,
+}
+
+impl RuntimePlan {
+    fn from_graph_plan(plan: GraphPlan, main_channel: Sender<FlowgraphMessage>) -> Self {
+        let GraphPlan {
+            startup,
+            stream_edges,
+            message_edges,
+            stream_edges_desc,
+            message_edges_desc,
+            normal_block_ids,
+            local_domains,
+        } = plan;
+
+        let normal_topology =
+            DomainStartPlan::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
+        let local_specs = local_domains
+            .into_iter()
+            .map(|domain| {
+                LocalDomainSpec::new(
+                    domain.domain_id,
+                    domain.inbox,
+                    domain.slots,
+                    DomainStartPlan::domain_topology(
+                        &domain.block_ids,
+                        &stream_edges,
+                        &message_edges,
+                    ),
+                    main_channel.clone(),
+                )
+            })
+            .collect();
+
+        Self {
+            control: ControlPlan {
+                startup,
+                stream_edges_desc,
+                message_edges_desc,
+            },
+            connections: ConnectionPlan::new(stream_edges, message_edges),
+            domains: DomainStartPlan::new(normal_topology, local_specs, main_channel),
+        }
+    }
+
+    pub(super) fn into_parts(self) -> RuntimePlanParts {
+        RuntimePlanParts {
+            control: self.control,
+            connections: self.connections,
+            domains: self.domains,
+        }
     }
 }
 
@@ -289,14 +363,19 @@ mod tests {
 
         let (main_channel, _main_rx) = channel::<FlowgraphMessage>(8);
         let plan = FlowgraphCompiler::new(&mut fg, main_channel).compile()?;
+        let RuntimePlanParts {
+            control,
+            connections,
+            domains,
+        } = plan.into_parts();
 
         assert!(fg.stream_edges.is_empty());
-        assert_eq!(plan.startup.ids, vec![src.id(), snk.id()]);
-        assert_eq!(plan.startup.endpoints.len(), 2);
-        assert_eq!(plan.stream_edges.len(), 1);
-        assert!(plan.message_edges.is_empty());
+        assert_eq!(control.startup.ids, vec![src.id(), snk.id()]);
+        assert_eq!(control.startup.endpoints.len(), 2);
+        assert_eq!(connections.stream_edges().len(), 1);
+        assert!(connections.message_edges().is_empty());
         assert_eq!(
-            plan.stream_edges_desc,
+            control.stream_edges_desc,
             vec![(
                 src.id(),
                 PortId::from("output"),
@@ -304,12 +383,12 @@ mod tests {
                 PortId::from("input")
             )]
         );
-        assert_eq!(plan.normal_topology.blocks(), &[src.id(), snk.id()]);
+        assert_eq!(domains.normal_topology.blocks(), &[src.id(), snk.id()]);
         assert_eq!(
-            plan.normal_topology.stream_edges(),
-            plan.stream_edges.as_slice()
+            domains.normal_topology.stream_edges(),
+            connections.stream_edges()
         );
-        assert!(plan.local_specs.is_empty());
+        assert!(domains.local_specs.is_empty());
 
         Ok(())
     }
