@@ -361,7 +361,14 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                     start_requested = true;
                 }
                 BlockMessage::Terminate => {
-                    debug!("{} terminating before initialization", instance_name);
+                    if initialized {
+                        debug!("{} terminating before start", instance_name);
+                        kernel.stream_ports_notify_finished().await;
+                        mo.notify_finished().await;
+                        kernel.deinit(mo, meta).await.map_err(Error::from)?;
+                    } else {
+                        debug!("{} terminating before initialization", instance_name);
+                    }
                     return Ok(());
                 }
                 msg => startup_messages.push_back(msg),
