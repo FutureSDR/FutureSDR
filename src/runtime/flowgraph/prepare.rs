@@ -121,25 +121,6 @@ impl<'a> FlowgraphCompiler<'a> {
         )
     }
 
-    fn endpoints(
-        &self,
-    ) -> Result<
-        (
-            Vec<Option<crate::runtime::dev::BlockEndpoint>>,
-            Vec<BlockId>,
-        ),
-        Error,
-    > {
-        let mut endpoints = Vec::with_capacity(self.flowgraph.blocks.len());
-        let mut ids = Vec::with_capacity(self.flowgraph.blocks.len());
-        for (id, entry) in self.flowgraph.blocks.iter().enumerate() {
-            let block_id = BlockId(id);
-            endpoints.push(Some(entry.endpoint().clone()));
-            ids.push(block_id);
-        }
-        Ok((endpoints, ids))
-    }
-
     fn validate_stream_graph(&self) -> Result<(), Error> {
         let mut adjacency = vec![Vec::new(); self.flowgraph.blocks.len()];
         let mut connected_inputs = Vec::with_capacity(self.flowgraph.stream_edges.len());
@@ -206,7 +187,7 @@ impl<'a> FlowgraphCompiler<'a> {
     }
 
     fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
-        let (endpoints, ids) = self.endpoints()?;
+        let (endpoints, ids) = storage::endpoints(&self.flowgraph.blocks)?;
         Ok(StartupSnapshot { endpoints, ids })
     }
 

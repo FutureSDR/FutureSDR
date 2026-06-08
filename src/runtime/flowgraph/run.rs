@@ -26,28 +26,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     .await
 }
 
-impl Flowgraph {
-    fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {
-        let mut blocks = Vec::with_capacity(self.blocks.len());
-        for entry in self.blocks.iter_mut() {
-            if let Some(block) = entry.take_normal_block()? {
-                blocks.push(block);
-            }
-        }
-        Ok(blocks)
-    }
-
-    fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        for block in blocks {
-            let id = block.id();
-            let entry = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
-            entry.restore_normal_block(block)?;
-        }
-
-        Ok(())
-    }
-}
-
 impl<S: Scheduler> FlowgraphRunner<S> {
     fn send_initialized_error(
         initialized: &mut Option<oneshot::Sender<Result<(), Error>>>,
@@ -130,7 +108,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         normal_topology: DomainTopology,
         local_specs: Vec<LocalDomainSpec>,
     ) -> Result<Vec<RunningDomain>, Error> {
-        let blocks = self.flowgraph.take_blocks()?;
+        let blocks = storage::take_normal_blocks(&mut self.flowgraph.blocks)?;
         let normal_domain = self.scheduler.start_normal_domain(NormalDomainSpec::new(
             blocks,
             normal_topology,
@@ -441,7 +419,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
 
         let finished_blocks = self.join_domains(domains).await?;
-        self.flowgraph.restore_blocks(finished_blocks)?;
+        storage::restore_normal_blocks(&mut self.flowgraph.blocks, finished_blocks)?;
 
         Ok(TerminatedFlowgraph::new(self.flowgraph))
     }
