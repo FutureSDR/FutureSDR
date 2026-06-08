@@ -1,4 +1,37 @@
+use std::sync::Arc;
+
 use super::*;
+
+struct StreamOutputSendTokenLease {
+    location: BlockLocation,
+    port_id: PortId,
+    token: Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
+}
+
+impl StreamOutputSendTokenLease {
+    fn new(
+        location: BlockLocation,
+        port_id: PortId,
+        token: Box<dyn DynSendBufferWriterToken>,
+    ) -> Self {
+        Self {
+            location,
+            port_id,
+            token: Arc::new(async_lock::Mutex::new(Some(token))),
+        }
+    }
+
+    fn shared_token(&self) -> Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>> {
+        Arc::clone(&self.token)
+    }
+
+    async fn into_parts(
+        self,
+    ) -> Result<(BlockLocation, PortId, Box<dyn DynSendBufferWriterToken>), Error> {
+        let token = self.token.lock().await.take().ok_or(Error::LockError)?;
+        Ok((self.location, self.port_id, token))
+    }
+}
 
 impl Flowgraph {
     pub(super) fn stream_ports_edge<B: BufferWriter>(
@@ -165,36 +198,39 @@ impl Flowgraph {
         .await
     }
 
-    async fn take_stream_output_send_token(
+    async fn lease_stream_output_send_token(
         &mut self,
         location: BlockLocation,
         port_id: &PortId,
-    ) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
+    ) -> Result<StreamOutputSendTokenLease, Error> {
         let port_id = port_id.clone();
-        self.with_block_mut(location, move |block| {
-            let writer = block.stream_output(&port_id).map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+        let token = self
+            .with_block_mut(location, {
+                let port_id = port_id.clone();
+                move |block| {
+                    let writer = block.stream_output(&port_id).map_err(|e| match e {
+                        Error::InvalidStreamPort(_, port) => {
+                            Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                        }
+                        o => o,
+                    })?;
+                    writer.take_send_token().map_err(|e| match e {
+                        Error::InvalidStreamPort(_, port) => {
+                            Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                        }
+                        o => o,
+                    })
                 }
-                o => o,
-            })?;
-            writer.take_send_token().map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                }
-                o => o,
             })
-        })
-        .await
+            .await?;
+        Ok(StreamOutputSendTokenLease::new(location, port_id, token))
     }
 
-    async fn replace_stream_output_send_token(
+    async fn restore_stream_output_send_token(
         &mut self,
-        location: BlockLocation,
-        port_id: &PortId,
-        token: Box<dyn DynSendBufferWriterToken>,
+        lease: StreamOutputSendTokenLease,
     ) -> Result<(), Error> {
-        let port_id = port_id.clone();
+        let (location, port_id, token) = lease.into_parts().await?;
         self.with_block_mut(location, move |block| {
             let writer = block.stream_output(&port_id).map_err(|e| match e {
                 Error::InvalidStreamPort(_, port) => {
@@ -214,11 +250,12 @@ impl Flowgraph {
 
     async fn connect_send_token_to_input(
         &mut self,
-        token: Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
+        lease: &StreamOutputSendTokenLease,
         src_block_id: BlockId,
         dst: BlockLocation,
         dst_port_id: PortId,
     ) -> Result<(), Error> {
+        let token = lease.shared_token();
         match dst.domain {
             DomainLocation::Normal => {
                 let mut token = token.lock().await;
@@ -279,19 +316,16 @@ impl Flowgraph {
     ) -> Result<Edge, Error> {
         let src_block_id = src.block_id;
         let dst_block_id = dst.block_id;
-        let token = self
-            .take_stream_output_send_token(src, &src_port_id)
+        let lease = self
+            .lease_stream_output_send_token(src, &src_port_id)
             .await?;
-        let token = Arc::new(async_lock::Mutex::new(Some(token)));
 
         let connect_result = self
-            .connect_send_token_to_input(Arc::clone(&token), src_block_id, dst, dst_port_id.clone())
+            .connect_send_token_to_input(&lease, src_block_id, dst, dst_port_id.clone())
             .await
             .map(|()| Edge::new(src_block_id, src_port_id.clone(), dst_block_id, dst_port_id));
 
-        let token = token.lock().await.take().ok_or(Error::LockError)?;
-        self.replace_stream_output_send_token(src, &src_port_id, token)
-            .await?;
+        self.restore_stream_output_send_token(lease).await?;
         connect_result
     }
 
