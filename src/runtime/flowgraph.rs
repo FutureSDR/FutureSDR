@@ -52,20 +52,8 @@ use types::BlockPlacement;
 use types::DomainLocation;
 use types::StreamEdge;
 
-pub(super) enum BlockSlot {
-    Normal(NormalFlowgraphBlockSlot),
-    Local(LocalFlowgraphBlockSlot),
-}
-
-pub(super) struct NormalFlowgraphBlockSlot {
-    endpoint: BlockEndpoint,
-    message_inputs: &'static [&'static str],
-    message_outputs: &'static [&'static str],
-}
-
-pub(super) struct LocalFlowgraphBlockSlot {
-    domain_id: usize,
-    local_id: usize,
+pub(super) struct BlockSlot {
+    placement: BlockPlacement,
     endpoint: BlockEndpoint,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
@@ -77,11 +65,12 @@ impl BlockSlot {
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
-        Self::Normal(NormalFlowgraphBlockSlot {
+        Self {
+            placement: BlockPlacement::Normal,
             endpoint,
             message_inputs,
             message_outputs,
-        })
+        }
     }
 
     fn local(
@@ -91,23 +80,19 @@ impl BlockSlot {
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
-        Self::Local(LocalFlowgraphBlockSlot {
-            domain_id,
-            local_id,
+        Self {
+            placement: BlockPlacement::Local {
+                domain_id,
+                local_id,
+            },
             endpoint,
             message_inputs,
             message_outputs,
-        })
+        }
     }
 
     fn placement(&self) -> BlockPlacement {
-        match self {
-            Self::Normal(_) => BlockPlacement::Normal,
-            Self::Local(slot) => BlockPlacement::Local {
-                domain_id: slot.domain_id,
-                local_id: slot.local_id,
-            },
-        }
+        self.placement
     }
 
     fn location(&self, block_id: BlockId) -> BlockLocation {
@@ -115,28 +100,19 @@ impl BlockSlot {
     }
 
     fn endpoint(&self) -> &BlockEndpoint {
-        match self {
-            Self::Normal(slot) => &slot.endpoint,
-            Self::Local(slot) => &slot.endpoint,
-        }
+        &self.endpoint
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {
-        match self {
-            Self::Normal(slot) => slot.message_inputs,
-            Self::Local(slot) => slot.message_inputs,
-        }
+        self.message_inputs
     }
 
     fn message_outputs(&self) -> &'static [&'static str] {
-        match self {
-            Self::Normal(slot) => slot.message_outputs,
-            Self::Local(slot) => slot.message_outputs,
-        }
+        self.message_outputs
     }
 
     fn is_normal(&self) -> bool {
-        matches!(self, Self::Normal(_))
+        matches!(self.placement, BlockPlacement::Normal)
     }
 }
 
@@ -577,7 +553,7 @@ impl Flowgraph {
                 domain.flowgraph_id, self.id
             )));
         }
-        if domain.domain_id >= self.domains.local_len() {
+        if self.domains.local(domain.domain_id).is_none() {
             return Err(Error::ValidationError("invalid local domain".to_string()));
         }
         Ok(domain.domain_id)
@@ -602,7 +578,7 @@ impl Flowgraph {
                 let block_id = BlockId(block_id);
                 let location = entry.location(block_id);
                 if let DomainLocation::Local(domain_id) = location.domain
-                    && domain_id >= self.domains.local_len()
+                    && self.domains.local(domain_id).is_none()
                 {
                     return Err(Error::InvalidBlock(block_id));
                 }

@@ -8,65 +8,102 @@ use crate::runtime::scheduler::NormalBlocks;
 
 use super::BlockSlot;
 
+/// The implicit normal domain always occupies domain slot 0.
+pub(super) const NORMAL_DOMAIN_ID: usize = 0;
+
+/// One construction/final-inspection scheduling domain.
+enum FlowgraphDomain {
+    Normal(NormalDomain),
+    Local(LocalDomainRuntime),
+}
+
 /// Internal domain registry owned by a flowgraph during construction and final inspection.
 ///
-/// The normal domain is public-API implicit, but keeping it here beside local
-/// domains lets runtime lifecycle code operate on domains uniformly.
+/// The public API still has an implicit normal domain, but internally it is the
+/// first entry in the same domain table that stores user-created local domains.
 pub(super) struct FlowgraphDomains {
-    normal: NormalDomain,
-    locals: Vec<LocalDomainRuntime>,
+    domains: Vec<FlowgraphDomain>,
 }
 
 impl FlowgraphDomains {
     pub(super) fn new() -> Self {
         Self {
-            normal: NormalDomain::new(),
-            locals: Vec::new(),
+            domains: vec![FlowgraphDomain::Normal(NormalDomain::new())],
         }
     }
 
+    pub(super) fn domain_len(&self) -> usize {
+        self.domains.len()
+    }
+
+    pub(super) fn local_domain_ids(&self) -> impl Iterator<Item = usize> + '_ {
+        self.domains
+            .iter()
+            .enumerate()
+            .filter_map(|(domain_id, domain)| {
+                matches!(domain, FlowgraphDomain::Local(_)).then_some(domain_id)
+            })
+    }
+
     pub(super) fn normal(&self) -> &NormalDomain {
-        &self.normal
+        match self
+            .domains
+            .get(NORMAL_DOMAIN_ID)
+            .expect("flowgraph missing implicit normal domain")
+        {
+            FlowgraphDomain::Normal(domain) => domain,
+            FlowgraphDomain::Local(_) => unreachable!("domain 0 must be the normal domain"),
+        }
     }
 
     pub(super) fn normal_mut(&mut self) -> &mut NormalDomain {
-        &mut self.normal
-    }
-
-    pub(super) fn local_len(&self) -> usize {
-        self.locals.len()
+        match self
+            .domains
+            .get_mut(NORMAL_DOMAIN_ID)
+            .expect("flowgraph missing implicit normal domain")
+        {
+            FlowgraphDomain::Normal(domain) => domain,
+            FlowgraphDomain::Local(_) => unreachable!("domain 0 must be the normal domain"),
+        }
     }
 
     pub(super) fn push_local(&mut self, domain: LocalDomainRuntime) -> usize {
-        let domain_id = self.locals.len();
-        self.locals.push(domain);
+        let domain_id = self.domains.len();
+        self.domains.push(FlowgraphDomain::Local(domain));
         domain_id
     }
 
     pub(super) fn local(&self, domain_id: usize) -> Option<&LocalDomainRuntime> {
-        self.locals.get(domain_id)
+        match self.domains.get(domain_id) {
+            Some(FlowgraphDomain::Local(domain)) => Some(domain),
+            _ => None,
+        }
     }
 
     pub(super) fn local_mut(&mut self, domain_id: usize) -> Option<&mut LocalDomainRuntime> {
-        self.locals.get_mut(domain_id)
+        match self.domains.get_mut(domain_id) {
+            Some(FlowgraphDomain::Local(domain)) => Some(domain),
+            _ => None,
+        }
     }
 
     pub(super) fn take_normal_blocks(
         &mut self,
         blocks: &[BlockSlot],
     ) -> Result<NormalBlocks, Error> {
-        self.normal.take_blocks(Self::normal_block_ids(blocks))
+        self.normal_mut()
+            .take_blocks(Self::normal_block_ids(blocks))
     }
 
     pub(super) fn restore_normal_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        self.normal.restore_blocks(blocks)
+        self.normal_mut().restore_blocks(blocks)
     }
 
     fn normal_block_ids(blocks: &[BlockSlot]) -> impl Iterator<Item = BlockId> + '_ {
         blocks
             .iter()
             .enumerate()
-            .filter_map(|(id, slot)| matches!(slot, BlockSlot::Normal(_)).then_some(BlockId(id)))
+            .filter_map(|(id, slot)| slot.is_normal().then_some(BlockId(id)))
     }
 }
 
@@ -337,6 +374,16 @@ mod tests {
         async fn run(&mut self, _main_inbox: Sender<FlowgraphMessage>) {
             let _ = BlockMessage::Terminate;
         }
+    }
+
+    #[test]
+    fn domain_table_starts_with_implicit_normal_domain() {
+        let domains = FlowgraphDomains::new();
+
+        assert_eq!(domains.domain_len(), 1);
+        assert!(domains.local(NORMAL_DOMAIN_ID).is_none());
+        assert!(domains.local_domain_ids().next().is_none());
+        let _ = domains.normal();
     }
 
     #[test]

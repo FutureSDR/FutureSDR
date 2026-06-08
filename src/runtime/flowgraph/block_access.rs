@@ -93,8 +93,8 @@ pub(super) fn typed_guard_mut<'a, K: 'static>(
 
 fn ensure_normal_slot(blocks: &[BlockSlot], block_id: BlockId) -> Result<(), Error> {
     match blocks.get(block_id.0) {
-        Some(BlockSlot::Normal(_)) => Ok(()),
-        Some(BlockSlot::Local(_)) => Err(Error::LockError),
+        Some(slot) if slot.is_normal() => Ok(()),
+        Some(_) => Err(Error::LockError),
         None => Err(Error::InvalidBlock(block_id)),
     }
 }

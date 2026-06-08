@@ -285,17 +285,18 @@ impl<'a> FlowgraphCompiler<'a> {
     }
 
     fn local_domain_plans(&self, block_locations: &[BlockLocation]) -> Vec<LocalDomainPlan> {
-        let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.domains.local_len()];
+        let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.domains.domain_len()];
         for location in block_locations {
             if let DomainLocation::Local(domain_id) = location.domain {
                 local_slots_by_domain[domain_id].push((location.block_id, location.domain_slot));
             }
         }
 
-        local_slots_by_domain
-            .into_iter()
-            .enumerate()
-            .filter_map(|(domain_id, slots)| {
+        self.flowgraph
+            .domains
+            .local_domain_ids()
+            .filter_map(|domain_id| {
+                let slots = std::mem::take(&mut local_slots_by_domain[domain_id]);
                 if slots.is_empty() {
                     return None;
                 }
