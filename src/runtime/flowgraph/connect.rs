@@ -52,9 +52,9 @@ impl Flowgraph {
 
     async fn local_local_stream_edge_async<KS, KD, B, FS, FD>(
         &self,
-        src: LocalEndpoint,
+        src: BlockLocation,
         src_port: FS,
-        dst: LocalEndpoint,
+        dst: BlockLocation,
         dst_port: FD,
     ) -> Result<Edge, Error>
     where
@@ -64,22 +64,21 @@ impl Flowgraph {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        if src.domain_id != dst.domain_id {
-            return Err(Error::ValidationError(
-                "stream connections between different local domains are not supported".to_string(),
-            ));
-        }
+        let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
+        let DomainLocation::Local(domain_id) = src.domain else {
+            unreachable!("same_local_stream_locations ensures a local domain")
+        };
         let domain = self
             .local_domains
-            .get(src.domain_id)
+            .get(domain_id)
             .ok_or(Error::InvalidBlock(src.block_id))?;
         domain
             .exec(move |state| {
                 let result = (|| {
                     let (src, dst) = Self::two_local_state_kernels_mut::<KS, KD>(
                         state,
-                        (src.local_id, src.block_id),
-                        (dst.local_id, dst.block_id),
+                        (src.domain_slot, src.block_id),
+                        (dst.domain_slot, dst.block_id),
                     )?;
                     Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
                 })();

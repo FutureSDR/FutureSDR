@@ -155,36 +155,6 @@ impl BlockPlacement {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(super) struct LocalEndpoint {
-    pub(super) block_id: BlockId,
-    pub(super) domain_id: usize,
-    pub(super) local_id: usize,
-}
-
-impl LocalEndpoint {
-    pub(super) fn new(block_id: BlockId, domain_id: usize, local_id: usize) -> Self {
-        Self {
-            block_id,
-            domain_id,
-            local_id,
-        }
-    }
-}
-
-impl BlockLocation {
-    pub(super) fn local_endpoint(self) -> Option<LocalEndpoint> {
-        match self.domain {
-            DomainLocation::Normal => None,
-            DomainLocation::Local(domain_id) => Some(LocalEndpoint::new(
-                self.block_id,
-                domain_id,
-                self.domain_slot,
-            )),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(super) struct StreamEdge {
     pub(super) edge: Edge,
@@ -357,9 +327,5 @@ mod tests {
         assert_eq!(local.block_id, BlockId(5));
         assert_eq!(local.domain, DomainLocation::Local(2));
         assert_eq!(local.domain_slot, 7);
-        assert_eq!(
-            local.local_endpoint(),
-            Some(LocalEndpoint::new(BlockId(5), 2, 7))
-        );
     }
 }

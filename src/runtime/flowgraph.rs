@@ -70,7 +70,6 @@ use local_context::LocalDomainContextEntry;
 use types::BlockLocation;
 use types::BlockPlacement;
 use types::DomainLocation;
-use types::LocalEndpoint;
 use types::PreparedFlowgraph;
 use types::StartupSnapshot;
 use types::StreamEdge;
@@ -628,17 +627,12 @@ impl Flowgraph {
         src: BlockLocation,
         dst: BlockLocation,
         dynamic: bool,
-    ) -> Result<(LocalEndpoint, LocalEndpoint), Error> {
+    ) -> Result<(BlockLocation, BlockLocation), Error> {
         match (src.domain, dst.domain) {
             (DomainLocation::Local(src_domain), DomainLocation::Local(dst_domain))
                 if src_domain == dst_domain =>
             {
-                Ok((
-                    src.local_endpoint()
-                        .expect("local domain has local endpoint"),
-                    dst.local_endpoint()
-                        .expect("local domain has local endpoint"),
-                ))
+                Ok((src, dst))
             }
             (DomainLocation::Local(_), DomainLocation::Local(_)) => Err(Error::ValidationError(
                 "stream connections between different local domains are not supported".to_string(),
