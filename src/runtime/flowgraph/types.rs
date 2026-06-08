@@ -172,33 +172,7 @@ impl LocalEndpoint {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(super) enum StreamEndpoint {
-    Normal(BlockId),
-    Local(LocalEndpoint),
-}
-
-impl StreamEndpoint {
-    pub(super) fn block_id(self) -> BlockId {
-        match self {
-            Self::Normal(block_id) => block_id,
-            Self::Local(endpoint) => endpoint.block_id,
-        }
-    }
-}
-
 impl BlockLocation {
-    pub(super) fn stream_endpoint(self) -> StreamEndpoint {
-        match self.domain {
-            DomainLocation::Normal => StreamEndpoint::Normal(self.block_id),
-            DomainLocation::Local(domain_id) => StreamEndpoint::Local(LocalEndpoint::new(
-                self.block_id,
-                domain_id,
-                self.domain_slot,
-            )),
-        }
-    }
-
     pub(super) fn local_endpoint(self) -> Option<LocalEndpoint> {
         match self.domain {
             DomainLocation::Normal => None,
@@ -427,7 +401,6 @@ mod tests {
         assert_eq!(normal.block_id, BlockId(3));
         assert_eq!(normal.domain, DomainLocation::Normal);
         assert_eq!(normal.domain_slot, 3);
-        assert_eq!(normal.stream_endpoint(), StreamEndpoint::Normal(BlockId(3)));
 
         let local = BlockPlacement::Local {
             domain_id: 2,

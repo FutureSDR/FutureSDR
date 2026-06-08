@@ -73,7 +73,6 @@ use types::LocalEndpoint;
 use types::PreparedFlowgraph;
 use types::StartupSnapshot;
 use types::StreamEdge;
-use types::StreamEndpoint;
 
 struct BlockEntry {
     block: Option<Box<dyn Block>>,
