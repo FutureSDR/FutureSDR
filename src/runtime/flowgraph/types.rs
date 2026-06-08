@@ -175,21 +175,6 @@ impl StreamEdge {
     }
 }
 
-pub(super) struct StartupSnapshot {
-    pub(super) endpoints: Vec<Option<BlockEndpoint>>,
-    pub(super) ids: Vec<BlockId>,
-}
-
-pub(super) struct PreparedFlowgraph {
-    pub(super) startup: StartupSnapshot,
-    pub(super) stream_edges: Vec<Edge>,
-    pub(super) message_edges: Vec<Edge>,
-    pub(super) stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    pub(super) message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    pub(super) normal_topology: DomainTopology,
-    pub(super) local_specs: Vec<LocalDomainSpec>,
-}
-
 impl<K> BlockRef<K> {
     /// Get the block id.
     pub fn id(&self) -> BlockId {

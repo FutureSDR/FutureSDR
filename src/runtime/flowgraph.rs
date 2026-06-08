@@ -55,6 +55,7 @@ mod block_access;
 mod connect;
 mod domain_access;
 mod local_context;
+mod prepare;
 mod run;
 mod terminated;
 mod types;
@@ -68,11 +69,12 @@ pub use types::TypedBlockGuard;
 pub use types::TypedBlockGuardMut;
 
 use local_context::LocalDomainContextEntry;
+use prepare::FlowgraphCompiler;
+use prepare::PreparedFlowgraph;
+use prepare::StartupSnapshot;
 use types::BlockLocation;
 use types::BlockPlacement;
 use types::DomainLocation;
-use types::PreparedFlowgraph;
-use types::StartupSnapshot;
 use types::StreamEdge;
 
 pub(super) enum BlockSlot {
