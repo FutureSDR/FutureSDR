@@ -14,3 +14,7 @@ tracing = { version = "0.1", features = ["release_max_level_off"] }
 [[bin]]
 name = "msg"
 path = "msg.rs"
+
+[[bin]]
+name = "message-passing-overhead"
+path = "message-passing-overhead.rs"
