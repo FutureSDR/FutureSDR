@@ -607,6 +607,23 @@ impl Flowgraph {
         Ok(self.placement(block_id)?.location(block_id))
     }
 
+    fn block_locations(&self) -> Result<Vec<BlockLocation>, Error> {
+        self.blocks
+            .iter()
+            .enumerate()
+            .map(|(block_id, entry)| {
+                let block_id = BlockId(block_id);
+                let location = entry.placement.location(block_id);
+                if let DomainLocation::Local(domain_id) = location.domain
+                    && domain_id >= self.local_domains.len()
+                {
+                    return Err(Error::InvalidBlock(block_id));
+                }
+                Ok(location)
+            })
+            .collect()
+    }
+
     fn same_local_stream_locations(
         src: BlockLocation,
         dst: BlockLocation,

@@ -42,31 +42,23 @@ impl Flowgraph {
             .map(|edge| edge.edge())
             .collect::<Vec<_>>();
         let message_edges = std::mem::take(&mut self.message_edges);
-        let normal_block_ids = self
-            .blocks
+        let block_locations = self.block_locations()?;
+        let normal_block_ids = block_locations
             .iter()
-            .enumerate()
-            .filter_map(|(block_id, entry)| {
-                matches!(entry.placement, BlockPlacement::Normal).then_some(BlockId(block_id))
+            .filter_map(|location| {
+                (location.domain == DomainLocation::Normal).then_some(location.block_id)
             })
             .collect::<Vec<_>>();
-        let local_domain_slots = self
-            .local_domains
-            .iter()
+        let mut local_slots_by_domain = vec![Vec::new(); self.local_domains.len()];
+        for location in &block_locations {
+            if let DomainLocation::Local(domain_id) = location.domain {
+                local_slots_by_domain[domain_id].push((location.block_id, location.domain_slot));
+            }
+        }
+        let local_domain_slots = local_slots_by_domain
+            .into_iter()
             .enumerate()
-            .filter_map(|(domain_id, domain)| {
-                let slots = self
-                    .blocks
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(block_id, entry)| match entry.placement {
-                        BlockPlacement::Local {
-                            domain_id: entry_domain,
-                            local_id,
-                        } if entry_domain == domain_id => Some((BlockId(block_id), local_id)),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
+            .filter_map(|(domain_id, slots)| {
                 if slots.is_empty() {
                     return None;
                 }
@@ -74,7 +66,12 @@ impl Flowgraph {
                     .iter()
                     .map(|(block_id, _)| *block_id)
                     .collect::<Vec<_>>();
-                Some((domain_id, domain.inbox(), slots, block_ids))
+                Some((
+                    domain_id,
+                    self.local_domains[domain_id].inbox(),
+                    slots,
+                    block_ids,
+                ))
             })
             .collect::<Vec<_>>();
         let startup = self.startup_snapshot()?;
