@@ -7,113 +7,27 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use wasm_bindgen::prelude::*;
 
-use crate::runtime::BlockMessage;
 use crate::runtime::Error;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::Pmt;
-use crate::runtime::PortId;
 use crate::runtime::block_inbox::LocalDomainKey;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
-use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockEndpoint;
-use crate::runtime::local_domain_common::LocalBlockBuilder;
+use crate::runtime::local_domain_common::IdleDomainAction;
+use crate::runtime::local_domain_common::LocalDomainControllerAccess;
+pub(crate) use crate::runtime::local_domain_common::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainMessage;
+use crate::runtime::local_domain_common::LocalDomainRuntimeBase;
 use crate::runtime::local_domain_common::LocalDomainState;
-use crate::runtime::local_domain_common::exec_with_scheduler;
-use crate::runtime::scheduler::DomainTopology;
+use crate::runtime::local_domain_common::handle_idle_domain_message;
 use crate::runtime::scheduler::LocalDomainRunSpec;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::scheduler::wasm::WasmWorker;
 use crate::runtime::scheduler::wasm::spawn_local_domain_worker;
 
-pub(crate) struct LocalDomainRuntime {
-    controller: LocalDomainController,
-    blocks: usize,
-    running: bool,
-}
+pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainController>;
 
 impl LocalDomainRuntime {
     pub(crate) fn new<LS: LocalScheduler>() -> Result<Self, Error> {
-        Ok(Self {
-            controller: LocalDomainController::new::<LS>()?,
-            blocks: 0,
-            running: false,
-        })
-    }
-
-    pub(crate) fn reserve_block(&mut self) -> usize {
-        let local_id = self.blocks;
-        self.blocks += 1;
-        local_id
-    }
-
-    pub(crate) fn unreserve_last_block(&mut self, local_id: usize) {
-        if self.blocks == local_id + 1 {
-            self.blocks -= 1;
-        }
-    }
-
-    pub(crate) fn block_count(&self) -> usize {
-        self.blocks
-    }
-
-    pub(crate) fn reserve_blocks(&mut self, n: usize) {
-        self.blocks += n;
-    }
-
-    pub(crate) fn is_running(&self) -> bool {
-        self.running
-    }
-
-    pub(crate) fn inbox(&self) -> LocalDomainInbox {
-        self.controller.inbox()
-    }
-
-    pub(crate) async fn build(
-        &self,
-        local_id: usize,
-        builder: LocalBlockBuilder,
-    ) -> Result<BlockEndpoint, Error> {
-        self.controller.build(local_id, builder).await
-    }
-
-    pub(crate) async fn exec<R>(
-        &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
-    ) -> Result<R, Error>
-    where
-        R: Send + 'static,
-    {
-        self.controller.exec(f).await
-    }
-
-    pub(crate) async fn exec_with_scheduler<LS, R>(
-        &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-            &'a LS,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
-    ) -> Result<R, Error>
-    where
-        LS: LocalScheduler,
-        R: Send + 'static,
-    {
-        exec_with_scheduler::<LS, R>(&self.controller.tx, f).await
-    }
-
-    pub(crate) fn mark_running(&mut self) {
-        self.running = true;
-    }
-
-    pub(crate) fn mark_stopped(&mut self) {
-        self.running = false;
+        Ok(Self::from_controller(LocalDomainController::new::<LS>()?))
     }
 }
 
@@ -123,111 +37,6 @@ pub(crate) struct LocalDomainController {
     terminate: Arc<AtomicBool>,
     worker: Option<WasmWorker>,
     domain_id: Option<usize>,
-}
-
-#[doc(hidden)]
-#[derive(Clone)]
-pub struct LocalDomainInbox {
-    tx: Sender<LocalDomainMessage>,
-    key: LocalDomainKey,
-}
-
-impl LocalDomainInbox {
-    pub(crate) fn key(&self) -> LocalDomainKey {
-        self.key
-    }
-
-    pub(crate) fn is_closed(&self) -> bool {
-        self.tx.is_closed()
-    }
-
-    pub(crate) async fn exec<R>(
-        &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
-    ) -> Result<R, Error>
-    where
-        R: Send + 'static,
-    {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(LocalDomainMessage::Exec(Box::new(
-                move |state, _scheduler| {
-                    Box::pin(async move {
-                        let _ = reply.send(f(state).await);
-                    })
-                },
-            )))
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
-        rx.await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
-    }
-
-    pub(crate) async fn post(
-        &self,
-        block_id: crate::runtime::BlockId,
-        message: BlockMessage,
-    ) -> Result<(), Error> {
-        self.tx
-            .send(LocalDomainMessage::Post { block_id, message })
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
-    }
-
-    pub(crate) async fn call(
-        &self,
-        block_id: crate::runtime::BlockId,
-        port_id: PortId,
-        data: Pmt,
-        reply: oneshot::Sender<Result<Pmt, Error>>,
-    ) -> Result<(), Error> {
-        self.tx
-            .send(LocalDomainMessage::Call {
-                block_id,
-                port_id,
-                data,
-                reply,
-            })
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
-    }
-
-    pub(crate) fn notify_block(&self, block_id: crate::runtime::BlockId) -> Result<(), Error> {
-        self.tx
-            .try_send(LocalDomainMessage::Notify { block_id })
-            .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))
-    }
-
-    pub(crate) fn start_run(
-        &self,
-        domain_id: usize,
-        slots: Vec<(crate::runtime::BlockId, usize)>,
-        topology: DomainTopology,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Result<oneshot::Receiver<Result<(), Error>>, Error> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .try_send(LocalDomainMessage::Run {
-                domain_id,
-                slots,
-                topology,
-                main_channel,
-                reply,
-            })
-            .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))?;
-        Ok(rx)
-    }
-
-    pub(crate) async fn stop_run(&self) -> Result<(), Error> {
-        self.tx
-            .send(LocalDomainMessage::Terminate)
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
-    }
 }
 
 impl LocalDomainController {
@@ -261,44 +70,15 @@ impl LocalDomainController {
             domain_id: Some(domain_id),
         })
     }
+}
 
-    pub(crate) fn inbox(&self) -> LocalDomainInbox {
-        LocalDomainInbox {
-            tx: self.tx.clone(),
-            key: self.key,
-        }
+impl LocalDomainControllerAccess for LocalDomainController {
+    fn tx(&self) -> &Sender<LocalDomainMessage> {
+        &self.tx
     }
 
-    pub(crate) async fn build(
-        &self,
-        local_id: usize,
-        builder: LocalBlockBuilder,
-    ) -> Result<BlockEndpoint, Error> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(LocalDomainMessage::Build {
-                local_id,
-                builder,
-                reply,
-            })
-            .await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
-        rx.await
-            .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
-    }
-
-    pub(crate) async fn exec<R>(
-        &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
-    ) -> Result<R, Error>
-    where
-        R: Send + 'static,
-    {
-        self.inbox().exec(f).await
+    fn key(&self) -> LocalDomainKey {
+        self.key
     }
 }
 
@@ -365,42 +145,9 @@ async fn run_domain_worker<LS: LocalScheduler>(init: WasmLocalDomainInit) {
     let scheduler = LS::default();
 
     while let Some(message) = rx.recv().await {
-        match message {
-            LocalDomainMessage::Build {
-                local_id,
-                builder,
-                reply,
-            } => {
-                let block = builder();
-                let inbox = block.inbox();
-                let result = state.insert_block(local_id, block).map(|()| inbox);
-                if let Err(e) = &result {
-                    error!("failed to insert local block: {e}");
-                }
-                let _ = reply.send(result);
-            }
-            LocalDomainMessage::Exec(f) => f(&mut state, &scheduler).await,
-            LocalDomainMessage::Post { block_id, message } => {
-                if let Err(e) = state.push_message(block_id, message).await {
-                    warn!("failed to post to local block: {e}");
-                }
-            }
-            LocalDomainMessage::Call {
-                block_id,
-                port_id,
-                data,
-                reply,
-            } => {
-                if let Err(e) = state.push_call(block_id, port_id, data, reply).await {
-                    warn!("failed to call local block: {e}");
-                }
-            }
-            LocalDomainMessage::Notify { block_id } => {
-                if let Err(e) = state.notify_block(block_id) {
-                    warn!("failed to notify local block: {e}");
-                }
-            }
-            LocalDomainMessage::Run {
+        match handle_idle_domain_message(message, &mut state, &scheduler).await {
+            IdleDomainAction::Continue => {}
+            IdleDomainAction::Run {
                 domain_id,
                 slots,
                 topology,
@@ -434,7 +181,7 @@ async fn run_domain_worker<LS: LocalScheduler>(init: WasmLocalDomainInit) {
                     break;
                 }
             }
-            LocalDomainMessage::Terminate => break,
+            IdleDomainAction::Terminate => break,
         }
     }
 }
