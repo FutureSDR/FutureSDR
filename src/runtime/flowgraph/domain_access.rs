@@ -1,5 +1,83 @@
 use super::*;
 
+pub(super) async fn access_typed_kernel_ref<K, R>(
+    blocks: &[BlockEntry],
+    local_domains: &[LocalDomainRuntime],
+    location: BlockLocation,
+    f: impl FnOnce(&K) -> Result<R, Error> + Send + 'static,
+) -> Result<R, Error>
+where
+    K: 'static,
+    R: Send + 'static,
+{
+    match location.domain {
+        DomainLocation::Normal => {
+            let block = block_access::typed_wrapped_block::<K>(blocks, location)?;
+            f(&block.kernel)
+        }
+        DomainLocation::Local(domain_id) => {
+            let domain = local_domains
+                .get(domain_id)
+                .ok_or(Error::InvalidBlock(location.block_id))?;
+            if domain.is_running() {
+                return Err(Error::LockError);
+            }
+            domain
+                .exec(move |state| {
+                    let result = (|| {
+                        let block = Flowgraph::local_state_kernel_ref::<K>(
+                            state,
+                            location.domain_slot,
+                            location.block_id,
+                        )?;
+                        f(block)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await
+        }
+    }
+}
+
+pub(super) async fn access_typed_kernel_mut<K, R>(
+    blocks: &mut [BlockEntry],
+    local_domains: &[LocalDomainRuntime],
+    location: BlockLocation,
+    f: impl FnOnce(&mut K) -> Result<R, Error> + Send + 'static,
+) -> Result<R, Error>
+where
+    K: 'static,
+    R: Send + 'static,
+{
+    match location.domain {
+        DomainLocation::Normal => {
+            let block = block_access::typed_wrapped_block_mut::<K>(blocks, location)?;
+            f(&mut block.kernel)
+        }
+        DomainLocation::Local(domain_id) => {
+            let domain = local_domains
+                .get(domain_id)
+                .ok_or(Error::InvalidBlock(location.block_id))?;
+            if domain.is_running() {
+                return Err(Error::LockError);
+            }
+            domain
+                .exec(move |state| {
+                    let result = (|| {
+                        let block = Flowgraph::local_state_kernel_mut::<K>(
+                            state,
+                            location.domain_slot,
+                            location.block_id,
+                        )?;
+                        f(block)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await
+        }
+    }
+}
+
 impl Flowgraph {
     pub(super) async fn with_block_mut<R>(
         &mut self,
@@ -10,7 +88,7 @@ impl Flowgraph {
         R: Send + 'static,
     {
         match location.domain {
-            DomainLocation::Normal => f(self.raw_block_mut(location.block_id)?),
+            DomainLocation::Normal => f(block_access::raw_block_mut(&mut self.blocks, location)?),
             DomainLocation::Local(domain_id) => {
                 let domain = self
                     .local_domains
@@ -29,6 +107,18 @@ impl Flowgraph {
         }
     }
 
+    pub(super) async fn with_typed_kernel_ref<K, R>(
+        &self,
+        location: BlockLocation,
+        f: impl FnOnce(&K) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        access_typed_kernel_ref(&self.blocks, &self.local_domains, location, f).await
+    }
+
     pub(super) async fn with_typed_kernel_mut<K, R>(
         &mut self,
         location: BlockLocation,
@@ -38,31 +128,7 @@ impl Flowgraph {
         K: 'static,
         R: Send + 'static,
     {
-        match location.domain {
-            DomainLocation::Normal => {
-                let block = self.get_typed_wrapped_block_mut_by_id::<K>(location.block_id)?;
-                f(&mut block.kernel)
-            }
-            DomainLocation::Local(domain_id) => {
-                let domain = self
-                    .local_domains
-                    .get(domain_id)
-                    .ok_or(Error::InvalidBlock(location.block_id))?;
-                domain
-                    .exec(move |state| {
-                        let result = (|| {
-                            let block = Self::local_state_kernel_mut::<K>(
-                                state,
-                                location.domain_slot,
-                                location.block_id,
-                            )?;
-                            f(block)
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await
-            }
-        }
+        access_typed_kernel_mut(&mut self.blocks, &self.local_domains, location, f).await
     }
 
     pub(super) async fn with_same_domain_two_blocks_mut<R>(

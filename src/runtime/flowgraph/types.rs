@@ -268,35 +268,8 @@ impl<K: 'static> BlockRef<K> {
         R: Send + 'static,
     {
         fg.validate_block_ref(self)?;
-        match self.placement {
-            BlockPlacement::Normal => {
-                let block = fg.block(self)?;
-                Ok(f(&block))
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-                ..
-            } => {
-                let domain = fg
-                    .local_domains
-                    .get(domain_id)
-                    .ok_or(Error::InvalidBlock(self.id))?;
-                if domain.is_running() {
-                    return Err(Error::LockError);
-                }
-                let block_id = self.id;
-                domain
-                    .exec(move |state| {
-                        Box::pin(async move {
-                            Ok(f(Flowgraph::local_state_kernel_ref(
-                                state, local_id, block_id,
-                            )?))
-                        })
-                    })
-                    .await
-            }
-        }
+        fg.with_typed_kernel_ref(fg.location(self.id)?, move |block| Ok(f(block)))
+            .await
     }
 
     /// Mutably access the typed block through the given [`Flowgraph`].
@@ -329,35 +302,9 @@ impl<K: 'static> BlockRef<K> {
         R: Send + 'static,
     {
         fg.validate_block_ref(self)?;
-        match self.placement {
-            BlockPlacement::Normal => {
-                let mut block = fg.block_mut(self)?;
-                Ok(f(&mut block))
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-                ..
-            } => {
-                let domain = fg
-                    .local_domains
-                    .get(domain_id)
-                    .ok_or(Error::InvalidBlock(self.id))?;
-                if domain.is_running() {
-                    return Err(Error::LockError);
-                }
-                let block_id = self.id;
-                domain
-                    .exec(move |state| {
-                        Box::pin(async move {
-                            Ok(f(Flowgraph::local_state_kernel_mut(
-                                state, local_id, block_id,
-                            )?))
-                        })
-                    })
-                    .await
-            }
-        }
+        let location = fg.location(self.id)?;
+        fg.with_typed_kernel_mut(location, move |block| Ok(f(block)))
+            .await
     }
 }
 

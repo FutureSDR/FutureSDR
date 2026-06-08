@@ -327,6 +327,23 @@ fn local_domain_accepts_non_send_blocks() -> Result<()> {
 }
 
 #[test]
+fn local_domain_block_with_mut_uses_domain_access() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+    let block = fg.add_local(local, NonSendLocalBlock::new)?;
+
+    block.with_mut(&mut fg, |block| block.waited = true)?;
+    assert!(block.with(&fg, |block| block.waited)?);
+
+    let mut fg = Runtime::new().run(fg)?;
+    assert!(fg.with(&block, |block| block.waited)?);
+    fg.with_mut(&block, |block| block.waited = false)?;
+    assert!(!fg.with(&block, |block| block.waited)?);
+
+    Ok(())
+}
+
+#[test]
 fn flowgraph_runs_local_domain_blocks() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();

@@ -224,7 +224,7 @@ impl Flowgraph {
             DomainLocation::Normal => {
                 let mut token = token.lock().await;
                 let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_block = self.raw_block_mut(dst.block_id)?;
+                let dst_block = block_access::raw_block_mut(&mut self.blocks, dst)?;
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)

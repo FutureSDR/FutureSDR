@@ -656,17 +656,6 @@ impl Flowgraph {
         }
     }
 
-    fn raw_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        block_access::raw_block_mut(&mut self.blocks, block_id)
-    }
-
-    fn get_typed_wrapped_block_mut_by_id<K: 'static>(
-        &mut self,
-        block_id: BlockId,
-    ) -> Result<&mut NormalWrappedKernel<K>, Error> {
-        block_access::typed_wrapped_block_mut(&mut self.blocks, block_id)
-    }
-
     fn get_two_typed_wrapped_blocks_mut<KS, KD>(
         &mut self,
         src_id: BlockId,
@@ -778,7 +767,7 @@ impl Flowgraph {
         &self,
         block_id: BlockId,
     ) -> Result<TypedBlockGuard<'_, K>, Error> {
-        block_access::typed_guard(&self.blocks, block_id)
+        block_access::typed_guard(&self.blocks, self.location(block_id)?)
     }
 
     /// Get typed shared access to a block in this flowgraph.
@@ -802,7 +791,8 @@ impl Flowgraph {
         block: &BlockRef<K>,
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard_mut(&mut self.blocks, block.id)
+        let location = self.location(block.id)?;
+        block_access::typed_guard_mut(&mut self.blocks, location)
     }
 }
 

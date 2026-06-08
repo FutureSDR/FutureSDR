@@ -38,12 +38,23 @@ impl TerminatedFlowgraph {
         Ok(())
     }
 
+    fn placement(&self, block_id: BlockId) -> Result<BlockPlacement, Error> {
+        self.blocks
+            .get(block_id.0)
+            .map(|entry| entry.placement)
+            .ok_or(Error::InvalidBlock(block_id))
+    }
+
+    fn location(&self, block_id: BlockId) -> Result<BlockLocation, Error> {
+        Ok(self.placement(block_id)?.location(block_id))
+    }
+
     /// Get typed shared access to a normal block's final state.
     ///
     /// Local-domain blocks should be inspected with [`Self::with`].
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard(&self.blocks, block.id)
+        block_access::typed_guard(&self.blocks, self.location(block.id)?)
     }
 
     /// Get typed mutable access to a normal block's final state.
@@ -54,7 +65,8 @@ impl TerminatedFlowgraph {
         block: &BlockRef<K>,
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard_mut(&mut self.blocks, block.id)
+        let location = self.location(block.id)?;
+        block_access::typed_guard_mut(&mut self.blocks, location)
     }
 
     /// Access a block's final state through a closure.
@@ -84,35 +96,13 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        match block.placement {
-            BlockPlacement::Normal => {
-                let block = self.block(block)?;
-                Ok(f(&block))
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-                ..
-            } => {
-                let domain = self
-                    .local_domains
-                    .get(domain_id)
-                    .ok_or(Error::InvalidBlock(block.id))?;
-                if domain.is_running() {
-                    return Err(Error::LockError);
-                }
-                let block_id = block.id;
-                domain
-                    .exec(move |state| {
-                        Box::pin(async move {
-                            Ok(f(Flowgraph::local_state_kernel_ref(
-                                state, local_id, block_id,
-                            )?))
-                        })
-                    })
-                    .await
-            }
-        }
+        domain_access::access_typed_kernel_ref(
+            &self.blocks,
+            &self.local_domains,
+            self.location(block.id)?,
+            move |block| Ok(f(block)),
+        )
+        .await
     }
 
     /// Mutably access a block's final state through a closure.
@@ -142,34 +132,13 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        match block.placement {
-            BlockPlacement::Normal => {
-                let mut block = self.block_mut(block)?;
-                Ok(f(&mut block))
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-                ..
-            } => {
-                let domain = self
-                    .local_domains
-                    .get(domain_id)
-                    .ok_or(Error::InvalidBlock(block.id))?;
-                if domain.is_running() {
-                    return Err(Error::LockError);
-                }
-                let block_id = block.id;
-                domain
-                    .exec(move |state| {
-                        Box::pin(async move {
-                            Ok(f(Flowgraph::local_state_kernel_mut(
-                                state, local_id, block_id,
-                            )?))
-                        })
-                    })
-                    .await
-            }
-        }
+        let location = self.location(block.id)?;
+        domain_access::access_typed_kernel_mut(
+            &mut self.blocks,
+            &self.local_domains,
+            location,
+            move |block| Ok(f(block)),
+        )
+        .await
     }
 }
