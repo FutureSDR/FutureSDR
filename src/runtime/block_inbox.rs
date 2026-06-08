@@ -293,9 +293,11 @@ impl BlockEndpoint {
             BlockEndpointInner::Direct(inbox) => inbox.send(msg).await,
             BlockEndpointInner::DomainProxy { domain, block_id } => {
                 if has_current_local_inbox(domain.key(), *block_id) {
-                    return LocalEndpointSend {
-                        key: domain.key(),
-                        block_id: *block_id,
+                    return LocalSend {
+                        target: CurrentLocalInbox {
+                            key: domain.key(),
+                            block_id: *block_id,
+                        },
                         msg: Some(msg),
                     }
                     .await;
@@ -483,7 +485,7 @@ impl LocalBlockInbox {
 
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         LocalSend {
-            inbox: self.clone(),
+            target: self.clone(),
             msg: Some(msg),
         }
         .await
@@ -564,15 +566,42 @@ fn has_current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> bool {
     })
 }
 
-struct LocalEndpointSend {
+// Keep the local send state machine shared while preserving sendability for
+// `BlockEndpoint::send`: the domain-proxy fast path uses `CurrentLocalInbox`,
+// which does not store the non-Send `LocalBlockInbox` across await points.
+trait LocalSendTarget {
+    fn inbox(&self) -> Result<LocalBlockInbox, Error>;
+}
+
+impl LocalSendTarget for LocalBlockInbox {
+    fn inbox(&self) -> Result<LocalBlockInbox, Error> {
+        Ok(self.clone())
+    }
+}
+
+struct CurrentLocalInbox {
     key: LocalDomainKey,
     block_id: BlockId,
+}
+
+impl LocalSendTarget for CurrentLocalInbox {
+    fn inbox(&self) -> Result<LocalBlockInbox, Error> {
+        current_local_inbox(self.key, self.block_id).ok_or_else(|| {
+            Error::RuntimeError(
+                "local-domain fast path polled outside its domain context".to_string(),
+            )
+        })
+    }
+}
+
+struct LocalSend<T> {
+    target: T,
     msg: Option<BlockMessage>,
 }
 
-impl Unpin for LocalEndpointSend {}
+impl<T: Unpin> Unpin for LocalSend<T> {}
 
-impl Future for LocalEndpointSend {
+impl<T: LocalSendTarget + Unpin> Future for LocalSend<T> {
     type Output = Result<(), Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -581,10 +610,9 @@ impl Future for LocalEndpointSend {
             return Poll::Ready(Ok(()));
         };
 
-        let Some(inbox) = current_local_inbox(this.key, this.block_id) else {
-            return Poll::Ready(Err(Error::RuntimeError(
-                "local-domain fast path polled outside its domain context".to_string(),
-            )));
+        let inbox = match this.target.inbox() {
+            Ok(inbox) => inbox,
+            Err(error) => return Poll::Ready(Err(error)),
         };
 
         match inbox.try_send(msg) {
@@ -594,47 +622,11 @@ impl Future for LocalEndpointSend {
                 inbox.0.register_sender(cx.waker());
 
                 let msg = this.msg.take().expect("local send message missing");
-                let Some(inbox) = current_local_inbox(this.key, this.block_id) else {
-                    return Poll::Ready(Err(Error::RuntimeError(
-                        "local-domain fast path polled outside its domain context".to_string(),
-                    )));
+                let inbox = match this.target.inbox() {
+                    Ok(inbox) => inbox,
+                    Err(error) => return Poll::Ready(Err(error)),
                 };
                 match inbox.try_send(msg) {
-                    Ok(()) => Poll::Ready(Ok(())),
-                    Err(msg) => {
-                        this.msg = Some(msg);
-                        Poll::Pending
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct LocalSend {
-    inbox: LocalBlockInbox,
-    msg: Option<BlockMessage>,
-}
-
-impl Unpin for LocalSend {}
-
-impl Future for LocalSend {
-    type Output = Result<(), Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        let Some(msg) = this.msg.take() else {
-            return Poll::Ready(Ok(()));
-        };
-
-        match this.inbox.try_send(msg) {
-            Ok(()) => Poll::Ready(Ok(())),
-            Err(msg) => {
-                this.msg = Some(msg);
-                this.inbox.0.register_sender(cx.waker());
-
-                let msg = this.msg.take().expect("local send message missing");
-                match this.inbox.try_send(msg) {
                     Ok(()) => Poll::Ready(Ok(())),
                     Err(msg) => {
                         this.msg = Some(msg);
