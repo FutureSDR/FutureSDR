@@ -69,32 +69,49 @@ impl ConnectionPlan {
 }
 
 pub(super) struct DomainStartPlan {
-    normal_topology: DomainTopology,
-    local_specs: Vec<LocalDomainSpec>,
+    domains: Vec<PreparedDomainPlan>,
     main_channel: Sender<FlowgraphMessage>,
 }
 
+enum PreparedDomainPlan {
+    Normal { topology: DomainTopology },
+    Local(LocalDomainSpec),
+}
+
+pub(super) enum PreparedDomain {
+    Normal(NormalDomainSpec),
+    Local(LocalDomainSpec),
+}
+
 impl DomainStartPlan {
-    fn new(
-        normal_topology: DomainTopology,
-        local_specs: Vec<LocalDomainSpec>,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Self {
+    fn new(domains: Vec<PreparedDomainPlan>, main_channel: Sender<FlowgraphMessage>) -> Self {
         Self {
-            normal_topology,
-            local_specs,
+            domains,
             main_channel,
         }
     }
 
-    pub(super) fn into_specs(
-        self,
-        normal_blocks: NormalBlocks,
-    ) -> (NormalDomainSpec, Vec<LocalDomainSpec>) {
-        (
-            NormalDomainSpec::new(normal_blocks, self.normal_topology, self.main_channel),
-            self.local_specs,
-        )
+    pub(super) fn into_domains(self, normal_blocks: NormalBlocks) -> Vec<PreparedDomain> {
+        let Self {
+            domains,
+            main_channel,
+        } = self;
+        let mut normal_blocks = Some(normal_blocks);
+        domains
+            .into_iter()
+            .map(|domain| match domain {
+                PreparedDomainPlan::Normal { topology } => {
+                    PreparedDomain::Normal(NormalDomainSpec::new(
+                        normal_blocks
+                            .take()
+                            .expect("normal domain prepared more than once"),
+                        topology,
+                        main_channel.clone(),
+                    ))
+                }
+                PreparedDomainPlan::Local(spec) => PreparedDomain::Local(spec),
+            })
+            .collect()
     }
 
     fn domain_topology(
@@ -147,22 +164,18 @@ impl RuntimePlan {
 
         let normal_topology =
             DomainStartPlan::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
-        let local_specs = local_domains
-            .into_iter()
-            .map(|domain| {
-                LocalDomainSpec::new(
-                    domain.domain_id,
-                    domain.inbox,
-                    domain.slots,
-                    DomainStartPlan::domain_topology(
-                        &domain.block_ids,
-                        &stream_edges,
-                        &message_edges,
-                    ),
-                    main_channel.clone(),
-                )
-            })
-            .collect();
+        let mut domains = vec![PreparedDomainPlan::Normal {
+            topology: normal_topology,
+        }];
+        domains.extend(local_domains.into_iter().map(|domain| {
+            PreparedDomainPlan::Local(LocalDomainSpec::new(
+                domain.domain_id,
+                domain.inbox,
+                domain.slots,
+                DomainStartPlan::domain_topology(&domain.block_ids, &stream_edges, &message_edges),
+                main_channel.clone(),
+            ))
+        }));
 
         Self {
             control: ControlPlan {
@@ -171,7 +184,7 @@ impl RuntimePlan {
                 message_edges_desc,
             },
             connections: ConnectionPlan::new(stream_edges, message_edges),
-            domains: DomainStartPlan::new(normal_topology, local_specs, main_channel),
+            domains: DomainStartPlan::new(domains, main_channel),
         }
     }
 
@@ -241,7 +254,7 @@ impl<'a> FlowgraphCompiler<'a> {
     }
 
     fn local_domain_plans(&self, block_locations: &[BlockLocation]) -> Vec<LocalDomainPlan> {
-        let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.local_domains.len()];
+        let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.domains.local_len()];
         for location in block_locations {
             if let DomainLocation::Local(domain_id) = location.domain {
                 local_slots_by_domain[domain_id].push((location.block_id, location.domain_slot));
@@ -261,7 +274,12 @@ impl<'a> FlowgraphCompiler<'a> {
                     .collect::<Vec<_>>();
                 Some(LocalDomainPlan {
                     domain_id,
-                    inbox: self.flowgraph.local_domains[domain_id].inbox(),
+                    inbox: self
+                        .flowgraph
+                        .domains
+                        .local(domain_id)
+                        .expect("planned local domain disappeared")
+                        .inbox(),
                     slots,
                     block_ids,
                 })
@@ -388,12 +406,12 @@ mod tests {
                 PortId::from("input")
             )]
         );
-        assert_eq!(domains.normal_topology.blocks(), &[src.id(), snk.id()]);
-        assert_eq!(
-            domains.normal_topology.stream_edges(),
-            connections.stream_edges()
-        );
-        assert!(domains.local_specs.is_empty());
+        assert_eq!(domains.domains.len(), 1);
+        let PreparedDomainPlan::Normal { topology } = &domains.domains[0] else {
+            panic!("expected normal prepared-domain plan");
+        };
+        assert_eq!(topology.blocks(), &[src.id(), snk.id()]);
+        assert_eq!(topology.stream_edges(), connections.stream_edges());
 
         Ok(())
     }

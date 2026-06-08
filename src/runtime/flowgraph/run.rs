@@ -19,6 +19,7 @@ use super::connector::FlowgraphConnector;
 use super::prepare::ConnectionPlan;
 use super::prepare::DomainStartPlan;
 use super::prepare::FlowgraphCompiler;
+use super::prepare::PreparedDomain;
 use super::prepare::RuntimePlan;
 use super::prepare::RuntimePlanParts;
 use super::prepare::StartupSnapshot;
@@ -115,7 +116,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             }
         }
         for domain_id in stopped_local_domains {
-            if let Some(domain) = self.flowgraph.local_domains.get_mut(domain_id) {
+            if let Some(domain) = self.flowgraph.domains.local_mut(domain_id) {
                 domain.mark_stopped();
             }
         }
@@ -154,22 +155,36 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         endpoints: &mut [Option<BlockEndpoint>],
         domain_plan: DomainStartPlan,
     ) -> Result<Vec<RunningDomain>, Error> {
-        let blocks = storage::take_normal_blocks(&mut self.flowgraph.blocks)?;
-        let (normal_spec, local_specs) = domain_plan.into_specs(blocks);
-        let normal_domain = self.scheduler.start_normal_domain(normal_spec)?;
-
-        let mut domains = Vec::with_capacity(1 + local_specs.len());
-        domains.push(RunningDomain::Normal(normal_domain));
-        for spec in local_specs {
-            let domain_id = spec.domain_id;
-            match spec.start() {
-                Ok(domain) => {
-                    self.flowgraph.local_domains[domain_id].mark_running();
-                    domains.push(RunningDomain::Local(domain));
+        let blocks =
+            storage::take_normal_blocks(&self.flowgraph.blocks, &mut self.flowgraph.domains)?;
+        let prepared_domains = domain_plan.into_domains(blocks);
+        let mut domains = Vec::with_capacity(prepared_domains.len());
+        for prepared in prepared_domains {
+            match prepared {
+                PreparedDomain::Normal(spec) => {
+                    let domain = self.scheduler.start_normal_domain(spec)?;
+                    domains.push(RunningDomain::Normal(domain));
                 }
-                Err(e) => {
-                    self.cleanup_started_domains(endpoints, domains).await;
-                    return Err(e);
+                PreparedDomain::Local(spec) => {
+                    let domain_id = spec.domain_id;
+                    match spec.start() {
+                        Ok(domain) => {
+                            self.flowgraph
+                                .domains
+                                .local_mut(domain_id)
+                                .ok_or_else(|| {
+                                    Error::RuntimeError(format!(
+                                        "local domain {domain_id} disappeared during startup"
+                                    ))
+                                })?
+                                .mark_running();
+                            domains.push(RunningDomain::Local(domain));
+                        }
+                        Err(e) => {
+                            self.cleanup_started_domains(endpoints, domains).await;
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }
@@ -290,7 +305,11 @@ impl<S: Scheduler> FlowgraphRunner<S> {
 
     async fn recover_stopped_domains(&mut self, domains: Vec<RunningDomain>) -> Result<(), Error> {
         let finished_blocks = self.join_domains(domains).await?;
-        storage::restore_normal_blocks(&mut self.flowgraph.blocks, finished_blocks)
+        storage::restore_normal_blocks(
+            &self.flowgraph.blocks,
+            &mut self.flowgraph.domains,
+            finished_blocks,
+        )
     }
 
     async fn run(mut self) -> Result<TerminatedFlowgraph, Error> {

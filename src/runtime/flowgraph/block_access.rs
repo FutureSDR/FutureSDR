@@ -5,66 +5,72 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 
 use super::BlockSlot;
+use super::domains::FlowgraphDomains;
 use super::types::BlockLocation;
 use super::types::DomainLocation;
 use super::types::TypedBlockGuard;
 use super::types::TypedBlockGuardMut;
 
-pub(super) fn raw_block(
-    blocks: &[BlockSlot],
+pub(super) fn raw_block<'a>(
+    blocks: &'a [BlockSlot],
+    domains: &'a FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&dyn BlockObject, Error> {
+) -> Result<&'a dyn BlockObject, Error> {
     match location.domain {
-        DomainLocation::Normal => blocks
-            .get(location.block_id.0)
-            .ok_or(Error::InvalidBlock(location.block_id))?
-            .normal_block(location.block_id),
+        DomainLocation::Normal => {
+            ensure_normal_slot(blocks, location.block_id)?;
+            domains.normal().block(location.block_id)
+        }
         DomainLocation::Local(_) => Err(Error::LockError),
     }
 }
 
-pub(super) fn raw_block_mut(
-    blocks: &mut [BlockSlot],
+pub(super) fn raw_block_mut<'a>(
+    blocks: &'a [BlockSlot],
+    domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&mut dyn BlockObject, Error> {
+) -> Result<&'a mut dyn BlockObject, Error> {
     match location.domain {
-        DomainLocation::Normal => blocks
-            .get_mut(location.block_id.0)
-            .ok_or(Error::InvalidBlock(location.block_id))?
-            .normal_block_mut(location.block_id),
+        DomainLocation::Normal => {
+            ensure_normal_slot(blocks, location.block_id)?;
+            domains.normal_mut().block_mut(location.block_id)
+        }
         DomainLocation::Local(_) => Err(Error::LockError),
     }
 }
 
-pub(super) fn typed_wrapped_block<K: 'static>(
-    blocks: &[BlockSlot],
+pub(super) fn typed_wrapped_block<'a, K: 'static>(
+    blocks: &'a [BlockSlot],
+    domains: &'a FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&NormalWrappedKernel<K>, Error> {
+) -> Result<&'a NormalWrappedKernel<K>, Error> {
     let block_id = location.block_id;
-    let block = raw_block(blocks, location)?;
+    let block = raw_block(blocks, domains, location)?;
     block
         .as_any()
         .downcast_ref::<NormalWrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
 
-pub(super) fn typed_wrapped_block_mut<K: 'static>(
-    blocks: &mut [BlockSlot],
+pub(super) fn typed_wrapped_block_mut<'a, K: 'static>(
+    blocks: &'a [BlockSlot],
+    domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&mut NormalWrappedKernel<K>, Error> {
+) -> Result<&'a mut NormalWrappedKernel<K>, Error> {
     let block_id = location.block_id;
-    let block = raw_block_mut(blocks, location)?;
+    let block = raw_block_mut(blocks, domains, location)?;
     block
         .as_any_mut()
         .downcast_mut::<NormalWrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
 
-pub(super) fn typed_guard<K: 'static>(
-    blocks: &[BlockSlot],
+pub(super) fn typed_guard<'a, K: 'static>(
+    blocks: &'a [BlockSlot],
+    domains: &'a FlowgraphDomains,
     location: BlockLocation,
-) -> Result<TypedBlockGuard<'_, K>, Error> {
-    let wrapped = typed_wrapped_block(blocks, location)?;
+) -> Result<TypedBlockGuard<'a, K>, Error> {
+    let wrapped = typed_wrapped_block(blocks, domains, location)?;
     Ok(TypedBlockGuard {
         id: wrapped.id,
         meta: &wrapped.meta,
@@ -72,16 +78,25 @@ pub(super) fn typed_guard<K: 'static>(
     })
 }
 
-pub(super) fn typed_guard_mut<K: 'static>(
-    blocks: &mut [BlockSlot],
+pub(super) fn typed_guard_mut<'a, K: 'static>(
+    blocks: &'a [BlockSlot],
+    domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<TypedBlockGuardMut<'_, K>, Error> {
-    let wrapped = typed_wrapped_block_mut(blocks, location)?;
+) -> Result<TypedBlockGuardMut<'a, K>, Error> {
+    let wrapped = typed_wrapped_block_mut(blocks, domains, location)?;
     Ok(TypedBlockGuardMut {
         id: wrapped.id,
         meta: &mut wrapped.meta,
         kernel: &mut wrapped.kernel,
     })
+}
+
+fn ensure_normal_slot(blocks: &[BlockSlot], block_id: BlockId) -> Result<(), Error> {
+    match blocks.get(block_id.0) {
+        Some(BlockSlot::Normal(_)) => Ok(()),
+        Some(BlockSlot::Local(_)) => Err(Error::LockError),
+        None => Err(Error::InvalidBlock(block_id)),
+    }
 }
 
 fn unexpected_type<K>(block_id: BlockId) -> Error {

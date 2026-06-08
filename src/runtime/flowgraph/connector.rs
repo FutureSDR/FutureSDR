@@ -151,8 +151,8 @@ impl<'a> FlowgraphConnector<'a> {
         };
         let domain = self
             .flowgraph
-            .local_domains
-            .get(domain_id)
+            .domains
+            .local(domain_id)
             .ok_or(Error::InvalidBlock(src.block_id))?;
         domain
             .exec(move |state| {
@@ -317,7 +317,11 @@ impl<'a> FlowgraphConnector<'a> {
             DomainLocation::Normal => {
                 let mut token = token.lock().await;
                 let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_block = block_access::raw_block_mut(&mut self.flowgraph.blocks, dst)?;
+                let dst_block = block_access::raw_block_mut(
+                    &self.flowgraph.blocks,
+                    &mut self.flowgraph.domains,
+                    dst,
+                )?;
                 let dst_port_id =
                     Self::resolve_stream_input_index(dst.block_id, dst_block, &dst_port_id)?;
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
@@ -336,8 +340,8 @@ impl<'a> FlowgraphConnector<'a> {
             DomainLocation::Local(domain_id) => {
                 let inbox = self
                     .flowgraph
-                    .local_domains
-                    .get(domain_id)
+                    .domains
+                    .local(domain_id)
                     .ok_or(Error::InvalidBlock(dst.block_id))?
                     .inbox();
                 inbox

@@ -5,6 +5,7 @@ use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::scheduler::NormalBlocks;
 
 use super::BlockSlot;
+use super::domains::FlowgraphDomains;
 
 type EndpointSnapshot = (
     Vec<Option<BlockEndpoint>>,
@@ -12,27 +13,21 @@ type EndpointSnapshot = (
     Vec<Option<&'static [&'static str]>>,
 );
 
-pub(super) fn take_normal_blocks(blocks: &mut [BlockSlot]) -> Result<NormalBlocks, Error> {
-    let mut normal_blocks = Vec::with_capacity(blocks.len());
-    for entry in blocks.iter_mut() {
-        if let Some(block) = entry.take_normal_block()? {
-            normal_blocks.push(block);
-        }
-    }
-    Ok(normal_blocks)
+pub(super) fn take_normal_blocks(
+    blocks: &[BlockSlot],
+    domains: &mut FlowgraphDomains,
+) -> Result<NormalBlocks, Error> {
+    domains
+        .normal_mut()
+        .take_blocks(normal_block_ids(blocks).collect::<Vec<_>>())
 }
 
 pub(super) fn restore_normal_blocks(
-    slots: &mut [BlockSlot],
+    _slots: &[BlockSlot],
+    domains: &mut FlowgraphDomains,
     blocks: NormalBlocks,
 ) -> Result<(), Error> {
-    for block in blocks {
-        let id = block.id();
-        let entry = slots.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
-        entry.restore_normal_block(block)?;
-    }
-
-    Ok(())
+    domains.normal_mut().restore_blocks(blocks)
 }
 
 pub(super) fn endpoints(blocks: &[BlockSlot]) -> Result<EndpointSnapshot, Error> {
@@ -46,4 +41,11 @@ pub(super) fn endpoints(blocks: &[BlockSlot]) -> Result<EndpointSnapshot, Error>
         message_inputs.push(Some(entry.message_inputs()));
     }
     Ok((endpoints, ids, message_inputs))
+}
+
+fn normal_block_ids(blocks: &[BlockSlot]) -> impl Iterator<Item = BlockId> + '_ {
+    blocks
+        .iter()
+        .enumerate()
+        .filter_map(|(id, slot)| matches!(slot, BlockSlot::Normal(_)).then_some(BlockId(id)))
 }

@@ -27,6 +27,7 @@ static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 mod block_access;
 mod connector;
 mod domain_access;
+mod domains;
 mod local_context;
 mod message_api;
 mod prepare;
@@ -44,6 +45,7 @@ pub use types::BlockRef;
 pub use types::TypedBlockGuard;
 pub use types::TypedBlockGuardMut;
 
+use domains::FlowgraphDomains;
 use local_context::LocalDomainContextEntry;
 use types::BlockLocation;
 use types::BlockPlacement;
@@ -51,20 +53,14 @@ use types::DomainLocation;
 use types::StreamEdge;
 
 pub(super) enum BlockSlot {
-    Normal(NormalBlockSlot),
+    Normal(NormalFlowgraphBlockSlot),
     Local(LocalFlowgraphBlockSlot),
 }
 
-pub(super) struct NormalBlockSlot {
-    state: NormalBlockState,
+pub(super) struct NormalFlowgraphBlockSlot {
     endpoint: BlockEndpoint,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
-}
-
-enum NormalBlockState {
-    Available(Box<dyn Block>),
-    Running,
 }
 
 pub(super) struct LocalFlowgraphBlockSlot {
@@ -77,13 +73,11 @@ pub(super) struct LocalFlowgraphBlockSlot {
 
 impl BlockSlot {
     fn normal(
-        block: Box<dyn Block>,
         endpoint: BlockEndpoint,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
-        Self::Normal(NormalBlockSlot {
-            state: NormalBlockState::Available(block),
+        Self::Normal(NormalFlowgraphBlockSlot {
             endpoint,
             message_inputs,
             message_outputs,
@@ -141,73 +135,8 @@ impl BlockSlot {
         }
     }
 
-    fn normal_block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        match self {
-            Self::Normal(slot) => slot.block(block_id),
-            Self::Local(_) => Err(Error::LockError),
-        }
-    }
-
-    fn normal_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        match self {
-            Self::Normal(slot) => slot.block_mut(block_id),
-            Self::Local(_) => Err(Error::LockError),
-        }
-    }
-
-    fn take_normal_block(&mut self) -> Result<Option<Box<dyn Block>>, Error> {
-        match self {
-            Self::Normal(slot) => slot.take_block().map(Some),
-            Self::Local(_) => Ok(None),
-        }
-    }
-
-    fn restore_normal_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
-        match self {
-            Self::Normal(slot) => slot.restore_block(block),
-            Self::Local(_) => Err(Error::InvalidBlock(block.id())),
-        }
-    }
-}
-
-impl NormalBlockSlot {
-    fn block(&self, _block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        match &self.state {
-            NormalBlockState::Available(block) => Ok(block.as_ref() as &dyn BlockObject),
-            NormalBlockState::Running => Err(Error::LockError),
-        }
-    }
-
-    fn block_mut(&mut self, _block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        match &mut self.state {
-            NormalBlockState::Available(block) => Ok(block.as_mut() as &mut dyn BlockObject),
-            NormalBlockState::Running => Err(Error::LockError),
-        }
-    }
-
-    fn take_block(&mut self) -> Result<Box<dyn Block>, Error> {
-        match std::mem::replace(&mut self.state, NormalBlockState::Running) {
-            NormalBlockState::Available(block) => Ok(block),
-            NormalBlockState::Running => Err(Error::LockError),
-        }
-    }
-
-    fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
-        let block_id = block.id();
-        let previous = std::mem::replace(&mut self.state, NormalBlockState::Running);
-        match previous {
-            NormalBlockState::Running => {
-                self.state = NormalBlockState::Available(block);
-                Ok(())
-            }
-            NormalBlockState::Available(existing) => {
-                self.state = NormalBlockState::Available(existing);
-                Err(Error::RuntimeError(format!(
-                    "block slot {:?} was restored more than once",
-                    block_id
-                )))
-            }
-        }
+    fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal(_))
     }
 }
 
@@ -243,7 +172,7 @@ impl NormalBlockSlot {
 pub struct Flowgraph {
     id: FlowgraphId,
     blocks: Vec<BlockSlot>,
-    local_domains: Vec<LocalDomainRuntime>,
+    domains: FlowgraphDomains,
     stream_edges: Vec<StreamEdge>,
     message_edges: Vec<Edge>,
 }
@@ -254,7 +183,7 @@ impl Flowgraph {
         Flowgraph {
             id: FlowgraphId(NEXT_FLOWGRAPH_ID.fetch_add(1, Ordering::Relaxed)),
             blocks: Vec::new(),
-            local_domains: Vec::new(),
+            domains: FlowgraphDomains::new(),
             stream_edges: vec![],
             message_edges: vec![],
         }
@@ -277,8 +206,7 @@ impl Flowgraph {
     pub fn local_domain_with_scheduler<LS: LocalScheduler>(
         &mut self,
     ) -> Result<LocalDomain<LS>, Error> {
-        let domain_id = self.local_domains.len();
-        self.local_domains.push(LocalDomainRuntime::new::<LS>()?);
+        let domain_id = self.domains.push_local(LocalDomainRuntime::new::<LS>()?);
         Ok(LocalDomain {
             flowgraph_id: self.id,
             domain_id,
@@ -312,9 +240,9 @@ impl Flowgraph {
             )));
         }
 
-        let domain_id = self.local_domains.len();
-        self.local_domains
-            .push(LocalDomainRuntime::new_pinned::<LS>(Some(cpuid))?);
+        let domain_id = self
+            .domains
+            .push_local(LocalDomainRuntime::new_pinned::<LS>(Some(cpuid))?);
         Ok(LocalDomain {
             flowgraph_id: self.id,
             domain_id,
@@ -327,7 +255,10 @@ impl Flowgraph {
         domain_id: usize,
         entries: Vec<LocalDomainContextEntry>,
     ) {
-        self.local_domains[domain_id].reserve_blocks(entries.len());
+        self.domains
+            .local_mut(domain_id)
+            .expect("validated local domain disappeared")
+            .reserve_blocks(entries.len());
         self.blocks.extend(entries.into_iter().map(|entry| {
             let BlockPlacement::Local {
                 domain_id,
@@ -383,15 +314,19 @@ impl Flowgraph {
             + 'static,
     {
         let domain_id = self.validate_local_domain(domain)?;
-        if self.local_domains[domain_id].is_running() {
+        let local_domain = self
+            .domains
+            .local(domain_id)
+            .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?;
+        if local_domain.is_running() {
             return Err(Error::LockError);
         }
 
         let next_block_id = self.blocks.len();
-        let next_local_id = self.local_domains[domain_id].block_count();
+        let next_local_id = local_domain.block_count();
         let flowgraph_id = self.id;
-        let domain_inbox = self.local_domains[domain_id].inbox();
-        let (ret, (entries, stream_edges, message_edges)) = self.local_domains[domain_id]
+        let domain_inbox = local_domain.inbox();
+        let (ret, (entries, stream_edges, message_edges)) = local_domain
             .exec_with_scheduler::<LS, _>(move |state, scheduler| {
                 Box::pin(async move {
                     scheduler
@@ -503,12 +438,12 @@ impl Flowgraph {
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let placement = BlockPlacement::Normal;
-        self.blocks.push(BlockSlot::normal(
-            block,
-            inbox,
-            message_inputs,
-            message_outputs,
-        ));
+        self.domains
+            .normal_mut()
+            .insert_block(block_id, block)
+            .expect("normal block slot should be vacant for a new block id");
+        self.blocks
+            .push(BlockSlot::normal(inbox, message_inputs, message_outputs));
         self.block_ref(block_id, placement)
     }
 
@@ -570,16 +505,27 @@ impl Flowgraph {
     where
         K: Kernel + KernelInterface + 'static,
     {
-        let local_id = self.local_domains[domain_id].reserve_block();
+        let local_id = self
+            .domains
+            .local_mut(domain_id)
+            .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
+            .reserve_block();
         let placement = BlockPlacement::Local {
             domain_id,
             local_id,
         };
         let block_id = BlockId(self.blocks.len());
-        let domain_inbox = self.local_domains[domain_id].inbox();
+        let domain_inbox = self
+            .domains
+            .local(domain_id)
+            .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
+            .inbox();
         let external =
             BlockEndpoint::domain_proxy(domain_inbox, LocalBlockAddr::new(block_id, local_id));
-        let inbox = match self.local_domains[domain_id]
+        let inbox = match self
+            .domains
+            .local(domain_id)
+            .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
             .build(
                 local_id,
                 Box::new(move || {
@@ -595,7 +541,9 @@ impl Flowgraph {
         {
             Ok(inbox) => inbox,
             Err(e) => {
-                self.local_domains[domain_id].unreserve_last_block(local_id);
+                if let Some(domain) = self.domains.local_mut(domain_id) {
+                    domain.unreserve_last_block(local_id);
+                }
                 return Err(e);
             }
         };
@@ -629,7 +577,7 @@ impl Flowgraph {
                 domain.flowgraph_id, self.id
             )));
         }
-        if domain.domain_id >= self.local_domains.len() {
+        if domain.domain_id >= self.domains.local_len() {
             return Err(Error::ValidationError("invalid local domain".to_string()));
         }
         Ok(domain.domain_id)
@@ -640,30 +588,6 @@ impl Flowgraph {
             .get(block_id.0)
             .map(BlockSlot::placement)
             .ok_or(Error::InvalidBlock(block_id))
-    }
-
-    fn two_block_entries_mut(
-        &mut self,
-        first: BlockId,
-        second: BlockId,
-    ) -> Result<(&mut BlockSlot, &mut BlockSlot), Error> {
-        if first == second {
-            return Err(Error::LockError);
-        }
-
-        let len = self.blocks.len();
-        let invalid_block = if first.0 >= len { first } else { second };
-        let [first_slot, second_slot] =
-            self.blocks
-                .get_disjoint_mut([first.0, second.0])
-                .map_err(|err| match err {
-                    std::slice::GetDisjointMutError::IndexOutOfBounds => {
-                        Error::InvalidBlock(invalid_block)
-                    }
-                    std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
-                })?;
-
-        Ok((first_slot, second_slot))
     }
 
     fn location(&self, block_id: BlockId) -> Result<BlockLocation, Error> {
@@ -678,7 +602,7 @@ impl Flowgraph {
                 let block_id = BlockId(block_id);
                 let location = entry.location(block_id);
                 if let DomainLocation::Local(domain_id) = location.domain
-                    && domain_id >= self.local_domains.len()
+                    && domain_id >= self.domains.local_len()
                 {
                     return Err(Error::InvalidBlock(block_id));
                 }
@@ -723,10 +647,23 @@ impl Flowgraph {
         KS: 'static,
         KD: 'static,
     {
-        let (src_slot, dst_slot) = self.two_block_entries_mut(src_id, dst_id)?;
+        if self
+            .blocks
+            .get(src_id.0)
+            .is_none_or(|slot| !slot.is_normal())
+        {
+            return Err(Error::InvalidBlock(src_id));
+        }
+        if self
+            .blocks
+            .get(dst_id.0)
+            .is_none_or(|slot| !slot.is_normal())
+        {
+            return Err(Error::InvalidBlock(dst_id));
+        }
 
-        let src = src_slot
-            .normal_block_mut(src_id)?
+        let (src_block, dst_block) = self.domains.normal_mut().two_blocks_mut(src_id, dst_id)?;
+        let src = src_block
             .as_any_mut()
             .downcast_mut::<NormalWrappedKernel<KS>>()
             .ok_or_else(|| {
@@ -736,8 +673,7 @@ impl Flowgraph {
                     std::any::type_name::<KS>()
                 ))
             })?;
-        let dst = dst_slot
-            .normal_block_mut(dst_id)?
+        let dst = dst_block
             .as_any_mut()
             .downcast_mut::<NormalWrappedKernel<KD>>()
             .ok_or_else(|| {
@@ -801,7 +737,7 @@ impl Flowgraph {
         &self,
         block_id: BlockId,
     ) -> Result<TypedBlockGuard<'_, K>, Error> {
-        block_access::typed_guard(&self.blocks, self.location(block_id)?)
+        block_access::typed_guard(&self.blocks, &self.domains, self.location(block_id)?)
     }
 
     /// Get typed shared access to a block in this flowgraph.
@@ -826,7 +762,7 @@ impl Flowgraph {
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        block_access::typed_guard_mut(&mut self.blocks, location)
+        block_access::typed_guard_mut(&self.blocks, &mut self.domains, location)
     }
 }
 

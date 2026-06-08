@@ -2,13 +2,13 @@ use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Result;
-use crate::runtime::local_domain::LocalDomainRuntime;
 
 use super::BlockSlot;
 use super::Flowgraph;
 use super::block_access;
 use super::domain_access::DomainAccess;
 use super::domain_access::DomainAccessMut;
+use super::domains::FlowgraphDomains;
 use super::types::BlockLocation;
 use super::types::BlockPlacement;
 use super::types::BlockRef;
@@ -24,7 +24,7 @@ use super::types::TypedBlockGuardMut;
 pub struct TerminatedFlowgraph {
     id: FlowgraphId,
     blocks: Vec<BlockSlot>,
-    local_domains: Vec<LocalDomainRuntime>,
+    domains: FlowgraphDomains,
 }
 
 impl TerminatedFlowgraph {
@@ -32,14 +32,14 @@ impl TerminatedFlowgraph {
         let Flowgraph {
             id,
             blocks,
-            local_domains,
+            domains,
             stream_edges: _,
             message_edges: _,
         } = flowgraph;
         Self {
             id,
             blocks,
-            local_domains,
+            domains,
         }
     }
 
@@ -69,7 +69,7 @@ impl TerminatedFlowgraph {
     /// Local-domain blocks should be inspected with [`Self::with`].
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        block_access::typed_guard(&self.blocks, self.location(block.id)?)
+        block_access::typed_guard(&self.blocks, &self.domains, self.location(block.id)?)
     }
 
     /// Get typed mutable access to a normal block's final state.
@@ -81,7 +81,7 @@ impl TerminatedFlowgraph {
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        block_access::typed_guard_mut(&mut self.blocks, location)
+        block_access::typed_guard_mut(&self.blocks, &mut self.domains, location)
     }
 
     /// Access a block's final state through a closure.
@@ -111,7 +111,7 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        DomainAccess::new(&self.blocks, &self.local_domains)
+        DomainAccess::new(&self.blocks, &self.domains)
             .typed_kernel_ref(self.location(block.id)?, move |block| Ok(f(block)))
             .await
     }
@@ -144,7 +144,7 @@ impl TerminatedFlowgraph {
     {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        DomainAccessMut::new(&mut self.blocks, &self.local_domains)
+        DomainAccessMut::new(&self.blocks, &mut self.domains)
             .typed_kernel_mut(location, move |block| Ok(f(block)))
             .await
     }
