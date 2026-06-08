@@ -43,20 +43,6 @@ impl LocalDomainInbox {
         self.tx.is_closed()
     }
 
-    pub(crate) async fn exec<R>(
-        &self,
-        f: impl for<'a> FnOnce(
-            &'a mut LocalDomainState,
-        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
-        + Send
-        + 'static,
-    ) -> Result<R, Error>
-    where
-        R: Send + 'static,
-    {
-        exec_local_domain(&self.tx, f).await
-    }
-
     pub(crate) async fn post(
         &self,
         addr: LocalBlockAddr,

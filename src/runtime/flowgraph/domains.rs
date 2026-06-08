@@ -6,6 +6,8 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::scheduler::NormalBlocks;
 
+use super::BlockSlot;
+
 /// Internal domain registry owned by a flowgraph during construction and final inspection.
 ///
 /// The normal domain is public-API implicit, but keeping it here beside local
@@ -47,6 +49,24 @@ impl FlowgraphDomains {
 
     pub(super) fn local_mut(&mut self, domain_id: usize) -> Option<&mut LocalDomainRuntime> {
         self.locals.get_mut(domain_id)
+    }
+
+    pub(super) fn take_normal_blocks(
+        &mut self,
+        blocks: &[BlockSlot],
+    ) -> Result<NormalBlocks, Error> {
+        self.normal.take_blocks(Self::normal_block_ids(blocks))
+    }
+
+    pub(super) fn restore_normal_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
+        self.normal.restore_blocks(blocks)
+    }
+
+    fn normal_block_ids(blocks: &[BlockSlot]) -> impl Iterator<Item = BlockId> + '_ {
+        blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(id, slot)| matches!(slot, BlockSlot::Normal(_)).then_some(BlockId(id)))
     }
 }
 

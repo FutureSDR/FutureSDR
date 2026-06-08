@@ -11,8 +11,11 @@ use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
 use crate::runtime::scheduler::NormalBlocks;
 use crate::runtime::scheduler::NormalDomainSpec;
+use crate::runtime::scheduler::RunningDomain;
+use crate::runtime::scheduler::Scheduler;
 
 use super::Flowgraph;
+use super::domains::FlowgraphDomains;
 use super::storage;
 use super::types::BlockLocation;
 use super::types::DomainLocation;
@@ -81,6 +84,34 @@ enum PreparedDomainPlan {
 pub(super) enum PreparedDomain {
     Normal(NormalDomainSpec),
     Local(LocalDomainSpec),
+}
+
+impl PreparedDomain {
+    pub(super) fn start<S: Scheduler>(
+        self,
+        scheduler: &S,
+        domains: &mut FlowgraphDomains,
+    ) -> Result<RunningDomain, Error> {
+        match self {
+            Self::Normal(spec) => scheduler
+                .start_normal_domain(spec)
+                .map(RunningDomain::Normal),
+            Self::Local(spec) => {
+                let domain_id = spec.domain_id;
+                if domains.local(domain_id).is_none() {
+                    return Err(Error::RuntimeError(format!(
+                        "local domain {domain_id} disappeared during startup"
+                    )));
+                }
+                let domain = spec.start()?;
+                domains
+                    .local_mut(domain_id)
+                    .expect("validated local domain disappeared during startup")
+                    .mark_running();
+                Ok(RunningDomain::Local(domain))
+            }
+        }
+    }
 }
 
 impl DomainStartPlan {

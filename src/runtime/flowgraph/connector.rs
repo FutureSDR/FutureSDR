@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockPortCtx;
@@ -12,14 +13,13 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynSendBufferWriterToken;
 
 use super::Flowgraph;
-use super::block_access;
 use super::types::BlockLocation;
 use super::types::DomainLocation;
 
 struct StreamOutputSendTokenLease {
     location: BlockLocation,
     port_id: PortId,
-    token: Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
+    token: Arc<Mutex<Option<Box<dyn DynSendBufferWriterToken>>>>,
 }
 
 impl StreamOutputSendTokenLease {
@@ -31,18 +31,23 @@ impl StreamOutputSendTokenLease {
         Self {
             location,
             port_id,
-            token: Arc::new(async_lock::Mutex::new(Some(token))),
+            token: Arc::new(Mutex::new(Some(token))),
         }
     }
 
-    fn shared_token(&self) -> Arc<async_lock::Mutex<Option<Box<dyn DynSendBufferWriterToken>>>> {
+    fn shared_token(&self) -> Arc<Mutex<Option<Box<dyn DynSendBufferWriterToken>>>> {
         Arc::clone(&self.token)
     }
 
-    async fn into_parts(
+    fn into_parts(
         self,
     ) -> Result<(BlockLocation, PortId, Box<dyn DynSendBufferWriterToken>), Error> {
-        let token = self.token.lock().await.take().ok_or(Error::LockError)?;
+        let token = self
+            .token
+            .lock()
+            .map_err(|_| Error::LockError)?
+            .take()
+            .ok_or(Error::LockError)?;
         Ok((self.location, self.port_id, token))
     }
 }
@@ -286,7 +291,7 @@ impl<'a> FlowgraphConnector<'a> {
         &mut self,
         lease: StreamOutputSendTokenLease,
     ) -> Result<(), Error> {
-        let (location, port_id, token) = lease.into_parts().await?;
+        let (location, port_id, token) = lease.into_parts()?;
         self.flowgraph
             .with_block_mut(location, move |block| {
                 let writer = block.stream_output(&port_id).map_err(|e| match e {
@@ -313,15 +318,10 @@ impl<'a> FlowgraphConnector<'a> {
         dst_port_id: PortId,
     ) -> Result<(), Error> {
         let token = lease.shared_token();
-        match dst.domain {
-            DomainLocation::Normal => {
-                let mut token = token.lock().await;
+        self.flowgraph
+            .with_block_mut(dst, move |dst_block| {
+                let mut token = token.lock().map_err(|_| Error::LockError)?;
                 let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_block = block_access::raw_block_mut(
-                    &self.flowgraph.blocks,
-                    &mut self.flowgraph.domains,
-                    dst,
-                )?;
                 let dst_port_id =
                     Self::resolve_stream_input_index(dst.block_id, dst_block, &dst_port_id)?;
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
@@ -336,44 +336,8 @@ impl<'a> FlowgraphConnector<'a> {
                     }
                     o => o,
                 })
-            }
-            DomainLocation::Local(domain_id) => {
-                let inbox = self
-                    .flowgraph
-                    .domains
-                    .local(domain_id)
-                    .ok_or(Error::InvalidBlock(dst.block_id))?
-                    .inbox();
-                inbox
-                    .exec(move |state| {
-                        Box::pin(async move {
-                            let mut token = token.lock().await;
-                            let token = token.as_mut().ok_or(Error::LockError)?;
-                            let dst_block = state.block_mut(dst.domain_slot, dst.block_id)?;
-                            let dst_port_id = Self::resolve_stream_input_index(
-                                dst.block_id,
-                                dst_block,
-                                &dst_port_id,
-                            )?;
-                            let reader =
-                                dst_block.stream_input(&dst_port_id).map_err(|e| match e {
-                                    Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
-                                        BlockPortCtx::Id(dst.block_id),
-                                        port,
-                                    ),
-                                    o => o,
-                                })?;
-                            token.connect_dyn(reader).map_err(|e| match e {
-                                Error::InvalidStreamPort(_, port) => {
-                                    Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
-                                }
-                                o => o,
-                            })
-                        })
-                    })
-                    .await
-            }
-        }
+            })
+            .await
     }
 
     async fn connect_cross_domain_stream_dyn_async(
