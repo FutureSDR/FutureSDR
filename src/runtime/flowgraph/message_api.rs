@@ -44,37 +44,44 @@ impl Flowgraph {
         let dst_block_id = dst_block_id.into();
         let dst_port_id = dst_port_id.into();
 
-        let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        self.validate_message_edge(&edge)?;
+        let edge =
+            self.normalize_message_edge(src_block_id, src_port_id, dst_block_id, dst_port_id)?;
         self.message_edges.push(edge);
         Ok(())
     }
 
-    fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
+    fn normalize_message_port(
+        block_id: BlockId,
+        port_id: PortId,
+        ports: &[&str],
+    ) -> Result<PortId, Error> {
+        port_id.resolve_name(ports).ok_or(Error::InvalidMessagePort(
+            BlockPortCtx::Id(block_id),
+            port_id,
+        ))
+    }
+
+    fn normalize_message_edge(
+        &self,
+        src_block: BlockId,
+        src_port: PortId,
+        dst_block: BlockId,
+        dst_port: PortId,
+    ) -> Result<Edge, Error> {
         let dst_inputs = self
             .blocks
-            .get(edge.dst_block.0)
+            .get(dst_block.0)
             .map(BlockSlot::message_inputs)
-            .ok_or(Error::InvalidBlock(edge.dst_block))?;
-        if !dst_inputs.contains(&edge.dst_port.name()) {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(edge.dst_block),
-                edge.dst_port.clone(),
-            ));
-        }
+            .ok_or(Error::InvalidBlock(dst_block))?;
+        let dst_port = Self::normalize_message_port(dst_block, dst_port, dst_inputs)?;
 
         let src_outputs = self
             .blocks
-            .get(edge.src_block.0)
+            .get(src_block.0)
             .map(BlockSlot::message_outputs)
-            .ok_or(Error::InvalidBlock(edge.src_block))?;
-        if !src_outputs.contains(&edge.src_port.name()) {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(edge.src_block),
-                edge.src_port.clone(),
-            ));
-        }
+            .ok_or(Error::InvalidBlock(src_block))?;
+        let src_port = Self::normalize_message_port(src_block, src_port, src_outputs)?;
 
-        Ok(())
+        Ok(Edge::new(src_block, src_port, dst_block, dst_port))
     }
 }

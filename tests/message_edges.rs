@@ -2,6 +2,7 @@ use anyhow::Result;
 use futuresdr::runtime::BlockRef;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::LocalDomain;
+use futuresdr::runtime::PortId;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::TerminatedFlowgraph;
 use futuresdr::runtime::dev::prelude::*;
@@ -111,6 +112,28 @@ fn message_edge_delivers_once() -> Result<()> {
     let rt = Runtime::new();
 
     let fg = trigger_once(&rt, fg, src)?;
+    assert_eq!(fg.with(&snk, |b| b.received)?, 1);
+
+    Ok(())
+}
+
+#[test]
+fn message_edge_accepts_indexed_ports_and_describes_names() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src = fg.add(TriggerMsg::new())?;
+    let snk = fg.add(CountMsg::new())?;
+    fg.message(src, PortId::index(0), snk, PortId::index(0))?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let description = futuresdr::runtime::block_on(running.describe())?;
+    assert_eq!(
+        description.message_edges,
+        vec![(src.id(), PortId::from("out"), snk.id(), PortId::from("in"))]
+    );
+
+    futuresdr::runtime::block_on(running.call(src, PortId::index(0), Pmt::Null))?;
+    let fg = futuresdr::runtime::block_on(running.stop_and_wait())?;
     assert_eq!(fg.with(&snk, |b| b.received)?, 1);
 
     Ok(())

@@ -11,7 +11,6 @@ use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynSendBufferWriterToken;
 
-use super::BlockSlot;
 use super::Flowgraph;
 use super::block_access;
 use super::types::BlockLocation;
@@ -380,17 +379,23 @@ impl<'a> FlowgraphConnector<'a> {
 
     async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
         let src = self.flowgraph.location(edge.src_block)?;
-        let dst = self
+        let dst_slot = self
             .flowgraph
             .blocks
             .get(edge.dst_block.0)
-            .map(BlockSlot::endpoint)
-            .cloned()
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
+        let dst = dst_slot.endpoint().clone();
+        let dst_port = edge
+            .dst_port
+            .resolve_index(dst_slot.message_inputs())
+            .map(PortId::index)
+            .ok_or_else(|| {
+                Error::InvalidMessagePort(BlockPortCtx::Id(edge.dst_block), edge.dst_port.clone())
+            })?;
 
         self.flowgraph
             .with_block_mut(src, move |src_block| {
-                src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
+                src_block.connect_message(&edge.src_port, dst, &dst_port)
             })
             .await
     }

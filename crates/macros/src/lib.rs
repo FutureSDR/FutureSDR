@@ -587,9 +587,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}[{}]", #field_name_str, i) {
+                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name[i]));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             };
                             Some((name_code, notify_code, get_input_code))
@@ -609,9 +611,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let get_input_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}[{}]", #field_name_str, i) {
+                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name[i]));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             };
                             Some((name_code, notify_code, get_input_code))
@@ -639,9 +643,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let get_input_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if name == format!("{}.{}", #field_name_str, #index) {
+                                    let __fsdr_name = format!("{}.{}", #field_name_str, #index);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name.#index));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             });
                             let get_input_code = quote! {
@@ -658,9 +664,10 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 __FsdrInput::notify_finished(&mut self.#field_name).await;
                             };
                             let get_input_code = quote! {
-                                if name == #field_name_str {
+                                if id.matches(__fsdr_port_index, #field_name_str) {
                                     return Ok(f(&mut self.#field_name));
                                 }
+                                __fsdr_port_index += 1;
                             };
                             Some((name_code, notify_code, get_input_code))
                         }
@@ -713,9 +720,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}[{}]", #field_name_str, i) {
+                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name[i]));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             };
                             Some((name_code, notify_code, connect_code))
@@ -735,9 +744,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             };
                             let connect_code = quote! {
                                 for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if name == format!("{}[{}]", #field_name_str, i) {
+                                    let __fsdr_name = format!("{}[{}]", #field_name_str, i);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name[i]));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             };
                             Some((name_code, notify_code, connect_code))
@@ -765,9 +776,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let connect_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote!{
-                                    if name == format!("{}.{}", #field_name_str, #index) {
+                                    let __fsdr_name = format!("{}.{}", #field_name_str, #index);
+                                    if id.matches(__fsdr_port_index, &__fsdr_name) {
                                         return Ok(f(&mut self.#field_name.#index));
                                     }
+                                    __fsdr_port_index += 1;
                                 }
                             });
                             let connect_code = quote! {
@@ -784,9 +797,10 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                 __FsdrOutput::notify_finished(&mut self.#field_name).await;
                             };
                             let connect_code = quote! {
-                                if name == #field_name_str {
+                                if id.matches(__fsdr_port_index, #field_name_str) {
                                     return Ok(f(&mut self.#field_name));
                                 }
+                                __fsdr_port_index += 1;
                             };
                             Some((name_code, notify_code, connect_code))
                         }
@@ -968,13 +982,18 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         })
         .collect::<Vec<_>>();
 
-    // Generate match arms for the handle method
+    // Generate dispatch checks for the handle method.
     let handler_matches = message_inputs
         .iter()
         .zip(message_input_names.clone())
-        .map(|(handler, handler_name)| {
+        .enumerate()
+        .map(|(handler_index, (handler, handler_name))| {
             quote! {
-                #handler_name  => self.#handler(io, mo, meta, p).await,
+                if id.matches(#handler_index, #handler_name) {
+                    return self.#handler(io, mo, meta, p)
+                        .await
+                        .map_err(|e| Error::HandlerError(e.to_string()));
+                }
             }
         })
         .collect::<Vec<_>>();
@@ -1034,7 +1053,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
-                let name = id.name();
+                let mut __fsdr_port_index = 0usize;
                 #(#stream_inputs_get)*
                 Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
             }
@@ -1046,7 +1065,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             ) -> ::futuresdr::runtime::Result<R, ::futuresdr::runtime::Error> {
                 use ::futuresdr::runtime::Error;
                 use ::futuresdr::runtime::BlockPortCtx;
-                let name = id.name();
+                let mut __fsdr_port_index = 0usize;
                 #(#stream_outputs_get)*
                 Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
             }
@@ -1076,18 +1095,8 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {
                         use ::futuresdr::runtime::BlockPortCtx;
                         use ::futuresdr::runtime::Error;
-                        use ::futuresdr::runtime::Pmt;
-                        use ::futuresdr::runtime::PortId;
-                        use ::futuresdr::runtime::Result;
-                        let ret: Result<Pmt> = match id.name() {
-                                #(#handler_matches)*
-                                _ => return Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::None,
-                                    id)),
-                        };
-
-                        #[allow(unreachable_code)]
-                        ret.map_err(|e| Error::HandlerError(e.to_string()))
+                        #(#handler_matches)*
+                        Err(Error::InvalidMessagePort(BlockPortCtx::None, id))
             }
         }
 

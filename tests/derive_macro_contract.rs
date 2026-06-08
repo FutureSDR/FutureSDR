@@ -93,11 +93,13 @@ fn derive_expands_vector_array_and_tuple_stream_port_names() {
             .with_stream_input(&PortId::from("input_tuple.1"), |_| ())
             .is_ok()
     );
+    assert!(block.with_stream_input(&PortId::index(5), |_| ()).is_ok());
     assert!(
         block
             .with_stream_output(&PortId::from("output_arr[0]"), |_| ())
             .is_ok()
     );
+    assert!(block.with_stream_output(&PortId::index(2), |_| ()).is_ok());
 }
 
 #[derive(Block)]
@@ -158,7 +160,17 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     ))
     .unwrap();
     assert_eq!(ret, Pmt::Usize(1));
-    assert_eq!(block.seen, vec![Pmt::U32(7)]);
+
+    let ret = futuresdr::runtime::block_on(block.call_handler(
+        &mut io,
+        &mut mo,
+        &mut meta,
+        PortId::index(1),
+        Pmt::U32(9),
+    ))
+    .unwrap();
+    assert_eq!(ret, Pmt::Ok);
+    assert_eq!(block.seen, vec![Pmt::U32(7), Pmt::U32(9)]);
 
     let err = futuresdr::runtime::block_on(block.call_handler(
         &mut io,

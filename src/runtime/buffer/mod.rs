@@ -780,6 +780,10 @@ pub trait DynBufferWriter {
     /// Restore a writer that was previously taken with [`DynBufferWriter::take_send_token`].
     fn replace_send_token(&mut self, token: Box<dyn DynSendBufferWriterToken>)
     -> Result<(), Error>;
+    /// Get the owning block id.
+    fn block_id(&self) -> BlockId;
+    /// Get the owning port id.
+    fn port_id(&self) -> PortId;
 }
 
 impl<T> DynBufferWriter for T
@@ -808,6 +812,14 @@ where
         token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
         T::Mode::replace_send_token(self, token)
+    }
+
+    fn block_id(&self) -> BlockId {
+        BufferWriter::block_id(self)
+    }
+
+    fn port_id(&self) -> PortId {
+        BufferWriter::port_id(self)
     }
 }
 

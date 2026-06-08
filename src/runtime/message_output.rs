@@ -114,7 +114,9 @@ impl MessageOutputs {
     fn output_mut(&mut self, port: &PortId) -> Option<&mut MessageOutput> {
         self.outputs
             .iter_mut()
-            .find(|item| item.name() == port.name())
+            .enumerate()
+            .find(|(index, item)| port.matches(*index, item.name()))
+            .map(|(_, item)| item)
     }
 }
 
@@ -140,6 +142,24 @@ mod tests {
             rx.try_recv().ok(),
             Some(BlockMessage::Post { port_id, data })
                 if port_id == PortId::from("in") && data == Pmt::U32(7)
+        ));
+    }
+
+    #[test]
+    fn handler_accepts_indexed_ports() {
+        let (tx, rx) = channel(1);
+        let endpoint = BlockInbox::new(tx, BlockNotifier::new()).into();
+        let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
+
+        outputs
+            .connect(&PortId::index(0), endpoint, &PortId::index(0))
+            .unwrap();
+        crate::runtime::block_on(outputs.post(PortId::index(0), Pmt::U32(7))).unwrap();
+
+        assert!(matches!(
+            rx.try_recv().ok(),
+            Some(BlockMessage::Post { port_id, data })
+                if port_id == PortId::index(0) && data == Pmt::U32(7)
         ));
     }
 }
