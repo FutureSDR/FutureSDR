@@ -51,6 +51,7 @@ use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
+mod block_access;
 mod connect;
 mod local_context;
 mod run;
@@ -664,65 +665,18 @@ impl Flowgraph {
     }
 
     fn raw_block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        match self.placement(block_id)? {
-            BlockPlacement::Normal => self
-                .blocks
-                .get(block_id.0)
-                .ok_or(Error::InvalidBlock(block_id))?
-                .block
-                .as_ref()
-                .map(|block| block.as_ref() as &dyn BlockObject)
-                .ok_or(Error::LockError),
-            BlockPlacement::Local { .. } => Err(Error::LockError),
-        }
+        block_access::raw_block(&self.blocks, block_id)
     }
 
     fn raw_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        match self.placement(block_id)? {
-            BlockPlacement::Normal => self
-                .blocks
-                .get_mut(block_id.0)
-                .ok_or(Error::InvalidBlock(block_id))?
-                .block
-                .as_mut()
-                .map(|block| block.as_mut() as &mut dyn BlockObject)
-                .ok_or(Error::LockError),
-            BlockPlacement::Local { .. } => Err(Error::LockError),
-        }
-    }
-
-    fn get_typed_wrapped_block_by_id<K: 'static>(
-        &self,
-        block_id: BlockId,
-    ) -> Result<&NormalWrappedKernel<K>, Error> {
-        let block = self.raw_block(block_id)?;
-        block
-            .as_any()
-            .downcast_ref::<NormalWrappedKernel<K>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    block_id,
-                    std::any::type_name::<K>()
-                ))
-            })
+        block_access::raw_block_mut(&mut self.blocks, block_id)
     }
 
     fn get_typed_wrapped_block_mut_by_id<K: 'static>(
         &mut self,
         block_id: BlockId,
     ) -> Result<&mut NormalWrappedKernel<K>, Error> {
-        let block = self.raw_block_mut(block_id)?;
-        block
-            .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<K>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    block_id,
-                    std::any::type_name::<K>()
-                ))
-            })
+        block_access::typed_wrapped_block_mut(&mut self.blocks, block_id)
     }
 
     fn get_two_typed_wrapped_blocks_mut<KS, KD>(
@@ -836,12 +790,7 @@ impl Flowgraph {
         &self,
         block_id: BlockId,
     ) -> Result<TypedBlockGuard<'_, K>, Error> {
-        let wrapped = self.get_typed_wrapped_block_by_id(block_id)?;
-        Ok(TypedBlockGuard {
-            id: wrapped.id,
-            meta: &wrapped.meta,
-            kernel: &wrapped.kernel,
-        })
+        block_access::typed_guard(&self.blocks, block_id)
     }
 
     /// Get typed shared access to a block in this flowgraph.
@@ -865,12 +814,7 @@ impl Flowgraph {
         block: &BlockRef<K>,
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        let wrapped = self.get_typed_wrapped_block_mut_by_id::<K>(block.id)?;
-        Ok(TypedBlockGuardMut {
-            id: wrapped.id,
-            meta: &mut wrapped.meta,
-            kernel: &mut wrapped.kernel,
-        })
+        block_access::typed_guard_mut(&mut self.blocks, block.id)
     }
 }
 

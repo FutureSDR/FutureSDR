@@ -38,83 +38,12 @@ impl TerminatedFlowgraph {
         Ok(())
     }
 
-    fn raw_block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        match self
-            .blocks
-            .get(block_id.0)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .placement
-        {
-            BlockPlacement::Normal => self.blocks[block_id.0]
-                .block
-                .as_ref()
-                .map(|block| block.as_ref() as &dyn BlockObject)
-                .ok_or(Error::LockError),
-            BlockPlacement::Local { .. } => Err(Error::LockError),
-        }
-    }
-
-    fn raw_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
-        match self
-            .blocks
-            .get(block_id.0)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .placement
-        {
-            BlockPlacement::Normal => self.blocks[block_id.0]
-                .block
-                .as_mut()
-                .map(|block| block.as_mut() as &mut dyn BlockObject)
-                .ok_or(Error::LockError),
-            BlockPlacement::Local { .. } => Err(Error::LockError),
-        }
-    }
-
-    fn get_typed_wrapped_block_by_id<K: 'static>(
-        &self,
-        block_id: BlockId,
-    ) -> Result<&NormalWrappedKernel<K>, Error> {
-        let block = self.raw_block(block_id)?;
-        block
-            .as_any()
-            .downcast_ref::<NormalWrappedKernel<K>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    block_id,
-                    std::any::type_name::<K>()
-                ))
-            })
-    }
-
-    fn get_typed_wrapped_block_mut_by_id<K: 'static>(
-        &mut self,
-        block_id: BlockId,
-    ) -> Result<&mut NormalWrappedKernel<K>, Error> {
-        let block = self.raw_block_mut(block_id)?;
-        block
-            .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<K>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    block_id,
-                    std::any::type_name::<K>()
-                ))
-            })
-    }
-
     /// Get typed shared access to a normal block's final state.
     ///
     /// Local-domain blocks should be inspected with [`Self::with`].
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        let wrapped = self.get_typed_wrapped_block_by_id(block.id)?;
-        Ok(TypedBlockGuard {
-            id: wrapped.id,
-            meta: &wrapped.meta,
-            kernel: &wrapped.kernel,
-        })
+        block_access::typed_guard(&self.blocks, block.id)
     }
 
     /// Get typed mutable access to a normal block's final state.
@@ -125,12 +54,7 @@ impl TerminatedFlowgraph {
         block: &BlockRef<K>,
     ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        let wrapped = self.get_typed_wrapped_block_mut_by_id::<K>(block.id)?;
-        Ok(TypedBlockGuardMut {
-            id: wrapped.id,
-            meta: &mut wrapped.meta,
-            kernel: &mut wrapped.kernel,
-        })
+        block_access::typed_guard_mut(&mut self.blocks, block.id)
     }
 
     /// Access a block's final state through a closure.
