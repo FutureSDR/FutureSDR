@@ -1,4 +1,16 @@
-use super::*;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::ops::Deref;
+use std::ops::DerefMut;
+
+use crate::runtime::BlockId;
+use crate::runtime::Edge;
+use crate::runtime::Error;
+use crate::runtime::FlowgraphId;
+use crate::runtime::Result;
+use crate::runtime::dev::BlockMeta;
+
+use super::Flowgraph;
 
 /// Shared typed access to a block stored inside a [`Flowgraph`].
 ///
@@ -295,7 +307,10 @@ impl<K> From<&BlockRef<K>> for BlockId {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::runtime::BlockId;
+
+    use super::BlockPlacement;
+    use super::DomainLocation;
 
     #[test]
     fn block_placement_maps_to_domain_location() {

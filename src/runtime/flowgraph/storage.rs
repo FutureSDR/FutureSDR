@@ -1,4 +1,10 @@
-use super::*;
+use crate::runtime::BlockId;
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::runtime::dev::BlockEndpoint;
+use crate::runtime::scheduler::NormalBlocks;
+
+use super::BlockSlot;
 
 pub(super) fn take_normal_blocks(blocks: &mut [BlockSlot]) -> Result<NormalBlocks, Error> {
     let mut normal_blocks = Vec::with_capacity(blocks.len());
@@ -25,13 +31,7 @@ pub(super) fn restore_normal_blocks(
 
 pub(super) fn endpoints(
     blocks: &[BlockSlot],
-) -> Result<
-    (
-        Vec<Option<crate::runtime::dev::BlockEndpoint>>,
-        Vec<BlockId>,
-    ),
-    Error,
-> {
+) -> Result<(Vec<Option<BlockEndpoint>>, Vec<BlockId>), Error> {
     let mut endpoints = Vec::with_capacity(blocks.len());
     let mut ids = Vec::with_capacity(blocks.len());
     for (id, entry) in blocks.iter().enumerate() {

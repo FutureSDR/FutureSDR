@@ -1,5 +1,18 @@
+use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::Edge;
+use crate::runtime::Error;
+use crate::runtime::PortId;
+use crate::runtime::Result;
+use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::SendBufferWriter;
+
+use super::Flowgraph;
 use super::connector::FlowgraphConnector;
-use super::*;
+use super::types::BlockRef;
+use super::types::DomainLocation;
+use super::types::StreamEdge;
 
 impl Flowgraph {
     pub(super) fn stream_ports_edge<B: BufferWriter>(

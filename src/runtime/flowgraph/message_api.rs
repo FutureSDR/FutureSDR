@@ -1,4 +1,12 @@
-use super::*;
+use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
+use crate::runtime::Edge;
+use crate::runtime::Error;
+use crate::runtime::PortId;
+use crate::runtime::Result;
+
+use super::BlockSlot;
+use super::Flowgraph;
 
 impl Flowgraph {
     /// Connect a message output port to a message input port.
