@@ -117,6 +117,45 @@ pub(super) enum BlockPlacement {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(super) enum DomainLocation {
+    Normal,
+    Local(usize),
+}
+
+impl DomainLocation {
+    pub(super) fn is_local(self) -> bool {
+        matches!(self, Self::Local(_))
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(super) struct BlockLocation {
+    pub(super) block_id: BlockId,
+    pub(super) domain: DomainLocation,
+    pub(super) domain_slot: usize,
+}
+
+impl BlockPlacement {
+    pub(super) fn location(self, block_id: BlockId) -> BlockLocation {
+        match self {
+            Self::Normal => BlockLocation {
+                block_id,
+                domain: DomainLocation::Normal,
+                domain_slot: block_id.0,
+            },
+            Self::Local {
+                domain_id,
+                local_id,
+            } => BlockLocation {
+                block_id,
+                domain: DomainLocation::Local(domain_id),
+                domain_slot: local_id,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(super) struct LocalEndpoint {
     pub(super) block_id: BlockId,
     pub(super) domain_id: usize,
@@ -148,28 +187,28 @@ impl StreamEndpoint {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(super) enum StreamPlan {
-    NormalNormal {
-        src: BlockId,
-        dst: BlockId,
-    },
-    LocalLocalSame {
-        src: LocalEndpoint,
-        dst: LocalEndpoint,
-    },
-    LocalLocalCross {
-        src: LocalEndpoint,
-        dst: LocalEndpoint,
-    },
-    LocalToNormal {
-        src: LocalEndpoint,
-        dst: BlockId,
-    },
-    NormalToLocal {
-        src: BlockId,
-        dst: LocalEndpoint,
-    },
+impl BlockLocation {
+    pub(super) fn stream_endpoint(self) -> StreamEndpoint {
+        match self.domain {
+            DomainLocation::Normal => StreamEndpoint::Normal(self.block_id),
+            DomainLocation::Local(domain_id) => StreamEndpoint::Local(LocalEndpoint::new(
+                self.block_id,
+                domain_id,
+                self.domain_slot,
+            )),
+        }
+    }
+
+    pub(super) fn local_endpoint(self) -> Option<LocalEndpoint> {
+        match self.domain {
+            DomainLocation::Normal => None,
+            DomainLocation::Local(domain_id) => Some(LocalEndpoint::new(
+                self.block_id,
+                domain_id,
+                self.domain_slot,
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -375,5 +414,32 @@ impl<K> From<BlockRef<K>> for BlockId {
 impl<K> From<&BlockRef<K>> for BlockId {
     fn from(value: &BlockRef<K>) -> Self {
         value.id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_placement_maps_to_domain_location() {
+        let normal = BlockPlacement::Normal.location(BlockId(3));
+        assert_eq!(normal.block_id, BlockId(3));
+        assert_eq!(normal.domain, DomainLocation::Normal);
+        assert_eq!(normal.domain_slot, 3);
+        assert_eq!(normal.stream_endpoint(), StreamEndpoint::Normal(BlockId(3)));
+
+        let local = BlockPlacement::Local {
+            domain_id: 2,
+            local_id: 7,
+        }
+        .location(BlockId(5));
+        assert_eq!(local.block_id, BlockId(5));
+        assert_eq!(local.domain, DomainLocation::Local(2));
+        assert_eq!(local.domain_slot, 7);
+        assert_eq!(
+            local.local_endpoint(),
+            Some(LocalEndpoint::new(BlockId(5), 2, 7))
+        );
     }
 }

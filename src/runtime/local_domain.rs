@@ -144,7 +144,9 @@ mod tests {
     use std::any::Any;
 
     use crate::runtime::BlockId;
+    use crate::runtime::BlockMessage;
     use crate::runtime::BlockPortCtx;
+    use crate::runtime::FlowgraphMessage;
     use crate::runtime::PortId;
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;

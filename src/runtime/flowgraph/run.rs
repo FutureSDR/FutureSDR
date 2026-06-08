@@ -562,21 +562,9 @@ impl Flowgraph {
             connected_inputs.push((dst, edge.edge.dst_port.clone()));
 
             if edge.local_only {
-                match self.stream_plan_by_id(src, dst)? {
-                    StreamPlan::LocalLocalSame { .. } => {}
-                    StreamPlan::LocalLocalCross { .. } => {
-                        return Err(Error::ValidationError(
-                            "stream connections between different local domains are not supported"
-                                .to_string(),
-                        ));
-                    }
-                    _ => {
-                        return Err(Error::ValidationError(
-                            "local stream connections require source and destination blocks in the same local domain"
-                                .to_string(),
-                        ));
-                    }
-                }
+                let src_location = self.location(src)?;
+                let dst_location = self.location(dst)?;
+                Self::same_local_stream_locations(src_location, dst_location, false)?;
             }
             adjacency[src.0].push(dst.0);
         }

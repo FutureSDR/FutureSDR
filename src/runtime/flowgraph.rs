@@ -66,13 +66,14 @@ pub use types::TypedBlockGuard;
 pub use types::TypedBlockGuardMut;
 
 use local_context::LocalDomainContextEntry;
+use types::BlockLocation;
 use types::BlockPlacement;
+use types::DomainLocation;
 use types::LocalEndpoint;
 use types::PreparedFlowgraph;
 use types::StartupSnapshot;
 use types::StreamEdge;
 use types::StreamEndpoint;
-use types::StreamPlan;
 
 struct BlockEntry {
     block: Option<Box<dyn Block>>,
@@ -602,65 +603,40 @@ impl Flowgraph {
         Ok((first_slot, second_slot))
     }
 
-    fn stream_plan(
-        src_id: BlockId,
-        src: BlockPlacement,
-        dst_id: BlockId,
-        dst: BlockPlacement,
-    ) -> StreamPlan {
-        match (src, dst) {
-            (BlockPlacement::Normal, BlockPlacement::Normal) => StreamPlan::NormalNormal {
-                src: src_id,
-                dst: dst_id,
-            },
-            (
-                BlockPlacement::Local {
-                    domain_id: src_domain,
-                    local_id: src_local,
-                },
-                BlockPlacement::Local {
-                    domain_id: dst_domain,
-                    local_id: dst_local,
-                },
-            ) => {
-                let src = LocalEndpoint::new(src_id, src_domain, src_local);
-                let dst = LocalEndpoint::new(dst_id, dst_domain, dst_local);
-                if src_domain == dst_domain {
-                    StreamPlan::LocalLocalSame { src, dst }
-                } else {
-                    StreamPlan::LocalLocalCross { src, dst }
-                }
-            }
-            (
-                BlockPlacement::Local {
-                    domain_id,
-                    local_id,
-                },
-                BlockPlacement::Normal,
-            ) => StreamPlan::LocalToNormal {
-                src: LocalEndpoint::new(src_id, domain_id, local_id),
-                dst: dst_id,
-            },
-            (
-                BlockPlacement::Normal,
-                BlockPlacement::Local {
-                    domain_id,
-                    local_id,
-                },
-            ) => StreamPlan::NormalToLocal {
-                src: src_id,
-                dst: LocalEndpoint::new(dst_id, domain_id, local_id),
-            },
-        }
+    fn location(&self, block_id: BlockId) -> Result<BlockLocation, Error> {
+        Ok(self.placement(block_id)?.location(block_id))
     }
 
-    fn stream_plan_by_id(&self, src_id: BlockId, dst_id: BlockId) -> Result<StreamPlan, Error> {
-        Ok(Self::stream_plan(
-            src_id,
-            self.placement(src_id)?,
-            dst_id,
-            self.placement(dst_id)?,
-        ))
+    fn same_local_stream_locations(
+        src: BlockLocation,
+        dst: BlockLocation,
+        dynamic: bool,
+    ) -> Result<(LocalEndpoint, LocalEndpoint), Error> {
+        match (src.domain, dst.domain) {
+            (DomainLocation::Local(src_domain), DomainLocation::Local(dst_domain))
+                if src_domain == dst_domain =>
+            {
+                Ok((
+                    src.local_endpoint()
+                        .expect("local domain has local endpoint"),
+                    dst.local_endpoint()
+                        .expect("local domain has local endpoint"),
+                ))
+            }
+            (DomainLocation::Local(_), DomainLocation::Local(_)) => Err(Error::ValidationError(
+                "stream connections between different local domains are not supported".to_string(),
+            )),
+            _ => {
+                let prefix = if dynamic {
+                    "local dynamic stream connections"
+                } else {
+                    "local stream connections"
+                };
+                Err(Error::ValidationError(format!(
+                    "{prefix} require source and destination blocks in the same local domain"
+                )))
+            }
+        }
     }
 
     fn raw_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {

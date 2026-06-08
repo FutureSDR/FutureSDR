@@ -255,6 +255,34 @@ impl Flowgraph {
             .await
     }
 
+    async fn connect_same_domain_stream_dyn_async(
+        &mut self,
+        src: BlockLocation,
+        src_port_id: PortId,
+        dst: BlockLocation,
+        dst_port_id: PortId,
+    ) -> Result<Edge, Error> {
+        if src.domain != dst.domain {
+            return Err(Error::ValidationError(
+                "same-domain stream setup received blocks in different domains".to_string(),
+            ));
+        }
+
+        match src.domain {
+            DomainLocation::Normal => self.connect_normal_normal_stream_dyn(
+                src.block_id,
+                &src_port_id,
+                dst.block_id,
+                &dst_port_id,
+            ),
+            DomainLocation::Local(_) => {
+                let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
+                self.connect_local_local_stream_dyn_async(src, src_port_id, dst, dst_port_id)
+                    .await
+            }
+        }
+    }
+
     async fn take_stream_output_send_token(
         &mut self,
         endpoint: StreamEndpoint,
@@ -497,48 +525,30 @@ impl Flowgraph {
         self.validate_block_ref(dst_block)?;
         let src_id = src_block.id;
         let dst_id = dst_block.id;
-        let edge = match Self::stream_plan(src_id, src_block.placement, dst_id, dst_block.placement)
-        {
-            StreamPlan::NormalNormal {
-                src: src_id,
-                dst: dst_id,
-            } => {
-                let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
-                Self::stream_ports_edge(src_port(&mut src.kernel), dst_port(&mut dst.kernel))
+        let src = self.location(src_id)?;
+        let dst = self.location(dst_id)?;
+        let edge = if src.domain == dst.domain {
+            match src.domain {
+                DomainLocation::Normal => {
+                    let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
+                    Self::stream_ports_edge(src_port(&mut src.kernel), dst_port(&mut dst.kernel))
+                }
+                DomainLocation::Local(_) => {
+                    let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
+                    self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
+                        src, src_port, dst, dst_port,
+                    )
+                    .await?
+                }
             }
-            StreamPlan::LocalLocalSame { src, dst } => {
-                self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
-                    src, src_port, dst, dst_port,
-                )
-                .await?
-            }
-            StreamPlan::LocalLocalCross { src, dst } => {
-                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
-                    StreamEndpoint::Local(src),
-                    src_port,
-                    StreamEndpoint::Local(dst),
-                    dst_port,
-                )
-                .await?
-            }
-            StreamPlan::LocalToNormal { src, dst } => {
-                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
-                    StreamEndpoint::Local(src),
-                    src_port,
-                    StreamEndpoint::Normal(dst),
-                    dst_port,
-                )
-                .await?
-            }
-            StreamPlan::NormalToLocal { src, dst } => {
-                self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
-                    StreamEndpoint::Normal(src),
-                    src_port,
-                    StreamEndpoint::Local(dst),
-                    dst_port,
-                )
-                .await?
-            }
+        } else {
+            self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(
+                src.stream_endpoint(),
+                src_port,
+                dst.stream_endpoint(),
+                dst_port,
+            )
+            .await?
         };
         self.stream_edges.push(StreamEdge::from_edge(edge, false));
         Ok(())
@@ -588,27 +598,12 @@ impl Flowgraph {
         self.validate_block_ref(dst_block)?;
         let src_id = src_block.id;
         let dst_id = dst_block.id;
-        let edge = match Self::stream_plan(src_id, src_block.placement, dst_id, dst_block.placement)
-        {
-            StreamPlan::LocalLocalSame { src, dst } => {
-                self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
-                    src, src_port, dst, dst_port,
-                )
-                .await?
-            }
-            StreamPlan::LocalLocalCross { .. } => {
-                return Err(Error::ValidationError(
-                    "stream connections between different local domains are not supported"
-                        .to_string(),
-                ));
-            }
-            _ => {
-                return Err(Error::ValidationError(
-                    "local stream connections require source and destination blocks in the same local domain"
-                        .to_string(),
-                ));
-            }
-        };
+        let src = self.location(src_id)?;
+        let dst = self.location(dst_id)?;
+        let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
+        let edge = self
+            .local_local_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
+            .await?;
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
@@ -679,10 +674,9 @@ impl Flowgraph {
         let dst_block_id = dst_block_id.into();
         let dst_port_id = dst_port_id.into();
 
-        let local_only = matches!(
-            self.stream_plan_by_id(src_block_id, dst_block_id)?,
-            StreamPlan::LocalLocalSame { .. }
-        );
+        let src = self.location(src_block_id)?;
+        let dst = self.location(dst_block_id)?;
+        let local_only = src.domain == dst.domain && src.domain.is_local();
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
         self.validate_stream_edge_ports(&edge).await?;
         self.stream_edges
@@ -724,21 +718,9 @@ impl Flowgraph {
         let dst_block_id = dst_block_id.into();
         let dst_port_id = dst_port_id.into();
 
-        match self.stream_plan_by_id(src_block_id, dst_block_id)? {
-            StreamPlan::LocalLocalSame { .. } => {}
-            StreamPlan::LocalLocalCross { .. } => {
-                return Err(Error::ValidationError(
-                    "stream connections between different local domains are not supported"
-                        .to_string(),
-                ));
-            }
-            _ => {
-                return Err(Error::ValidationError(
-                    "local dynamic stream connections require source and destination blocks in the same local domain"
-                        .to_string(),
-                ));
-            }
-        };
+        let src = self.location(src_block_id)?;
+        let dst = self.location(dst_block_id)?;
+        Self::same_local_stream_locations(src, dst, true)?;
 
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
         self.validate_stream_edge_ports(&edge).await?;
@@ -875,46 +857,25 @@ impl Flowgraph {
     }
 
     async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
-        match self.stream_plan_by_id(edge.src_block, edge.dst_block)? {
-            StreamPlan::NormalNormal { src, dst } => {
-                self.connect_normal_normal_stream_dyn(src, &edge.src_port, dst, &edge.dst_port)?;
-            }
-            StreamPlan::LocalLocalSame { src, dst } => {
-                self.connect_local_local_stream_dyn_async(
-                    src,
-                    edge.src_port.clone(),
-                    dst,
-                    edge.dst_port.clone(),
-                )
-                .await?;
-            }
-            StreamPlan::LocalLocalCross { src, dst } => {
-                self.connect_cross_domain_stream_dyn_async(
-                    StreamEndpoint::Local(src),
-                    edge.src_port.clone(),
-                    StreamEndpoint::Local(dst),
-                    edge.dst_port.clone(),
-                )
-                .await?;
-            }
-            StreamPlan::LocalToNormal { src, dst } => {
-                self.connect_cross_domain_stream_dyn_async(
-                    StreamEndpoint::Local(src),
-                    edge.src_port.clone(),
-                    StreamEndpoint::Normal(dst),
-                    edge.dst_port.clone(),
-                )
-                .await?;
-            }
-            StreamPlan::NormalToLocal { src, dst } => {
-                self.connect_cross_domain_stream_dyn_async(
-                    StreamEndpoint::Normal(src),
-                    edge.src_port.clone(),
-                    StreamEndpoint::Local(dst),
-                    edge.dst_port.clone(),
-                )
-                .await?;
-            }
+        let src = self.location(edge.src_block)?;
+        let dst = self.location(edge.dst_block)?;
+
+        if src.domain == dst.domain {
+            self.connect_same_domain_stream_dyn_async(
+                src,
+                edge.src_port.clone(),
+                dst,
+                edge.dst_port.clone(),
+            )
+            .await?;
+        } else {
+            self.connect_cross_domain_stream_dyn_async(
+                src.stream_endpoint(),
+                edge.src_port.clone(),
+                dst.stream_endpoint(),
+                edge.dst_port.clone(),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -927,23 +888,21 @@ impl Flowgraph {
     }
 
     async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
-        let src_placement = self.placement(edge.src_block)?;
-
+        let src = self.location(edge.src_block)?;
         let dst = self
             .blocks
             .get(edge.dst_block.0)
             .and_then(|entry| entry.inbox.as_ref())
             .cloned()
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
-        match src_placement {
-            BlockPlacement::Normal => {
+
+        match src.domain {
+            DomainLocation::Normal => {
                 let src_block = self.raw_block_mut(edge.src_block)?;
                 src_block.connect_message(&edge.src_port, dst, &edge.dst_port)?;
             }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-            } => {
+            DomainLocation::Local(domain_id) => {
+                let local_id = src.domain_slot;
                 self.local_domains[domain_id]
                     .exec(move |state| {
                         let result = (|| {
