@@ -36,52 +36,12 @@ impl PortId {
 
     /// Get the port name.
     ///
-    /// Panics for indexed port ids. Use [`Self::as_name`] when the id may be an
-    /// index.
+    /// Panics for indexed port ids.
     pub fn name(&self) -> &str {
         match self {
             Self::Name(name) => name,
             Self::Index(index) => panic!("indexed PortId {index} has no name"),
         }
-    }
-
-    /// Return the name variant, if this is a named port id.
-    pub fn as_name(&self) -> Option<&str> {
-        match self {
-            Self::Name(name) => Some(name),
-            Self::Index(_) => None,
-        }
-    }
-
-    /// Return the index variant, if this is an indexed port id.
-    pub fn as_index(&self) -> Option<usize> {
-        match self {
-            Self::Index(index) => Some(*index),
-            Self::Name(_) => None,
-        }
-    }
-
-    /// Return whether this id selects the given indexed/name port entry.
-    pub fn matches(&self, index: usize, name: &str) -> bool {
-        match self {
-            Self::Index(port_index) => *port_index == index,
-            Self::Name(port_name) => port_name == name,
-        }
-    }
-
-    /// Resolve this id against an ordered port-name table.
-    pub fn resolve_index(&self, names: &[&str]) -> Option<usize> {
-        match self {
-            Self::Index(index) => (*index < names.len()).then_some(*index),
-            Self::Name(name) => names.iter().position(|candidate| *candidate == name),
-        }
-    }
-
-    /// Resolve this id against an ordered port-name table and return a public
-    /// named id for the selected port.
-    pub fn resolve_name(&self, names: &[&str]) -> Option<Self> {
-        self.resolve_index(names)
-            .map(|index| Self::new(names[index].to_string()))
     }
 }
 

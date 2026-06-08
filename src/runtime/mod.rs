@@ -150,6 +150,24 @@ impl Edge {
     }
 }
 
+pub(crate) fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {
+    match port_id {
+        PortId::Index(port_index) => *port_index == index,
+        PortId::Name(port_name) => port_name == name,
+    }
+}
+
+pub(crate) fn resolve_port_index(port_id: &PortId, names: &[&str]) -> Option<usize> {
+    match port_id {
+        PortId::Index(index) => (*index < names.len()).then_some(*index),
+        PortId::Name(name) => names.iter().position(|candidate| *candidate == name),
+    }
+}
+
+pub(crate) fn resolve_port_name(port_id: &PortId, names: &[&str]) -> Option<PortId> {
+    resolve_port_index(port_id, names).map(|index| PortId::new(names[index].to_string()))
+}
+
 /// Block the current thread until a future completes.
 ///
 /// This is a small convenience wrapper around the native async executor and is
@@ -165,8 +183,14 @@ pub fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
 pub mod __private {
     pub use super::add_to_flowgraph::AddToFlowgraph;
 
+    use super::PortId;
     pub use super::kernel_interface::KernelInterface;
     pub use super::kernel_interface::SendKernelInterface;
+
+    #[doc(hidden)]
+    pub fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {
+        super::port_id_matches(port_id, index, name)
+    }
 }
 
 /// Generic result type used by runtime APIs and custom block kernels.

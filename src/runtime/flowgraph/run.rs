@@ -68,6 +68,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         &mut self,
         endpoints: &[Option<BlockEndpoint>],
         ids: &[BlockId],
+        message_inputs: &[Option<&'static [&'static str]>],
         stream_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
         message_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
     ) {
@@ -75,6 +76,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             let _ = control.send(RunningFlowgraphControl::new(
                 endpoints.to_vec(),
                 ids.to_vec(),
+                message_inputs.to_vec(),
                 stream_edges_desc.to_vec(),
                 message_edges_desc.to_vec(),
             ));
@@ -307,10 +309,15 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             connections,
             domains: domain_plan,
         } = plan.into_parts();
-        let StartupSnapshot { mut endpoints, ids } = control.startup;
+        let StartupSnapshot {
+            mut endpoints,
+            ids,
+            message_inputs,
+        } = control.startup;
         self.publish_control(
             &endpoints,
             &ids,
+            &message_inputs,
             &control.stream_edges_desc,
             &control.message_edges_desc,
         );

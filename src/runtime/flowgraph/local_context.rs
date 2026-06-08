@@ -366,16 +366,15 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .ok_or(Error::InvalidBlock(dst_block_id))?;
 
         let dst_block = inner.state.block(dst_local, dst_block_id)?;
-        let dst_port_id = dst_port_id.resolve_name(dst_block.message_inputs()).ok_or(
-            Error::InvalidMessagePort(BlockPortCtx::Id(dst_block_id), dst_port_id),
-        )?;
+        let dst_port_id =
+            crate::runtime::resolve_port_name(&dst_port_id, dst_block.message_inputs()).ok_or(
+                Error::InvalidMessagePort(BlockPortCtx::Id(dst_block_id), dst_port_id),
+            )?;
         let src_block = inner.state.block(src_local, src_block_id)?;
-        let src_port_id = src_port_id
-            .resolve_name(src_block.message_outputs())
-            .ok_or(Error::InvalidMessagePort(
-                BlockPortCtx::Id(src_block_id),
-                src_port_id,
-            ))?;
+        let src_port_id =
+            crate::runtime::resolve_port_name(&src_port_id, src_block.message_outputs()).ok_or(
+                Error::InvalidMessagePort(BlockPortCtx::Id(src_block_id), src_port_id),
+            )?;
         inner.message_edges.push(Edge::new(
             src_block_id,
             src_port_id,

@@ -115,7 +115,7 @@ impl MessageOutputs {
         self.outputs
             .iter_mut()
             .enumerate()
-            .find(|(index, item)| port.matches(*index, item.name()))
+            .find(|(index, item)| crate::runtime::port_id_matches(port, *index, item.name()))
             .map(|(_, item)| item)
     }
 }

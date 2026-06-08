@@ -468,6 +468,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         self.id
     }
 
+    fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
+        crate::runtime::kernel_interface::stream_inputs(&mut self.kernel)
+    }
+    fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
+        crate::runtime::kernel_interface::stream_outputs(&mut self.kernel)
+    }
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
         crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
     }

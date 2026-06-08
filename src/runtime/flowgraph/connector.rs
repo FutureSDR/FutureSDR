@@ -56,6 +56,35 @@ impl<'a> FlowgraphConnector<'a> {
         Self { flowgraph }
     }
 
+    fn resolve_stream_port_index(
+        block_id: BlockId,
+        port_id: &PortId,
+        names: &[String],
+    ) -> Result<PortId, Error> {
+        let names = names.iter().map(String::as_str).collect::<Vec<_>>();
+        crate::runtime::resolve_port_index(port_id, &names)
+            .map(PortId::index)
+            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+    }
+
+    fn resolve_stream_input_index(
+        block_id: BlockId,
+        block: &mut dyn BlockObject,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        let names = block.stream_input_names()?;
+        Self::resolve_stream_port_index(block_id, port_id, &names)
+    }
+
+    fn resolve_stream_output_index(
+        block_id: BlockId,
+        block: &mut dyn BlockObject,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        let names = block.stream_output_names()?;
+        Self::resolve_stream_port_index(block_id, port_id, &names)
+    }
+
     fn connect_stream_ports_dyn(
         src_block_id: BlockId,
         src_port_id: &PortId,
@@ -64,19 +93,28 @@ impl<'a> FlowgraphConnector<'a> {
         dst_port_id: &PortId,
         dst_block: &mut dyn BlockObject,
     ) -> Result<Edge, Error> {
-        let reader = dst_block.stream_input(dst_port_id).map_err(|e| match e {
-            Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
-            }
-            o => o,
-        })?;
+        let dst_port_index =
+            Self::resolve_stream_input_index(dst_block_id, dst_block, dst_port_id)?;
+        let src_port_index =
+            Self::resolve_stream_output_index(src_block_id, src_block, src_port_id)?;
 
-        let writer = src_block.stream_output(src_port_id).map_err(|e| match e {
-            Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
-            }
-            o => o,
-        })?;
+        let reader = dst_block
+            .stream_input(&dst_port_index)
+            .map_err(|e| match e {
+                Error::InvalidStreamPort(_, port) => {
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
+                }
+                o => o,
+            })?;
+
+        let writer = src_block
+            .stream_output(&src_port_index)
+            .map_err(|e| match e {
+                Error::InvalidStreamPort(_, port) => {
+                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+                }
+                o => o,
+            })?;
 
         writer.connect_dyn(reader).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
@@ -217,25 +255,28 @@ impl<'a> FlowgraphConnector<'a> {
         location: BlockLocation,
         port_id: &PortId,
     ) -> Result<StreamOutputSendTokenLease, Error> {
-        let port_id = port_id.clone();
-        let token = self
+        let requested_port_id = port_id.clone();
+        let (port_id, token) = self
             .flowgraph
-            .with_block_mut(location, {
-                let port_id = port_id.clone();
-                move |block| {
-                    let writer = block.stream_output(&port_id).map_err(|e| match e {
-                        Error::InvalidStreamPort(_, port) => {
-                            Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                        }
-                        o => o,
-                    })?;
-                    writer.take_send_token().map_err(|e| match e {
-                        Error::InvalidStreamPort(_, port) => {
-                            Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                        }
-                        o => o,
-                    })
-                }
+            .with_block_mut(location, move |block| {
+                let port_id = Self::resolve_stream_output_index(
+                    location.block_id,
+                    block,
+                    &requested_port_id,
+                )?;
+                let writer = block.stream_output(&port_id).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })?;
+                let token = writer.take_send_token().map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })?;
+                Ok((port_id, token))
             })
             .await?;
         Ok(StreamOutputSendTokenLease::new(location, port_id, token))
@@ -277,6 +318,8 @@ impl<'a> FlowgraphConnector<'a> {
                 let mut token = token.lock().await;
                 let token = token.as_mut().ok_or(Error::LockError)?;
                 let dst_block = block_access::raw_block_mut(&mut self.flowgraph.blocks, dst)?;
+                let dst_port_id =
+                    Self::resolve_stream_input_index(dst.block_id, dst_block, &dst_port_id)?;
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
@@ -303,6 +346,11 @@ impl<'a> FlowgraphConnector<'a> {
                             let mut token = token.lock().await;
                             let token = token.as_mut().ok_or(Error::LockError)?;
                             let dst_block = state.block_mut(dst.domain_slot, dst.block_id)?;
+                            let dst_port_id = Self::resolve_stream_input_index(
+                                dst.block_id,
+                                dst_block,
+                                &dst_port_id,
+                            )?;
                             let reader =
                                 dst_block.stream_input(&dst_port_id).map_err(|e| match e {
                                     Error::InvalidStreamPort(_, port) => Error::InvalidStreamPort(
@@ -379,23 +427,43 @@ impl<'a> FlowgraphConnector<'a> {
 
     async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
         let src = self.flowgraph.location(edge.src_block)?;
-        let dst_slot = self
-            .flowgraph
-            .blocks
-            .get(edge.dst_block.0)
-            .ok_or(Error::InvalidBlock(edge.dst_block))?;
-        let dst = dst_slot.endpoint().clone();
-        let dst_port = edge
-            .dst_port
-            .resolve_index(dst_slot.message_inputs())
-            .map(PortId::index)
-            .ok_or_else(|| {
-                Error::InvalidMessagePort(BlockPortCtx::Id(edge.dst_block), edge.dst_port.clone())
-            })?;
+        let src_port = {
+            let src_slot = self
+                .flowgraph
+                .blocks
+                .get(edge.src_block.0)
+                .ok_or(Error::InvalidBlock(edge.src_block))?;
+            crate::runtime::resolve_port_index(&edge.src_port, src_slot.message_outputs())
+                .map(PortId::index)
+                .ok_or_else(|| {
+                    Error::InvalidMessagePort(
+                        BlockPortCtx::Id(edge.src_block),
+                        edge.src_port.clone(),
+                    )
+                })?
+        };
+        let (dst, dst_port) = {
+            let dst_slot = self
+                .flowgraph
+                .blocks
+                .get(edge.dst_block.0)
+                .ok_or(Error::InvalidBlock(edge.dst_block))?;
+            let dst = dst_slot.endpoint().clone();
+            let dst_port =
+                crate::runtime::resolve_port_index(&edge.dst_port, dst_slot.message_inputs())
+                    .map(PortId::index)
+                    .ok_or_else(|| {
+                        Error::InvalidMessagePort(
+                            BlockPortCtx::Id(edge.dst_block),
+                            edge.dst_port.clone(),
+                        )
+                    })?;
+            (dst, dst_port)
+        };
 
         self.flowgraph
             .with_block_mut(src, move |src_block| {
-                src_block.connect_message(&edge.src_port, dst, &dst_port)
+                src_block.connect_message(&src_port, dst, &dst_port)
             })
             .await
     }

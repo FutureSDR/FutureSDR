@@ -25,6 +25,14 @@ pub trait BlockObject: Any {
     /// Get the block id.
     fn id(&self) -> BlockId;
 
+    /// Get stream input port names declared by this block.
+    fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
+        Ok(Vec::new())
+    }
+    /// Get stream output port names declared by this block.
+    fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
+        Ok(Vec::new())
+    }
     /// Get a type-erased stream input by port id.
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error>;
     /// Get a type-erased stream output by port id.

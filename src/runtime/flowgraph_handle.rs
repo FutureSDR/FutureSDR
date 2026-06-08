@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphMessage;
@@ -18,6 +19,7 @@ use crate::runtime::dev::BlockEndpoint;
 pub(crate) struct RunningFlowgraphControl {
     endpoints: Vec<Option<BlockEndpoint>>,
     ids: Vec<BlockId>,
+    message_inputs: Vec<Option<&'static [&'static str]>>,
     stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
@@ -26,12 +28,14 @@ impl RunningFlowgraphControl {
     pub(crate) fn new(
         endpoints: Vec<Option<BlockEndpoint>>,
         ids: Vec<BlockId>,
+        message_inputs: Vec<Option<&'static [&'static str]>>,
         stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
         message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     ) -> Self {
         Self {
             endpoints,
             ids,
+            message_inputs,
             stream_edges,
             message_edges,
         }
@@ -91,6 +95,26 @@ impl FlowgraphHandle {
             .ok_or(Error::InvalidBlock(block_id))
     }
 
+    fn message_input_index(
+        &self,
+        block_id: BlockId,
+        port_id: impl Into<PortId>,
+    ) -> Result<PortId, Error> {
+        let port_id = port_id.into();
+        let inputs = self
+            .control
+            .message_inputs
+            .get(block_id.0)
+            .and_then(Option::as_ref)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        crate::runtime::resolve_port_index(&port_id, inputs)
+            .map(PortId::index)
+            .ok_or(Error::InvalidMessagePort(
+                BlockPortCtx::Id(block_id),
+                port_id,
+            ))
+    }
+
     /// Get a handle scoped to one block in the running flowgraph.
     ///
     /// The block id is not validated until an operation is performed on the
@@ -114,11 +138,9 @@ impl FlowgraphHandle {
     ) -> Result<(), Error> {
         let block_id = block_id.into();
         let endpoint = self.endpoint(block_id)?;
+        let port_id = self.message_input_index(block_id, port_id)?;
         endpoint
-            .send(BlockMessage::Post {
-                port_id: port_id.into(),
-                data,
-            })
+            .send(BlockMessage::Post { port_id, data })
             .await
             .map_err(|_| Error::BlockTerminated)
     }
@@ -135,13 +157,10 @@ impl FlowgraphHandle {
     ) -> Result<Pmt, Error> {
         let block_id = block_id.into();
         let endpoint = self.endpoint(block_id)?;
+        let port_id = self.message_input_index(block_id, port_id)?;
         let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
         endpoint
-            .send(BlockMessage::Call {
-                port_id: port_id.into(),
-                data,
-                tx,
-            })
+            .send(BlockMessage::Call { port_id, data, tx })
             .await
             .map_err(|_| Error::BlockTerminated)?;
         rx.await?

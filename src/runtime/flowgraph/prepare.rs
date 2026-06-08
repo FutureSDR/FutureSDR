@@ -20,6 +20,7 @@ use super::types::DomainLocation;
 pub(super) struct StartupSnapshot {
     pub(super) endpoints: Vec<Option<BlockEndpoint>>,
     pub(super) ids: Vec<BlockId>,
+    pub(super) message_inputs: Vec<Option<&'static [&'static str]>>,
 }
 
 struct LocalDomainPlan {
@@ -334,8 +335,12 @@ impl<'a> FlowgraphCompiler<'a> {
     }
 
     fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
-        let (endpoints, ids) = storage::endpoints(&self.flowgraph.blocks)?;
-        Ok(StartupSnapshot { endpoints, ids })
+        let (endpoints, ids, message_inputs) = storage::endpoints(&self.flowgraph.blocks)?;
+        Ok(StartupSnapshot {
+            endpoints,
+            ids,
+            message_inputs,
+        })
     }
 
     fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {

@@ -403,6 +403,40 @@ fn stream_dyn_connects_normal_source_to_local_sink() -> Result<()> {
 }
 
 #[test]
+fn stream_dyn_accepts_indexed_ports_and_describes_names() -> Result<()> {
+    let rt = Runtime::new();
+    let mut fg = Flowgraph::new();
+
+    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![
+        1, 2, 3, 4,
+    ]))?;
+    let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
+
+    fg.stream_dyn(
+        src,
+        futuresdr::runtime::PortId::index(0),
+        snk,
+        futuresdr::runtime::PortId::index(0),
+    )?;
+
+    let running = rt.start(fg)?;
+    let description = futuresdr::runtime::block_on(running.describe())?;
+    assert_eq!(
+        description.stream_edges,
+        vec![(
+            src.id(),
+            futuresdr::runtime::PortId::from("output"),
+            snk.id(),
+            futuresdr::runtime::PortId::from("input"),
+        )]
+    );
+    let fg = running.wait()?;
+    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
+
+    Ok(())
+}
+
+#[test]
 fn add_local_uses_normal_buffers_inside_local_domain() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();

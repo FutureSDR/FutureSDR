@@ -6,6 +6,12 @@ use crate::runtime::scheduler::NormalBlocks;
 
 use super::BlockSlot;
 
+type EndpointSnapshot = (
+    Vec<Option<BlockEndpoint>>,
+    Vec<BlockId>,
+    Vec<Option<&'static [&'static str]>>,
+);
+
 pub(super) fn take_normal_blocks(blocks: &mut [BlockSlot]) -> Result<NormalBlocks, Error> {
     let mut normal_blocks = Vec::with_capacity(blocks.len());
     for entry in blocks.iter_mut() {
@@ -29,15 +35,15 @@ pub(super) fn restore_normal_blocks(
     Ok(())
 }
 
-pub(super) fn endpoints(
-    blocks: &[BlockSlot],
-) -> Result<(Vec<Option<BlockEndpoint>>, Vec<BlockId>), Error> {
+pub(super) fn endpoints(blocks: &[BlockSlot]) -> Result<EndpointSnapshot, Error> {
     let mut endpoints = Vec::with_capacity(blocks.len());
     let mut ids = Vec::with_capacity(blocks.len());
+    let mut message_inputs = Vec::with_capacity(blocks.len());
     for (id, entry) in blocks.iter().enumerate() {
         let block_id = BlockId(id);
         endpoints.push(Some(entry.endpoint().clone()));
         ids.push(block_id);
+        message_inputs.push(Some(entry.message_inputs()));
     }
-    Ok((endpoints, ids))
+    Ok((endpoints, ids, message_inputs))
 }

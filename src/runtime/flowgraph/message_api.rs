@@ -55,7 +55,7 @@ impl Flowgraph {
         port_id: PortId,
         ports: &[&str],
     ) -> Result<PortId, Error> {
-        port_id.resolve_name(ports).ok_or(Error::InvalidMessagePort(
+        crate::runtime::resolve_port_name(&port_id, ports).ok_or(Error::InvalidMessagePort(
             BlockPortCtx::Id(block_id),
             port_id,
         ))
