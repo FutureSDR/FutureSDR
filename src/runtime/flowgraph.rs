@@ -37,8 +37,10 @@ use crate::runtime::kernel_interface::SendKernelInterface;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
+use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::scheduler::NormalBlocks;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::RunningDomain;
@@ -276,13 +278,23 @@ struct PreparedFlowgraph {
 /// are used for blocks or buffers that are not `Send`, and for blocks marked
 /// as blocking. Stream connections with local-only buffers can only connect
 /// blocks inside the same local domain.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct LocalDomain {
+#[derive(Debug, Eq, PartialEq)]
+pub struct LocalDomain<LS = BasicLocalScheduler> {
     flowgraph_id: FlowgraphId,
     domain_id: usize,
+    _marker: PhantomData<fn() -> LS>,
+}
+
+impl<LS> Copy for LocalDomain<LS> {}
+
+impl<LS> Clone for LocalDomain<LS> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 struct LocalDomainContextEntry {
+    block_id: BlockId,
     placement: BlockPlacement,
     inbox: BlockEndpoint,
     message_inputs: &'static [&'static str],
@@ -304,11 +316,12 @@ struct LocalDomainContextInner<'a> {
 ///
 /// Blocks added through this context are constructed on the local-domain
 /// thread/worker, so their state does not have to be `Send`.
-pub struct LocalDomainContext<'a> {
+pub struct LocalDomainContext<'a, LS = BasicLocalScheduler> {
     inner: RefCell<LocalDomainContextInner<'a>>,
+    scheduler: &'a LS,
 }
 
-impl<'a> LocalDomainContext<'a> {
+impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
     fn new(
         flowgraph_id: FlowgraphId,
         domain_id: usize,
@@ -316,6 +329,7 @@ impl<'a> LocalDomainContext<'a> {
         next_block_id: usize,
         next_local_id: usize,
         state: &'a mut LocalDomainState,
+        scheduler: &'a LS,
     ) -> Self {
         Self {
             inner: RefCell::new(LocalDomainContextInner {
@@ -329,7 +343,16 @@ impl<'a> LocalDomainContext<'a> {
                 message_edges: Vec::new(),
                 state,
             }),
+            scheduler,
         }
+    }
+
+    /// Spawn a non-`Send` task on this local domain's scheduler while the context runs.
+    pub fn spawn<T: 'static>(
+        &self,
+        future: impl std::future::Future<Output = T> + 'static,
+    ) -> LS::Task<T> {
+        self.scheduler.spawn(future)
     }
 
     fn take_entries(&self) -> (Vec<LocalDomainContextEntry>, Vec<StreamEdge>, Vec<Edge>) {
@@ -339,6 +362,22 @@ impl<'a> LocalDomainContext<'a> {
             std::mem::take(&mut inner.stream_edges),
             std::mem::take(&mut inner.message_edges),
         )
+    }
+
+    fn rollback_entries(&self, entries: &[LocalDomainContextEntry]) -> Result<(), Error> {
+        let mut inner = self.inner.borrow_mut();
+        let mut result = Ok(());
+        for entry in entries.iter().rev() {
+            let BlockPlacement::Local { local_id, .. } = entry.placement else {
+                continue;
+            };
+            if let Err(e) = inner.state.remove_block(local_id, entry.block_id)
+                && result.is_ok()
+            {
+                result = Err(e);
+            }
+        }
+        result
     }
 
     /// Add a block to this local domain.
@@ -367,6 +406,7 @@ impl<'a> LocalDomainContext<'a> {
             .insert_block(local_id, Box::new(block))
             .expect("failed to insert local-domain block");
         inner.entries.push(LocalDomainContextEntry {
+            block_id,
             placement,
             inbox,
             message_inputs: K::message_inputs(),
@@ -1038,7 +1078,7 @@ impl TerminatedFlowgraph {
 
 impl Flowgraph {
     /// Create an empty [`Flowgraph`].
-    pub fn new() -> Flowgraph {
+    pub fn new() -> Self {
         Flowgraph {
             id: FlowgraphId(NEXT_FLOWGRAPH_ID.fetch_add(1, Ordering::Relaxed)),
             blocks: Vec::new(),
@@ -1058,11 +1098,19 @@ impl Flowgraph {
     /// This can fail on WASM when the local-domain worker script cannot be
     /// started.
     pub fn local_domain(&mut self) -> Result<LocalDomain, Error> {
+        self.local_domain_with_scheduler::<BasicLocalScheduler>()
+    }
+
+    /// Create a local scheduling domain with a custom local scheduler type.
+    pub fn local_domain_with_scheduler<LS: LocalScheduler>(
+        &mut self,
+    ) -> Result<LocalDomain<LS>, Error> {
         let domain_id = self.local_domains.len();
-        self.local_domains.push(LocalDomainRuntime::new()?);
+        self.local_domains.push(LocalDomainRuntime::new::<LS>()?);
         Ok(LocalDomain {
             flowgraph_id: self.id,
             domain_id,
+            _marker: PhantomData,
         })
     }
 
@@ -1074,6 +1122,15 @@ impl Flowgraph {
     /// and may be sparse (for example `2, 3, 8, 9`).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn local_domain_pinned(&mut self, cpuid: usize) -> Result<LocalDomain, Error> {
+        self.local_domain_pinned_with_scheduler::<BasicLocalScheduler>(cpuid)
+    }
+
+    /// Create a pinned local scheduling domain with a custom local scheduler type.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn local_domain_pinned_with_scheduler<LS: LocalScheduler>(
+        &mut self,
+        cpuid: usize,
+    ) -> Result<LocalDomain<LS>, Error> {
         let available = core_affinity::get_core_ids()
             .ok_or_else(|| Error::RuntimeError("failed to get available CPU IDs".to_string()))?;
         if !available.iter().any(|core_id| core_id.id == cpuid) {
@@ -1085,10 +1142,11 @@ impl Flowgraph {
 
         let domain_id = self.local_domains.len();
         self.local_domains
-            .push(LocalDomainRuntime::new_pinned(Some(cpuid))?);
+            .push(LocalDomainRuntime::new_pinned::<LS>(Some(cpuid))?);
         Ok(LocalDomain {
             flowgraph_id: self.id,
             domain_id,
+            _marker: PhantomData,
         })
     }
 
@@ -1112,16 +1170,17 @@ impl Flowgraph {
     /// Blocks added through the [`LocalDomainContext`] are constructed inside the
     /// local domain and therefore may contain non-`Send` state.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn domain_run<R>(
+    pub fn domain_run<LS, R>(
         &mut self,
-        domain: LocalDomain,
-        f: impl FnOnce(&LocalDomainContext<'_>) -> Result<R, Error> + Send + 'static,
+        domain: LocalDomain<LS>,
+        f: impl FnOnce(&LocalDomainContext<'_, LS>) -> Result<R, Error> + Send + 'static,
     ) -> Result<R, Error>
     where
+        LS: LocalScheduler,
         R: Send + 'static,
     {
         crate::runtime::block_on(
-            self.domain_run_async(domain, async move |ctx: &LocalDomainContext<'_>| f(ctx)),
+            self.domain_run_async(domain, async move |ctx: &LocalDomainContext<'_, LS>| f(ctx)),
         )
     }
 
@@ -1130,10 +1189,15 @@ impl Flowgraph {
     /// This is the async counterpart of [`Flowgraph::domain_run`]. The future
     /// is created and awaited inside the local domain, so it may hold non-`Send`
     /// state across await points as long as that state is constructed there.
-    pub async fn domain_run_async<R, F>(&mut self, domain: LocalDomain, f: F) -> Result<R, Error>
+    pub async fn domain_run_async<LS, R, F>(
+        &mut self,
+        domain: LocalDomain<LS>,
+        f: F,
+    ) -> Result<R, Error>
     where
+        LS: LocalScheduler,
         R: Send + 'static,
-        F: for<'a> std::ops::AsyncFnOnce(&'a LocalDomainContext<'a>) -> Result<R, Error>
+        F: for<'a> std::ops::AsyncFnOnce(&'a LocalDomainContext<'a, LS>) -> Result<R, Error>
             + Send
             + 'static,
     {
@@ -1149,16 +1213,30 @@ impl Flowgraph {
         let (ret, (entries, stream_edges, message_edges)) = self.local_domains[domain_id]
             .exec(move |state| {
                 Box::pin(async move {
-                    let ctx = LocalDomainContext::new(
-                        flowgraph_id,
-                        domain_id,
-                        domain_inbox,
-                        next_block_id,
-                        next_local_id,
-                        state,
-                    );
-                    let ret = f(&ctx).await?;
-                    Ok((ret, ctx.take_entries()))
+                    let scheduler = LS::default();
+                    scheduler
+                        .run(async {
+                            let ctx = LocalDomainContext::new(
+                                flowgraph_id,
+                                domain_id,
+                                domain_inbox,
+                                next_block_id,
+                                next_local_id,
+                                state,
+                                &scheduler,
+                            );
+                            match f(&ctx).await {
+                                Ok(ret) => Ok((ret, ctx.take_entries())),
+                                Err(e) => {
+                                    let (entries, _, _) = ctx.take_entries();
+                                    if let Err(rollback) = ctx.rollback_entries(&entries) {
+                                        warn!("failed to roll back local-domain context after error: {rollback}");
+                                    }
+                                    Err(e)
+                                }
+                            }
+                        })
+                        .await
                 })
             })
             .await?;
@@ -1270,12 +1348,13 @@ impl Flowgraph {
     /// wakeups. Cross-domain/runtime ingress is delivered at the domain boundary.
     /// Placement chooses the wake path; buffer type chooses the transport.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn add_local<K>(
+    pub fn add_local<LS, K>(
         &mut self,
-        domain: LocalDomain,
+        domain: LocalDomain<LS>,
         block: impl FnOnce() -> K + Send + 'static,
     ) -> Result<BlockRef<K>, Error>
     where
+        LS: LocalScheduler,
         K: Kernel + KernelInterface + 'static,
     {
         let domain_id = self.validate_local_domain(domain)?;
@@ -1283,12 +1362,13 @@ impl Flowgraph {
     }
 
     /// Asynchronously add a block to a local domain with a local inbox/proxy split.
-    pub async fn add_local_async<K>(
+    pub async fn add_local_async<LS, K>(
         &mut self,
-        domain: LocalDomain,
+        domain: LocalDomain<LS>,
         block: impl FnOnce() -> K + Send + 'static,
     ) -> Result<BlockRef<K>, Error>
     where
+        LS: LocalScheduler,
         K: Kernel + KernelInterface + 'static,
     {
         let domain_id = self.validate_local_domain(domain)?;
@@ -1413,7 +1493,7 @@ impl Flowgraph {
         Ok(())
     }
 
-    fn validate_local_domain(&self, domain: LocalDomain) -> Result<usize, Error> {
+    fn validate_local_domain<LS>(&self, domain: LocalDomain<LS>) -> Result<usize, Error> {
         if domain.flowgraph_id != self.id {
             return Err(Error::ValidationError(format!(
                 "local domain belongs to flowgraph {}, not {}",
@@ -2903,7 +2983,7 @@ impl Flowgraph {
         domains.push(RunningDomain::Normal(normal_domain));
         for spec in local_specs {
             let domain_id = spec.domain_id;
-            match scheduler.start_local_domain(spec) {
+            match spec.start() {
                 Ok(domain) => {
                     self.local_domains[domain_id].mark_running();
                     domains.push(RunningDomain::Local(domain));

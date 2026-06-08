@@ -3,6 +3,8 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::BlockId;
+use futuresdr::runtime::Error;
 use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
 
@@ -29,6 +31,43 @@ fn connect_macro_works_in_local_domain_context() -> Result<()> {
     })?;
 
     run_and_check(fg, snk)
+}
+
+#[test]
+fn failed_local_domain_context_rolls_back_added_blocks() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+
+    let err: std::result::Result<(), Error> = fg.domain_run(local, |ctx| {
+        ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+        Err(Error::ValidationError("builder failed".to_string()))
+    });
+    assert!(matches!(err, Err(Error::ValidationError(_))));
+
+    let snk = fg.domain_run(local, |ctx| {
+        Ok(ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new()))
+    })?;
+    assert_eq!(snk.id(), BlockId(0));
+
+    Ok(())
+}
+
+#[test]
+fn local_domain_context_spawn_runs_task() -> Result<()> {
+    futuresdr::runtime::block_on(async {
+        let mut fg = Flowgraph::new();
+        let local = fg.local_domain()?;
+
+        let value = fg
+            .domain_run_async(local, async |ctx: &LocalDomainContext<'_>| {
+                let task = ctx.spawn(async { 42usize });
+                Ok(task.await)
+            })
+            .await?;
+
+        assert_eq!(value, 42);
+        Ok(())
+    })
 }
 
 #[test]

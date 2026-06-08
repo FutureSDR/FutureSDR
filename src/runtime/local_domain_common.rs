@@ -14,6 +14,7 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
+use crate::runtime::scheduler::DomainTopology;
 
 pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Send + 'static>;
 
@@ -69,10 +70,34 @@ impl LocalDomainState {
         Ok(())
     }
 
-    pub(crate) fn block_slots_mut(
+    pub(crate) fn take_block(
         &mut self,
-    ) -> impl Iterator<Item = (usize, &mut Option<Box<dyn LocalBlock>>)> {
-        self.blocks.iter_mut().enumerate()
+        local_id: usize,
+        block_id: BlockId,
+    ) -> Result<Box<dyn LocalBlock>, Error> {
+        if self.block_ids.get(local_id).copied().flatten() != Some(block_id) {
+            return Err(Error::InvalidBlock(block_id));
+        }
+        self.blocks
+            .get_mut(local_id)
+            .and_then(Option::take)
+            .ok_or(Error::LockError)
+    }
+
+    pub(crate) fn remove_block(&mut self, local_id: usize, block_id: BlockId) -> Result<(), Error> {
+        if self.block_ids.get(local_id).copied().flatten() != Some(block_id) {
+            return Err(Error::InvalidBlock(block_id));
+        }
+        let block = self
+            .blocks
+            .get_mut(local_id)
+            .and_then(Option::take)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        drop(block);
+        self.block_ids[local_id] = None;
+        self.inboxes[local_id] = None;
+        self.external_inboxes[local_id] = None;
+        Ok(())
     }
 
     pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
@@ -227,6 +252,9 @@ pub(crate) enum LocalDomainMessage {
         block_id: BlockId,
     },
     Run {
+        domain_id: usize,
+        slots: Vec<(BlockId, usize)>,
+        topology: DomainTopology,
         main_channel: Sender<FlowgraphMessage>,
         reply: oneshot::Sender<Result<(), Error>>,
     },

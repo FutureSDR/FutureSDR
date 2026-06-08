@@ -7,7 +7,6 @@ The scheduler trait is:
 ```rust
 pub trait Scheduler: Clone + Send + 'static {
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain>;
-    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain>;
 
     fn spawn<T: Send + 'static>(
         &self,
@@ -18,18 +17,20 @@ pub trait Scheduler: Clone + Send + 'static {
 
 `start_normal_domain()` receives the normal send-capable blocks and domain topology. It usually spawns each block, calls `block.run(main_channel).await`, and returns task handles through `NormalRunningDomain`. The runtime waits for those tasks and restores the finished block objects into the returned flowgraph.
 
-`start_local_domain()` receives a handle to an already-created local domain plus the local block slots assigned to it. The scheduler activates that existing domain; it does not create the local-domain thread or worker itself.
+Local domains are not started by the normal scheduler. The runtime activates the already-created local-domain thread or worker directly, constructs the flowgraph's local scheduler type with `Default` inside that domain, and lets it orchestrate non-`Send` block tasks through `LocalScheduler::run_local_domain()`.
 
-`spawn()` runs general async tasks on the scheduler. `Runtime::spawn()`, `Runtime::spawn_background()`, and control-plane internals use this method.
+`spawn()` runs general sendable async tasks on the scheduler. `Runtime::spawn()`, `Runtime::spawn_background()`, and control-plane internals use this method.
 
 ## Normal vs Local Work
 
-Schedulers manage scheduling domains. The implicit normal domain contains send-capable block tasks. Local domains are created by the flowgraph for:
+Schedulers manage the implicit normal domain, which contains send-capable block tasks. Local domains are created by the flowgraph for:
 
 - blocks added through `Flowgraph::add_local()`,
 - blocks marked with `#[blocking]`.
 
-Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler.
+Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler. A local domain can select a local scheduler type with `fg.local_domain_with_scheduler::<MyLocalScheduler>()`; `fg.local_domain()` uses the built-in basic local scheduler.
+
+Custom local schedulers implement `LocalScheduler`. The low-level `run()` hook drives the local non-`Send` executor, while `run_local_domain()` receives a `LocalDomainRunSpec` with opaque primitives for inspecting topology, taking runnable local blocks, handling domain events, stopping blocks, and restoring stopped block state. Most implementations should customize `spawn()` / `run()` and delegate to `spec.run_basic(self)`.
 
 ## Starting Point
 

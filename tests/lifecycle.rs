@@ -2,14 +2,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use futuresdr::runtime::dev::prelude::*;
-use futuresdr::runtime::scheduler::LocalDomainSpec;
-use futuresdr::runtime::scheduler::LocalRunningDomain;
-use futuresdr::runtime::scheduler::NormalDomainSpec;
-use futuresdr::runtime::scheduler::NormalRunningDomain;
-use futuresdr::runtime::scheduler::Scheduler;
-use futuresdr::runtime::scheduler::SmolScheduler;
-use futuresdr::runtime::scheduler::Task;
-use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -28,10 +20,6 @@ impl Counters {
 
     fn deinit(&self) -> usize {
         self.deinit.load(Ordering::SeqCst)
-    }
-
-    fn drops(&self) -> usize {
-        self.drops.load(Ordering::SeqCst)
     }
 }
 
@@ -113,34 +101,6 @@ impl FailOnCall {
 
 impl Kernel for FailOnCall {}
 
-#[derive(Clone, Default)]
-struct FailLocalScheduler {
-    inner: SmolScheduler,
-}
-
-impl Scheduler for FailLocalScheduler {
-    fn start_normal_domain(
-        &self,
-        spec: NormalDomainSpec,
-    ) -> std::result::Result<NormalRunningDomain, Error> {
-        self.inner.start_normal_domain(spec)
-    }
-
-    fn start_local_domain(
-        &self,
-        _spec: LocalDomainSpec,
-    ) -> std::result::Result<LocalRunningDomain, Error> {
-        Err(Error::RuntimeError("local start failed".to_string()))
-    }
-
-    fn spawn<T: Send + 'static>(
-        &self,
-        future: impl Future<Output = T> + Send + 'static,
-    ) -> Task<T> {
-        self.inner.spawn(future)
-    }
-}
-
 fn expect_start_err(fg: Flowgraph, expected: &str) -> Error {
     match Runtime::new().start(fg) {
         Ok(_) => panic!("expected start error containing {expected:?}"),
@@ -190,31 +150,6 @@ fn init_failure_preserves_runtime_error_variant() -> Result<()> {
         Error::ValidationError(msg) if msg == "init validation failed"
     ));
 
-    Ok(())
-}
-
-#[test]
-fn local_domain_start_failure_stops_started_normal_domain() -> Result<()> {
-    let normal = Counters::default();
-    let local = Counters::default();
-
-    let mut fg = Flowgraph::new();
-    fg.add(WaitBlock::new(normal.clone()))?;
-    let domain = fg.local_domain()?;
-    fg.add_local(domain, {
-        let local = local.clone();
-        move || WaitBlock::new(local)
-    })?;
-
-    let rt = Runtime::with_scheduler(FailLocalScheduler::default());
-    match rt.start(fg) {
-        Ok(_) => bail!("expected local-domain startup failure"),
-        Err(e) => assert!(e.to_string().contains("local start failed")),
-    }
-
-    assert_eq!(normal.init(), 0);
-    assert_eq!(normal.deinit(), 0);
-    assert_eq!(normal.drops(), 1);
     Ok(())
 }
 

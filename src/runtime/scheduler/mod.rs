@@ -14,11 +14,19 @@ pub use crate::runtime::scheduler::flow::FlowScheduler;
 mod smol;
 #[cfg(not(target_arch = "wasm32"))]
 pub use crate::runtime::scheduler::smol::SmolScheduler;
+mod local;
+pub use local::BasicLocalScheduler;
+pub use local::LocalBlockStop;
+pub use local::LocalDomainControl;
+pub use local::LocalDomainRunEvent;
+pub use local::LocalDomainRunSpec;
+pub use local::LocalScheduler;
+pub use local::RunnableLocalBlock;
+pub use local::StoppedLocalBlock;
 #[allow(clippy::module_inception)]
 mod scheduler;
 pub use scheduler::DomainTopology;
-pub use scheduler::LocalDomainSpec;
-pub use scheduler::LocalRunningDomain;
+pub(crate) use scheduler::LocalDomainSpec;
 pub use scheduler::NormalBlock;
 pub use scheduler::NormalBlocks;
 pub use scheduler::NormalDomainSpec;

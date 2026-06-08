@@ -1,7 +1,4 @@
-use async_executor::LocalExecutor;
 use futures::Future;
-use futures::StreamExt;
-use futures::stream::FuturesUnordered;
 use std::pin::Pin;
 use std::thread;
 
@@ -10,10 +7,7 @@ use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
-use crate::runtime::block_inbox::BlockInboxReader;
-use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
-use crate::runtime::block_inbox::enter_local_domain_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -22,6 +16,9 @@ use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain_common::LocalBlockBuilder;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::scheduler::DomainTopology;
+use crate::runtime::scheduler::LocalDomainRunSpec;
+use crate::runtime::scheduler::LocalScheduler;
 
 pub(crate) struct LocalDomainRuntime {
     controller: LocalDomainController,
@@ -30,13 +27,13 @@ pub(crate) struct LocalDomainRuntime {
 }
 
 impl LocalDomainRuntime {
-    pub(crate) fn new() -> Result<Self, Error> {
-        Self::new_pinned(None)
+    pub(crate) fn new<LS: LocalScheduler>() -> Result<Self, Error> {
+        Self::new_pinned::<LS>(None)
     }
 
-    pub(crate) fn new_pinned(cpuid: Option<usize>) -> Result<Self, Error> {
+    pub(crate) fn new_pinned<LS: LocalScheduler>(cpuid: Option<usize>) -> Result<Self, Error> {
         Ok(Self {
-            controller: LocalDomainController::new_pinned(cpuid)?,
+            controller: LocalDomainController::new_pinned::<LS>(cpuid)?,
             blocks: 0,
             running: false,
         })
@@ -185,11 +182,17 @@ impl LocalDomainInbox {
 
     pub(crate) fn start_run(
         &self,
+        domain_id: usize,
+        slots: Vec<(crate::runtime::BlockId, usize)>,
+        topology: DomainTopology,
         main_channel: Sender<FlowgraphMessage>,
     ) -> Result<oneshot::Receiver<Result<(), Error>>, Error> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .try_send(LocalDomainMessage::Run {
+                domain_id,
+                slots,
+                topology,
                 main_channel,
                 reply,
             })
@@ -208,10 +211,10 @@ impl LocalDomainInbox {
 impl LocalDomainController {
     #[cfg(test)]
     pub(crate) fn new() -> Result<Self, Error> {
-        Self::new_pinned(None)
+        Self::new_pinned::<crate::runtime::scheduler::BasicLocalScheduler>(None)
     }
 
-    pub(crate) fn new_pinned(cpuid: Option<usize>) -> Result<Self, Error> {
+    pub(crate) fn new_pinned<LS: LocalScheduler>(cpuid: Option<usize>) -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
         let key = LocalDomainKey::new();
         let (terminate_tx, terminate_rx) = oneshot::channel();
@@ -229,7 +232,7 @@ impl LocalDomainController {
                         warn!("failed to pin local domain thread to core id {}", cpuid);
                     }
                 }
-                crate::runtime::block_on(run_domain_thread(rx, terminate_rx, key))
+                crate::runtime::block_on(run_domain_thread::<LS>(rx, terminate_rx, key))
             })
             .map_err(|e| {
                 Error::RuntimeError(format!("failed to spawn local domain thread: {e}"))
@@ -298,7 +301,7 @@ impl Drop for LocalDomainController {
     }
 }
 
-async fn run_domain_thread(
+async fn run_domain_thread<LS: LocalScheduler>(
     mut rx: mpsc::Receiver<LocalDomainMessage>,
     mut terminate_rx: oneshot::Receiver<()>,
     key: LocalDomainKey,
@@ -342,223 +345,30 @@ async fn run_domain_thread(
                 }
             }
             LocalDomainMessage::Run {
+                domain_id,
+                slots,
+                topology,
                 main_channel,
                 reply,
             } => {
-                let result = run_local_domain(
-                    &mut state,
-                    LocalExecutor::new(),
+                let scheduler = LS::default();
+                let spec = LocalDomainRunSpec {
+                    domain_id,
+                    slots,
+                    topology,
+                    state: &mut state,
                     main_channel,
-                    &mut terminate_rx,
-                    &mut rx,
+                    shutdown: &mut terminate_rx,
+                    domain_rx: &mut rx,
                     key,
-                )
-                .await;
+                    external_inboxes: Vec::new(),
+                };
+                let result = scheduler.run_local_domain(spec).await;
                 let _ = reply.send(result);
             }
             LocalDomainMessage::Terminate => break,
         }
     }
-}
-
-async fn forward_external_inboxes(mut external: Vec<(BlockInboxReader, LocalBlockInbox)>) {
-    if external.is_empty() {
-        futures::future::pending::<()>().await;
-    }
-
-    loop {
-        let mut ready = Vec::new();
-        std::future::poll_fn(|cx| {
-            for (idx, (inbox, _)) in external.iter_mut().enumerate() {
-                let notified = inbox.notified();
-                futures::pin_mut!(notified);
-                if Future::poll(notified, cx).is_ready() {
-                    ready.push((idx, inbox.take_message_pending()));
-                }
-            }
-
-            if ready.is_empty() {
-                std::task::Poll::Pending
-            } else {
-                std::task::Poll::Ready(())
-            }
-        })
-        .await;
-
-        for (idx, message_pending) in ready {
-            let (inbox, local_inbox) = &mut external[idx];
-            if message_pending {
-                while let Some(msg) = inbox.try_recv() {
-                    let _ = local_inbox.send(msg).await;
-                }
-            } else {
-                local_inbox.notify();
-            }
-        }
-    }
-}
-
-async fn run_local_domain(
-    state: &mut LocalDomainState,
-    ex: LocalExecutor<'static>,
-    main_channel: Sender<FlowgraphMessage>,
-    terminate_rx: &mut oneshot::Receiver<()>,
-    domain_rx: &mut mpsc::Receiver<LocalDomainMessage>,
-    key: LocalDomainKey,
-) -> Result<(), Error> {
-    let mut tasks = FuturesUnordered::new();
-    let mut local_stop_inboxes = Vec::new();
-    let mut external_stop_inboxes = Vec::new();
-    let mut external_inboxes = Vec::new();
-
-    let local_ids = state
-        .block_slots_mut()
-        .map(|(local_id, _)| local_id)
-        .collect::<Vec<_>>();
-
-    for local_id in local_ids {
-        let local_inbox = state.inbox(local_id);
-        if let (Some(external_inbox), Some(local_inbox)) =
-            (state.take_external_inbox(local_id), local_inbox.clone())
-        {
-            external_inboxes.push((external_inbox, local_inbox));
-        }
-
-        let slot = state
-            .block_slots_mut()
-            .find_map(|(id, slot)| (id == local_id).then_some(slot))
-            .expect("local block slot disappeared");
-        if let Some(block) = slot.take() {
-            if let Some(local_inbox) = local_inbox {
-                local_stop_inboxes.push(local_inbox);
-            } else {
-                external_stop_inboxes.push(block.as_ref().inbox());
-            }
-            let main_channel = main_channel.clone();
-            let task = ex.spawn(async move {
-                let mut block = block;
-                block.as_mut().run(main_channel).await;
-                (local_id, block)
-            });
-            tasks.push(task);
-        }
-    }
-
-    ex.spawn(forward_external_inboxes(external_inboxes))
-        .detach();
-
-    let n_tasks = tasks.len();
-    let _local_context = enter_local_domain_context(key, state.inboxes_by_block());
-    let finished = ex
-        .run(async {
-            let mut finished = Vec::with_capacity(n_tasks);
-            let mut shutdown_requested = false;
-            // Keep the receive future alive until it completes. If a local block
-            // sends to the domain ingress and then finishes in the same poll,
-            // both this future and `tasks.next()` can be ready; dropping the
-            // receive future in that case can lose the ingress message.
-            let mut next_domain = Box::pin(domain_rx.recv());
-
-            while finished.len() < n_tasks {
-                if shutdown_requested {
-                    match tasks.next().await {
-                        Some(done) => finished.push(done),
-                        None => break,
-                    }
-                    continue;
-                }
-
-                let next_task = tasks.next();
-                futures::pin_mut!(next_task);
-
-                let request_shutdown = match futures::future::select(
-                    next_task,
-                    futures::future::select(next_domain.as_mut(), &mut *terminate_rx),
-                )
-                .await
-                {
-                    futures::future::Either::Left((Some(done), _)) => {
-                        finished.push(done);
-                        false
-                    }
-                    futures::future::Either::Left((None, _)) => break,
-                    futures::future::Either::Right((
-                        futures::future::Either::Left((Some(message), _)),
-                        _,
-                    )) => {
-                        next_domain = Box::pin(domain_rx.recv());
-                        match message {
-                            LocalDomainMessage::Terminate => true,
-                            LocalDomainMessage::Build { reply, .. } => {
-                                let _ = reply.send(Err(Error::LockError));
-                                false
-                            }
-                            LocalDomainMessage::Run { reply, .. } => {
-                                let _ = reply.send(Err(Error::LockError));
-                                false
-                            }
-                            LocalDomainMessage::Exec(_) => {
-                                warn!("local domain received exec while running");
-                                false
-                            }
-                            LocalDomainMessage::Post { block_id, message } => {
-                                if let Err(e) = state.push_message(block_id, message).await {
-                                    warn!("failed to post to local block: {e}");
-                                }
-                                false
-                            }
-                            LocalDomainMessage::Call {
-                                block_id,
-                                port_id,
-                                data,
-                                reply,
-                            } => {
-                                if let Err(e) =
-                                    state.push_call(block_id, port_id, data, reply).await
-                                {
-                                    warn!("failed to call local block: {e}");
-                                }
-                                false
-                            }
-                            LocalDomainMessage::Notify { block_id } => {
-                                if let Err(e) = state.notify_block(block_id) {
-                                    warn!("failed to notify local block: {e}");
-                                }
-                                false
-                            }
-                        }
-                    }
-                    futures::future::Either::Right((
-                        futures::future::Either::Left((None, _)),
-                        _,
-                    )) => true,
-                    futures::future::Either::Right((futures::future::Either::Right((_, _)), _)) => {
-                        true
-                    }
-                };
-
-                if request_shutdown {
-                    for inbox in &local_stop_inboxes {
-                        let _ = inbox.send(BlockMessage::Terminate).await;
-                    }
-                    for inbox in &external_stop_inboxes {
-                        if inbox.send(BlockMessage::Terminate).await.is_err() {
-                            debug!(
-                                "local domain tried to terminate block that was already terminated"
-                            );
-                        }
-                    }
-                    shutdown_requested = true;
-                }
-            }
-
-            finished
-        })
-        .await;
-
-    finished
-        .into_iter()
-        .try_for_each(|(local_id, block)| state.insert_block(local_id, block))
 }
 
 #[cfg(test)]
@@ -572,6 +382,7 @@ mod tests {
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;
     use crate::runtime::block_inbox::BlockInbox;
+    use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::block_inbox::LocalBlockInbox;
     use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::DynBufferReader;
@@ -677,7 +488,12 @@ mod tests {
             }),
         ))?;
         let (main_tx, _main_rx) = crate::runtime::channel::mpsc::channel(4);
-        let run = controller.inbox().start_run(main_tx)?;
+        let run = controller.inbox().start_run(
+            0,
+            vec![(BlockId(0), 0)],
+            crate::runtime::scheduler::DomainTopology::new(vec![BlockId(0)], vec![], vec![]),
+            main_tx,
+        )?;
 
         drop(controller);
 

@@ -28,8 +28,6 @@ use crate::runtime::block::Block;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
-use crate::runtime::scheduler::LocalDomainSpec;
-use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
@@ -147,11 +145,7 @@ impl Scheduler for FlowScheduler {
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
         let (mut blocks, topology, main_channel) = spec.into_parts();
-        let _ = (
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
+        let block_order = topology.blocks().to_vec();
         let n_blocks = blocks.len();
         let n_cores = self.inner.workers.len();
         let mut spawned: HashSet<BlockId> = HashSet::new();
@@ -198,7 +192,17 @@ impl Scheduler for FlowScheduler {
             if spawned.contains(&id) {
                 continue;
             }
-            let executor = FlowScheduler::map_block(id.0, n_blocks, n_cores);
+            let block_index = block_order
+                .iter()
+                .position(|block_id| *block_id == id)
+                .unwrap_or_else(|| {
+                    warn!(
+                        "flowsched could not find normal block id {:?} in topology",
+                        id
+                    );
+                    id.0
+                });
+            let executor = FlowScheduler::map_block(block_index, n_blocks, n_cores);
             tasks.push(spawn_block_on_executor(
                 &self.inner.executor,
                 block,
@@ -208,21 +212,6 @@ impl Scheduler for FlowScheduler {
         }
 
         Ok(NormalRunningDomain::new(tasks))
-    }
-
-    fn start_local_domain(
-        &self,
-        spec: LocalDomainSpec,
-    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
-        let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
-        let _ = (
-            slots,
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
-        let completion = inbox.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, inbox, completion))
     }
 
     fn spawn<T: Send + 'static>(

@@ -4,8 +4,6 @@ use futuresdr::futures::channel::oneshot;
 use futuresdr::futures::future::Future;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::config;
-use futuresdr::runtime::scheduler::LocalDomainSpec;
-use futuresdr::runtime::scheduler::LocalRunningDomain;
 use futuresdr::runtime::scheduler::NormalDomainSpec;
 use futuresdr::runtime::scheduler::NormalRunningDomain;
 use futuresdr::runtime::scheduler::Scheduler;
@@ -98,10 +96,6 @@ impl Scheduler for TpbScheduler {
             }));
         }
         Ok(NormalRunningDomain::new(tasks))
-    }
-
-    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain, Error> {
-        spec.start()
     }
 
     fn spawn<T: Send + 'static>(

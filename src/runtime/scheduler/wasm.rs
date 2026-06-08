@@ -26,8 +26,6 @@ use web_sys::WorkerType;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::Block;
 use crate::runtime::channel::mpsc::Sender;
-use crate::runtime::scheduler::LocalDomainSpec;
-use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
@@ -208,12 +206,7 @@ impl Scheduler for WasmScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (blocks, topology, main_channel) = spec.into_parts();
-        let _ = (
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
+        let (blocks, _topology, main_channel) = spec.into_parts();
         let n_blocks = blocks.len();
         let n_threads = self.inner.workers.len();
         let mut tasks = Vec::with_capacity(n_blocks);
@@ -234,21 +227,6 @@ impl Scheduler for WasmScheduler {
         }
 
         Ok(NormalRunningDomain::new(tasks))
-    }
-
-    fn start_local_domain(
-        &self,
-        spec: LocalDomainSpec,
-    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
-        let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
-        let _ = (
-            slots,
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
-        let completion = inbox.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, inbox, completion))
     }
 
     fn spawn<T: Send + 'static>(
@@ -287,32 +265,12 @@ impl Scheduler for WasmMainScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (blocks, topology, main_channel) = spec.into_parts();
-        let _ = (
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
+        let (blocks, _topology, main_channel) = spec.into_parts();
         let tasks = blocks
             .into_iter()
             .map(|block| spawn_wasm_main_block(block, main_channel.clone()))
             .collect();
         Ok(NormalRunningDomain::new(tasks))
-    }
-
-    fn start_local_domain(
-        &self,
-        spec: LocalDomainSpec,
-    ) -> Result<LocalRunningDomain, crate::runtime::Error> {
-        let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
-        let _ = (
-            slots,
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
-        let completion = inbox.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, inbox, completion))
     }
 
     fn spawn<T: Send + 'static>(

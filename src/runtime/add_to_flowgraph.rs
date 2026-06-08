@@ -35,8 +35,9 @@ impl<K: 'static> AddToFlowgraph<BlockRef<K>> for &mut Flowgraph {
     }
 }
 
-impl<'ctx, 'borrow, K> AddToFlowgraph<K> for &'borrow LocalDomainContext<'ctx>
+impl<'ctx, 'borrow, LS, K> AddToFlowgraph<K> for &'borrow LocalDomainContext<'ctx, LS>
 where
+    LS: crate::runtime::scheduler::LocalScheduler,
     K: Kernel + KernelInterface + 'static,
 {
     type Added = BlockRef<K>;
@@ -46,7 +47,11 @@ where
     }
 }
 
-impl<'ctx, 'borrow, K: 'static> AddToFlowgraph<BlockRef<K>> for &'borrow LocalDomainContext<'ctx> {
+impl<'ctx, 'borrow, LS, K: 'static> AddToFlowgraph<BlockRef<K>>
+    for &'borrow LocalDomainContext<'ctx, LS>
+where
+    LS: crate::runtime::scheduler::LocalScheduler,
+{
     type Added = BlockRef<K>;
 
     async fn add_to_flowgraph(self, block: BlockRef<K>) -> Result<Self::Added, Error> {

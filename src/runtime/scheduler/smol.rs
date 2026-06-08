@@ -11,8 +11,6 @@ use std::thread;
 use crate::runtime::Error;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
-use crate::runtime::scheduler::LocalDomainSpec;
-use crate::runtime::scheduler::LocalRunningDomain;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::Scheduler;
@@ -109,12 +107,7 @@ impl SmolScheduler {
 
 impl Scheduler for SmolScheduler {
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
-        let (blocks, topology, main_channel) = spec.into_parts();
-        let _ = (
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
+        let (blocks, _topology, main_channel) = spec.into_parts();
         let mut tasks = Vec::with_capacity(blocks.len());
         for block in blocks {
             debug_assert!(
@@ -130,18 +123,6 @@ impl Scheduler for SmolScheduler {
             tasks.push(task);
         }
         Ok(NormalRunningDomain::new(tasks))
-    }
-
-    fn start_local_domain(&self, spec: LocalDomainSpec) -> Result<LocalRunningDomain, Error> {
-        let (domain_id, inbox, slots, topology, main_channel) = spec.into_parts();
-        let _ = (
-            slots,
-            topology.blocks(),
-            topology.stream_edges(),
-            topology.message_edges(),
-        );
-        let completion = inbox.start_run(main_channel)?;
-        Ok(LocalRunningDomain::new(domain_id, inbox, completion))
     }
 
     fn spawn<T: Send + 'static>(
