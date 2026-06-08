@@ -7,7 +7,8 @@ use crate::runtime::local_domain::LocalDomainRuntime;
 use super::BlockSlot;
 use super::Flowgraph;
 use super::block_access;
-use super::domain_access;
+use super::domain_access::DomainAccess;
+use super::domain_access::DomainAccessMut;
 use super::types::BlockLocation;
 use super::types::BlockPlacement;
 use super::types::BlockRef;
@@ -110,13 +111,9 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        domain_access::access_typed_kernel_ref(
-            &self.blocks,
-            &self.local_domains,
-            self.location(block.id)?,
-            move |block| Ok(f(block)),
-        )
-        .await
+        DomainAccess::new(&self.blocks, &self.local_domains)
+            .typed_kernel_ref(self.location(block.id)?, move |block| Ok(f(block)))
+            .await
     }
 
     /// Mutably access a block's final state through a closure.
@@ -147,12 +144,8 @@ impl TerminatedFlowgraph {
     {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        domain_access::access_typed_kernel_mut(
-            &mut self.blocks,
-            &self.local_domains,
-            location,
-            move |block| Ok(f(block)),
-        )
-        .await
+        DomainAccessMut::new(&mut self.blocks, &self.local_domains)
+            .typed_kernel_mut(location, move |block| Ok(f(block)))
+            .await
     }
 }

@@ -783,24 +783,6 @@ impl Flowgraph {
         )))
     }
 
-    fn local_state_kernel_ref<K: 'static>(
-        state: &LocalDomainState,
-        local_id: usize,
-        block_id: BlockId,
-    ) -> Result<&K, Error> {
-        let block = state.block(local_id, block_id)?;
-        Self::local_kernel_ref(block, block_id)
-    }
-
-    fn local_state_kernel_mut<K: 'static>(
-        state: &mut LocalDomainState,
-        local_id: usize,
-        block_id: BlockId,
-    ) -> Result<&mut K, Error> {
-        let block = state.block_mut(local_id, block_id)?;
-        Self::local_kernel_mut(block, block_id)
-    }
-
     fn two_local_state_kernels_mut<KS: 'static, KD: 'static>(
         state: &mut LocalDomainState,
         src: (usize, BlockId),
