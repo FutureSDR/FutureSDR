@@ -52,12 +52,14 @@ use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
 mod block_access;
-mod connect;
+mod connector;
 mod domain_access;
 mod local_context;
+mod message_api;
 mod prepare;
 mod run;
 mod storage;
+mod stream_api;
 mod terminated;
 mod types;
 
@@ -635,34 +637,6 @@ impl Flowgraph {
             K::message_outputs(),
         ));
         Ok(self.block_ref(block_id, placement))
-    }
-
-    fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
-        let dst_inputs = self
-            .blocks
-            .get(edge.dst_block.0)
-            .map(BlockSlot::message_inputs)
-            .ok_or(Error::InvalidBlock(edge.dst_block))?;
-        if !dst_inputs.contains(&edge.dst_port.name()) {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(edge.dst_block),
-                edge.dst_port.clone(),
-            ));
-        }
-
-        let src_outputs = self
-            .blocks
-            .get(edge.src_block.0)
-            .map(BlockSlot::message_outputs)
-            .ok_or(Error::InvalidBlock(edge.src_block))?;
-        if !src_outputs.contains(&edge.src_port.name()) {
-            return Err(Error::InvalidMessagePort(
-                BlockPortCtx::Id(edge.src_block),
-                edge.src_port.clone(),
-            ));
-        }
-
-        Ok(())
     }
 
     pub(crate) fn validate_block_ref<K>(&self, block: &BlockRef<K>) -> Result<(), Error> {

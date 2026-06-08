@@ -97,7 +97,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         stream_edges: &[Edge],
         message_edges: &[Edge],
     ) -> Result<(), Error> {
-        let mut connector = super::connect::FlowgraphConnector::new(&mut self.flowgraph);
+        let mut connector = super::connector::FlowgraphConnector::new(&mut self.flowgraph);
         connector.apply_stream_edges(stream_edges).await?;
         connector.apply_message_edges(message_edges).await
     }
