@@ -81,6 +81,16 @@ impl LocalScheduler for CountingLocalScheduler {
         LOCAL_RUNS.fetch_add(1, Ordering::SeqCst);
         self.inner.run(future)
     }
+
+    fn run_local_domain<'a, Shutdown>(
+        &'a self,
+        spec: LocalDomainRunSpec<'a, Shutdown>,
+    ) -> Pin<Box<dyn Future<Output = std::result::Result<(), Error>> + 'a>>
+    where
+        Shutdown: Future + Unpin + 'a,
+    {
+        BasicLocalScheduler::run_basic(self, spec)
+    }
 }
 
 #[derive(Default)]

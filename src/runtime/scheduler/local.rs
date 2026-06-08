@@ -57,19 +57,15 @@ pub trait LocalScheduler: Default + 'static {
 
     /// Run one local scheduling domain until all its block tasks stop.
     ///
-    /// The default implementation starts the assigned local blocks in their
-    /// flowgraph order, drives local-domain ingress, and restores stopped block
-    /// state. Override this only for specialized domain run-loop policies.
+    /// Implementations may call [`BasicLocalScheduler::run_basic`] to reuse the
+    /// standard FutureSDR local-domain run loop, or implement their own policy
+    /// using the public [`LocalDomainRunSpec`] primitives.
     fn run_local_domain<'a, Shutdown>(
         &'a self,
         spec: LocalDomainRunSpec<'a, Shutdown>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
     where
-        Self: Sized,
-        Shutdown: Future + Unpin + 'a,
-    {
-        spec.run_basic(self)
-    }
+        Shutdown: Future + Unpin + 'a;
 }
 
 /// Run specification handed to a [`LocalScheduler`].
@@ -301,18 +297,6 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
     pub fn restore_block(&mut self, block: StoppedLocalBlock) -> Result<(), Error> {
         self.state.insert_block(block.local_id, block.block)
     }
-
-    /// Run this local domain with FutureSDR's basic local-domain run loop.
-    pub fn run_basic<LS>(
-        self,
-        scheduler: &'a LS,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
-    where
-        LS: LocalScheduler,
-        Shutdown: Future + Unpin + 'a,
-    {
-        run_local_domain_basic(scheduler, self)
-    }
 }
 
 /// Basic local scheduler backed by a local executor.
@@ -358,6 +342,16 @@ impl LocalScheduler for BasicLocalScheduler {
         future: impl Future<Output = T> + 'a,
     ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
         Box::pin(self.executor.run(future))
+    }
+
+    fn run_local_domain<'a, Shutdown>(
+        &'a self,
+        spec: LocalDomainRunSpec<'a, Shutdown>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    where
+        Shutdown: Future + Unpin + 'a,
+    {
+        BasicLocalScheduler::run_basic(self, spec)
     }
 }
 
@@ -448,6 +442,36 @@ impl LocalScheduler for BasicLocalScheduler {
         future: impl Future<Output = T> + 'a,
     ) -> Pin<Box<dyn Future<Output = T> + 'a>> {
         self.run_until(future)
+    }
+
+    fn run_local_domain<'a, Shutdown>(
+        &'a self,
+        spec: LocalDomainRunSpec<'a, Shutdown>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    where
+        Shutdown: Future + Unpin + 'a,
+    {
+        BasicLocalScheduler::run_basic(self, spec)
+    }
+}
+
+impl BasicLocalScheduler {
+    /// Run a local domain with FutureSDR's basic local-domain run loop.
+    ///
+    /// This helper uses only the public [`LocalDomainRunSpec`] primitives and
+    /// the supplied scheduler's [`LocalScheduler::spawn`],
+    /// [`LocalScheduler::detach`], and [`LocalScheduler::run`] methods. Custom
+    /// local schedulers that want the standard policy can call this from their
+    /// [`LocalScheduler::run_local_domain`] implementation.
+    pub fn run_basic<'a, LS, Shutdown>(
+        scheduler: &'a LS,
+        spec: LocalDomainRunSpec<'a, Shutdown>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>
+    where
+        LS: LocalScheduler,
+        Shutdown: Future + Unpin + 'a,
+    {
+        run_local_domain_basic(scheduler, spec)
     }
 }
 
