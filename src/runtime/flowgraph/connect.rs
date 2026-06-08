@@ -50,6 +50,86 @@ impl Flowgraph {
         ))
     }
 
+    async fn with_block_mut<R>(
+        &mut self,
+        location: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        match location.domain {
+            DomainLocation::Normal => f(self.raw_block_mut(location.block_id)?),
+            DomainLocation::Local(domain_id) => {
+                let domain = self
+                    .local_domains
+                    .get(domain_id)
+                    .ok_or(Error::InvalidBlock(location.block_id))?;
+                domain
+                    .exec(move |state| {
+                        let result = (|| {
+                            let block = state.block_mut(location.domain_slot, location.block_id)?;
+                            f(block)
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
+    async fn with_same_domain_two_blocks_mut<R>(
+        &mut self,
+        src: BlockLocation,
+        dst: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject, &mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        if src.domain != dst.domain {
+            return Err(Error::ValidationError(
+                "same-domain block access received blocks in different domains".to_string(),
+            ));
+        }
+
+        match src.domain {
+            DomainLocation::Normal => {
+                let (src_slot, dst_slot) =
+                    self.two_block_entries_mut(src.block_id, dst.block_id)?;
+                let src_block = src_slot
+                    .block
+                    .as_mut()
+                    .map(Box::as_mut)
+                    .ok_or(Error::LockError)?;
+                let dst_block = dst_slot
+                    .block
+                    .as_mut()
+                    .map(Box::as_mut)
+                    .ok_or(Error::LockError)?;
+                f(src_block, dst_block)
+            }
+            DomainLocation::Local(domain_id) => {
+                let domain = self
+                    .local_domains
+                    .get(domain_id)
+                    .ok_or(Error::InvalidBlock(src.block_id))?;
+                domain
+                    .exec(move |state| {
+                        let result = (|| {
+                            let (src_block, dst_block) = state.two_blocks_mut(
+                                (src.domain_slot, src.block_id),
+                                (dst.domain_slot, dst.block_id),
+                            )?;
+                            f(src_block, dst_block)
+                        })();
+                        Box::pin(futures::future::ready(result))
+                    })
+                    .await
+            }
+        }
+    }
+
     async fn local_local_stream_edge_async<KS, KD, B, FS, FD>(
         &self,
         src: LocalEndpoint,
@@ -190,71 +270,6 @@ impl Flowgraph {
         ))
     }
 
-    fn connect_normal_normal_stream_dyn(
-        &mut self,
-        src_block_id: BlockId,
-        src_port_id: &PortId,
-        dst_block_id: BlockId,
-        dst_port_id: &PortId,
-    ) -> Result<Edge, Error> {
-        let (src_slot, dst_slot) = self.two_block_entries_mut(src_block_id, dst_block_id)?;
-        let src_block = src_slot
-            .block
-            .as_mut()
-            .map(Box::as_mut)
-            .ok_or(Error::LockError)?;
-        let dst_block = dst_slot
-            .block
-            .as_mut()
-            .map(Box::as_mut)
-            .ok_or(Error::LockError)?;
-        Self::connect_stream_ports_dyn(
-            src_block_id,
-            src_port_id,
-            src_block,
-            dst_block_id,
-            dst_port_id,
-            dst_block,
-        )
-    }
-
-    async fn connect_local_local_stream_dyn_async(
-        &mut self,
-        src: LocalEndpoint,
-        src_port_id: PortId,
-        dst: LocalEndpoint,
-        dst_port_id: PortId,
-    ) -> Result<Edge, Error> {
-        if src.domain_id != dst.domain_id {
-            return Err(Error::ValidationError(
-                "stream connections between different local domains are not supported".to_string(),
-            ));
-        }
-        let domain = self
-            .local_domains
-            .get(src.domain_id)
-            .ok_or(Error::InvalidBlock(src.block_id))?;
-        domain
-            .exec(move |state| {
-                let result = (|| {
-                    let (src_block, dst_block) = state.two_blocks_mut(
-                        (src.local_id, src.block_id),
-                        (dst.local_id, dst.block_id),
-                    )?;
-                    Self::connect_stream_ports_dyn(
-                        src.block_id,
-                        &src_port_id,
-                        src_block,
-                        dst.block_id,
-                        &dst_port_id,
-                        dst_block,
-                    )
-                })();
-                Box::pin(futures::future::ready(result))
-            })
-            .await
-    }
-
     async fn connect_same_domain_stream_dyn_async(
         &mut self,
         src: BlockLocation,
@@ -262,25 +277,19 @@ impl Flowgraph {
         dst: BlockLocation,
         dst_port_id: PortId,
     ) -> Result<Edge, Error> {
-        if src.domain != dst.domain {
-            return Err(Error::ValidationError(
-                "same-domain stream setup received blocks in different domains".to_string(),
-            ));
-        }
-
-        match src.domain {
-            DomainLocation::Normal => self.connect_normal_normal_stream_dyn(
-                src.block_id,
+        let src_block_id = src.block_id;
+        let dst_block_id = dst.block_id;
+        self.with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
+            Self::connect_stream_ports_dyn(
+                src_block_id,
                 &src_port_id,
-                dst.block_id,
+                src_block,
+                dst_block_id,
                 &dst_port_id,
-            ),
-            DomainLocation::Local(_) => {
-                let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-                self.connect_local_local_stream_dyn_async(src, src_port_id, dst, dst_port_id)
-                    .await
-            }
-        }
+                dst_block,
+            )
+        })
+        .await
     }
 
     async fn take_stream_output_send_token(
@@ -774,39 +783,18 @@ impl Flowgraph {
         block_id: BlockId,
         port_id: &PortId,
     ) -> Result<(), Error> {
-        match self.placement(block_id)? {
-            BlockPlacement::Normal => {
-                let block = self.raw_block_mut(block_id)?;
-                let _writer = block.stream_output(port_id).map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                    }
-                    other => other,
-                })?;
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-            } => {
-                let port_id = port_id.clone();
-                self.local_domains[domain_id]
-                    .exec(move |state| {
-                        let result = (|| {
-                            let block = state.block_mut(local_id, block_id)?;
-                            let _writer = block.stream_output(&port_id).map_err(|e| match e {
-                                Error::InvalidStreamPort(_, port) => {
-                                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                                }
-                                other => other,
-                            })?;
-                            Ok(())
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await?;
-            }
-        }
-        Ok(())
+        let location = self.location(block_id)?;
+        let port_id = port_id.clone();
+        self.with_block_mut(location, move |block| {
+            block.stream_output(&port_id).map_err(|e| match e {
+                Error::InvalidStreamPort(_, port) => {
+                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                }
+                other => other,
+            })?;
+            Ok(())
+        })
+        .await
     }
 
     async fn validate_stream_edge_ports(&mut self, edge: &Edge) -> Result<(), Error> {
@@ -821,39 +809,18 @@ impl Flowgraph {
         block_id: BlockId,
         port_id: &PortId,
     ) -> Result<(), Error> {
-        match self.placement(block_id)? {
-            BlockPlacement::Normal => {
-                let block = self.raw_block_mut(block_id)?;
-                let _reader = block.stream_input(port_id).map_err(|e| match e {
-                    Error::InvalidStreamPort(_, port) => {
-                        Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                    }
-                    other => other,
-                })?;
-                Ok(())
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-            } => {
-                let port_id = port_id.clone();
-                self.local_domains[domain_id]
-                    .exec(move |state| {
-                        let result = (|| {
-                            let block = state.block_mut(local_id, block_id)?;
-                            let _reader = block.stream_input(&port_id).map_err(|e| match e {
-                                Error::InvalidStreamPort(_, port) => {
-                                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                                }
-                                other => other,
-                            })?;
-                            Ok(())
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await
-            }
-        }
+        let location = self.location(block_id)?;
+        let port_id = port_id.clone();
+        self.with_block_mut(location, move |block| {
+            block.stream_input(&port_id).map_err(|e| match e {
+                Error::InvalidStreamPort(_, port) => {
+                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+                }
+                other => other,
+            })?;
+            Ok(())
+        })
+        .await
     }
 
     async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
@@ -896,25 +863,10 @@ impl Flowgraph {
             .cloned()
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
 
-        match src.domain {
-            DomainLocation::Normal => {
-                let src_block = self.raw_block_mut(edge.src_block)?;
-                src_block.connect_message(&edge.src_port, dst, &edge.dst_port)?;
-            }
-            DomainLocation::Local(domain_id) => {
-                let local_id = src.domain_slot;
-                self.local_domains[domain_id]
-                    .exec(move |state| {
-                        let result = (|| {
-                            let src_block = state.block_mut(local_id, edge.src_block)?;
-                            src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await?;
-            }
-        }
-        Ok(())
+        self.with_block_mut(src, move |src_block| {
+            src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
+        })
+        .await
     }
 
     pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
