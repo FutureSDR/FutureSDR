@@ -182,7 +182,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
     async fn initialize_blocks(
         endpoints: &mut [Option<BlockEndpoint>],
         main_rx: &Receiver<FlowgraphMessage>,
-        main_channel: &Sender<FlowgraphMessage>,
         initialized: &mut Option<oneshot::Sender<Result<(), Error>>>,
     ) -> Result<u32, Error> {
         debug!("init blocks");
@@ -194,7 +193,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
 
         debug!("wait for blocks init");
         let mut initializing = active_blocks;
-        let mut queue = Vec::new();
         let mut block_error = None;
         while initializing > 0 {
             let message = main_rx.recv().await.ok_or_else(|| {
@@ -211,12 +209,13 @@ impl<S: Scheduler> FlowgraphRunner<S> {
                         block_error = Some(error);
                     }
                 }
-                message => {
-                    debug!(
-                        "queueing unhandled message received during initialization {:?}",
-                        &message
-                    );
-                    queue.push(message);
+                FlowgraphMessage::BlockDone { block_id } => {
+                    initializing -= 1;
+                    active_blocks -= 1;
+                    debug!("block {:?} terminated during initialization", block_id);
+                }
+                FlowgraphMessage::Terminate => {
+                    return Err(Error::FlowgraphTerminated);
                 }
             }
         }
@@ -232,10 +231,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             }
         }
 
-        for message in queue {
-            main_channel.try_send(message)?;
-        }
-
         let initialized_tx = initialized.take().ok_or_else(|| {
             Error::RuntimeError("flowgraph initialization was already reported".to_string())
         })?;
@@ -246,7 +241,7 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         Ok(active_blocks)
     }
 
-    async fn run_control_loop(
+    async fn run_lifecycle_loop(
         endpoints: &mut [Option<BlockEndpoint>],
         domains: &mut [RunningDomain],
         mut active_blocks: u32,
@@ -282,7 +277,9 @@ impl<S: Scheduler> FlowgraphRunner<S> {
                         terminated = true;
                     }
                 }
-                _ => warn!("main loop received unhandled message"),
+                FlowgraphMessage::Initialized => {
+                    warn!("flowgraph lifecycle loop received late initialization message");
+                }
             }
         }
 
@@ -332,20 +329,19 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             }
         };
 
-        let run_result = match Self::initialize_blocks(
-            &mut endpoints,
-            &self.main_rx,
-            &self.main_channel,
-            &mut initialized,
-        )
-        .await
-        {
-            Ok(active_blocks) => {
-                Self::run_control_loop(&mut endpoints, &mut domains, active_blocks, &self.main_rx)
+        let run_result =
+            match Self::initialize_blocks(&mut endpoints, &self.main_rx, &mut initialized).await {
+                Ok(active_blocks) => {
+                    Self::run_lifecycle_loop(
+                        &mut endpoints,
+                        &mut domains,
+                        active_blocks,
+                        &self.main_rx,
+                    )
                     .await
-            }
-            Err(e) => Err(e),
-        };
+                }
+                Err(e) => Err(e),
+            };
 
         if let Err(e) = run_result {
             let startup_failed = initialized.is_some();
