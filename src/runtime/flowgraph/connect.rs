@@ -42,28 +42,6 @@ impl<'a> FlowgraphConnector<'a> {
         Self { flowgraph }
     }
 
-    pub(super) async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
-        self.flowgraph.apply_stream_edges(edges).await
-    }
-
-    pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
-        self.flowgraph.apply_message_edges(edges).await
-    }
-}
-
-impl Flowgraph {
-    pub(super) fn stream_ports_edge<B: BufferWriter>(
-        src_port: &mut B,
-        dst_port: &mut B::Reader,
-    ) -> Edge {
-        Edge::new(
-            src_port.block_id(),
-            src_port.port_id(),
-            dst_port.block_id(),
-            dst_port.port_id(),
-        )
-    }
-
     fn connect_stream_ports_dyn(
         src_block_id: BlockId,
         src_port_id: &PortId,
@@ -115,23 +93,24 @@ impl Flowgraph {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
+        let (src, dst) = Flowgraph::same_local_stream_locations(src, dst, false)?;
         let DomainLocation::Local(domain_id) = src.domain else {
             unreachable!("same_local_stream_locations ensures a local domain")
         };
         let domain = self
+            .flowgraph
             .local_domains
             .get(domain_id)
             .ok_or(Error::InvalidBlock(src.block_id))?;
         domain
             .exec(move |state| {
                 let result = (|| {
-                    let (src, dst) = Self::two_local_state_kernels_mut::<KS, KD>(
+                    let (src, dst) = Flowgraph::two_local_state_kernels_mut::<KS, KD>(
                         state,
                         (src.domain_slot, src.block_id),
                         (dst.domain_slot, dst.block_id),
                     )?;
-                    Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
+                    Ok(Flowgraph::stream_ports_edge(src_port(src), dst_port(dst)))
                 })();
                 Box::pin(futures::future::ready(result))
             })
@@ -148,7 +127,8 @@ impl Flowgraph {
         B: BufferWriter,
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
     {
-        self.with_typed_kernel_mut::<KS, _>(location, move |kernel| Ok(src_port(kernel).port_id()))
+        self.flowgraph
+            .with_typed_kernel_mut::<KS, _>(location, move |kernel| Ok(src_port(kernel).port_id()))
             .await
     }
 
@@ -162,7 +142,8 @@ impl Flowgraph {
         B: BufferWriter,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        self.with_typed_kernel_mut::<KD, _>(location, move |kernel| Ok(dst_port(kernel).port_id()))
+        self.flowgraph
+            .with_typed_kernel_mut::<KD, _>(location, move |kernel| Ok(dst_port(kernel).port_id()))
             .await
     }
 
@@ -203,17 +184,18 @@ impl Flowgraph {
     ) -> Result<Edge, Error> {
         let src_block_id = src.block_id;
         let dst_block_id = dst.block_id;
-        self.with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
-            Self::connect_stream_ports_dyn(
-                src_block_id,
-                &src_port_id,
-                src_block,
-                dst_block_id,
-                &dst_port_id,
-                dst_block,
-            )
-        })
-        .await
+        self.flowgraph
+            .with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
+                Self::connect_stream_ports_dyn(
+                    src_block_id,
+                    &src_port_id,
+                    src_block,
+                    dst_block_id,
+                    &dst_port_id,
+                    dst_block,
+                )
+            })
+            .await
     }
 
     async fn lease_stream_output_send_token(
@@ -223,6 +205,7 @@ impl Flowgraph {
     ) -> Result<StreamOutputSendTokenLease, Error> {
         let port_id = port_id.clone();
         let token = self
+            .flowgraph
             .with_block_mut(location, {
                 let port_id = port_id.clone();
                 move |block| {
@@ -249,21 +232,22 @@ impl Flowgraph {
         lease: StreamOutputSendTokenLease,
     ) -> Result<(), Error> {
         let (location, port_id, token) = lease.into_parts().await?;
-        self.with_block_mut(location, move |block| {
-            let writer = block.stream_output(&port_id).map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                }
-                o => o,
-            })?;
-            writer.replace_send_token(token).map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
-                }
-                o => o,
+        self.flowgraph
+            .with_block_mut(location, move |block| {
+                let writer = block.stream_output(&port_id).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })?;
+                writer.replace_send_token(token).map_err(|e| match e {
+                    Error::InvalidStreamPort(_, port) => {
+                        Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
+                    }
+                    o => o,
+                })
             })
-        })
-        .await
+            .await
     }
 
     async fn connect_send_token_to_input(
@@ -278,7 +262,7 @@ impl Flowgraph {
             DomainLocation::Normal => {
                 let mut token = token.lock().await;
                 let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_block = block_access::raw_block_mut(&mut self.blocks, dst)?;
+                let dst_block = block_access::raw_block_mut(&mut self.flowgraph.blocks, dst)?;
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
@@ -294,6 +278,7 @@ impl Flowgraph {
             }
             DomainLocation::Local(domain_id) => {
                 let inbox = self
+                    .flowgraph
                     .local_domains
                     .get(domain_id)
                     .ok_or(Error::InvalidBlock(dst.block_id))?
@@ -345,6 +330,75 @@ impl Flowgraph {
 
         self.restore_stream_output_send_token(lease).await?;
         connect_result
+    }
+
+    async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
+        let src = self.flowgraph.location(edge.src_block)?;
+        let dst = self.flowgraph.location(edge.dst_block)?;
+
+        if src.domain == dst.domain {
+            self.connect_same_domain_stream_dyn_async(
+                src,
+                edge.src_port.clone(),
+                dst,
+                edge.dst_port.clone(),
+            )
+            .await?;
+        } else {
+            self.connect_cross_domain_stream_dyn_async(
+                src,
+                edge.src_port.clone(),
+                dst,
+                edge.dst_port.clone(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        for edge in edges {
+            self.apply_stream_edge(edge).await?;
+        }
+        Ok(())
+    }
+
+    async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
+        let src = self.flowgraph.location(edge.src_block)?;
+        let dst = self
+            .flowgraph
+            .blocks
+            .get(edge.dst_block.0)
+            .map(BlockSlot::endpoint)
+            .cloned()
+            .ok_or(Error::InvalidBlock(edge.dst_block))?;
+
+        self.flowgraph
+            .with_block_mut(src, move |src_block| {
+                src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
+            })
+            .await
+    }
+
+    pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+        for edge in edges.iter().cloned() {
+            self.apply_message_edge(edge).await?;
+        }
+        Ok(())
+    }
+}
+
+impl Flowgraph {
+    pub(super) fn stream_ports_edge<B: BufferWriter>(
+        src_port: &mut B,
+        dst_port: &mut B::Reader,
+    ) -> Edge {
+        Edge::new(
+            src_port.block_id(),
+            src_port.port_id(),
+            dst_port.block_id(),
+            dst_port.port_id(),
+        )
     }
 
     /// Connect stream ports through typed block handles owned by this flowgraph.
@@ -403,14 +457,16 @@ impl Flowgraph {
                 }
                 DomainLocation::Local(_) => {
                     let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-                    self.local_local_stream_edge_async::<KS, KD, B, FS, FD>(
-                        src, src_port, dst, dst_port,
-                    )
-                    .await?
+                    FlowgraphConnector::new(self)
+                        .local_local_stream_edge_async::<KS, KD, B, FS, FD>(
+                            src, src_port, dst, dst_port,
+                        )
+                        .await?
                 }
             }
         } else {
-            self.cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
+            FlowgraphConnector::new(self)
+                .cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
                 .await?
         };
         self.stream_edges.push(StreamEdge::from_edge(edge, false));
@@ -464,7 +520,7 @@ impl Flowgraph {
         let src = self.location(src_id)?;
         let dst = self.location(dst_id)?;
         let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-        let edge = self
+        let edge = FlowgraphConnector::new(self)
             .local_local_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
             .await?;
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
@@ -675,58 +731,5 @@ impl Flowgraph {
             Ok(())
         })
         .await
-    }
-
-    async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
-        let src = self.location(edge.src_block)?;
-        let dst = self.location(edge.dst_block)?;
-
-        if src.domain == dst.domain {
-            self.connect_same_domain_stream_dyn_async(
-                src,
-                edge.src_port.clone(),
-                dst,
-                edge.dst_port.clone(),
-            )
-            .await?;
-        } else {
-            self.connect_cross_domain_stream_dyn_async(
-                src,
-                edge.src_port.clone(),
-                dst,
-                edge.dst_port.clone(),
-            )
-            .await?;
-        }
-        Ok(())
-    }
-
-    pub(super) async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
-        for edge in edges {
-            self.apply_stream_edge(edge).await?;
-        }
-        Ok(())
-    }
-
-    async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
-        let src = self.location(edge.src_block)?;
-        let dst = self
-            .blocks
-            .get(edge.dst_block.0)
-            .map(BlockSlot::endpoint)
-            .cloned()
-            .ok_or(Error::InvalidBlock(edge.dst_block))?;
-
-        self.with_block_mut(src, move |src_block| {
-            src_block.connect_message(&edge.src_port, dst, &edge.dst_port)
-        })
-        .await
-    }
-
-    pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
-        for edge in edges.iter().cloned() {
-            self.apply_message_edge(edge).await?;
-        }
-        Ok(())
     }
 }
