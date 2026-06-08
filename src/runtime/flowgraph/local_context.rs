@@ -26,6 +26,7 @@ pub(super) struct LocalDomainContextEntry {
     pub(super) placement: BlockPlacement,
     pub(super) inbox: BlockEndpoint,
     pub(super) message_inputs: &'static [&'static str],
+    pub(super) message_outputs: &'static [&'static str],
 }
 
 struct LocalDomainContextInner<'a> {
@@ -183,6 +184,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             placement,
             inbox,
             message_inputs: K::message_inputs(),
+            message_outputs: K::message_outputs(),
         });
         BlockRef {
             id: block_id,

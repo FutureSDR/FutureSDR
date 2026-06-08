@@ -580,27 +580,9 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
-                            let init_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    __FsdrInput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
-                                }
-                            };
-                            let validate_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    __FsdrInput::validate(&self.#field_name[i])?;
-                                }
-                            };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     __FsdrInput::notify_finished(&mut self.#field_name[i]).await;
-                                }
-                            };
-                            let finish_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if port == format!("{}[{}]", #field_name_str, i) {
-                                        __FsdrInput::finish(&mut self.#field_name[i]);
-                                        return Ok(());
-                                    }
                                 }
                             };
                             let get_input_code = quote! {
@@ -610,7 +592,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     }
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
+                            Some((name_code, notify_code, get_input_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
@@ -620,27 +602,9 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
-                            let init_code = quote! {
-                                for i in 0..#len {
-                                    __FsdrInput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
-                                }
-                            };
-                            let validate_code = quote! {
-                                for i in 0..#len {
-                                    __FsdrInput::validate(&self.#field_name[i])?;
-                                }
-                            };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     __FsdrInput::notify_finished(&mut self.#field_name[i]).await;
-                                }
-                            };
-                            let finish_code = quote! {
-                                for (i, _) in self.#field_name.iter_mut().enumerate() {
-                                    if port == format!("{}[{}]", #field_name_str, i) {
-                                        __FsdrInput::finish(&mut self.#field_name[i]);
-                                        return Ok(());
-                                    }
                                 }
                             };
                             let get_input_code = quote! {
@@ -650,7 +614,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     }
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
+                            Some((name_code, notify_code, get_input_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
@@ -663,24 +627,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let name_code = quote! {
                                 #(#name_code)*
                             };
-                            let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote! {
-                                    __FsdrInput::init_from(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), &inboxes);
-                                }
-                            });
-                            let init_code = quote! {
-                                #(#init_code)*
-                            };
-                            let validate_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote! {
-                                    __FsdrInput::validate(&self.#field_name.#index)?;
-                                }
-                            });
-                            let validate_code = quote! {
-                                #(#validate_code)*
-                            };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
                                 quote! {
@@ -689,18 +635,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             });
                             let notify_code = quote! {
                                 #(#notify_code)*
-                            };
-                            let finish_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote!{
-                                    if port == format!("{}.{}", #field_name_str, #index) {
-                                        __FsdrInput::finish(&mut self.#field_name.#index);
-                                        return Ok(());
-                                    }
-                                }
-                            });
-                            let finish_code = quote! {
-                                #(#finish_code)*
                             };
                             let get_input_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -713,34 +647,22 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let get_input_code = quote! {
                                 #(#get_input_code)*
                             };
-                            Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
+                            Some((name_code, notify_code, get_input_code))
                         }
                         // Handle normal types
                         _ => {
                             let name_code = quote! {
                                 f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
                             };
-                            let init_code = quote! {
-                                __FsdrInput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
-                            };
-                            let validate_code = quote! {
-                                __FsdrInput::validate(&self.#field_name)?;
-                            };
                             let notify_code = quote! {
                                 __FsdrInput::notify_finished(&mut self.#field_name).await;
-                            };
-                            let finish_code = quote! {
-                                if port == #field_name_str {
-                                    __FsdrInput::finish(&mut self.#field_name);
-                                    return Ok(());
-                                }
                             };
                             let get_input_code = quote! {
                                 if name == #field_name_str {
                                     return Ok(f(&mut self.#field_name));
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, finish_code, get_input_code))
+                            Some((name_code, notify_code, get_input_code))
                         }
                     }
                 })
@@ -755,11 +677,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         .collect::<Vec<_>>();
     let stream_inputs_notify = stream_inputs
         .iter()
-        .map(|x| x.3.clone())
+        .map(|x| x.1.clone())
         .collect::<Vec<_>>();
     let stream_inputs_get = stream_inputs
         .iter()
-        .map(|x| x.5.clone())
+        .map(|x| x.2.clone())
         .collect::<Vec<_>>();
 
     let stream_outputs = match struct_data.fields {
@@ -784,16 +706,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
-                            let init_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    __FsdrOutput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
-                                }
-                            };
-                            let validate_code = quote! {
-                                for i in 0..self.#field_name.len() {
-                                    __FsdrOutput::validate(&self.#field_name[i])?;
-                                }
-                            };
                             let notify_code = quote! {
                                 for i in 0..self.#field_name.len() {
                                     __FsdrOutput::notify_finished(&mut self.#field_name[i]).await;
@@ -806,7 +718,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     }
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, connect_code))
+                            Some((name_code, notify_code, connect_code))
                         }
                         // Handle arrays [T; N]
                         Type::Array(array) => {
@@ -816,16 +728,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     f(PortId::new(format!("{}[{}]", #field_name_str, i)), &mut self.#field_name[i])?;
                                 }
                             };
-                            let init_code = quote! {
-                                for i in 0..#len {
-                                    __FsdrOutput::init_from(&mut self.#field_name[i], block_id, PortId::new(format!("{}[{}]", #field_name_str, i)), &inboxes);
-                                }
-                            };
-                            let validate_code = quote! {
-                                for i in 0..#len {
-                                    __FsdrOutput::validate(&self.#field_name[i])?;
-                                }
-                            };
                             let notify_code = quote! {
                                 for i in 0..#len {
                                     __FsdrOutput::notify_finished(&mut self.#field_name[i]).await;
@@ -838,7 +740,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     }
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, connect_code))
+                            Some((name_code, notify_code, connect_code))
                         }
                         // Handle tuples (T1, T2, ...)
                         Type::Tuple(tuple) => {
@@ -850,24 +752,6 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             });
                             let name_code = quote! {
                                 #(#name_code)*
-                            };
-                            let init_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote! {
-                                    __FsdrOutput::init_from(&mut self.#field_name.#index, block_id, PortId::new(format!("{}.{}", #field_name_str, #index)), &inboxes);
-                                }
-                            });
-                            let init_code = quote! {
-                                #(#init_code)*
-                            };
-                            let validate_code = tuple.elems.iter().enumerate().map(|(i, _)| {
-                                let index = syn::Index::from(i);
-                                quote! {
-                                    __FsdrOutput::validate(&self.#field_name.#index)?;
-                                }
-                            });
-                            let validate_code = quote! {
-                                #(#validate_code)*
                             };
                             let notify_code = tuple.elems.iter().enumerate().map(|(i, _)| {
                                 let index = syn::Index::from(i);
@@ -889,18 +773,12 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                             let connect_code = quote! {
                                 #(#connect_code)*
                             };
-                            Some((name_code, init_code, validate_code, notify_code, connect_code))
+                            Some((name_code, notify_code, connect_code))
                         }
                         // Handle normal types
                         _ => {
                             let name_code = quote! {
                                 f(PortId::new(#field_name_str.to_string()), &mut self.#field_name)?;
-                            };
-                            let init_code = quote! {
-                                __FsdrOutput::init_from(&mut self.#field_name, block_id, PortId::new(#field_name_str.to_string()), &inboxes);
-                            };
-                            let validate_code = quote! {
-                                __FsdrOutput::validate(&self.#field_name)?;
                             };
                             let notify_code = quote! {
                                 __FsdrOutput::notify_finished(&mut self.#field_name).await;
@@ -910,7 +788,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                                     return Ok(f(&mut self.#field_name));
                                 }
                             };
-                            Some((name_code, init_code, validate_code, notify_code, connect_code))
+                            Some((name_code, notify_code, connect_code))
                         }
                     }
                 })
@@ -925,11 +803,11 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         .collect::<Vec<_>>();
     let stream_outputs_notify = stream_outputs
         .iter()
-        .map(|x| x.3.clone())
+        .map(|x| x.1.clone())
         .collect::<Vec<_>>();
     let stream_outputs_get = stream_outputs
         .iter()
-        .map(|x| x.4.clone())
+        .map(|x| x.2.clone())
         .collect::<Vec<_>>();
 
     // Collect the names and types of fields that have the #[input] or #[output] attribute

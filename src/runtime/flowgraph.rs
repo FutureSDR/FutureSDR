@@ -79,15 +79,21 @@ struct BlockEntry {
     placement: BlockPlacement,
     inbox: Option<BlockEndpoint>,
     message_inputs: &'static [&'static str],
+    message_outputs: &'static [&'static str],
 }
 
 impl BlockEntry {
-    fn reserved(placement: BlockPlacement, message_inputs: &'static [&'static str]) -> Self {
+    fn reserved(
+        placement: BlockPlacement,
+        message_inputs: &'static [&'static str],
+        message_outputs: &'static [&'static str],
+    ) -> Self {
         Self {
             block: None,
             placement,
             inbox: None,
             message_inputs,
+            message_outputs,
         }
     }
 
@@ -96,12 +102,14 @@ impl BlockEntry {
         placement: BlockPlacement,
         inbox: BlockEndpoint,
         message_inputs: &'static [&'static str],
+        message_outputs: &'static [&'static str],
     ) -> Self {
         Self {
             block: Some(block),
             placement,
             inbox: Some(inbox),
             message_inputs,
+            message_outputs,
         }
     }
 }
@@ -229,6 +237,7 @@ impl Flowgraph {
                 placement: entry.placement,
                 inbox: Some(entry.inbox),
                 message_inputs: entry.message_inputs,
+                message_outputs: entry.message_outputs,
             }));
     }
 
@@ -363,17 +372,26 @@ impl Flowgraph {
         b.meta
             .set_instance_name(format!("{}-{}", block_name, block_id.0));
         let inbox = b.inbox();
-        self.add_normal_block(Box::new(b), inbox, <K as KernelInterface>::message_inputs())
+        self.add_normal_block(
+            Box::new(b),
+            inbox,
+            <K as KernelInterface>::message_inputs(),
+            <K as KernelInterface>::message_outputs(),
+        )
     }
 
     fn reserve_block_id(
         &mut self,
         placement: BlockPlacement,
         message_inputs: &'static [&'static str],
+        message_outputs: &'static [&'static str],
     ) -> BlockId {
         let block_id = BlockId(self.blocks.len());
-        self.blocks
-            .push(BlockEntry::reserved(placement, message_inputs));
+        self.blocks.push(BlockEntry::reserved(
+            placement,
+            message_inputs,
+            message_outputs,
+        ));
         block_id
     }
 
@@ -391,6 +409,7 @@ impl Flowgraph {
         block: Box<dyn Block>,
         inbox: BlockEndpoint,
         message_inputs: &'static [&'static str],
+        message_outputs: &'static [&'static str],
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let placement = BlockPlacement::Normal;
@@ -399,6 +418,7 @@ impl Flowgraph {
             placement,
             inbox,
             message_inputs,
+            message_outputs,
         ));
         self.block_ref(block_id, placement)
     }
@@ -466,7 +486,7 @@ impl Flowgraph {
             domain_id,
             local_id,
         };
-        let block_id = self.reserve_block_id(placement, K::message_inputs());
+        let block_id = self.reserve_block_id(placement, K::message_inputs(), K::message_outputs());
         let domain_inbox = self.local_domains[domain_id].inbox();
         let external = BlockEndpoint::domain_proxy(domain_inbox, block_id);
         let inbox = match self.local_domains[domain_id]
@@ -497,7 +517,7 @@ impl Flowgraph {
         Ok(self.block_ref(block_id, placement))
     }
 
-    async fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
+    fn validate_message_edge(&self, edge: &Edge) -> Result<(), Error> {
         let dst_inputs = self
             .blocks
             .get(edge.dst_block.0)
@@ -510,39 +530,18 @@ impl Flowgraph {
             ));
         }
 
-        match self.placement(edge.src_block)? {
-            BlockPlacement::Normal => {
-                let src_block = self.raw_block(edge.src_block)?;
-                if !src_block.message_outputs().contains(&edge.src_port.name()) {
-                    return Err(Error::InvalidMessagePort(
-                        BlockPortCtx::Id(edge.src_block),
-                        edge.src_port.clone(),
-                    ));
-                }
-            }
-            BlockPlacement::Local {
-                domain_id,
-                local_id,
-            } => {
-                let src_port = edge.src_port.clone();
-                let src_block_id = edge.src_block;
-                self.local_domains[domain_id]
-                    .exec(move |state| {
-                        let result = (|| {
-                            let src_block = state.block(local_id, src_block_id)?;
-                            if !src_block.message_outputs().contains(&src_port.name()) {
-                                return Err(Error::InvalidMessagePort(
-                                    BlockPortCtx::Id(src_block_id),
-                                    src_port,
-                                ));
-                            }
-                            Ok(())
-                        })();
-                        Box::pin(futures::future::ready(result))
-                    })
-                    .await?;
-            }
+        let src_outputs = self
+            .blocks
+            .get(edge.src_block.0)
+            .map(|entry| entry.message_outputs)
+            .ok_or(Error::InvalidBlock(edge.src_block))?;
+        if !src_outputs.contains(&edge.src_port.name()) {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(edge.src_block),
+                edge.src_port.clone(),
+            ));
         }
+
         Ok(())
     }
 
@@ -662,10 +661,6 @@ impl Flowgraph {
             dst_id,
             self.placement(dst_id)?,
         ))
-    }
-
-    fn raw_block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
-        block_access::raw_block(&self.blocks, block_id)
     }
 
     fn raw_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {

@@ -1,0 +1,23 @@
+error[E0277]: `Rc<()>` cannot be sent between threads safely
+  --> tests/ui/non_send_normal_add.rs:13:20
+   |
+13 |     let _ = fg.add(NonSendBlock { _state: Rc::new(()) });
+   |                --- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<()>` cannot be sent between threads safely
+   |                |
+   |                required by a bound introduced by this call
+   |
+   = help: within `NonSendBlock`, the trait `std::marker::Send` is not implemented for `Rc<()>`
+note: required because it appears within the type `NonSendBlock`
+  --> tests/ui/non_send_normal_add.rs:7:8
+   |
+ 7 | struct NonSendBlock {
+   |        ^^^^^^^^^^^^
+   = note: required for `NonSendBlock` to implement `futuresdr::runtime::dev::SendKernel`
+note: required by a bound in `futuresdr::runtime::Flowgraph::add`
+  --> src/runtime/flowgraph.rs
+   |
+   |     pub fn add<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
+   |            --- required by a bound in this associated function
+   |     where
+   |         K: SendKernel + SendKernelInterface + 'static,
+   |            ^^^^^^^^^^ required by this bound in `Flowgraph::add`

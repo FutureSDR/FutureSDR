@@ -782,7 +782,7 @@ impl Flowgraph {
         let dst_port_id = dst_port_id.into();
 
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        self.validate_message_edge(&edge).await?;
+        self.validate_message_edge(&edge)?;
         self.message_edges.push(edge);
         Ok(())
     }
