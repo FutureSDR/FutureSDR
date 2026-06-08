@@ -53,6 +53,7 @@ static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
 mod block_access;
 mod connect;
+mod domain_access;
 mod local_context;
 mod run;
 mod terminated;
