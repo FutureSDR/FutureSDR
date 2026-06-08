@@ -16,6 +16,7 @@ use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain_common::LocalBlockBuilder;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::local_domain_common::exec_with_scheduler;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainRunSpec;
 use crate::runtime::scheduler::LocalScheduler;
@@ -89,6 +90,22 @@ impl LocalDomainRuntime {
         self.controller.exec(f).await
     }
 
+    pub(crate) async fn exec_with_scheduler<LS, R>(
+        &self,
+        f: impl for<'a> FnOnce(
+            &'a mut LocalDomainState,
+            &'a LS,
+        ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
+        + Send
+        + 'static,
+    ) -> Result<R, Error>
+    where
+        LS: LocalScheduler,
+        R: Send + 'static,
+    {
+        exec_with_scheduler::<LS, R>(&self.controller.tx, f).await
+    }
+
     pub(crate) fn mark_running(&mut self) {
         self.running = true;
     }
@@ -134,11 +151,13 @@ impl LocalDomainInbox {
     {
         let (reply, rx) = oneshot::channel();
         self.tx
-            .send(LocalDomainMessage::Exec(Box::new(move |state| {
-                Box::pin(async move {
-                    let _ = reply.send(f(state).await);
-                })
-            })))
+            .send(LocalDomainMessage::Exec(Box::new(
+                move |state, _scheduler| {
+                    Box::pin(async move {
+                        let _ = reply.send(f(state).await);
+                    })
+                },
+            )))
             .await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
         rx.await
@@ -307,6 +326,7 @@ async fn run_domain_thread<LS: LocalScheduler>(
     key: LocalDomainKey,
 ) {
     let mut state = LocalDomainState::new();
+    let scheduler = LS::default();
 
     while let Some(message) = rx.recv().await {
         match message {
@@ -323,7 +343,7 @@ async fn run_domain_thread<LS: LocalScheduler>(
                 }
                 let _ = reply.send(result);
             }
-            LocalDomainMessage::Exec(f) => f(&mut state).await,
+            LocalDomainMessage::Exec(f) => f(&mut state, &scheduler).await,
             LocalDomainMessage::Post { block_id, message } => {
                 if let Err(e) = state.push_message(block_id, message).await {
                     warn!("failed to post to local block: {e}");
@@ -351,7 +371,6 @@ async fn run_domain_thread<LS: LocalScheduler>(
                 main_channel,
                 reply,
             } => {
-                let scheduler = LS::default();
                 let spec = LocalDomainRunSpec {
                     domain_id,
                     slots,

@@ -75,12 +75,26 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         }
     }
 
-    /// Spawn a non-`Send` task on this local domain's scheduler while the context runs.
+    /// Spawn a non-`Send` task on this local domain's scheduler.
+    ///
+    /// The scheduler is owned by the local domain and is reused when the
+    /// flowgraph later starts running, so a task whose handle is retained or
+    /// detached can continue beyond this builder closure. Dropping the returned
+    /// task follows the cancellation semantics of the selected local scheduler.
     pub fn spawn<T: 'static>(
         &self,
         future: impl std::future::Future<Output = T> + 'static,
     ) -> LS::Task<T> {
         self.scheduler.spawn(future)
+    }
+
+    /// Spawn a non-`Send` task and detach it immediately.
+    pub fn spawn_background<T: 'static>(
+        &self,
+        future: impl std::future::Future<Output = T> + 'static,
+    ) {
+        let task = self.scheduler.spawn(future);
+        self.scheduler.detach(task);
     }
 
     pub(super) fn take_entries(

@@ -33,9 +33,10 @@ use crate::runtime::scheduler::DomainTopology;
 /// Scheduler for tasks that run inside one local scheduling domain.
 ///
 /// A local scheduler value is constructed inside the local-domain thread/worker
-/// with [`Default`] for each run. It can spawn non-`Send` futures. Most custom
-/// local schedulers should customize [`LocalScheduler::spawn`] and
-/// [`LocalScheduler::run`] and keep the default local-domain run loop.
+/// with [`Default`] and reused for builder closures and flowgraph runs. It can
+/// spawn non-`Send` futures. Most custom local schedulers should customize
+/// [`LocalScheduler::spawn`] and [`LocalScheduler::run`] and keep the default
+/// local-domain run loop.
 pub trait LocalScheduler: Default + 'static {
     /// Task handle returned by [`LocalScheduler::spawn`].
     type Task<T>: Future<Output = T> + 'static

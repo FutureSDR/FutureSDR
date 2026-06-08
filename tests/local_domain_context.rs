@@ -7,6 +7,9 @@ use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::buffer::LocalCpuReader;
 use futuresdr::runtime::buffer::LocalCpuWriter;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 fn run_and_check(fg: Flowgraph, snk: BlockRef<NullSink<u8, LocalCpuReader<u8>>>) -> Result<()> {
     let fg = Runtime::new().run(fg)?;
@@ -68,6 +71,38 @@ fn local_domain_context_spawn_runs_task() -> Result<()> {
         assert_eq!(value, 42);
         Ok(())
     })
+}
+
+#[test]
+fn local_domain_context_spawn_background_survives_until_run() -> Result<()> {
+    let ran = Arc::new(AtomicBool::new(false));
+    let ran_for_task = ran.clone();
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+
+    let (snk, release_task) = fg.domain_run(local, move |ctx| {
+        let (release_task, wait_for_release) = futuresdr::runtime::channel::oneshot::channel();
+        ctx.spawn_background(async move {
+            let _ = wait_for_release.await;
+            ran_for_task.store(true, Ordering::SeqCst);
+        });
+
+        let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
+        let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
+        let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
+
+        connect!(ctx, src ~> head ~> snk);
+
+        Ok((snk, release_task))
+    })?;
+
+    assert!(!ran.load(Ordering::SeqCst));
+    release_task
+        .send(())
+        .expect("background task receiver dropped");
+    run_and_check(fg, snk)?;
+    assert!(ran.load(Ordering::SeqCst));
+    Ok(())
 }
 
 #[test]

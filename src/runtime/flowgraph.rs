@@ -277,9 +277,8 @@ impl Flowgraph {
         let flowgraph_id = self.id;
         let domain_inbox = self.local_domains[domain_id].inbox();
         let (ret, (entries, stream_edges, message_edges)) = self.local_domains[domain_id]
-            .exec(move |state| {
+            .exec_with_scheduler::<LS, _>(move |state, scheduler| {
                 Box::pin(async move {
-                    let scheduler = LS::default();
                     scheduler
                         .run(async {
                             let ctx = LocalDomainContext::new(
@@ -289,7 +288,7 @@ impl Flowgraph {
                                 next_block_id,
                                 next_local_id,
                                 state,
-                                &scheduler,
+                                scheduler,
                             );
                             match f(&ctx).await {
                                 Ok(ret) => Ok((ret, ctx.take_entries())),

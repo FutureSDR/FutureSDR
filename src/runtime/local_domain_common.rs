@@ -1,4 +1,5 @@
 use futures::Future;
+use std::any::Any;
 use std::pin::Pin;
 
 use crate::runtime::BlockId;
@@ -15,11 +16,15 @@ use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::scheduler::DomainTopology;
+use crate::runtime::scheduler::LocalScheduler;
 
 pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Send + 'static>;
 
 pub(crate) type LocalDomainAsyncExec = Box<
-    dyn for<'a> FnOnce(&'a mut LocalDomainState) -> Pin<Box<dyn Future<Output = ()> + 'a>>
+    dyn for<'a> FnOnce(
+            &'a mut LocalDomainState,
+            &'a dyn Any,
+        ) -> Pin<Box<dyn Future<Output = ()> + 'a>>
         + Send
         + 'static,
 >;
@@ -229,6 +234,39 @@ impl LocalDomainState {
         let dst_block = dst_slot.as_mut().ok_or(Error::LockError)?.as_mut();
         Ok((src_block, dst_block))
     }
+}
+
+pub(crate) async fn exec_with_scheduler<LS, R>(
+    tx: &Sender<LocalDomainMessage>,
+    f: impl for<'a> FnOnce(
+        &'a mut LocalDomainState,
+        &'a LS,
+    ) -> Pin<Box<dyn Future<Output = Result<R, Error>> + 'a>>
+    + Send
+    + 'static,
+) -> Result<R, Error>
+where
+    LS: LocalScheduler,
+    R: Send + 'static,
+{
+    let (reply, rx) = oneshot::channel();
+    tx.send(LocalDomainMessage::Exec(Box::new(
+        move |state, scheduler| {
+            Box::pin(async move {
+                let result = match scheduler.downcast_ref::<LS>() {
+                    Some(scheduler) => f(state, scheduler).await,
+                    None => Err(Error::RuntimeError(
+                        "local domain scheduler type mismatch".to_string(),
+                    )),
+                };
+                let _ = reply.send(result);
+            })
+        },
+    )))
+    .await
+    .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?;
+    rx.await
+        .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
 }
 
 pub(crate) enum LocalDomainMessage {
