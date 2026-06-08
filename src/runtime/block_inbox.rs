@@ -33,6 +33,19 @@ impl LocalDomainKey {
     }
 }
 
+/// Direct address of a block inside one local-domain state.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) struct LocalBlockAddr {
+    pub(crate) block_id: BlockId,
+    pub(crate) local_id: usize,
+}
+
+impl LocalBlockAddr {
+    pub(crate) fn new(block_id: BlockId, local_id: usize) -> Self {
+        Self { block_id, local_id }
+    }
+}
+
 #[derive(Debug)]
 struct ThreadSafeNotifyState {
     pending: AtomicBool,
@@ -161,7 +174,7 @@ enum BlockEndpointInner {
     Direct(BlockInbox),
     DomainProxy {
         domain: LocalDomainInbox,
-        block_id: BlockId,
+        addr: LocalBlockAddr,
     },
 }
 
@@ -171,9 +184,9 @@ impl fmt::Debug for BlockEndpoint {
             BlockEndpointInner::Direct(_) => f
                 .debug_struct("BlockEndpoint::Direct")
                 .finish_non_exhaustive(),
-            BlockEndpointInner::DomainProxy { block_id, .. } => f
+            BlockEndpointInner::DomainProxy { addr, .. } => f
                 .debug_struct("BlockEndpoint::DomainProxy")
-                .field("block_id", block_id)
+                .field("addr", addr)
                 .finish_non_exhaustive(),
         }
     }
@@ -258,9 +271,9 @@ impl From<BlockInbox> for BlockEndpoint {
 
 impl BlockEndpoint {
     /// Create a sender-side domain proxy for a local-domain block.
-    pub(crate) fn domain_proxy(domain: LocalDomainInbox, block_id: BlockId) -> Self {
+    pub(crate) fn domain_proxy(domain: LocalDomainInbox, addr: LocalBlockAddr) -> Self {
         Self {
-            inner: BlockEndpointInner::DomainProxy { domain, block_id },
+            inner: BlockEndpointInner::DomainProxy { domain, addr },
         }
     }
 
@@ -269,11 +282,11 @@ impl BlockEndpoint {
     pub(crate) fn notify(&self) {
         match &self.inner {
             BlockEndpointInner::Direct(inbox) => inbox.notify(),
-            BlockEndpointInner::DomainProxy { domain, block_id } => {
-                if let Some(inbox) = current_local_inbox(domain.key(), *block_id) {
+            BlockEndpointInner::DomainProxy { domain, addr } => {
+                if let Some(inbox) = current_local_inbox(domain.key(), *addr) {
                     inbox.notify();
                 } else {
-                    let _ = domain.notify_block(*block_id);
+                    let _ = domain.notify_block(*addr);
                 }
             }
         }
@@ -291,12 +304,12 @@ impl BlockEndpoint {
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         match &self.inner {
             BlockEndpointInner::Direct(inbox) => inbox.send(msg).await,
-            BlockEndpointInner::DomainProxy { domain, block_id } => {
-                if has_current_local_inbox(domain.key(), *block_id) {
+            BlockEndpointInner::DomainProxy { domain, addr } => {
+                if has_current_local_inbox(domain.key(), *addr) {
                     return LocalSend {
                         target: CurrentLocalInbox {
                             key: domain.key(),
-                            block_id: *block_id,
+                            addr: *addr,
                         },
                         msg: Some(msg),
                     }
@@ -305,9 +318,9 @@ impl BlockEndpoint {
 
                 match msg {
                     BlockMessage::Call { port_id, data, tx } => {
-                        domain.call(*block_id, port_id, data, tx).await
+                        domain.call(*addr, port_id, data, tx).await
                     }
-                    msg => domain.post(*block_id, msg).await,
+                    msg => domain.post(*addr, msg).await,
                 }
             }
         }
@@ -512,7 +525,7 @@ impl LocalBlockInbox {
 #[derive(Debug)]
 struct CurrentLocalDomain {
     key: LocalDomainKey,
-    inboxes: Vec<(BlockId, LocalBlockInbox)>,
+    inboxes: Vec<Option<(BlockId, LocalBlockInbox)>>,
 }
 
 thread_local! {
@@ -535,14 +548,14 @@ impl Drop for LocalDomainContextGuard {
 /// Install the current local-domain context for tasks polled on this thread.
 pub(crate) fn enter_local_domain_context(
     key: LocalDomainKey,
-    inboxes: Vec<(BlockId, LocalBlockInbox)>,
+    inboxes: Vec<Option<(BlockId, LocalBlockInbox)>>,
 ) -> LocalDomainContextGuard {
     CURRENT_LOCAL_DOMAIN.with(|current| LocalDomainContextGuard {
         previous: current.replace(Some(CurrentLocalDomain { key, inboxes })),
     })
 }
 
-fn current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> Option<LocalBlockInbox> {
+fn current_local_inbox(key: LocalDomainKey, addr: LocalBlockAddr) -> Option<LocalBlockInbox> {
     CURRENT_LOCAL_DOMAIN.with(|current| {
         let current = current.borrow();
         let current = current.as_ref()?;
@@ -550,18 +563,24 @@ fn current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> Option<LocalBl
             return None;
         }
 
-        current
-            .inboxes
-            .iter()
-            .find_map(|(id, inbox)| (*id == block_id).then(|| inbox.clone()))
+        let (block_id, inbox) = current.inboxes.get(addr.local_id)?.as_ref()?;
+        (*block_id == addr.block_id).then(|| inbox.clone())
     })
 }
 
-fn has_current_local_inbox(key: LocalDomainKey, block_id: BlockId) -> bool {
+fn has_current_local_inbox(key: LocalDomainKey, addr: LocalBlockAddr) -> bool {
     CURRENT_LOCAL_DOMAIN.with(|current| {
         let current = current.borrow();
         current.as_ref().is_some_and(|current| {
-            current.key == key && current.inboxes.iter().any(|(id, _)| *id == block_id)
+            if current.key != key {
+                return false;
+            }
+
+            current
+                .inboxes
+                .get(addr.local_id)
+                .and_then(Option::as_ref)
+                .is_some_and(|(block_id, _)| *block_id == addr.block_id)
         })
     })
 }
@@ -581,12 +600,12 @@ impl LocalSendTarget for LocalBlockInbox {
 
 struct CurrentLocalInbox {
     key: LocalDomainKey,
-    block_id: BlockId,
+    addr: LocalBlockAddr,
 }
 
 impl LocalSendTarget for CurrentLocalInbox {
     fn inbox(&self) -> Result<LocalBlockInbox, Error> {
-        current_local_inbox(self.key, self.block_id).ok_or_else(|| {
+        current_local_inbox(self.key, self.addr).ok_or_else(|| {
             Error::RuntimeError(
                 "local-domain fast path polled outside its domain context".to_string(),
             )
@@ -833,6 +852,22 @@ mod tests {
         assert!(rx.take_pending());
         assert!(!rx.take_message_pending());
         assert!(rx.try_recv().is_none());
+    }
+
+    #[test]
+    fn current_local_inbox_uses_local_slot_and_validates_block_id() {
+        let key = LocalDomainKey::new();
+        let (tx, _rx) = LocalBlockInboxReader::pair();
+        let _guard = enter_local_domain_context(key, vec![None, Some((BlockId(7), tx.clone()))]);
+
+        assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(7), 1)).is_some());
+        assert!(has_current_local_inbox(
+            key,
+            LocalBlockAddr::new(BlockId(7), 1)
+        ));
+        assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(8), 1)).is_none());
+        assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(7), 0)).is_none());
+        assert!(current_local_inbox(key, LocalBlockAddr::new(BlockId(7), 2)).is_none());
     }
 
     #[test]

@@ -230,7 +230,7 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
 
     /// Install the local-domain fast-path context for tasks polled on this thread.
     pub fn enter_context(&self) -> impl Drop + 'static {
-        enter_local_domain_context(self.key, self.state.inboxes_by_block())
+        enter_local_domain_context(self.key, self.state.inboxes_by_local_id())
     }
 
     /// Wait for the next local-domain run event or shutdown request.
@@ -267,25 +267,25 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
                 warn!("local domain received exec while running");
                 LocalDomainControl::Continue
             }
-            LocalDomainMessage::Post { block_id, message } => {
-                if let Err(e) = self.state.push_message(block_id, message).await {
+            LocalDomainMessage::Post { addr, message } => {
+                if let Err(e) = self.state.push_message(addr, message).await {
                     warn!("failed to post to local block: {e}");
                 }
                 LocalDomainControl::Continue
             }
             LocalDomainMessage::Call {
-                block_id,
+                addr,
                 port_id,
                 data,
                 reply,
             } => {
-                if let Err(e) = self.state.push_call(block_id, port_id, data, reply).await {
+                if let Err(e) = self.state.push_call(addr, port_id, data, reply).await {
                     warn!("failed to call local block: {e}");
                 }
                 LocalDomainControl::Continue
             }
-            LocalDomainMessage::Notify { block_id } => {
-                if let Err(e) = self.state.notify_block(block_id) {
+            LocalDomainMessage::Notify { addr } => {
+                if let Err(e) = self.state.notify_block(addr) {
                     warn!("failed to notify local block: {e}");
                 }
                 LocalDomainControl::Continue

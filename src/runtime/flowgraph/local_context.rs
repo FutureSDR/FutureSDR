@@ -169,7 +169,10 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             local_id,
         };
 
-        let external = BlockEndpoint::domain_proxy(inner.domain_inbox.clone(), block_id);
+        let external = BlockEndpoint::domain_proxy(
+            inner.domain_inbox.clone(),
+            LocalBlockAddr::new(block_id, local_id),
+        );
         let mut block = LocalWrappedKernel::new_local_with_external(block, block_id, external);
         block
             .meta

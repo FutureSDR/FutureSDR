@@ -12,6 +12,7 @@ use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
+use crate::runtime::block_inbox::LocalBlockAddr;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
 use crate::runtime::channel::mpsc::Sender;
@@ -55,23 +56,27 @@ impl LocalDomainInbox {
         exec_local_domain(&self.tx, f).await
     }
 
-    pub(crate) async fn post(&self, block_id: BlockId, message: BlockMessage) -> Result<(), Error> {
+    pub(crate) async fn post(
+        &self,
+        addr: LocalBlockAddr,
+        message: BlockMessage,
+    ) -> Result<(), Error> {
         self.tx
-            .send(LocalDomainMessage::Post { block_id, message })
+            .send(LocalDomainMessage::Post { addr, message })
             .await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
     }
 
     pub(crate) async fn call(
         &self,
-        block_id: BlockId,
+        addr: LocalBlockAddr,
         port_id: PortId,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
         self.tx
             .send(LocalDomainMessage::Call {
-                block_id,
+                addr,
                 port_id,
                 data,
                 reply,
@@ -80,9 +85,9 @@ impl LocalDomainInbox {
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
     }
 
-    pub(crate) fn notify_block(&self, block_id: BlockId) -> Result<(), Error> {
+    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
         self.tx
-            .try_send(LocalDomainMessage::Notify { block_id })
+            .try_send(LocalDomainMessage::Notify { addr })
             .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))
     }
 
@@ -306,11 +311,11 @@ impl LocalDomainState {
         self.inboxes.get(local_id).and_then(Clone::clone)
     }
 
-    pub(crate) fn inboxes_by_block(&self) -> Vec<(BlockId, LocalBlockInbox)> {
+    pub(crate) fn inboxes_by_local_id(&self) -> Vec<Option<(BlockId, LocalBlockInbox)>> {
         self.block_ids
             .iter()
             .zip(self.inboxes.iter())
-            .filter_map(|(block_id, inbox)| Some((*block_id.as_ref()?, inbox.clone()?)))
+            .map(|(block_id, inbox)| Some((*block_id.as_ref()?, inbox.clone()?)))
             .collect()
     }
 
@@ -320,29 +325,35 @@ impl LocalDomainState {
             .position(|id| id.as_ref() == Some(&block_id))
     }
 
+    fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error> {
+        if self.block_ids.get(addr.local_id).copied().flatten() != Some(addr.block_id) {
+            return Err(Error::InvalidBlock(addr.block_id));
+        }
+        Ok(addr.local_id)
+    }
+
     pub(crate) async fn push_message(
         &self,
-        block_id: BlockId,
+        addr: LocalBlockAddr,
         message: BlockMessage,
     ) -> Result<(), Error> {
-        let local_id = self
-            .local_id_for_block(block_id)
-            .ok_or(Error::InvalidBlock(block_id))?;
-        let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
+        let local_id = self.validate_addr(addr)?;
+        let inbox = self
+            .inbox(local_id)
+            .ok_or(Error::InvalidBlock(addr.block_id))?;
         inbox.send(message).await
     }
 
     pub(crate) async fn push_call(
         &self,
-        block_id: BlockId,
+        addr: LocalBlockAddr,
         port_id: PortId,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
-        let local_id = match self.local_id_for_block(block_id) {
-            Some(local_id) => local_id,
-            None => {
-                let e = Error::InvalidBlock(block_id);
+        let local_id = match self.validate_addr(addr) {
+            Ok(local_id) => local_id,
+            Err(e) => {
                 let _ = reply.send(Err(e.clone()));
                 return Err(e);
             }
@@ -350,7 +361,7 @@ impl LocalDomainState {
         let inbox = match self.inbox(local_id) {
             Some(inbox) => inbox,
             None => {
-                let e = Error::InvalidBlock(block_id);
+                let e = Error::InvalidBlock(addr.block_id);
                 let _ = reply.send(Err(e.clone()));
                 return Err(e);
             }
@@ -364,11 +375,11 @@ impl LocalDomainState {
             .await
     }
 
-    pub(crate) fn notify_block(&self, block_id: BlockId) -> Result<(), Error> {
-        let local_id = self
-            .local_id_for_block(block_id)
-            .ok_or(Error::InvalidBlock(block_id))?;
-        let inbox = self.inbox(local_id).ok_or(Error::InvalidBlock(block_id))?;
+    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
+        let local_id = self.validate_addr(addr)?;
+        let inbox = self
+            .inbox(local_id)
+            .ok_or(Error::InvalidBlock(addr.block_id))?;
         inbox.notify();
         Ok(())
     }
@@ -505,25 +516,25 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
             f(state, scheduler).await;
             IdleDomainAction::Continue
         }
-        LocalDomainMessage::Post { block_id, message } => {
-            if let Err(e) = state.push_message(block_id, message).await {
+        LocalDomainMessage::Post { addr, message } => {
+            if let Err(e) = state.push_message(addr, message).await {
                 warn!("failed to post to local block: {e}");
             }
             IdleDomainAction::Continue
         }
         LocalDomainMessage::Call {
-            block_id,
+            addr,
             port_id,
             data,
             reply,
         } => {
-            if let Err(e) = state.push_call(block_id, port_id, data, reply).await {
+            if let Err(e) = state.push_call(addr, port_id, data, reply).await {
                 warn!("failed to call local block: {e}");
             }
             IdleDomainAction::Continue
         }
-        LocalDomainMessage::Notify { block_id } => {
-            if let Err(e) = state.notify_block(block_id) {
+        LocalDomainMessage::Notify { addr } => {
+            if let Err(e) = state.notify_block(addr) {
                 warn!("failed to notify local block: {e}");
             }
             IdleDomainAction::Continue
@@ -586,17 +597,17 @@ pub(crate) enum LocalDomainMessage {
     },
     Exec(LocalDomainAsyncExec),
     Post {
-        block_id: BlockId,
+        addr: LocalBlockAddr,
         message: BlockMessage,
     },
     Call {
-        block_id: BlockId,
+        addr: LocalBlockAddr,
         port_id: PortId,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     },
     Notify {
-        block_id: BlockId,
+        addr: LocalBlockAddr,
     },
     Run {
         domain_id: usize,

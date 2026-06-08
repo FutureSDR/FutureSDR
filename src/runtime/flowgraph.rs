@@ -20,6 +20,7 @@ use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
+use crate::runtime::block_inbox::LocalBlockAddr;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynSendBufferWriterToken;
@@ -487,7 +488,8 @@ impl Flowgraph {
         };
         let block_id = self.reserve_block_id(placement, K::message_inputs(), K::message_outputs());
         let domain_inbox = self.local_domains[domain_id].inbox();
-        let external = BlockEndpoint::domain_proxy(domain_inbox, block_id);
+        let external =
+            BlockEndpoint::domain_proxy(domain_inbox, LocalBlockAddr::new(block_id, local_id));
         let inbox = match self.local_domains[domain_id]
             .build(
                 local_id,
