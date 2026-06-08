@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn access_typed_kernel_ref<K, R>(
-    blocks: &[BlockEntry],
+    blocks: &[BlockSlot],
     local_domains: &[LocalDomainRuntime],
     location: BlockLocation,
     f: impl FnOnce(&K) -> Result<R, Error> + Send + 'static,
@@ -40,7 +40,7 @@ where
 }
 
 pub(super) async fn access_typed_kernel_mut<K, R>(
-    blocks: &mut [BlockEntry],
+    blocks: &mut [BlockSlot],
     local_domains: &[LocalDomainRuntime],
     location: BlockLocation,
     f: impl FnOnce(&mut K) -> Result<R, Error> + Send + 'static,
@@ -150,16 +150,8 @@ impl Flowgraph {
             DomainLocation::Normal => {
                 let (src_slot, dst_slot) =
                     self.two_block_entries_mut(src.block_id, dst.block_id)?;
-                let src_block = src_slot
-                    .block
-                    .as_mut()
-                    .map(Box::as_mut)
-                    .ok_or(Error::LockError)?;
-                let dst_block = dst_slot
-                    .block
-                    .as_mut()
-                    .map(Box::as_mut)
-                    .ok_or(Error::LockError)?;
+                let src_block = src_slot.normal_block_mut(src.block_id)?;
+                let dst_block = dst_slot.normal_block_mut(dst.block_id)?;
                 f(src_block, dst_block)
             }
             DomainLocation::Local(domain_id) => {

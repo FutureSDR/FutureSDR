@@ -435,6 +435,7 @@ impl Flowgraph {
     ) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
         let mut initialized = Some(initialized);
+        let scheduler_keepalive = scheduler.clone();
 
         let started = match self
             .apply_edges_and_start_domains(scheduler, main_channel.clone())
@@ -492,6 +493,7 @@ impl Flowgraph {
 
         let finished_blocks = self.join_domains(domains).await?;
         self.restore_blocks(finished_blocks)?;
+        drop(scheduler_keepalive);
 
         Ok(TerminatedFlowgraph::new(self))
     }
@@ -499,7 +501,7 @@ impl Flowgraph {
     fn take_blocks(&mut self) -> Result<NormalBlocks, Error> {
         let mut blocks = Vec::with_capacity(self.blocks.len());
         for entry in self.blocks.iter_mut() {
-            if let Some(block) = entry.block.take() {
+            if let Some(block) = entry.take_normal_block()? {
                 blocks.push(block);
             }
         }
@@ -519,12 +521,7 @@ impl Flowgraph {
         let mut ids = Vec::with_capacity(self.blocks.len());
         for (id, entry) in self.blocks.iter().enumerate() {
             let block_id = BlockId(id);
-            let inbox = entry
-                .inbox
-                .as_ref()
-                .cloned()
-                .ok_or(Error::InvalidBlock(block_id))?;
-            endpoints.push(Some(inbox));
+            endpoints.push(Some(entry.endpoint().clone()));
             ids.push(block_id);
         }
         Ok((endpoints, ids))
@@ -608,13 +605,7 @@ impl Flowgraph {
         for block in blocks {
             let id = block.id();
             let entry = self.blocks.get_mut(id.0).ok_or(Error::InvalidBlock(id))?;
-            if entry.block.is_some() {
-                return Err(Error::RuntimeError(format!(
-                    "block slot {:?} was restored more than once",
-                    id
-                )));
-            }
-            entry.block = Some(block);
+            entry.restore_normal_block(block)?;
         }
 
         Ok(())

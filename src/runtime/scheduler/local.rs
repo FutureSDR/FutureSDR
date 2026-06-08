@@ -295,7 +295,8 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
 
     /// Restore stopped local block state to this domain.
     pub fn restore_block(&mut self, block: StoppedLocalBlock) -> Result<(), Error> {
-        self.state.insert_block(block.local_id, block.block)
+        self.state
+            .restore_block(block.local_id, block.block_id, block.block)
     }
 }
 

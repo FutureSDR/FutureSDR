@@ -695,7 +695,7 @@ impl Flowgraph {
         let dst = self
             .blocks
             .get(edge.dst_block.0)
-            .and_then(|entry| entry.inbox.as_ref())
+            .map(BlockSlot::endpoint)
             .cloned()
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
 

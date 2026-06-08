@@ -227,49 +227,116 @@ pub(crate) type LocalDomainAsyncExec = Box<
         + 'static,
 >;
 
+enum LocalBlockSlotState {
+    Occupied(Box<dyn LocalBlock>),
+    Running,
+}
+
+struct LocalBlockSlot {
+    block_id: BlockId,
+    block: LocalBlockSlotState,
+    inbox: LocalBlockInbox,
+    external_inbox: Option<BlockInboxReader>,
+}
+
+impl LocalBlockSlot {
+    fn new(mut block: Box<dyn LocalBlock>) -> Self {
+        let block_id = block.id();
+        let inbox = block.local_inbox();
+        let external_inbox = block.take_external_inbox_reader();
+        Self {
+            block_id,
+            block: LocalBlockSlotState::Occupied(block),
+            inbox,
+            external_inbox,
+        }
+    }
+
+    fn validate(&self, block_id: BlockId) -> Result<(), Error> {
+        if self.block_id == block_id {
+            Ok(())
+        } else {
+            Err(Error::InvalidBlock(block_id))
+        }
+    }
+
+    fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
+        self.validate(block_id)?;
+        match &self.block {
+            LocalBlockSlotState::Occupied(block) => Ok(block.as_ref() as &dyn BlockObject),
+            LocalBlockSlotState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
+        self.validate(block_id)?;
+        match &mut self.block {
+            LocalBlockSlotState::Occupied(block) => Ok(block.as_mut() as &mut dyn BlockObject),
+            LocalBlockSlotState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn take_block(&mut self, block_id: BlockId) -> Result<Box<dyn LocalBlock>, Error> {
+        self.validate(block_id)?;
+        match std::mem::replace(&mut self.block, LocalBlockSlotState::Running) {
+            LocalBlockSlotState::Occupied(block) => Ok(block),
+            LocalBlockSlotState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn restore_block(
+        &mut self,
+        block_id: BlockId,
+        block: Box<dyn LocalBlock>,
+    ) -> Result<(), Error> {
+        self.validate(block_id)?;
+        let previous = std::mem::replace(&mut self.block, LocalBlockSlotState::Running);
+        match previous {
+            LocalBlockSlotState::Running => {
+                self.block = LocalBlockSlotState::Occupied(block);
+                Ok(())
+            }
+            LocalBlockSlotState::Occupied(existing) => {
+                self.block = LocalBlockSlotState::Occupied(existing);
+                Err(Error::RuntimeError(format!(
+                    "local block slot for {block_id:?} was restored while occupied"
+                )))
+            }
+        }
+    }
+
+    fn take_occupied_block(self, block_id: BlockId) -> Result<Box<dyn LocalBlock>, Error> {
+        self.validate(block_id)?;
+        match self.block {
+            LocalBlockSlotState::Occupied(block) => Ok(block),
+            LocalBlockSlotState::Running => Err(Error::LockError),
+        }
+    }
+}
+
 pub(crate) struct LocalDomainState {
-    blocks: Vec<Option<Box<dyn LocalBlock>>>,
-    block_ids: Vec<Option<BlockId>>,
-    inboxes: Vec<Option<LocalBlockInbox>>,
-    external_inboxes: Vec<Option<BlockInboxReader>>,
+    slots: Vec<Option<LocalBlockSlot>>,
 }
 
 impl LocalDomainState {
     pub(crate) fn new() -> Self {
-        Self {
-            blocks: Vec::new(),
-            block_ids: Vec::new(),
-            inboxes: Vec::new(),
-            external_inboxes: Vec::new(),
-        }
+        Self { slots: Vec::new() }
     }
 
     pub(crate) fn insert_block(
         &mut self,
         local_id: usize,
-        mut block: Box<dyn LocalBlock>,
+        block: Box<dyn LocalBlock>,
     ) -> Result<(), Error> {
-        if self.blocks.len() <= local_id {
-            self.blocks.resize_with(local_id + 1, || None);
+        if self.slots.len() <= local_id {
+            self.slots.resize_with(local_id + 1, || None);
         }
-        if self.block_ids.len() <= local_id {
-            self.block_ids.resize_with(local_id + 1, || None);
-        }
-        if self.inboxes.len() <= local_id {
-            self.inboxes.resize_with(local_id + 1, || None);
-        }
-        if self.external_inboxes.len() <= local_id {
-            self.external_inboxes.resize_with(local_id + 1, || None);
-        }
-        if self.blocks[local_id].is_some() {
+        if self.slots[local_id].is_some() {
             return Err(Error::RuntimeError(format!(
                 "local block slot {local_id} was inserted more than once"
             )));
         }
-        self.block_ids[local_id] = Some(block.id());
-        self.inboxes[local_id] = Some(block.local_inbox());
-        self.external_inboxes[local_id] = block.take_external_inbox_reader();
-        self.blocks[local_id] = Some(block);
+        self.slots[local_id] = Some(LocalBlockSlot::new(block));
         Ok(())
     }
 
@@ -278,59 +345,80 @@ impl LocalDomainState {
         local_id: usize,
         block_id: BlockId,
     ) -> Result<Box<dyn LocalBlock>, Error> {
-        if self.block_ids.get(local_id).copied().flatten() != Some(block_id) {
-            return Err(Error::InvalidBlock(block_id));
-        }
-        self.blocks
+        self.slots
             .get_mut(local_id)
-            .and_then(Option::take)
-            .ok_or(Error::LockError)
+            .and_then(Option::as_mut)
+            .ok_or(Error::InvalidBlock(block_id))?
+            .take_block(block_id)
+    }
+
+    pub(crate) fn restore_block(
+        &mut self,
+        local_id: usize,
+        block_id: BlockId,
+        block: Box<dyn LocalBlock>,
+    ) -> Result<(), Error> {
+        self.slots
+            .get_mut(local_id)
+            .and_then(Option::as_mut)
+            .ok_or(Error::InvalidBlock(block_id))?
+            .restore_block(block_id, block)
     }
 
     pub(crate) fn remove_block(&mut self, local_id: usize, block_id: BlockId) -> Result<(), Error> {
-        if self.block_ids.get(local_id).copied().flatten() != Some(block_id) {
-            return Err(Error::InvalidBlock(block_id));
-        }
-        let block = self
-            .blocks
+        let slot = self
+            .slots
             .get_mut(local_id)
-            .and_then(Option::take)
+            .and_then(Option::as_mut)
             .ok_or(Error::InvalidBlock(block_id))?;
-        drop(block);
-        self.block_ids[local_id] = None;
-        self.inboxes[local_id] = None;
-        self.external_inboxes[local_id] = None;
+        slot.validate(block_id)?;
+        if matches!(&slot.block, LocalBlockSlotState::Running) {
+            return Err(Error::LockError);
+        }
+
+        let slot = self.slots[local_id]
+            .take()
+            .expect("validated local block slot disappeared");
+        drop(slot.take_occupied_block(block_id)?);
         Ok(())
     }
 
     pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
-        self.external_inboxes
+        self.slots
             .get_mut(local_id)
-            .and_then(Option::take)
+            .and_then(Option::as_mut)
+            .and_then(|slot| slot.external_inbox.take())
     }
 
     pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
-        self.inboxes.get(local_id).and_then(Clone::clone)
+        self.slots
+            .get(local_id)
+            .and_then(Option::as_ref)
+            .map(|slot| slot.inbox.clone())
     }
 
     pub(crate) fn inboxes_by_local_id(&self) -> Vec<Option<(BlockId, LocalBlockInbox)>> {
-        self.block_ids
+        self.slots
             .iter()
-            .zip(self.inboxes.iter())
-            .map(|(block_id, inbox)| Some((*block_id.as_ref()?, inbox.clone()?)))
+            .map(|slot| {
+                slot.as_ref()
+                    .map(|slot| (slot.block_id, slot.inbox.clone()))
+            })
             .collect()
     }
 
     pub(crate) fn local_id_for_block(&self, block_id: BlockId) -> Option<usize> {
-        self.block_ids
+        self.slots
             .iter()
-            .position(|id| id.as_ref() == Some(&block_id))
+            .position(|slot| slot.as_ref().is_some_and(|slot| slot.block_id == block_id))
     }
 
     fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error> {
-        if self.block_ids.get(addr.local_id).copied().flatten() != Some(addr.block_id) {
-            return Err(Error::InvalidBlock(addr.block_id));
-        }
+        self.slots
+            .get(addr.local_id)
+            .and_then(Option::as_ref)
+            .ok_or(Error::InvalidBlock(addr.block_id))?
+            .validate(addr.block_id)?;
         Ok(addr.local_id)
     }
 
@@ -391,11 +479,11 @@ impl LocalDomainState {
         local_id: usize,
         block_id: BlockId,
     ) -> Result<&dyn BlockObject, Error> {
-        self.blocks
+        self.slots
             .get(local_id)
             .and_then(Option::as_ref)
-            .map(|block| block.as_ref() as &dyn BlockObject)
-            .ok_or(Error::InvalidBlock(block_id))
+            .ok_or(Error::InvalidBlock(block_id))?
+            .block(block_id)
     }
 
     pub(crate) fn block_mut(
@@ -403,11 +491,11 @@ impl LocalDomainState {
         local_id: usize,
         block_id: BlockId,
     ) -> Result<&mut dyn BlockObject, Error> {
-        self.blocks
+        self.slots
             .get_mut(local_id)
             .and_then(Option::as_mut)
-            .map(|block| block.as_mut() as &mut dyn BlockObject)
-            .ok_or(Error::InvalidBlock(block_id))
+            .ok_or(Error::InvalidBlock(block_id))?
+            .block_mut(block_id)
     }
 
     pub(crate) fn two_blocks_mut(
@@ -420,13 +508,13 @@ impl LocalDomainState {
         if src_local == dst_local {
             return Err(Error::LockError);
         }
-        let invalid_block = if src_local >= self.blocks.len() {
+        let invalid_block = if src_local >= self.slots.len() {
             src_id
         } else {
             dst_id
         };
         let [src_slot, dst_slot] = self
-            .blocks
+            .slots
             .get_disjoint_mut([src_local, dst_local])
             .map_err(|err| match err {
                 std::slice::GetDisjointMutError::IndexOutOfBounds => {
@@ -434,8 +522,14 @@ impl LocalDomainState {
                 }
                 std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
             })?;
-        let src_block = src_slot.as_mut().ok_or(Error::LockError)?.as_mut();
-        let dst_block = dst_slot.as_mut().ok_or(Error::LockError)?.as_mut();
+        let src_block = src_slot
+            .as_mut()
+            .ok_or(Error::InvalidBlock(src_id))?
+            .block_mut(src_id)?;
+        let dst_block = dst_slot
+            .as_mut()
+            .ok_or(Error::InvalidBlock(dst_id))?
+            .block_mut(dst_id)?;
         Ok((src_block, dst_block))
     }
 }
@@ -620,4 +714,133 @@ pub(crate) enum LocalDomainMessage {
         reply: oneshot::Sender<Result<(), Error>>,
     },
     Terminate,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::BlockPortCtx;
+    use crate::runtime::block_inbox::BlockInbox;
+    use crate::runtime::block_inbox::LocalBlockInboxReader;
+    use crate::runtime::buffer::DynBufferReader;
+    use crate::runtime::buffer::DynBufferWriter;
+
+    struct TestLocalBlock {
+        id: BlockId,
+        inbox: BlockEndpoint,
+        local_inbox: LocalBlockInbox,
+        external_inbox: Option<BlockInboxReader>,
+    }
+
+    impl BlockObject for TestLocalBlock {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn Any {
+            self
+        }
+
+        fn inbox(&self) -> BlockEndpoint {
+            self.inbox.clone()
+        }
+
+        fn id(&self) -> BlockId {
+            self.id
+        }
+
+        fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                id.clone(),
+            ))
+        }
+
+        fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                id.clone(),
+            ))
+        }
+
+        fn message_inputs(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn message_outputs(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn connect_message(
+            &mut self,
+            _src_port: &PortId,
+            _dst: BlockEndpoint,
+            _dst_port: &PortId,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn type_name(&self) -> &str {
+            "TestLocalBlock"
+        }
+    }
+
+    #[async_trait::async_trait(?Send)]
+    impl LocalBlock for TestLocalBlock {
+        fn local_inbox(&self) -> LocalBlockInbox {
+            self.local_inbox.clone()
+        }
+
+        fn take_external_inbox_reader(&mut self) -> Option<BlockInboxReader> {
+            self.external_inbox.take()
+        }
+
+        async fn run(&mut self, _main_inbox: Sender<FlowgraphMessage>) {}
+    }
+
+    fn test_block(id: usize) -> Box<dyn LocalBlock> {
+        let (inbox, external_inbox) = BlockInbox::pair(4);
+        let (local_inbox, _local_rx) = LocalBlockInboxReader::pair();
+        Box::new(TestLocalBlock {
+            id: BlockId(id),
+            inbox: inbox.into(),
+            local_inbox,
+            external_inbox: Some(external_inbox),
+        })
+    }
+
+    #[test]
+    fn local_slot_metadata_survives_running_transition() {
+        let mut state = LocalDomainState::new();
+        state.insert_block(2, test_block(7)).unwrap();
+
+        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
+        assert!(state.inbox(2).is_some());
+
+        let block = state.take_block(2, BlockId(7)).unwrap();
+        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
+        assert!(state.inbox(2).is_some());
+        assert!(matches!(state.block(2, BlockId(7)), Err(Error::LockError)));
+        assert!(
+            state
+                .notify_block(LocalBlockAddr::new(BlockId(7), 2))
+                .is_ok()
+        );
+
+        state.restore_block(2, BlockId(7), block).unwrap();
+        assert!(state.block(2, BlockId(7)).is_ok());
+    }
+
+    #[test]
+    fn remove_wrong_local_block_does_not_clear_slot() {
+        let mut state = LocalDomainState::new();
+        state.insert_block(0, test_block(3)).unwrap();
+
+        assert!(matches!(
+            state.remove_block(0, BlockId(4)),
+            Err(Error::InvalidBlock(BlockId(4)))
+        ));
+        assert_eq!(state.local_id_for_block(BlockId(3)), Some(0));
+        assert!(state.block(0, BlockId(3)).is_ok());
+    }
 }

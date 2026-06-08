@@ -8,7 +8,7 @@ use super::*;
 /// not retain one-shot stream or message connection metadata.
 pub struct TerminatedFlowgraph {
     id: FlowgraphId,
-    blocks: Vec<BlockEntry>,
+    blocks: Vec<BlockSlot>,
     local_domains: Vec<LocalDomainRuntime>,
 }
 
@@ -32,7 +32,7 @@ impl TerminatedFlowgraph {
         if block.flowgraph_id != self.id {
             return Err(Error::InvalidBlock(block.id));
         }
-        if self.blocks.get(block.id.0).map(|entry| entry.placement) != Some(block.placement) {
+        if self.blocks.get(block.id.0).map(BlockSlot::placement) != Some(block.placement) {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())
@@ -41,7 +41,7 @@ impl TerminatedFlowgraph {
     fn placement(&self, block_id: BlockId) -> Result<BlockPlacement, Error> {
         self.blocks
             .get(block_id.0)
-            .map(|entry| entry.placement)
+            .map(BlockSlot::placement)
             .ok_or(Error::InvalidBlock(block_id))
     }
 

@@ -3,39 +3,33 @@ use super::types::TypedBlockGuardMut;
 use super::*;
 
 pub(super) fn raw_block(
-    blocks: &[BlockEntry],
+    blocks: &[BlockSlot],
     location: BlockLocation,
 ) -> Result<&dyn BlockObject, Error> {
     match location.domain {
         DomainLocation::Normal => blocks
             .get(location.block_id.0)
             .ok_or(Error::InvalidBlock(location.block_id))?
-            .block
-            .as_ref()
-            .map(|block| block.as_ref() as &dyn BlockObject)
-            .ok_or(Error::LockError),
+            .normal_block(location.block_id),
         DomainLocation::Local(_) => Err(Error::LockError),
     }
 }
 
 pub(super) fn raw_block_mut(
-    blocks: &mut [BlockEntry],
+    blocks: &mut [BlockSlot],
     location: BlockLocation,
 ) -> Result<&mut dyn BlockObject, Error> {
     match location.domain {
         DomainLocation::Normal => blocks
             .get_mut(location.block_id.0)
             .ok_or(Error::InvalidBlock(location.block_id))?
-            .block
-            .as_mut()
-            .map(|block| block.as_mut() as &mut dyn BlockObject)
-            .ok_or(Error::LockError),
+            .normal_block_mut(location.block_id),
         DomainLocation::Local(_) => Err(Error::LockError),
     }
 }
 
 pub(super) fn typed_wrapped_block<K: 'static>(
-    blocks: &[BlockEntry],
+    blocks: &[BlockSlot],
     location: BlockLocation,
 ) -> Result<&NormalWrappedKernel<K>, Error> {
     let block_id = location.block_id;
@@ -47,7 +41,7 @@ pub(super) fn typed_wrapped_block<K: 'static>(
 }
 
 pub(super) fn typed_wrapped_block_mut<K: 'static>(
-    blocks: &mut [BlockEntry],
+    blocks: &mut [BlockSlot],
     location: BlockLocation,
 ) -> Result<&mut NormalWrappedKernel<K>, Error> {
     let block_id = location.block_id;
@@ -59,7 +53,7 @@ pub(super) fn typed_wrapped_block_mut<K: 'static>(
 }
 
 pub(super) fn typed_guard<K: 'static>(
-    blocks: &[BlockEntry],
+    blocks: &[BlockSlot],
     location: BlockLocation,
 ) -> Result<TypedBlockGuard<'_, K>, Error> {
     let wrapped = typed_wrapped_block(blocks, location)?;
@@ -71,7 +65,7 @@ pub(super) fn typed_guard<K: 'static>(
 }
 
 pub(super) fn typed_guard_mut<K: 'static>(
-    blocks: &mut [BlockEntry],
+    blocks: &mut [BlockSlot],
     location: BlockLocation,
 ) -> Result<TypedBlockGuardMut<'_, K>, Error> {
     let wrapped = typed_wrapped_block_mut(blocks, location)?;

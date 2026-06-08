@@ -74,42 +74,163 @@ use types::PreparedFlowgraph;
 use types::StartupSnapshot;
 use types::StreamEdge;
 
-struct BlockEntry {
-    block: Option<Box<dyn Block>>,
-    placement: BlockPlacement,
-    inbox: Option<BlockEndpoint>,
+pub(super) enum BlockSlot {
+    Normal(NormalBlockSlot),
+    Local(LocalFlowgraphBlockSlot),
+}
+
+pub(super) struct NormalBlockSlot {
+    state: NormalBlockState,
+    endpoint: BlockEndpoint,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
 }
 
-impl BlockEntry {
-    fn reserved(
-        placement: BlockPlacement,
+enum NormalBlockState {
+    Available(Box<dyn Block>),
+    Running,
+}
+
+pub(super) struct LocalFlowgraphBlockSlot {
+    domain_id: usize,
+    local_id: usize,
+    endpoint: BlockEndpoint,
+    message_inputs: &'static [&'static str],
+    message_outputs: &'static [&'static str],
+}
+
+impl BlockSlot {
+    fn normal(
+        block: Box<dyn Block>,
+        endpoint: BlockEndpoint,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
-        Self {
-            block: None,
-            placement,
-            inbox: None,
+        Self::Normal(NormalBlockSlot {
+            state: NormalBlockState::Available(block),
+            endpoint,
             message_inputs,
             message_outputs,
+        })
+    }
+
+    fn local(
+        domain_id: usize,
+        local_id: usize,
+        endpoint: BlockEndpoint,
+        message_inputs: &'static [&'static str],
+        message_outputs: &'static [&'static str],
+    ) -> Self {
+        Self::Local(LocalFlowgraphBlockSlot {
+            domain_id,
+            local_id,
+            endpoint,
+            message_inputs,
+            message_outputs,
+        })
+    }
+
+    fn placement(&self) -> BlockPlacement {
+        match self {
+            Self::Normal(_) => BlockPlacement::Normal,
+            Self::Local(slot) => BlockPlacement::Local {
+                domain_id: slot.domain_id,
+                local_id: slot.local_id,
+            },
         }
     }
 
-    fn with_block(
-        block: Box<dyn Block>,
-        placement: BlockPlacement,
-        inbox: BlockEndpoint,
-        message_inputs: &'static [&'static str],
-        message_outputs: &'static [&'static str],
-    ) -> Self {
-        Self {
-            block: Some(block),
-            placement,
-            inbox: Some(inbox),
-            message_inputs,
-            message_outputs,
+    fn location(&self, block_id: BlockId) -> BlockLocation {
+        self.placement().location(block_id)
+    }
+
+    fn endpoint(&self) -> &BlockEndpoint {
+        match self {
+            Self::Normal(slot) => &slot.endpoint,
+            Self::Local(slot) => &slot.endpoint,
+        }
+    }
+
+    fn message_inputs(&self) -> &'static [&'static str] {
+        match self {
+            Self::Normal(slot) => slot.message_inputs,
+            Self::Local(slot) => slot.message_inputs,
+        }
+    }
+
+    fn message_outputs(&self) -> &'static [&'static str] {
+        match self {
+            Self::Normal(slot) => slot.message_outputs,
+            Self::Local(slot) => slot.message_outputs,
+        }
+    }
+
+    fn normal_block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
+        match self {
+            Self::Normal(slot) => slot.block(block_id),
+            Self::Local(_) => Err(Error::LockError),
+        }
+    }
+
+    fn normal_block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
+        match self {
+            Self::Normal(slot) => slot.block_mut(block_id),
+            Self::Local(_) => Err(Error::LockError),
+        }
+    }
+
+    fn take_normal_block(&mut self) -> Result<Option<Box<dyn Block>>, Error> {
+        match self {
+            Self::Normal(slot) => slot.take_block().map(Some),
+            Self::Local(_) => Ok(None),
+        }
+    }
+
+    fn restore_normal_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
+        match self {
+            Self::Normal(slot) => slot.restore_block(block),
+            Self::Local(_) => Err(Error::InvalidBlock(block.id())),
+        }
+    }
+}
+
+impl NormalBlockSlot {
+    fn block(&self, _block_id: BlockId) -> Result<&dyn BlockObject, Error> {
+        match &self.state {
+            NormalBlockState::Available(block) => Ok(block.as_ref() as &dyn BlockObject),
+            NormalBlockState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn block_mut(&mut self, _block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
+        match &mut self.state {
+            NormalBlockState::Available(block) => Ok(block.as_mut() as &mut dyn BlockObject),
+            NormalBlockState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn take_block(&mut self) -> Result<Box<dyn Block>, Error> {
+        match std::mem::replace(&mut self.state, NormalBlockState::Running) {
+            NormalBlockState::Available(block) => Ok(block),
+            NormalBlockState::Running => Err(Error::LockError),
+        }
+    }
+
+    fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
+        let block_id = block.id();
+        let previous = std::mem::replace(&mut self.state, NormalBlockState::Running);
+        match previous {
+            NormalBlockState::Running => {
+                self.state = NormalBlockState::Available(block);
+                Ok(())
+            }
+            NormalBlockState::Available(existing) => {
+                self.state = NormalBlockState::Available(existing);
+                Err(Error::RuntimeError(format!(
+                    "block slot {:?} was restored more than once",
+                    block_id
+                )))
+            }
         }
     }
 }
@@ -145,7 +266,7 @@ impl BlockEntry {
 /// ```
 pub struct Flowgraph {
     id: FlowgraphId,
-    blocks: Vec<BlockEntry>,
+    blocks: Vec<BlockSlot>,
     local_domains: Vec<LocalDomainRuntime>,
     stream_edges: Vec<StreamEdge>,
     message_edges: Vec<Edge>,
@@ -231,14 +352,22 @@ impl Flowgraph {
         entries: Vec<LocalDomainContextEntry>,
     ) {
         self.local_domains[domain_id].reserve_blocks(entries.len());
-        self.blocks
-            .extend(entries.into_iter().map(|entry| BlockEntry {
-                block: None,
-                placement: entry.placement,
-                inbox: Some(entry.inbox),
-                message_inputs: entry.message_inputs,
-                message_outputs: entry.message_outputs,
-            }));
+        self.blocks.extend(entries.into_iter().map(|entry| {
+            let BlockPlacement::Local {
+                domain_id,
+                local_id,
+            } = entry.placement
+            else {
+                unreachable!("local-domain context entries must be local")
+            };
+            BlockSlot::local(
+                domain_id,
+                local_id,
+                entry.inbox,
+                entry.message_inputs,
+                entry.message_outputs,
+            )
+        }));
     }
 
     /// Run a builder closure inside a local domain.
@@ -380,21 +509,6 @@ impl Flowgraph {
         )
     }
 
-    fn reserve_block_id(
-        &mut self,
-        placement: BlockPlacement,
-        message_inputs: &'static [&'static str],
-        message_outputs: &'static [&'static str],
-    ) -> BlockId {
-        let block_id = BlockId(self.blocks.len());
-        self.blocks.push(BlockEntry::reserved(
-            placement,
-            message_inputs,
-            message_outputs,
-        ));
-        block_id
-    }
-
     fn block_ref<K>(&self, block_id: BlockId, placement: BlockPlacement) -> BlockRef<K> {
         BlockRef {
             id: block_id,
@@ -413,9 +527,8 @@ impl Flowgraph {
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let placement = BlockPlacement::Normal;
-        self.blocks.push(BlockEntry::with_block(
+        self.blocks.push(BlockSlot::normal(
             block,
-            placement,
             inbox,
             message_inputs,
             message_outputs,
@@ -486,7 +599,7 @@ impl Flowgraph {
             domain_id,
             local_id,
         };
-        let block_id = self.reserve_block_id(placement, K::message_inputs(), K::message_outputs());
+        let block_id = BlockId(self.blocks.len());
         let domain_inbox = self.local_domains[domain_id].inbox();
         let external =
             BlockEndpoint::domain_proxy(domain_inbox, LocalBlockAddr::new(block_id, local_id));
@@ -506,15 +619,17 @@ impl Flowgraph {
         {
             Ok(inbox) => inbox,
             Err(e) => {
-                if self.blocks.len() == block_id.0 + 1 {
-                    self.blocks.pop();
-                }
                 self.local_domains[domain_id].unreserve_last_block(local_id);
                 return Err(e);
             }
         };
-        let entry = &mut self.blocks[block_id.0];
-        entry.inbox = Some(inbox);
+        self.blocks.push(BlockSlot::local(
+            domain_id,
+            local_id,
+            inbox,
+            K::message_inputs(),
+            K::message_outputs(),
+        ));
         Ok(self.block_ref(block_id, placement))
     }
 
@@ -522,7 +637,7 @@ impl Flowgraph {
         let dst_inputs = self
             .blocks
             .get(edge.dst_block.0)
-            .map(|entry| entry.message_inputs)
+            .map(BlockSlot::message_inputs)
             .ok_or(Error::InvalidBlock(edge.dst_block))?;
         if !dst_inputs.contains(&edge.dst_port.name()) {
             return Err(Error::InvalidMessagePort(
@@ -534,7 +649,7 @@ impl Flowgraph {
         let src_outputs = self
             .blocks
             .get(edge.src_block.0)
-            .map(|entry| entry.message_outputs)
+            .map(BlockSlot::message_outputs)
             .ok_or(Error::InvalidBlock(edge.src_block))?;
         if !src_outputs.contains(&edge.src_port.name()) {
             return Err(Error::InvalidMessagePort(
@@ -553,7 +668,7 @@ impl Flowgraph {
                 block.id, block.flowgraph_id, self.id
             )));
         }
-        if self.blocks.get(block.id.0).map(|entry| entry.placement) != Some(block.placement) {
+        if self.blocks.get(block.id.0).map(BlockSlot::placement) != Some(block.placement) {
             return Err(Error::InvalidBlock(block.id));
         }
         Ok(())
@@ -575,7 +690,7 @@ impl Flowgraph {
     fn placement(&self, block_id: BlockId) -> Result<BlockPlacement, Error> {
         self.blocks
             .get(block_id.0)
-            .map(|entry| entry.placement)
+            .map(BlockSlot::placement)
             .ok_or(Error::InvalidBlock(block_id))
     }
 
@@ -583,7 +698,7 @@ impl Flowgraph {
         &mut self,
         first: BlockId,
         second: BlockId,
-    ) -> Result<(&mut BlockEntry, &mut BlockEntry), Error> {
+    ) -> Result<(&mut BlockSlot, &mut BlockSlot), Error> {
         if first == second {
             return Err(Error::LockError);
         }
@@ -613,7 +728,7 @@ impl Flowgraph {
             .enumerate()
             .map(|(block_id, entry)| {
                 let block_id = BlockId(block_id);
-                let location = entry.placement.location(block_id);
+                let location = entry.location(block_id);
                 if let DomainLocation::Local(domain_id) = location.domain
                     && domain_id >= self.local_domains.len()
                 {
@@ -663,10 +778,7 @@ impl Flowgraph {
         let (src_slot, dst_slot) = self.two_block_entries_mut(src_id, dst_id)?;
 
         let src = src_slot
-            .block
-            .as_mut()
-            .ok_or(Error::LockError)?
-            .as_mut()
+            .normal_block_mut(src_id)?
             .as_any_mut()
             .downcast_mut::<NormalWrappedKernel<KS>>()
             .ok_or_else(|| {
@@ -677,10 +789,7 @@ impl Flowgraph {
                 ))
             })?;
         let dst = dst_slot
-            .block
-            .as_mut()
-            .ok_or(Error::LockError)?
-            .as_mut()
+            .normal_block_mut(dst_id)?
             .as_any_mut()
             .downcast_mut::<NormalWrappedKernel<KD>>()
             .ok_or_else(|| {
