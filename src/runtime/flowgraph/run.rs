@@ -1,13 +1,5 @@
 use super::*;
 
-struct StartedFlowgraph {
-    endpoints: Vec<Option<BlockEndpoint>>,
-    ids: Vec<BlockId>,
-    stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    domains: Vec<RunningDomain>,
-}
-
 struct FlowgraphRunner<S> {
     flowgraph: Flowgraph,
     scheduler: S,
@@ -118,24 +110,26 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    async fn apply_edges_and_start_domains(&mut self) -> Result<StartedFlowgraph, Error> {
-        let prepared =
-            FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).prepare()?;
-        let PreparedFlowgraph {
-            startup,
-            stream_edges,
-            message_edges,
-            stream_edges_desc,
-            message_edges_desc,
-            normal_topology,
-            local_specs,
-        } = prepared;
-        let StartupSnapshot { mut endpoints, ids } = startup;
+    fn prepare(&mut self) -> Result<PreparedFlowgraph, Error> {
+        FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).prepare()
+    }
 
+    async fn apply_edges(
+        &mut self,
+        stream_edges: &[Edge],
+        message_edges: &[Edge],
+    ) -> Result<(), Error> {
         let mut connector = super::connect::FlowgraphConnector::new(&mut self.flowgraph);
-        connector.apply_stream_edges(&stream_edges).await?;
-        connector.apply_message_edges(&message_edges).await?;
+        connector.apply_stream_edges(stream_edges).await?;
+        connector.apply_message_edges(message_edges).await
+    }
 
+    async fn start_domains(
+        &mut self,
+        endpoints: &mut [Option<BlockEndpoint>],
+        normal_topology: DomainTopology,
+        local_specs: Vec<LocalDomainSpec>,
+    ) -> Result<Vec<RunningDomain>, Error> {
         let blocks = self.flowgraph.take_blocks()?;
         let normal_domain = self.scheduler.start_normal_domain(NormalDomainSpec::new(
             blocks,
@@ -153,21 +147,14 @@ impl<S: Scheduler> FlowgraphRunner<S> {
                     domains.push(RunningDomain::Local(domain));
                 }
                 Err(e) => {
-                    self.cleanup_started_domains(&mut endpoints, domains).await;
+                    self.cleanup_started_domains(endpoints, domains).await;
                     return Err(e);
                 }
             }
         }
 
-        Ok(StartedFlowgraph {
-            endpoints,
-            ids,
-            stream_edges_desc,
-            message_edges_desc,
-            domains,
-        })
+        Ok(domains)
     }
-
     async fn initialize_blocks(
         endpoints: &mut [Option<BlockEndpoint>],
         main_rx: &Receiver<FlowgraphMessage>,
@@ -383,20 +370,39 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         debug!("in run_flowgraph");
         let mut initialized = self.initialized.take();
 
-        let started = match self.apply_edges_and_start_domains().await {
-            Ok(started) => started,
+        let prepared = match self.prepare() {
+            Ok(prepared) => prepared,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
-        let StartedFlowgraph {
-            mut endpoints,
-            ids,
+        let PreparedFlowgraph {
+            startup,
+            stream_edges,
+            message_edges,
             stream_edges_desc,
             message_edges_desc,
-            mut domains,
-        } = started;
+            normal_topology,
+            local_specs,
+        } = prepared;
+        let StartupSnapshot { mut endpoints, ids } = startup;
+
+        if let Err(e) = self.apply_edges(&stream_edges, &message_edges).await {
+            Self::send_initialized_error(&mut initialized, e.clone());
+            return Err(e);
+        }
+
+        let mut domains = match self
+            .start_domains(&mut endpoints, normal_topology, local_specs)
+            .await
+        {
+            Ok(domains) => domains,
+            Err(e) => {
+                Self::send_initialized_error(&mut initialized, e.clone());
+                return Err(e);
+            }
+        };
 
         let run_result = match Self::initialize_blocks(
             &mut endpoints,
