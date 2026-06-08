@@ -38,6 +38,7 @@ impl LocalDomainInbox {
         self.key
     }
 
+    #[allow(dead_code)]
     pub(crate) fn is_closed(&self) -> bool {
         self.tx.is_closed()
     }
@@ -85,6 +86,7 @@ impl LocalDomainInbox {
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
         self.tx
             .try_send(LocalDomainMessage::Notify { addr })
@@ -606,6 +608,7 @@ pub(crate) enum LocalDomainMessage {
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     },
+    #[allow(dead_code)]
     Notify {
         addr: LocalBlockAddr,
     },

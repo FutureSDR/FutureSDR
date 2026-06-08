@@ -263,8 +263,7 @@ impl Flowgraph {
 
         debug!("running blocks");
         for inbox in endpoints.iter_mut().flatten() {
-            inbox.notify();
-            if inbox.is_closed() {
+            if inbox.send(BlockMessage::Start).await.is_err() {
                 debug!("runtime wanted to start block that already terminated");
             }
         }

@@ -278,6 +278,7 @@ impl BlockEndpoint {
     }
 
     /// Wake the destination block without sending a message.
+    #[allow(dead_code)]
     #[inline(always)]
     pub(crate) fn notify(&self) {
         match &self.inner {
@@ -293,6 +294,7 @@ impl BlockEndpoint {
     }
 
     /// Return whether the underlying receiver has been closed.
+    #[allow(dead_code)]
     pub(crate) fn is_closed(&self) -> bool {
         match &self.inner {
             BlockEndpointInner::Direct(inbox) => inbox.tx.is_closed(),

@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::VecDeque;
 use std::future::Future;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -215,6 +216,91 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         }
     }
 
+    async fn handle_runtime_message(
+        id: BlockId,
+        instance_name: &str,
+        meta: &mut BlockMeta,
+        mo: &mut MessageOutputs,
+        kernel: &mut K,
+        work_io: &mut WorkIo,
+        msg: BlockMessage,
+    ) -> Result<(), Error>
+    where
+        K: Kernel,
+    {
+        match msg {
+            BlockMessage::BlockDescription { tx } => {
+                let stream_inputs = crate::runtime::kernel_interface::stream_inputs(kernel)?;
+                let stream_outputs = crate::runtime::kernel_interface::stream_outputs(kernel)?;
+                let message_inputs = K::message_inputs().iter().map(|n| n.to_string()).collect();
+                let message_outputs = K::message_outputs().iter().map(|n| n.to_string()).collect();
+
+                let description = BlockDescription {
+                    id,
+                    type_name: K::type_name().to_string(),
+                    instance_name: instance_name.to_string(),
+                    stream_inputs,
+                    stream_outputs,
+                    message_inputs,
+                    message_outputs,
+                    blocking: K::is_blocking(),
+                };
+                if tx.send(description).is_err() {
+                    warn!("failed to return BlockDescription, oneshot receiver dropped");
+                }
+            }
+            BlockMessage::StreamInputDone { input_id } => {
+                crate::runtime::kernel_interface::stream_input_finish(kernel, input_id)?;
+            }
+            BlockMessage::StreamOutputDone { .. } => {
+                work_io.finished = true;
+            }
+            BlockMessage::Post { port_id, data } => {
+                match kernel.call_handler(work_io, mo, meta, port_id, data).await {
+                    Err(Error::InvalidMessagePort(_, port_id)) => {
+                        error!(
+                            "{}: BlockMessage::Post -> Invalid Handler {port_id:?}.",
+                            instance_name
+                        );
+                    }
+                    Err(e @ Error::HandlerError(..)) => {
+                        error!("{}: BlockMessage::Post -> {e}. Terminating.", instance_name);
+                        return Err(e);
+                    }
+                    _ => {}
+                }
+            }
+            BlockMessage::Call { port_id, data, tx } => {
+                match kernel
+                    .call_handler(work_io, mo, meta, port_id.clone(), data)
+                    .await
+                {
+                    Ok(p) => {
+                        let _ = tx.send(Ok(p));
+                    }
+                    Err(Error::InvalidMessagePort(_, port_id)) => {
+                        let _ = tx.send(Err(Error::InvalidMessagePort(
+                            BlockPortCtx::Id(id),
+                            port_id,
+                        )));
+                    }
+                    Err(e @ Error::HandlerError(..)) => {
+                        error!("{}: BlockMessage::Call -> {e}. Terminating.", instance_name);
+                        let _ = tx.send(Err(e.clone()));
+                        return Err(e);
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(e));
+                    }
+                }
+            }
+            BlockMessage::Terminate => work_io.finished = true,
+            BlockMessage::Start => {}
+            BlockMessage::Initialize => warn!("block received duplicate Initialize in main loop"),
+        }
+        Ok(())
+    }
+
     async fn run_with_inbox<RI>(
         id: BlockId,
         meta: &mut BlockMeta,
@@ -236,13 +322,17 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             finished: false,
         };
 
+        let mut startup_messages = VecDeque::new();
+        let mut initialized = false;
+        let mut start_requested = false;
         loop {
-            match inbox
+            let msg = inbox
                 .recv()
                 .await
-                .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?
-            {
-                BlockMessage::Initialize => {
+                .ok_or_else(|| Error::RuntimeError("no msg".to_string()))?;
+
+            match msg {
+                BlockMessage::Initialize if !initialized => {
                     match kernel.init(mo, meta).await {
                         Err(e) => {
                             error!(
@@ -252,123 +342,47 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                             return Err(e.into());
                         }
                         _ => {
+                            initialized = true;
                             main_inbox
                                 .send(FlowgraphMessage::Initialized)
                                 .await
                                 .map_err(|e| Error::RuntimeError(e.to_string()))?;
                         }
                     }
-                    break;
+
+                    if start_requested {
+                        break;
+                    }
                 }
-                BlockMessage::StreamInputDone { input_id } => {
-                    crate::runtime::kernel_interface::stream_input_finish(kernel, input_id)?;
-                    work_io.call_again = true;
-                }
-                BlockMessage::StreamOutputDone { .. } => {
-                    work_io.finished = true;
-                    work_io.call_again = true;
+                BlockMessage::Start => {
+                    if initialized {
+                        break;
+                    }
+                    start_requested = true;
                 }
                 BlockMessage::Terminate => {
                     debug!("{} terminating before initialization", instance_name);
                     return Ok(());
                 }
-                t => warn!("{} unhandled message during init {:?}", instance_name, t),
+                msg => startup_messages.push_back(msg),
             }
         }
 
         loop {
             work_io.call_again |= inbox.take_pending();
-            if inbox.take_message_pending() {
-                let mut msg = inbox.try_recv();
-                while let Some(m) = msg {
-                    match m {
-                        BlockMessage::BlockDescription { tx } => {
-                            let stream_inputs =
-                                crate::runtime::kernel_interface::stream_inputs(kernel)?;
-                            let stream_outputs =
-                                crate::runtime::kernel_interface::stream_outputs(kernel)?;
-                            let message_inputs =
-                                K::message_inputs().iter().map(|n| n.to_string()).collect();
-                            let message_outputs =
-                                K::message_outputs().iter().map(|n| n.to_string()).collect();
-
-                            let description = BlockDescription {
-                                id,
-                                type_name: K::type_name().to_string(),
-                                instance_name: instance_name.clone(),
-                                stream_inputs,
-                                stream_outputs,
-                                message_inputs,
-                                message_outputs,
-                                blocking: K::is_blocking(),
-                            };
-                            if tx.send(description).is_err() {
-                                warn!(
-                                    "failed to return BlockDescription, oneshot receiver dropped"
-                                );
-                            }
-                        }
-                        BlockMessage::StreamInputDone { input_id } => {
-                            crate::runtime::kernel_interface::stream_input_finish(
-                                kernel, input_id,
-                            )?;
-                        }
-                        BlockMessage::StreamOutputDone { .. } => {
-                            work_io.finished = true;
-                        }
-                        BlockMessage::Post { port_id, data } => {
-                            match kernel
-                                .call_handler(&mut work_io, mo, meta, port_id, data)
-                                .await
-                            {
-                                Err(Error::InvalidMessagePort(_, port_id)) => {
-                                    error!(
-                                        "{}: BlockMessage::Post -> Invalid Handler {port_id:?}.",
-                                        instance_name
-                                    );
-                                }
-                                Err(e @ Error::HandlerError(..)) => {
-                                    error!(
-                                        "{}: BlockMessage::Post -> {e}. Terminating.",
-                                        instance_name
-                                    );
-                                    return Err(e);
-                                }
-                                _ => {}
-                            }
-                        }
-                        BlockMessage::Call { port_id, data, tx } => {
-                            match kernel
-                                .call_handler(&mut work_io, mo, meta, port_id.clone(), data)
-                                .await
-                            {
-                                Ok(p) => {
-                                    let _ = tx.send(Ok(p));
-                                }
-                                Err(Error::InvalidMessagePort(_, port_id)) => {
-                                    let _ = tx.send(Err(Error::InvalidMessagePort(
-                                        BlockPortCtx::Id(id),
-                                        port_id,
-                                    )));
-                                }
-                                Err(e @ Error::HandlerError(..)) => {
-                                    error!(
-                                        "{}: BlockMessage::Call -> {e}. Terminating.",
-                                        instance_name
-                                    );
-                                    let _ = tx.send(Err(e.clone()));
-                                    return Err(e);
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(e));
-                                }
-                            }
-                        }
-                        BlockMessage::Terminate => work_io.finished = true,
-                        t => warn!("block unhandled message in main loop {:?}", t),
-                    };
+            if !startup_messages.is_empty() || inbox.take_message_pending() {
+                while let Some(msg) = startup_messages.pop_front().or_else(|| inbox.try_recv()) {
+                    Self::handle_runtime_message(
+                        id,
+                        &instance_name,
+                        meta,
+                        mo,
+                        kernel,
+                        &mut work_io,
+                        msg,
+                    )
+                    .await?;
                     work_io.call_again = true;
-                    msg = inbox.try_recv();
                 }
             }
 

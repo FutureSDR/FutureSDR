@@ -318,6 +318,8 @@ pub enum FlowgraphMessage {
 pub(crate) enum BlockMessage {
     /// Initialize
     Initialize,
+    /// Start work after all blocks initialized.
+    Start,
     /// Terminate
     Terminate,
     /// Get [`BlockDescription`]
