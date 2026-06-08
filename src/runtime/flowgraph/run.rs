@@ -412,6 +412,7 @@ impl Flowgraph {
                 FlowgraphMessage::Terminate => {
                     if !terminated {
                         Self::terminate_endpoints(endpoints).await;
+                        Self::stop_domains(domains).await;
                         terminated = true;
                     }
                 }

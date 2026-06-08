@@ -137,6 +137,11 @@ impl NormalRunningDomain {
         Self { tasks }
     }
 
+    /// Request the normal domain to stop.
+    pub(crate) async fn stop(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+
     /// Await all normal-domain block tasks and return their stopped blocks.
     pub(crate) async fn join(self) -> Result<NormalBlocks, Error> {
         let mut blocks = Vec::with_capacity(self.tasks.len());
@@ -194,7 +199,7 @@ impl RunningDomain {
     /// Stop this running domain.
     pub(crate) async fn stop(&mut self) -> Result<(), Error> {
         match self {
-            RunningDomain::Normal(_) => Ok(()),
+            RunningDomain::Normal(domain) => domain.stop().await,
             RunningDomain::Local(domain) => domain.stop().await,
         }
     }
