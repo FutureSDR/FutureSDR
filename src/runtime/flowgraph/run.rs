@@ -21,7 +21,7 @@ use crate::runtime::scheduler::StoppedDomain;
 use super::Flowgraph;
 use super::connector::FlowgraphConnector;
 use super::prepare::FlowgraphCompiler;
-use super::prepare::PreparedFlowgraph;
+use super::prepare::RuntimePlan;
 use super::prepare::StartupSnapshot;
 use super::storage;
 use super::terminated::TerminatedFlowgraph;
@@ -134,8 +134,8 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    fn prepare(&mut self) -> Result<PreparedFlowgraph, Error> {
-        FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).prepare()
+    fn compile_runtime_plan(&mut self) -> Result<RuntimePlan, Error> {
+        FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).compile()
     }
 
     async fn apply_edges(
@@ -294,14 +294,14 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         debug!("in run_flowgraph");
         let mut initialized = self.initialized.take();
 
-        let prepared = match self.prepare() {
+        let prepared = match self.compile_runtime_plan() {
             Ok(prepared) => prepared,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
-        let PreparedFlowgraph {
+        let RuntimePlan {
             startup,
             stream_edges,
             message_edges,
