@@ -9,6 +9,11 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
+use futuresdr::runtime::scheduler::NormalDomainSpec;
+use futuresdr::runtime::scheduler::NormalRunningDomain;
+use futuresdr::runtime::scheduler::Scheduler;
+use futuresdr::runtime::scheduler::SmolScheduler;
+use futuresdr::runtime::scheduler::Task;
 use std::iter::repeat_with;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -45,6 +50,84 @@ impl Drop for StopOnMessage {
     fn drop(&mut self) {
         self.terminated.store(true, Ordering::SeqCst);
     }
+}
+
+#[derive(Clone)]
+struct FailingStartScheduler {
+    inner: SmolScheduler,
+}
+
+impl Default for FailingStartScheduler {
+    fn default() -> Self {
+        Self {
+            inner: SmolScheduler::default(),
+        }
+    }
+}
+
+impl Scheduler for FailingStartScheduler {
+    fn start_normal_domain(
+        &self,
+        _spec: NormalDomainSpec,
+    ) -> std::result::Result<NormalRunningDomain, Error> {
+        Err(Error::RuntimeError("scheduler start failed".to_string()))
+    }
+
+    fn spawn<T: Send + 'static>(
+        &self,
+        future: impl std::future::Future<Output = T> + Send + 'static,
+    ) -> Task<T> {
+        self.inner.spawn(future)
+    }
+}
+
+#[test]
+fn fg_stream_self_connection_fails_at_startup() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let copy = fg.add(Copy::<f32>::new())?;
+
+    fg.stream_dyn(copy, "output", copy, "input")?;
+
+    let err = match Runtime::new().run(fg) {
+        Ok(_) => panic!("flowgraph unexpectedly started"),
+        Err(err) => err,
+    };
+    assert!(matches!(err, Error::ValidationError(_)));
+    assert!(err.to_string().contains("self-connections"));
+    Ok(())
+}
+
+#[test]
+fn fg_dynamic_stream_type_mismatch_fails_at_edge_application() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src = fg.add(NullSource::<f32>::new())?;
+    let snk = fg.add(NullSink::<u8>::new())?;
+
+    fg.stream_dyn(src, "output", snk, "input")?;
+
+    let err = match Runtime::new().run(fg) {
+        Ok(_) => panic!("flowgraph unexpectedly started"),
+        Err(err) => err,
+    };
+    assert!(matches!(err, Error::ValidationError(_)));
+    assert!(err.to_string().contains("wrong type"));
+    Ok(())
+}
+
+#[test]
+fn fg_scheduler_start_failure_is_reported() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let src = NullSource::<f32>::new();
+    let snk = NullSink::<f32>::new();
+    connect!(fg, src > snk);
+
+    let err = match Runtime::with_scheduler(FailingStartScheduler::default()).run(fg) {
+        Ok(_) => panic!("flowgraph unexpectedly started"),
+        Err(err) => err,
+    };
+    assert!(matches!(err, Error::RuntimeError(_)));
+    assert!(err.to_string().contains("scheduler start failed"));
+    Ok(())
 }
 
 #[test]
