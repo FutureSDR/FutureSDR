@@ -1,5 +1,4 @@
 use crate::runtime::BlockId;
-use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
@@ -219,7 +218,7 @@ impl Flowgraph {
         let dst = self.location(dst_block_id)?;
         let local_only = src.domain_id == dst.domain_id && src.is_local();
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        let edge = self.validate_stream_edge_ports(&edge).await?;
+        let edge = self.validate_stream_edge_ports(&edge)?;
         self.stream_edges
             .push(StreamEdge::from_edge(edge, local_only));
         Ok(())
@@ -264,61 +263,12 @@ impl Flowgraph {
         Self::same_local_stream_locations(src, dst, true)?;
 
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        let edge = self.validate_stream_edge_ports(&edge).await?;
+        let edge = self.validate_stream_edge_ports(&edge)?;
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 
-    async fn validate_stream_output_port(
-        &mut self,
-        block_id: BlockId,
-        port_id: &PortId,
-    ) -> Result<PortId, Error> {
-        let location = self.location(block_id)?;
-        let port_id = port_id.clone();
-        self.with_block_mut(location, move |block| {
-            let port = block.stream_output(&port_id).map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                }
-                other => other,
-            })?;
-            Ok(port.port_id())
-        })
-        .await
-    }
-
-    async fn validate_stream_edge_ports(&mut self, edge: &Edge) -> Result<Edge, Error> {
-        let src_port = self
-            .validate_stream_output_port(edge.src_block, &edge.src_port)
-            .await?;
-        let dst_port = self
-            .validate_stream_input_port(edge.dst_block, &edge.dst_port)
-            .await?;
-        Ok(Edge::new(
-            edge.src_block,
-            src_port,
-            edge.dst_block,
-            dst_port,
-        ))
-    }
-
-    async fn validate_stream_input_port(
-        &mut self,
-        block_id: BlockId,
-        port_id: &PortId,
-    ) -> Result<PortId, Error> {
-        let location = self.location(block_id)?;
-        let port_id = port_id.clone();
-        self.with_block_mut(location, move |block| {
-            let port = block.stream_input(&port_id).map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
-                }
-                other => other,
-            })?;
-            Ok(port.port_id())
-        })
-        .await
+    fn validate_stream_edge_ports(&self, edge: &Edge) -> Result<Edge, Error> {
+        self.named_stream_edge(edge)
     }
 }

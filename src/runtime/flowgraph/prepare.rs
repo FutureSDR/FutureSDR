@@ -37,6 +37,8 @@ struct GraphPlan {
     startup: StartupSnapshot,
     stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
+    stream_edges_public: Vec<Edge>,
+    message_edges_public: Vec<Edge>,
     stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     normal_block_ids: Vec<BlockId>,
@@ -217,14 +219,19 @@ impl RuntimePlan {
             startup,
             stream_edges,
             message_edges,
+            stream_edges_public,
+            message_edges_public,
             stream_edges_desc,
             message_edges_desc,
             normal_block_ids,
             local_domains,
         } = plan;
 
-        let normal_topology =
-            DomainStartPlan::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
+        let normal_topology = DomainStartPlan::domain_topology(
+            &normal_block_ids,
+            &stream_edges_public,
+            &message_edges_public,
+        );
         let mut domains = vec![PreparedDomainPlan::normal(
             NORMAL_DOMAIN_ID,
             normal_topology,
@@ -235,7 +242,11 @@ impl RuntimePlan {
                 domain_id,
                 domain.inbox,
                 domain.slots,
-                DomainStartPlan::domain_topology(&domain.block_ids, &stream_edges, &message_edges),
+                DomainStartPlan::domain_topology(
+                    &domain.block_ids,
+                    &stream_edges_public,
+                    &message_edges_public,
+                ),
                 main_channel.clone(),
             );
             PreparedDomainPlan::local(domain_id, spec)
@@ -288,11 +299,19 @@ impl<'a> FlowgraphCompiler<'a> {
     fn compile_graph_plan(&mut self) -> Result<GraphPlan, Error> {
         self.validate_stream_graph()?;
 
-        let stream_edges = std::mem::take(&mut self.flowgraph.stream_edges)
+        let stream_edges_public = std::mem::take(&mut self.flowgraph.stream_edges)
             .into_iter()
             .map(|edge| edge.edge())
             .collect::<Vec<_>>();
-        let message_edges = std::mem::take(&mut self.flowgraph.message_edges);
+        let stream_edges = stream_edges_public
+            .iter()
+            .map(|edge| self.flowgraph.indexed_stream_edge(edge))
+            .collect::<Result<Vec<_>, _>>()?;
+        let message_edges_public = std::mem::take(&mut self.flowgraph.message_edges);
+        let message_edges = message_edges_public
+            .iter()
+            .map(|edge| self.flowgraph.indexed_message_edge(edge))
+            .collect::<Result<Vec<_>, _>>()?;
         let block_locations = self.flowgraph.block_locations()?;
 
         let normal_block_ids = block_locations
@@ -301,13 +320,15 @@ impl<'a> FlowgraphCompiler<'a> {
             .collect::<Vec<_>>();
         let local_domains = self.local_domain_plans(&block_locations);
         let startup = self.startup_snapshot()?;
-        let stream_edges_desc = Self::edge_endpoints(&stream_edges);
-        let message_edges_desc = Self::edge_endpoints(&message_edges);
+        let stream_edges_desc = Self::edge_endpoints(&stream_edges_public);
+        let message_edges_desc = Self::edge_endpoints(&message_edges_public);
 
         Ok(GraphPlan {
             startup,
             stream_edges,
             message_edges,
+            stream_edges_public,
+            message_edges_public,
             stream_edges_desc,
             message_edges_desc,
             normal_block_ids,
@@ -459,7 +480,15 @@ mod tests {
         assert!(fg.stream_edges.is_empty());
         assert_eq!(control.startup.ids, vec![src.id(), snk.id()]);
         assert_eq!(control.startup.endpoints.len(), 2);
-        assert_eq!(connections.stream_edges().len(), 1);
+        assert_eq!(
+            connections.stream_edges(),
+            &[Edge::new(
+                src.id(),
+                PortId::index(0),
+                snk.id(),
+                PortId::index(0)
+            )]
+        );
         assert!(connections.message_edges().is_empty());
         assert_eq!(
             control.stream_edges_desc,
@@ -476,7 +505,15 @@ mod tests {
             panic!("expected normal prepared-domain plan");
         };
         assert_eq!(topology.blocks(), &[src.id(), snk.id()]);
-        assert_eq!(topology.stream_edges(), connections.stream_edges());
+        assert_eq!(
+            topology.stream_edges(),
+            &[Edge::new(
+                src.id(),
+                PortId::from("output"),
+                snk.id(),
+                PortId::from("input")
+            )]
+        );
 
         Ok(())
     }

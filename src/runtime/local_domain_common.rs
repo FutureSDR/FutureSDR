@@ -22,6 +22,12 @@ use crate::runtime::scheduler::LocalScheduler;
 
 pub(crate) type LocalBlockBuilder = Box<dyn FnOnce() -> Box<dyn LocalBlock> + Send + 'static>;
 
+pub(crate) struct LocalBlockBuildInfo {
+    pub(crate) endpoint: BlockEndpoint,
+    pub(crate) stream_inputs: Vec<String>,
+    pub(crate) stream_outputs: Vec<String>,
+}
+
 #[doc(hidden)]
 #[derive(Clone)]
 pub struct LocalDomainInbox {
@@ -169,7 +175,7 @@ impl<C: LocalDomainControllerAccess> LocalDomainRuntimeBase<C> {
         &self,
         local_id: usize,
         builder: LocalBlockBuilder,
-    ) -> Result<BlockEndpoint, Error> {
+    ) -> Result<LocalBlockBuildInfo, Error> {
         build_local_block(self.controller.tx(), local_id, builder).await
     }
 
@@ -524,7 +530,7 @@ pub(crate) async fn build_local_block(
     tx: &Sender<LocalDomainMessage>,
     local_id: usize,
     builder: LocalBlockBuilder,
-) -> Result<BlockEndpoint, Error> {
+) -> Result<LocalBlockBuildInfo, Error> {
     let (reply, rx) = oneshot::channel();
     tx.send(LocalDomainMessage::Build {
         local_id,
@@ -585,9 +591,19 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
             builder,
             reply,
         } => {
-            let block = builder();
-            let inbox = block.inbox();
-            let result = state.insert_block(local_id, block).map(|()| inbox);
+            let mut block = builder();
+            let endpoint = block.inbox();
+            let result =
+                match (block.stream_input_names(), block.stream_output_names()) {
+                    (Ok(stream_inputs), Ok(stream_outputs)) => state
+                        .insert_block(local_id, block)
+                        .map(|()| LocalBlockBuildInfo {
+                            endpoint,
+                            stream_inputs,
+                            stream_outputs,
+                        }),
+                    (Err(e), _) | (_, Err(e)) => Err(e),
+                };
             if let Err(e) = &result {
                 error!("failed to insert local block: {e}");
             }
@@ -675,7 +691,7 @@ pub(crate) enum LocalDomainMessage {
     Build {
         local_id: usize,
         builder: LocalBlockBuilder,
-        reply: oneshot::Sender<Result<BlockEndpoint, Error>>,
+        reply: oneshot::Sender<Result<LocalBlockBuildInfo, Error>>,
     },
     Exec(LocalDomainAsyncExec),
     Post {

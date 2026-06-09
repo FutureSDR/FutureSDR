@@ -3,9 +3,11 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
+use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
@@ -51,9 +53,28 @@ use types::BlockLocation;
 use types::BlockPlacement;
 use types::StreamEdge;
 
+fn resolve_stream_port_index(port_id: &PortId, names: &[String]) -> Option<PortId> {
+    match port_id {
+        PortId::Index(index) => (*index < names.len()).then_some(PortId::index(*index)),
+        PortId::Name(name) => names
+            .iter()
+            .position(|candidate| candidate == name)
+            .map(PortId::index),
+    }
+}
+
+fn resolve_stream_port_name(port_id: &PortId, names: &[String]) -> Option<PortId> {
+    let PortId::Index(index) = resolve_stream_port_index(port_id, names)? else {
+        unreachable!("resolve_stream_port_index always returns indexed ids")
+    };
+    names.get(index).cloned().map(PortId::new)
+}
+
 pub(super) struct BlockSlot {
     placement: BlockPlacement,
     endpoint: BlockEndpoint,
+    stream_inputs: Vec<String>,
+    stream_outputs: Vec<String>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
 }
@@ -62,12 +83,16 @@ impl BlockSlot {
     fn normal(
         normal_id: usize,
         endpoint: BlockEndpoint,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
         Self {
             placement: BlockPlacement::Normal { normal_id },
             endpoint,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
         }
@@ -77,6 +102,8 @@ impl BlockSlot {
         domain_id: usize,
         local_id: usize,
         endpoint: BlockEndpoint,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
@@ -86,6 +113,8 @@ impl BlockSlot {
                 local_id,
             },
             endpoint,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
         }
@@ -101,6 +130,22 @@ impl BlockSlot {
 
     fn endpoint(&self) -> &BlockEndpoint {
         &self.endpoint
+    }
+
+    fn stream_input_name(&self, port_id: &PortId) -> Option<PortId> {
+        resolve_stream_port_name(port_id, &self.stream_inputs)
+    }
+
+    fn stream_output_name(&self, port_id: &PortId) -> Option<PortId> {
+        resolve_stream_port_name(port_id, &self.stream_outputs)
+    }
+
+    fn stream_input_index(&self, port_id: &PortId) -> Option<PortId> {
+        resolve_stream_port_index(port_id, &self.stream_inputs)
+    }
+
+    fn stream_output_index(&self, port_id: &PortId) -> Option<PortId> {
+        resolve_stream_port_index(port_id, &self.stream_outputs)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {
@@ -247,6 +292,8 @@ impl Flowgraph {
                 domain_id,
                 local_id,
                 entry.inbox,
+                entry.stream_inputs,
+                entry.stream_outputs,
                 entry.message_inputs,
                 entry.message_outputs,
             )
@@ -388,9 +435,13 @@ impl Flowgraph {
         b.meta
             .set_instance_name(format!("{}-{}", block_name, block_id.0));
         let inbox = b.inbox();
+        let stream_inputs = b.stream_inputs().to_vec();
+        let stream_outputs = b.stream_outputs().to_vec();
         self.add_normal_block(
             Box::new(b),
             inbox,
+            stream_inputs,
+            stream_outputs,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
         )
@@ -409,6 +460,8 @@ impl Flowgraph {
         &mut self,
         block: Box<dyn Block>,
         inbox: BlockEndpoint,
+        stream_inputs: Vec<String>,
+        stream_outputs: Vec<String>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> BlockRef<K> {
@@ -418,6 +471,8 @@ impl Flowgraph {
         self.blocks.push(BlockSlot::normal(
             normal_id,
             inbox,
+            stream_inputs,
+            stream_outputs,
             message_inputs,
             message_outputs,
         ));
@@ -499,7 +554,7 @@ impl Flowgraph {
             .inbox();
         let external =
             BlockEndpoint::domain_proxy(domain_inbox, LocalBlockAddr::new(block_id, local_id));
-        let inbox = match self
+        let build_info = match self
             .domains
             .local(domain_id)
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?
@@ -516,7 +571,7 @@ impl Flowgraph {
             )
             .await
         {
-            Ok(inbox) => inbox,
+            Ok(info) => info,
             Err(e) => {
                 if let Some(domain) = self.domains.local_mut(domain_id) {
                     domain.unreserve_last_block(local_id);
@@ -527,7 +582,9 @@ impl Flowgraph {
         self.blocks.push(BlockSlot::local(
             domain_id,
             local_id,
-            inbox,
+            build_info.endpoint,
+            build_info.stream_inputs,
+            build_info.stream_outputs,
             K::message_inputs(),
             K::message_outputs(),
         ));
@@ -569,6 +626,95 @@ impl Flowgraph {
 
     fn location(&self, block_id: BlockId) -> Result<BlockLocation, Error> {
         Ok(self.placement(block_id)?.location(block_id))
+    }
+
+    fn block_slot(&self, block_id: BlockId) -> Result<&BlockSlot, Error> {
+        self.blocks
+            .get(block_id.0)
+            .ok_or(Error::InvalidBlock(block_id))
+    }
+
+    pub(super) fn stream_input_name(
+        &self,
+        block_id: BlockId,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        self.block_slot(block_id)?
+            .stream_input_name(port_id)
+            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+    }
+
+    pub(super) fn stream_output_name(
+        &self,
+        block_id: BlockId,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        self.block_slot(block_id)?
+            .stream_output_name(port_id)
+            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+    }
+
+    pub(super) fn stream_input_index(
+        &self,
+        block_id: BlockId,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        self.block_slot(block_id)?
+            .stream_input_index(port_id)
+            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+    }
+
+    pub(super) fn stream_output_index(
+        &self,
+        block_id: BlockId,
+        port_id: &PortId,
+    ) -> Result<PortId, Error> {
+        self.block_slot(block_id)?
+            .stream_output_index(port_id)
+            .ok_or_else(|| Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port_id.clone()))
+    }
+
+    pub(super) fn named_stream_edge(&self, edge: &Edge) -> Result<Edge, Error> {
+        Ok(Edge::new(
+            edge.src_block,
+            self.stream_output_name(edge.src_block, &edge.src_port)?,
+            edge.dst_block,
+            self.stream_input_name(edge.dst_block, &edge.dst_port)?,
+        ))
+    }
+
+    pub(super) fn indexed_stream_edge(&self, edge: &Edge) -> Result<Edge, Error> {
+        Ok(Edge::new(
+            edge.src_block,
+            self.stream_output_index(edge.src_block, &edge.src_port)?,
+            edge.dst_block,
+            self.stream_input_index(edge.dst_block, &edge.dst_port)?,
+        ))
+    }
+
+    pub(super) fn indexed_message_edge(&self, edge: &Edge) -> Result<Edge, Error> {
+        let src_port = crate::runtime::resolve_port_index(
+            &edge.src_port,
+            self.block_slot(edge.src_block)?.message_outputs(),
+        )
+        .map(PortId::index)
+        .ok_or_else(|| {
+            Error::InvalidMessagePort(BlockPortCtx::Id(edge.src_block), edge.src_port.clone())
+        })?;
+        let dst_port = crate::runtime::resolve_port_index(
+            &edge.dst_port,
+            self.block_slot(edge.dst_block)?.message_inputs(),
+        )
+        .map(PortId::index)
+        .ok_or_else(|| {
+            Error::InvalidMessagePort(BlockPortCtx::Id(edge.dst_block), edge.dst_port.clone())
+        })?;
+        Ok(Edge::new(
+            edge.src_block,
+            src_port,
+            edge.dst_block,
+            dst_port,
+        ))
     }
 
     fn block_locations(&self) -> Result<Vec<BlockLocation>, Error> {

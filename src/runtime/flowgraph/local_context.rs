@@ -50,6 +50,8 @@ pub(super) struct LocalDomainContextEntry {
     pub(super) block_id: BlockId,
     pub(super) placement: BlockPlacement,
     pub(super) inbox: BlockEndpoint,
+    pub(super) stream_inputs: Vec<String>,
+    pub(super) stream_outputs: Vec<String>,
     pub(super) message_inputs: &'static [&'static str],
     pub(super) message_outputs: &'static [&'static str],
 }
@@ -203,6 +205,12 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .meta
             .set_instance_name(format!("{}-{}", K::type_name(), block_id.0));
         let inbox = block.inbox();
+        let stream_inputs = block
+            .stream_input_names()
+            .expect("failed to collect stream input manifest");
+        let stream_outputs = block
+            .stream_output_names()
+            .expect("failed to collect stream output manifest");
         inner
             .state
             .insert_block(local_id, Box::new(block))
@@ -211,6 +219,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             block_id,
             placement,
             inbox,
+            stream_inputs,
+            stream_outputs,
             message_inputs: K::message_inputs(),
             message_outputs: K::message_outputs(),
         });

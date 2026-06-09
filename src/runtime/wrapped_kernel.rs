@@ -175,6 +175,10 @@ pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     pub kernel: K,
     /// Runtime block id.
     pub id: BlockId,
+    /// Instance stream input port names collected when the block is added.
+    stream_inputs: Vec<String>,
+    /// Instance stream output port names collected when the block is added.
+    stream_outputs: Vec<String>,
     /// Inbox bundle for the block placement mode.
     pub(crate) inbox: I,
 }
@@ -203,7 +207,12 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
 
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
-    fn with_inbox(kernel: K, id: BlockId, inbox: I) -> Self {
+    fn with_inbox(mut kernel: K, id: BlockId, inbox: I) -> Self {
+        let stream_inputs = crate::runtime::kernel_interface::stream_inputs(&mut kernel)
+            .expect("failed to collect stream input manifest");
+        let stream_outputs = crate::runtime::kernel_interface::stream_outputs(&mut kernel)
+            .expect("failed to collect stream output manifest");
+
         Self {
             meta: BlockMeta::new(),
             mo: MessageOutputs::new(
@@ -212,10 +221,21 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             ),
             kernel,
             id,
+            stream_inputs,
+            stream_outputs,
             inbox,
         }
     }
 
+    pub(crate) fn stream_inputs(&self) -> &[String] {
+        &self.stream_inputs
+    }
+
+    pub(crate) fn stream_outputs(&self) -> &[String] {
+        &self.stream_outputs
+    }
+
+    #[allow(clippy::too_many_arguments)]
     async fn handle_runtime_message(
         id: BlockId,
         instance_name: &str,
@@ -223,6 +243,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         mo: &mut MessageOutputs,
         kernel: &mut K,
         work_io: &mut WorkIo,
+        stream_inputs: &[String],
+        stream_outputs: &[String],
         msg: BlockMessage,
     ) -> Result<(), Error>
     where
@@ -230,8 +252,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     {
         match msg {
             BlockMessage::BlockDescription { tx } => {
-                let stream_inputs = crate::runtime::kernel_interface::stream_inputs(kernel)?;
-                let stream_outputs = crate::runtime::kernel_interface::stream_outputs(kernel)?;
                 let message_inputs = K::message_inputs().iter().map(|n| n.to_string()).collect();
                 let message_outputs = K::message_outputs().iter().map(|n| n.to_string()).collect();
 
@@ -239,8 +259,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                     id,
                     type_name: K::type_name().to_string(),
                     instance_name: instance_name.to_string(),
-                    stream_inputs,
-                    stream_outputs,
+                    stream_inputs: stream_inputs.to_vec(),
+                    stream_outputs: stream_outputs.to_vec(),
                     message_inputs,
                     message_outputs,
                     blocking: K::is_blocking(),
@@ -301,6 +321,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn run_with_inbox<RI>(
         id: BlockId,
         meta: &mut BlockMeta,
@@ -308,6 +329,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         kernel: &mut K,
         main_inbox: Sender<FlowgraphMessage>,
         inbox: &mut RI,
+        stream_inputs: &[String],
+        stream_outputs: &[String],
     ) -> Result<(), Error>
     where
         K: Kernel,
@@ -386,6 +409,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                         mo,
                         kernel,
                         &mut work_io,
+                        stream_inputs,
+                        stream_outputs,
                         msg,
                     )
                     .await?;
@@ -446,9 +471,21 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             meta,
             mo,
             kernel,
+            stream_inputs,
+            stream_outputs,
             inbox,
         } = self;
-        Self::run_with_inbox(*id, meta, mo, kernel, main_inbox, inbox.run_inbox_mut()).await
+        Self::run_with_inbox(
+            *id,
+            meta,
+            mo,
+            kernel,
+            main_inbox,
+            inbox.run_inbox_mut(),
+            stream_inputs,
+            stream_outputs,
+        )
+        .await
     }
 }
 
@@ -469,10 +506,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     }
 
     fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
-        crate::runtime::kernel_interface::stream_inputs(&mut self.kernel)
+        Ok(self.stream_inputs.clone())
     }
     fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
-        crate::runtime::kernel_interface::stream_outputs(&mut self.kernel)
+        Ok(self.stream_outputs.clone())
     }
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
         crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
