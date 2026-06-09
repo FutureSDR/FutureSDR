@@ -1,4 +1,4 @@
-#include "null_rand_flowgraph.hpp"
+#include "null_flowgraph.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -16,7 +16,7 @@ namespace po = boost::program_options;
 using namespace gr;
 
 
-null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
+null_flowgraph::null_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
 
     this->tb = gr::make_top_block("buf_flowgraph");
 
@@ -65,7 +65,7 @@ int main (int argc, char **argv) {
         return 0;
     }
 
-    null_rand_flowgraph* runner = new null_rand_flowgraph(pipes, stages, samples, max_copy);
+    null_flowgraph* runner = new null_flowgraph(pipes, stages, samples, max_copy);
     // runner->tb->set_max_output_buffer(4096);
 
     auto start = std::chrono::high_resolution_clock::now();

@@ -1,5 +1,5 @@
-#ifndef NULL_RAND_FLOWGRAPH_HPP
-#define NULL_RAND_FLOWGRAPH_HPP
+#ifndef NULL_FLOWGRAPH_HPP
+#define NULL_FLOWGRAPH_HPP
 
 #include <gnuradio/top_block.h>
 #include <sched/copy_n.h>
@@ -9,10 +9,10 @@
 
 using namespace gr;
 
-class null_rand_flowgraph {
+class null_flowgraph {
 
 public:
-    null_rand_flowgraph(
+    null_flowgraph(
             int pipes, int stages, uint64_t samples, size_t max_copy);
     top_block_sptr tb;
 };

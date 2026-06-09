@@ -76,5 +76,5 @@ stats = raw.groupby(['sdr', 'config', 'stages']).agg({
     'throughput': ['mean', 'var', conf_int],
 })
 
-plot_metric(stats, 'time', 'Execution Time (in s)', 'null_rand.pdf')
+plot_metric(stats, 'time', 'Execution Time (in s)', 'null.pdf')
 plot_metric(stats, 'throughput', 'CopyN Throughput (items/s)', 'throughput.pdf')

@@ -16,7 +16,7 @@ setup:
 	@echo "### SETTING UP"
 	../migrate-processes.sh
 
-perf-data/gr%.csv: build/null_rand_flowgraph
+perf-data/gr%.csv: build/null_flowgraph
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
@@ -32,7 +32,7 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 	@echo MAX=$(MAX)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	$(SHIELD) -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) > $@
+	$(SHIELD) -- ./build/null_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) > $@
 
 perf-data/fs%.csv:
 	mkdir -p perf-data
@@ -60,16 +60,16 @@ PERF_PARAMS=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
 PERF_PARAMS_LOCAL=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
 
 perf_flow:
-	cargo build --release --bin null_rand
-	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --config flow
+	cargo build --release --bin null
+	$(SHIELD) -- $(PERF) cargo run --release --bin null -- $(PERF_PARAMS) --config flow
 
 perf_smol:
-	cargo build --release --bin null_rand
-	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS) --config smoln
+	cargo build --release --bin null
+	$(SHIELD) -- $(PERF) cargo run --release --bin null -- $(PERF_PARAMS) --config smoln
 
 perf_local:
-	cargo build --release --bin null_rand
-	$(SHIELD) -- $(PERF) cargo run --release --bin null_rand -- $(PERF_PARAMS_LOCAL) --config local
+	cargo build --release --bin null
+	$(SHIELD) -- $(PERF) cargo run --release --bin null -- $(PERF_PARAMS_LOCAL) --config local
 
 perf_gr:
-	$(SHIELD) -- $(PERF) ./build/null_rand_flowgraph $(PERF_PARAMS)
+	$(SHIELD) -- $(PERF) ./build/null_flowgraph $(PERF_PARAMS)

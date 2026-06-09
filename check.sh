@@ -27,7 +27,7 @@ cd ${SCRIPTPATH}/perf/fir && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/fir_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/msg && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/lora && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/perf/null_rand && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/null && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null_rand_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/perf && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/wgpu && ${CARGO_FMT} --check
@@ -76,7 +76,7 @@ cd ${SCRIPTPATH}/perf/burn && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/fir && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/msg && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/lora && cargo clippy --all-targets -- -D warnings
-cd ${SCRIPTPATH}/perf/null_rand && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/perf/null && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/perf && cargo clippy --all-targets --all-features -- -D warnings
 cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
 if [[ "$OSTYPE" == linux* ]]; then
@@ -142,7 +142,7 @@ cd ${SCRIPTPATH}/perf/burn && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/msg && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/lora && cargo test --all-targets
-cd ${SCRIPTPATH}/perf/null_rand && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/null && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
 cd ${SCRIPTPATH}/perf/wgpu && cargo test --all-targets
 if [[ "$OSTYPE" == linux* ]]; then
