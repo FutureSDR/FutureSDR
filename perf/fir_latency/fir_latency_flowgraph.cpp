@@ -12,7 +12,6 @@
 #include <gnuradio/blocks/null_source.h>
 #include <gnuradio/top_block.h>
 #include <gnuradio/filter/fir_filter_blk.h>
-#include <sched/copy_rand.h>
 #include <sched/null_sink_latency.h>
 #include <sched/null_source_latency.h>
 
@@ -22,15 +21,15 @@ const uint64_t GRANULARITY = 32768;
 
 using namespace gr;
 
-class fir_rand_flowgraph {
+class fir_latency_flowgraph {
 
 public:
-    fir_rand_flowgraph(
-            int pipes, int stages, uint64_t samples, size_t max_copy);
+    fir_latency_flowgraph(
+            int pipes, int stages, uint64_t samples);
     top_block_sptr tb;
 };
 
-fir_rand_flowgraph::fir_rand_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
+fir_latency_flowgraph::fir_latency_flowgraph(int pipes, int stages, uint64_t samples) {
 
     std::default_random_engine e;
     std::uniform_real_distribution<float> dis(0, 1);
@@ -55,16 +54,13 @@ fir_rand_flowgraph::fir_rand_flowgraph(int pipes, int stages, uint64_t samples, 
         tb->connect(src, 0, head, 0);
 
 
-        auto copy = sched::copy_rand::make(sizeof(float), max_copy);
         auto prev = filter::fir_filter_fff::make(1, taps);
-        tb->connect(head, 0, copy, 0);
-        tb->connect(copy, 0, prev, 0);
+        tb->connect(head, 0, prev, 0);
 
         for(int stage = 1; stage < stages; stage++) {
-            auto block = sched::copy_rand::make(sizeof(float), max_copy);
+            auto block = filter::fir_filter_fff::make(1, taps);
             tb->connect(prev, 0, block, 0);
-            prev = filter::fir_filter_fff::make(1, taps);
-            tb->connect(block, 0, prev, 0);
+            prev = block;
         }
 
         auto sink = sched::null_sink_latency::make(sizeof(float), GRANULARITY);
@@ -77,7 +73,6 @@ int main (int argc, char **argv) {
     int pipes;
     int stages;
     uint64_t samples;
-    size_t max_copy;
 
     po::options_description desc("Run Buffer Flow Graph");
     desc.add_options()
@@ -85,7 +80,6 @@ int main (int argc, char **argv) {
         ("run,r", po::value<int>(&run)->default_value(0), "Run Number")
         ("pipes,p", po::value<int>(&pipes)->default_value(5), "Number of pipes")
         ("stages,s", po::value<int>(&stages)->default_value(6), "Number of stages")
-        ("max_copy,m", po::value<size_t>(&max_copy)->default_value(0xffffffff), "Maximum number of samples to copy in one go.")
         ("samples,n", po::value<uint64_t>(&samples)->default_value(15000000), "Number of samples");
 
     po::variables_map vm;
@@ -97,7 +91,7 @@ int main (int argc, char **argv) {
         return 0;
     }
 
-    fir_rand_flowgraph* runner = new fir_rand_flowgraph(pipes, stages, samples, max_copy);
+    fir_latency_flowgraph* runner = new fir_latency_flowgraph(pipes, stages, samples);
     // runner->tb->set_max_output_buffer(4096);
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -106,8 +100,8 @@ int main (int argc, char **argv) {
     auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count()/1e9;
 
     std::cout <<
-    boost::format("%1$4d, %2$4d,  %3$4d,   %4$15d,%5$10d,legacy,   %6$20.15f") %
-                     run  % pipes % stages % samples % max_copy % time << std::endl;
+    boost::format("%1$4d, %2$4d,  %3$4d,   %4$15d,legacy,   %5$20.15f") %
+                     run  % pipes % stages % samples % time << std::endl;
 
     return 0;
 }

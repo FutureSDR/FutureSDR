@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
+
 import pandas as pd
 import numpy as np
-import scipy.stats
 import matplotlib.pyplot as plt
 
 plt.style.use('../acmart.mplrc')
@@ -10,18 +11,17 @@ print("loading csv")
 d = pd.read_csv('perf-data/results.csv')
 
 print("filtering data")
-d = d[d['max_copy'] == 512]
-d = d[d['pipes'] == 6]
+d = d[d['pipes'] == 4]
 d = d[d['samples'] == 20000000]
 d = d[['sdr', 'scheduler', 'stages', 'run', 'time', 'event', 'block', 'items']]
 
 def gr_block_index(d):
-    if d['sdr'] == 'gr' and d['event'] == 'rx':
-        return d['block'] - d['stages'] * 2 - 2
+    if d['event'] == 'rx':
+        return d['block'] - d['stages'] - 2
     else:
         return d['block']
 
-print("applying block index change for GR...", end='')
+print("applying block index change...", end='')
 d['block'] = d.apply(gr_block_index, axis=1)
 print("done")
 
@@ -33,7 +33,12 @@ r = pd.DataFrame({'sdr': pd.Series(dtype='str'),
                   'latency': pd.Series(dtype='int64')})
 
 for (i, x) in g:
-    a = x[['time', 'event', 'block', 'items']]
+    a = x[['time', 'event', 'block', 'items']].sort_values('time')
+    dup = a.duplicated(['event', 'block', 'items'], keep=False)
+    if dup.any():
+        print(f"{i} duplicate events {dup.sum()} rows; keeping first")
+        a = a.drop_duplicates(['event', 'block', 'items'], keep='first')
+
     rx = a[a['event'] == 'rx'].set_index(['block', 'items'])
     tx = a[a['event'] == 'tx'].set_index(['block', 'items'])
     lat = rx.join(tx, lsuffix='_rx', how='inner')
@@ -42,7 +47,12 @@ for (i, x) in g:
     if diff > 6:
         print(f"{i} item lost {diff} of {lat.shape[0]}")
     lat = lat['time_rx'] - lat['time']
-    assert np.all(lat > 0)
+    nonpositive = lat <= 0
+    if nonpositive.any():
+        print(f"{i} dropping {nonpositive.sum()} non-positive latency samples")
+        lat = lat[~nonpositive]
+        if lat.empty:
+            continue
 
     t = pd.DataFrame(lat, columns=['latency'])
     t['sdr'] = i[0]
@@ -67,35 +77,48 @@ def percentile(n):
     percentile_.__name__ = 'percentile_%s' % n
     return percentile_
 
-d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std, percentile(5), percentile(95)]})
+d = r.groupby(['sdr', 'scheduler', 'stages']).agg(
+    {'latency': ['mean', 'std', percentile(5), percentile(95)]}
+)
 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[('gr')].reset_index()
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='GNU\,Radio')
+def plot_series(key, label, offset):
+    available = d.index.droplevel('stages').unique()
+    if key not in available:
+        print(f"skipping {label}: no data")
+        return
 
-t = d.loc[('fs', 'smoln')].reset_index();
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages']-0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Smol-N')
+    t = d.loc[key].reset_index()
+    t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+    t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+    ax.errorbar(
+        t['stages'] + offset,
+        t[('latency', 'mean')],
+        yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]],
+        label=label,
+    )
 
-t = d.loc[('fs', 'flow')].reset_index();
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages']+0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Flow')
+plot_series(('gr', 'legacy'), r'GNU\,Radio', 0)
+plot_series(('fs', 'smoln'), 'Smol-N', -0.3)
+plot_series(('fs', 'flow'), 'Flow', 0.3)
+plot_series(('fs', 'smoln-spsc'), 'Smol-N SPSC', -0.15)
+plot_series(('fs', 'flow-spsc'), 'Flow SPSC', 0.15)
+plot_series(('fs', 'local'), 'Local Domains', 0)
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
-ax.set_xlabel('\#\,Stages')
+ax.set_xlabel(r'\#\,Stages')
 ax.set_ylabel('Latency (in ms)')
-# ax.set_ylim(0, 99)
+ax.set_ylim(bottom=0)
 
 handles, labels = ax.get_legend_handles_labels()
-handles = [x[0] for x in handles]
-ax.legend(handles, labels, handlelength=2.95)
+if handles:
+    handles = [x[0] for x in handles]
+    ax.legend(handles, labels, handlelength=2.95)
 
-plt.savefig('fir_rand_latency.pdf')
+plt.savefig('fir_latency.pdf')
 plt.close('all')
 
+t = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': 'mean'})
+print(t.unstack(level=[0, 1]))

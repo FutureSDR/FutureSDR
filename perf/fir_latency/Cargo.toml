@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
+core_affinity = "0.8"
 futuresdr = { path = "../..", default-features = false, features = ["flow_scheduler"] }
 rand = "0.10"
 perf = { path = "../perf" }
@@ -16,3 +17,10 @@ tracing = { version = "0.1", features = ["release_max_level_off"] }
 [[bin]]
 name = "fir"
 path = "fir.rs"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
+panic = "abort"

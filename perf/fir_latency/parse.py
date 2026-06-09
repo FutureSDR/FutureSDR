@@ -1,6 +1,5 @@
 import bt2
 import sys
-import collections
 
 def parse():
     it = bt2.TraceCollectionMessageIterator(sys.argv[1])
@@ -16,7 +15,7 @@ def parse():
             event_type = 'tx'
         elif event.cls.name == 'null_rand_latency:rx' or event.cls.name == 'futuresdr:rx':
             event_type = 'rx'
-        else: 
+        else:
             continue
 
         cpu = event.packet.context_field['cpu_id']
