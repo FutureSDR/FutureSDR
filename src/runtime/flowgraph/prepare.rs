@@ -1,4 +1,5 @@
 use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
@@ -6,7 +7,9 @@ use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Sender;
+use crate::runtime::channel::oneshot;
 use crate::runtime::dev::BlockEndpoint;
+use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
@@ -14,17 +17,22 @@ use crate::runtime::scheduler::NormalBlocks;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::RunningDomain;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::StoppedDomain;
 
 use super::Flowgraph;
+use super::connector::FlowgraphConnector;
 use super::domains::FlowgraphDomains;
 use super::domains::NORMAL_DOMAIN_ID;
 use super::storage;
+use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
 
-pub(super) struct StartupSnapshot {
-    pub(super) endpoints: Vec<Option<BlockEndpoint>>,
-    pub(super) ids: Vec<BlockId>,
-    pub(super) message_inputs: Vec<Option<&'static [&'static str]>>,
+pub(super) struct PreparedControl {
+    endpoints: Vec<Option<BlockEndpoint>>,
+    ids: Vec<BlockId>,
+    message_inputs: Vec<Option<&'static [&'static str]>>,
+    stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+    message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
 struct LocalDomainPlan {
@@ -68,29 +76,21 @@ impl ResolvedEdge {
 }
 
 struct GraphPlan {
-    startup: StartupSnapshot,
+    control: PreparedControl,
     stream_edges: Vec<ResolvedEdge>,
     message_edges: Vec<ResolvedEdge>,
     stream_edges_public: Vec<Edge>,
     message_edges_public: Vec<Edge>,
-    stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
     normal_block_ids: Vec<BlockId>,
     local_domains: Vec<LocalDomainPlan>,
 }
 
-pub(super) struct ControlPlan {
-    pub(super) startup: StartupSnapshot,
-    pub(super) stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    pub(super) message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-}
-
-pub(super) struct ConnectionPlan {
+pub(super) struct PreparedConnections {
     stream_edges: Vec<ResolvedEdge>,
     message_edges: Vec<ResolvedEdge>,
 }
 
-impl ConnectionPlan {
+impl PreparedConnections {
     fn new(stream_edges: Vec<ResolvedEdge>, message_edges: Vec<ResolvedEdge>) -> Self {
         Self {
             stream_edges,
@@ -107,7 +107,7 @@ impl ConnectionPlan {
     }
 }
 
-pub(super) struct DomainStartPlan {
+pub(super) struct PreparedDomains {
     domains: Vec<PreparedDomainPlan>,
     main_channel: Sender<FlowgraphMessage>,
 }
@@ -176,7 +176,7 @@ impl PreparedDomain {
     }
 }
 
-impl DomainStartPlan {
+impl PreparedDomains {
     fn new(domains: Vec<PreparedDomainPlan>, main_channel: Sender<FlowgraphMessage>) -> Self {
         Self {
             domains,
@@ -235,33 +235,30 @@ impl DomainStartPlan {
     }
 }
 
-pub(super) struct RuntimePlan {
-    control: ControlPlan,
-    connections: ConnectionPlan,
-    domains: DomainStartPlan,
+pub(super) struct PreparedFlowgraph {
+    flowgraph: Flowgraph,
+    control: PreparedControl,
+    connections: PreparedConnections,
+    domains: Option<PreparedDomains>,
 }
 
-pub(super) struct RuntimePlanParts {
-    pub(super) control: ControlPlan,
-    pub(super) connections: ConnectionPlan,
-    pub(super) domains: DomainStartPlan,
-}
-
-impl RuntimePlan {
-    fn from_graph_plan(plan: GraphPlan, main_channel: Sender<FlowgraphMessage>) -> Self {
+impl PreparedFlowgraph {
+    fn from_graph_plan(
+        flowgraph: Flowgraph,
+        plan: GraphPlan,
+        main_channel: Sender<FlowgraphMessage>,
+    ) -> Self {
         let GraphPlan {
-            startup,
+            control,
             stream_edges,
             message_edges,
             stream_edges_public,
             message_edges_public,
-            stream_edges_desc,
-            message_edges_desc,
             normal_block_ids,
             local_domains,
         } = plan;
 
-        let normal_topology = DomainStartPlan::domain_topology(
+        let normal_topology = PreparedDomains::domain_topology(
             &normal_block_ids,
             &stream_edges_public,
             &message_edges_public,
@@ -276,7 +273,7 @@ impl RuntimePlan {
                 domain_id,
                 domain.inbox,
                 domain.slots,
-                DomainStartPlan::domain_topology(
+                PreparedDomains::domain_topology(
                     &domain.block_ids,
                     &stream_edges_public,
                     &message_edges_public,
@@ -287,101 +284,201 @@ impl RuntimePlan {
         }));
 
         Self {
-            control: ControlPlan {
-                startup,
-                stream_edges_desc,
-                message_edges_desc,
-            },
-            connections: ConnectionPlan::new(stream_edges, message_edges),
-            domains: DomainStartPlan::new(domains, main_channel),
-        }
-    }
-
-    pub(super) fn into_parts(self) -> RuntimePlanParts {
-        RuntimePlanParts {
-            control: self.control,
-            connections: self.connections,
-            domains: self.domains,
-        }
-    }
-}
-
-pub(super) struct FlowgraphCompiler<'a> {
-    flowgraph: &'a mut Flowgraph,
-    main_channel: Sender<FlowgraphMessage>,
-}
-
-impl<'a> FlowgraphCompiler<'a> {
-    pub(super) fn new(
-        flowgraph: &'a mut Flowgraph,
-        main_channel: Sender<FlowgraphMessage>,
-    ) -> Self {
-        Self {
             flowgraph,
-            main_channel,
+            control,
+            connections: PreparedConnections::new(stream_edges, message_edges),
+            domains: Some(PreparedDomains::new(domains, main_channel)),
         }
     }
 
-    pub(super) fn compile(&mut self) -> Result<RuntimePlan, Error> {
-        let graph_plan = self.compile_graph_plan()?;
-        Ok(RuntimePlan::from_graph_plan(
+    pub(super) fn publish_control(
+        &self,
+        control: Option<oneshot::Sender<RunningFlowgraphControl>>,
+    ) {
+        if let Some(control) = control {
+            let _ = control.send(RunningFlowgraphControl::new(
+                self.control.endpoints.clone(),
+                self.control.ids.clone(),
+                self.control.message_inputs.clone(),
+                self.control.stream_edges_desc.clone(),
+                self.control.message_edges_desc.clone(),
+            ));
+        }
+    }
+
+    pub(super) fn endpoints_mut(&mut self) -> &mut [Option<BlockEndpoint>] {
+        &mut self.control.endpoints
+    }
+
+    pub(super) async fn apply_connections(&mut self) -> Result<(), Error> {
+        let mut connector = FlowgraphConnector::new(&mut self.flowgraph);
+        connector
+            .apply_stream_edges(self.connections.stream_edges())
+            .await?;
+        connector
+            .apply_message_edges(self.connections.message_edges())
+            .await
+    }
+
+    pub(super) async fn start_domains<S: Scheduler>(
+        &mut self,
+        scheduler: S,
+    ) -> Result<Vec<RunningDomain>, Error> {
+        let blocks = self
+            .flowgraph
+            .domains
+            .take_normal_blocks(&self.flowgraph.blocks)?;
+        let domain_plan = self
+            .domains
+            .take()
+            .ok_or_else(|| Error::RuntimeError("flowgraph domains already started".to_string()))?;
+        let prepared_domains = domain_plan.into_domains(blocks);
+        let mut domains = Vec::with_capacity(prepared_domains.len());
+        for prepared in prepared_domains {
+            match prepared.start(&scheduler, &mut self.flowgraph.domains) {
+                Ok(domain) => domains.push(domain),
+                Err(e) => {
+                    self.cleanup_started_domains(domains).await;
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok(domains)
+    }
+
+    async fn terminate_endpoints(&mut self) {
+        for inbox in self.control.endpoints.iter_mut().flatten() {
+            if inbox.send(BlockMessage::Terminate).await.is_err() {
+                debug!("runtime tried to terminate block that was already terminated");
+            }
+        }
+    }
+
+    async fn stop_domains(domains: &mut [RunningDomain]) {
+        for domain in domains {
+            if let Err(e) = domain.stop().await {
+                debug!("runtime tried to stop domain that was already terminated: {e}");
+            }
+        }
+    }
+
+    async fn join_domains(domains: Vec<RunningDomain>) -> Result<Vec<StoppedDomain>, Error> {
+        let mut stopped_domains = Vec::new();
+        let mut join_result = Ok(());
+        for domain in domains {
+            match domain.join().await {
+                Ok(stopped) => stopped_domains.push(stopped),
+                Err(e) => {
+                    if join_result.is_ok() {
+                        join_result = Err(e);
+                    }
+                }
+            }
+        }
+        join_result?;
+        Ok(stopped_domains)
+    }
+
+    pub(super) async fn cleanup_started_domains(&mut self, mut domains: Vec<RunningDomain>) {
+        self.terminate_endpoints().await;
+        Self::stop_domains(&mut domains).await;
+        match Self::join_domains(domains).await {
+            Ok(stopped) => {
+                if let Err(e) = self.flowgraph.domains.restore_stopped_domains(stopped) {
+                    warn!("error while restoring stopped domains during cleanup: {e}");
+                }
+            }
+            Err(e) => warn!("error while cleaning up started domains: {e}"),
+        }
+    }
+
+    pub(super) async fn recover_stopped_domains(
+        &mut self,
+        domains: Vec<RunningDomain>,
+    ) -> Result<(), Error> {
+        let stopped_domains = Self::join_domains(domains).await?;
+        self.flowgraph
+            .domains
+            .restore_stopped_domains(stopped_domains)
+    }
+
+    pub(super) fn into_terminated(self) -> TerminatedFlowgraph {
+        TerminatedFlowgraph::new(self.flowgraph)
+    }
+}
+
+pub(super) struct FlowgraphCompiler;
+
+impl FlowgraphCompiler {
+    pub(super) fn compile(
+        mut flowgraph: Flowgraph,
+        main_channel: Sender<FlowgraphMessage>,
+    ) -> Result<PreparedFlowgraph, Error> {
+        let graph_plan = Self::compile_graph_plan(&flowgraph)?;
+        flowgraph.stream_edges.clear();
+        flowgraph.message_edges.clear();
+        Ok(PreparedFlowgraph::from_graph_plan(
+            flowgraph,
             graph_plan,
-            self.main_channel.clone(),
+            main_channel,
         ))
     }
 
-    fn compile_graph_plan(&mut self) -> Result<GraphPlan, Error> {
-        self.validate_stream_graph()?;
+    fn compile_graph_plan(flowgraph: &Flowgraph) -> Result<GraphPlan, Error> {
+        Self::validate_stream_graph(flowgraph)?;
 
-        let raw_stream_edges = std::mem::take(&mut self.flowgraph.stream_edges)
-            .into_iter()
+        let raw_stream_edges = flowgraph
+            .stream_edges
+            .iter()
             .map(|edge| edge.edge())
             .collect::<Vec<_>>();
         let stream_edges_public = raw_stream_edges
             .iter()
-            .map(|edge| self.flowgraph.named_stream_edge(edge))
+            .map(|edge| flowgraph.named_stream_edge(edge))
             .collect::<Result<Vec<_>, _>>()?;
         let stream_edges = stream_edges_public
             .iter()
-            .map(|edge| self.flowgraph.indexed_stream_edge(edge))
+            .map(|edge| flowgraph.indexed_stream_edge(edge))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .map(ResolvedEdge::from_indexed_edge)
             .collect::<Vec<_>>();
-        let message_edges_public = std::mem::take(&mut self.flowgraph.message_edges);
+        let message_edges_public = flowgraph.message_edges.clone();
         let message_edges = message_edges_public
             .iter()
-            .map(|edge| self.flowgraph.indexed_message_edge(edge))
+            .map(|edge| flowgraph.indexed_message_edge(edge))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .map(ResolvedEdge::from_indexed_edge)
             .collect::<Vec<_>>();
-        let block_locations = self.flowgraph.block_locations()?;
+        let block_locations = flowgraph.block_locations()?;
 
         let normal_block_ids = block_locations
             .iter()
             .filter_map(|location| location.is_normal().then_some(location.block_id))
             .collect::<Vec<_>>();
-        let local_domains = self.local_domain_plans(&block_locations);
-        let startup = self.startup_snapshot()?;
         let stream_edges_desc = Self::edge_endpoints(&stream_edges_public);
         let message_edges_desc = Self::edge_endpoints(&message_edges_public);
+        let local_domains = Self::local_domain_plans(flowgraph, &block_locations);
+        let control = Self::prepared_control(flowgraph, stream_edges_desc, message_edges_desc)?;
 
         Ok(GraphPlan {
-            startup,
+            control,
             stream_edges,
             message_edges,
             stream_edges_public,
             message_edges_public,
-            stream_edges_desc,
-            message_edges_desc,
             normal_block_ids,
             local_domains,
         })
     }
 
-    fn local_domain_plans(&self, block_locations: &[BlockLocation]) -> Vec<LocalDomainPlan> {
-        let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.domains.domain_len()];
+    fn local_domain_plans(
+        flowgraph: &Flowgraph,
+        block_locations: &[BlockLocation],
+    ) -> Vec<LocalDomainPlan> {
+        let mut local_slots_by_domain = vec![Vec::new(); flowgraph.domains.domain_len()];
         for location in block_locations {
             if location.is_local() {
                 local_slots_by_domain[location.domain_id]
@@ -389,7 +486,7 @@ impl<'a> FlowgraphCompiler<'a> {
             }
         }
 
-        self.flowgraph
+        flowgraph
             .domains
             .local_domain_ids()
             .filter_map(|domain_id| {
@@ -403,8 +500,7 @@ impl<'a> FlowgraphCompiler<'a> {
                     .collect::<Vec<_>>();
                 Some(LocalDomainPlan {
                     domain_id,
-                    inbox: self
-                        .flowgraph
+                    inbox: flowgraph
                         .domains
                         .local(domain_id)
                         .expect("planned local domain disappeared")
@@ -416,28 +512,28 @@ impl<'a> FlowgraphCompiler<'a> {
             .collect()
     }
 
-    fn validate_stream_graph(&self) -> Result<(), Error> {
-        let mut adjacency = vec![Vec::new(); self.flowgraph.blocks.len()];
-        let mut connected_inputs = Vec::with_capacity(self.flowgraph.stream_edges.len());
-        for edge in &self.flowgraph.stream_edges {
+    fn validate_stream_graph(flowgraph: &Flowgraph) -> Result<(), Error> {
+        let mut adjacency = vec![Vec::new(); flowgraph.blocks.len()];
+        let mut connected_inputs = Vec::with_capacity(flowgraph.stream_edges.len());
+        for edge in &flowgraph.stream_edges {
             let (src, dst) = edge.endpoints();
             if src == dst {
                 return Err(Error::ValidationError(format!(
                     "stream self-connections are not supported ({src:?})"
                 )));
             }
-            if src.0 >= self.flowgraph.blocks.len() {
+            if src.0 >= flowgraph.blocks.len() {
                 return Err(Error::InvalidBlock(src));
             }
-            if dst.0 >= self.flowgraph.blocks.len() {
+            if dst.0 >= flowgraph.blocks.len() {
                 return Err(Error::InvalidBlock(dst));
             }
-            let indexed_edge = self.flowgraph.indexed_stream_edge(&edge.edge)?;
+            let indexed_edge = flowgraph.indexed_stream_edge(&edge.edge)?;
             if connected_inputs
                 .iter()
                 .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port.index_value())
             {
-                let dst_port = self.flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
+                let dst_port = flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
                 return Err(Error::ValidationError(format!(
                     "stream input {:?}.{} has more than one connection",
                     dst,
@@ -447,8 +543,8 @@ impl<'a> FlowgraphCompiler<'a> {
             connected_inputs.push((dst, indexed_edge.dst_port.index_value()));
 
             if edge.local_only {
-                let src_location = self.flowgraph.location(src)?;
-                let dst_location = self.flowgraph.location(dst)?;
+                let src_location = flowgraph.location(src)?;
+                let dst_location = flowgraph.location(dst)?;
                 Flowgraph::same_local_stream_locations(src_location, dst_location, false)?;
             }
             adjacency[src.0].push(dst.0);
@@ -471,8 +567,8 @@ impl<'a> FlowgraphCompiler<'a> {
             true
         }
 
-        let mut marks = vec![0; self.flowgraph.blocks.len()];
-        for node in 0..self.flowgraph.blocks.len() {
+        let mut marks = vec![0; flowgraph.blocks.len()];
+        for node in 0..flowgraph.blocks.len() {
             if !visit(node, &adjacency, &mut marks) {
                 return Err(Error::ValidationError(
                     "stream connections must form a directed acyclic graph".to_string(),
@@ -483,12 +579,18 @@ impl<'a> FlowgraphCompiler<'a> {
         Ok(())
     }
 
-    fn startup_snapshot(&self) -> Result<StartupSnapshot, Error> {
-        let (endpoints, ids, message_inputs) = storage::endpoints(&self.flowgraph.blocks)?;
-        Ok(StartupSnapshot {
+    fn prepared_control(
+        flowgraph: &Flowgraph,
+        stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+        message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+    ) -> Result<PreparedControl, Error> {
+        let (endpoints, ids, message_inputs) = storage::endpoints(&flowgraph.blocks)?;
+        Ok(PreparedControl {
             endpoints,
             ids,
             message_inputs,
+            stream_edges_desc,
+            message_edges_desc,
         })
     }
 
@@ -509,25 +611,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compiler_produces_explicit_runtime_plan() -> Result<(), Error> {
+    fn compiler_produces_explicit_prepared_flowgraph() -> Result<(), Error> {
         let mut fg = Flowgraph::new();
         let src = fg.add(NullSource::<f32>::new())?;
         let snk = fg.add(NullSink::<f32>::new())?;
         fg.stream_dyn(src, "output", snk, "input")?;
 
         let (main_channel, _main_rx) = channel::<FlowgraphMessage>(8);
-        let plan = FlowgraphCompiler::new(&mut fg, main_channel).compile()?;
-        let RuntimePlanParts {
-            control,
-            connections,
-            domains,
-        } = plan.into_parts();
+        let prepared = FlowgraphCompiler::compile(fg, main_channel)?;
+        let domains = prepared
+            .domains
+            .as_ref()
+            .expect("prepared graph should still own domain plan");
 
-        assert!(fg.stream_edges.is_empty());
-        assert_eq!(control.startup.ids, vec![src.id(), snk.id()]);
-        assert_eq!(control.startup.endpoints.len(), 2);
+        assert!(prepared.flowgraph.stream_edges.is_empty());
+        assert!(prepared.flowgraph.message_edges.is_empty());
+        assert_eq!(prepared.control.ids, vec![src.id(), snk.id()]);
+        assert_eq!(prepared.control.endpoints.len(), 2);
         assert_eq!(
-            connections.stream_edges(),
+            prepared.connections.stream_edges(),
             &[ResolvedEdge::new(
                 src.id(),
                 PortIndex::new(0),
@@ -535,9 +637,9 @@ mod tests {
                 PortIndex::new(0)
             )]
         );
-        assert!(connections.message_edges().is_empty());
+        assert!(prepared.connections.message_edges().is_empty());
         assert_eq!(
-            control.stream_edges_desc,
+            prepared.control.stream_edges_desc,
             vec![(
                 src.id(),
                 PortId::from("output"),

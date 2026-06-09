@@ -17,6 +17,7 @@ use futuresdr::runtime::scheduler::Task;
 use std::iter::repeat_with;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
@@ -55,6 +56,7 @@ impl Drop for StopOnMessage {
 #[derive(Clone, Default)]
 struct FailingStartScheduler {
     inner: SmolScheduler,
+    starts: Arc<AtomicUsize>,
 }
 
 impl Scheduler for FailingStartScheduler {
@@ -62,6 +64,7 @@ impl Scheduler for FailingStartScheduler {
         &self,
         _spec: NormalDomainSpec,
     ) -> std::result::Result<NormalRunningDomain, Error> {
+        self.starts.fetch_add(1, Ordering::SeqCst);
         Err(Error::RuntimeError("scheduler start failed".to_string()))
     }
 
@@ -70,6 +73,12 @@ impl Scheduler for FailingStartScheduler {
         future: impl std::future::Future<Output = T> + Send + 'static,
     ) -> Task<T> {
         self.inner.spawn(future)
+    }
+}
+
+impl FailingStartScheduler {
+    fn starts(&self) -> usize {
+        self.starts.load(Ordering::SeqCst)
     }
 }
 
@@ -113,12 +122,32 @@ fn fg_scheduler_start_failure_is_reported() -> Result<()> {
     let snk = NullSink::<f32>::new();
     connect!(fg, src > snk);
 
-    let err = match Runtime::with_scheduler(FailingStartScheduler::default()).run(fg) {
+    let scheduler = FailingStartScheduler::default();
+    let err = match Runtime::with_scheduler(scheduler.clone()).run(fg) {
         Ok(_) => panic!("flowgraph unexpectedly started"),
         Err(err) => err,
     };
     assert!(matches!(err, Error::RuntimeError(_)));
     assert!(err.to_string().contains("scheduler start failed"));
+    assert_eq!(scheduler.starts(), 1);
+    Ok(())
+}
+
+#[test]
+fn fg_validation_failure_happens_before_scheduler_start() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let copy = fg.add(Copy::<f32>::new())?;
+
+    fg.stream_dyn(copy, "output", copy, "input")?;
+
+    let scheduler = FailingStartScheduler::default();
+    let err = match Runtime::with_scheduler(scheduler.clone()).run(fg) {
+        Ok(_) => panic!("flowgraph unexpectedly started"),
+        Err(err) => err,
+    };
+    assert!(matches!(err, Error::ValidationError(_)));
+    assert!(err.to_string().contains("self-connections"));
+    assert_eq!(scheduler.starts(), 0);
     Ok(())
 }
 

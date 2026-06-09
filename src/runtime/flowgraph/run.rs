@@ -1,8 +1,6 @@
-use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::PortId;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
@@ -11,20 +9,14 @@ use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
 use crate::runtime::scheduler::RunningDomain;
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::scheduler::StoppedDomain;
 
 use super::Flowgraph;
-use super::connector::FlowgraphConnector;
-use super::prepare::ConnectionPlan;
-use super::prepare::DomainStartPlan;
 use super::prepare::FlowgraphCompiler;
-use super::prepare::RuntimePlan;
-use super::prepare::RuntimePlanParts;
-use super::prepare::StartupSnapshot;
+use super::prepare::PreparedFlowgraph;
 use super::terminated::TerminatedFlowgraph;
 
 struct FlowgraphRunner<S> {
-    flowgraph: Flowgraph,
+    flowgraph: Option<Flowgraph>,
     scheduler: S,
     main_channel: Sender<FlowgraphMessage>,
     main_rx: Receiver<FlowgraphMessage>,
@@ -41,7 +33,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     control: oneshot::Sender<RunningFlowgraphControl>,
 ) -> Result<TerminatedFlowgraph, Error> {
     FlowgraphRunner {
-        flowgraph,
+        flowgraph: Some(flowgraph),
         scheduler,
         main_channel,
         main_rx,
@@ -62,25 +54,6 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    fn publish_control(
-        &mut self,
-        endpoints: &[Option<BlockEndpoint>],
-        ids: &[BlockId],
-        message_inputs: &[Option<&'static [&'static str]>],
-        stream_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
-        message_edges_desc: &[(BlockId, PortId, BlockId, PortId)],
-    ) {
-        if let Some(control) = self.control.take() {
-            let _ = control.send(RunningFlowgraphControl::new(
-                endpoints.to_vec(),
-                ids.to_vec(),
-                message_inputs.to_vec(),
-                stream_edges_desc.to_vec(),
-                message_edges_desc.to_vec(),
-            ));
-        }
-    }
-
     async fn terminate_endpoints(endpoints: &mut [Option<BlockEndpoint>]) {
         for inbox in endpoints.iter_mut().flatten() {
             if inbox.send(BlockMessage::Terminate).await.is_err() {
@@ -97,79 +70,12 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    async fn join_domains(
-        &mut self,
-        domains: Vec<RunningDomain>,
-    ) -> Result<Vec<StoppedDomain>, Error> {
-        let mut stopped_domains = Vec::new();
-        let mut join_result = Ok(());
-        for domain in domains {
-            match domain.join().await {
-                Ok(stopped) => stopped_domains.push(stopped),
-                Err(e) => {
-                    if join_result.is_ok() {
-                        join_result = Err(e);
-                    }
-                }
-            }
-        }
-        join_result?;
-        Ok(stopped_domains)
-    }
-
-    async fn cleanup_started_domains(
-        &mut self,
-        endpoints: &mut [Option<BlockEndpoint>],
-        mut domains: Vec<RunningDomain>,
-    ) {
-        Self::terminate_endpoints(endpoints).await;
-        Self::stop_domains(&mut domains).await;
-        match self.join_domains(domains).await {
-            Ok(stopped) => {
-                if let Err(e) = self.flowgraph.domains.restore_stopped_domains(stopped) {
-                    warn!("error while restoring stopped domains during cleanup: {e}");
-                }
-            }
-            Err(e) => warn!("error while cleaning up started domains: {e}"),
-        }
-    }
-
-    fn compile_plan(&mut self) -> Result<RuntimePlan, Error> {
-        FlowgraphCompiler::new(&mut self.flowgraph, self.main_channel.clone()).compile()
-    }
-
-    async fn apply_connections(&mut self, connections: &ConnectionPlan) -> Result<(), Error> {
-        let mut connector = FlowgraphConnector::new(&mut self.flowgraph);
-        connector
-            .apply_stream_edges(connections.stream_edges())
-            .await?;
-        connector
-            .apply_message_edges(connections.message_edges())
-            .await
-    }
-
-    async fn start_domains(
-        &mut self,
-        endpoints: &mut [Option<BlockEndpoint>],
-        domain_plan: DomainStartPlan,
-    ) -> Result<Vec<RunningDomain>, Error> {
-        let blocks = self
+    fn compile_prepared(&mut self) -> Result<PreparedFlowgraph, Error> {
+        let flowgraph = self
             .flowgraph
-            .domains
-            .take_normal_blocks(&self.flowgraph.blocks)?;
-        let prepared_domains = domain_plan.into_domains(blocks);
-        let mut domains = Vec::with_capacity(prepared_domains.len());
-        for prepared in prepared_domains {
-            match prepared.start(&self.scheduler, &mut self.flowgraph.domains) {
-                Ok(domain) => domains.push(domain),
-                Err(e) => {
-                    self.cleanup_started_domains(endpoints, domains).await;
-                    return Err(e);
-                }
-            }
-        }
-
-        Ok(domains)
+            .take()
+            .ok_or_else(|| Error::RuntimeError("flowgraph was already prepared".to_string()))?;
+        FlowgraphCompiler::compile(flowgraph, self.main_channel.clone())
     }
 
     async fn initialize(
@@ -283,48 +189,25 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    async fn recover_stopped_domains(&mut self, domains: Vec<RunningDomain>) -> Result<(), Error> {
-        let stopped_domains = self.join_domains(domains).await?;
-        self.flowgraph
-            .domains
-            .restore_stopped_domains(stopped_domains)
-    }
-
     async fn run(mut self) -> Result<TerminatedFlowgraph, Error> {
         debug!("in run_flowgraph");
         let mut initialized = self.initialized.take();
 
-        let plan = match self.compile_plan() {
-            Ok(plan) => plan,
+        let mut prepared = match self.compile_prepared() {
+            Ok(prepared) => prepared,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
                 return Err(e);
             }
         };
-        let RuntimePlanParts {
-            control,
-            connections,
-            domains: domain_plan,
-        } = plan.into_parts();
-        let StartupSnapshot {
-            mut endpoints,
-            ids,
-            message_inputs,
-        } = control.startup;
-        self.publish_control(
-            &endpoints,
-            &ids,
-            &message_inputs,
-            &control.stream_edges_desc,
-            &control.message_edges_desc,
-        );
+        prepared.publish_control(self.control.take());
 
-        if let Err(e) = self.apply_connections(&connections).await {
+        if let Err(e) = prepared.apply_connections().await {
             Self::send_initialized_error(&mut initialized, e.clone());
             return Err(e);
         }
 
-        let mut domains = match self.start_domains(&mut endpoints, domain_plan).await {
+        let mut domains = match prepared.start_domains(self.scheduler.clone()).await {
             Ok(domains) => domains,
             Err(e) => {
                 Self::send_initialized_error(&mut initialized, e.clone());
@@ -333,10 +216,11 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         };
 
         let run_result =
-            match Self::initialize(&mut endpoints, &self.main_rx, &mut initialized).await {
+            match Self::initialize(prepared.endpoints_mut(), &self.main_rx, &mut initialized).await
+            {
                 Ok(active_blocks) => {
                     Self::drive_until_complete(
-                        &mut endpoints,
+                        prepared.endpoints_mut(),
                         &mut domains,
                         active_blocks,
                         &self.main_rx,
@@ -348,25 +232,14 @@ impl<S: Scheduler> FlowgraphRunner<S> {
 
         if let Err(e) = run_result {
             let startup_failed = initialized.is_some();
-            Self::terminate_endpoints(&mut endpoints).await;
-            Self::stop_domains(&mut domains).await;
-            match self.join_domains(domains).await {
-                Ok(stopped) => {
-                    if let Err(restore_error) =
-                        self.flowgraph.domains.restore_stopped_domains(stopped)
-                    {
-                        warn!("error while restoring domains after failure: {restore_error}");
-                    }
-                }
-                Err(join_error) => warn!("error while joining domains after failure: {join_error}"),
-            }
+            prepared.cleanup_started_domains(domains).await;
             if startup_failed {
                 Self::send_initialized_error(&mut initialized, e.clone());
             }
             return Err(e);
         }
 
-        self.recover_stopped_domains(domains).await?;
-        Ok(TerminatedFlowgraph::new(self.flowgraph))
+        prepared.recover_stopped_domains(domains).await?;
+        Ok(prepared.into_terminated())
     }
 }
