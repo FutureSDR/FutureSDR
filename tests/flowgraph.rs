@@ -52,17 +52,9 @@ impl Drop for StopOnMessage {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct FailingStartScheduler {
     inner: SmolScheduler,
-}
-
-impl Default for FailingStartScheduler {
-    fn default() -> Self {
-        Self {
-            inner: SmolScheduler::default(),
-        }
-    }
 }
 
 impl Scheduler for FailingStartScheduler {

@@ -16,9 +16,9 @@ use crate::runtime::scheduler::Scheduler;
 
 use super::Flowgraph;
 use super::domains::FlowgraphDomains;
+use super::domains::NORMAL_DOMAIN_ID;
 use super::storage;
 use super::types::BlockLocation;
-use super::types::DomainLocation;
 
 pub(super) struct StartupSnapshot {
     pub(super) endpoints: Vec<Option<BlockEndpoint>>,
@@ -76,14 +76,40 @@ pub(super) struct DomainStartPlan {
     main_channel: Sender<FlowgraphMessage>,
 }
 
-enum PreparedDomainPlan {
+struct PreparedDomainPlan {
+    domain_id: usize,
+    kind: PreparedDomainPlanKind,
+}
+
+enum PreparedDomainPlanKind {
     Normal { topology: DomainTopology },
     Local(LocalDomainSpec),
 }
 
-pub(super) enum PreparedDomain {
+pub(super) struct PreparedDomain {
+    domain_id: usize,
+    kind: PreparedDomainKind,
+}
+
+enum PreparedDomainKind {
     Normal(NormalDomainSpec),
     Local(LocalDomainSpec),
+}
+
+impl PreparedDomainPlan {
+    fn normal(domain_id: usize, topology: DomainTopology) -> Self {
+        Self {
+            domain_id,
+            kind: PreparedDomainPlanKind::Normal { topology },
+        }
+    }
+
+    fn local(domain_id: usize, spec: LocalDomainSpec) -> Self {
+        Self {
+            domain_id,
+            kind: PreparedDomainPlanKind::Local(spec),
+        }
+    }
 }
 
 impl PreparedDomain {
@@ -92,12 +118,12 @@ impl PreparedDomain {
         scheduler: &S,
         domains: &mut FlowgraphDomains,
     ) -> Result<RunningDomain, Error> {
-        match self {
-            Self::Normal(spec) => scheduler
+        let domain_id = self.domain_id;
+        match self.kind {
+            PreparedDomainKind::Normal(spec) => scheduler
                 .start_normal_domain(spec)
-                .map(RunningDomain::Normal),
-            Self::Local(spec) => {
-                let domain_id = spec.domain_id;
+                .map(|domain| RunningDomain::normal(domain_id, domain)),
+            PreparedDomainKind::Local(spec) => {
                 if domains.local(domain_id).is_none() {
                     return Err(Error::RuntimeError(format!(
                         "local domain {domain_id} disappeared during startup"
@@ -108,7 +134,7 @@ impl PreparedDomain {
                     .local_mut(domain_id)
                     .expect("validated local domain disappeared during startup")
                     .mark_running();
-                Ok(RunningDomain::Local(domain))
+                Ok(RunningDomain::local(domain_id, domain))
             }
         }
     }
@@ -130,17 +156,21 @@ impl DomainStartPlan {
         let mut normal_blocks = Some(normal_blocks);
         domains
             .into_iter()
-            .map(|domain| match domain {
-                PreparedDomainPlan::Normal { topology } => {
-                    PreparedDomain::Normal(NormalDomainSpec::new(
-                        normal_blocks
-                            .take()
-                            .expect("normal domain prepared more than once"),
-                        topology,
-                        main_channel.clone(),
-                    ))
-                }
-                PreparedDomainPlan::Local(spec) => PreparedDomain::Local(spec),
+            .map(|domain| {
+                let domain_id = domain.domain_id;
+                let kind = match domain.kind {
+                    PreparedDomainPlanKind::Normal { topology } => {
+                        PreparedDomainKind::Normal(NormalDomainSpec::new(
+                            normal_blocks
+                                .take()
+                                .expect("normal domain prepared more than once"),
+                            topology,
+                            main_channel.clone(),
+                        ))
+                    }
+                    PreparedDomainPlanKind::Local(spec) => PreparedDomainKind::Local(spec),
+                };
+                PreparedDomain { domain_id, kind }
             })
             .collect()
     }
@@ -195,17 +225,20 @@ impl RuntimePlan {
 
         let normal_topology =
             DomainStartPlan::domain_topology(&normal_block_ids, &stream_edges, &message_edges);
-        let mut domains = vec![PreparedDomainPlan::Normal {
-            topology: normal_topology,
-        }];
+        let mut domains = vec![PreparedDomainPlan::normal(
+            NORMAL_DOMAIN_ID,
+            normal_topology,
+        )];
         domains.extend(local_domains.into_iter().map(|domain| {
-            PreparedDomainPlan::Local(LocalDomainSpec::new(
-                domain.domain_id,
+            let domain_id = domain.domain_id;
+            let spec = LocalDomainSpec::new(
+                domain_id,
                 domain.inbox,
                 domain.slots,
                 DomainStartPlan::domain_topology(&domain.block_ids, &stream_edges, &message_edges),
                 main_channel.clone(),
-            ))
+            );
+            PreparedDomainPlan::local(domain_id, spec)
         }));
 
         Self {
@@ -264,9 +297,7 @@ impl<'a> FlowgraphCompiler<'a> {
 
         let normal_block_ids = block_locations
             .iter()
-            .filter_map(|location| {
-                (location.domain == DomainLocation::Normal).then_some(location.block_id)
-            })
+            .filter_map(|location| location.is_normal().then_some(location.block_id))
             .collect::<Vec<_>>();
         let local_domains = self.local_domain_plans(&block_locations);
         let startup = self.startup_snapshot()?;
@@ -287,8 +318,9 @@ impl<'a> FlowgraphCompiler<'a> {
     fn local_domain_plans(&self, block_locations: &[BlockLocation]) -> Vec<LocalDomainPlan> {
         let mut local_slots_by_domain = vec![Vec::new(); self.flowgraph.domains.domain_len()];
         for location in block_locations {
-            if let DomainLocation::Local(domain_id) = location.domain {
-                local_slots_by_domain[domain_id].push((location.block_id, location.domain_slot));
+            if location.is_local() {
+                local_slots_by_domain[location.domain_id]
+                    .push((location.block_id, location.domain_slot));
             }
         }
 
@@ -439,7 +471,8 @@ mod tests {
             )]
         );
         assert_eq!(domains.domains.len(), 1);
-        let PreparedDomainPlan::Normal { topology } = &domains.domains[0] else {
+        assert_eq!(domains.domains[0].domain_id, NORMAL_DOMAIN_ID);
+        let PreparedDomainPlanKind::Normal { topology } = &domains.domains[0].kind else {
             panic!("expected normal prepared-domain plan");
         };
         assert_eq!(topology.blocks(), &[src.id(), snk.id()]);

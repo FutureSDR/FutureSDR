@@ -49,7 +49,6 @@ use domains::FlowgraphDomains;
 use local_context::LocalDomainContextEntry;
 use types::BlockLocation;
 use types::BlockPlacement;
-use types::DomainLocation;
 use types::StreamEdge;
 
 pub(super) struct BlockSlot {
@@ -61,12 +60,13 @@ pub(super) struct BlockSlot {
 
 impl BlockSlot {
     fn normal(
+        normal_id: usize,
         endpoint: BlockEndpoint,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
         Self {
-            placement: BlockPlacement::Normal,
+            placement: BlockPlacement::Normal { normal_id },
             endpoint,
             message_inputs,
             message_outputs,
@@ -112,7 +112,7 @@ impl BlockSlot {
     }
 
     fn is_normal(&self) -> bool {
-        matches!(self.placement, BlockPlacement::Normal)
+        matches!(self.placement, BlockPlacement::Normal { .. })
     }
 }
 
@@ -413,13 +413,14 @@ impl Flowgraph {
         message_outputs: &'static [&'static str],
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
-        let placement = BlockPlacement::Normal;
-        self.domains
-            .normal_mut()
-            .insert_block(block_id, block)
-            .expect("normal block slot should be vacant for a new block id");
-        self.blocks
-            .push(BlockSlot::normal(inbox, message_inputs, message_outputs));
+        let normal_id = self.domains.normal_mut().push_block(block);
+        let placement = BlockPlacement::Normal { normal_id };
+        self.blocks.push(BlockSlot::normal(
+            normal_id,
+            inbox,
+            message_inputs,
+            message_outputs,
+        ));
         self.block_ref(block_id, placement)
     }
 
@@ -577,9 +578,7 @@ impl Flowgraph {
             .map(|(block_id, entry)| {
                 let block_id = BlockId(block_id);
                 let location = entry.location(block_id);
-                if let DomainLocation::Local(domain_id) = location.domain
-                    && self.domains.local(domain_id).is_none()
-                {
+                if location.is_local() && self.domains.local(location.domain_id).is_none() {
                     return Err(Error::InvalidBlock(block_id));
                 }
                 Ok(location)
@@ -592,89 +591,22 @@ impl Flowgraph {
         dst: BlockLocation,
         dynamic: bool,
     ) -> Result<(BlockLocation, BlockLocation), Error> {
-        match (src.domain, dst.domain) {
-            (DomainLocation::Local(src_domain), DomainLocation::Local(dst_domain))
-                if src_domain == dst_domain =>
-            {
-                Ok((src, dst))
-            }
-            (DomainLocation::Local(_), DomainLocation::Local(_)) => Err(Error::ValidationError(
+        if src.is_local() && dst.is_local() && src.domain_id == dst.domain_id {
+            Ok((src, dst))
+        } else if src.is_local() && dst.is_local() {
+            Err(Error::ValidationError(
                 "stream connections between different local domains are not supported".to_string(),
-            )),
-            _ => {
-                let prefix = if dynamic {
-                    "local dynamic stream connections"
-                } else {
-                    "local stream connections"
-                };
-                Err(Error::ValidationError(format!(
-                    "{prefix} require source and destination blocks in the same local domain"
-                )))
-            }
+            ))
+        } else {
+            let prefix = if dynamic {
+                "local dynamic stream connections"
+            } else {
+                "local stream connections"
+            };
+            Err(Error::ValidationError(format!(
+                "{prefix} require source and destination blocks in the same local domain"
+            )))
         }
-    }
-
-    fn get_two_typed_wrapped_blocks_mut<KS, KD>(
-        &mut self,
-        src_id: BlockId,
-        dst_id: BlockId,
-    ) -> Result<(&mut NormalWrappedKernel<KS>, &mut NormalWrappedKernel<KD>), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-    {
-        if self
-            .blocks
-            .get(src_id.0)
-            .is_none_or(|slot| !slot.is_normal())
-        {
-            return Err(Error::InvalidBlock(src_id));
-        }
-        if self
-            .blocks
-            .get(dst_id.0)
-            .is_none_or(|slot| !slot.is_normal())
-        {
-            return Err(Error::InvalidBlock(dst_id));
-        }
-
-        let (src_block, dst_block) = self.domains.normal_mut().two_blocks_mut(src_id, dst_id)?;
-        let src = src_block
-            .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<KS>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    src_id,
-                    std::any::type_name::<KS>()
-                ))
-            })?;
-        let dst = dst_block
-            .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<KD>>()
-            .ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "block {:?} has unexpected type for {}",
-                    dst_id,
-                    std::any::type_name::<KD>()
-                ))
-            })?;
-
-        Ok((src, dst))
-    }
-
-    fn local_kernel_ref<K: 'static>(
-        block: &dyn BlockObject,
-        block_id: BlockId,
-    ) -> Result<&K, Error> {
-        if let Some(block) = block.as_any().downcast_ref::<LocalWrappedKernel<K>>() {
-            return Ok(&block.kernel);
-        }
-        Err(Error::ValidationError(format!(
-            "local block {:?} has unexpected type for {}",
-            block_id,
-            std::any::type_name::<K>()
-        )))
     }
 
     fn local_kernel_mut<K: 'static>(

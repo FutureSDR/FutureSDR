@@ -111,7 +111,7 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        DomainAccess::new(&self.blocks, &self.domains)
+        DomainAccess::new(&self.domains)
             .typed_kernel_ref(self.location(block.id)?, move |block| Ok(f(block)))
             .await
     }
@@ -144,7 +144,7 @@ impl TerminatedFlowgraph {
     {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        DomainAccessMut::new(&self.blocks, &mut self.domains)
+        DomainAccessMut::new(&mut self.domains)
             .typed_kernel_mut(location, move |block| Ok(f(block)))
             .await
     }

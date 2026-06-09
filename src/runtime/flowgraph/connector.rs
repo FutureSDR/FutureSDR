@@ -14,7 +14,6 @@ use crate::runtime::buffer::DynSendBufferWriterToken;
 
 use super::Flowgraph;
 use super::types::BlockLocation;
-use super::types::DomainLocation;
 
 struct StreamOutputSendTokenLease {
     location: BlockLocation,
@@ -134,44 +133,6 @@ impl<'a> FlowgraphConnector<'a> {
             dst_block_id,
             dst_port_id.clone(),
         ))
-    }
-
-    pub(super) async fn local_local_stream_edge_async<KS, KD, B, FS, FD>(
-        &self,
-        src: BlockLocation,
-        src_port: FS,
-        dst: BlockLocation,
-        dst_port: FD,
-    ) -> Result<Edge, Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: BufferWriter,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
-    {
-        let (src, dst) = Flowgraph::same_local_stream_locations(src, dst, false)?;
-        let DomainLocation::Local(domain_id) = src.domain else {
-            unreachable!("same_local_stream_locations ensures a local domain")
-        };
-        let domain = self
-            .flowgraph
-            .domains
-            .local(domain_id)
-            .ok_or(Error::InvalidBlock(src.block_id))?;
-        domain
-            .exec(move |state| {
-                let result = (|| {
-                    let (src, dst) = Flowgraph::two_local_state_kernels_mut::<KS, KD>(
-                        state,
-                        (src.domain_slot, src.block_id),
-                        (dst.domain_slot, dst.block_id),
-                    )?;
-                    Ok(Flowgraph::stream_ports_edge(src_port(src), dst_port(dst)))
-                })();
-                Box::pin(futures::future::ready(result))
-            })
-            .await
     }
 
     async fn typed_stream_output_port_id_async<KS, B, FS>(
@@ -366,7 +327,7 @@ impl<'a> FlowgraphConnector<'a> {
         let src = self.flowgraph.location(edge.src_block)?;
         let dst = self.flowgraph.location(edge.dst_block)?;
 
-        if src.domain == dst.domain {
+        if src.domain_id == dst.domain_id {
             self.connect_same_domain_stream_dyn_async(
                 src,
                 edge.src_port.clone(),

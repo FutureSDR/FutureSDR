@@ -9,7 +9,6 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
-use crate::runtime::scheduler::NormalBlocks;
 use crate::runtime::scheduler::RunningDomain;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::StoppedDomain;
@@ -98,14 +97,15 @@ impl<S: Scheduler> FlowgraphRunner<S> {
         }
     }
 
-    async fn join_domains(&mut self, domains: Vec<RunningDomain>) -> Result<NormalBlocks, Error> {
-        let mut finished_blocks = Vec::new();
-        let mut stopped_local_domains = Vec::new();
+    async fn join_domains(
+        &mut self,
+        domains: Vec<RunningDomain>,
+    ) -> Result<Vec<StoppedDomain>, Error> {
+        let mut stopped_domains = Vec::new();
         let mut join_result = Ok(());
         for domain in domains {
             match domain.join().await {
-                Ok(StoppedDomain::Normal(blocks)) => finished_blocks.extend(blocks),
-                Ok(StoppedDomain::Local(domain_id)) => stopped_local_domains.push(domain_id),
+                Ok(stopped) => stopped_domains.push(stopped),
                 Err(e) => {
                     if join_result.is_ok() {
                         join_result = Err(e);
@@ -113,13 +113,8 @@ impl<S: Scheduler> FlowgraphRunner<S> {
                 }
             }
         }
-        for domain_id in stopped_local_domains {
-            if let Some(domain) = self.flowgraph.domains.local_mut(domain_id) {
-                domain.mark_stopped();
-            }
-        }
         join_result?;
-        Ok(finished_blocks)
+        Ok(stopped_domains)
     }
 
     async fn cleanup_started_domains(
@@ -129,8 +124,13 @@ impl<S: Scheduler> FlowgraphRunner<S> {
     ) {
         Self::terminate_endpoints(endpoints).await;
         Self::stop_domains(&mut domains).await;
-        if let Err(e) = self.join_domains(domains).await {
-            warn!("error while cleaning up started domains: {e}");
+        match self.join_domains(domains).await {
+            Ok(stopped) => {
+                if let Err(e) = self.flowgraph.domains.restore_stopped_domains(stopped) {
+                    warn!("error while restoring stopped domains during cleanup: {e}");
+                }
+            }
+            Err(e) => warn!("error while cleaning up started domains: {e}"),
         }
     }
 
@@ -284,10 +284,10 @@ impl<S: Scheduler> FlowgraphRunner<S> {
     }
 
     async fn recover_stopped_domains(&mut self, domains: Vec<RunningDomain>) -> Result<(), Error> {
-        let finished_blocks = self.join_domains(domains).await?;
+        let stopped_domains = self.join_domains(domains).await?;
         self.flowgraph
             .domains
-            .restore_normal_blocks(finished_blocks)
+            .restore_stopped_domains(stopped_domains)
     }
 
     async fn run(mut self) -> Result<TerminatedFlowgraph, Error> {
@@ -350,8 +350,15 @@ impl<S: Scheduler> FlowgraphRunner<S> {
             let startup_failed = initialized.is_some();
             Self::terminate_endpoints(&mut endpoints).await;
             Self::stop_domains(&mut domains).await;
-            if let Err(join_error) = self.join_domains(domains).await {
-                warn!("error while joining domains after failure: {join_error}");
+            match self.join_domains(domains).await {
+                Ok(stopped) => {
+                    if let Err(restore_error) =
+                        self.flowgraph.domains.restore_stopped_domains(stopped)
+                    {
+                        warn!("error while restoring domains after failure: {restore_error}");
+                    }
+                }
+                Err(join_error) => warn!("error while joining domains after failure: {join_error}"),
             }
             if startup_failed {
                 Self::send_initialized_error(&mut initialized, e.clone());

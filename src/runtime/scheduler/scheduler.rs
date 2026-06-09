@@ -118,11 +118,7 @@ impl LocalDomainSpec {
         let completion =
             self.inbox
                 .start_run(self.domain_id, self.slots, self.topology, self.main_channel)?;
-        Ok(LocalRunningDomain::new(
-            self.domain_id,
-            self.inbox,
-            completion,
-        ))
+        Ok(LocalRunningDomain::new(self.inbox, completion))
     }
 }
 
@@ -154,7 +150,6 @@ impl NormalRunningDomain {
 
 /// Running local-domain state returned when an existing local domain is activated.
 pub(crate) struct LocalRunningDomain {
-    domain_id: usize,
     inbox: LocalDomainInbox,
     completion: oneshot::Receiver<Result<(), Error>>,
 }
@@ -162,15 +157,10 @@ pub(crate) struct LocalRunningDomain {
 impl LocalRunningDomain {
     /// Create a running local domain from its completion receiver.
     pub(crate) fn new(
-        domain_id: usize,
         inbox: LocalDomainInbox,
         completion: oneshot::Receiver<Result<(), Error>>,
     ) -> Self {
-        Self {
-            domain_id,
-            inbox,
-            completion,
-        }
+        Self { inbox, completion }
     }
 
     /// Request the local-domain run loop to stop.
@@ -179,46 +169,101 @@ impl LocalRunningDomain {
     }
 
     /// Await the local-domain run loop.
-    pub(crate) async fn join(self) -> Result<usize, Error> {
+    pub(crate) async fn join(self) -> Result<(), Error> {
         self.completion
             .await
             .map_err(|_| Error::RuntimeError("local domain task canceled".to_string()))??;
-        Ok(self.domain_id)
+        Ok(())
     }
 }
 
 /// Running scheduling domain.
-pub(crate) enum RunningDomain {
-    /// The implicit normal send-capable domain.
+pub(crate) struct RunningDomain {
+    domain_id: usize,
+    state: RunningDomainState,
+}
+
+enum RunningDomainState {
     Normal(NormalRunningDomain),
-    /// A local non-`Send` scheduling domain.
     Local(LocalRunningDomain),
 }
 
 impl RunningDomain {
+    /// Construct a running normal domain handle.
+    pub(crate) fn normal(domain_id: usize, domain: NormalRunningDomain) -> Self {
+        Self {
+            domain_id,
+            state: RunningDomainState::Normal(domain),
+        }
+    }
+
+    /// Construct a running local domain handle.
+    pub(crate) fn local(domain_id: usize, domain: LocalRunningDomain) -> Self {
+        Self {
+            domain_id,
+            state: RunningDomainState::Local(domain),
+        }
+    }
+
     /// Stop this running domain.
     pub(crate) async fn stop(&mut self) -> Result<(), Error> {
-        match self {
-            RunningDomain::Normal(domain) => domain.stop().await,
-            RunningDomain::Local(domain) => domain.stop().await,
+        match &mut self.state {
+            RunningDomainState::Normal(domain) => domain.stop().await,
+            RunningDomainState::Local(domain) => domain.stop().await,
         }
     }
 
     /// Join this domain and return its stopped state.
     pub(crate) async fn join(self) -> Result<StoppedDomain, Error> {
-        match self {
-            RunningDomain::Normal(domain) => domain.join().await.map(StoppedDomain::Normal),
-            RunningDomain::Local(domain) => domain.join().await.map(StoppedDomain::Local),
+        let domain_id = self.domain_id;
+        match self.state {
+            RunningDomainState::Normal(domain) => domain
+                .join()
+                .await
+                .map(|blocks| StoppedDomain::normal(domain_id, blocks)),
+            RunningDomainState::Local(domain) => {
+                domain.join().await?;
+                Ok(StoppedDomain::local(domain_id))
+            }
         }
     }
 }
 
 /// Stopped scheduling-domain state.
-pub(crate) enum StoppedDomain {
+pub(crate) struct StoppedDomain {
+    domain_id: usize,
+    state: StoppedDomainState,
+}
+
+pub(crate) enum StoppedDomainState {
     /// Blocks returned by the normal domain.
     Normal(NormalBlocks),
-    /// Stopped local-domain id.
-    Local(usize),
+    /// A local domain whose block state has already been restored internally.
+    Local,
+}
+
+impl StoppedDomain {
+    pub(crate) fn normal(domain_id: usize, blocks: NormalBlocks) -> Self {
+        Self {
+            domain_id,
+            state: StoppedDomainState::Normal(blocks),
+        }
+    }
+
+    pub(crate) fn local(domain_id: usize) -> Self {
+        Self {
+            domain_id,
+            state: StoppedDomainState::Local,
+        }
+    }
+
+    pub(crate) fn domain_id(&self) -> usize {
+        self.domain_id
+    }
+
+    pub(crate) fn into_state(self) -> StoppedDomainState {
+        self.state
+    }
 }
 
 /// Scheduler trait for runtime work and the implicit normal scheduling domain.

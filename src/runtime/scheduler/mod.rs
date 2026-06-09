@@ -34,6 +34,7 @@ pub use scheduler::NormalRunningDomain;
 pub(crate) use scheduler::RunningDomain;
 pub use scheduler::Scheduler;
 pub(crate) use scheduler::StoppedDomain;
+pub(crate) use scheduler::StoppedDomainState;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

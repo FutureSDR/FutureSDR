@@ -9,9 +9,9 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::SendBufferWriter;
 
 use super::Flowgraph;
+use super::block_access;
 use super::connector::FlowgraphConnector;
 use super::types::BlockRef;
-use super::types::DomainLocation;
 use super::types::StreamEdge;
 
 impl Flowgraph {
@@ -75,21 +75,13 @@ impl Flowgraph {
         let dst_id = dst_block.id;
         let src = self.location(src_id)?;
         let dst = self.location(dst_id)?;
-        let edge = if src.domain == dst.domain {
-            match src.domain {
-                DomainLocation::Normal => {
-                    let (src, dst) = self.get_two_typed_wrapped_blocks_mut(src_id, dst_id)?;
-                    Self::stream_ports_edge(src_port(&mut src.kernel), dst_port(&mut dst.kernel))
-                }
-                DomainLocation::Local(_) => {
-                    let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-                    FlowgraphConnector::new(self)
-                        .local_local_stream_edge_async::<KS, KD, B, FS, FD>(
-                            src, src_port, dst, dst_port,
-                        )
-                        .await?
-                }
-            }
+        let edge = if src.domain_id == dst.domain_id {
+            self.with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
+                let src = block_access::typed_kernel_mut_from_object::<KS>(src_block, src_id)?;
+                let dst = block_access::typed_kernel_mut_from_object::<KD>(dst_block, dst_id)?;
+                Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
+            })
+            .await?
         } else {
             FlowgraphConnector::new(self)
                 .cross_domain_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
@@ -146,8 +138,12 @@ impl Flowgraph {
         let src = self.location(src_id)?;
         let dst = self.location(dst_id)?;
         let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-        let edge = FlowgraphConnector::new(self)
-            .local_local_stream_edge_async::<KS, KD, B, FS, FD>(src, src_port, dst, dst_port)
+        let edge = self
+            .with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
+                let src = block_access::typed_kernel_mut_from_object::<KS>(src_block, src_id)?;
+                let dst = block_access::typed_kernel_mut_from_object::<KD>(dst_block, dst_id)?;
+                Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
+            })
             .await?;
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
@@ -221,7 +217,7 @@ impl Flowgraph {
 
         let src = self.location(src_block_id)?;
         let dst = self.location(dst_block_id)?;
-        let local_only = src.domain == dst.domain && src.domain.is_local();
+        let local_only = src.domain_id == dst.domain_id && src.is_local();
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
         let edge = self.validate_stream_edge_ports(&edge).await?;
         self.stream_edges

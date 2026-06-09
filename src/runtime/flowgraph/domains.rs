@@ -5,8 +5,12 @@ use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::scheduler::NormalBlocks;
+use crate::runtime::scheduler::StoppedDomain;
+use crate::runtime::scheduler::StoppedDomainState;
 
 use super::BlockSlot;
+use super::types::BlockLocation;
+use super::types::BlockPlacement;
 
 /// The implicit normal domain always occupies domain slot 0.
 pub(super) const NORMAL_DOMAIN_ID: usize = 0;
@@ -87,23 +91,165 @@ impl FlowgraphDomains {
         }
     }
 
+    fn local_for_location(&self, location: BlockLocation) -> Result<&LocalDomainRuntime, Error> {
+        self.local(location.domain_id)
+            .ok_or(Error::InvalidBlock(location.block_id))
+    }
+
+    pub(super) fn direct_block(&self, location: BlockLocation) -> Result<&dyn BlockObject, Error> {
+        if location.is_normal() {
+            self.normal().block(location.domain_slot, location.block_id)
+        } else {
+            Err(Error::LockError)
+        }
+    }
+
+    pub(super) fn direct_block_mut(
+        &mut self,
+        location: BlockLocation,
+    ) -> Result<&mut dyn BlockObject, Error> {
+        if location.is_normal() {
+            self.normal_mut()
+                .block_mut(location.domain_slot, location.block_id)
+        } else {
+            Err(Error::LockError)
+        }
+    }
+
+    pub(super) async fn with_block_ref<R>(
+        &self,
+        location: BlockLocation,
+        f: impl FnOnce(&dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        if location.is_normal() {
+            f(self.direct_block(location)?)
+        } else {
+            let domain = self.local_for_location(location)?;
+            if domain.is_running() {
+                return Err(Error::LockError);
+            }
+            domain
+                .exec(move |state| {
+                    let result = (|| {
+                        let block = state.block(location.domain_slot, location.block_id)?;
+                        f(block)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await
+        }
+    }
+
+    pub(super) async fn with_block_mut<R>(
+        &mut self,
+        location: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        if location.is_normal() {
+            f(self.direct_block_mut(location)?)
+        } else {
+            let domain = self.local_for_location(location)?;
+            if domain.is_running() {
+                return Err(Error::LockError);
+            }
+            domain
+                .exec(move |state| {
+                    let result = (|| {
+                        let block = state.block_mut(location.domain_slot, location.block_id)?;
+                        f(block)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await
+        }
+    }
+
+    pub(super) async fn with_same_domain_two_blocks_mut<R>(
+        &mut self,
+        src: BlockLocation,
+        dst: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject, &mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        if src.domain_id != dst.domain_id {
+            return Err(Error::ValidationError(
+                "same-domain block access received blocks in different domains".to_string(),
+            ));
+        }
+
+        if src.is_normal() {
+            let (src_block, dst_block) = self.normal_mut().two_blocks_mut(
+                (src.domain_slot, src.block_id),
+                (dst.domain_slot, dst.block_id),
+            )?;
+            f(src_block, dst_block)
+        } else {
+            let domain = self.local_for_location(src)?;
+            if domain.is_running() {
+                return Err(Error::LockError);
+            }
+            domain
+                .exec(move |state| {
+                    let result = (|| {
+                        let (src_block, dst_block) = state.two_blocks_mut(
+                            (src.domain_slot, src.block_id),
+                            (dst.domain_slot, dst.block_id),
+                        )?;
+                        f(src_block, dst_block)
+                    })();
+                    Box::pin(futures::future::ready(result))
+                })
+                .await
+        }
+    }
+
     pub(super) fn take_normal_blocks(
         &mut self,
         blocks: &[BlockSlot],
     ) -> Result<NormalBlocks, Error> {
         self.normal_mut()
-            .take_blocks(Self::normal_block_ids(blocks))
+            .take_blocks(Self::normal_block_slots(blocks))
     }
 
-    pub(super) fn restore_normal_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        self.normal_mut().restore_blocks(blocks)
+    pub(super) fn restore_stopped_domain(&mut self, domain: StoppedDomain) -> Result<(), Error> {
+        let domain_id = domain.domain_id();
+        match domain.into_state() {
+            StoppedDomainState::Normal(blocks) => self.normal_mut().restore_blocks(blocks),
+            StoppedDomainState::Local => {
+                if let Some(domain) = self.local_mut(domain_id) {
+                    domain.mark_stopped();
+                }
+                Ok(())
+            }
+        }
     }
 
-    fn normal_block_ids(blocks: &[BlockSlot]) -> impl Iterator<Item = BlockId> + '_ {
+    pub(super) fn restore_stopped_domains(
+        &mut self,
+        domains: impl IntoIterator<Item = StoppedDomain>,
+    ) -> Result<(), Error> {
+        for domain in domains {
+            self.restore_stopped_domain(domain)?;
+        }
+        Ok(())
+    }
+
+    fn normal_block_slots(blocks: &[BlockSlot]) -> impl Iterator<Item = (usize, BlockId)> + '_ {
         blocks
             .iter()
             .enumerate()
-            .filter_map(|(id, slot)| slot.is_normal().then_some(BlockId(id)))
+            .filter_map(|(id, slot)| match slot.placement() {
+                BlockPlacement::Normal { normal_id } => Some((normal_id, BlockId(id))),
+                BlockPlacement::Local { .. } => None,
+            })
     }
 }
 
@@ -113,14 +259,13 @@ impl Default for FlowgraphDomains {
     }
 }
 
-/// Sparse normal-domain block table indexed by global [`BlockId`].
+/// Dense normal-domain block table indexed by normal-domain slot id.
 ///
-/// Local blocks still occupy global block ids, so the normal-domain table has
-/// holes at local block ids. Keeping the same index preserves the existing
-/// `BlockPlacement::Normal` shape while moving normal block state out of
-/// `BlockSlot` metadata.
+/// Global block ids stay in [`BlockSlot`] metadata. The normal domain stores
+/// only blocks assigned to the implicit domain 0, without holes for local-domain
+/// blocks.
 pub(super) struct NormalDomain {
-    slots: Vec<Option<NormalBlockSlot>>,
+    slots: Vec<NormalBlockSlot>,
 }
 
 impl NormalDomain {
@@ -128,96 +273,93 @@ impl NormalDomain {
         Self { slots: Vec::new() }
     }
 
-    pub(super) fn insert_block(
-        &mut self,
-        block_id: BlockId,
-        block: Box<dyn Block>,
-    ) -> Result<(), Error> {
-        if self.slots.len() <= block_id.0 {
-            self.slots.resize_with(block_id.0 + 1, || None);
-        }
-        if self.slots[block_id.0].is_some() {
-            return Err(Error::RuntimeError(format!(
-                "normal block slot {:?} was inserted more than once",
-                block_id
-            )));
-        }
-        self.slots[block_id.0] = Some(NormalBlockSlot::new(block));
-        Ok(())
+    pub(super) fn push_block(&mut self, block: Box<dyn Block>) -> usize {
+        let normal_id = self.slots.len();
+        self.slots.push(NormalBlockSlot::new(block));
+        normal_id
     }
 
-    pub(super) fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
+    pub(super) fn block(
+        &self,
+        normal_id: usize,
+        block_id: BlockId,
+    ) -> Result<&dyn BlockObject, Error> {
         self.slots
-            .get(block_id.0)
-            .and_then(Option::as_ref)
+            .get(normal_id)
             .ok_or(Error::InvalidBlock(block_id))?
             .block(block_id)
     }
 
-    pub(super) fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
+    pub(super) fn block_mut(
+        &mut self,
+        normal_id: usize,
+        block_id: BlockId,
+    ) -> Result<&mut dyn BlockObject, Error> {
         self.slots
-            .get_mut(block_id.0)
-            .and_then(Option::as_mut)
+            .get_mut(normal_id)
             .ok_or(Error::InvalidBlock(block_id))?
             .block_mut(block_id)
     }
 
     pub(super) fn two_blocks_mut(
         &mut self,
-        first: BlockId,
-        second: BlockId,
+        first: (usize, BlockId),
+        second: (usize, BlockId),
     ) -> Result<(&mut dyn BlockObject, &mut dyn BlockObject), Error> {
-        if first == second {
+        let (first_slot, first_id) = first;
+        let (second_slot, second_id) = second;
+        if first_slot == second_slot {
             return Err(Error::LockError);
         }
 
-        let len = self.slots.len();
-        let invalid_block = if first.0 >= len { first } else { second };
-        let [first_slot, second_slot] =
-            self.slots
-                .get_disjoint_mut([first.0, second.0])
-                .map_err(|err| match err {
-                    std::slice::GetDisjointMutError::IndexOutOfBounds => {
-                        Error::InvalidBlock(invalid_block)
-                    }
-                    std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
-                })?;
+        let invalid_block = if first_slot >= self.slots.len() {
+            first_id
+        } else {
+            second_id
+        };
+        let [first_slot_ref, second_slot_ref] = self
+            .slots
+            .get_disjoint_mut([first_slot, second_slot])
+            .map_err(|err| match err {
+                std::slice::GetDisjointMutError::IndexOutOfBounds => {
+                    Error::InvalidBlock(invalid_block)
+                }
+                std::slice::GetDisjointMutError::OverlappingIndices => Error::LockError,
+            })?;
 
-        let first_block = first_slot
-            .as_mut()
-            .ok_or(Error::InvalidBlock(first))?
-            .block_mut(first)?;
-        let second_block = second_slot
-            .as_mut()
-            .ok_or(Error::InvalidBlock(second))?
-            .block_mut(second)?;
+        let first_block = first_slot_ref.block_mut(first_id)?;
+        let second_block = second_slot_ref.block_mut(second_id)?;
         Ok((first_block, second_block))
     }
 
-    pub(super) fn take_block(&mut self, block_id: BlockId) -> Result<Box<dyn Block>, Error> {
+    pub(super) fn take_block(
+        &mut self,
+        normal_id: usize,
+        block_id: BlockId,
+    ) -> Result<Box<dyn Block>, Error> {
         self.slots
-            .get_mut(block_id.0)
-            .and_then(Option::as_mut)
+            .get_mut(normal_id)
             .ok_or(Error::InvalidBlock(block_id))?
             .take_block(block_id)
     }
 
     pub(super) fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
         let block_id = block.id();
-        self.slots
-            .get_mut(block_id.0)
-            .and_then(Option::as_mut)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .restore_block(block)
+        let slot = self
+            .slots
+            .iter_mut()
+            .find(|slot| slot.block_id == block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        slot.restore_block(block)
     }
 
     pub(super) fn take_blocks(
         &mut self,
-        ids: impl IntoIterator<Item = BlockId>,
+        slots: impl IntoIterator<Item = (usize, BlockId)>,
     ) -> Result<NormalBlocks, Error> {
         let mut blocks = Vec::new();
-        for id in ids {
-            blocks.push(self.take_block(id)?);
+        for (normal_id, block_id) in slots {
+            blocks.push(self.take_block(normal_id, block_id)?);
         }
         Ok(blocks)
     }
@@ -231,6 +373,7 @@ impl NormalDomain {
 }
 
 struct NormalBlockSlot {
+    block_id: BlockId,
     state: NormalBlockState,
 }
 
@@ -241,44 +384,48 @@ enum NormalBlockState {
 
 impl NormalBlockSlot {
     fn new(block: Box<dyn Block>) -> Self {
+        let block_id = block.id();
         Self {
+            block_id,
             state: NormalBlockState::Available(block),
         }
     }
 
+    fn validate(&self, block_id: BlockId) -> Result<(), Error> {
+        if self.block_id == block_id {
+            Ok(())
+        } else {
+            Err(Error::InvalidBlock(block_id))
+        }
+    }
+
     fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
+        self.validate(block_id)?;
         match &self.state {
-            NormalBlockState::Available(block) if block.id() == block_id => {
-                Ok(block.as_ref() as &dyn BlockObject)
-            }
-            NormalBlockState::Available(_) => Err(Error::InvalidBlock(block_id)),
+            NormalBlockState::Available(block) => Ok(block.as_ref() as &dyn BlockObject),
             NormalBlockState::Running => Err(Error::LockError),
         }
     }
 
     fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
+        self.validate(block_id)?;
         match &mut self.state {
-            NormalBlockState::Available(block) if block.id() == block_id => {
-                Ok(block.as_mut() as &mut dyn BlockObject)
-            }
-            NormalBlockState::Available(_) => Err(Error::InvalidBlock(block_id)),
+            NormalBlockState::Available(block) => Ok(block.as_mut() as &mut dyn BlockObject),
             NormalBlockState::Running => Err(Error::LockError),
         }
     }
 
     fn take_block(&mut self, block_id: BlockId) -> Result<Box<dyn Block>, Error> {
+        self.validate(block_id)?;
         match std::mem::replace(&mut self.state, NormalBlockState::Running) {
-            NormalBlockState::Available(block) if block.id() == block_id => Ok(block),
-            NormalBlockState::Available(block) => {
-                self.state = NormalBlockState::Available(block);
-                Err(Error::InvalidBlock(block_id))
-            }
+            NormalBlockState::Available(block) => Ok(block),
             NormalBlockState::Running => Err(Error::LockError),
         }
     }
 
     fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
         let block_id = block.id();
+        self.validate(block_id)?;
         let previous = std::mem::replace(&mut self.state, NormalBlockState::Running);
         match previous {
             NormalBlockState::Running => {
@@ -387,20 +534,28 @@ mod tests {
     }
 
     #[test]
-    fn normal_domain_is_sparse_by_global_block_id() {
+    fn normal_domain_is_dense_by_domain_slot() {
         let mut domain = NormalDomain::new();
-        domain
-            .insert_block(BlockId(2), Box::new(TestBlock { id: BlockId(2) }))
-            .unwrap();
+        let normal_id = domain.push_block(Box::new(TestBlock { id: BlockId(2) }));
 
-        assert!(domain.block(BlockId(0)).is_err());
-        assert_eq!(domain.block(BlockId(2)).unwrap().id(), BlockId(2));
+        assert_eq!(normal_id, 0);
+        assert!(domain.block(0, BlockId(0)).is_err());
+        assert_eq!(
+            domain.block(normal_id, BlockId(2)).unwrap().id(),
+            BlockId(2)
+        );
 
-        let blocks = domain.take_blocks([BlockId(2)]).unwrap();
+        let blocks = domain.take_blocks([(normal_id, BlockId(2))]).unwrap();
         assert_eq!(blocks.len(), 1);
-        assert!(matches!(domain.block(BlockId(2)), Err(Error::LockError)));
+        assert!(matches!(
+            domain.block(normal_id, BlockId(2)),
+            Err(Error::LockError)
+        ));
 
         domain.restore_blocks(blocks).unwrap();
-        assert_eq!(domain.block(BlockId(2)).unwrap().id(), BlockId(2));
+        assert_eq!(
+            domain.block(normal_id, BlockId(2)).unwrap().id(),
+            BlockId(2)
+        );
     }
 }

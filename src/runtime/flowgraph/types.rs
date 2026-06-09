@@ -124,43 +124,41 @@ pub struct BlockRef<K> {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(super) enum BlockPlacement {
-    Normal,
+    Normal { normal_id: usize },
     Local { domain_id: usize, local_id: usize },
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(super) enum DomainLocation {
-    Normal,
-    Local(usize),
-}
-
-impl DomainLocation {
-    pub(super) fn is_local(self) -> bool {
-        matches!(self, Self::Local(_))
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(super) struct BlockLocation {
     pub(super) block_id: BlockId,
-    pub(super) domain: DomainLocation,
+    pub(super) domain_id: usize,
     pub(super) domain_slot: usize,
+}
+
+impl BlockLocation {
+    pub(super) fn is_normal(self) -> bool {
+        self.domain_id == super::domains::NORMAL_DOMAIN_ID
+    }
+
+    pub(super) fn is_local(self) -> bool {
+        !self.is_normal()
+    }
 }
 
 impl BlockPlacement {
     pub(super) fn location(self, block_id: BlockId) -> BlockLocation {
         match self {
-            Self::Normal => BlockLocation {
+            Self::Normal { normal_id } => BlockLocation {
                 block_id,
-                domain: DomainLocation::Normal,
-                domain_slot: block_id.0,
+                domain_id: super::domains::NORMAL_DOMAIN_ID,
+                domain_slot: normal_id,
             },
             Self::Local {
                 domain_id,
                 local_id,
             } => BlockLocation {
                 block_id,
-                domain: DomainLocation::Local(domain_id),
+                domain_id,
                 domain_slot: local_id,
             },
         }
@@ -310,14 +308,14 @@ mod tests {
     use crate::runtime::BlockId;
 
     use super::BlockPlacement;
-    use super::DomainLocation;
 
     #[test]
     fn block_placement_maps_to_domain_location() {
-        let normal = BlockPlacement::Normal.location(BlockId(3));
+        let normal = BlockPlacement::Normal { normal_id: 1 }.location(BlockId(3));
         assert_eq!(normal.block_id, BlockId(3));
-        assert_eq!(normal.domain, DomainLocation::Normal);
-        assert_eq!(normal.domain_slot, 3);
+        assert_eq!(normal.domain_id, super::super::domains::NORMAL_DOMAIN_ID);
+        assert_eq!(normal.domain_slot, 1);
+        assert!(normal.is_normal());
 
         let local = BlockPlacement::Local {
             domain_id: 2,
@@ -325,7 +323,8 @@ mod tests {
         }
         .location(BlockId(5));
         assert_eq!(local.block_id, BlockId(5));
-        assert_eq!(local.domain, DomainLocation::Local(2));
+        assert_eq!(local.domain_id, 2);
         assert_eq!(local.domain_slot, 7);
+        assert!(local.is_local());
     }
 }
