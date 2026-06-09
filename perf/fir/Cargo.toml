@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
+core_affinity = "0.8"
 futuresdr = { path = "../..", default-features = false, features = ["flow_scheduler"] }
 perf = { path = "../perf" }
 rand = "0.10"
