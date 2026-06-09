@@ -51,7 +51,7 @@ int main (int argc, char **argv) {
     desc.add_options()
         ("help,h", "display help")
         ("run,r", po::value<int>(&run)->default_value(0), "Run Number")
-        ("pipes,p", po::value<int>(&pipes)->default_value(5), "Number of pipes")
+        ("pipes,p", po::value<int>(&pipes)->default_value(4), "Number of pipes")
         ("stages,s", po::value<int>(&stages)->default_value(6), "Number of stages")
         ("samples,n", po::value<uint64_t>(&samples)->default_value(15000000), "Number of samples");
 

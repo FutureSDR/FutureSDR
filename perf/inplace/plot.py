@@ -38,6 +38,18 @@ if ('fs', 'flow') in d.index:
     t = d.loc[('fs', 'flow')].reset_index();
     ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow')
 
+if ('fs', 'smoln-spsc') in d.index:
+    t = d.loc[('fs', 'smoln-spsc')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Smol-N SPSC')
+
+if ('fs', 'flow-spsc') in d.index:
+    t = d.loc[('fs', 'flow-spsc')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Flow SPSC')
+
+if ('fs', 'local') in d.index:
+    t = d.loc[('fs', 'local')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Local Domains')
+
 if ('fs', 'inplace-smol') in d.index:
     t = d.loc[('fs', 'inplace-smol')].reset_index();
     ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Inplace Smol')
@@ -45,6 +57,10 @@ if ('fs', 'inplace-smol') in d.index:
 if ('fs', 'inplace-flow') in d.index:
     t = d.loc[('fs', 'inplace-flow')].reset_index();
     ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Inplace Flow')
+
+if ('fs', 'inplace-local') in d.index:
+    t = d.loc[('fs', 'inplace-local')].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Inplace Local')
 
 if ('fs', 'slab') in d.index:
     t = d.loc[('fs', 'slab')].reset_index();

@@ -4,6 +4,9 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::__private::SendKernelInterface;
+use futuresdr::runtime::dev::BufferWriter;
+use futuresdr::runtime::dev::CpuBufferReader;
+use futuresdr::runtime::dev::CpuBufferWriter;
 use futuresdr::runtime::dev::SendCpuBufferReader;
 use futuresdr::runtime::dev::SendCpuBufferWriter;
 use futuresdr::runtime::dev::SendKernel;
@@ -15,12 +18,19 @@ use perf::inplace::Add as InplaceAdd;
 use perf::inplace::Head as InplaceHead;
 use perf::inplace::NullSink as InplaceNullSink;
 use perf::inplace::NullSource as InplaceNullSource;
+use perf::local_inplace;
+use perf::local_spsc;
+use perf::spsc;
 use std::time;
 
 type IpSrc = InplaceNullSource<circuit::Writer<i32>>;
 type IpHead = InplaceHead<circuit::Reader<i32>, circuit::Writer<i32>>;
 type IpAdd = InplaceAdd<circuit::Reader<i32>, circuit::Writer<i32>>;
 type IpSink = InplaceNullSink<circuit::Reader<i32>>;
+type LocalIpSrc = InplaceNullSource<local_inplace::Writer<i32>>;
+type LocalIpHead = InplaceHead<local_inplace::Reader<i32>, local_inplace::Writer<i32>>;
+type LocalIpAdd = InplaceAdd<local_inplace::Reader<i32>, local_inplace::Writer<i32>>;
+type LocalIpSink = InplaceNullSink<local_inplace::Reader<i32>>;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -28,11 +38,11 @@ struct Args {
     run: usize,
     #[clap(short, long, default_value_t = 6)]
     stages: usize,
-    #[clap(short, long, default_value_t = 5)]
+    #[clap(short, long, default_value_t = 4)]
     pipes: usize,
     #[clap(short = 'n', long, default_value_t = 15000000)]
     samples: usize,
-    #[clap(short = 'S', long, default_value = "smoln")]
+    #[clap(short = 'S', long, default_value = "smol1")]
     config: String,
 }
 
@@ -50,8 +60,14 @@ impl BufferType for CircBuffer {
     type Writer<T: CpuSample> = DefaultCpuWriter<T>;
 }
 
+pub struct SpscBuffer;
+impl BufferType for SpscBuffer {
+    type Writer<T: CpuSample> = spsc::Writer<T>;
+}
+
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
 
+#[allow(clippy::type_complexity)]
 fn generate<B>(
     pipes: usize,
     stages: usize,
@@ -71,38 +87,95 @@ where
 {
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
-    let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let mut cpu_mapping: Vec<Vec<BlockId>> = vec![Vec::new(); n_executors];
 
-    for _ in 0..pipes {
-        let mut pipe_block_ids: Vec<BlockId> = Vec::new();
-        let src = NullSource::<i32, B::Writer<i32>>::new();
-        let head = Head::<i32, ReaderOf<B, i32>, B::Writer<i32>>::new(samples as u64);
-        connect!(fg, src > head);
-        pipe_block_ids.push((&src).into());
-        pipe_block_ids.push((&head).into());
+    for p in 0..pipes {
+        let executor = p % n_executors;
+        let src = fg.add(NullSource::<i32, B::Writer<i32>>::new())?;
+        let head = fg.add(Head::<i32, ReaderOf<B, i32>, B::Writer<i32>>::new(
+            samples as u64,
+        ))?;
+        let mut last = fg.add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new())?;
 
-        let mut last: BlockId = fg
-            .add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new())?
-            .into();
-        pipe_block_ids.push(last);
-        fg.stream_dyn(head, "output", last, "input")?;
+        {
+            connect!(fg, src > head > last);
+        }
+
+        cpu_mapping[executor].push(src.id());
+        cpu_mapping[executor].push(head.id());
+        cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block: BlockId = fg
-                .add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new())?
-                .into();
-            fg.stream_dyn(last, "output", block, "input")?;
+            let block = fg.add(Add::<ReaderOf<B, i32>, B::Writer<i32>>::new())?;
+            {
+                connect!(fg, last > block);
+            }
+            cpu_mapping[executor].push(block.id());
             last = block;
-            pipe_block_ids.push(last);
         }
 
         let snk = fg.add(NullSink::<i32, ReaderOf<B, i32>>::new())?;
-        fg.stream_dyn(last, "output", snk, "input")?;
-        pipe_block_ids.push(snk.id());
+        {
+            connect!(fg, last > snk);
+        }
+        cpu_mapping[executor].push(snk.id());
         snks.push(snk);
-        pipes_blocks.push(pipe_block_ids);
     }
-    Ok((fg, snks, pipes_blocks))
+    Ok((fg, snks, cpu_mapping))
+}
+
+#[allow(clippy::type_complexity)]
+fn generate_local(
+    pipes: usize,
+    stages: usize,
+    samples: usize,
+) -> Result<(
+    Flowgraph,
+    Vec<BlockRef<NullSink<i32, local_spsc::Reader<i32>>>>,
+)> {
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+    let core_ids = core_affinity::get_core_ids().expect("failed to get available CPU IDs");
+    assert_eq!(
+        core_ids.len(),
+        pipes,
+        "local config requires one available CPU per pipe; got {} CPUs ({:?}) for {} pipes",
+        core_ids.len(),
+        core_ids,
+        pipes
+    );
+
+    for core_id in core_ids {
+        let local = fg.local_domain_pinned(core_id.id)?;
+
+        let src = fg.add_local(local, NullSource::<i32, local_spsc::Writer<i32>>::new)?;
+        let head = fg.add_local(local, move || {
+            Head::<i32, local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new(samples as u64)
+        })?;
+        let mut last = fg.add_local(
+            local,
+            Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new,
+        )?;
+
+        fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
+        fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
+
+        for _ in 1..stages {
+            let block = fg.add_local(
+                local,
+                Add::<local_spsc::Reader<i32>, local_spsc::Writer<i32>>::new,
+            )?;
+            fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
+            last = block;
+        }
+
+        let snk = fg.add_local(local, NullSink::<i32, local_spsc::Reader<i32>>::new)?;
+        fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+        snks.push(snk);
+    }
+
+    Ok((fg, snks))
 }
 
 fn generate_inplace(
@@ -112,59 +185,89 @@ fn generate_inplace(
 ) -> Result<(Flowgraph, Vec<BlockRef<IpSink>>, Vec<Vec<BlockId>>)> {
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
-    let mut pipes_blocks: Vec<Vec<BlockId>> = Vec::new();
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let mut cpu_mapping: Vec<Vec<BlockId>> = vec![Vec::new(); n_executors];
 
-    for _ in 0..pipes {
-        let mut pipe_block_ids: Vec<BlockId> = Vec::new();
-        let mut src: IpSrc = InplaceNullSource::new();
-        src.output().inject_buffers(1);
+    for p in 0..pipes {
+        let executor = p % n_executors;
+        let mut src_block: IpSrc = InplaceNullSource::new();
+        src_block.output().inject_buffers(1);
+        let src = fg.add(src_block)?;
         let head: IpHead = InplaceHead::new(samples as u64);
-        connect!(fg, src > head);
-        pipe_block_ids.push((&src).into());
-        pipe_block_ids.push((&head).into());
+        let head = fg.add(head)?;
+        let mut last = fg.add(IpAdd::new())?;
 
-        let mut last: BlockId = fg.add(IpAdd::new())?.into();
-        pipe_block_ids.push(last);
-        fg.stream_dyn(head, "output", last, "input")?;
+        {
+            connect!(fg, src > head > last);
+        }
+
+        cpu_mapping[executor].push(src.id());
+        cpu_mapping[executor].push(head.id());
+        cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block: BlockId = fg.add(IpAdd::new())?.into();
-            fg.stream_dyn(last, "output", block, "input")?;
+            let block = fg.add(IpAdd::new())?;
+            {
+                connect!(fg, last > block);
+            }
+            cpu_mapping[executor].push(block.id());
             last = block;
-            pipe_block_ids.push(last);
         }
 
         let snk = fg.add(IpSink::new())?;
-        fg.stream_dyn(last, "output", snk, "input")?;
-
-        pipe_block_ids.push(snk.id());
+        {
+            connect!(fg, last > snk);
+        }
+        cpu_mapping[executor].push(snk.id());
         snks.push(snk);
-        pipes_blocks.push(pipe_block_ids);
     }
 
-    Ok((fg, snks, pipes_blocks))
+    Ok((fg, snks, cpu_mapping))
 }
 
-fn run_flowgraph(
-    config: &str,
+fn generate_inplace_local(
     pipes: usize,
-    fg: Flowgraph,
-    pipe_blocks: Vec<Vec<BlockId>>,
-) -> Result<(TerminatedFlowgraph, time::Duration)> {
-    if config == "smoln" || config == "inplace-smol" {
-        let runtime = Runtime::with_scheduler(SmolScheduler::default());
-        let now = time::Instant::now();
-        let fg = runtime.run(fg)?;
-        Ok((fg, now.elapsed()))
-    } else if config == "flow" || config == "slab" || config == "inplace-flow" {
-        assert_eq!(pipes, pipe_blocks.len());
-        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks));
-        let now = time::Instant::now();
-        let fg = runtime.run(fg)?;
-        Ok((fg, now.elapsed()))
-    } else {
-        panic!("unknown config");
+    stages: usize,
+    samples: usize,
+) -> Result<(Flowgraph, Vec<BlockRef<LocalIpSink>>)> {
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+    let core_ids = core_affinity::get_core_ids().expect("failed to get available CPU IDs");
+    assert_eq!(
+        core_ids.len(),
+        pipes,
+        "inplace-local config requires one available CPU per pipe; got {} CPUs ({:?}) for {} pipes",
+        core_ids.len(),
+        core_ids,
+        pipes
+    );
+
+    for core_id in core_ids {
+        let local = fg.local_domain_pinned(core_id.id)?;
+
+        let src = fg.add_local(local, || {
+            let mut src = LocalIpSrc::new();
+            src.output().inject_buffers(1);
+            src
+        })?;
+        let head = fg.add_local(local, move || LocalIpHead::new(samples as u64))?;
+        let mut last = fg.add_local(local, LocalIpAdd::new)?;
+
+        fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
+        fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
+
+        for _ in 1..stages {
+            let block = fg.add_local(local, LocalIpAdd::new)?;
+            fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
+            last = block;
+        }
+
+        let snk = fg.add_local(local, LocalIpSink::new)?;
+        fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+        snks.push(snk);
     }
+
+    Ok((fg, snks))
 }
 
 fn main() -> Result<()> {
@@ -178,27 +281,120 @@ fn main() -> Result<()> {
 
     futuresdr::runtime::config::set("buffer_size", 65536);
 
-    let use_inplace = config == "inplace-smol" || config == "inplace-flow";
+    let use_inplace = matches!(config.as_str(), "inplace-smol" | "inplace-flow");
+    let use_inplace_local = config == "inplace-local";
+    let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
     let use_slab = config == "slab";
-    let elapsed = if use_inplace {
-        let (fg, snks, pipe_blocks) = generate_inplace(pipes, stages, samples)?;
-        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+    let scheduler = match config.as_str() {
+        "local" | "inplace-local" => "local",
+        "smol1" => "smol1",
+        "smoln" | "smoln-spsc" | "inplace-smol" => "smoln",
+        "flow" | "flow-spsc" | "slab" | "inplace-flow" => "flow",
+        _ => panic!("unknown config"),
+    };
+
+    let elapsed = if use_inplace_local {
+        let (fg, snks) = generate_inplace_local(pipes, stages, samples)?;
+        let runtime = Runtime::new();
+        let now = time::Instant::now();
+        let fg = runtime.run(fg)?;
+        let elapsed = now.elapsed();
+
+        for s in snks {
+            assert_eq!(fg.with(&s, |b| b.n_received())?, samples);
+        }
+
+        elapsed
+    } else if scheduler == "local" {
+        let (fg, snks) = generate_local(pipes, stages, samples)?;
+        let runtime = Runtime::new();
+        let now = time::Instant::now();
+        let fg = runtime.run(fg)?;
+        let elapsed = now.elapsed();
+
+        for s in snks {
+            assert_eq!(fg.with(&s, |b| b.n_received())?, samples);
+        }
+
+        elapsed
+    } else if use_inplace {
+        let (fg, snks, cpu_mapping) = generate_inplace(pipes, stages, samples)?;
+        let (fg, elapsed) = if scheduler == "smoln" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::default());
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else if scheduler == "flow" {
+            let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else {
+            panic!("unknown scheduler");
+        };
+
         for s in snks {
             let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
+
+        elapsed
+    } else if use_spsc {
+        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = if scheduler == "smoln" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::default());
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else if scheduler == "flow" {
+            let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else {
+            panic!("unknown scheduler");
+        };
+
+        for s in snks {
+            let snk = fg.block(&s)?;
+            assert_eq!(snk.n_received(), samples);
+        }
+
         elapsed
     } else if use_slab {
-        let (fg, snks, pipe_blocks) = generate::<SlabBuffer>(pipes, stages, samples)?;
-        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+        let (fg, snks, cpu_mapping) = generate::<SlabBuffer>(pipes, stages, samples)?;
+        let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+        let now = time::Instant::now();
+        let fg = runtime.run(fg)?;
+        let elapsed = now.elapsed();
+
         for s in snks {
             let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
         }
+
         elapsed
     } else {
-        let (fg, snks, pipe_blocks) = generate::<CircBuffer>(pipes, stages, samples)?;
-        let (fg, elapsed) = run_flowgraph(&config, pipes, fg, pipe_blocks)?;
+        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples)?;
+        let (fg, elapsed) = if scheduler == "smol1" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else if scheduler == "smoln" {
+            let runtime = Runtime::with_scheduler(SmolScheduler::default());
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else if scheduler == "flow" {
+            let runtime = Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+            let now = time::Instant::now();
+            let fg = runtime.run(fg)?;
+            (fg, now.elapsed())
+        } else {
+            panic!("unknown scheduler");
+        };
+
         for s in snks {
             let snk = fg.block(&s)?;
             assert_eq!(snk.n_received(), samples);
