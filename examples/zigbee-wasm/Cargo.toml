@@ -18,19 +18,4 @@ zigbee = { path = "../zigbee", default-features = false }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"
-js-sys = "0.3"
 leptos = { version = "0.8", features = ["csr", "nightly"] }
-wasm-bindgen-futures = "0.4"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3"
-features = [
-    "HtmlInputElement",
-    "HtmlSelectElement",
-    "Navigator",
-    "Usb",
-    "UsbDevice",
-    "UsbDeviceFilter",
-    "UsbDeviceRequestOptions",
-    "Window",
-]

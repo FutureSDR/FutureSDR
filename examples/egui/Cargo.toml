@@ -12,9 +12,8 @@ soapy = ["futuresdr/soapy"]
 
 [dependencies]
 anyhow ="1.0"
-eframe = "0.33"
+eframe = { version = "0.34", features = ["glow"] }
 futuresdr = { path = "../..", features = ["seify"] }
 futuresdr-remote = { path = "../../crates/remote/" }
 tokio = { version = "1", features = ["full"] }
-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
-
+tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }

@@ -5,6 +5,7 @@ use burn::prelude::*;
 use burn::tensor::DType;
 use burn::tensor::TensorPrimitive;
 use burn_cubecl::CubeBackend;
+use burn_cubecl::cubecl::zspace::metadata::Metadata;
 use burn_cubecl::fusion::FusionCubeRuntime;
 use burn_cubecl::tensor::CubeTensor;
 use burn_fusion::Fusion;
@@ -38,7 +39,7 @@ struct Fft {
     output: burn_buffer::Writer<B, Float>,
     wr: Tensor<B, 2>,
     wi: Tensor<B, 2>,
-    fusion_client: GlobalFusionClient<FusionCubeRuntime<WgpuRuntime, u32>>,
+    fusion_client: GlobalFusionClient<FusionCubeRuntime<WgpuRuntime>>,
     cubecl_client: ComputeClient<WgpuRuntime>,
     wgpu_device_type: WgpuDevice,
     host_staging: BytesMut,
@@ -98,16 +99,15 @@ impl Kernel for Fft {
                     self.host_staging.split().freeze(),
                     AllocationProperty::Native,
                 ),
-                &[self.batch_size * FFT_SIZE * 2],
+                [self.batch_size * FFT_SIZE * 2].into(),
                 4,
             );
 
             let cube_tensor = CubeTensor::new(
                 self.cubecl_client.clone(),
-                allocation.handle,
-                [self.batch_size * FFT_SIZE * 2].into(),
+                allocation.memory,
+                Metadata::new([self.batch_size * FFT_SIZE * 2], allocation.strides),
                 self.wgpu_device_type.clone(),
-                allocation.strides,
                 DType::F32,
             );
 

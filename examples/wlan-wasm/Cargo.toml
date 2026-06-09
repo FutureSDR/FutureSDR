@@ -23,7 +23,6 @@ ieee80211 = { version = "0.5.9", default-features = false }
 js-sys = "0.3"
 leptos = { version = "0.8", features = ["csr", "nightly"] }
 tracing = { version = "0.1", features = ["release_max_level_warn"] }
-wasm-bindgen-futures = "0.4"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"

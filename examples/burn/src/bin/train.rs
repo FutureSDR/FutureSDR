@@ -15,9 +15,9 @@ use burn::optim::AdamConfig;
 use burn::prelude::*;
 use burn::record::CompactRecorder;
 use burn::tensor::backend::AutodiffBackend;
+use burn::train::ExecutionStrategy;
 use burn::train::Learner;
 use burn::train::SupervisedTraining;
-use burn::train::TrainingStrategy;
 use burn::train::metric::AccuracyMetric;
 use burn::train::metric::LossMetric;
 
@@ -57,7 +57,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .with_training_strategy(TrainingStrategy::SingleDevice(device.clone()))
+        .with_training_strategy(ExecutionStrategy::SingleDevice(device.clone()).into())
         .num_epochs(config.num_epochs)
         .grads_accumulation(4)
         .summary()

@@ -61,7 +61,7 @@ pub fn fft_inplace<B: Backend>(
     rev: Tensor<B, 3, Int>,
     twiddles: &[Tensor<B, 4, Float>],
 ) -> Tensor<B, 3, Float> {
-    let dims = input.shape().dims;
+    let dims: [usize; 3] = input.shape().dims();
     let batch_size = dims[0];
     let fft_size = dims[1];
 

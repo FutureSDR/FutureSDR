@@ -29,8 +29,8 @@ fn bit_reverse(mut x: usize, bits: usize) -> usize {
 
 #[cube(launch)]
 fn bit_reverse_stage1<F: Float>(
-    input: &Array<Line<F>>,
-    output: &mut Array<Line<F>>,
+    input: &Array<F>,
+    output: &mut Array<F>,
     effective_batch_size: usize,
     fft_size: usize,
     log_n: usize,
@@ -67,9 +67,9 @@ fn bit_reverse_stage1<F: Float>(
 
 #[cube(launch)]
 fn fft_stage<F: Float>(
-    input: &Array<Line<F>>,
-    output: &mut Array<Line<F>>,
-    twiddles: &Array<Line<F>>,
+    input: &Array<F>,
+    output: &mut Array<F>,
+    twiddles: &Array<F>,
     effective_batch_size: usize,
     fft_size: usize,
     stage: usize,
@@ -112,8 +112,8 @@ fn fft_stage<F: Float>(
 
 #[cube(launch)]
 fn spectrum_reduce_shift_log10<F: Float>(
-    input: &Array<Line<F>>,
-    output: &mut Array<Line<F>>,
+    input: &Array<F>,
+    output: &mut Array<F>,
     group_size: usize,
     num_groups: usize,
     fft_size: usize,
@@ -126,7 +126,7 @@ fn spectrum_reduce_shift_log10<F: Float>(
 
     let grp = idx / fft_size;
     let bin = idx % fft_size;
-    let mut sum = Line::new(F::new(0.0_f32));
+    let mut sum = F::new(0.0_f32);
     for b in 0..group_size {
         let fft_idx = grp * group_size + b;
         let base = (fft_idx * fft_size + bin) * 2usize;
@@ -135,12 +135,12 @@ fn spectrum_reduce_shift_log10<F: Float>(
         sum += re * re + im * im;
     }
 
-    let bs = Line::<F>::cast_from(Line::<usize>::new(group_size));
-    let eps = Line::new(F::new(1.0e-30_f32));
-    let inv_ln_10 = Line::new(F::new(comptime!(1.0f32 / std::f32::consts::LN_10)));
+    let bs = F::cast_from(group_size);
+    let eps = F::new(1.0e-30_f32);
+    let inv_ln_10 = F::new(comptime!(1.0f32 / std::f32::consts::LN_10));
     let mean = sum / bs + eps;
     let shifted = (bin + fft_size / 2usize) % fft_size;
-    output[grp * fft_size + shifted] = Line::ln(mean) * inv_ln_10;
+    output[grp * fft_size + shifted] = mean.ln() * inv_ln_10;
 }
 
 struct FftState {
@@ -242,13 +242,12 @@ fn launch_bit_reverse_stage1(
             &state.client,
             state.fft_cube_count.clone(),
             state.fft_cube_dim,
-            ArrayArg::from_raw_parts::<f32>(input, state.fft_complex_len, 1),
-            ArrayArg::from_raw_parts::<f32>(output, state.fft_complex_len, 1),
-            ScalarArg::new(effective_batch_size),
-            ScalarArg::new(FFT_SIZE),
-            ScalarArg::new(LOG_N),
-        )
-        .expect("bit reverse+stage1 kernel failed");
+            ArrayArg::from_raw_parts(input.clone(), state.fft_complex_len),
+            ArrayArg::from_raw_parts(output.clone(), state.fft_complex_len),
+            effective_batch_size,
+            FFT_SIZE,
+            LOG_N,
+        );
     }
 }
 
@@ -265,15 +264,14 @@ fn launch_fft_stage(
             &state.client,
             state.fft_cube_count.clone(),
             state.fft_cube_dim,
-            ArrayArg::from_raw_parts::<f32>(input, state.fft_complex_len, 1),
-            ArrayArg::from_raw_parts::<f32>(output, state.fft_complex_len, 1),
-            ArrayArg::from_raw_parts::<f32>(&state.twiddles, state.twiddles_len, 1),
-            ScalarArg::new(effective_batch_size),
-            ScalarArg::new(FFT_SIZE),
-            ScalarArg::new(stage),
-            ScalarArg::new(twiddle_base),
-        )
-        .expect("fft stage kernel failed");
+            ArrayArg::from_raw_parts(input.clone(), state.fft_complex_len),
+            ArrayArg::from_raw_parts(output.clone(), state.fft_complex_len),
+            ArrayArg::from_raw_parts(state.twiddles.clone(), state.twiddles_len),
+            effective_batch_size,
+            FFT_SIZE,
+            stage,
+            twiddle_base,
+        );
     }
 }
 
@@ -283,13 +281,12 @@ fn launch_reduce_kernel(input: &Handle, state: &FftState, slot: usize) {
             &state.client,
             state.reduce_cube_count.clone(),
             state.reduce_cube_dim,
-            ArrayArg::from_raw_parts::<f32>(input, state.fft_complex_len, 1),
-            ArrayArg::from_raw_parts::<f32>(&state.out_cube[slot], FFT_SIZE, 1),
-            ScalarArg::new(state.batch_size),
-            ScalarArg::new(1usize),
-            ScalarArg::new(FFT_SIZE),
-        )
-        .expect("reduce kernel failed");
+            ArrayArg::from_raw_parts(input.clone(), state.fft_complex_len),
+            ArrayArg::from_raw_parts(state.out_cube[slot].clone(), FFT_SIZE),
+            state.batch_size,
+            1usize,
+            FFT_SIZE,
+        );
     }
 }
 

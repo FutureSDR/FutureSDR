@@ -119,7 +119,7 @@ where
         let (tx, rx) = mpsc::channel(QUEUE_SIZE);
 
         let stream = device.build_input_stream(
-            &config,
+            config,
             move |data, _| {
                 let data = data.to_owned();
                 // Keep the audio callback non-blocking; if the queue is full, drop the newest
