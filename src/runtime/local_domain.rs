@@ -165,6 +165,7 @@ mod tests {
         inbox: BlockEndpoint,
         local_inbox: LocalBlockInbox,
         local_inbox_rx: LocalBlockInboxReader,
+        started: Option<oneshot::Sender<()>>,
     }
 
     impl BlockObject for WaitForTerminate {
@@ -231,6 +232,10 @@ mod tests {
         }
 
         async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
+            if let Some(started) = self.started.take() {
+                let _ = started.send(());
+            }
+
             while let Some(message) = self.local_inbox_rx.recv().await {
                 if matches!(message, BlockMessage::Terminate) {
                     break;
@@ -246,6 +251,7 @@ mod tests {
     #[test]
     fn controller_drop_terminates_running_local_blocks() -> Result<(), Error> {
         let controller = LocalDomainController::new()?;
+        let (started_tx, started_rx) = oneshot::channel();
         crate::runtime::block_on(build_local_block(
             &controller.tx,
             0,
@@ -257,6 +263,7 @@ mod tests {
                     inbox: inbox.into(),
                     local_inbox,
                     local_inbox_rx,
+                    started: Some(started_tx),
                 })
             }),
         ))?;
@@ -268,6 +275,8 @@ mod tests {
             main_tx,
         )?;
 
+        crate::runtime::block_on(started_rx)
+            .map_err(|_| Error::RuntimeError("local block did not start".to_string()))?;
         drop(controller);
 
         crate::runtime::block_on(run)

@@ -176,6 +176,25 @@ fn flowgraph() -> Result<()> {
 }
 
 #[test]
+fn fg_start_wait_returns_final_block_state() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let orig = vec![1.0f32, 2.0, 3.5, 4.5, 10.5];
+    let src = VectorSource::<f32>::new(orig.clone());
+    let snk = VectorSink::<f32>::new(orig.len());
+
+    connect!(fg, src > snk);
+
+    let running = Runtime::new().start(fg)?;
+    let fg = futuresdr::runtime::block_on(running.wait_async())?;
+    let snk = fg.block(&snk)?;
+
+    assert_eq!(snk.items(), &orig);
+
+    Ok(())
+}
+
+#[test]
 fn flowgraph_flow() -> Result<()> {
     let mut fg = Flowgraph::new();
 

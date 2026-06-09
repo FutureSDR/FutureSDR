@@ -121,7 +121,6 @@ pub(crate) trait LocalDomainControllerAccess {
 pub(crate) struct LocalDomainRuntimeBase<C> {
     controller: C,
     blocks: usize,
-    running: bool,
 }
 
 impl<C> LocalDomainRuntimeBase<C> {
@@ -129,7 +128,6 @@ impl<C> LocalDomainRuntimeBase<C> {
         Self {
             controller,
             blocks: 0,
-            running: false,
         }
     }
 
@@ -151,18 +149,6 @@ impl<C> LocalDomainRuntimeBase<C> {
 
     pub(crate) fn reserve_blocks(&mut self, n: usize) {
         self.blocks += n;
-    }
-
-    pub(crate) fn is_running(&self) -> bool {
-        self.running
-    }
-
-    pub(crate) fn mark_running(&mut self) {
-        self.running = true;
-    }
-
-    pub(crate) fn mark_stopped(&mut self) {
-        self.running = false;
     }
 }
 

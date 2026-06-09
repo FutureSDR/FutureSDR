@@ -339,9 +339,6 @@ impl Flowgraph {
             .domains
             .local(domain_id)
             .ok_or_else(|| Error::ValidationError("invalid local domain".to_string()))?;
-        if local_domain.is_running() {
-            return Err(Error::LockError);
-        }
 
         let next_block_id = self.blocks.len();
         let next_local_id = local_domain.block_count();

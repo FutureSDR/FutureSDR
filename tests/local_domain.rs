@@ -345,6 +345,24 @@ fn local_domain_block_with_mut_uses_domain_access() -> Result<()> {
 }
 
 #[test]
+fn local_domain_block_with_mut_after_start_wait_uses_domain_access() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let local = fg.local_domain()?;
+    let block = fg.add_local(local, NonSendLocalBlock::new)?;
+
+    block.with_mut(&mut fg, |block| block.waited = true)?;
+
+    let running = Runtime::new().start(fg)?;
+    let mut fg = futuresdr::runtime::block_on(running.wait_async())?;
+
+    assert!(fg.with(&block, |block| block.waited)?);
+    fg.with_mut(&block, |block| block.waited = false)?;
+    assert!(!fg.with(&block, |block| block.waited)?);
+
+    Ok(())
+}
+
+#[test]
 fn flowgraph_runs_local_domain_blocks() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();

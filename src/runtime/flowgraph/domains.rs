@@ -10,8 +10,8 @@ use crate::runtime::scheduler::StoppedDomain;
 use crate::runtime::scheduler::StoppedDomainState;
 
 use super::BlockSlot;
+use super::Flowgraph;
 use super::types::BlockLocation;
-use super::types::BlockPlacement;
 
 /// The implicit normal domain always occupies domain slot 0.
 pub(super) const NORMAL_DOMAIN_ID: usize = 0;
@@ -129,9 +129,6 @@ impl FlowgraphDomains {
             f(self.direct_block(location)?)
         } else {
             let domain = self.local_for_location(location)?;
-            if domain.is_running() {
-                return Err(Error::LockError);
-            }
             domain
                 .exec(move |state| {
                     let result = (|| {
@@ -156,9 +153,6 @@ impl FlowgraphDomains {
             f(self.direct_block_mut(location)?)
         } else {
             let domain = self.local_for_location(location)?;
-            if domain.is_running() {
-                return Err(Error::LockError);
-            }
             domain
                 .exec(move |state| {
                     let result = (|| {
@@ -194,9 +188,6 @@ impl FlowgraphDomains {
             f(src_block, dst_block)
         } else {
             let domain = self.local_for_location(src)?;
-            if domain.is_running() {
-                return Err(Error::LockError);
-            }
             domain
                 .exec(move |state| {
                     let result = (|| {
@@ -212,51 +203,182 @@ impl FlowgraphDomains {
         }
     }
 
-    pub(super) fn take_normal_blocks(
-        &mut self,
-        blocks: &[BlockSlot],
-    ) -> Result<NormalBlocks, Error> {
-        self.normal_mut()
-            .take_blocks(Self::normal_block_slots(blocks))
-    }
+    pub(super) fn into_running(self) -> Result<(RunningFlowgraphDomains, NormalBlocks), Error> {
+        let mut normal_blocks = None;
+        let mut domains = Vec::with_capacity(self.domains.len());
 
-    pub(super) fn restore_stopped_domain(&mut self, domain: StoppedDomain) -> Result<(), Error> {
-        let domain_id = domain.domain_id();
-        match domain.into_state() {
-            StoppedDomainState::Normal(blocks) => self.normal_mut().restore_stopped_blocks(blocks),
-            StoppedDomainState::Local => {
-                if let Some(domain) = self.local_mut(domain_id) {
-                    domain.mark_stopped();
+        for domain in self.domains {
+            match domain {
+                FlowgraphDomain::Normal(domain) => {
+                    if normal_blocks.is_some() {
+                        return Err(Error::RuntimeError(
+                            "flowgraph had more than one normal domain".to_string(),
+                        ));
+                    }
+                    let (running, blocks) = domain.into_running();
+                    domains.push(RunningFlowgraphDomain::Normal(running));
+                    normal_blocks = Some(blocks);
                 }
-                Ok(())
+                FlowgraphDomain::Local(domain) => {
+                    domains.push(RunningFlowgraphDomain::Local(domain));
+                }
             }
         }
-    }
 
-    pub(super) fn restore_stopped_domains(
-        &mut self,
-        domains: impl IntoIterator<Item = StoppedDomain>,
-    ) -> Result<(), Error> {
-        for domain in domains {
-            self.restore_stopped_domain(domain)?;
-        }
-        Ok(())
-    }
+        let normal_blocks = normal_blocks.ok_or_else(|| {
+            Error::RuntimeError("flowgraph missing implicit normal domain".to_string())
+        })?;
 
-    fn normal_block_slots(blocks: &[BlockSlot]) -> impl Iterator<Item = (usize, BlockId)> + '_ {
-        blocks
-            .iter()
-            .enumerate()
-            .filter_map(|(id, slot)| match slot.placement() {
-                BlockPlacement::Normal { normal_id } => Some((normal_id, BlockId(id))),
-                BlockPlacement::Local { .. } => None,
-            })
+        Ok((RunningFlowgraphDomains { domains }, normal_blocks))
     }
 }
 
 impl Default for FlowgraphDomains {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+enum RunningFlowgraphDomain {
+    Normal(RunningNormalDomain),
+    Local(LocalDomainRuntime),
+}
+
+/// Scheduling domains owned by a graph while block tasks are running.
+///
+/// This stores only the state needed to rebuild final inspection domains after
+/// the scheduler returns stopped blocks.
+pub(super) struct RunningFlowgraphDomains {
+    domains: Vec<RunningFlowgraphDomain>,
+}
+
+impl RunningFlowgraphDomains {
+    pub(super) fn restore_stopped_domains(
+        self,
+        stopped_domains: Vec<StoppedDomain>,
+    ) -> Result<FlowgraphDomains, Error> {
+        self.restore_stopped_domains_inner(stopped_domains, true)
+    }
+
+    pub(super) fn restore_stopped_domains_partial(
+        self,
+        stopped_domains: Vec<StoppedDomain>,
+    ) -> Result<(), Error> {
+        let _ = self.restore_stopped_domains_inner(stopped_domains, false)?;
+        Ok(())
+    }
+
+    fn restore_stopped_domains_inner(
+        self,
+        stopped_domains: Vec<StoppedDomain>,
+        require_all: bool,
+    ) -> Result<FlowgraphDomains, Error> {
+        let mut stopped_by_domain = Vec::new();
+        stopped_by_domain.resize_with(self.domains.len(), || None);
+
+        for stopped in stopped_domains {
+            let domain_id = stopped.domain_id();
+            let slot = stopped_by_domain.get_mut(domain_id).ok_or_else(|| {
+                Error::RuntimeError(format!("unknown stopped domain {domain_id}"))
+            })?;
+            if slot.is_some() {
+                return Err(Error::RuntimeError(format!(
+                    "domain {domain_id} stopped more than once"
+                )));
+            }
+            *slot = Some(stopped);
+        }
+
+        let mut domains = Vec::with_capacity(self.domains.len());
+        for (domain_id, domain) in self.domains.into_iter().enumerate() {
+            let stopped = stopped_by_domain[domain_id].take();
+            match (domain, stopped) {
+                (RunningFlowgraphDomain::Normal(domain), Some(stopped)) => {
+                    let blocks = match stopped.into_state() {
+                        StoppedDomainState::Normal(blocks) => blocks,
+                        StoppedDomainState::Local => {
+                            return Err(Error::RuntimeError(format!(
+                                "normal domain {domain_id} stopped as local domain"
+                            )));
+                        }
+                    };
+                    domains.push(FlowgraphDomain::Normal(
+                        domain.restore_stopped_blocks(blocks)?,
+                    ));
+                }
+                (RunningFlowgraphDomain::Normal(_), None) if require_all => {
+                    return Err(Error::RuntimeError(format!(
+                        "normal domain {domain_id} did not stop"
+                    )));
+                }
+                (RunningFlowgraphDomain::Normal(domain), None) => {
+                    drop(domain);
+                    domains.push(FlowgraphDomain::Normal(NormalDomain { slots: Vec::new() }));
+                }
+                (RunningFlowgraphDomain::Local(domain), Some(stopped)) => {
+                    match stopped.into_state() {
+                        StoppedDomainState::Local => domains.push(FlowgraphDomain::Local(domain)),
+                        StoppedDomainState::Normal(_) => {
+                            return Err(Error::RuntimeError(format!(
+                                "local domain {domain_id} stopped as normal domain"
+                            )));
+                        }
+                    }
+                }
+                (RunningFlowgraphDomain::Local(_), None) if require_all => {
+                    return Err(Error::RuntimeError(format!(
+                        "local domain {domain_id} did not stop"
+                    )));
+                }
+                (RunningFlowgraphDomain::Local(domain), None) => {
+                    domains.push(FlowgraphDomain::Local(domain));
+                }
+            }
+        }
+
+        Ok(FlowgraphDomains { domains })
+    }
+}
+
+pub(super) struct RunningFlowgraphStorage {
+    id: crate::runtime::FlowgraphId,
+    blocks: Vec<BlockSlot>,
+    domains: RunningFlowgraphDomains,
+}
+
+impl RunningFlowgraphStorage {
+    pub(super) fn new(
+        id: crate::runtime::FlowgraphId,
+        blocks: Vec<BlockSlot>,
+        domains: RunningFlowgraphDomains,
+    ) -> Self {
+        Self {
+            id,
+            blocks,
+            domains,
+        }
+    }
+
+    pub(super) fn restore_stopped_domains(
+        self,
+        stopped_domains: Vec<StoppedDomain>,
+    ) -> Result<Flowgraph, Error> {
+        let domains = self.domains.restore_stopped_domains(stopped_domains)?;
+        Ok(Flowgraph {
+            id: self.id,
+            blocks: self.blocks,
+            domains,
+            stream_edges: Vec::new(),
+            message_edges: Vec::new(),
+        })
+    }
+
+    pub(super) fn restore_stopped_domains_partial(
+        self,
+        stopped_domains: Vec<StoppedDomain>,
+    ) -> Result<(), Error> {
+        self.domains
+            .restore_stopped_domains_partial(stopped_domains)
     }
 }
 
@@ -333,74 +455,33 @@ impl NormalDomain {
         Ok((first_block, second_block))
     }
 
-    pub(super) fn take_block(
-        &mut self,
-        normal_id: usize,
-        block_id: BlockId,
-    ) -> Result<Box<dyn Block>, Error> {
-        self.slots
-            .get_mut(normal_id)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .take_block(block_id)
-    }
-
-    pub(super) fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
-        let block_id = block.id();
-        let slot = self
-            .slots
-            .iter_mut()
-            .find(|slot| slot.block_id == block_id)
-            .ok_or(Error::InvalidBlock(block_id))?;
-        slot.restore_block(block)
-    }
-
-    pub(super) fn take_blocks(
-        &mut self,
-        slots: impl IntoIterator<Item = (usize, BlockId)>,
-    ) -> Result<NormalBlocks, Error> {
-        let mut blocks = Vec::new();
-        for (normal_id, block_id) in slots {
-            blocks.push(self.take_block(normal_id, block_id)?);
+    fn into_running(self) -> (RunningNormalDomain, NormalBlocks) {
+        let mut running_slots = Vec::with_capacity(self.slots.len());
+        let mut blocks = Vec::with_capacity(self.slots.len());
+        for slot in self.slots {
+            running_slots.push(RunningNormalBlockSlot {
+                block_id: slot.block_id,
+            });
+            blocks.push(slot.block);
         }
-        Ok(blocks)
-    }
-
-    #[cfg(test)]
-    pub(super) fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
-        for block in blocks {
-            self.restore_block(block)?;
-        }
-        Ok(())
-    }
-
-    pub(super) fn restore_stopped_blocks(
-        &mut self,
-        blocks: Vec<StoppedBlock>,
-    ) -> Result<(), Error> {
-        for block in blocks {
-            self.restore_block(block.into_block())?;
-        }
-        Ok(())
+        (
+            RunningNormalDomain {
+                slots: running_slots,
+            },
+            blocks,
+        )
     }
 }
 
 struct NormalBlockSlot {
     block_id: BlockId,
-    state: NormalBlockState,
-}
-
-enum NormalBlockState {
-    Available(Box<dyn Block>),
-    Running,
+    block: Box<dyn Block>,
 }
 
 impl NormalBlockSlot {
     fn new(block: Box<dyn Block>) -> Self {
         let block_id = block.id();
-        Self {
-            block_id,
-            state: NormalBlockState::Available(block),
-        }
+        Self { block_id, block }
     }
 
     fn validate(&self, block_id: BlockId) -> Result<(), Error> {
@@ -413,45 +494,47 @@ impl NormalBlockSlot {
 
     fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
         self.validate(block_id)?;
-        match &self.state {
-            NormalBlockState::Available(block) => Ok(block.as_ref() as &dyn BlockObject),
-            NormalBlockState::Running => Err(Error::LockError),
-        }
+        Ok(self.block.as_ref() as &dyn BlockObject)
     }
 
     fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
         self.validate(block_id)?;
-        match &mut self.state {
-            NormalBlockState::Available(block) => Ok(block.as_mut() as &mut dyn BlockObject),
-            NormalBlockState::Running => Err(Error::LockError),
-        }
+        Ok(self.block.as_mut() as &mut dyn BlockObject)
+    }
+}
+
+struct RunningNormalDomain {
+    slots: Vec<RunningNormalBlockSlot>,
+}
+
+struct RunningNormalBlockSlot {
+    block_id: BlockId,
+}
+
+impl RunningNormalDomain {
+    fn restore_stopped_blocks(self, blocks: Vec<StoppedBlock>) -> Result<NormalDomain, Error> {
+        self.restore_blocks(blocks.into_iter().map(StoppedBlock::into_block).collect())
     }
 
-    fn take_block(&mut self, block_id: BlockId) -> Result<Box<dyn Block>, Error> {
-        self.validate(block_id)?;
-        match std::mem::replace(&mut self.state, NormalBlockState::Running) {
-            NormalBlockState::Available(block) => Ok(block),
-            NormalBlockState::Running => Err(Error::LockError),
+    fn restore_blocks(self, mut blocks: NormalBlocks) -> Result<NormalDomain, Error> {
+        let mut slots = Vec::with_capacity(self.slots.len());
+        for slot in self.slots {
+            let pos = blocks
+                .iter()
+                .position(|block| block.id() == slot.block_id)
+                .ok_or(Error::InvalidBlock(slot.block_id))?;
+            let block = blocks.swap_remove(pos);
+            slots.push(NormalBlockSlot::new(block));
         }
-    }
 
-    fn restore_block(&mut self, block: Box<dyn Block>) -> Result<(), Error> {
-        let block_id = block.id();
-        self.validate(block_id)?;
-        let previous = std::mem::replace(&mut self.state, NormalBlockState::Running);
-        match previous {
-            NormalBlockState::Running => {
-                self.state = NormalBlockState::Available(block);
-                Ok(())
-            }
-            NormalBlockState::Available(existing) => {
-                self.state = NormalBlockState::Available(existing);
-                Err(Error::RuntimeError(format!(
-                    "block slot {:?} was restored more than once",
-                    block_id
-                )))
-            }
+        if let Some(block) = blocks.first() {
+            return Err(Error::RuntimeError(format!(
+                "stopped normal block {:?} did not belong to the running domain",
+                block.id()
+            )));
         }
+
+        Ok(NormalDomain { slots })
     }
 }
 
@@ -558,14 +641,10 @@ mod tests {
             BlockId(2)
         );
 
-        let blocks = domain.take_blocks([(normal_id, BlockId(2))]).unwrap();
+        let (running, blocks) = domain.into_running();
         assert_eq!(blocks.len(), 1);
-        assert!(matches!(
-            domain.block(normal_id, BlockId(2)),
-            Err(Error::LockError)
-        ));
 
-        domain.restore_blocks(blocks).unwrap();
+        let domain = running.restore_blocks(blocks).unwrap();
         assert_eq!(
             domain.block(normal_id, BlockId(2)).unwrap().id(),
             BlockId(2)
