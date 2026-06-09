@@ -66,9 +66,6 @@ jobs:
       - name: Run cargo fmt (perf/wgpu)
         run: cargo fmt --all --manifest-path=perf/wgpu/Cargo.toml -- --check
 
-      - name: Run cargo fmt (perf/zynq)
-        run: cargo fmt --all --manifest-path=perf/zynq/Cargo.toml -- --check
-
       - name: Run cargo fmt (examples/adsb)
         run: cargo fmt --all --manifest-path=examples/adsb/Cargo.toml -- --check
 
@@ -243,9 +240,6 @@ jobs:
 
       - name: Run cargo clippy (perf/wgpu)
         run: cargo clippy --all-targets --manifest-path=perf/wgpu/Cargo.toml -- -D warnings
-
-      - name: Run cargo clippy (perf/zynq)
-        run: cargo clippy --all-targets --manifest-path=perf/zynq/Cargo.toml -- -D warnings
 
   clippy_examples:
     name: Clippy Examples

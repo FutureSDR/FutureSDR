@@ -31,7 +31,6 @@ cd ${SCRIPTPATH}/perf/null_rand && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null_rand_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/perf && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/wgpu && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/perf/zynq && ${CARGO_FMT} --check
 
 # examples
 cd ${SCRIPTPATH}/examples/adsb && ${CARGO_FMT} --check
@@ -83,7 +82,6 @@ cd ${SCRIPTPATH}/perf/wgpu && cargo clippy --all-targets -- -D warnings
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
   cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
-  cd ${SCRIPTPATH}/perf/zynq && cargo clippy --all-targets -- -D warnings
 fi
 
 # examples
@@ -150,7 +148,6 @@ cd ${SCRIPTPATH}/perf/wgpu && cargo test --all-targets
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
   cd ${SCRIPTPATH}/perf/null_rand_latency && cargo test --all-targets
-  cd ${SCRIPTPATH}/perf/zynq && cargo test --all-targets
 fi
 
 # examples

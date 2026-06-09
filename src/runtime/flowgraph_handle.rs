@@ -8,6 +8,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
+use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -56,6 +57,7 @@ impl RunningFlowgraphControl {
 /// or target block has stopped.
 #[derive(Debug, Clone)]
 pub struct FlowgraphHandle {
+    id: FlowgraphId,
     inbox: Sender<FlowgraphMessage>,
     control: Arc<RunningFlowgraphControl>,
 }
@@ -72,13 +74,20 @@ pub struct FlowgraphBlockHandle {
 
 impl FlowgraphHandle {
     pub(crate) fn new(
+        id: FlowgraphId,
         inbox: Sender<FlowgraphMessage>,
         control: RunningFlowgraphControl,
     ) -> FlowgraphHandle {
         FlowgraphHandle {
+            id,
             inbox,
             control: Arc::new(control),
         }
+    }
+
+    /// Return this flowgraph's stable lifecycle id.
+    pub fn id(&self) -> FlowgraphId {
+        self.id
     }
 
     /// Return whether this flowgraph's control inbox has closed.

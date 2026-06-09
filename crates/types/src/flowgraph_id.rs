@@ -2,11 +2,12 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
 
-/// Identifier of a flowgraph known to a runtime control handle.
+/// Stable identifier of a flowgraph.
 ///
-/// Runtime handles assign these ids as flowgraphs are registered with the
-/// control plane. They are used by the native REST API and by remote clients.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A flowgraph receives this id when it is constructed. Runtime handles,
+/// the native REST API, and remote clients use the same id while the flowgraph
+/// is running.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct FlowgraphId(pub usize);
 
 impl From<usize> for FlowgraphId {

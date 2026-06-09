@@ -4,6 +4,7 @@ use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
+use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
 use crate::runtime::PortIndex;
@@ -35,6 +36,11 @@ impl RunningFlowgraph {
     /// Get a clonable handle to the running [`Flowgraph`].
     pub fn handle(&self) -> FlowgraphHandle {
         self.handle.clone()
+    }
+
+    /// Return this flowgraph's stable lifecycle id.
+    pub fn id(&self) -> FlowgraphId {
+        self.handle.id()
     }
 
     /// Get a control handle scoped to one block in the running flowgraph.

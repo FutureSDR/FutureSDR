@@ -2,6 +2,7 @@ use async_lock::Mutex;
 #[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
 use axum::Router;
 use futures::prelude::*;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -48,7 +49,7 @@ pub type DefaultScheduler = WasmMainScheduler;
 /// for live message calls, descriptions, or shutdown.
 pub struct Runtime<S = DefaultScheduler> {
     scheduler: S,
-    flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
+    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
     #[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
     _control_port: ControlPort<S>,
 }
@@ -126,7 +127,7 @@ impl<S: Scheduler> Runtime<S> {
     /// wait for completion.
     pub async fn start_async(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let running = start_flowgraph(self.scheduler.clone(), fg).await?;
-        self.flowgraphs.lock().await.push(running.handle());
+        self.flowgraphs.lock().await.insert(running.handle());
         Ok(running)
     }
 
@@ -189,7 +190,7 @@ impl<S: Scheduler + Sync> Runtime<S> {
     pub fn with_config(scheduler: S, routes: Router) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
         let handle = RuntimeHandle {
             scheduler: scheduler.clone(),
             flowgraphs: flowgraphs.clone(),
@@ -209,7 +210,7 @@ impl<S: Scheduler> Runtime<S> {
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
         Runtime {
             scheduler,
             flowgraphs,
@@ -223,7 +224,7 @@ impl<S: Scheduler> Runtime<S> {
     pub fn with_scheduler(scheduler: S) -> Self {
         runtime::init();
 
-        let flowgraphs = Arc::new(Mutex::new(Vec::new()));
+        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
         Runtime {
             scheduler,
             flowgraphs,
@@ -238,7 +239,7 @@ impl<S: Scheduler> Runtime<S> {
 /// control plane.
 pub struct RuntimeHandle<S = DefaultScheduler> {
     scheduler: S,
-    flowgraphs: Arc<Mutex<Vec<FlowgraphHandle>>>,
+    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
 }
 
 impl<S: Clone> Clone for RuntimeHandle<S> {
@@ -278,36 +279,53 @@ impl<S: Scheduler> RuntimeHandle<S> {
 
     /// Add a [`FlowgraphHandle`] to make it available to web handlers.
     async fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
-        let mut v = self.flowgraphs.lock().await;
-        let l = v.len();
-        v.push(handle);
-        FlowgraphId(l)
+        self.flowgraphs.lock().await.insert(handle)
     }
 
-    /// Get the control handle for a flowgraph by runtime registry id.
+    /// Get the control handle for a flowgraph by stable flowgraph id.
     ///
-    /// The id is the position assigned when the flowgraph was registered with
-    /// the runtime handle. The returned handle may still fail later if the
-    /// flowgraph has already terminated.
+    /// Terminated flowgraphs are pruned from the registry and return `None`.
+    /// The ids of other running flowgraphs are not changed by pruning.
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        self.flowgraphs
-            .lock()
-            .await
-            .get(id.0)
-            .filter(|handle| !handle.is_terminated())
-            .cloned()
+        self.flowgraphs.lock().await.get(id)
     }
 
-    /// Get the ids of flowgraphs known to this runtime handle.
+    /// Get the stable ids of running flowgraphs known to this runtime handle.
     pub async fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
-        self.flowgraphs
-            .lock()
-            .await
-            .iter()
-            .enumerate()
-            .filter(|(_, handle)| !handle.is_terminated())
-            .map(|x| FlowgraphId(x.0))
-            .collect()
+        self.flowgraphs.lock().await.running_ids()
+    }
+}
+
+#[derive(Debug, Default)]
+struct FlowgraphRegistry {
+    flowgraphs: BTreeMap<FlowgraphId, FlowgraphHandle>,
+}
+
+impl FlowgraphRegistry {
+    fn insert(&mut self, handle: FlowgraphHandle) -> FlowgraphId {
+        let id = handle.id();
+        self.flowgraphs.insert(id, handle);
+        id
+    }
+
+    fn get(&mut self, id: FlowgraphId) -> Option<FlowgraphHandle> {
+        match self.flowgraphs.get(&id) {
+            Some(handle) if handle.is_terminated() => {
+                self.flowgraphs.remove(&id);
+                None
+            }
+            Some(handle) => Some(handle.clone()),
+            None => None,
+        }
+    }
+
+    fn running_ids(&mut self) -> Vec<FlowgraphId> {
+        self.prune_terminated();
+        self.flowgraphs.keys().copied().collect()
+    }
+
+    fn prune_terminated(&mut self) {
+        self.flowgraphs.retain(|_, handle| !handle.is_terminated());
     }
 }
 
@@ -315,6 +333,7 @@ async fn start_flowgraph<S: Scheduler>(
     scheduler: S,
     fg: Flowgraph,
 ) -> Result<RunningFlowgraph, Error> {
+    let id = fg.id();
     let queue_size = config::config().queue_size;
     let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
@@ -336,7 +355,7 @@ async fn start_flowgraph<S: Scheduler>(
         Error::RuntimeError("run_flowgraph did not publish control endpoints".to_string())
     })?;
 
-    let handle = FlowgraphHandle::new(fg_inbox, control);
+    let handle = FlowgraphHandle::new(id, fg_inbox, control);
     Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
 }
 
@@ -347,30 +366,80 @@ mod tests {
     use crate::runtime::Pmt;
     use std::time::Duration;
 
+    fn message_source_flowgraph(n_messages: Option<usize>) -> Flowgraph {
+        let mut fg = Flowgraph::new();
+        let builder = MessageSourceBuilder::new(Pmt::Null, Duration::from_millis(1));
+        let builder = match n_messages {
+            Some(n) => builder.n_messages(n),
+            None => builder,
+        };
+        fg.add(builder.build()).unwrap();
+        fg
+    }
+
     #[test]
     fn terminated_flowgraphs_are_not_returned_by_registry() {
         let scheduler = DefaultScheduler::default();
         let handle = RuntimeHandle {
             scheduler,
-            flowgraphs: Arc::new(Mutex::new(Vec::new())),
+            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
         };
 
         runtime::block_on(async {
-            let mut fg = Flowgraph::new();
-            fg.add(
-                MessageSourceBuilder::new(Pmt::Null, Duration::from_millis(1))
-                    .n_messages(1)
-                    .build(),
-            )
-            .unwrap();
+            let running = handle
+                .start(message_source_flowgraph(Some(1)))
+                .await
+                .unwrap();
+            let id = running.id();
 
-            let running = handle.start(fg).await.unwrap();
-            assert_eq!(handle.get_flowgraphs().await, vec![FlowgraphId(0)]);
+            assert_eq!(handle.get_flowgraphs().await, vec![id]);
 
             running.wait_async().await.unwrap();
 
-            assert!(handle.get_flowgraph(FlowgraphId(0)).await.is_none());
+            assert!(handle.get_flowgraph(id).await.is_none());
             assert!(handle.get_flowgraphs().await.is_empty());
+        });
+    }
+
+    #[test]
+    fn terminated_flowgraph_cleanup_does_not_change_other_ids() {
+        let scheduler = DefaultScheduler::default();
+        let handle = RuntimeHandle {
+            scheduler,
+            flowgraphs: Arc::new(Mutex::new(FlowgraphRegistry::default())),
+        };
+
+        runtime::block_on(async {
+            let first = handle
+                .start(message_source_flowgraph(Some(1)))
+                .await
+                .unwrap();
+            let first_id = first.id();
+            let second = handle.start(message_source_flowgraph(None)).await.unwrap();
+            let second_id = second.id();
+
+            first.wait_async().await.unwrap();
+
+            assert!(handle.get_flowgraph(first_id).await.is_none());
+            assert_eq!(
+                handle.get_flowgraph(second_id).await.unwrap().id(),
+                second_id
+            );
+            assert_eq!(handle.get_flowgraphs().await, vec![second_id]);
+
+            let third = handle.start(message_source_flowgraph(None)).await.unwrap();
+            let third_id = third.id();
+
+            assert_ne!(third_id, first_id);
+            assert_ne!(third_id, second_id);
+            assert_eq!(
+                handle.get_flowgraph(second_id).await.unwrap().id(),
+                second_id
+            );
+            assert_eq!(handle.get_flowgraphs().await, vec![second_id, third_id]);
+
+            second.stop_and_wait().await.unwrap();
+            third.stop_and_wait().await.unwrap();
         });
     }
 }

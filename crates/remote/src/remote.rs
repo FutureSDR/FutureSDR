@@ -13,6 +13,22 @@ async fn get<T: for<'a> Deserialize<'a>>(client: Client, url: impl IntoUrl) -> R
     Ok(client.get(url).send().await?.json::<T>().await?)
 }
 
+fn flowgraphs_from_descriptions(
+    client: Client,
+    url: &str,
+    descriptions: impl IntoIterator<Item = (usize, FlowgraphDescription)>,
+) -> Vec<Flowgraph> {
+    descriptions
+        .into_iter()
+        .map(|(id, description)| Flowgraph {
+            id,
+            description,
+            client: client.clone(),
+            url: url.to_string(),
+        })
+        .collect()
+}
+
 /// Connection to a remote runtime.
 pub struct Remote {
     client: Client,
@@ -45,21 +61,14 @@ impl Remote {
         for i in ids.into_iter() {
             let fg: FlowgraphDescription =
                 get(self.client.clone(), format!("{}/api/fg/{}/", self.url, i)).await?;
-            v.push(fg);
+            v.push((i, fg));
         }
 
-        let v = v
-            .into_iter()
-            .enumerate()
-            .map(|(i, f)| Flowgraph {
-                id: i,
-                description: f,
-                client: self.client.clone(),
-                url: self.url.clone(),
-            })
-            .collect();
-
-        Ok(v)
+        Ok(flowgraphs_from_descriptions(
+            self.client.clone(),
+            &self.url,
+            v,
+        ))
     }
 }
 
@@ -318,6 +327,7 @@ impl std::fmt::Display for Connection {
 
 #[cfg(test)]
 mod tests {
+    use super::flowgraphs_from_descriptions;
     use crate::Flowgraph;
     use futuresdr_types::BlockDescription;
     use futuresdr_types::BlockId;
@@ -335,6 +345,28 @@ mod tests {
             message_outputs: vec!["message".to_string()],
             blocking: false,
         }
+    }
+
+    fn description() -> FlowgraphDescription {
+        FlowgraphDescription {
+            blocks: vec![],
+            stream_edges: vec![],
+            message_edges: vec![],
+        }
+    }
+
+    #[test]
+    fn preserves_sparse_flowgraph_ids() {
+        let flowgraphs = flowgraphs_from_descriptions(
+            reqwest::Client::new(),
+            "http://localhost",
+            [(2, description()), (5, description())],
+        );
+
+        assert_eq!(
+            flowgraphs.iter().map(|fg| fg.id).collect::<Vec<_>>(),
+            vec![2, 5]
+        );
     }
 
     #[test]

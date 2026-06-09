@@ -239,6 +239,11 @@ impl Flowgraph {
         }
     }
 
+    /// Return this flowgraph's stable lifecycle id.
+    pub fn id(&self) -> FlowgraphId {
+        self.id
+    }
+
     /// Create a local scheduling domain.
     ///
     /// Add non-`Send` or explicitly local blocks to this domain with
