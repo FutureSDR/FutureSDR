@@ -103,6 +103,72 @@ fn derive_expands_vector_array_and_tuple_stream_port_names() {
 }
 
 #[derive(Block)]
+#[message_inputs(r#await)]
+#[message_outputs(r#loop)]
+struct RawPortNames {
+    #[input]
+    r#type: DefaultCpuReader<u8>,
+    #[output]
+    r#async: DefaultCpuWriter<u8>,
+}
+
+impl Kernel for RawPortNames {}
+
+impl RawPortNames {
+    async fn r#await(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> futuresdr::runtime::Result<Pmt> {
+        Ok(Pmt::Ok)
+    }
+}
+
+#[test]
+fn derive_strips_raw_identifier_prefixes_from_port_names() {
+    let mut block = RawPortNames {
+        r#type: Default::default(),
+        r#async: Default::default(),
+    };
+
+    let mut inputs = Vec::new();
+    block
+        .visit_stream_inputs(&mut |port, _| {
+            inputs.push(port.name().to_string());
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(inputs, ["type"]);
+    assert!(
+        block
+            .with_stream_input(&PortId::from("type"), |_| ())
+            .is_ok()
+    );
+    assert!(
+        block
+            .with_stream_input(&PortId::from("r#type"), |_| ())
+            .is_ok()
+    );
+
+    let mut outputs = Vec::new();
+    block
+        .visit_stream_outputs(&mut |port, _| {
+            outputs.push(port.name().to_string());
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(outputs, ["async"]);
+    assert_eq!(RawPortNames::message_inputs(), &["await"]);
+    assert_eq!(RawPortNames::message_outputs(), &["loop"]);
+    assert_eq!(
+        RawPortNames::message_input_id("r#await"),
+        Some(futuresdr::runtime::PortIndex::new(0))
+    );
+}
+
+#[derive(Block)]
 #[message_inputs(ping = "renamed-ping", plain)]
 #[message_outputs(out, done)]
 struct MessageContract {
@@ -155,7 +221,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         &mut io,
         &mut mo,
         &mut meta,
-        PortId::from("renamed-ping"),
+        MessageContract::message_input_id("renamed-ping").unwrap(),
         Pmt::U32(7),
     ))
     .unwrap();
@@ -165,7 +231,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         &mut io,
         &mut mo,
         &mut meta,
-        PortId::index(1),
+        futuresdr::runtime::PortIndex::new(1),
         Pmt::U32(9),
     ))
     .unwrap();
@@ -176,11 +242,11 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         &mut io,
         &mut mo,
         &mut meta,
-        PortId::from("missing"),
+        futuresdr::runtime::PortIndex::new(99),
         Pmt::Null,
     ))
     .unwrap_err();
-    assert!(matches!(err, Error::InvalidMessagePort(_, port) if port.name() == "missing"));
+    assert!(matches!(err, Error::InvalidMessagePort(_, port) if port == PortId::index(99)));
 }
 
 #[derive(Block)]

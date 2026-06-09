@@ -291,10 +291,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                 }
             }
             BlockMessage::Call { port_id, data, tx } => {
-                match kernel
-                    .call_handler(work_io, mo, meta, port_id.clone(), data)
-                    .await
-                {
+                match kernel.call_handler(work_io, mo, meta, port_id, data).await {
                     Ok(p) => {
                         let _ = tx.send(Ok(p));
                     }

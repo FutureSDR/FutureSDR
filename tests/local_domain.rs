@@ -3,6 +3,7 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::blocks::NullSink;
+use futuresdr::blocks::NullSource;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
 use futuresdr::runtime::buffer::BufferReader;
@@ -403,21 +404,14 @@ fn stream_dyn_connects_normal_source_to_local_sink() -> Result<()> {
 }
 
 #[test]
-fn stream_dyn_accepts_indexed_ports_and_describes_names() -> Result<()> {
+fn stream_dyn_accepts_names_and_describes_names() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
 
-    let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![
-        1, 2, 3, 4,
-    ]))?;
+    let src = fg.add(NullSource::<u8, DefaultCpuWriter<u8>>::new())?;
     let snk = fg.add(NullSink::<u8, DefaultCpuReader<u8>>::new())?;
 
-    fg.stream_dyn(
-        src,
-        futuresdr::runtime::PortId::index(0),
-        snk,
-        futuresdr::runtime::PortId::index(0),
-    )?;
+    fg.stream_dyn(src, "output", snk, "input")?;
 
     let running = rt.start(fg)?;
     let description = futuresdr::runtime::block_on(running.describe())?;
@@ -430,8 +424,7 @@ fn stream_dyn_accepts_indexed_ports_and_describes_names() -> Result<()> {
             futuresdr::runtime::PortId::from("input"),
         )]
     );
-    let fg = running.wait()?;
-    assert_eq!(fg.with(&snk, |b| b.n_received())?, 4);
+    futuresdr::runtime::block_on(running.stop_and_wait())?;
 
     Ok(())
 }

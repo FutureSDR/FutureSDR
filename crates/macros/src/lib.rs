@@ -571,6 +571,10 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
                     let field_name = field.ident.as_ref().unwrap();
                     let field_name_str = field_name.to_string();
+                    let field_name_str = field_name_str
+                        .strip_prefix("r#")
+                        .unwrap_or(&field_name_str)
+                        .to_string();
 
                     match &field.ty {
                         // Handle Vec<T>
@@ -704,6 +708,10 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
                     let field_name = field.ident.as_ref().unwrap();
                     let field_name_str = field_name.to_string();
+                    let field_name_str = field_name_str
+                        .strip_prefix("r#")
+                        .unwrap_or(&field_name_str)
+                        .to_string();
 
                     match &field.ty {
                         // Handle Vec<T>
@@ -981,15 +989,28 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
             }
         })
         .collect::<Vec<_>>();
+    let message_output_names = message_output_names
+        .into_iter()
+        .map(|output| {
+            let output = if let Some(stripped) = output.strip_prefix("r#") {
+                stripped.to_string()
+            } else {
+                output
+            };
+            quote! {
+                #output
+            }
+        })
+        .collect::<Vec<_>>();
 
     // Generate dispatch checks for the handle method.
     let handler_matches = message_inputs
         .iter()
         .zip(message_input_names.clone())
         .enumerate()
-        .map(|(handler_index, (handler, handler_name))| {
+        .map(|(handler_index, (handler, _handler_name))| {
             quote! {
-                if ::futuresdr::runtime::__private::port_id_matches(&id, #handler_index, #handler_name) {
+                if id.index() == #handler_index {
                     return self.#handler(io, mo, meta, p)
                         .await
                         .map_err(|e| Error::HandlerError(e.to_string()));
@@ -1090,13 +1111,13 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 io: &mut #work_io_type,
                 mo: &mut ::futuresdr::runtime::dev::MessageOutputs,
                 meta: &mut ::futuresdr::runtime::dev::BlockMeta,
-                id: ::futuresdr::runtime::PortId,
+                id: ::futuresdr::runtime::PortIndex,
                 p: ::futuresdr::runtime::Pmt) ->
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {
                         use ::futuresdr::runtime::BlockPortCtx;
                         use ::futuresdr::runtime::Error;
                         #(#handler_matches)*
-                        Err(Error::InvalidMessagePort(BlockPortCtx::None, id))
+                        Err(Error::InvalidMessagePort(BlockPortCtx::None, ::futuresdr::runtime::PortId::from(id)))
             }
         }
 

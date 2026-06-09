@@ -7,7 +7,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
-use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
 use crate::runtime::block_inbox::BlockEndpoint;
@@ -63,7 +63,7 @@ impl LocalDomainInbox {
     pub(crate) async fn call(
         &self,
         addr: LocalBlockAddr,
-        port_id: PortId,
+        port_id: PortIndex,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
@@ -429,7 +429,7 @@ impl LocalDomainState {
     pub(crate) async fn push_call(
         &self,
         addr: LocalBlockAddr,
-        port_id: PortId,
+        port_id: PortIndex,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
@@ -700,7 +700,7 @@ pub(crate) enum LocalDomainMessage {
     },
     Call {
         addr: LocalBlockAddr,
-        port_id: PortId,
+        port_id: PortIndex,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     },
@@ -722,6 +722,7 @@ pub(crate) enum LocalDomainMessage {
 mod tests {
     use super::*;
     use crate::runtime::BlockPortCtx;
+    use crate::runtime::PortId;
     use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::DynBufferReader;

@@ -6,6 +6,8 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
+use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::TerminatedFlowgraph;
 
@@ -57,6 +59,15 @@ impl RunningFlowgraph {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn wait(self) -> Result<TerminatedFlowgraph, Error> {
         crate::runtime::block_on(self.wait_async())
+    }
+
+    /// Resolve a message input name to its dense per-block index.
+    pub fn message_input_id(
+        &self,
+        block_id: impl Into<BlockId>,
+        name: impl Into<PortName>,
+    ) -> Result<PortIndex, Error> {
+        self.handle.message_input_id(block_id, name)
     }
 
     /// Post a message to a block without waiting for handler completion.

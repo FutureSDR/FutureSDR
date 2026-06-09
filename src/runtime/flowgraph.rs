@@ -55,10 +55,10 @@ use types::StreamEdge;
 
 fn resolve_stream_port_index(port_id: &PortId, names: &[String]) -> Option<PortId> {
     match port_id {
-        PortId::Index(index) => (*index < names.len()).then_some(PortId::index(*index)),
+        PortId::Index(index) => (index.index() < names.len()).then_some(PortId::index(*index)),
         PortId::Name(name) => names
             .iter()
-            .position(|candidate| candidate == name)
+            .position(|candidate| candidate == name.as_str())
             .map(PortId::index),
     }
 }
@@ -67,7 +67,7 @@ fn resolve_stream_port_name(port_id: &PortId, names: &[String]) -> Option<PortId
     let PortId::Index(index) = resolve_stream_port_index(port_id, names)? else {
         unreachable!("resolve_stream_port_index always returns indexed ids")
     };
-    names.get(index).cloned().map(PortId::new)
+    names.get(index.index()).cloned().map(PortId::new)
 }
 
 pub(super) struct BlockSlot {

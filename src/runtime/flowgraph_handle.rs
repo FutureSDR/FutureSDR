@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
@@ -10,6 +11,8 @@ use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Timer;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -99,7 +102,7 @@ impl FlowgraphHandle {
         &self,
         block_id: BlockId,
         port_id: impl Into<PortId>,
-    ) -> Result<PortId, Error> {
+    ) -> Result<PortIndex, Error> {
         let port_id = port_id.into();
         let inputs = self
             .control
@@ -107,12 +110,10 @@ impl FlowgraphHandle {
             .get(block_id.0)
             .and_then(Option::as_ref)
             .ok_or(Error::InvalidBlock(block_id))?;
-        crate::runtime::resolve_port_index(&port_id, inputs)
-            .map(PortId::index)
-            .ok_or(Error::InvalidMessagePort(
-                BlockPortCtx::Id(block_id),
-                port_id,
-            ))
+        crate::runtime::resolve_port_index(&port_id, inputs).ok_or(Error::InvalidMessagePort(
+            BlockPortCtx::Id(block_id),
+            port_id,
+        ))
     }
 
     /// Get a handle scoped to one block in the running flowgraph.
@@ -124,6 +125,15 @@ impl FlowgraphHandle {
             flowgraph: self.clone(),
             block_id: block_id.into(),
         }
+    }
+
+    /// Resolve a message input name to its dense per-block index.
+    pub fn message_input_id(
+        &self,
+        block_id: impl Into<BlockId>,
+        name: impl Into<PortName>,
+    ) -> Result<PortIndex, Error> {
+        self.message_input_index(block_id.into(), PortId::from(name.into()))
     }
 
     /// Post a message to a handler without waiting for the handler to finish.
@@ -204,7 +214,21 @@ impl FlowgraphHandle {
             .send(BlockMessage::BlockDescription { tx })
             .await
             .map_err(|_| Error::BlockTerminated)?;
-        rx.await.map_err(|_| Error::BlockTerminated)
+
+        let mut rx = Box::pin(rx);
+        loop {
+            match futures::future::select(rx, Timer::after(Duration::from_millis(10))).await {
+                futures::future::Either::Left((description, _)) => {
+                    return description.map_err(|_| Error::BlockTerminated);
+                }
+                futures::future::Either::Right((_, pending)) => {
+                    if self.is_terminated() {
+                        return Err(Error::BlockTerminated);
+                    }
+                    rx = pending;
+                }
+            }
+        }
     }
 
     /// Send a stop message to the [`crate::runtime::Flowgraph`].
@@ -239,6 +263,11 @@ impl FlowgraphBlockHandle {
     /// Get the block id this handle targets.
     pub fn id(&self) -> BlockId {
         self.block_id
+    }
+
+    /// Resolve a message input name to its dense per-block index.
+    pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error> {
+        self.flowgraph.message_input_id(self.block_id, name)
     }
 
     /// Post a message to a handler on this block without waiting for completion.

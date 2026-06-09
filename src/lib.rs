@@ -83,6 +83,8 @@ pub mod prelude {
     pub use futuresdr::runtime::LocalDomainContext;
     pub use futuresdr::runtime::Pmt;
     pub use futuresdr::runtime::PortId;
+    pub use futuresdr::runtime::PortIndex;
+    pub use futuresdr::runtime::PortName;
     pub use futuresdr::runtime::Result;
     pub use futuresdr::runtime::RunningFlowgraph;
     pub use futuresdr::runtime::Runtime;

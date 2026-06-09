@@ -2,6 +2,7 @@ use crate::runtime::BlockId;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
@@ -189,9 +190,9 @@ impl Flowgraph {
     pub fn stream_dyn(
         &mut self,
         src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
+        src_port_id: impl Into<PortName>,
         dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
+        dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
         crate::runtime::block_on(self.stream_dyn_async(
             src_block_id,
@@ -205,14 +206,14 @@ impl Flowgraph {
     pub async fn stream_dyn_async(
         &mut self,
         src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
+        src_port_id: impl Into<PortName>,
         dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
+        dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
         let src_block_id = src_block_id.into();
-        let src_port_id = src_port_id.into();
+        let src_port_id = PortId::from(src_port_id.into());
         let dst_block_id = dst_block_id.into();
-        let dst_port_id = dst_port_id.into();
+        let dst_port_id = PortId::from(dst_port_id.into());
 
         let src = self.location(src_block_id)?;
         let dst = self.location(dst_block_id)?;
@@ -233,9 +234,9 @@ impl Flowgraph {
     pub fn stream_local_dyn(
         &mut self,
         src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
+        src_port_id: impl Into<PortName>,
         dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
+        dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
         crate::runtime::block_on(self.stream_local_dyn_async(
             src_block_id,
@@ -249,14 +250,14 @@ impl Flowgraph {
     pub async fn stream_local_dyn_async(
         &mut self,
         src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortId>,
+        src_port_id: impl Into<PortName>,
         dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortId>,
+        dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
         let src_block_id = src_block_id.into();
-        let src_port_id = src_port_id.into();
+        let src_port_id = PortId::from(src_port_id.into());
         let dst_block_id = dst_block_id.into();
-        let dst_port_id = dst_port_id.into();
+        let dst_port_id = PortId::from(dst_port_id.into());
 
         let src = self.location(src_block_id)?;
         let dst = self.location(dst_block_id)?;

@@ -88,6 +88,8 @@ pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::Pmt;
 pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
+pub use futuresdr_types::PortIndex;
+pub use futuresdr_types::PortName;
 
 /// A logical directed edge between two block ports.
 ///
@@ -152,20 +154,23 @@ impl Edge {
 
 pub(crate) fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {
     match port_id {
-        PortId::Index(port_index) => *port_index == index,
-        PortId::Name(port_name) => port_name == name,
+        PortId::Index(port_index) => port_index.index() == index,
+        PortId::Name(port_name) => port_name.as_str() == name,
     }
 }
 
-pub(crate) fn resolve_port_index(port_id: &PortId, names: &[&str]) -> Option<usize> {
+pub(crate) fn resolve_port_index(port_id: &PortId, names: &[&str]) -> Option<PortIndex> {
     match port_id {
-        PortId::Index(index) => (*index < names.len()).then_some(*index),
-        PortId::Name(name) => names.iter().position(|candidate| *candidate == name),
+        PortId::Index(index) => (index.index() < names.len()).then_some(*index),
+        PortId::Name(name) => names
+            .iter()
+            .position(|candidate| *candidate == name.as_str())
+            .map(PortIndex::new),
     }
 }
 
 pub(crate) fn resolve_port_name(port_id: &PortId, names: &[&str]) -> Option<PortId> {
-    resolve_port_index(port_id, names).map(|index| PortId::new(names[index].to_string()))
+    resolve_port_index(port_id, names).map(|index| PortId::new(names[index.index()].to_string()))
 }
 
 /// Block the current thread until a future completes.
@@ -330,14 +335,14 @@ pub(crate) enum BlockMessage {
     /// Post to a message handler without waiting for handler completion.
     Post {
         /// Message handler Id
-        port_id: PortId,
+        port_id: PortIndex,
         /// [`Pmt`] input data
         data: Pmt,
     },
     /// Call a message handler and wait for its return value.
     Call {
         /// Message handler Id
-        port_id: PortId,
+        port_id: PortIndex,
         /// [`Pmt`] input data
         data: Pmt,
         /// Back channel for handler result

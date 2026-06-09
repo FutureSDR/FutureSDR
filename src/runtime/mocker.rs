@@ -97,7 +97,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
                 .connect(
                     &PortId::new(*n),
                     BlockInbox::new(tx, BlockNotifier::new()).into(),
-                    &PortId::new("input"),
+                    &PortId::index(0),
                 )
                 .unwrap();
         }
@@ -116,6 +116,9 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
     /// that should be processed by the work loop.
     pub fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<Pmt, Error> {
         let id = id.into();
+        let port_id = crate::runtime::resolve_port_index(&id, K::message_inputs()).ok_or({
+            Error::InvalidMessagePort(crate::runtime::BlockPortCtx::Id(self.block.id), id)
+        })?;
         let mut io = WorkIo {
             call_again: false,
             finished: false,
@@ -124,7 +127,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
         let NormalWrappedKernel {
             meta, mo, kernel, ..
         } = &mut self.block;
-        crate::runtime::block_on(kernel.call_handler(&mut io, mo, meta, id, p))
+        crate::runtime::block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))
             .map_err(|e| Error::HandlerError(e.to_string()))
     }
 

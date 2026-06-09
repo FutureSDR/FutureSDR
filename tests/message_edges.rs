@@ -122,17 +122,21 @@ fn message_edge_accepts_indexed_ports_and_describes_names() -> Result<()> {
     let mut fg = Flowgraph::new();
     let src = fg.add(TriggerMsg::new())?;
     let snk = fg.add(CountMsg::new())?;
-    fg.message(src, PortId::index(0), snk, PortId::index(0))?;
+    let trigger = src.message_input_id("trigger")?;
+    let sink_input = snk.message_input_id("r#in")?;
+    fg.message(src, PortId::index(0), snk, sink_input)?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;
+    assert_eq!(running.message_input_id(src, "trigger")?, trigger);
+    assert_eq!(running.block(src).message_input_id("trigger")?, trigger);
     let description = futuresdr::runtime::block_on(running.describe())?;
     assert_eq!(
         description.message_edges,
         vec![(src.id(), PortId::from("out"), snk.id(), PortId::from("in"))]
     );
 
-    futuresdr::runtime::block_on(running.call(src, PortId::index(0), Pmt::Null))?;
+    futuresdr::runtime::block_on(running.call(src, trigger, Pmt::Null))?;
     let fg = futuresdr::runtime::block_on(running.stop_and_wait())?;
     assert_eq!(fg.with(&snk, |b| b.received)?, 1);
 

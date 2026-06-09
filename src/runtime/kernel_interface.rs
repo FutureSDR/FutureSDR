@@ -4,6 +4,8 @@ use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
@@ -76,13 +78,21 @@ pub trait KernelInterface {
     fn message_inputs() -> &'static [&'static str];
     /// Message output port names.
     fn message_outputs() -> &'static [&'static str];
+    /// Resolve a message input name to its dense per-block index.
+    fn message_input_id(name: impl Into<PortName>) -> Option<PortIndex> {
+        let name = name.into();
+        Self::message_inputs()
+            .iter()
+            .position(|candidate| *candidate == name.as_str())
+            .map(PortIndex::new)
+    }
     /// Call a message handler.
     fn call_handler(
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
-        id: PortId,
+        id: PortIndex,
         _p: Pmt,
     ) -> impl Future<Output = Result<Pmt, Error>>;
 }
@@ -110,12 +120,16 @@ pub(crate) fn stream_ports_init<K: KernelInterface>(
     block_id: BlockId,
     inboxes: PortInboxes,
 ) -> Result<(), Error> {
-    kernel.visit_stream_inputs(&mut |name, port| {
-        port.init_from(block_id, name, &inboxes);
+    let mut index = 0usize;
+    kernel.visit_stream_inputs(&mut |_name, port| {
+        port.init_from(block_id, PortId::index(index), &inboxes);
+        index += 1;
         Ok(())
     })?;
-    kernel.visit_stream_outputs(&mut |name, port| {
-        port.init_from(block_id, name, &inboxes);
+    let mut index = 0usize;
+    kernel.visit_stream_outputs(&mut |_name, port| {
+        port.init_from(block_id, PortId::index(index), &inboxes);
+        index += 1;
         Ok(())
     })
 }

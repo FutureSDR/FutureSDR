@@ -23,5 +23,7 @@ mod flowgraph_id;
 pub use flowgraph_id::FlowgraphId;
 mod port_id;
 pub use port_id::PortId;
+pub use port_id::PortIndex;
+pub use port_id::PortName;
 #[cfg(feature = "seify")]
 mod seify;

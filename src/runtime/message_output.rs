@@ -5,12 +5,13 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::dev::BlockEndpoint;
 
 /// One downstream message handler reached through a send-safe endpoint.
 #[derive(Debug)]
 struct MessageHandler {
-    port: PortId,
+    port: PortIndex,
     endpoint: BlockEndpoint,
 }
 
@@ -36,7 +37,7 @@ impl MessageOutput {
     }
 
     /// Connect this output to one downstream message input.
-    fn connect(&mut self, port: PortId, dst: BlockEndpoint) {
+    fn connect(&mut self, port: PortIndex, dst: BlockEndpoint) {
         self.handlers.push(MessageHandler {
             port,
             endpoint: dst,
@@ -49,7 +50,7 @@ impl MessageOutput {
             let _ = handler
                 .endpoint
                 .send(BlockMessage::Post {
-                    port_id: handler.port.clone(),
+                    port_id: handler.port,
                     data: p.clone(),
                 })
                 .await;
@@ -99,9 +100,15 @@ impl MessageOutputs {
         dst_port: &PortId,
     ) -> Result<(), Error> {
         let block_id = self.block_id;
+        let PortId::Index(dst_port) = dst_port else {
+            return Err(Error::InvalidMessagePort(
+                BlockPortCtx::Id(block_id),
+                dst_port.clone(),
+            ));
+        };
         self.output_mut(src_port)
             .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(block_id), src_port.clone()))?
-            .connect(dst_port.clone(), dst_block_endpoint);
+            .connect(*dst_port, dst_block_endpoint);
         Ok(())
     }
     /// Tell all downstream message receivers that we are done.
@@ -134,14 +141,14 @@ mod tests {
         let mut outputs = MessageOutputs::new(BlockId(0), vec!["out".to_string()]);
 
         outputs
-            .connect(&PortId::from("out"), endpoint, &PortId::from("in"))
+            .connect(&PortId::from("out"), endpoint, &PortId::index(0))
             .unwrap();
         crate::runtime::block_on(outputs.post("out", Pmt::U32(7))).unwrap();
 
         assert!(matches!(
             rx.try_recv().ok(),
             Some(BlockMessage::Post { port_id, data })
-                if port_id == PortId::from("in") && data == Pmt::U32(7)
+                if port_id == PortIndex::new(0) && data == Pmt::U32(7)
         ));
     }
 
@@ -159,7 +166,7 @@ mod tests {
         assert!(matches!(
             rx.try_recv().ok(),
             Some(BlockMessage::Post { port_id, data })
-                if port_id == PortId::index(0) && data == Pmt::U32(7)
+                if port_id == PortIndex::new(0) && data == Pmt::U32(7)
         ));
     }
 }

@@ -4,11 +4,15 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 
 use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
+use crate::runtime::PortIndex;
+use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::dev::BlockMeta;
+use crate::runtime::kernel_interface::KernelInterface;
 
 use super::Flowgraph;
 
@@ -39,6 +43,20 @@ impl<K> TypedBlockGuard<'_, K> {
         self.id
     }
 
+    /// Resolve a message input name to this block type's dense port index.
+    pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error>
+    where
+        K: KernelInterface,
+    {
+        let name = name.into();
+        K::message_input_id(name.clone()).ok_or_else(|| {
+            Error::InvalidMessagePort(
+                BlockPortCtx::Id(self.id),
+                crate::runtime::PortId::from(name),
+            )
+        })
+    }
+
     /// Get block metadata.
     pub fn meta(&self) -> &BlockMeta {
         self.meta
@@ -62,6 +80,20 @@ impl<K> TypedBlockGuardMut<'_, K> {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
         self.id
+    }
+
+    /// Resolve a message input name to this block type's dense port index.
+    pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error>
+    where
+        K: KernelInterface,
+    {
+        let name = name.into();
+        K::message_input_id(name.clone()).ok_or_else(|| {
+            Error::InvalidMessagePort(
+                BlockPortCtx::Id(self.id),
+                crate::runtime::PortId::from(name),
+            )
+        })
     }
 
     /// Get block metadata.
@@ -189,6 +221,19 @@ impl<K> BlockRef<K> {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
         self.id
+    }
+}
+
+impl<K: KernelInterface> BlockRef<K> {
+    /// Resolve a message input name to this block type's dense port index.
+    pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error> {
+        let name = name.into();
+        K::message_input_id(name.clone()).ok_or_else(|| {
+            Error::InvalidMessagePort(
+                BlockPortCtx::Id(self.id),
+                crate::runtime::PortId::from(name),
+            )
+        })
     }
 }
 

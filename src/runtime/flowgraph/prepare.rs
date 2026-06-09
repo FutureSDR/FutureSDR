@@ -299,10 +299,14 @@ impl<'a> FlowgraphCompiler<'a> {
     fn compile_graph_plan(&mut self) -> Result<GraphPlan, Error> {
         self.validate_stream_graph()?;
 
-        let stream_edges_public = std::mem::take(&mut self.flowgraph.stream_edges)
+        let raw_stream_edges = std::mem::take(&mut self.flowgraph.stream_edges)
             .into_iter()
             .map(|edge| edge.edge())
             .collect::<Vec<_>>();
+        let stream_edges_public = raw_stream_edges
+            .iter()
+            .map(|edge| self.flowgraph.named_stream_edge(edge))
+            .collect::<Result<Vec<_>, _>>()?;
         let stream_edges = stream_edges_public
             .iter()
             .map(|edge| self.flowgraph.indexed_stream_edge(edge))
@@ -388,17 +392,19 @@ impl<'a> FlowgraphCompiler<'a> {
             if dst.0 >= self.flowgraph.blocks.len() {
                 return Err(Error::InvalidBlock(dst));
             }
+            let indexed_edge = self.flowgraph.indexed_stream_edge(&edge.edge)?;
             if connected_inputs
                 .iter()
-                .any(|(block, port)| *block == dst && port == &edge.edge.dst_port)
+                .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port)
             {
+                let dst_port = self.flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
                 return Err(Error::ValidationError(format!(
                     "stream input {:?}.{} has more than one connection",
                     dst,
-                    edge.edge.dst_port.name()
+                    dst_port.name()
                 )));
             }
-            connected_inputs.push((dst, edge.edge.dst_port.clone()));
+            connected_inputs.push((dst, indexed_edge.dst_port));
 
             if edge.local_only {
                 let src_location = self.flowgraph.location(src)?;
