@@ -14,14 +14,87 @@ struct Args {
     run: usize,
     #[clap(short, long, default_value_t = 6)]
     stages: usize,
-    #[clap(short, long, default_value_t = 5)]
+    #[clap(short, long, default_value_t = 4)]
     pipes: usize,
-    #[clap(short = 'R', long, default_value_t = 100)]
+    #[clap(short = 'R', long, default_value_t = 1)]
     repetitions: usize,
-    #[clap(short, long, default_value_t = 1000)]
+    #[clap(short, long, default_value_t = 1000000)]
     burst_size: u64,
-    #[clap(short = 'S', long, default_value = "smol1")]
+    #[clap(short = 'S', long, default_value = "smoln")]
     config: String,
+}
+
+type MessageSinks = Vec<BlockRef<MessageSink>>;
+type CpuMapping = Vec<Vec<BlockId>>;
+
+fn generate(
+    pipes: usize,
+    stages: usize,
+    burst_size: u64,
+) -> Result<(Flowgraph, MessageSinks, CpuMapping)> {
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+    let n_executors = core_affinity::get_core_ids().map(|v| v.len()).unwrap_or(1);
+    let mut cpu_mapping: Vec<Vec<BlockId>> = vec![Vec::new(); n_executors];
+
+    for p in 0..pipes {
+        let executor = p % n_executors;
+        let src = fg.add(MessageBurst::new(Pmt::F64(1.23), burst_size))?;
+        let mut prev = src.id();
+
+        cpu_mapping[executor].push(src.id());
+
+        for _ in 0..stages {
+            let block = fg.add(MessageCopy::new())?;
+            fg.message(prev, "out", block.id(), "in")?;
+            cpu_mapping[executor].push(block.id());
+            prev = block.id();
+        }
+
+        let snk = fg.add(MessageSink::new())?;
+        fg.message(prev, "out", snk.id(), "in")?;
+        cpu_mapping[executor].push(snk.id());
+        snks.push(snk);
+    }
+
+    Ok((fg, snks, cpu_mapping))
+}
+
+fn generate_local(
+    pipes: usize,
+    stages: usize,
+    burst_size: u64,
+) -> Result<(Flowgraph, MessageSinks)> {
+    let mut fg = Flowgraph::new();
+    let mut snks = Vec::new();
+    let core_ids = core_affinity::get_core_ids().expect("failed to get available CPU IDs");
+
+    if core_ids.len() < pipes {
+        return Err(anyhow::anyhow!(
+            "local config requires one available CPU per pipe; got {} CPUs ({:?}) for {} pipes",
+            core_ids.len(),
+            core_ids,
+            pipes
+        ));
+    }
+
+    for core_id in core_ids.into_iter().take(pipes) {
+        let local = fg.local_domain_pinned(core_id.id)?;
+        let src = fg.add_local(local, move || MessageBurst::new(Pmt::F64(1.23), burst_size))?;
+        let mut prev = src.id();
+
+        for _ in 0..stages {
+            let block = fg.add_local(local, MessageCopy::new)?;
+            fg.message(prev, "out", block.id(), "in")?;
+            prev = block.id();
+        }
+
+        let snk = fg.add_local(local, MessageSink::new)?;
+        fg.message(prev, "out", snk.id(), "in")?;
+        snks.push(snk);
+    }
+
+    Ok((fg, snks))
 }
 
 fn main() -> Result<()> {
@@ -35,49 +108,41 @@ fn main() -> Result<()> {
     } = Args::parse();
 
     for r in 0..repetitions {
-        let mut fg = Flowgraph::new();
-        let mut snks = Vec::new();
-        let mut pipe_blocks: Vec<Vec<BlockId>> = Vec::new();
-
-        for _ in 0..pipes {
-            let mut this_pipe: Vec<BlockId> = Vec::new();
-            let src = MessageBurst::new(Pmt::F64(1.23), burst_size);
-
-            let block = MessageCopy::new();
-            connect!(fg, src | block);
-            this_pipe.push((&src).into());
-            this_pipe.push((&block).into());
-            let mut prev = block;
-
-            for _ in 2..=stages {
-                let block = fg.add(MessageCopy::new())?;
-                fg.message(prev, "out", block, "in")?;
-                this_pipe.push(block.id());
-                prev = block;
+        let (fg, snks, elapsed) = match config.as_str() {
+            "local" => {
+                let (fg, snks) = generate_local(pipes, stages, burst_size)?;
+                let runtime = Runtime::new();
+                let now = time::Instant::now();
+                let fg = runtime.run(fg)?;
+                (fg, snks, now.elapsed())
             }
-
-            let snk = fg.add(MessageSink::new())?;
-            fg.message(prev, "out", snk, "in")?;
-            this_pipe.push(snk.id());
-            snks.push(snk);
-            pipe_blocks.push(this_pipe);
-        }
-
-        let now = time::Instant::now();
-        let fg = if config == "smol1" {
-            Runtime::with_scheduler(SmolScheduler::new(1, false)).run(fg)?
-        } else if config == "smoln" {
-            Runtime::with_scheduler(SmolScheduler::default()).run(fg)?
-        } else if config == "flow" {
-            Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(pipe_blocks)).run(fg)?
-        } else {
-            panic!("unknown config");
+            "smol1" => {
+                let (fg, snks, _) = generate(pipes, stages, burst_size)?;
+                let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
+                let now = time::Instant::now();
+                let fg = runtime.run(fg)?;
+                (fg, snks, now.elapsed())
+            }
+            "smoln" => {
+                let (fg, snks, _) = generate(pipes, stages, burst_size)?;
+                let runtime = Runtime::with_scheduler(SmolScheduler::default());
+                let now = time::Instant::now();
+                let fg = runtime.run(fg)?;
+                (fg, snks, now.elapsed())
+            }
+            "flow" => {
+                let (fg, snks, cpu_mapping) = generate(pipes, stages, burst_size)?;
+                let runtime =
+                    Runtime::with_scheduler(FlowScheduler::with_pinned_blocks(cpu_mapping));
+                let now = time::Instant::now();
+                let fg = runtime.run(fg)?;
+                (fg, snks, now.elapsed())
+            }
+            _ => panic!("unknown config"),
         };
-        let elapsed = now.elapsed();
 
         for s in snks {
-            let snk = fg.block(&s)?;
-            assert_eq!(snk.received(), burst_size);
+            assert_eq!(fg.with(&s, |snk| snk.received())?, burst_size);
         }
 
         println!(

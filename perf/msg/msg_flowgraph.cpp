@@ -37,10 +37,10 @@ int main (int argc, char **argv) {
     desc.add_options()
         ("help,h", "display help")
         ("run,r", po::value<int>(&run)->default_value(1), "Run Number")
-        ("pipes,p", po::value<int>(&pipes)->default_value(5), "Number of pipes")
+        ("pipes,p", po::value<int>(&pipes)->default_value(4), "Number of pipes")
         ("stages,s", po::value<int>(&stages)->default_value(6), "Number of stages")
-        ("repetitions,R", po::value<int>(&repetitions)->default_value(100), "Number of repetitions")
-        ("burst_size,b", po::value<int>(&burst_size)->default_value(0), "Number of PDUs per burst");
+        ("repetitions,R", po::value<int>(&repetitions)->default_value(1), "Number of repetitions")
+        ("burst_size,b", po::value<int>(&burst_size)->default_value(10000), "Number of PDUs per burst");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);

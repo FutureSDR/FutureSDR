@@ -1,9 +1,9 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [1000])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [1000], ["smoln", "flow"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [10000])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [1000000], ["smoln", "flow", "local"])]))')
 
-REPETITIONS=10
+REPETITIONS=1
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
@@ -11,8 +11,8 @@ SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
 all: setup $(GRRESULTS) $(FSRESULTS)
 
-gr: setup $(GRRESULTS) 
-fs: setup $(FSRESULTS) 
+gr: setup $(GRRESULTS)
+fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
