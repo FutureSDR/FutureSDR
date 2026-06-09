@@ -1,5 +1,6 @@
 use futures::Future;
 use std::any::Any;
+use std::collections::HashSet;
 use std::pin::Pin;
 
 use crate::runtime::BlockId;
@@ -205,14 +206,9 @@ pub(crate) type LocalDomainAsyncExec = Box<
         + 'static,
 >;
 
-enum LocalBlockSlotState {
-    Occupied(Box<dyn LocalBlock>),
-    Running,
-}
-
 struct LocalBlockSlot {
     block_id: BlockId,
-    block: LocalBlockSlotState,
+    block: Box<dyn LocalBlock>,
     inbox: LocalBlockInbox,
     external_inbox: Option<BlockInboxReader>,
 }
@@ -224,7 +220,21 @@ impl LocalBlockSlot {
         let external_inbox = block.take_external_inbox_reader();
         Self {
             block_id,
-            block: LocalBlockSlotState::Occupied(block),
+            block,
+            inbox,
+            external_inbox,
+        }
+    }
+
+    fn from_running(
+        block_id: BlockId,
+        block: Box<dyn LocalBlock>,
+        inbox: LocalBlockInbox,
+        external_inbox: Option<BlockInboxReader>,
+    ) -> Self {
+        Self {
+            block_id,
+            block,
             inbox,
             external_inbox,
         }
@@ -240,55 +250,212 @@ impl LocalBlockSlot {
 
     fn block(&self, block_id: BlockId) -> Result<&dyn BlockObject, Error> {
         self.validate(block_id)?;
-        match &self.block {
-            LocalBlockSlotState::Occupied(block) => Ok(block.as_ref() as &dyn BlockObject),
-            LocalBlockSlotState::Running => Err(Error::LockError),
-        }
+        Ok(self.block.as_ref() as &dyn BlockObject)
     }
 
     fn block_mut(&mut self, block_id: BlockId) -> Result<&mut dyn BlockObject, Error> {
         self.validate(block_id)?;
-        match &mut self.block {
-            LocalBlockSlotState::Occupied(block) => Ok(block.as_mut() as &mut dyn BlockObject),
-            LocalBlockSlotState::Running => Err(Error::LockError),
+        Ok(self.block.as_mut() as &mut dyn BlockObject)
+    }
+}
+
+trait LocalInboxLookup {
+    fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error>;
+    fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox>;
+}
+
+async fn push_local_message(
+    state: &impl LocalInboxLookup,
+    addr: LocalBlockAddr,
+    message: BlockMessage,
+) -> Result<(), Error> {
+    let local_id = state.validate_addr(addr)?;
+    let inbox = state
+        .inbox(local_id)
+        .ok_or(Error::InvalidBlock(addr.block_id))?;
+    inbox.send(message).await
+}
+
+async fn call_local_message(
+    state: &impl LocalInboxLookup,
+    addr: LocalBlockAddr,
+    port_id: PortIndex,
+    data: Pmt,
+    reply: oneshot::Sender<Result<Pmt, Error>>,
+) -> Result<(), Error> {
+    let local_id = match state.validate_addr(addr) {
+        Ok(local_id) => local_id,
+        Err(e) => {
+            let _ = reply.send(Err(e.clone()));
+            return Err(e);
+        }
+    };
+    let inbox = match state.inbox(local_id) {
+        Some(inbox) => inbox,
+        None => {
+            let e = Error::InvalidBlock(addr.block_id);
+            let _ = reply.send(Err(e.clone()));
+            return Err(e);
+        }
+    };
+    inbox
+        .send(BlockMessage::Call {
+            port_id,
+            data,
+            tx: reply,
+        })
+        .await
+}
+
+fn notify_local_block(state: &impl LocalInboxLookup, addr: LocalBlockAddr) -> Result<(), Error> {
+    let local_id = state.validate_addr(addr)?;
+    let inbox = state
+        .inbox(local_id)
+        .ok_or(Error::InvalidBlock(addr.block_id))?;
+    inbox.notify();
+    Ok(())
+}
+
+struct LocalRunningSlot {
+    local_id: usize,
+    block_id: BlockId,
+    inbox: LocalBlockInbox,
+    external_inbox: Option<BlockInboxReader>,
+}
+
+pub(crate) struct LocalRunningState {
+    slots: Vec<LocalRunningSlot>,
+    blocks: Vec<(usize, Box<dyn LocalBlock>)>,
+}
+
+impl LocalRunningState {
+    fn new(slots: Vec<(usize, LocalBlockSlot)>) -> Self {
+        let mut running_slots = Vec::with_capacity(slots.len());
+        let mut blocks = Vec::with_capacity(slots.len());
+        for (local_id, slot) in slots {
+            let LocalBlockSlot {
+                block_id,
+                block,
+                inbox,
+                external_inbox,
+            } = slot;
+            running_slots.push(LocalRunningSlot {
+                local_id,
+                block_id,
+                inbox,
+                external_inbox,
+            });
+            blocks.push((local_id, block));
+        }
+
+        Self {
+            slots: running_slots,
+            blocks,
         }
     }
 
-    fn take_block(&mut self, block_id: BlockId) -> Result<Box<dyn LocalBlock>, Error> {
-        self.validate(block_id)?;
-        match std::mem::replace(&mut self.block, LocalBlockSlotState::Running) {
-            LocalBlockSlotState::Occupied(block) => Ok(block),
-            LocalBlockSlotState::Running => Err(Error::LockError),
+    fn slot(&self, local_id: usize, block_id: BlockId) -> Result<&LocalRunningSlot, Error> {
+        let slot = self
+            .slots
+            .iter()
+            .find(|slot| slot.local_id == local_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        if slot.block_id == block_id {
+            Ok(slot)
+        } else {
+            Err(Error::InvalidBlock(block_id))
         }
     }
 
-    fn restore_block(
+    pub(crate) fn take_block(
         &mut self,
+        local_id: usize,
+        block_id: BlockId,
+    ) -> Result<Box<dyn LocalBlock>, Error> {
+        self.slot(local_id, block_id)?;
+        let pos = self
+            .blocks
+            .iter()
+            .position(|(id, _)| *id == local_id)
+            .ok_or(Error::LockError)?;
+        Ok(self.blocks.swap_remove(pos).1)
+    }
+
+    pub(crate) fn restore_block(
+        &mut self,
+        local_id: usize,
         block_id: BlockId,
         block: Box<dyn LocalBlock>,
     ) -> Result<(), Error> {
-        self.validate(block_id)?;
-        let previous = std::mem::replace(&mut self.block, LocalBlockSlotState::Running);
-        match previous {
-            LocalBlockSlotState::Running => {
-                self.block = LocalBlockSlotState::Occupied(block);
-                Ok(())
-            }
-            LocalBlockSlotState::Occupied(existing) => {
-                self.block = LocalBlockSlotState::Occupied(existing);
-                Err(Error::RuntimeError(format!(
-                    "local block slot for {block_id:?} was restored while occupied"
-                )))
-            }
+        self.slot(local_id, block_id)?;
+        if self.blocks.iter().any(|(id, _)| *id == local_id) {
+            return Err(Error::RuntimeError(format!(
+                "local block slot for {block_id:?} was restored while occupied"
+            )));
         }
+        self.blocks.push((local_id, block));
+        Ok(())
     }
 
-    fn take_occupied_block(self, block_id: BlockId) -> Result<Box<dyn LocalBlock>, Error> {
-        self.validate(block_id)?;
-        match self.block {
-            LocalBlockSlotState::Occupied(block) => Ok(block),
-            LocalBlockSlotState::Running => Err(Error::LockError),
+    pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
+        self.slots
+            .iter_mut()
+            .find(|slot| slot.local_id == local_id)
+            .and_then(|slot| slot.external_inbox.take())
+    }
+
+    pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
+        self.slots
+            .iter()
+            .find(|slot| slot.local_id == local_id)
+            .map(|slot| slot.inbox.clone())
+    }
+
+    pub(crate) fn inboxes_by_local_id(&self) -> Vec<Option<(BlockId, LocalBlockInbox)>> {
+        let len = self
+            .slots
+            .iter()
+            .map(|slot| slot.local_id + 1)
+            .max()
+            .unwrap_or(0);
+        let mut inboxes = vec![None; len];
+        for slot in &self.slots {
+            inboxes[slot.local_id] = Some((slot.block_id, slot.inbox.clone()));
         }
+        inboxes
+    }
+
+    pub(crate) async fn push_message(
+        &self,
+        addr: LocalBlockAddr,
+        message: BlockMessage,
+    ) -> Result<(), Error> {
+        push_local_message(self, addr, message).await
+    }
+
+    pub(crate) async fn push_call(
+        &self,
+        addr: LocalBlockAddr,
+        port_id: PortIndex,
+        data: Pmt,
+        reply: oneshot::Sender<Result<Pmt, Error>>,
+    ) -> Result<(), Error> {
+        call_local_message(self, addr, port_id, data, reply).await
+    }
+
+    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
+        notify_local_block(self, addr)
+    }
+}
+
+impl LocalInboxLookup for LocalRunningState {
+    fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error> {
+        self.slot(addr.local_id, addr.block_id)?;
+        Ok(addr.local_id)
+    }
+
+    fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
+        LocalRunningState::inbox(self, local_id)
     }
 }
 
@@ -318,31 +485,6 @@ impl LocalDomainState {
         Ok(())
     }
 
-    pub(crate) fn take_block(
-        &mut self,
-        local_id: usize,
-        block_id: BlockId,
-    ) -> Result<Box<dyn LocalBlock>, Error> {
-        self.slots
-            .get_mut(local_id)
-            .and_then(Option::as_mut)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .take_block(block_id)
-    }
-
-    pub(crate) fn restore_block(
-        &mut self,
-        local_id: usize,
-        block_id: BlockId,
-        block: Box<dyn LocalBlock>,
-    ) -> Result<(), Error> {
-        self.slots
-            .get_mut(local_id)
-            .and_then(Option::as_mut)
-            .ok_or(Error::InvalidBlock(block_id))?
-            .restore_block(block_id, block)
-    }
-
     pub(crate) fn remove_block(&mut self, local_id: usize, block_id: BlockId) -> Result<(), Error> {
         let slot = self
             .slots
@@ -350,22 +492,93 @@ impl LocalDomainState {
             .and_then(Option::as_mut)
             .ok_or(Error::InvalidBlock(block_id))?;
         slot.validate(block_id)?;
-        if matches!(&slot.block, LocalBlockSlotState::Running) {
-            return Err(Error::LockError);
-        }
 
         let slot = self.slots[local_id]
             .take()
             .expect("validated local block slot disappeared");
-        drop(slot.take_occupied_block(block_id)?);
+        drop(slot.block);
         Ok(())
     }
 
-    pub(crate) fn take_external_inbox(&mut self, local_id: usize) -> Option<BlockInboxReader> {
-        self.slots
-            .get_mut(local_id)
-            .and_then(Option::as_mut)
-            .and_then(|slot| slot.external_inbox.take())
+    pub(crate) fn start_run(
+        &mut self,
+        slots: &[(BlockId, usize)],
+    ) -> Result<LocalRunningState, Error> {
+        let mut seen = HashSet::with_capacity(slots.len());
+        for (block_id, local_id) in slots {
+            if !seen.insert(*local_id) {
+                return Err(Error::RuntimeError(format!(
+                    "local block slot {local_id} was selected more than once"
+                )));
+            }
+            self.slots
+                .get(*local_id)
+                .and_then(Option::as_ref)
+                .ok_or(Error::InvalidBlock(*block_id))?
+                .validate(*block_id)?;
+        }
+
+        let mut running_slots = Vec::with_capacity(slots.len());
+        for (block_id, local_id) in slots {
+            let slot = self.slots[*local_id]
+                .take()
+                .ok_or(Error::InvalidBlock(*block_id))?;
+            running_slots.push((*local_id, slot));
+        }
+
+        Ok(LocalRunningState::new(running_slots))
+    }
+
+    pub(crate) fn finish_run(&mut self, mut running: LocalRunningState) -> Result<(), Error> {
+        let mut result = Ok(());
+        for slot in running.slots {
+            let block = match running
+                .blocks
+                .iter()
+                .position(|(local_id, _)| *local_id == slot.local_id)
+            {
+                Some(pos) => running.blocks.swap_remove(pos).1,
+                None => {
+                    if result.is_ok() {
+                        result = Err(Error::RuntimeError(format!(
+                            "local block {:?} was not restored after run",
+                            slot.block_id
+                        )));
+                    }
+                    continue;
+                }
+            };
+
+            if self.slots.len() <= slot.local_id {
+                self.slots.resize_with(slot.local_id + 1, || None);
+            }
+            if self.slots[slot.local_id].is_some() {
+                if result.is_ok() {
+                    result = Err(Error::RuntimeError(format!(
+                        "local block slot {} was occupied while finishing a run",
+                        slot.local_id
+                    )));
+                }
+                continue;
+            }
+            self.slots[slot.local_id] = Some(LocalBlockSlot::from_running(
+                slot.block_id,
+                block,
+                slot.inbox,
+                slot.external_inbox,
+            ));
+        }
+
+        if let Some((_, block)) = running.blocks.first()
+            && result.is_ok()
+        {
+            result = Err(Error::RuntimeError(format!(
+                "local block {:?} did not belong to the running domain",
+                block.id()
+            )));
+        }
+
+        result
     }
 
     pub(crate) fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
@@ -373,16 +586,6 @@ impl LocalDomainState {
             .get(local_id)
             .and_then(Option::as_ref)
             .map(|slot| slot.inbox.clone())
-    }
-
-    pub(crate) fn inboxes_by_local_id(&self) -> Vec<Option<(BlockId, LocalBlockInbox)>> {
-        self.slots
-            .iter()
-            .map(|slot| {
-                slot.as_ref()
-                    .map(|slot| (slot.block_id, slot.inbox.clone()))
-            })
-            .collect()
     }
 
     pub(crate) fn local_id_for_block(&self, block_id: BlockId) -> Option<usize> {
@@ -405,11 +608,7 @@ impl LocalDomainState {
         addr: LocalBlockAddr,
         message: BlockMessage,
     ) -> Result<(), Error> {
-        let local_id = self.validate_addr(addr)?;
-        let inbox = self
-            .inbox(local_id)
-            .ok_or(Error::InvalidBlock(addr.block_id))?;
-        inbox.send(message).await
+        push_local_message(self, addr, message).await
     }
 
     pub(crate) async fn push_call(
@@ -419,37 +618,11 @@ impl LocalDomainState {
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
-        let local_id = match self.validate_addr(addr) {
-            Ok(local_id) => local_id,
-            Err(e) => {
-                let _ = reply.send(Err(e.clone()));
-                return Err(e);
-            }
-        };
-        let inbox = match self.inbox(local_id) {
-            Some(inbox) => inbox,
-            None => {
-                let e = Error::InvalidBlock(addr.block_id);
-                let _ = reply.send(Err(e.clone()));
-                return Err(e);
-            }
-        };
-        inbox
-            .send(BlockMessage::Call {
-                port_id,
-                data,
-                tx: reply,
-            })
-            .await
+        call_local_message(self, addr, port_id, data, reply).await
     }
 
     pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
-        let local_id = self.validate_addr(addr)?;
-        let inbox = self
-            .inbox(local_id)
-            .ok_or(Error::InvalidBlock(addr.block_id))?;
-        inbox.notify();
-        Ok(())
+        notify_local_block(self, addr)
     }
 
     pub(crate) fn block(
@@ -509,6 +682,32 @@ impl LocalDomainState {
             .ok_or(Error::InvalidBlock(dst_id))?
             .block_mut(dst_id)?;
         Ok((src_block, dst_block))
+    }
+}
+
+impl LocalInboxLookup for LocalDomainState {
+    fn validate_addr(&self, addr: LocalBlockAddr) -> Result<usize, Error> {
+        LocalDomainState::validate_addr(self, addr)
+    }
+
+    fn inbox(&self, local_id: usize) -> Option<LocalBlockInbox> {
+        LocalDomainState::inbox(self, local_id)
+    }
+}
+
+pub(crate) fn finish_local_run_result(
+    run_result: Result<(), Error>,
+    finish_result: Result<(), Error>,
+) -> Result<(), Error> {
+    match (run_result, finish_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(e), Ok(())) | (Ok(()), Err(e)) => Err(e),
+        (Err(e), Err(finish_error)) => {
+            warn!(
+                "local domain failed to restore running state after scheduler error: {finish_error}"
+            );
+            Err(e)
+        }
     }
 }
 
@@ -802,25 +1001,53 @@ mod tests {
     }
 
     #[test]
-    fn local_slot_metadata_survives_running_transition() {
+    fn local_slots_move_from_idle_to_running_and_back() {
         let mut state = LocalDomainState::new();
         state.insert_block(2, test_block(7)).unwrap();
 
         assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
         assert!(state.inbox(2).is_some());
+        assert!(state.block(2, BlockId(7)).is_ok());
 
-        let block = state.take_block(2, BlockId(7)).unwrap();
-        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
-        assert!(state.inbox(2).is_some());
-        assert!(matches!(state.block(2, BlockId(7)), Err(Error::LockError)));
+        let mut running = state.start_run(&[(BlockId(7), 2)]).unwrap();
+        assert_eq!(state.local_id_for_block(BlockId(7)), None);
+        assert!(matches!(
+            state.block(2, BlockId(7)),
+            Err(Error::InvalidBlock(BlockId(7)))
+        ));
+
+        assert!(running.inbox(2).is_some());
         assert!(
-            state
+            running
                 .notify_block(LocalBlockAddr::new(BlockId(7), 2))
                 .is_ok()
         );
 
-        state.restore_block(2, BlockId(7), block).unwrap();
+        let block = running.take_block(2, BlockId(7)).unwrap();
+        assert!(matches!(
+            running.take_block(2, BlockId(7)),
+            Err(Error::LockError)
+        ));
+        running.restore_block(2, BlockId(7), block).unwrap();
+
+        state.finish_run(running).unwrap();
+        assert_eq!(state.local_id_for_block(BlockId(7)), Some(2));
         assert!(state.block(2, BlockId(7)).is_ok());
+    }
+
+    #[test]
+    fn finish_run_reports_missing_restored_local_block() {
+        let mut state = LocalDomainState::new();
+        state.insert_block(0, test_block(3)).unwrap();
+
+        let mut running = state.start_run(&[(BlockId(3), 0)]).unwrap();
+        let _block = running.take_block(0, BlockId(3)).unwrap();
+
+        assert!(matches!(
+            state.finish_run(running),
+            Err(Error::RuntimeError(msg)) if msg.contains("was not restored after run")
+        ));
+        assert_eq!(state.local_id_for_block(BlockId(3)), None);
     }
 
     #[test]

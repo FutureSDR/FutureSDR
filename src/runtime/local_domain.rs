@@ -12,6 +12,7 @@ pub(crate) use crate::runtime::local_domain_common::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalDomainRuntimeBase;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::local_domain_common::finish_local_run_result;
 use crate::runtime::local_domain_common::handle_idle_domain_message;
 use crate::runtime::scheduler::LocalDomainRunSpec;
 use crate::runtime::scheduler::LocalScheduler;
@@ -119,19 +120,27 @@ async fn run_domain_thread<LS: LocalScheduler>(
                 main_channel,
                 reply,
             } => {
+                let mut running_state = match state.start_run(&slots) {
+                    Ok(state) => state,
+                    Err(e) => {
+                        let _ = reply.send(Err(e));
+                        continue;
+                    }
+                };
                 let spec = LocalDomainRunSpec {
                     domain_id,
                     slots,
                     topology,
-                    state: &mut state,
+                    state: &mut running_state,
                     main_channel,
                     shutdown: &mut terminate_rx,
                     domain_rx: &mut rx,
                     key,
                     external_inboxes: Vec::new(),
                 };
-                let result = scheduler.run_local_domain(spec).await;
-                let _ = reply.send(result);
+                let run_result = scheduler.run_local_domain(spec).await;
+                let finish_result = state.finish_run(running_state);
+                let _ = reply.send(finish_local_run_result(run_result, finish_result));
             }
             IdleDomainAction::Terminate => break,
         }

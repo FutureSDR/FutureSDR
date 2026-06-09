@@ -9,8 +9,6 @@ use crate::runtime::scheduler::StoppedBlock;
 use crate::runtime::scheduler::StoppedDomain;
 use crate::runtime::scheduler::StoppedDomainState;
 
-use super::BlockSlot;
-use super::Flowgraph;
 use super::types::BlockLocation;
 
 /// The implicit normal domain always occupies domain slot 0.
@@ -257,38 +255,21 @@ impl RunningFlowgraphDomains {
         self,
         stopped_domains: Vec<StoppedDomain>,
     ) -> Result<FlowgraphDomains, Error> {
-        self.restore_stopped_domains_inner(stopped_domains, true)
+        self.restore_stopped_domains_inner(stopped_domains)
     }
 
     pub(super) fn restore_stopped_domains_partial(
         self,
         stopped_domains: Vec<StoppedDomain>,
     ) -> Result<(), Error> {
-        let _ = self.restore_stopped_domains_inner(stopped_domains, false)?;
-        Ok(())
+        self.cleanup_stopped_domains(stopped_domains)
     }
 
     fn restore_stopped_domains_inner(
         self,
         stopped_domains: Vec<StoppedDomain>,
-        require_all: bool,
     ) -> Result<FlowgraphDomains, Error> {
-        let mut stopped_by_domain = Vec::new();
-        stopped_by_domain.resize_with(self.domains.len(), || None);
-
-        for stopped in stopped_domains {
-            let domain_id = stopped.domain_id();
-            let slot = stopped_by_domain.get_mut(domain_id).ok_or_else(|| {
-                Error::RuntimeError(format!("unknown stopped domain {domain_id}"))
-            })?;
-            if slot.is_some() {
-                return Err(Error::RuntimeError(format!(
-                    "domain {domain_id} stopped more than once"
-                )));
-            }
-            *slot = Some(stopped);
-        }
-
+        let mut stopped_by_domain = Self::stopped_by_domain(self.domains.len(), stopped_domains)?;
         let mut domains = Vec::with_capacity(self.domains.len());
         for (domain_id, domain) in self.domains.into_iter().enumerate() {
             let stopped = stopped_by_domain[domain_id].take();
@@ -306,14 +287,10 @@ impl RunningFlowgraphDomains {
                         domain.restore_stopped_blocks(blocks)?,
                     ));
                 }
-                (RunningFlowgraphDomain::Normal(_), None) if require_all => {
+                (RunningFlowgraphDomain::Normal(_), None) => {
                     return Err(Error::RuntimeError(format!(
                         "normal domain {domain_id} did not stop"
                     )));
-                }
-                (RunningFlowgraphDomain::Normal(domain), None) => {
-                    drop(domain);
-                    domains.push(FlowgraphDomain::Normal(NormalDomain { slots: Vec::new() }));
                 }
                 (RunningFlowgraphDomain::Local(domain), Some(stopped)) => {
                     match stopped.into_state() {
@@ -325,60 +302,67 @@ impl RunningFlowgraphDomains {
                         }
                     }
                 }
-                (RunningFlowgraphDomain::Local(_), None) if require_all => {
+                (RunningFlowgraphDomain::Local(_), None) => {
                     return Err(Error::RuntimeError(format!(
                         "local domain {domain_id} did not stop"
                     )));
-                }
-                (RunningFlowgraphDomain::Local(domain), None) => {
-                    domains.push(FlowgraphDomain::Local(domain));
                 }
             }
         }
 
         Ok(FlowgraphDomains { domains })
     }
-}
 
-pub(super) struct RunningFlowgraphStorage {
-    id: crate::runtime::FlowgraphId,
-    blocks: Vec<BlockSlot>,
-    domains: RunningFlowgraphDomains,
-}
-
-impl RunningFlowgraphStorage {
-    pub(super) fn new(
-        id: crate::runtime::FlowgraphId,
-        blocks: Vec<BlockSlot>,
-        domains: RunningFlowgraphDomains,
-    ) -> Self {
-        Self {
-            id,
-            blocks,
-            domains,
+    fn cleanup_stopped_domains(self, stopped_domains: Vec<StoppedDomain>) -> Result<(), Error> {
+        let mut stopped_by_domain = Self::stopped_by_domain(self.domains.len(), stopped_domains)?;
+        for (domain_id, domain) in self.domains.into_iter().enumerate() {
+            let stopped = stopped_by_domain[domain_id].take();
+            match (domain, stopped) {
+                (RunningFlowgraphDomain::Normal(_), Some(stopped)) => match stopped.into_state() {
+                    StoppedDomainState::Normal(_) => {}
+                    StoppedDomainState::Local => {
+                        return Err(Error::RuntimeError(format!(
+                            "normal domain {domain_id} stopped as local domain"
+                        )));
+                    }
+                },
+                (RunningFlowgraphDomain::Normal(_), None) => {}
+                (RunningFlowgraphDomain::Local(_), Some(stopped)) => match stopped.into_state() {
+                    StoppedDomainState::Local => {}
+                    StoppedDomainState::Normal(_) => {
+                        return Err(Error::RuntimeError(format!(
+                            "local domain {domain_id} stopped as normal domain"
+                        )));
+                    }
+                },
+                (RunningFlowgraphDomain::Local(_), None) => {}
+            }
         }
+
+        Ok(())
     }
 
-    pub(super) fn restore_stopped_domains(
-        self,
+    fn stopped_by_domain(
+        len: usize,
         stopped_domains: Vec<StoppedDomain>,
-    ) -> Result<Flowgraph, Error> {
-        let domains = self.domains.restore_stopped_domains(stopped_domains)?;
-        Ok(Flowgraph {
-            id: self.id,
-            blocks: self.blocks,
-            domains,
-            stream_edges: Vec::new(),
-            message_edges: Vec::new(),
-        })
-    }
+    ) -> Result<Vec<Option<StoppedDomain>>, Error> {
+        let mut stopped_by_domain = Vec::new();
+        stopped_by_domain.resize_with(len, || None);
 
-    pub(super) fn restore_stopped_domains_partial(
-        self,
-        stopped_domains: Vec<StoppedDomain>,
-    ) -> Result<(), Error> {
-        self.domains
-            .restore_stopped_domains_partial(stopped_domains)
+        for stopped in stopped_domains {
+            let domain_id = stopped.domain_id();
+            let slot = stopped_by_domain.get_mut(domain_id).ok_or_else(|| {
+                Error::RuntimeError(format!("unknown stopped domain {domain_id}"))
+            })?;
+            if slot.is_some() {
+                return Err(Error::RuntimeError(format!(
+                    "domain {domain_id} stopped more than once"
+                )));
+            }
+            *slot = Some(stopped);
+        }
+
+        Ok(stopped_by_domain)
     }
 }
 

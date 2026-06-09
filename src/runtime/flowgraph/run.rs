@@ -29,8 +29,6 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             return Err(e);
         }
     };
-    prepared.publish_control(Some(control));
-
     let prepared = match prepared.apply_connections().await {
         Ok(prepared) => prepared,
         Err(e) => {
@@ -39,18 +37,19 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
         }
     };
 
-    let started = match prepared.start(scheduler).await {
-        Ok(started) => started,
+    let running = match prepared
+        .start_initialized(scheduler, &main_rx, initialized, control)
+        .await
+    {
+        Ok(running) => running,
         Err(e) => {
-            send_initialized_error(initialized, e.clone());
             return Err(e);
         }
     };
 
-    let initialized = started.initialize(&main_rx, initialized).await?;
-    let stopped = initialized.drive_until_complete(&main_rx).await?;
+    let terminated = running.wait(&main_rx).await?;
     drop(scheduler_guard);
-    Ok(stopped.into_terminated())
+    Ok(terminated)
 }
 
 fn send_initialized_error(initialized: oneshot::Sender<Result<(), Error>>, error: Error) {

@@ -20,18 +20,18 @@ use crate::runtime::dev::BlockEndpoint;
 
 #[derive(Debug)]
 pub(crate) struct RunningFlowgraphControl {
-    endpoints: Vec<Option<BlockEndpoint>>,
+    endpoints: Vec<BlockEndpoint>,
     ids: Vec<BlockId>,
-    message_inputs: Vec<Option<&'static [&'static str]>>,
+    message_inputs: Vec<&'static [&'static str]>,
     stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
 }
 
 impl RunningFlowgraphControl {
     pub(crate) fn new(
-        endpoints: Vec<Option<BlockEndpoint>>,
+        endpoints: Vec<BlockEndpoint>,
         ids: Vec<BlockId>,
-        message_inputs: Vec<Option<&'static [&'static str]>>,
+        message_inputs: Vec<&'static [&'static str]>,
         stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
         message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
     ) -> Self {
@@ -93,7 +93,6 @@ impl FlowgraphHandle {
         self.control
             .endpoints
             .get(block_id.0)
-            .and_then(Option::as_ref)
             .cloned()
             .ok_or(Error::InvalidBlock(block_id))
     }
@@ -108,7 +107,6 @@ impl FlowgraphHandle {
             .control
             .message_inputs
             .get(block_id.0)
-            .and_then(Option::as_ref)
             .ok_or(Error::InvalidBlock(block_id))?;
         crate::runtime::resolve_port_index(&port_id, inputs).ok_or(Error::InvalidMessagePort(
             BlockPortCtx::Id(block_id),

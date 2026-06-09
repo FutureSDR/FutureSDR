@@ -27,7 +27,7 @@ use crate::runtime::block_inbox::enter_local_domain_context;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::local_domain_common::LocalDomainMessage;
-use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::local_domain_common::LocalRunningState;
 use crate::runtime::scheduler::DomainTopology;
 
 /// Scheduler for tasks that run inside one local scheduling domain.
@@ -73,7 +73,7 @@ pub struct LocalDomainRunSpec<'a, Shutdown> {
     pub(crate) domain_id: usize,
     pub(crate) slots: Vec<(BlockId, usize)>,
     pub(crate) topology: DomainTopology,
-    pub(crate) state: &'a mut LocalDomainState,
+    pub(crate) state: &'a mut LocalRunningState,
     pub(crate) main_channel: Sender<FlowgraphMessage>,
     pub(crate) shutdown: &'a mut Shutdown,
     pub(crate) domain_rx: &'a mut mpsc::Receiver<LocalDomainMessage>,
