@@ -10,6 +10,7 @@ use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::channel::mpsc::Sender;
@@ -32,6 +33,14 @@ pub trait BlockObject: Any {
     }
     /// Get stream output port names declared by this block.
     fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
+        Ok(Vec::new())
+    }
+    /// Get stream input buffer requirements declared by this block.
+    fn stream_input_buffer_requirements(&mut self) -> Result<Vec<BufferRequirements>, Error> {
+        Ok(Vec::new())
+    }
+    /// Get stream output buffer requirements declared by this block.
+    fn stream_output_buffer_requirements(&mut self) -> Result<Vec<BufferRequirements>, Error> {
         Ok(Vec::new())
     }
     /// Get a type-erased stream input by port id.

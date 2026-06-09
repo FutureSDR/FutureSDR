@@ -3,6 +3,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CircuitReturn;
 use crate::runtime::buffer::ConnectionState;
@@ -307,6 +308,16 @@ where
         self.core.init(block_id, port_id, inbox);
     }
 
+    fn buffer_requirements(&self) -> BufferRequirements {
+        let mut requirements = self.core.requirements();
+        requirements.set_max_readers(1);
+        requirements
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
+    }
+
     fn validate(&self) -> Result<(), Error> {
         if self.state.is_connected() {
             Ok(())
@@ -454,12 +465,12 @@ where
     }
 
     fn set_min_items(&mut self, n: usize) {
-        self.core.set_min_items_max(n);
+        self.core.raise_min_items(n);
     }
 
     fn set_min_buffer_size_in_items(&mut self, n: usize) {
         self.core
-            .set_min_buffer_size_in_items_max(std::cmp::max(n, 1));
+            .raise_min_buffer_size_in_items(std::cmp::max(n, 1));
     }
 
     fn max_items(&self) -> usize {
@@ -533,6 +544,14 @@ where
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
     }
 
     fn validate(&self) -> Result<(), Error> {

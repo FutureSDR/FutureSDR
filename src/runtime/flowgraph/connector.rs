@@ -10,12 +10,35 @@ use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynSendBufferWriterToken;
+use crate::runtime::buffer::PortManifest;
 
 use super::Flowgraph;
 use super::prepare::ResolvedEdge;
 use super::types::BlockLocation;
+
+#[derive(Debug)]
+struct ResolvedStreamGroup {
+    src_block: BlockId,
+    src_port: PortIndex,
+    dsts: Vec<(BlockId, PortIndex)>,
+}
+
+impl ResolvedStreamGroup {
+    fn new(src_block: BlockId, src_port: PortIndex) -> Self {
+        Self {
+            src_block,
+            src_port,
+            dsts: Vec::new(),
+        }
+    }
+
+    fn push(&mut self, dst_block: BlockId, dst_port: PortIndex) {
+        self.dsts.push((dst_block, dst_port));
+    }
+}
 
 struct StreamOutputSendTokenLease {
     location: BlockLocation,
@@ -62,13 +85,16 @@ impl<'a> FlowgraphConnector<'a> {
         Self { flowgraph }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn connect_stream_ports_dyn(
         src_block_id: BlockId,
         src_port: PortIndex,
         src_block: &mut dyn BlockObject,
+        src_requirements: BufferRequirements,
         dst_block_id: BlockId,
         dst_port: PortIndex,
         dst_block: &mut dyn BlockObject,
+        dst_requirements: BufferRequirements,
     ) -> Result<(), Error> {
         let src_port_id = PortId::Index(src_port);
         let dst_port_id = PortId::Index(dst_port);
@@ -79,6 +105,7 @@ impl<'a> FlowgraphConnector<'a> {
             }
             o => o,
         })?;
+        reader.raise_buffer_requirements(dst_requirements);
 
         let writer = src_block.stream_output(&src_port_id).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
@@ -86,6 +113,7 @@ impl<'a> FlowgraphConnector<'a> {
             }
             o => o,
         })?;
+        writer.raise_buffer_requirements(src_requirements);
 
         writer.connect_dyn(reader).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
@@ -159,8 +187,10 @@ impl<'a> FlowgraphConnector<'a> {
         &mut self,
         src: BlockLocation,
         src_port: PortIndex,
+        src_requirements: BufferRequirements,
         dst: BlockLocation,
         dst_port: PortIndex,
+        dst_requirements: BufferRequirements,
     ) -> Result<(), Error> {
         let src_block_id = src.block_id;
         let dst_block_id = dst.block_id;
@@ -170,9 +200,11 @@ impl<'a> FlowgraphConnector<'a> {
                     src_block_id,
                     src_port,
                     src_block,
+                    src_requirements,
                     dst_block_id,
                     dst_port,
                     dst_block,
+                    dst_requirements,
                 )
             })
             .await
@@ -182,6 +214,7 @@ impl<'a> FlowgraphConnector<'a> {
         &mut self,
         location: BlockLocation,
         port: PortIndex,
+        requirements: BufferRequirements,
     ) -> Result<StreamOutputSendTokenLease, Error> {
         let port_id = PortId::Index(port);
         let port_id_for_block = port_id.clone();
@@ -196,6 +229,7 @@ impl<'a> FlowgraphConnector<'a> {
                         }
                         o => o,
                     })?;
+                writer.raise_buffer_requirements(requirements);
                 writer.take_send_token().map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(location.block_id), port)
@@ -236,6 +270,7 @@ impl<'a> FlowgraphConnector<'a> {
         src_block_id: BlockId,
         dst: BlockLocation,
         dst_port: PortIndex,
+        dst_requirements: BufferRequirements,
     ) -> Result<(), Error> {
         let token = lease.shared_token();
         self.flowgraph
@@ -249,6 +284,7 @@ impl<'a> FlowgraphConnector<'a> {
                     }
                     o => o,
                 })?;
+                reader.raise_buffer_requirements(dst_requirements);
                 token.connect_dyn(reader).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
@@ -263,37 +299,163 @@ impl<'a> FlowgraphConnector<'a> {
         &mut self,
         src: BlockLocation,
         src_port: PortIndex,
-        dst: BlockLocation,
-        dst_port: PortIndex,
+        src_requirements: BufferRequirements,
+        dsts: &[(BlockLocation, PortIndex, BufferRequirements)],
     ) -> Result<(), Error> {
         let src_block_id = src.block_id;
-        let lease = self.lease_stream_output_send_token(src, src_port).await?;
+        let lease = self
+            .lease_stream_output_send_token(src, src_port, src_requirements)
+            .await?;
 
-        let connect_result = self
-            .connect_send_token_to_input(&lease, src_block_id, dst, dst_port)
-            .await;
+        let mut connect_result = Ok(());
+        for (dst, dst_port, dst_requirements) in dsts {
+            if let Err(e) = self
+                .connect_send_token_to_input(
+                    &lease,
+                    src_block_id,
+                    *dst,
+                    *dst_port,
+                    *dst_requirements,
+                )
+                .await
+            {
+                connect_result = Err(e);
+                break;
+            }
+        }
 
         self.restore_stream_output_send_token(lease).await?;
         connect_result
     }
 
-    async fn apply_stream_edge(&mut self, edge: &ResolvedEdge) -> Result<(), Error> {
-        let src = self.flowgraph.location(edge.src_block)?;
-        let dst = self.flowgraph.location(edge.dst_block)?;
-
-        if src.domain_id == dst.domain_id {
-            self.connect_same_domain_stream_dyn_async(src, edge.src_port, dst, edge.dst_port)
-                .await?;
-        } else {
-            self.connect_cross_domain_stream_dyn_async(src, edge.src_port, dst, edge.dst_port)
-                .await?;
+    fn stream_groups(edges: &[ResolvedEdge]) -> Vec<ResolvedStreamGroup> {
+        let mut groups = Vec::<ResolvedStreamGroup>::new();
+        for edge in edges {
+            if let Some(group) = groups
+                .iter_mut()
+                .find(|group| group.src_block == edge.src_block && group.src_port == edge.src_port)
+            {
+                group.push(edge.dst_block, edge.dst_port);
+            } else {
+                let mut group = ResolvedStreamGroup::new(edge.src_block, edge.src_port);
+                group.push(edge.dst_block, edge.dst_port);
+                groups.push(group);
+            }
         }
-        Ok(())
+        groups
+    }
+
+    fn validate_stream_group(
+        &self,
+        group: &ResolvedStreamGroup,
+    ) -> Result<(BufferRequirements, Vec<BufferRequirements>), Error> {
+        let src_manifest = self
+            .flowgraph
+            .stream_output_manifest(group.src_block, group.src_port)?;
+        let max_readers = src_manifest.requirements().max_readers().unwrap_or(1);
+        if group.dsts.len() > max_readers {
+            return Err(Error::ValidationError(format!(
+                "stream output {:?}.{} supports at most {} reader(s)",
+                group.src_block,
+                src_manifest.name(),
+                max_readers
+            )));
+        }
+
+        let src_reader_type = src_manifest.reader_type_id().ok_or_else(|| {
+            Error::ValidationError("stream output manifest missing reader type".to_string())
+        })?;
+        let mut merged = src_manifest.requirements();
+        for (dst_block, dst_port) in &group.dsts {
+            let dst_manifest = self
+                .flowgraph
+                .stream_input_manifest(*dst_block, *dst_port)?;
+            if src_reader_type != dst_manifest.concrete_type_id()
+                || src_manifest.mode_type_id() != dst_manifest.mode_type_id()
+            {
+                return Err(Error::ValidationError(
+                    "dyn BufferReader has wrong type".to_string(),
+                ));
+            }
+            let requirements = dst_manifest.requirements();
+            merged.merge(requirements);
+        }
+
+        let source_requirements = Self::with_merged_buffer_size(src_manifest, merged);
+        let dst_requirements = group
+            .dsts
+            .iter()
+            .map(|(dst_block, dst_port)| {
+                let dst_manifest = self
+                    .flowgraph
+                    .stream_input_manifest(*dst_block, *dst_port)
+                    .expect("destination manifest was already validated");
+                Self::with_merged_buffer_size(dst_manifest, merged)
+            })
+            .collect();
+        Ok((source_requirements, dst_requirements))
+    }
+
+    fn with_merged_buffer_size(
+        manifest: &PortManifest,
+        merged: BufferRequirements,
+    ) -> BufferRequirements {
+        let mut requirements = manifest.requirements();
+        if let Some(min_items) = merged.min_buffer_size_in_items() {
+            requirements.raise_min_buffer_size_in_items(min_items);
+        }
+        requirements
+    }
+
+    async fn apply_stream_group(&mut self, group: &ResolvedStreamGroup) -> Result<(), Error> {
+        let (src_requirements, dst_requirements) = self.validate_stream_group(group)?;
+        let src = self.flowgraph.location(group.src_block)?;
+        let dsts = group
+            .dsts
+            .iter()
+            .zip(dst_requirements)
+            .map(|((dst_block, dst_port), requirements)| {
+                Ok((
+                    self.flowgraph.location(*dst_block)?,
+                    *dst_port,
+                    requirements,
+                ))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        // Fanout-capable buffers allocate the shared backing storage on the
+        // first connect. Connect the most demanding readers first without
+        // turning inferred min-items into an explicit buffer-size setting.
+        let mut dsts = dsts;
+        dsts.sort_by(|(_, _, a), (_, _, b)| {
+            b.min_items().unwrap_or(1).cmp(&a.min_items().unwrap_or(1))
+        });
+
+        if dsts
+            .iter()
+            .all(|(dst, _, _)| dst.domain_id == src.domain_id)
+        {
+            for (dst, dst_port, dst_requirements) in dsts {
+                self.connect_same_domain_stream_dyn_async(
+                    src,
+                    group.src_port,
+                    src_requirements,
+                    dst,
+                    dst_port,
+                    dst_requirements,
+                )
+                .await?;
+            }
+            Ok(())
+        } else {
+            self.connect_cross_domain_stream_dyn_async(src, group.src_port, src_requirements, &dsts)
+                .await
+        }
     }
 
     pub(super) async fn apply_stream_edges(&mut self, edges: &[ResolvedEdge]) -> Result<(), Error> {
-        for edge in edges {
-            self.apply_stream_edge(edge).await?;
+        for group in Self::stream_groups(edges) {
+            self.apply_stream_group(&group).await?;
         }
         Ok(())
     }

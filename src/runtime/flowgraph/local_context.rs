@@ -11,6 +11,7 @@ use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::LocalBlockAddr;
 use crate::runtime::buffer::BufferWriter;
+use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
@@ -52,6 +53,8 @@ pub(super) struct LocalDomainContextEntry {
     pub(super) inbox: BlockEndpoint,
     pub(super) stream_inputs: Vec<String>,
     pub(super) stream_outputs: Vec<String>,
+    pub(super) stream_input_manifest: Vec<PortManifest>,
+    pub(super) stream_output_manifest: Vec<PortManifest>,
     pub(super) message_inputs: &'static [&'static str],
     pub(super) message_outputs: &'static [&'static str],
 }
@@ -211,6 +214,12 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         let stream_outputs = block
             .stream_output_names()
             .expect("failed to collect stream output manifest");
+        let stream_input_manifest =
+            crate::runtime::kernel_interface::stream_input_manifest(&mut block.kernel)
+                .expect("failed to collect stream input manifest");
+        let stream_output_manifest =
+            crate::runtime::kernel_interface::stream_output_manifest(&mut block.kernel)
+                .expect("failed to collect stream output manifest");
         inner
             .state
             .insert_block(local_id, Box::new(block))
@@ -221,6 +230,8 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             inbox,
             stream_inputs,
             stream_outputs,
+            stream_input_manifest,
+            stream_output_manifest,
             message_inputs: K::message_inputs(),
             message_outputs: K::message_outputs(),
         });

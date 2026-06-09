@@ -12,6 +12,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::buffer::BufferReader;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::ConnectionState;
 use crate::runtime::buffer::CpuBufferWriter;
@@ -198,6 +199,16 @@ where
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        let mut requirements = self.core.requirements();
+        requirements.set_max_readers(1);
+        requirements
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -502,6 +513,14 @@ where
 
     fn init(&mut self, block_id: BlockId, port_id: PortId, inbox: BlockInbox) {
         self.core.init(block_id, port_id, inbox);
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        self.core.requirements()
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        self.core.raise_requirements(requirements);
     }
 
     fn validate(&self) -> Result<(), Error> {

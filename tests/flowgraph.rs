@@ -7,6 +7,7 @@ use futuresdr::blocks::Throttle;
 use futuresdr::blocks::VectorSink;
 use futuresdr::blocks::VectorSource;
 use futuresdr::prelude::*;
+use futuresdr::runtime::buffer::slab;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::NormalDomainSpec;
@@ -50,6 +51,33 @@ impl Kernel for StopOnMessage {}
 impl Drop for StopOnMessage {
     fn drop(&mut self) {
         self.terminated.store(true, Ordering::SeqCst);
+    }
+}
+
+#[derive(Block)]
+struct RecordingSlabSource {
+    first_slice_len: Arc<AtomicUsize>,
+    #[output]
+    output: slab::Writer<u8>,
+}
+
+impl Kernel for RecordingSlabSource {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> futuresdr::runtime::Result<()> {
+        let out = self.output.slice();
+        self.first_slice_len.store(out.len(), Ordering::SeqCst);
+
+        if let Some(first) = out.first_mut() {
+            *first = 7;
+            self.output.produce(1);
+        }
+
+        io.finished = true;
+        Ok(())
     }
 }
 
@@ -190,6 +218,50 @@ fn fg_start_wait_returns_final_block_state() -> Result<()> {
     let snk = fg.block(&snk)?;
 
     assert_eq!(snk.items(), &orig);
+
+    Ok(())
+}
+
+#[test]
+fn flowgraph_output_fanout_reaches_all_sinks() -> Result<()> {
+    let mut fg = Flowgraph::new();
+
+    let orig = vec![1.0f32, 2.0, 3.5, 4.5, 10.5];
+    let src = fg.add(VectorSource::<f32>::new(orig.clone()))?;
+    let snk0 = fg.add(VectorSink::<f32>::new(orig.len()))?;
+    let snk1 = fg.add(VectorSink::<f32>::new(orig.len()))?;
+
+    fg.stream(&src, |b| b.output(), &snk0, |b| b.input())?;
+    fg.stream(&src, |b| b.output(), &snk1, |b| b.input())?;
+
+    let fg = Runtime::new().run(fg)?;
+
+    assert_eq!(fg.block(&snk0)?.items(), &orig);
+    assert_eq!(fg.block(&snk1)?.items(), &orig);
+
+    Ok(())
+}
+
+#[test]
+fn flowgraph_uses_config_buffer_size_when_no_min_buffer_size_is_set() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let first_slice_len = Arc::new(AtomicUsize::new(usize::MAX));
+
+    let src = RecordingSlabSource {
+        first_slice_len: Arc::clone(&first_slice_len),
+        output: slab::Writer::default(),
+    };
+    let snk = VectorSink::<u8, slab::Reader<u8>>::new(1);
+
+    connect!(fg, src > snk);
+
+    let fg = Runtime::new().run(fg)?;
+
+    assert_eq!(
+        first_slice_len.load(Ordering::SeqCst),
+        futuresdr::runtime::config::config().buffer_size
+    );
+    assert_eq!(fg.block(&snk)?.items(), &[7]);
 
     Ok(())
 }

@@ -10,6 +10,7 @@ use crate::runtime::Result;
 use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::buffer::PortInboxes;
+use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
@@ -97,22 +98,38 @@ pub trait KernelInterface {
     ) -> impl Future<Output = Result<Pmt, Error>>;
 }
 
-pub(crate) fn stream_inputs<K: KernelInterface>(kernel: &mut K) -> Result<Vec<String>, Error> {
-    let mut names = Vec::new();
-    kernel.visit_stream_inputs(&mut |name, _| {
-        names.push(name.name().to_string());
+pub(crate) fn stream_input_manifest<K: KernelInterface>(
+    kernel: &mut K,
+) -> Result<Vec<PortManifest>, Error> {
+    let mut index = 0usize;
+    let mut manifest = Vec::new();
+    kernel.visit_stream_inputs(&mut |name, port| {
+        manifest.push(PortManifest::input(
+            name.name().to_string(),
+            PortIndex::new(index),
+            port,
+        ));
+        index += 1;
         Ok(())
     })?;
-    Ok(names)
+    Ok(manifest)
 }
 
-pub(crate) fn stream_outputs<K: KernelInterface>(kernel: &mut K) -> Result<Vec<String>, Error> {
-    let mut names = Vec::new();
-    kernel.visit_stream_outputs(&mut |name, _| {
-        names.push(name.name().to_string());
+pub(crate) fn stream_output_manifest<K: KernelInterface>(
+    kernel: &mut K,
+) -> Result<Vec<PortManifest>, Error> {
+    let mut index = 0usize;
+    let mut manifest = Vec::new();
+    kernel.visit_stream_outputs(&mut |name, port| {
+        manifest.push(PortManifest::output(
+            name.name().to_string(),
+            PortIndex::new(index),
+            port,
+        ));
+        index += 1;
         Ok(())
     })?;
-    Ok(names)
+    Ok(manifest)
 }
 
 pub(crate) fn stream_ports_init<K: KernelInterface>(

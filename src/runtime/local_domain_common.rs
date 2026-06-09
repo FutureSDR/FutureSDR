@@ -8,6 +8,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block::LocalBlock;
@@ -16,6 +17,7 @@ use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockAddr;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalDomainKey;
+use crate::runtime::buffer::PortManifest;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::scheduler::DomainTopology;
@@ -27,6 +29,8 @@ pub(crate) struct LocalBlockBuildInfo {
     pub(crate) endpoint: BlockEndpoint,
     pub(crate) stream_inputs: Vec<String>,
     pub(crate) stream_outputs: Vec<String>,
+    pub(crate) stream_input_manifest: Vec<PortManifest>,
+    pub(crate) stream_output_manifest: Vec<PortManifest>,
 }
 
 #[doc(hidden)]
@@ -728,6 +732,36 @@ pub(crate) async fn build_local_block(
         .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))?
 }
 
+fn collect_stream_input_manifest(
+    block: &mut dyn BlockObject,
+    names: &[String],
+) -> Result<Vec<PortManifest>, Error> {
+    names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let index = PortIndex::new(index);
+            let port = block.stream_input(&PortId::Index(index))?;
+            Ok(PortManifest::input(name.clone(), index, port))
+        })
+        .collect()
+}
+
+fn collect_stream_output_manifest(
+    block: &mut dyn BlockObject,
+    names: &[String],
+) -> Result<Vec<PortManifest>, Error> {
+    names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let index = PortIndex::new(index);
+            let port = block.stream_output(&PortId::Index(index))?;
+            Ok(PortManifest::output(name.clone(), index, port))
+        })
+        .collect()
+}
+
 pub(crate) async fn exec_local_domain<R>(
     tx: &Sender<LocalDomainMessage>,
     f: impl for<'a> FnOnce(
@@ -778,17 +812,27 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
         } => {
             let mut block = builder();
             let endpoint = block.inbox();
-            let result =
-                match (block.stream_input_names(), block.stream_output_names()) {
-                    (Ok(stream_inputs), Ok(stream_outputs)) => state
-                        .insert_block(local_id, block)
-                        .map(|()| LocalBlockBuildInfo {
-                            endpoint,
-                            stream_inputs,
-                            stream_outputs,
-                        }),
-                    (Err(e), _) | (_, Err(e)) => Err(e),
-                };
+            let result = match (block.stream_input_names(), block.stream_output_names()) {
+                (Ok(stream_inputs), Ok(stream_outputs)) => {
+                    let stream_input_manifest =
+                        collect_stream_input_manifest(block.as_mut(), &stream_inputs);
+                    let stream_output_manifest =
+                        collect_stream_output_manifest(block.as_mut(), &stream_outputs);
+                    match (stream_input_manifest, stream_output_manifest) {
+                        (Ok(stream_input_manifest), Ok(stream_output_manifest)) => state
+                            .insert_block(local_id, block)
+                            .map(|()| LocalBlockBuildInfo {
+                                endpoint,
+                                stream_inputs,
+                                stream_outputs,
+                                stream_input_manifest,
+                                stream_output_manifest,
+                            }),
+                        (Err(e), _) | (_, Err(e)) => Err(e),
+                    }
+                }
+                (Err(e), _) | (_, Err(e)) => Err(e),
+            };
             if let Err(e) = &result {
                 error!("failed to insert local block: {e}");
             }

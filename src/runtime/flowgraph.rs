@@ -8,10 +8,13 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::LocalBlockAddr;
+use crate::runtime::buffer::PortDirection;
+use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
@@ -73,16 +76,21 @@ pub(super) struct BlockSlot {
     endpoint: BlockEndpoint,
     stream_inputs: Vec<String>,
     stream_outputs: Vec<String>,
+    stream_input_manifest: Vec<PortManifest>,
+    stream_output_manifest: Vec<PortManifest>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
 }
 
 impl BlockSlot {
+    #[allow(clippy::too_many_arguments)]
     fn normal(
         normal_id: usize,
         endpoint: BlockEndpoint,
         stream_inputs: Vec<String>,
         stream_outputs: Vec<String>,
+        stream_input_manifest: Vec<PortManifest>,
+        stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
@@ -91,17 +99,22 @@ impl BlockSlot {
             endpoint,
             stream_inputs,
             stream_outputs,
+            stream_input_manifest,
+            stream_output_manifest,
             message_inputs,
             message_outputs,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn local(
         domain_id: usize,
         local_id: usize,
         endpoint: BlockEndpoint,
         stream_inputs: Vec<String>,
         stream_outputs: Vec<String>,
+        stream_input_manifest: Vec<PortManifest>,
+        stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> Self {
@@ -113,6 +126,8 @@ impl BlockSlot {
             endpoint,
             stream_inputs,
             stream_outputs,
+            stream_input_manifest,
+            stream_output_manifest,
             message_inputs,
             message_outputs,
         }
@@ -144,6 +159,22 @@ impl BlockSlot {
 
     fn stream_output_index(&self, port_id: &PortId) -> Option<PortId> {
         resolve_stream_port_index(port_id, &self.stream_outputs)
+    }
+
+    fn stream_input_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
+        self.stream_input_manifest
+            .get(port_id.index())
+            .filter(|port| {
+                port.index() == port_id && matches!(port.direction(), PortDirection::Input)
+            })
+    }
+
+    fn stream_output_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
+        self.stream_output_manifest
+            .get(port_id.index())
+            .filter(|port| {
+                port.index() == port_id && matches!(port.direction(), PortDirection::Output)
+            })
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {
@@ -292,6 +323,8 @@ impl Flowgraph {
                 entry.inbox,
                 entry.stream_inputs,
                 entry.stream_outputs,
+                entry.stream_input_manifest,
+                entry.stream_output_manifest,
                 entry.message_inputs,
                 entry.message_outputs,
             )
@@ -432,11 +465,19 @@ impl Flowgraph {
         let inbox = b.inbox();
         let stream_inputs = b.stream_inputs().to_vec();
         let stream_outputs = b.stream_outputs().to_vec();
+        let stream_input_manifest =
+            crate::runtime::kernel_interface::stream_input_manifest(&mut b.kernel)
+                .expect("failed to collect stream input manifest");
+        let stream_output_manifest =
+            crate::runtime::kernel_interface::stream_output_manifest(&mut b.kernel)
+                .expect("failed to collect stream output manifest");
         self.add_normal_block(
             Box::new(b),
             inbox,
             stream_inputs,
             stream_outputs,
+            stream_input_manifest,
+            stream_output_manifest,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
         )
@@ -451,12 +492,15 @@ impl Flowgraph {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_normal_block<K>(
         &mut self,
         block: Box<dyn Block>,
         inbox: BlockEndpoint,
         stream_inputs: Vec<String>,
         stream_outputs: Vec<String>,
+        stream_input_manifest: Vec<PortManifest>,
+        stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
     ) -> BlockRef<K> {
@@ -468,6 +512,8 @@ impl Flowgraph {
             inbox,
             stream_inputs,
             stream_outputs,
+            stream_input_manifest,
+            stream_output_manifest,
             message_inputs,
             message_outputs,
         ));
@@ -580,6 +626,8 @@ impl Flowgraph {
             build_info.endpoint,
             build_info.stream_inputs,
             build_info.stream_outputs,
+            build_info.stream_input_manifest,
+            build_info.stream_output_manifest,
             K::message_inputs(),
             K::message_outputs(),
         ));
@@ -746,6 +794,30 @@ impl Flowgraph {
             edge.dst_block,
             self.stream_input_index(edge.dst_block, &edge.dst_port)?,
         ))
+    }
+
+    pub(super) fn stream_input_manifest(
+        &self,
+        block_id: BlockId,
+        port_id: PortIndex,
+    ) -> Result<&PortManifest, Error> {
+        self.block_slot(block_id)?
+            .stream_input_manifest(port_id)
+            .ok_or_else(|| {
+                Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::index(port_id))
+            })
+    }
+
+    pub(super) fn stream_output_manifest(
+        &self,
+        block_id: BlockId,
+        port_id: PortIndex,
+    ) -> Result<&PortManifest, Error> {
+        self.block_slot(block_id)?
+            .stream_output_manifest(port_id)
+            .ok_or_else(|| {
+                Error::InvalidStreamPort(BlockPortCtx::Id(block_id), PortId::index(port_id))
+            })
     }
 
     pub(super) fn indexed_message_edge(&self, edge: &Edge) -> Result<Edge, Error> {

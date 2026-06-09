@@ -35,6 +35,7 @@ pub mod slab;
 pub mod wgpu;
 
 use std::any::Any;
+use std::any::TypeId;
 use std::fmt::Debug;
 use std::future::Future;
 
@@ -47,6 +48,7 @@ use crate::runtime::dev::Tag;
 use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::PortId;
+use futuresdr::runtime::PortIndex;
 
 /// Shared stream-port configuration collected before a port is connected.
 ///
@@ -89,8 +91,13 @@ impl PortConfig {
     }
 
     /// Raise the minimum number of items to at least `min_items`.
-    pub fn set_min_items_max(&mut self, min_items: usize) {
+    pub fn raise_min_items(&mut self, min_items: usize) {
         self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
+    }
+
+    /// Raise the minimum number of items to at least `min_items`.
+    pub fn set_min_items_max(&mut self, min_items: usize) {
+        self.raise_min_items(min_items);
     }
 
     /// Minimum configured buffer size in items.
@@ -104,9 +111,150 @@ impl PortConfig {
     }
 
     /// Raise the minimum buffer size to at least `min_items`.
-    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
+    pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.min_buffer_size_in_items =
             Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
+    }
+
+    /// Raise the minimum buffer size to at least `min_items`.
+    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
+        self.raise_min_buffer_size_in_items(min_items);
+    }
+}
+
+/// Internal buffer constraints collected from a port before connection setup.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BufferRequirements {
+    min_items: Option<usize>,
+    min_buffer_size_in_items: Option<usize>,
+    max_readers: Option<usize>,
+}
+
+impl BufferRequirements {
+    pub(crate) const fn new() -> Self {
+        Self {
+            min_items: None,
+            min_buffer_size_in_items: None,
+            max_readers: None,
+        }
+    }
+
+    pub(crate) const fn from_port_config(config: PortConfig) -> Self {
+        Self {
+            min_items: config.min_items(),
+            min_buffer_size_in_items: config.min_buffer_size_in_items(),
+            max_readers: None,
+        }
+    }
+
+    pub(crate) const fn min_items(&self) -> Option<usize> {
+        self.min_items
+    }
+
+    pub(crate) const fn min_buffer_size_in_items(&self) -> Option<usize> {
+        self.min_buffer_size_in_items
+    }
+
+    pub(crate) const fn max_readers(&self) -> Option<usize> {
+        self.max_readers
+    }
+
+    pub(crate) fn set_max_readers(&mut self, max_readers: usize) {
+        self.max_readers = Some(max_readers);
+    }
+
+    pub(crate) fn raise_min_items(&mut self, min_items: usize) {
+        self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
+    }
+
+    pub(crate) fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
+        self.min_buffer_size_in_items =
+            Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        if let Some(min_items) = other.min_items {
+            self.raise_min_items(min_items);
+        }
+        if let Some(min_items) = other.min_buffer_size_in_items {
+            self.raise_min_buffer_size_in_items(min_items);
+        }
+    }
+}
+
+/// Direction of a stream port in an internal manifest.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortDirection {
+    Input,
+    Output,
+}
+
+/// Internal identity/type metadata for one stream port.
+#[doc(hidden)]
+#[derive(Debug, Clone)]
+pub struct PortManifest {
+    name: String,
+    index: PortIndex,
+    direction: PortDirection,
+    concrete_type_id: TypeId,
+    reader_type_id: Option<TypeId>,
+    mode_type_id: TypeId,
+    requirements: BufferRequirements,
+}
+
+impl PortManifest {
+    pub(crate) fn input(name: String, index: PortIndex, port: &mut dyn DynBufferReader) -> Self {
+        Self {
+            name,
+            index,
+            direction: PortDirection::Input,
+            concrete_type_id: port.concrete_type_id(),
+            reader_type_id: None,
+            mode_type_id: port.mode_type_id(),
+            requirements: port.buffer_requirements(),
+        }
+    }
+
+    pub(crate) fn output(name: String, index: PortIndex, port: &mut dyn DynBufferWriter) -> Self {
+        Self {
+            name,
+            index,
+            direction: PortDirection::Output,
+            concrete_type_id: port.concrete_type_id(),
+            reader_type_id: Some(port.reader_type_id()),
+            mode_type_id: port.mode_type_id(),
+            requirements: port.buffer_requirements(),
+        }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn index(&self) -> PortIndex {
+        self.index
+    }
+
+    pub(crate) fn direction(&self) -> PortDirection {
+        self.direction
+    }
+
+    pub(crate) fn concrete_type_id(&self) -> TypeId {
+        self.concrete_type_id
+    }
+
+    pub(crate) fn reader_type_id(&self) -> Option<TypeId> {
+        self.reader_type_id
+    }
+
+    pub(crate) fn mode_type_id(&self) -> TypeId {
+        self.mode_type_id
+    }
+
+    pub(crate) fn requirements(&self) -> BufferRequirements {
+        self.requirements
     }
 }
 
@@ -278,6 +426,27 @@ mod tests {
         assert_mode_inbox::<ThreadSafeMode, BlockInbox>();
         assert_mode_inbox::<LocalMode, LocalBlockInbox>();
     }
+
+    #[test]
+    fn buffer_requirements_are_extracted_from_configured_ports() {
+        let mut writer = super::DefaultCpuWriter::<u8>::default();
+        CpuBufferWriter::set_min_items(&mut writer, 4);
+        CpuBufferWriter::set_min_buffer_size_in_items(&mut writer, 32);
+
+        let mut reader = super::DefaultCpuReader::<u8>::default();
+        CpuBufferReader::set_min_items(&mut reader, 8);
+        CpuBufferReader::set_min_buffer_size_in_items(&mut reader, 64);
+
+        let writer_requirements = BufferWriter::buffer_requirements(&writer);
+        let reader_requirements = BufferReader::buffer_requirements(&reader);
+
+        assert_eq!(writer_requirements.min_items(), Some(4));
+        assert_eq!(writer_requirements.min_buffer_size_in_items(), Some(32));
+        assert_eq!(writer_requirements.max_readers(), Some(usize::MAX));
+        assert_eq!(reader_requirements.min_items(), Some(8));
+        assert_eq!(reader_requirements.min_buffer_size_in_items(), Some(64));
+        assert_eq!(reader_requirements.max_readers(), None);
+    }
 }
 
 /// Binding state shared by all stream ports.
@@ -395,13 +564,33 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Raise the minimum number of items required by the port.
+    pub fn raise_min_items(&mut self, min_items: usize) {
+        self.config.raise_min_items(min_items);
+    }
+
+    /// Raise the minimum number of items required by the port.
     pub fn set_min_items_max(&mut self, min_items: usize) {
-        self.config.set_min_items_max(min_items);
+        self.raise_min_items(min_items);
     }
 
     /// Minimum configured buffer size in items.
     pub fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.config.min_buffer_size_in_items()
+    }
+
+    /// Return the buffer requirements configured on this port.
+    pub(crate) fn requirements(&self) -> BufferRequirements {
+        BufferRequirements::from_port_config(self.config)
+    }
+
+    /// Raise this port's configured requirements to at least `requirements`.
+    pub(crate) fn raise_requirements(&mut self, requirements: BufferRequirements) {
+        if let Some(min_items) = requirements.min_items() {
+            self.config.raise_min_items(min_items);
+        }
+        if let Some(min_items) = requirements.min_buffer_size_in_items() {
+            self.config.raise_min_buffer_size_in_items(min_items);
+        }
     }
 
     /// Configure the minimum buffer size in items.
@@ -410,8 +599,13 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Raise the minimum buffer size in items.
+    pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
+        self.config.raise_min_buffer_size_in_items(min_items);
+    }
+
+    /// Raise the minimum buffer size in items.
     pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
-        self.config.set_min_buffer_size_in_items_max(min_items);
+        self.raise_min_buffer_size_in_items(min_items);
     }
 
     /// Create a validation error for an unconnected port.
@@ -566,6 +760,14 @@ pub trait SendBufferWriter:
 pub trait DynBufferReader: Any {
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Concrete reader type identity.
+    fn concrete_type_id(&self) -> TypeId;
+    /// Buffer mode type identity.
+    fn mode_type_id(&self) -> TypeId;
+    /// Buffer requirements configured on this port.
+    fn buffer_requirements(&self) -> BufferRequirements;
+    /// Raise this port's configured requirements.
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
     /// Initialize the reader from a block's available inbox handles.
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
     /// Validate that this reader is connected and ready to run.
@@ -583,6 +785,22 @@ pub trait DynBufferReader: Any {
 impl<T: BufferReader> DynBufferReader for T {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         BufferReader::as_any_mut(self)
+    }
+
+    fn concrete_type_id(&self) -> TypeId {
+        TypeId::of::<T>()
+    }
+
+    fn mode_type_id(&self) -> TypeId {
+        TypeId::of::<T::Mode>()
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        BufferReader::buffer_requirements(self)
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        BufferReader::raise_buffer_requirements(self, requirements);
     }
 
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
@@ -619,6 +837,12 @@ pub trait BufferReader: Any {
     type Mode: BufferMode;
     /// Return this reader as [`Any`] for runtime downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Buffer requirements configured on this port.
+    fn buffer_requirements(&self) -> BufferRequirements {
+        BufferRequirements::new()
+    }
+    /// Raise this port's configured requirements.
+    fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
     /// Initialize the reader with its owning block, port id, and inbox.
     fn init(
         &mut self,
@@ -769,6 +993,16 @@ impl<W> BufferWriterTokenPolicy<W> for LocalMode where W: BufferWriter<Mode = Lo
 
 /// Type-erased writer side of a stream buffer.
 pub trait DynBufferWriter {
+    /// Concrete writer type identity.
+    fn concrete_type_id(&self) -> TypeId;
+    /// Concrete reader type identity expected by this writer.
+    fn reader_type_id(&self) -> TypeId;
+    /// Buffer mode type identity.
+    fn mode_type_id(&self) -> TypeId;
+    /// Buffer requirements configured on this port.
+    fn buffer_requirements(&self) -> BufferRequirements;
+    /// Raise this port's configured requirements.
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements);
     /// Initialize the writer from a block's available inbox handles.
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes);
     /// Validate that this writer is connected and ready to run.
@@ -791,6 +1025,26 @@ where
     T: BufferWriter + 'static,
     T::Mode: BufferWriterTokenPolicy<T>,
 {
+    fn concrete_type_id(&self) -> TypeId {
+        TypeId::of::<T>()
+    }
+
+    fn reader_type_id(&self) -> TypeId {
+        TypeId::of::<T::Reader>()
+    }
+
+    fn mode_type_id(&self) -> TypeId {
+        TypeId::of::<T::Mode>()
+    }
+
+    fn buffer_requirements(&self) -> BufferRequirements {
+        BufferWriter::buffer_requirements(self)
+    }
+
+    fn raise_buffer_requirements(&mut self, requirements: BufferRequirements) {
+        BufferWriter::raise_buffer_requirements(self, requirements);
+    }
+
     fn init_from(&mut self, block_id: BlockId, port_id: PortId, inboxes: &PortInboxes) {
         BufferWriter::init_from(self, block_id, port_id, inboxes);
     }
@@ -832,6 +1086,14 @@ pub trait BufferWriter: Any {
     type Mode: BufferMode;
     /// The corresponding local reader.
     type Reader: BufferReader<Mode = Self::Mode>;
+    /// Buffer requirements configured on this port.
+    fn buffer_requirements(&self) -> BufferRequirements {
+        let mut requirements = BufferRequirements::new();
+        requirements.set_max_readers(1);
+        requirements
+    }
+    /// Raise this port's configured requirements.
+    fn raise_buffer_requirements(&mut self, _requirements: BufferRequirements) {}
     /// Initialize the writer with its owning block, port id, and inbox.
     fn init(
         &mut self,

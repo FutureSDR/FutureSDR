@@ -20,6 +20,7 @@ use crate::runtime::block_inbox::BlockInbox;
 use crate::runtime::block_inbox::BlockInboxReader;
 use crate::runtime::block_inbox::LocalBlockInbox;
 use crate::runtime::block_inbox::LocalBlockInboxReader;
+use crate::runtime::buffer::BufferRequirements;
 use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::buffer::PortInboxes;
@@ -180,6 +181,10 @@ pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     stream_inputs: Vec<String>,
     /// Instance stream output port names collected when the block is added.
     stream_outputs: Vec<String>,
+    /// Instance stream input buffer requirements collected when the block is added.
+    stream_input_buffer_requirements: Vec<BufferRequirements>,
+    /// Instance stream output buffer requirements collected when the block is added.
+    stream_output_buffer_requirements: Vec<BufferRequirements>,
     /// Inbox bundle for the block placement mode.
     pub(crate) inbox: I,
 }
@@ -209,10 +214,25 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     fn with_inbox(mut kernel: K, id: BlockId, inbox: I) -> Self {
-        let stream_inputs = crate::runtime::kernel_interface::stream_inputs(&mut kernel)
-            .expect("failed to collect stream input manifest");
-        let stream_outputs = crate::runtime::kernel_interface::stream_outputs(&mut kernel)
-            .expect("failed to collect stream output manifest");
+        let mut stream_inputs = Vec::new();
+        let mut stream_input_buffer_requirements = Vec::new();
+        kernel
+            .visit_stream_inputs(&mut |name, port| {
+                stream_inputs.push(name.name().to_string());
+                stream_input_buffer_requirements.push(port.buffer_requirements());
+                Ok(())
+            })
+            .expect("failed to collect stream input buffer requirements");
+
+        let mut stream_outputs = Vec::new();
+        let mut stream_output_buffer_requirements = Vec::new();
+        kernel
+            .visit_stream_outputs(&mut |name, port| {
+                stream_outputs.push(name.name().to_string());
+                stream_output_buffer_requirements.push(port.buffer_requirements());
+                Ok(())
+            })
+            .expect("failed to collect stream output buffer requirements");
 
         Self {
             meta: BlockMeta::new(),
@@ -224,6 +244,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             id,
             stream_inputs,
             stream_outputs,
+            stream_input_buffer_requirements,
+            stream_output_buffer_requirements,
             inbox,
         }
     }
@@ -471,6 +493,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             kernel,
             stream_inputs,
             stream_outputs,
+            stream_input_buffer_requirements: _,
+            stream_output_buffer_requirements: _,
             inbox,
         } = self;
         Self::run_with_inbox(
@@ -508,6 +532,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     }
     fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
         Ok(self.stream_outputs.clone())
+    }
+    fn stream_input_buffer_requirements(&mut self) -> Result<Vec<BufferRequirements>, Error> {
+        Ok(self.stream_input_buffer_requirements.clone())
+    }
+    fn stream_output_buffer_requirements(&mut self) -> Result<Vec<BufferRequirements>, Error> {
+        Ok(self.stream_output_buffer_requirements.clone())
     }
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
         crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
