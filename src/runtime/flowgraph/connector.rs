@@ -6,6 +6,7 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::buffer::BufferReader;
@@ -13,6 +14,7 @@ use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::DynSendBufferWriterToken;
 
 use super::Flowgraph;
+use super::prepare::ResolvedEdge;
 use super::types::BlockLocation;
 
 struct StreamOutputSendTokenLease {
@@ -60,44 +62,30 @@ impl<'a> FlowgraphConnector<'a> {
         Self { flowgraph }
     }
 
-    fn runtime_stream_port_index(block_id: BlockId, port_id: &PortId) -> Result<PortId, Error> {
-        match port_id {
-            PortId::Index(_) => Ok(port_id.clone()),
-            PortId::Name(_) => Err(Error::InvalidStreamPort(
-                BlockPortCtx::Id(block_id),
-                port_id.clone(),
-            )),
-        }
-    }
-
     fn connect_stream_ports_dyn(
         src_block_id: BlockId,
-        src_port_id: &PortId,
+        src_port: PortIndex,
         src_block: &mut dyn BlockObject,
         dst_block_id: BlockId,
-        dst_port_id: &PortId,
+        dst_port: PortIndex,
         dst_block: &mut dyn BlockObject,
-    ) -> Result<Edge, Error> {
-        let dst_port_index = Self::runtime_stream_port_index(dst_block_id, dst_port_id)?;
-        let src_port_index = Self::runtime_stream_port_index(src_block_id, src_port_id)?;
+    ) -> Result<(), Error> {
+        let src_port_id = PortId::Index(src_port);
+        let dst_port_id = PortId::Index(dst_port);
 
-        let reader = dst_block
-            .stream_input(&dst_port_index)
-            .map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
-                }
-                o => o,
-            })?;
+        let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
+            }
+            o => o,
+        })?;
 
-        let writer = src_block
-            .stream_output(&src_port_index)
-            .map_err(|e| match e {
-                Error::InvalidStreamPort(_, port) => {
-                    Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
-                }
-                o => o,
-            })?;
+        let writer = src_block.stream_output(&src_port_id).map_err(|e| match e {
+            Error::InvalidStreamPort(_, port) => {
+                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+            }
+            o => o,
+        })?;
 
         writer.connect_dyn(reader).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
@@ -106,12 +94,7 @@ impl<'a> FlowgraphConnector<'a> {
             o => o,
         })?;
 
-        Ok(Edge::new(
-            src_block_id,
-            src_port_id.clone(),
-            dst_block_id,
-            dst_port_id.clone(),
-        ))
+        Ok(())
     }
 
     async fn typed_stream_output_port_id_async<KS, B, FS>(
@@ -175,20 +158,20 @@ impl<'a> FlowgraphConnector<'a> {
     async fn connect_same_domain_stream_dyn_async(
         &mut self,
         src: BlockLocation,
-        src_port_id: PortId,
+        src_port: PortIndex,
         dst: BlockLocation,
-        dst_port_id: PortId,
-    ) -> Result<Edge, Error> {
+        dst_port: PortIndex,
+    ) -> Result<(), Error> {
         let src_block_id = src.block_id;
         let dst_block_id = dst.block_id;
         self.flowgraph
             .with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
                 Self::connect_stream_ports_dyn(
                     src_block_id,
-                    &src_port_id,
+                    src_port,
                     src_block,
                     dst_block_id,
-                    &dst_port_id,
+                    dst_port,
                     dst_block,
                 )
             })
@@ -198,9 +181,9 @@ impl<'a> FlowgraphConnector<'a> {
     async fn lease_stream_output_send_token(
         &mut self,
         location: BlockLocation,
-        port_id: &PortId,
+        port: PortIndex,
     ) -> Result<StreamOutputSendTokenLease, Error> {
-        let port_id = Self::runtime_stream_port_index(location.block_id, port_id)?;
+        let port_id = PortId::Index(port);
         let port_id_for_block = port_id.clone();
         let token = self
             .flowgraph
@@ -252,14 +235,14 @@ impl<'a> FlowgraphConnector<'a> {
         lease: &StreamOutputSendTokenLease,
         src_block_id: BlockId,
         dst: BlockLocation,
-        dst_port_id: PortId,
+        dst_port: PortIndex,
     ) -> Result<(), Error> {
         let token = lease.shared_token();
         self.flowgraph
             .with_block_mut(dst, move |dst_block| {
                 let mut token = token.lock().map_err(|_| Error::LockError)?;
                 let token = token.as_mut().ok_or(Error::LockError)?;
-                let dst_port_id = Self::runtime_stream_port_index(dst.block_id, &dst_port_id)?;
+                let dst_port_id = PortId::Index(dst_port);
                 let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
                     Error::InvalidStreamPort(_, port) => {
                         Error::InvalidStreamPort(BlockPortCtx::Id(dst.block_id), port)
@@ -279,58 +262,44 @@ impl<'a> FlowgraphConnector<'a> {
     async fn connect_cross_domain_stream_dyn_async(
         &mut self,
         src: BlockLocation,
-        src_port_id: PortId,
+        src_port: PortIndex,
         dst: BlockLocation,
-        dst_port_id: PortId,
-    ) -> Result<Edge, Error> {
+        dst_port: PortIndex,
+    ) -> Result<(), Error> {
         let src_block_id = src.block_id;
-        let dst_block_id = dst.block_id;
-        let lease = self
-            .lease_stream_output_send_token(src, &src_port_id)
-            .await?;
+        let lease = self.lease_stream_output_send_token(src, src_port).await?;
 
         let connect_result = self
-            .connect_send_token_to_input(&lease, src_block_id, dst, dst_port_id.clone())
-            .await
-            .map(|()| Edge::new(src_block_id, src_port_id.clone(), dst_block_id, dst_port_id));
+            .connect_send_token_to_input(&lease, src_block_id, dst, dst_port)
+            .await;
 
         self.restore_stream_output_send_token(lease).await?;
         connect_result
     }
 
-    async fn apply_stream_edge(&mut self, edge: &Edge) -> Result<(), Error> {
+    async fn apply_stream_edge(&mut self, edge: &ResolvedEdge) -> Result<(), Error> {
         let src = self.flowgraph.location(edge.src_block)?;
         let dst = self.flowgraph.location(edge.dst_block)?;
 
         if src.domain_id == dst.domain_id {
-            self.connect_same_domain_stream_dyn_async(
-                src,
-                edge.src_port.clone(),
-                dst,
-                edge.dst_port.clone(),
-            )
-            .await?;
+            self.connect_same_domain_stream_dyn_async(src, edge.src_port, dst, edge.dst_port)
+                .await?;
         } else {
-            self.connect_cross_domain_stream_dyn_async(
-                src,
-                edge.src_port.clone(),
-                dst,
-                edge.dst_port.clone(),
-            )
-            .await?;
+            self.connect_cross_domain_stream_dyn_async(src, edge.src_port, dst, edge.dst_port)
+                .await?;
         }
         Ok(())
     }
 
-    pub(super) async fn apply_stream_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+    pub(super) async fn apply_stream_edges(&mut self, edges: &[ResolvedEdge]) -> Result<(), Error> {
         for edge in edges {
             self.apply_stream_edge(edge).await?;
         }
         Ok(())
     }
 
-    async fn apply_message_edge(&mut self, edge: Edge) -> Result<(), Error> {
-        let Edge {
+    async fn apply_message_edge(&mut self, edge: ResolvedEdge) -> Result<(), Error> {
+        let ResolvedEdge {
             src_block,
             src_port,
             dst_block,
@@ -347,12 +316,15 @@ impl<'a> FlowgraphConnector<'a> {
 
         self.flowgraph
             .with_block_mut(src, move |src_block| {
-                src_block.connect_message(&src_port, dst, &dst_port)
+                src_block.connect_message(src_port, dst, dst_port)
             })
             .await
     }
 
-    pub(super) async fn apply_message_edges(&mut self, edges: &[Edge]) -> Result<(), Error> {
+    pub(super) async fn apply_message_edges(
+        &mut self,
+        edges: &[ResolvedEdge],
+    ) -> Result<(), Error> {
         for edge in edges.iter().cloned() {
             self.apply_message_edge(edge).await?;
         }

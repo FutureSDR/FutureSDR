@@ -3,6 +3,7 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::dev::BlockEndpoint;
@@ -33,10 +34,43 @@ struct LocalDomainPlan {
     block_ids: Vec<BlockId>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(super) struct ResolvedEdge {
+    pub(super) src_block: BlockId,
+    pub(super) src_port: PortIndex,
+    pub(super) dst_block: BlockId,
+    pub(super) dst_port: PortIndex,
+}
+
+impl ResolvedEdge {
+    fn new(
+        src_block: BlockId,
+        src_port: PortIndex,
+        dst_block: BlockId,
+        dst_port: PortIndex,
+    ) -> Self {
+        Self {
+            src_block,
+            src_port,
+            dst_block,
+            dst_port,
+        }
+    }
+
+    fn from_indexed_edge(edge: Edge) -> Self {
+        Self::new(
+            edge.src_block,
+            edge.src_port.index_value(),
+            edge.dst_block,
+            edge.dst_port.index_value(),
+        )
+    }
+}
+
 struct GraphPlan {
     startup: StartupSnapshot,
-    stream_edges: Vec<Edge>,
-    message_edges: Vec<Edge>,
+    stream_edges: Vec<ResolvedEdge>,
+    message_edges: Vec<ResolvedEdge>,
     stream_edges_public: Vec<Edge>,
     message_edges_public: Vec<Edge>,
     stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
@@ -52,23 +86,23 @@ pub(super) struct ControlPlan {
 }
 
 pub(super) struct ConnectionPlan {
-    stream_edges: Vec<Edge>,
-    message_edges: Vec<Edge>,
+    stream_edges: Vec<ResolvedEdge>,
+    message_edges: Vec<ResolvedEdge>,
 }
 
 impl ConnectionPlan {
-    fn new(stream_edges: Vec<Edge>, message_edges: Vec<Edge>) -> Self {
+    fn new(stream_edges: Vec<ResolvedEdge>, message_edges: Vec<ResolvedEdge>) -> Self {
         Self {
             stream_edges,
             message_edges,
         }
     }
 
-    pub(super) fn stream_edges(&self) -> &[Edge] {
+    pub(super) fn stream_edges(&self) -> &[ResolvedEdge] {
         &self.stream_edges
     }
 
-    pub(super) fn message_edges(&self) -> &[Edge] {
+    pub(super) fn message_edges(&self) -> &[ResolvedEdge] {
         &self.message_edges
     }
 }
@@ -310,12 +344,18 @@ impl<'a> FlowgraphCompiler<'a> {
         let stream_edges = stream_edges_public
             .iter()
             .map(|edge| self.flowgraph.indexed_stream_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(ResolvedEdge::from_indexed_edge)
+            .collect::<Vec<_>>();
         let message_edges_public = std::mem::take(&mut self.flowgraph.message_edges);
         let message_edges = message_edges_public
             .iter()
             .map(|edge| self.flowgraph.indexed_message_edge(edge))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(ResolvedEdge::from_indexed_edge)
+            .collect::<Vec<_>>();
         let block_locations = self.flowgraph.block_locations()?;
 
         let normal_block_ids = block_locations
@@ -395,7 +435,7 @@ impl<'a> FlowgraphCompiler<'a> {
             let indexed_edge = self.flowgraph.indexed_stream_edge(&edge.edge)?;
             if connected_inputs
                 .iter()
-                .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port)
+                .any(|(block, port)| *block == dst && port == &indexed_edge.dst_port.index_value())
             {
                 let dst_port = self.flowgraph.stream_input_name(dst, &edge.edge.dst_port)?;
                 return Err(Error::ValidationError(format!(
@@ -404,7 +444,7 @@ impl<'a> FlowgraphCompiler<'a> {
                     dst_port.name()
                 )));
             }
-            connected_inputs.push((dst, indexed_edge.dst_port));
+            connected_inputs.push((dst, indexed_edge.dst_port.index_value()));
 
             if edge.local_only {
                 let src_location = self.flowgraph.location(src)?;
@@ -488,11 +528,11 @@ mod tests {
         assert_eq!(control.startup.endpoints.len(), 2);
         assert_eq!(
             connections.stream_edges(),
-            &[Edge::new(
+            &[ResolvedEdge::new(
                 src.id(),
-                PortId::index(0),
+                PortIndex::new(0),
                 snk.id(),
-                PortId::index(0)
+                PortIndex::new(0)
             )]
         );
         assert!(connections.message_edges().is_empty());

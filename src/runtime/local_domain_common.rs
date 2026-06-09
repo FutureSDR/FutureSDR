@@ -723,6 +723,7 @@ mod tests {
     use super::*;
     use crate::runtime::BlockPortCtx;
     use crate::runtime::PortId;
+    use crate::runtime::PortIndex;
     use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::DynBufferReader;
@@ -776,9 +777,9 @@ mod tests {
 
         fn connect_message(
             &mut self,
-            _src_port: &PortId,
+            _src_port: PortIndex,
             _dst: BlockEndpoint,
-            _dst_port: &PortId,
+            _dst_port: PortIndex,
         ) -> Result<(), Error> {
             Ok(())
         }

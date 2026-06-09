@@ -11,6 +11,7 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
@@ -523,11 +524,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     }
     fn connect_message(
         &mut self,
-        src_port: &PortId,
+        src_port: PortIndex,
         dst: BlockEndpoint,
-        dst_port: &PortId,
+        dst_port: PortIndex,
     ) -> Result<(), Error> {
-        self.mo.connect(src_port, dst, dst_port)
+        self.mo
+            .connect(&PortId::Index(src_port), dst, &PortId::Index(dst_port))
     }
     fn type_name(&self) -> &str {
         K::type_name()

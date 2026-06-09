@@ -5,6 +5,7 @@ use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::BlockInboxReader;
@@ -44,9 +45,9 @@ pub trait BlockObject: Any {
     /// Connect one message output port to a downstream block endpoint.
     fn connect_message(
         &mut self,
-        src_port: &PortId,
+        src_port: PortIndex,
         dst: BlockEndpoint,
-        dst_port: &PortId,
+        dst_port: PortIndex,
     ) -> Result<(), Error>;
 
     /// Get the static type name of the block.

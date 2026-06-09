@@ -450,6 +450,7 @@ mod tests {
     use crate::runtime::BlockPortCtx;
     use crate::runtime::FlowgraphMessage;
     use crate::runtime::PortId;
+    use crate::runtime::PortIndex;
     use crate::runtime::block_inbox::BlockEndpoint;
     use crate::runtime::buffer::DynBufferReader;
     use crate::runtime::buffer::DynBufferWriter;
@@ -500,9 +501,9 @@ mod tests {
 
         fn connect_message(
             &mut self,
-            _src_port: &PortId,
+            _src_port: PortIndex,
             _dst: BlockEndpoint,
-            _dst_port: &PortId,
+            _dst_port: PortIndex,
         ) -> Result<(), Error> {
             Ok(())
         }
