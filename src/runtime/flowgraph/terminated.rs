@@ -6,8 +6,6 @@ use crate::runtime::Result;
 use super::BlockSlot;
 use super::Flowgraph;
 use super::block_access;
-use super::domain_access::DomainAccess;
-use super::domain_access::DomainAccessMut;
 use super::domains::FlowgraphDomains;
 use super::types::BlockLocation;
 use super::types::BlockPlacement;
@@ -111,8 +109,13 @@ impl TerminatedFlowgraph {
         R: Send + 'static,
     {
         self.validate_block_ref(block)?;
-        DomainAccess::new(&self.domains)
-            .typed_kernel_ref(self.location(block.id)?, move |block| Ok(f(block)))
+        let location = self.location(block.id)?;
+        self.domains
+            .with_block_ref(location, move |block| {
+                let block =
+                    block_access::typed_kernel_ref_from_object::<K>(block, location.block_id)?;
+                Ok(f(block))
+            })
             .await
     }
 
@@ -144,8 +147,12 @@ impl TerminatedFlowgraph {
     {
         self.validate_block_ref(block)?;
         let location = self.location(block.id)?;
-        DomainAccessMut::new(&mut self.domains)
-            .typed_kernel_mut(location, move |block| Ok(f(block)))
+        self.domains
+            .with_block_mut(location, move |block| {
+                let block =
+                    block_access::typed_kernel_mut_from_object::<K>(block, location.block_id)?;
+                Ok(f(block))
+            })
             .await
     }
 }

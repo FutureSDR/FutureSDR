@@ -28,13 +28,11 @@ static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
 mod block_access;
 mod connector;
-mod domain_access;
 mod domains;
 mod local_context;
 mod message_api;
 mod prepare;
 mod run;
-mod storage;
 mod stream_api;
 mod terminated;
 mod types;
@@ -626,6 +624,67 @@ impl Flowgraph {
 
     fn location(&self, block_id: BlockId) -> Result<BlockLocation, Error> {
         Ok(self.placement(block_id)?.location(block_id))
+    }
+
+    async fn with_block_mut<R>(
+        &mut self,
+        location: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        self.domains.with_block_mut(location, f).await
+    }
+
+    async fn with_typed_kernel_ref<K, R>(
+        &self,
+        location: BlockLocation,
+        f: impl FnOnce(&K) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        self.domains
+            .with_block_ref(location, move |block| {
+                let block =
+                    block_access::typed_kernel_ref_from_object::<K>(block, location.block_id)?;
+                f(block)
+            })
+            .await
+    }
+
+    async fn with_typed_kernel_mut<K, R>(
+        &mut self,
+        location: BlockLocation,
+        f: impl FnOnce(&mut K) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        K: 'static,
+        R: Send + 'static,
+    {
+        self.domains
+            .with_block_mut(location, move |block| {
+                let block =
+                    block_access::typed_kernel_mut_from_object::<K>(block, location.block_id)?;
+                f(block)
+            })
+            .await
+    }
+
+    async fn with_same_domain_two_blocks_mut<R>(
+        &mut self,
+        src: BlockLocation,
+        dst: BlockLocation,
+        f: impl FnOnce(&mut dyn BlockObject, &mut dyn BlockObject) -> Result<R, Error> + Send + 'static,
+    ) -> Result<R, Error>
+    where
+        R: Send + 'static,
+    {
+        self.domains
+            .with_same_domain_two_blocks_mut(src, dst, f)
+            .await
     }
 
     fn block_slot(&self, block_id: BlockId) -> Result<&BlockSlot, Error> {

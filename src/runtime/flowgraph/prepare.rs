@@ -23,7 +23,6 @@ use super::Flowgraph;
 use super::connector::FlowgraphConnector;
 use super::domains::FlowgraphDomains;
 use super::domains::NORMAL_DOMAIN_ID;
-use super::storage;
 use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
 
@@ -461,7 +460,7 @@ impl FlowgraphCompiler {
         let stream_edges_desc = Self::edge_endpoints(&stream_edges_public);
         let message_edges_desc = Self::edge_endpoints(&message_edges_public);
         let local_domains = Self::local_domain_plans(flowgraph, &block_locations);
-        let control = Self::prepared_control(flowgraph, stream_edges_desc, message_edges_desc)?;
+        let control = Self::prepared_control(flowgraph, stream_edges_desc, message_edges_desc);
 
         Ok(GraphPlan {
             control,
@@ -583,15 +582,24 @@ impl FlowgraphCompiler {
         flowgraph: &Flowgraph,
         stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
         message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    ) -> Result<PreparedControl, Error> {
-        let (endpoints, ids, message_inputs) = storage::endpoints(&flowgraph.blocks)?;
-        Ok(PreparedControl {
+    ) -> PreparedControl {
+        let mut endpoints = Vec::with_capacity(flowgraph.blocks.len());
+        let mut ids = Vec::with_capacity(flowgraph.blocks.len());
+        let mut message_inputs = Vec::with_capacity(flowgraph.blocks.len());
+        for (id, entry) in flowgraph.blocks.iter().enumerate() {
+            let block_id = BlockId(id);
+            endpoints.push(Some(entry.endpoint().clone()));
+            ids.push(block_id);
+            message_inputs.push(Some(entry.message_inputs()));
+        }
+
+        PreparedControl {
             endpoints,
             ids,
             message_inputs,
             stream_edges_desc,
             message_edges_desc,
-        })
+        }
     }
 
     fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
