@@ -1,20 +1,23 @@
 use futures::future::Future;
+use std::pin::Pin;
 
 use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::dev::Block;
+use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::Task;
 
-/// A normal-domain block.
-pub type NormalBlock = Box<dyn Block>;
+/// Internal normal-domain block object.
+pub(crate) type NormalBlock = Box<dyn Block>;
 
 /// Normal-domain blocks passed from the flowgraph to a scheduler.
-pub type NormalBlocks = Vec<NormalBlock>;
+pub(crate) type NormalBlocks = Vec<NormalBlock>;
 
 /// Logical topology visible to a scheduling domain.
 #[derive(Debug, Clone)]
@@ -80,9 +83,99 @@ impl NormalDomainSpec {
         &self.topology
     }
 
-    /// Take the normal blocks, topology, and main flowgraph channel out of this spec.
-    pub fn into_parts(self) -> (NormalBlocks, DomainTopology, Sender<FlowgraphMessage>) {
-        (self.blocks, self.topology, self.main_channel)
+    /// Iterate over block ids assigned to this normal domain.
+    pub fn blocks(&self) -> impl Iterator<Item = BlockId> + '_ {
+        self.blocks.iter().map(|block| block.id())
+    }
+
+    /// Take one normal block from this domain for spawning.
+    pub fn take_block(&mut self, block_id: BlockId) -> Result<RunnableBlock, Error> {
+        let pos = self
+            .blocks
+            .iter()
+            .position(|block| block.id() == block_id)
+            .ok_or(Error::InvalidBlock(block_id))?;
+        let block = self.blocks.swap_remove(pos);
+        let stop = BlockStop {
+            block_id,
+            endpoint: block.inbox(),
+        };
+        Ok(RunnableBlock {
+            block_id,
+            block,
+            main_channel: self.main_channel.clone(),
+            stop,
+        })
+    }
+}
+
+/// Stop handle for one running normal-domain block.
+#[derive(Clone)]
+pub struct BlockStop {
+    block_id: BlockId,
+    endpoint: BlockEndpoint,
+}
+
+impl BlockStop {
+    /// Get the block id.
+    pub fn id(&self) -> BlockId {
+        self.block_id
+    }
+
+    /// Request this block to terminate.
+    pub async fn stop(&self) -> Result<(), Error> {
+        self.endpoint.send(BlockMessage::Terminate).await
+    }
+}
+
+/// Opaque normal-domain block object that can be spawned by a [`Scheduler`].
+pub struct RunnableBlock {
+    block_id: BlockId,
+    block: NormalBlock,
+    main_channel: Sender<FlowgraphMessage>,
+    stop: BlockStop,
+}
+
+impl RunnableBlock {
+    /// Get the block id.
+    pub fn id(&self) -> BlockId {
+        self.block_id
+    }
+
+    /// Get a handle that can request this block to stop after it is spawned.
+    pub fn stop_handle(&self) -> BlockStop {
+        self.stop.clone()
+    }
+
+    /// Run this normal-domain block to completion and return its stopped state.
+    pub fn run(self) -> Pin<Box<dyn Future<Output = StoppedBlock> + Send + 'static>> {
+        Box::pin(async move {
+            let Self {
+                block_id,
+                mut block,
+                main_channel,
+                ..
+            } = self;
+            block.run(main_channel).await;
+            StoppedBlock { block_id, block }
+        })
+    }
+}
+
+/// Opaque stopped normal-domain block state that must be restored to its domain.
+pub struct StoppedBlock {
+    block_id: BlockId,
+    block: NormalBlock,
+}
+
+impl StoppedBlock {
+    /// Get the block id.
+    pub fn id(&self) -> BlockId {
+        self.block_id
+    }
+
+    pub(crate) fn into_block(self) -> NormalBlock {
+        self.block
     }
 }
 
@@ -124,12 +217,12 @@ impl LocalDomainSpec {
 
 /// Running normal-domain state returned by a scheduler.
 pub struct NormalRunningDomain {
-    tasks: Vec<Task<NormalBlock>>,
+    tasks: Vec<Task<StoppedBlock>>,
 }
 
 impl NormalRunningDomain {
     /// Create a running normal domain from block task handles.
-    pub fn new(tasks: Vec<Task<NormalBlock>>) -> Self {
+    pub fn new(tasks: Vec<Task<StoppedBlock>>) -> Self {
         Self { tasks }
     }
 
@@ -139,7 +232,7 @@ impl NormalRunningDomain {
     }
 
     /// Await all normal-domain block tasks and return their stopped blocks.
-    pub(crate) async fn join(self) -> Result<NormalBlocks, Error> {
+    pub(crate) async fn join(self) -> Result<Vec<StoppedBlock>, Error> {
         let mut blocks = Vec::with_capacity(self.tasks.len());
         for task in self.tasks {
             blocks.push(task.await);
@@ -237,13 +330,13 @@ pub(crate) struct StoppedDomain {
 
 pub(crate) enum StoppedDomainState {
     /// Blocks returned by the normal domain.
-    Normal(NormalBlocks),
+    Normal(Vec<StoppedBlock>),
     /// A local domain whose block state has already been restored internally.
     Local,
 }
 
 impl StoppedDomain {
-    pub(crate) fn normal(domain_id: usize, blocks: NormalBlocks) -> Self {
+    pub(crate) fn normal(domain_id: usize, blocks: Vec<StoppedBlock>) -> Self {
         Self {
             domain_id,
             state: StoppedDomainState::Normal(blocks),

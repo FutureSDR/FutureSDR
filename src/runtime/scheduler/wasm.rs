@@ -23,12 +23,11 @@ use web_sys::Worker;
 use web_sys::WorkerOptions;
 use web_sys::WorkerType;
 
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::block::Block;
-use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
+use crate::runtime::scheduler::RunnableBlock;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::StoppedBlock;
 
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(Slab::new()));
@@ -206,24 +205,16 @@ impl Scheduler for WasmScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (blocks, _topology, main_channel) = spec.into_parts();
-        let n_blocks = blocks.len();
+        let mut spec = spec;
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let n_blocks = block_ids.len();
         let n_threads = self.inner.workers.len();
         let mut tasks = Vec::with_capacity(n_blocks);
 
-        for (block_index, block) in blocks.into_iter().enumerate() {
-            debug_assert!(
-                !block.is_blocking(),
-                "blocking blocks must remain on the local runtime path"
-            );
-            let main_channel = main_channel.clone();
+        for (block_index, block_id) in block_ids.into_iter().enumerate() {
+            let block = spec.take_block(block_id)?;
             let worker_index = block_index * n_threads / n_blocks;
-            tasks.push(spawn_wasm_block(
-                &self.inner.executor,
-                block,
-                main_channel,
-                worker_index,
-            ));
+            tasks.push(spawn_wasm_block(&self.inner.executor, block, worker_index));
         }
 
         Ok(NormalRunningDomain::new(tasks))
@@ -265,11 +256,12 @@ impl Scheduler for WasmMainScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (blocks, _topology, main_channel) = spec.into_parts();
-        let tasks = blocks
-            .into_iter()
-            .map(|block| spawn_wasm_main_block(block, main_channel.clone()))
-            .collect();
+        let mut spec = spec;
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let mut tasks = Vec::with_capacity(block_ids.len());
+        for block_id in block_ids {
+            tasks.push(spawn_wasm_main_block(spec.take_block(block_id)?));
+        }
         Ok(NormalRunningDomain::new(tasks))
     }
 
@@ -349,30 +341,14 @@ pub(crate) fn spawn_local_domain_worker(
 
 fn spawn_wasm_block(
     executor: &WasmExecutor,
-    block: Box<dyn Block>,
-    main_channel: Sender<FlowgraphMessage>,
+    block: RunnableBlock,
     queue_index: usize,
-) -> Task<Box<dyn Block>> {
-    let future = async move {
-        let mut block = block;
-        block.run(main_channel).await;
-        block
-    };
-
-    Task::new(executor.spawn_executor(future, queue_index))
+) -> Task<StoppedBlock> {
+    Task::new(executor.spawn_executor(block.run(), queue_index))
 }
 
-fn spawn_wasm_main_block(
-    block: Box<dyn Block>,
-    main_channel: Sender<FlowgraphMessage>,
-) -> Task<Box<dyn Block>> {
-    let future = async move {
-        let mut block = block;
-        block.run(main_channel).await;
-        block
-    };
-
-    Task::new(spawn_main(future))
+fn spawn_wasm_main_block(block: RunnableBlock) -> Task<StoppedBlock> {
+    Task::new(spawn_main(block.run()))
 }
 
 fn spawn_main<T: Send + 'static>(

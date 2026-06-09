@@ -5,6 +5,7 @@ use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::scheduler::NormalBlocks;
+use crate::runtime::scheduler::StoppedBlock;
 use crate::runtime::scheduler::StoppedDomain;
 use crate::runtime::scheduler::StoppedDomainState;
 
@@ -222,7 +223,7 @@ impl FlowgraphDomains {
     pub(super) fn restore_stopped_domain(&mut self, domain: StoppedDomain) -> Result<(), Error> {
         let domain_id = domain.domain_id();
         match domain.into_state() {
-            StoppedDomainState::Normal(blocks) => self.normal_mut().restore_blocks(blocks),
+            StoppedDomainState::Normal(blocks) => self.normal_mut().restore_stopped_blocks(blocks),
             StoppedDomainState::Local => {
                 if let Some(domain) = self.local_mut(domain_id) {
                     domain.mark_stopped();
@@ -364,9 +365,20 @@ impl NormalDomain {
         Ok(blocks)
     }
 
+    #[cfg(test)]
     pub(super) fn restore_blocks(&mut self, blocks: NormalBlocks) -> Result<(), Error> {
         for block in blocks {
             self.restore_block(block)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn restore_stopped_blocks(
+        &mut self,
+        blocks: Vec<StoppedBlock>,
+    ) -> Result<(), Error> {
+        for block in blocks {
+            self.restore_block(block.into_block())?;
         }
         Ok(())
     }

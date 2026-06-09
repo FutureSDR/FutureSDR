@@ -23,14 +23,13 @@ use std::task::Waker;
 use std::thread;
 
 use crate::runtime::BlockId;
-use crate::runtime::FlowgraphMessage;
-use crate::runtime::block::Block;
-use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
+use crate::runtime::scheduler::RunnableBlock;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::scheduler::StoppedBlock;
 
 /// Native scheduler with deterministic worker-local block queues.
 ///
@@ -144,9 +143,10 @@ impl Scheduler for FlowScheduler {
         &self,
         spec: NormalDomainSpec,
     ) -> Result<NormalRunningDomain, crate::runtime::Error> {
-        let (mut blocks, topology, main_channel) = spec.into_parts();
-        let block_order = topology.blocks().to_vec();
-        let n_blocks = blocks.len();
+        let mut spec = spec;
+        let block_order = spec.topology().blocks().to_vec();
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let n_blocks = block_ids.len();
         let n_cores = self.inner.workers.len();
         let mut spawned: HashSet<BlockId> = HashSet::new();
         let mut tasks = Vec::with_capacity(n_blocks);
@@ -162,7 +162,7 @@ impl Scheduler for FlowScheduler {
             }
 
             for block_id in block_ids {
-                let Some(pos) = blocks.iter().position(|block| block.id() == *block_id) else {
+                if !block_order.contains(block_id) {
                     warn!(
                         "flowsched mapping references unknown block id {:?}",
                         block_id
@@ -176,19 +176,17 @@ impl Scheduler for FlowScheduler {
                     );
                     continue;
                 }
-                let block = blocks.swap_remove(pos);
+                let block = spec.take_block(*block_id)?;
                 tasks.push(spawn_block_on_executor(
                     &self.inner.executor,
                     block,
-                    main_channel.clone(),
                     executor,
                 ));
             }
         }
 
         // Spawn remaining blocks using the default mapper.
-        for block in blocks.into_iter() {
-            let id = block.id();
+        for id in block_ids {
             if spawned.contains(&id) {
                 continue;
             }
@@ -203,10 +201,10 @@ impl Scheduler for FlowScheduler {
                     id.0
                 });
             let executor = FlowScheduler::map_block(block_index, n_blocks, n_cores);
+            let block = spec.take_block(id)?;
             tasks.push(spawn_block_on_executor(
                 &self.inner.executor,
                 block,
-                main_channel.clone(),
                 executor,
             ));
         }
@@ -230,22 +228,10 @@ impl Default for FlowScheduler {
 
 fn spawn_block_on_executor(
     executor: &FlowExecutor,
-    block: Box<dyn Block>,
-    main_channel: Sender<FlowgraphMessage>,
+    block: RunnableBlock,
     queue_index: usize,
-) -> Task<Box<dyn Block>> {
-    debug_assert!(
-        !block.is_blocking(),
-        "blocking blocks must be placed in local domains before scheduling"
-    );
-    executor.spawn_executor(
-        async move {
-            let mut block = block;
-            block.run(main_channel).await;
-            block
-        },
-        queue_index,
-    )
+) -> Task<StoppedBlock> {
+    executor.spawn_executor(block.run(), queue_index)
 }
 
 /// An async executor.

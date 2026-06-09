@@ -107,20 +107,12 @@ impl SmolScheduler {
 
 impl Scheduler for SmolScheduler {
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
-        let (blocks, _topology, main_channel) = spec.into_parts();
-        let mut tasks = Vec::with_capacity(blocks.len());
-        for block in blocks {
-            debug_assert!(
-                !block.is_blocking(),
-                "blocking blocks must be placed in local domains before scheduling"
-            );
-            let main_channel = main_channel.clone();
-            let task = self.spawn(async move {
-                let mut block = block;
-                block.run(main_channel).await;
-                block
-            });
-            tasks.push(task);
+        let mut spec = spec;
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let mut tasks = Vec::with_capacity(block_ids.len());
+        for block_id in block_ids {
+            let block = spec.take_block(block_id)?;
+            tasks.push(self.spawn(block.run()));
         }
         Ok(NormalRunningDomain::new(tasks))
     }

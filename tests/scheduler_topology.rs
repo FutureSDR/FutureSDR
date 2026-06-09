@@ -211,7 +211,7 @@ impl LocalScheduler for LowLevelLocalScheduler {
 impl Scheduler for RecordingScheduler {
     fn start_normal_domain(
         &self,
-        spec: NormalDomainSpec,
+        mut spec: NormalDomainSpec,
     ) -> std::result::Result<NormalRunningDomain, Error> {
         let topology = spec.topology();
         self.records.lock().unwrap().normal.push(DomainRecord {
@@ -224,7 +224,13 @@ impl Scheduler for RecordingScheduler {
             message_edges: topology.message_edges().len(),
         });
 
-        self.inner.start_normal_domain(spec)
+        let block_ids = spec.blocks().collect::<Vec<_>>();
+        let mut tasks = Vec::with_capacity(block_ids.len());
+        for block_id in block_ids {
+            let block = spec.take_block(block_id)?;
+            tasks.push(self.inner.spawn(block.run()));
+        }
+        Ok(NormalRunningDomain::new(tasks))
     }
 
     fn spawn<T: Send + 'static>(

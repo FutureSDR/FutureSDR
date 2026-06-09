@@ -25,14 +25,16 @@ pub use local::RunnableLocalBlock;
 pub use local::StoppedLocalBlock;
 #[allow(clippy::module_inception)]
 mod scheduler;
+pub use scheduler::BlockStop;
 pub use scheduler::DomainTopology;
 pub(crate) use scheduler::LocalDomainSpec;
-pub use scheduler::NormalBlock;
-pub use scheduler::NormalBlocks;
+pub(crate) use scheduler::NormalBlocks;
 pub use scheduler::NormalDomainSpec;
 pub use scheduler::NormalRunningDomain;
+pub use scheduler::RunnableBlock;
 pub(crate) use scheduler::RunningDomain;
 pub use scheduler::Scheduler;
+pub use scheduler::StoppedBlock;
 pub(crate) use scheduler::StoppedDomain;
 pub(crate) use scheduler::StoppedDomainState;
 
