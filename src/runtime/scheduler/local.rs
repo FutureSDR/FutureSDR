@@ -254,6 +254,7 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
             return LocalDomainControl::Stop;
         };
         match message {
+            LocalDomainMessage::StopRun => LocalDomainControl::Stop,
             LocalDomainMessage::Terminate => LocalDomainControl::Stop,
             LocalDomainMessage::Build { reply, .. } => {
                 let _ = reply.send(Err(Error::LockError));

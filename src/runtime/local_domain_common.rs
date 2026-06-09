@@ -107,7 +107,7 @@ impl LocalDomainInbox {
 
     pub(crate) async fn stop_run(&self) -> Result<(), Error> {
         self.tx
-            .send(LocalDomainMessage::Terminate)
+            .send(LocalDomainMessage::StopRun)
             .await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
     }
@@ -650,6 +650,7 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
             main_channel,
             reply,
         },
+        LocalDomainMessage::StopRun => IdleDomainAction::Continue,
         LocalDomainMessage::Terminate => IdleDomainAction::Terminate,
     }
 }
@@ -715,6 +716,7 @@ pub(crate) enum LocalDomainMessage {
         main_channel: Sender<FlowgraphMessage>,
         reply: oneshot::Sender<Result<(), Error>>,
     },
+    StopRun,
     Terminate,
 }
 
