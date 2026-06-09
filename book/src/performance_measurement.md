@@ -26,7 +26,7 @@ The `perf/` directory contains standalone benchmark applications for measuring c
 Many of the directories contain a `Makefile` that iterates over a parameter grid, writes CSV files to `perf-data/`, and provides helper targets for selected configurations:
 
 ```bash
-cd perf/null
+cd perf/null_rand
 make
 ```
 
@@ -43,7 +43,7 @@ samply record -- cargo run --release
 For an independent example workspace, run it from that directory or pass the manifest path:
 
 ```bash
-samply record -- cargo run --release --manifest-path=perf/null/Cargo.toml -- --config=flow
+samply record -- cargo run --release --manifest-path=perf/null_rand/Cargo.toml -- --config=flow
 ```
 
 Enable debug symbols for release builds so the profile contains useful function names and source locations:
