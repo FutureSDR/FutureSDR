@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
+
 import pandas as pd
 import numpy as np
-import scipy.stats
 import matplotlib.pyplot as plt
 
 plt.style.use('../acmart.mplrc')
@@ -16,7 +17,7 @@ d = d[d['samples'] == 200000000]
 d = d[['sdr', 'scheduler', 'stages', 'run', 'time', 'event', 'block', 'items']]
 
 def gr_block_index(d):
-    if d['sdr'] == 'gr' and d['event'] == 'rx':
+    if d['event'] == 'rx':
         return d['block'] - d['stages'] - 2
     else:
         return d['block']
@@ -67,35 +68,45 @@ def percentile(n):
     percentile_.__name__ = 'percentile_%s' % n
     return percentile_
 
-d = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': [np.mean, np.std, percentile(5), percentile(95)]})
+d = r.groupby(['sdr', 'scheduler', 'stages']).agg(
+    {'latency': ['mean', 'std', percentile(5), percentile(95)]}
+)
 
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
 
-t = d.loc[('gr')].reset_index()
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages'], t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='GNU\,Radio')
+def plot_series(key, label, offset):
+    available = d.index.droplevel('stages').unique()
+    if key not in available:
+        print(f"skipping {label}: no data")
+        return
 
-t = d.loc[('fs', 'smoln')].reset_index();
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages']-0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Smol-N')
+    t = d.loc[key].reset_index()
+    t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
+    t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
+    ax.errorbar(
+        t['stages'] + offset,
+        t[('latency', 'mean')],
+        yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]],
+        label=label,
+    )
 
-t = d.loc[('fs', 'flow')].reset_index();
-t[('latency', 'percentile_5')] = t[('latency', 'mean')] - t[('latency', 'percentile_5')]
-t[('latency', 'percentile_95')] = t[('latency', 'percentile_95')] - t[('latency', 'mean')]
-ax.errorbar(t['stages']+0.3, t[('latency', 'mean')], yerr=[t[('latency', 'percentile_5')], t[('latency', 'percentile_95')]], label='Flow')
+plot_series(('gr', 'legacy'), r'GNU\,Radio', 0)
+plot_series(('fs', 'smoln'), 'Smol-N', -0.3)
+plot_series(('fs', 'flow'), 'Flow', 0.3)
 
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
-ax.set_xlabel('\#\,Stages')
+ax.set_xlabel(r'\#\,Stages')
 ax.set_ylabel('Latency (in ms)')
-ax.set_ylim(0, 99)
+ax.set_ylim(bottom=0)
 
 handles, labels = ax.get_legend_handles_labels()
-handles = [x[0] for x in handles]
-ax.legend(handles, labels, handlelength=2.95)
+if handles:
+    handles = [x[0] for x in handles]
+    ax.legend(handles, labels, handlelength=2.95)
 
 plt.savefig('latency.pdf')
 plt.close('all')
 
+t = r.groupby(['sdr', 'scheduler', 'stages']).agg({'latency': 'mean'})
+print(t.unstack(level=[0, 1]))

@@ -3,7 +3,7 @@
 #include <gnuradio/top_block.h>
 #include <gnuradio/sync_block.h>
 #include <gnuradio/blocks/head.h>
-#include <sched/copy_rand.h>
+#include <sched/copy_n.h>
 #include <sched/null_sink_latency.h>
 #include <sched/null_source_latency.h>
 
@@ -13,9 +13,9 @@ const uint64_t GRANULARITY = 32768;
 
 using namespace gr;
 
-class null_rand_flowgraph {
+class null_latency_flowgraph {
 public:
-    null_rand_flowgraph(
+    null_latency_flowgraph(
             int pipes, int stages, uint64_t samples, size_t max_copy);
     top_block_sptr tb;
 };
@@ -23,7 +23,7 @@ public:
 // ============================================================
 // FLOWGRAPH
 // ============================================================
-null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
+null_latency_flowgraph::null_latency_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
 
     this->tb = gr::make_top_block("buf_flowgraph");
 
@@ -33,11 +33,11 @@ null_rand_flowgraph::null_rand_flowgraph(int pipes, int stages, uint64_t samples
         auto head = blocks::head::make(sizeof(float), samples);
         tb->connect(src, 0, head, 0);
 
-        auto prev = sched::copy_rand::make(sizeof(float), max_copy);
+        auto prev = sched::copy_n::make(sizeof(float), max_copy);
         tb->connect(head, 0, prev, 0);
 
         for(int stage = 1; stage < stages; stage++) {
-            auto block = sched::copy_rand::make(sizeof(float), max_copy);
+            auto block = sched::copy_n::make(sizeof(float), max_copy);
             tb->connect(prev, 0, block, 0);
             prev = block;
         }
@@ -60,7 +60,7 @@ int main (int argc, char **argv) {
         ("run,r", po::value<int>(&run)->default_value(0), "Run Number")
         ("pipes,p", po::value<int>(&pipes)->default_value(5), "Number of pipes")
         ("stages,s", po::value<int>(&stages)->default_value(6), "Number of stages")
-        ("max_copy,m", po::value<uint64_t>(&max_copy)->default_value(512), "Maximum number of samples to copy in one go.")
+        ("max-copy,m", po::value<uint64_t>(&max_copy)->default_value(512), "Maximum number of samples to copy in one go.")
         ("samples,n", po::value<uint64_t>(&samples)->default_value(15000000), "Number of samples");
 
     po::variables_map vm;
@@ -72,7 +72,7 @@ int main (int argc, char **argv) {
         return 0;
     }
 
-    null_rand_flowgraph* runner = new null_rand_flowgraph(pipes, stages, samples, max_copy);
+    null_latency_flowgraph* runner = new null_latency_flowgraph(pipes, stages, samples, max_copy);
     // runner->tb->set_max_output_buffer(4096);
 
     auto start = std::chrono::high_resolution_clock::now();

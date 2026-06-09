@@ -28,7 +28,7 @@ cd ${SCRIPTPATH}/perf/fir_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/msg && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/lora && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/null && ${CARGO_FMT} --check
-cd ${SCRIPTPATH}/perf/null_rand_latency && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/null_latency && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/perf && ${CARGO_FMT} --check
 
 # examples
@@ -79,7 +79,7 @@ cd ${SCRIPTPATH}/perf/null && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/perf && cargo clippy --all-targets --all-features -- -D warnings
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo clippy --all-targets -- -D warnings
-  cd ${SCRIPTPATH}/perf/null_rand_latency && cargo clippy --all-targets -- -D warnings
+  cd ${SCRIPTPATH}/perf/null_latency && cargo clippy --all-targets -- -D warnings
 fi
 
 # examples
@@ -144,7 +144,7 @@ cd ${SCRIPTPATH}/perf/null && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/perf && cargo test --all-targets --all-features
 if [[ "$OSTYPE" == linux* ]]; then
   cd ${SCRIPTPATH}/perf/fir_latency && cargo test --all-targets
-  cd ${SCRIPTPATH}/perf/null_rand_latency && cargo test --all-targets
+  cd ${SCRIPTPATH}/perf/null_latency && cargo test --all-targets
 fi
 
 # examples

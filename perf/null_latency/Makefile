@@ -16,7 +16,7 @@ setup:
 	@echo "### SETTING UP"
 	../migrate-processes.sh
 
-perf-data/gr%.csv: build/null_rand_flowgraph
+perf-data/gr%.csv: build/null_latency_flowgraph
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
@@ -32,8 +32,8 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 	@echo MAX=$(MAX)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	lttng stop || true
-	lttng destroy || true
+	lttng stop foo || true
+	lttng destroy foo || true
 	rm -rf perf-data/foo
 
 	lttng create foo -o perf-data/foo
@@ -41,13 +41,13 @@ perf-data/gr%.csv: build/null_rand_flowgraph
 	lttng enable-event --userspace null_rand_latency:rx
 	lttng start
 
-	$(SHIELD) -- ./build/null_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max_copy=$(MAX)
+	$(SHIELD) -- ./build/null_latency_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX)
 
-	lttng destroy
+	lttng destroy foo
 	python3 parse.py perf-data/foo > $@
 	rm -rf perf-data/foo
 
-perf-data/fs%.csv: null_rand_latency.rs
+perf-data/fs%.csv: null_latency.rs
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))
@@ -63,8 +63,8 @@ perf-data/fs%.csv: null_rand_latency.rs
 	@echo MAX=$(MAX)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	lttng stop || true
-	lttng destroy || true
+	lttng stop foo || true
+	lttng destroy foo || true
 	rm -rf perf-data/foo
 
 	lttng create foo -o perf-data/foo
@@ -74,7 +74,7 @@ perf-data/fs%.csv: null_rand_latency.rs
 
 	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER)
 
-	lttng destroy
+	lttng destroy foo
 	python3 parse.py perf-data/foo > $@
 	rm -rf perf-data/foo
 
@@ -83,7 +83,7 @@ clean:
 
 # run_no_trace:
 # 	lttng stop || true
-# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max_copy=512 --scheduler=flow
+# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max-copy=512 --scheduler=flow
 
 # run_trace:
 # 	mkdir -p perf-data
@@ -92,6 +92,6 @@ clean:
 # 	lttng enable-event --userspace null_rand_latency:rx
 # 	lttng start
 
-# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max_copy=512 --scheduler=flow
+# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max-copy=512 --scheduler=flow
 
 # 	lttng stop

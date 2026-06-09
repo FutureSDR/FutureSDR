@@ -6,7 +6,7 @@ use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::Runtime;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use perf::CopyRand;
+use perf::CopyN;
 use perf::LttngSink;
 use perf::LttngSource;
 use perf::TpbScheduler;
@@ -47,13 +47,13 @@ fn main() -> Result<()> {
         let src = fg.add(LttngSource::<f32>::new(GRANULARITY))?;
         let head = fg.add(Head::<f32>::new(samples as u64))?;
 
-        let mut last = fg.add(CopyRand::<f32>::new(max_copy))?;
+        let mut last = fg.add(CopyN::<f32>::new(max_copy))?;
         {
             connect!(fg, src > head > last);
         }
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32>::new(max_copy))?;
+            let block = fg.add(CopyN::<f32>::new(max_copy))?;
             {
                 connect!(fg, last > block);
             }

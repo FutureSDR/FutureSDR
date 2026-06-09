@@ -57,8 +57,8 @@ jobs:
       - name: Run cargo fmt (perf/null)
         run: cargo fmt --all --manifest-path=perf/null/Cargo.toml -- --check
 
-      - name: Run cargo fmt (perf/null_rand_latency)
-        run: cargo fmt --all --manifest-path=perf/null_rand_latency/Cargo.toml -- --check
+      - name: Run cargo fmt (perf/null_latency)
+        run: cargo fmt --all --manifest-path=perf/null_latency/Cargo.toml -- --check
 
       - name: Run cargo fmt (perf/perf)
         run: cargo fmt --all --manifest-path=perf/perf/Cargo.toml -- --check
@@ -229,8 +229,8 @@ jobs:
       - name: Run cargo clippy (perf/null)
         run: cargo clippy --all-targets --manifest-path=perf/null/Cargo.toml -- -D warnings
 
-      - name: Run cargo clippy (perf/null_rand_latency)
-        run: cargo clippy --all-targets --manifest-path=perf/null_rand_latency/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (perf/null_latency)
+        run: cargo clippy --all-targets --manifest-path=perf/null_latency/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/perf)
         run: cargo clippy --all-targets --all-features --manifest-path=perf/perf/Cargo.toml -- -D warnings
