@@ -2,10 +2,9 @@ SHELL=/bin/bash
 
 RUNS=0 1 2 3 4
 SIZES=10 100 1000
-CONFIGS=normal opti
 
 GRRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),perf-data/gr_$(r)_$(s).csv))
-FSRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),$(foreach c,$(CONFIGS),perf-data/fs_$(r)_$(s)_$(c).csv)))
+FSRESULTS=$(foreach r,$(RUNS),$(foreach s,$(SIZES),perf-data/fs_$(r)_$(s).csv))
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 # BUFFER_SIZE=262144
@@ -36,9 +35,8 @@ perf-data/fs_%.csv:
 	mkdir -p perf-data
 	$(eval RUN=$(word 1,$(subst _, ,$*)))
 	$(eval SIZE=$(word 2,$(subst _, ,$*)))
-	$(eval CONFIG=$(word 3,$(subst _, ,$*)))
-	@echo "FS run=$(RUN) size=$(SIZE) config=$(CONFIG)"
-	$(SHIELD) -- cargo run --release --bin rx -- --run=$(RUN) --file=wlan-$(SIZE).cf32 --config=$(CONFIG) --buffer-size=$(BUFFER_SIZE) > $@
+	@echo "FS run=$(RUN) size=$(SIZE)"
+	$(SHIELD) -- cargo run --release --bin rx -- --run=$(RUN) --file=wlan-$(SIZE).cf32 --buffer-size=$(BUFFER_SIZE) > $@
 
 parse:
 	./parse.sh
