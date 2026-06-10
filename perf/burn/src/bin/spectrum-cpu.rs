@@ -10,8 +10,9 @@ use ndarray::Array2;
 use ndarray::Axis;
 use ndarray::s;
 use ndarray::stack;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
+
+const SPECTRUM_BATCH_SIZE: usize = 8000;
 
 #[derive(Block)]
 struct Fft {
@@ -59,18 +60,18 @@ impl Kernel for Fft {
             && let Some(mut b) = self.input.get_full_buffer()
         {
             let t = Array::from_iter(b.slice().iter().flat_map(|c| [c.re, c.im]));
-            assert_eq!(t.len(), BATCH_SIZE * FFT_SIZE * 2);
-            let t = t.to_shape([BATCH_SIZE, FFT_SIZE, 2]).unwrap();
+            assert_eq!(t.len(), SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
+            let t = t.to_shape([SPECTRUM_BATCH_SIZE, FFT_SIZE, 2]).unwrap();
 
             let x_re_view = t.slice(s![.., .., 0]);
             let x_re = x_re_view
-                .to_shape([BATCH_SIZE, FFT_SIZE])
+                .to_shape([SPECTRUM_BATCH_SIZE, FFT_SIZE])
                 .unwrap()
                 .reversed_axes();
 
             let x_im_view = t.slice(s![.., .., 1]);
             let x_im = x_im_view
-                .to_shape([BATCH_SIZE, FFT_SIZE])
+                .to_shape([SPECTRUM_BATCH_SIZE, FFT_SIZE])
                 .unwrap()
                 .reversed_axes();
 
@@ -107,7 +108,7 @@ fn main() -> Result<()> {
         .sample_rate(3.2e6)
         .gain(34.0)
         .build_source_with_buffer::<circuit::Writer<Complex32>>()?;
-    src.outputs()[0].inject_buffers_with_items(4, BATCH_SIZE * FFT_SIZE);
+    src.outputs()[0].inject_buffers_with_items(4, SPECTRUM_BATCH_SIZE * FFT_SIZE);
 
     let mut fft = Fft::new();
     fft.output().inject_buffers_with_items(4, FFT_SIZE);

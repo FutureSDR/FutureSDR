@@ -6,6 +6,7 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
+use perf_burn::N_SAMPLES;
 use perf_burn::batch_size_from_args;
 
 #[derive(Block)]
@@ -50,7 +51,7 @@ impl Kernel for Avg {
                 for b in 0..self.batch_size {
                     sum += input[b * FFT_SIZE + i].norm_sqr();
                 }
-                output[i] = (sum / self.batch_size as f32).log10();
+                output[i] = (sum / self.batch_size as f32 + 1.0e-30).log10();
             }
 
             self.input.consume(FFT_SIZE * self.batch_size);
@@ -80,7 +81,7 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = NullSource::<Complex32>::new();
-    let head = Head::<Complex32>::new(1_000_000_000);
+    let head = Head::<Complex32>::new(N_SAMPLES);
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new(batch_size);
     let snk = NullSink::<f32>::new();

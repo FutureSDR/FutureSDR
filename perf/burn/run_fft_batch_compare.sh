@@ -7,7 +7,19 @@ BATCH_SIZES="${BATCH_SIZES:-512 1024 2048 4096 8000 12000}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_PATH="${SCRIPT_DIR}/Cargo.toml"
 
-bins=("fft-non-burn" "fft-wgpu-hack")
+bins=(
+    fft-non-burn
+    fft-ct-conv-reuse
+    fft-ct-noconv-noreuse
+    fft-ct-noconv-reuse
+    fft-cubecl-kernel
+    fft-cubecl-buffer-reuse
+    fft-wgpu-hack
+)
+
+if [[ -n "${BINS:-}" ]]; then
+    read -r -a bins <<< "$BINS"
+fi
 
 mkdir -p "$(dirname "$OUT")"
 echo "run,bin,batch_size,duration_raw,seconds" > "$OUT"

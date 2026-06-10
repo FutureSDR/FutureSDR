@@ -20,13 +20,15 @@ use bytes::BytesMut;
 use cubecl::bytes::AllocationProperty;
 use cubecl::bytes::Bytes;
 use cubecl::client::ComputeClient;
-use futuresdr::blocks::FileSource;
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSource;
 use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;
 use perf_burn::FFT_SIZE;
+use perf_burn::N_SAMPLES;
 use perf_burn::TimeIt;
 use perf_burn::batch_size_from_args;
 
@@ -148,7 +150,10 @@ impl Kernel for Fft {
 
             let mag = t.powi_scalar(2).sum_dim(2).mean_dim(0).reshape([FFT_SIZE]);
             let shift = mag.gather(0, self.fft_shift.clone());
-            let shift = shift.log().div_scalar(std::f32::consts::LN_10);
+            let shift = shift
+                .add_scalar(1.0e-30)
+                .log()
+                .div_scalar(std::f32::consts::LN_10);
 
             self.output.put_full_buffer(Buffer::from_tensor(shift))?;
 
@@ -171,12 +176,14 @@ fn main() -> Result<()> {
     let device = Default::default();
     let mut fg = Flowgraph::new();
 
-    let mut src = FileSource::<Complex32, burn_buffer::Writer<B, Float, Complex32, f32>>::new(
-        "data.cf32",
-        false,
-    );
-    src.output().set_device(&device);
-    src.output()
+    let src = NullSource::<Complex32>::new();
+    let mut head = Head::<
+        Complex32,
+        DefaultCpuReader<Complex32>,
+        burn_buffer::Writer<B, Float, Complex32, f32>,
+    >::new(N_SAMPLES);
+    head.output().set_device(&device);
+    head.output()
         .inject_buffers_with_items(4, batch_size * FFT_SIZE * 2);
 
     let mut fft = Fft::new(&device, batch_size);
@@ -185,7 +192,7 @@ fn main() -> Result<()> {
 
     let snk = TimeIt::new();
 
-    connect!(fg, src > fft > snk);
+    connect!(fg, src > head > fft > snk);
 
     Runtime::new().run(fg)?;
     Ok(())

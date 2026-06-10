@@ -12,6 +12,7 @@ use futuresdr::runtime::buffer::wgpu::H2DReader;
 use futuresdr::runtime::buffer::wgpu::H2DWriter;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
+use perf_burn::N_SAMPLES;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::env;
@@ -62,7 +63,7 @@ struct Args {
 impl Default for Args {
     fn default() -> Self {
         Self {
-            batch_size: perf_burn::BATCH_SIZE,
+            batch_size: 0,
             chunk_batches: None,
             verify: false,
             verify_batches: 1,
@@ -81,6 +82,9 @@ impl Args {
                 args.verify = true;
             } else if let Some(v) = a.strip_prefix("--batch-size=") {
                 args.batch_size = v.parse()?;
+                if args.batch_size == 0 {
+                    anyhow::bail!("--batch-size must be greater than zero");
+                }
             } else if let Some(v) = a.strip_prefix("--chunk-batches=") {
                 args.chunk_batches = Some(v.parse()?);
             } else if let Some(v) = a.strip_prefix("--verify-batches=") {
@@ -98,6 +102,9 @@ impl Args {
             } else {
                 anyhow::bail!("unknown arg: {a}");
             }
+        }
+        if args.batch_size == 0 {
+            anyhow::bail!("missing required argument: --batch-size=<usize>");
         }
         Ok(args)
     }
@@ -391,7 +398,7 @@ fn finalize_shift_log(
         return;
     }}
 
-    let mean = max(out_accum[n] / f32(params.total_batches), 1.0e-30);
+    let mean = out_accum[n] / f32(params.total_batches) + 1.0e-30;
     let shifted = (n + FFT_SIZE / 2u) % FFT_SIZE;
     out_mag[shifted] = log(mean) / log(10.0);
 }}
@@ -1101,7 +1108,7 @@ fn main() -> Result<()> {
 
     let src = NullSource::<Complex32>::new();
     let mut head =
-        Head::<Complex32, DefaultCpuReader<Complex32>, H2DWriter<Complex32>>::new(1_000_000_000);
+        Head::<Complex32, DefaultCpuReader<Complex32>, H2DWriter<Complex32>>::new(N_SAMPLES);
     head.output().set_instance(instance.clone());
     head.output()
         .inject_buffers_with_items(4, args.batch_size * FFT_SIZE);

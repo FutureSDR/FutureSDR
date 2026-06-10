@@ -3,7 +3,6 @@ use anyhow::Result;
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 use cubecl::server::Handle;
-use cubecl::wgpu::WgpuDevice;
 use cubecl::wgpu::WgpuRuntime;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
@@ -12,7 +11,17 @@ use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
 use perf_burn::N_SAMPLES;
 use perf_burn::batch_size_from_args;
+use perf_burn::cubecl_wgpu_buffer;
+use perf_burn::cubecl_wgpu_buffer::CubeBufferResource;
+use perf_burn::cubecl_wgpu_buffer::CubeWgpuContext;
+use perf_burn::cubecl_wgpu_buffer::D2HReader;
+use perf_burn::cubecl_wgpu_buffer::D2HWriter;
+use perf_burn::cubecl_wgpu_buffer::H2DReader;
+use perf_burn::cubecl_wgpu_buffer::H2DWriter;
+use perf_burn::cubecl_wgpu_buffer::InputBufferFull;
+use perf_burn::cubecl_wgpu_buffer::OutputBufferEmpty;
 use std::collections::VecDeque;
+use std::sync::mpsc;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -146,6 +155,7 @@ fn spectrum_reduce_shift_log10<F: Float>(
 }
 
 struct FftState {
+    context: CubeWgpuContext,
     client: ComputeClient<WgpuRuntime>,
     batch_size: usize,
     ping: Vec<Handle>,
@@ -161,11 +171,13 @@ struct FftState {
     reduce_cube_count: CubeCount,
 }
 
-type ReadbackFut = cubecl::future::DynFut<anyhow::Result<Vec<u8>>>;
-
 struct PendingRead {
     submitted_at: Instant,
-    fut: ReadbackFut,
+    input: InputBufferFull<Complex32>,
+    output: OutputBufferEmpty<f32>,
+    _output_resource: CubeBufferResource,
+    receiver: mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+    used_bytes: usize,
 }
 
 fn alloc_f32_buffer(client: &ComputeClient<WgpuRuntime>, len: usize) -> Handle {
@@ -191,7 +203,8 @@ fn precompute_twiddles() -> (Vec<f32>, Vec<usize>) {
     (tw, stage_offsets)
 }
 
-fn create_state(client: ComputeClient<WgpuRuntime>, batch_size: usize) -> FftState {
+fn create_state(context: CubeWgpuContext, batch_size: usize) -> Result<FftState> {
+    let client = context.client.clone();
     let fft_complex_len = batch_size * FFT_SIZE * 2;
     let fft_butterflies = batch_size * FFT_SIZE / 2;
     let ping = (0..IN_FLIGHT)
@@ -200,7 +213,7 @@ fn create_state(client: ComputeClient<WgpuRuntime>, batch_size: usize) -> FftSta
     let pong = (0..IN_FLIGHT)
         .map(|_| alloc_f32_buffer(&client, fft_complex_len))
         .collect();
-    let out_cube = (0..IN_FLIGHT)
+    let out_cube: Vec<Handle> = (0..IN_FLIGHT)
         .map(|_| alloc_f32_buffer(&client, FFT_SIZE))
         .collect();
 
@@ -216,7 +229,8 @@ fn create_state(client: ComputeClient<WgpuRuntime>, batch_size: usize) -> FftSta
     let reduce_cube_dim = CubeDim::new(&client, reduce_work);
     let reduce_cube_count = calculate_cube_count_elemwise(&client, reduce_work, reduce_cube_dim);
 
-    FftState {
+    Ok(FftState {
+        context,
         client,
         batch_size,
         ping,
@@ -230,7 +244,7 @@ fn create_state(client: ComputeClient<WgpuRuntime>, batch_size: usize) -> FftSta
         fft_cube_count,
         reduce_cube_dim,
         reduce_cube_count,
-    }
+    })
 }
 
 fn launch_bit_reverse_stage1(
@@ -295,11 +309,12 @@ fn launch_reduce_kernel(input: &Handle, state: &FftState, slot: usize) {
 #[derive(Block)]
 struct Fft {
     #[input]
-    input: circular::Reader<Complex32>,
+    input: H2DReader<Complex32>,
     #[output]
-    output: circular::Writer<f32>,
+    output: D2HWriter<f32>,
     state: FftState,
     pending: VecDeque<PendingRead>,
+    output_free: Vec<OutputBufferEmpty<f32>>,
     next_slot: usize,
     t_upload: Duration,
     t_kernels: Duration,
@@ -314,21 +329,20 @@ struct Fft {
 }
 
 impl Fft {
-    fn new(batch_size: usize) -> Self {
-        let device = WgpuDevice::default();
-        let client = WgpuRuntime::client(&device);
-        let state = create_state(client, batch_size);
+    fn new(context: CubeWgpuContext, batch_size: usize) -> Result<Self> {
+        let state = create_state(context.clone(), batch_size)?;
 
-        let mut input: circular::Reader<Complex32> = Default::default();
-        input.set_min_items(batch_size * FFT_SIZE);
-        let mut output: circular::Writer<f32> = Default::default();
-        output.set_min_items(FFT_SIZE);
+        let mut input = H2DReader::new();
+        input.set_context(context.clone());
+        let mut output = D2HWriter::new();
+        output.set_context(context);
 
-        Self {
+        Ok(Self {
             input,
             output,
             state,
             pending: VecDeque::new(),
+            output_free: Vec::new(),
             next_slot: 0,
             t_upload: Duration::ZERO,
             t_kernels: Duration::ZERO,
@@ -340,7 +354,93 @@ impl Fft {
             poll_pending: 0,
             pending_max: 0,
             timing_printed: false,
+        })
+    }
+
+    fn submit_readback(
+        &mut self,
+        slot: usize,
+        input: InputBufferFull<Complex32>,
+        output: OutputBufferEmpty<f32>,
+    ) -> Result<()> {
+        let resource =
+            CubeBufferResource::new(&self.state.context, self.state.out_cube[slot].clone())?;
+        let used_bytes = FFT_SIZE * size_of::<f32>();
+        let mut encoder = self.state.context.setup.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("cubecl_reuse_readback_encoder"),
+            },
+        );
+        encoder.copy_buffer_to_buffer(
+            &resource.buffer,
+            resource.offset,
+            &output.buffer,
+            0,
+            used_bytes as u64,
+        );
+        self.state
+            .context
+            .setup
+            .queue
+            .submit(Some(encoder.finish()));
+
+        let slice = output.buffer.slice(0..used_bytes as u64);
+        let (sender, receiver) = mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+        self.pending.push_back(PendingRead {
+            submitted_at: Instant::now(),
+            input,
+            output,
+            _output_resource: resource,
+            receiver,
+            used_bytes,
+        });
+        self.pending_max = self.pending_max.max(self.pending.len());
+        Ok(())
+    }
+
+    fn emit_one_pending(&mut self, pending: PendingRead) -> Result<()> {
+        let PendingRead {
+            input,
+            output,
+            used_bytes,
+            ..
+        } = pending;
+        self.input.submit(input.into_empty());
+        self.output.submit(output.submit_full(used_bytes));
+        Ok(())
+    }
+
+    fn emit_pending(&mut self, wait: bool) -> Result<bool> {
+        if self.pending.is_empty() {
+            return Ok(false);
         }
+
+        let pending = if wait {
+            let pending = self.pending.pop_front().unwrap();
+            self.state
+                .context
+                .setup
+                .device
+                .poll(wgpu::PollType::wait_indefinitely())?;
+            pending.receiver.recv()??;
+            pending
+        } else {
+            self.state.context.setup.device.poll(wgpu::PollType::Poll)?;
+            let ready = match self.pending.front().unwrap().receiver.try_recv() {
+                Ok(v) => v,
+                Err(mpsc::TryRecvError::Empty) => return Ok(false),
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    anyhow::bail!("CubeCL readback channel disconnected")
+                }
+            };
+            let pending = self.pending.pop_front().unwrap();
+            ready?;
+            pending
+        };
+        self.t_readback_latency += pending.submitted_at.elapsed();
+        self.emit_one_pending(pending)?;
+        Ok(true)
     }
 }
 
@@ -353,25 +453,22 @@ impl Kernel for Fft {
     ) -> Result<()> {
         let need = self.state.batch_size * FFT_SIZE;
         let mut made_progress = false;
+        self.output_free.extend(self.output.buffers());
+
         while self.pending.len() < IN_FLIGHT {
-            if self.input.slice().len() < need {
+            let Some(output_buffer) = self.output_free.pop() else {
+                break;
+            };
+            let Some(input_buffer) = self.input.get_buffer() else {
+                self.output_free.push(output_buffer);
+                break;
+            };
+            if input_buffer.n_items < need {
+                self.input.submit(input_buffer.into_empty());
+                self.output_free.push(output_buffer);
+                made_progress = true;
                 break;
             }
-
-            let input_handle = {
-                let input = self.input.slice();
-                let in_slice = &input[..need];
-                let in_bytes = unsafe {
-                    core::slice::from_raw_parts(
-                        in_slice.as_ptr() as *const u8,
-                        core::mem::size_of_val(in_slice),
-                    )
-                };
-                let t0 = Instant::now();
-                let h = self.state.client.create_from_slice(in_bytes);
-                self.t_upload += t0.elapsed();
-                h
-            };
 
             let slot = self.next_slot;
             self.next_slot = (self.next_slot + 1) % IN_FLIGHT;
@@ -379,7 +476,7 @@ impl Kernel for Fft {
             let effective_batch_size = self.state.batch_size;
             let t1 = Instant::now();
             launch_bit_reverse_stage1(
-                &input_handle,
+                &input_buffer.handle,
                 &self.state.ping[slot],
                 &self.state,
                 effective_batch_size,
@@ -415,73 +512,26 @@ impl Kernel for Fft {
             launch_reduce_kernel(final_complex, &self.state, slot);
             self.t_kernels += t1.elapsed();
 
-            let client = self.state.client.clone();
-            let out_handle = self.state.out_cube[slot].clone();
-            let fut: ReadbackFut = Box::pin(async move {
-                let mut v = client
-                    .read_async(vec![out_handle])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-                Ok(v.remove(0).to_vec())
-            });
-            self.pending.push_back(PendingRead {
-                submitted_at: Instant::now(),
-                fut,
-            });
-            self.pending_max = self.pending_max.max(self.pending.len());
-            self.input.consume(need);
+            self.submit_readback(slot, input_buffer, output_buffer)?;
             self.batches += 1;
             made_progress = true;
         }
 
-        let must_drain = self.pending.len() == IN_FLIGHT
-            || (self.input.finished() && self.input.slice().len() < need);
+        let must_drain = self.pending.len() == IN_FLIGHT || self.input.finished();
         if must_drain {
-            let mut ready: Option<(Instant, anyhow::Result<Vec<u8>>)> = None;
-            if let Some(front) = self.pending.front_mut()
-                && self.output.slice().len() >= FFT_SIZE
-            {
-                if let Some(res) = front.fut.as_mut().now_or_never() {
-                    self.poll_ready += 1;
-                    ready = Some((front.submitted_at, res));
-                } else {
-                    self.poll_pending += 1;
-                    // Queue is full (or we're draining at end-of-stream), so avoid busy-spin:
-                    // wait for the oldest in-flight readback instead of repeatedly polling.
-                    let PendingRead { submitted_at, fut } = self.pending.pop_front().unwrap();
-                    self.t_readback_latency += submitted_at.elapsed();
-                    let t2 = Instant::now();
-                    let out_vec = fut.await?;
-                    self.t_readback += t2.elapsed();
-                    let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
-
-                    let t3 = Instant::now();
-                    let output = self.output.slice();
-                    output[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
-                    self.output.produce(FFT_SIZE);
-                    self.t_copy_out += t3.elapsed();
-                    made_progress = true;
-                }
-            }
-
-            if let Some((submitted_at, res)) = ready {
-                let _ = self.pending.pop_front();
-                self.t_readback_latency += submitted_at.elapsed();
-                let t2 = Instant::now();
-                let out_vec = res?;
-                self.t_readback += t2.elapsed();
-                let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
-
-                let t3 = Instant::now();
-                let output = self.output.slice();
-                output[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
-                self.output.produce(FFT_SIZE);
-                self.t_copy_out += t3.elapsed();
+            let wait = self.pending.len() == IN_FLIGHT || self.input.finished();
+            let t2 = Instant::now();
+            let emitted = self.emit_pending(wait)?;
+            self.t_readback += t2.elapsed();
+            if emitted {
+                self.poll_ready += 1;
                 made_progress = true;
+            } else if !self.pending.is_empty() {
+                self.poll_pending += 1;
             }
         }
 
-        if self.input.finished() && self.input.slice().len() < need && self.pending.is_empty() {
+        if self.input.finished() && self.pending.is_empty() {
             io.finished = true;
             if !self.timing_printed {
                 let submit_total = self.t_upload + self.t_kernels;
@@ -499,7 +549,7 @@ impl Kernel for Fft {
                     }
                 };
                 println!(
-                    "phase_timing,batches={},submit_upload={:.6}s ({:.1}% of submit),submit_kernels={:.6}s ({:.1}% of submit),host_readback_copy={:.6}s,host_copy_out={:.6}s,poll_ready={},poll_pending={},pending_max={},readback_latency_total={:.6}s,readback_latency_avg_ms={:.3}",
+                    "phase_timing,batches={},submit_upload={:.6}s ({:.1}% of submit),submit_kernels={:.6}s ({:.1}% of submit),host_readback_wait={:.6}s,host_copy_out={:.6}s,poll_ready={},poll_pending={},pending_max={},readback_latency_total={:.6}s,readback_latency_avg_ms={:.3}",
                     self.batches,
                     self.t_upload.as_secs_f64(),
                     pct(self.t_upload),
@@ -536,14 +586,20 @@ fn main() -> Result<()> {
     futuresdr::runtime::config::set("buffer_size", (FFT_SIZE * batch_size * 8 * 2) as u64);
 
     let mut fg = Flowgraph::new();
+    let context = cubecl_wgpu_buffer::CubeWgpuContext::new();
 
     let src = NullSource::<Complex32>::new();
-    let head = Head::<Complex32>::new(N_SAMPLES);
-    let fft = Fft::new(batch_size);
-    let snk = NullSink::<f32>::new();
+    let mut head =
+        Head::<Complex32, DefaultCpuReader<Complex32>, H2DWriter<Complex32>>::new(N_SAMPLES);
+    head.output().set_context(context.clone());
+    head.output()
+        .inject_buffers_with_items(IN_FLIGHT, batch_size * FFT_SIZE);
 
-    connect!(fg, src > head > fft);
-    connect!(fg, fft > snk);
+    let mut fft = Fft::new(context.clone(), batch_size)?;
+    fft.output().inject_buffers_with_items(IN_FLIGHT, FFT_SIZE);
+    let snk = NullSink::<f32, D2HReader<f32>>::new();
+
+    connect!(fg, src > head > fft > snk);
 
     let now = std::time::Instant::now();
     futuresdr::runtime::Runtime::new().run(fg)?;

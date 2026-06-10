@@ -2,7 +2,6 @@ use burn::prelude::*;
 use burn_buffer::Buffer;
 use futuresdr::runtime::dev::prelude::*;
 
-use crate::BATCH_SIZE;
 use crate::FFT_SIZE;
 
 #[derive(Block)]
@@ -12,21 +11,17 @@ pub struct Convert<B: Backend> {
     #[output]
     output: burn_buffer::Writer<B, Float>,
     current: Option<(Buffer<B, Float>, usize)>,
+    batch_size: usize,
 }
 
 impl<B: Backend> Convert<B> {
-    pub fn new() -> Self {
+    pub fn new(batch_size: usize) -> Self {
         Self {
             input: Default::default(),
             output: Default::default(),
             current: None,
+            batch_size,
         }
-    }
-}
-
-impl<B: Backend> Default for Convert<B> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -39,8 +34,9 @@ impl<B: Backend> Kernel for Convert<B> {
     ) -> Result<()> {
         if self.current.is_none() {
             if let Some(mut b) = self.output.get_empty_buffer() {
-                assert_eq!(b.num_host_elements(), BATCH_SIZE * FFT_SIZE * 2);
-                b.set_valid(BATCH_SIZE * FFT_SIZE * 2);
+                let items = self.batch_size * FFT_SIZE * 2;
+                assert_eq!(b.num_host_elements(), items);
+                b.set_valid(items);
                 self.current = Some((b, 0));
             } else {
                 if self.input.finished() {

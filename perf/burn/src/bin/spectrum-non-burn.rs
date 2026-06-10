@@ -6,8 +6,9 @@ use futuresdr::blocks::WebsocketSink;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::runtime::dev::prelude::*;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
+
+const SPECTRUM_BATCH_SIZE: usize = 8000;
 
 #[derive(Block)]
 struct Avg {
@@ -20,7 +21,7 @@ struct Avg {
 impl Avg {
     fn new() -> Self {
         let mut input: circular::Reader<Complex32> = Default::default();
-        input.set_min_items(FFT_SIZE * BATCH_SIZE);
+        input.set_min_items(FFT_SIZE * SPECTRUM_BATCH_SIZE);
         let mut output: circular::Writer<f32> = Default::default();
         output.set_min_items(FFT_SIZE);
 
@@ -40,26 +41,26 @@ impl Kernel for Avg {
         let output = self.output.slice();
         let output_len = output.len();
 
-        if input_len >= FFT_SIZE * BATCH_SIZE && output_len >= FFT_SIZE {
+        if input_len >= FFT_SIZE * SPECTRUM_BATCH_SIZE && output_len >= FFT_SIZE {
             for i in 0..FFT_SIZE {
                 let mut sum = 0.0;
-                for b in 0..BATCH_SIZE {
+                for b in 0..SPECTRUM_BATCH_SIZE {
                     sum += input[b * FFT_SIZE + i].norm_sqr();
                 }
-                output[i] = sum / BATCH_SIZE as f32;
+                output[i] = sum / SPECTRUM_BATCH_SIZE as f32;
             }
 
-            self.input.consume(FFT_SIZE * BATCH_SIZE);
+            self.input.consume(FFT_SIZE * SPECTRUM_BATCH_SIZE);
             self.output.produce(FFT_SIZE);
 
-            if input_len >= 2 * FFT_SIZE * BATCH_SIZE && output_len >= 2 * FFT_SIZE {
+            if input_len >= 2 * FFT_SIZE * SPECTRUM_BATCH_SIZE && output_len >= 2 * FFT_SIZE {
                 io.call_again = true;
             }
         }
 
         if self.input.finished() {
             let input = self.input.slice();
-            if input.len() < FFT_SIZE * BATCH_SIZE {
+            if input.len() < FFT_SIZE * SPECTRUM_BATCH_SIZE {
                 io.finished = true;
             }
         }
@@ -69,7 +70,10 @@ impl Kernel for Avg {
 }
 fn main() -> Result<()> {
     futuresdr::runtime::init();
-    futuresdr::runtime::config::set("buffer_size", (FFT_SIZE * BATCH_SIZE * 8 * 4) as u64);
+    futuresdr::runtime::config::set(
+        "buffer_size",
+        (FFT_SIZE * SPECTRUM_BATCH_SIZE * 8 * 4) as u64,
+    );
 
     let mut fg = Flowgraph::new();
 

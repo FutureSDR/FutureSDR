@@ -6,10 +6,10 @@ use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr::runtime::dev::prelude::*;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
 
 type B = burn::backend::Wgpu<f32, i32>;
+const SPECTRUM_BATCH_SIZE: usize = 8000;
 
 #[derive(Block)]
 struct Fft {
@@ -54,17 +54,17 @@ impl Kernel for Fft {
             && let Some(b) = self.input.get_full_buffer()
         {
             let t = b.into_tensor();
-            let t = t.reshape([BATCH_SIZE, FFT_SIZE, 2]);
+            let t = t.reshape([SPECTRUM_BATCH_SIZE, FFT_SIZE, 2]);
 
             let x_re = t
                 .clone()
                 .slice(s![.., .., 0])
-                .reshape([BATCH_SIZE, FFT_SIZE]) // -> [batch, n]
+                .reshape([SPECTRUM_BATCH_SIZE, FFT_SIZE]) // -> [batch, n]
                 .transpose();
 
             let x_im = t
                 .slice(s![.., .., 1])
-                .reshape([BATCH_SIZE, FFT_SIZE]) // -> [batch, n]
+                .reshape([SPECTRUM_BATCH_SIZE, FFT_SIZE]) // -> [batch, n]
                 .transpose();
 
             let tmp = self
@@ -131,9 +131,9 @@ impl Kernel for Convert {
     ) -> Result<()> {
         if self.current.is_none() {
             if let Some(mut b) = self.output.get_empty_buffer() {
-                assert_eq!(b.num_host_elements(), BATCH_SIZE * FFT_SIZE * 2);
-                // b.resize(BATCH_SIZE * FFT_SIZE * 2);
-                b.set_valid(BATCH_SIZE * FFT_SIZE * 2);
+                assert_eq!(b.num_host_elements(), SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
+                // b.resize(SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
+                b.set_valid(SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
                 self.current = Some((b, 0));
             } else {
                 return Ok(());
@@ -181,7 +181,7 @@ fn main() -> Result<()> {
     convert.output().set_device(&device);
     convert
         .output()
-        .inject_buffers_with_items(4, BATCH_SIZE * FFT_SIZE * 2);
+        .inject_buffers_with_items(4, SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
 
     let mut fft = Fft::new(&device);
     fft.output().set_device(&device);

@@ -20,11 +20,13 @@ use bytes::BytesMut;
 use cubecl::bytes::AllocationProperty;
 use cubecl::bytes::Bytes;
 use cubecl::client::ComputeClient;
-use futuresdr::blocks::FileSource;
+use futuresdr::blocks::Head;
+use futuresdr::blocks::NullSource;
 use futuresdr::runtime::buffer::burn::Buffer;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::Convert;
 use perf_burn::FFT_SIZE;
+use perf_burn::N_SAMPLES;
 use perf_burn::TimeIt;
 use perf_burn::batch_size_from_args;
 
@@ -162,7 +164,10 @@ impl Kernel for Fft {
             let second_half = mag.clone().slice(0..half);
             let first_half = mag.slice(half..);
             let mag = Tensor::cat(vec![first_half, second_half], 0);
-            let mag = mag.log().div_scalar(std::f32::consts::LN_10);
+            let mag = mag
+                .add_scalar(1.0e-30)
+                .log()
+                .div_scalar(std::f32::consts::LN_10);
 
             self.output.put_full_buffer(Buffer::from_tensor(mag))?;
 
@@ -185,9 +190,10 @@ fn main() -> Result<()> {
     let device = Default::default();
     let mut fg = Flowgraph::new();
 
-    let src = FileSource::<Complex32>::new("data.cf32", false);
+    let src = NullSource::<Complex32>::new();
+    let head = Head::<Complex32>::new(N_SAMPLES);
 
-    let mut convert = Convert::new();
+    let mut convert = Convert::new(batch_size);
     convert.output().set_device(&device);
     convert
         .output()
@@ -199,7 +205,7 @@ fn main() -> Result<()> {
 
     let snk = TimeIt::new();
 
-    connect!(fg, src > convert > fft > snk);
+    connect!(fg, src > head > convert > fft > snk);
 
     Runtime::new().run(fg)?;
 

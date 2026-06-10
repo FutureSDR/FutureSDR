@@ -37,32 +37,50 @@ pivot_mean = g.pivot(index="batch_size", columns="bin", values="time_mean").sort
 pivot_ci = g.pivot(index="batch_size", columns="bin", values="time_conf_int").sort_index()
 print(pivot_mean)
 
+LABELS = {
+    "fft-non-burn": "CPU rustfft",
+    "fft-naive-conv-noreuse": "Burn naive conv",
+    "fft-naive-conv-reuse": "Burn naive conv reuse",
+    "fft-ct-conv-reuse": "Burn CT conv reuse",
+    "fft-ct-noconv-noreuse": "Burn CT direct",
+    "fft-ct-noconv-reuse": "Burn CT direct reuse",
+    "fft-cubecl-kernel": "CubeCL custom",
+    "fft-cubecl-buffer-reuse": "CubeCL buffer reuse",
+    "fft-wgpu-hack": "WGPU custom",
+}
+
+ORDER = [
+    "fft-non-burn",
+    "fft-naive-conv-noreuse",
+    "fft-naive-conv-reuse",
+    "fft-ct-conv-reuse",
+    "fft-ct-noconv-noreuse",
+    "fft-ct-noconv-reuse",
+    "fft-cubecl-kernel",
+    "fft-cubecl-buffer-reuse",
+    "fft-wgpu-hack",
+]
+
 fig, ax = plt.subplots(1, 1)
 fig.subplots_adjust(bottom=0.18, left=0.12, top=0.98, right=0.98)
 
-if "fft-non-burn" in pivot_mean.columns:
-    ax.errorbar(
-        pivot_mean.index.to_numpy(),
-        pivot_mean["fft-non-burn"].to_numpy(),
-        yerr=pivot_ci["fft-non-burn"].to_numpy(),
-        marker="o",
-        label="Non-burn",
-    )
+bins = [b for b in ORDER if b in pivot_mean.columns]
+bins += [b for b in pivot_mean.columns if b not in bins]
 
-if "fft-wgpu-hack" in pivot_mean.columns:
+for bin_name in bins:
     ax.errorbar(
         pivot_mean.index.to_numpy(),
-        pivot_mean["fft-wgpu-hack"].to_numpy(),
-        yerr=pivot_ci["fft-wgpu-hack"].to_numpy(),
+        pivot_mean[bin_name].to_numpy(),
+        yerr=pivot_ci[bin_name].to_numpy(),
         marker="o",
-        label="Burn (wgpu-hack)",
+        label=LABELS.get(bin_name, bin_name),
     )
 
 ax.set_xlabel("Batch Size")
 ax.set_ylabel("Average Runtime (in s)")
-ax.set_ylim(0, 20)
+ax.set_ylim(0)
 ax.set_xscale("log")
-ax.legend()
+ax.legend(fontsize="small")
 
 plt.savefig(OUT)
 plt.close("all")

@@ -11,7 +11,6 @@ use futuresdr::blocks::WebsocketSink;
 use futuresdr::blocks::WebsocketSinkMode;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::runtime::dev::prelude::*;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
 use std::borrow::Cow;
 use std::collections::VecDeque;
@@ -24,6 +23,7 @@ const LOG_N: usize = FFT_SIZE.ilog2() as usize;
 const WORKGROUP_SIZE: u32 = 16;
 const READBACK_SLOTS: usize = 1;
 const MAX_DISPATCH_DIM: u32 = 65535;
+const SPECTRUM_BATCH_SIZE: usize = 8000;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -101,7 +101,7 @@ impl Fft {
                 trace: wgpu::Trace::Off,
             }))?;
 
-        let complex_items = (BATCH_SIZE * FFT_SIZE) as u64;
+        let complex_items = (SPECTRUM_BATCH_SIZE * FFT_SIZE) as u64;
         let complex_bytes = complex_items * size_of::<[f32; 2]>() as u64;
         let mag_bytes = (FFT_SIZE * size_of::<f32>()) as u64;
 
@@ -162,7 +162,7 @@ impl Fft {
         let shader_src = format!(
             r#"
 const FFT_SIZE: u32 = {fft_size}u;
-const BATCH_SIZE: u32 = {batch_size}u;
+const SPECTRUM_BATCH_SIZE: u32 = {batch_size}u;
 const LOG_N: u32 = {log_n}u;
 const PI: f32 = 3.14159265358979323846;
 
@@ -204,7 +204,7 @@ fn bit_reverse_copy(
     @builtin(num_workgroups) num_wg: vec3<u32>
 ) {{
     let idx = gid.y * num_wg.x * {wg_size}u + gid.x;
-    let total = BATCH_SIZE * FFT_SIZE;
+    let total = SPECTRUM_BATCH_SIZE * FFT_SIZE;
     if (idx >= total) {{
         return;
     }}
@@ -223,7 +223,7 @@ fn fft_stage(
     @builtin(num_workgroups) num_wg: vec3<u32>
 ) {{
     let idx = gid.y * num_wg.x * {wg_size}u + gid.x;
-    let total = BATCH_SIZE * FFT_SIZE;
+    let total = SPECTRUM_BATCH_SIZE * FFT_SIZE;
     if (idx >= total) {{
         return;
     }}
@@ -266,19 +266,19 @@ fn reduce_power_mean_shift_log(
     }}
 
     var sum: f32 = 0.0;
-    for (var b: u32 = 0u; b < BATCH_SIZE; b = b + 1u) {{
+    for (var b: u32 = 0u; b < SPECTRUM_BATCH_SIZE; b = b + 1u) {{
         let idx = b * FFT_SIZE + n;
         let v = in_complex[idx];
         sum = sum + (v.x * v.x + v.y * v.y);
     }}
 
-    let mean = max(sum / f32(BATCH_SIZE), 1.0e-30);
+    let mean = max(sum / f32(SPECTRUM_BATCH_SIZE), 1.0e-30);
     let shifted = (n + FFT_SIZE / 2u) % FFT_SIZE;
     out_mag[shifted] = mean;
 }}
 "#,
             fft_size = FFT_SIZE,
-            batch_size = BATCH_SIZE,
+            batch_size = SPECTRUM_BATCH_SIZE,
             log_n = LOG_N,
             wg_size = WORKGROUP_SIZE,
         );
@@ -694,7 +694,7 @@ fn main() -> Result<()> {
         .gain(34.0)
         .build_source_with_buffer::<burn_buffer::Writer<B, Float, Complex32, f32>>()?;
     src.outputs()[0].set_device(&device);
-    src.outputs()[0].inject_buffers_with_items(4, BATCH_SIZE * FFT_SIZE * 2);
+    src.outputs()[0].inject_buffers_with_items(4, SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
 
     let mut fft = Fft::new(&device)?;
     fft.output().set_device(&device);

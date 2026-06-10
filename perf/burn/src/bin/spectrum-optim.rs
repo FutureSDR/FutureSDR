@@ -9,10 +9,10 @@ use futuresdr::runtime::dev::prelude::*;
 use futuresdr_burn::fft::bit_reversal_indices;
 use futuresdr_burn::fft::fft_inplace;
 use futuresdr_burn::fft::generate_stage_twiddles;
-use perf_burn::BATCH_SIZE;
 use perf_burn::FFT_SIZE;
 
 type B = burn::backend::Wgpu<f32, i32>;
+const SPECTRUM_BATCH_SIZE: usize = 8000;
 
 #[derive(Block)]
 struct Fft {
@@ -36,7 +36,7 @@ impl Fft {
             device,
         )
         .reshape([1, FFT_SIZE, 1])
-        .repeat_dim(0, BATCH_SIZE)
+        .repeat_dim(0, SPECTRUM_BATCH_SIZE)
         .repeat_dim(2, 2); // → [batch,n,1]
 
         let mut twiddles = Vec::new();
@@ -74,7 +74,7 @@ impl Kernel for Fft {
             && let Some(b) = self.input.get_full_buffer()
         {
             let t = b.into_tensor();
-            let t = t.reshape([BATCH_SIZE, FFT_SIZE, 2]);
+            let t = t.reshape([SPECTRUM_BATCH_SIZE, FFT_SIZE, 2]);
             let t = fft_inplace(t, self.rev.clone(), &self.twiddles);
 
             let mag = t.powi_scalar(2).sum_dim(2).mean_dim(0).reshape([FFT_SIZE]);
@@ -101,7 +101,7 @@ fn main() -> Result<()> {
         .gain(34.0)
         .build_source_with_buffer::<burn_buffer::Writer<B, Float, Complex32, f32>>()?;
     src.outputs()[0].set_device(&device);
-    src.outputs()[0].inject_buffers_with_items(32, BATCH_SIZE * FFT_SIZE * 2);
+    src.outputs()[0].inject_buffers_with_items(32, SPECTRUM_BATCH_SIZE * FFT_SIZE * 2);
 
     let mut fft = Fft::new(&device);
     fft.output().set_device(&device);
