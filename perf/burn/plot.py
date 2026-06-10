@@ -61,8 +61,8 @@ ORDER = [
     "fft-wgpu-hack",
 ]
 
-fig, ax = plt.subplots(1, 1)
-fig.subplots_adjust(bottom=0.18, left=0.12, top=0.98, right=0.98)
+fig, ax = plt.subplots(1, 1, figsize=(7.2, 3.8))
+fig.subplots_adjust(bottom=0.18, left=0.10, top=0.96, right=0.70)
 
 bins = [b for b in ORDER if b in pivot_mean.columns]
 bins += [b for b in pivot_mean.columns if b not in bins]
@@ -80,7 +80,12 @@ ax.set_xlabel("Batch Size")
 ax.set_ylabel("Average Runtime (in s)")
 ax.set_ylim(0)
 ax.set_xscale("log")
-ax.legend(fontsize="small")
+ax.legend(
+    bbox_to_anchor=(1.02, 0.5),
+    borderaxespad=0,
+    fontsize="small",
+    loc="center left",
+)
 
-plt.savefig(OUT)
+plt.savefig(OUT, bbox_inches="tight")
 plt.close("all")

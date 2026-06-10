@@ -9,8 +9,6 @@ MANIFEST_PATH="${SCRIPT_DIR}/Cargo.toml"
 
 bins=(
     fft-non-burn
-    fft-ct-conv-reuse
-    fft-ct-noconv-noreuse
     fft-ct-noconv-reuse
     fft-cubecl-kernel
     fft-cubecl-buffer-reuse
