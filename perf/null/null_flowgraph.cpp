@@ -16,7 +16,7 @@ namespace po = boost::program_options;
 using namespace gr;
 
 
-null_flowgraph::null_flowgraph(int pipes, int stages, uint64_t samples, size_t max_copy) {
+null_flowgraph::null_flowgraph(int pipes, int stages, uint64_t samples, size_t chunk) {
 
     this->tb = gr::make_top_block("buf_flowgraph");
 
@@ -26,11 +26,11 @@ null_flowgraph::null_flowgraph(int pipes, int stages, uint64_t samples, size_t m
         auto head = blocks::head::make(4, samples);
         tb->connect(src, 0, head, 0);
 
-        auto prev = sched::copy_n::make(sizeof(float), max_copy);
+        auto prev = sched::copy_n::make(sizeof(float), chunk);
         tb->connect(head, 0, prev, 0);
 
         for(int stage = 1; stage < stages; stage++) {
-            auto block = sched::copy_n::make(sizeof(float), max_copy);
+            auto block = sched::copy_n::make(sizeof(float), chunk);
             tb->connect(prev, 0, block, 0);
             prev = block;
         }
@@ -45,7 +45,7 @@ int main (int argc, char **argv) {
     int pipes;
     int stages;
     uint64_t samples;
-    size_t max_copy;
+    size_t chunk;
 
     po::options_description desc("Run Buffer Flow Graph");
     desc.add_options()
@@ -53,7 +53,7 @@ int main (int argc, char **argv) {
         ("run,r", po::value<int>(&run)->default_value(0), "Run Number")
         ("pipes,p", po::value<int>(&pipes)->default_value(5), "Number of pipes")
         ("stages,s", po::value<int>(&stages)->default_value(6), "Number of stages")
-        ("max-copy,m", po::value<size_t>(&max_copy)->default_value(0xffffffff), "Maximum number of samples to copy in one go.")
+        ("chunk,c", po::value<size_t>(&chunk)->default_value(0xffffffff), "Chunk size in samples.")
         ("samples,n", po::value<uint64_t>(&samples)->default_value(15000000), "Number of samples");
 
     po::variables_map vm;
@@ -65,7 +65,7 @@ int main (int argc, char **argv) {
         return 0;
     }
 
-    null_flowgraph* runner = new null_flowgraph(pipes, stages, samples, max_copy);
+    null_flowgraph* runner = new null_flowgraph(pipes, stages, samples, chunk);
     // runner->tb->set_max_output_buffer(4096);
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -75,7 +75,7 @@ int main (int argc, char **argv) {
 
     std::cout <<
     boost::format("%1$4d, %2$4d,  %3$4d,   %4$15d,%5$10d,legacy,   %6$20.15f") %
-                     run  % pipes % stages % samples % max_copy % time << std::endl;
+                     run  % pipes % stages % samples % chunk % time << std::endl;
 
     return 0;
 }

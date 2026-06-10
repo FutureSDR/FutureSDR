@@ -23,16 +23,16 @@ perf-data/gr%.csv: build/null_flowgraph
 	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
 	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
 	$(eval SAMPLES=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
-	$(eval MAX=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
+	$(eval CHUNK=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
 	$(eval SCHEDULER=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo SAMPLES=$(SAMPLES)
-	@echo MAX=$(MAX)
+	@echo CHUNK=$(CHUNK)
 	@echo SCHEDULER=$(SCHEDULER)
 
-	$(SHIELD) -- ./build/null_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) > $@
+	$(SHIELD) -- ./build/null_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) > $@
 
 perf-data/fs%.csv:
 	mkdir -p perf-data
@@ -41,23 +41,23 @@ perf-data/fs%.csv:
 	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
 	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
 	$(eval SAMPLES=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
-	$(eval MAX=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
+	$(eval CHUNK=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
 	$(eval CONFIG=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo SAMPLES=$(SAMPLES)
-	@echo MAX=$(MAX)
+	@echo CHUNK=$(CHUNK)
 	@echo CONFIG=$(CONFIG)
 
-	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --config=$(CONFIG) > $@
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) --config=$(CONFIG) > $@
 
 clean:
 	rm -rf build
 
 PERF=perf stat -B -e context-switches,cpu-migrations,LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-load-misses,cache-misses,cache-references,dTLB-load-misses,dTLB-loads,dTLB-store-misses,dTLB-stores,iTLB-load-misses,iTLB-loads
-PERF_PARAMS=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
-PERF_PARAMS_LOCAL=--max-copy=128 --samples 500000000 --pipes=4 --stages=10
+PERF_PARAMS=--chunk=128 --samples 500000000 --pipes=4 --stages=10
+PERF_PARAMS_LOCAL=--chunk=128 --samples 500000000 --pipes=4 --stages=10
 
 perf_flow:
 	cargo build --release --bin null

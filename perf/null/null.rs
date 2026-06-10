@@ -18,6 +18,8 @@ use perf::local_spsc;
 use perf::spsc;
 use std::time;
 
+const BUFFER_SIZE: u64 = 65536;
+
 #[derive(Parser, Debug)]
 struct Args {
     #[clap(short, long, default_value_t = 0)]
@@ -29,7 +31,7 @@ struct Args {
     #[clap(short = 'n', long, default_value_t = 15000000)]
     samples: usize,
     #[clap(short, long, default_value_t = 4000000000)]
-    max_copy: usize,
+    chunk: usize,
     #[clap(short = 'S', long, default_value = "smol1")]
     config: String,
 }
@@ -55,7 +57,7 @@ fn generate<B>(
     pipes: usize,
     stages: usize,
     samples: usize,
-    max_copy: usize,
+    chunk: usize,
 ) -> Result<(
     Flowgraph,
     Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>,
@@ -80,9 +82,7 @@ where
         let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
         ))?;
-        let mut last = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
-            max_copy,
-        ))?;
+        let mut last = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(chunk))?;
 
         {
             connect!(fg, src > head > last);
@@ -93,9 +93,7 @@ where
         cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
-                max_copy,
-            ))?;
+            let block = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(chunk))?;
             {
                 connect!(fg, last > block);
             }
@@ -119,7 +117,7 @@ fn generate_local(
     pipes: usize,
     stages: usize,
     samples: usize,
-    max_copy: usize,
+    chunk: usize,
 ) -> Result<(
     Flowgraph,
     Vec<BlockRef<NullSink<f32, local_spsc::Reader<f32>>>>,
@@ -144,7 +142,7 @@ fn generate_local(
             Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
         })?;
         let mut last = fg.add_local(local, move || {
-            CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+            CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(chunk)
         })?;
 
         fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
@@ -152,7 +150,7 @@ fn generate_local(
 
         for _ in 1..stages {
             let block = fg.add_local(local, move || {
-                CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+                CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(chunk)
             })?;
             fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
             last = block;
@@ -172,9 +170,11 @@ fn main() -> Result<()> {
         stages,
         pipes,
         samples,
-        max_copy,
+        chunk,
         config,
     } = Args::parse();
+
+    futuresdr::runtime::config::set("buffer_size", BUFFER_SIZE);
 
     let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
     let scheduler = match config.as_str() {
@@ -186,7 +186,7 @@ fn main() -> Result<()> {
     };
 
     let elapsed = if scheduler == "local" {
-        let (fg, snks) = generate_local(pipes, stages, samples, max_copy)?;
+        let (fg, snks) = generate_local(pipes, stages, samples, chunk)?;
         let runtime = Runtime::new();
         let now = time::Instant::now();
         let fg = runtime.run(fg)?;
@@ -198,7 +198,7 @@ fn main() -> Result<()> {
 
         elapsed
     } else if use_spsc {
-        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
@@ -225,7 +225,7 @@ fn main() -> Result<()> {
 
         elapsed
     } else {
-        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
@@ -259,7 +259,7 @@ fn main() -> Result<()> {
         pipes,
         stages,
         samples,
-        max_copy,
+        chunk,
         config,
         elapsed.as_secs_f64()
     );

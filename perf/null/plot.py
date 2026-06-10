@@ -60,7 +60,7 @@ def plot_metric(d, metric, ylabel, filename):
 
 ### execution time / throughput vs stages
 raw = pd.read_csv('perf-data/results.csv')
-raw = raw[(raw['max_copy'] == 128) & (raw['pipes'] == 4)]
+raw = raw[(raw['chunk'] == 128) & (raw['pipes'] == 4)]
 # `stages` is the number of CopyN blocks per pipe; source/head/sink are not counted.
 raw['copy_n_items'] = raw['pipes'] * raw['samples'] * raw['stages']
 raw['throughput'] = raw['copy_n_items'] / raw['time']

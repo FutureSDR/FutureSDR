@@ -13,7 +13,7 @@ class null_flowgraph {
 
 public:
     null_flowgraph(
-            int pipes, int stages, uint64_t samples, size_t max_copy);
+            int pipes, int stages, uint64_t samples, size_t chunk);
     top_block_sptr tb;
 };
 
