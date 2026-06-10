@@ -1,5 +1,5 @@
 [package]
-name = "buffer_rand"
+name = "buffer_type"
 version = "0.1.0"
 edition = "2024"
 
@@ -14,5 +14,5 @@ perf = { path = "../perf" }
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 
 [[bin]]
-name = "buffer_rand"
-path = "buffer_rand.rs"
+name = "buffer_type"
+path = "buffer_type.rs"

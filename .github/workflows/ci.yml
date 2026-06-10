@@ -33,8 +33,8 @@ jobs:
       - name: Run cargo fmt (Types)
         run: cargo fmt --all --manifest-path=crates/types/Cargo.toml -- --check
 
-      - name: Run cargo fmt (perf/buffer_rand)
-        run: cargo fmt --all --manifest-path=perf/buffer_rand/Cargo.toml -- --check
+      - name: Run cargo fmt (perf/buffer_type)
+        run: cargo fmt --all --manifest-path=perf/buffer_type/Cargo.toml -- --check
 
       - name: Run cargo fmt (perf/buffer_size)
         run: cargo fmt --all --manifest-path=perf/buffer_size/Cargo.toml -- --check
@@ -205,8 +205,8 @@ jobs:
       - name: Install Soapy
         run: sudo apt-get -y install libsoapysdr-dev
 
-      - name: Run cargo clippy (perf/buffer_rand)
-        run: cargo clippy --all-targets --manifest-path=perf/buffer_rand/Cargo.toml -- -D warnings
+      - name: Run cargo clippy (perf/buffer_type)
+        run: cargo clippy --all-targets --manifest-path=perf/buffer_type/Cargo.toml -- -D warnings
 
       - name: Run cargo clippy (perf/buffer_size)
         run: cargo clippy --all-targets --manifest-path=perf/buffer_size/Cargo.toml -- -D warnings

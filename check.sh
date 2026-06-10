@@ -20,7 +20,7 @@ cd ${SCRIPTPATH}/crates/remote && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/crates/types && ${CARGO_FMT} --check
 
 # perf
-cd ${SCRIPTPATH}/perf/buffer_rand && ${CARGO_FMT} --check
+cd ${SCRIPTPATH}/perf/buffer_type && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/buffer_size && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/burn && ${CARGO_FMT} --check
 cd ${SCRIPTPATH}/perf/fir && ${CARGO_FMT} --check
@@ -69,7 +69,7 @@ cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/types && cargo clippy --all-targets -- -D warnings
 
 # perf
-cd ${SCRIPTPATH}/perf/buffer_rand && cargo clippy --all-targets -- -D warnings
+cd ${SCRIPTPATH}/perf/buffer_type && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/buffer_size && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/burn && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/perf/fir && cargo clippy --all-targets -- -D warnings
@@ -134,7 +134,7 @@ cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/types && cargo test --all-targets
 
 # perf
-cd ${SCRIPTPATH}/perf/buffer_rand && cargo test --all-targets
+cd ${SCRIPTPATH}/perf/buffer_type && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/buffer_size && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/burn && cargo test --all-targets
 cd ${SCRIPTPATH}/perf/fir && cargo test --all-targets
