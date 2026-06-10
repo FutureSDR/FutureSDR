@@ -16,7 +16,7 @@ pub struct CopyRand<
     I: CpuBufferReader<Item = T> = DefaultCpuReader<T>,
     O: CpuBufferWriter<Item = T> = DefaultCpuWriter<T>,
 > {
-    chunk: usize,
+    max_samples: usize,
     #[input]
     input: I,
     #[output]
@@ -32,10 +32,10 @@ where
     /// Create [`CopyRand`] block
     ///
     /// ## Parameter
-    /// - `chunk`: maximum number of samples to copy in one call of the `work()` function
-    pub fn new(chunk: usize) -> Self {
+    /// - `max_samples`: maximum number of samples to copy in one call of the `work()` function
+    pub fn new(max_samples: usize) -> Self {
         Self {
-            chunk,
+            max_samples,
             input: I::default(),
             output: O::default(),
         }
@@ -59,7 +59,10 @@ where
         let o = self.output.slice();
         let i_len = i.len();
 
-        let mut m = *[self.chunk, i.len(), o.len()].iter().min().unwrap_or(&0);
+        let mut m = *[self.max_samples, i.len(), o.len()]
+            .iter()
+            .min()
+            .unwrap_or(&0);
         if m > 0 {
             m = rand::rng().random_range(1..=m);
             o[..m].copy_from_slice(&i[..m]);
