@@ -1,10 +1,13 @@
 pub mod inplace;
+mod local_flow_scheduler;
 pub mod local_inplace;
 pub mod local_mpsc;
 pub mod local_spsc;
 pub mod local_spsc_tags;
 pub mod lockfree;
 pub mod spsc;
+
+pub use local_flow_scheduler::LocalFlowScheduler;
 
 mod add;
 pub use add::Add;

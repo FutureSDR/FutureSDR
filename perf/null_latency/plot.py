@@ -11,7 +11,7 @@ print("loading csv")
 d = pd.read_csv('perf-data/results.csv')
 
 print("filtering data")
-d = d[d['max_copy'] == 512]
+d = d[d['chunk'] == 512]
 d = d[d['pipes'] == 6]
 d = d[d['samples'] == 200000000]
 d = d[['sdr', 'scheduler', 'stages', 'run', 'time', 'event', 'block', 'items']]

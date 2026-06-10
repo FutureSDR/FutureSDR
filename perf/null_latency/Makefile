@@ -23,13 +23,13 @@ perf-data/gr%.csv: build/null_latency_flowgraph
 	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
 	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
 	$(eval SAMPLES=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
-	$(eval MAX=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
+	$(eval CHUNK=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
 	$(eval SCHEDULER=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo SAMPLES=$(SAMPLES)
-	@echo MAX=$(MAX)
+	@echo CHUNK=$(CHUNK)
 	@echo SCHEDULER=$(SCHEDULER)
 
 	lttng stop foo || true
@@ -41,7 +41,7 @@ perf-data/gr%.csv: build/null_latency_flowgraph
 	lttng enable-event --userspace null_rand_latency:rx
 	lttng start
 
-	$(SHIELD) -- ./build/null_latency_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX)
+	$(SHIELD) -- ./build/null_latency_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK)
 
 	lttng destroy foo
 	python3 parse.py perf-data/foo > $@
@@ -54,13 +54,13 @@ perf-data/fs%.csv: null_latency.rs
 	$(eval PIPES=$(shell python3 -c "print(\"$@\".split(\"_\")[2])"))
 	$(eval STAGES=$(shell python3 -c "print(\"$@\".split(\"_\")[3])"))
 	$(eval SAMPLES=$(shell python3 -c "print(\"$@\".split(\"_\")[4])"))
-	$(eval MAX=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
+	$(eval CHUNK=$(shell python3 -c "print(\"$@\".split(\"_\")[5])"))
 	$(eval SCHEDULER=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
 	@echo SAMPLES=$(SAMPLES)
-	@echo MAX=$(MAX)
+	@echo CHUNK=$(CHUNK)
 	@echo SCHEDULER=$(SCHEDULER)
 
 	lttng stop foo || true
@@ -72,7 +72,7 @@ perf-data/fs%.csv: null_latency.rs
 	lttng enable-event --userspace futuresdr:rx
 	lttng start
 
-	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --max-copy=$(MAX) --scheduler=$(SCHEDULER)
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) --scheduler=$(SCHEDULER)
 
 	lttng destroy foo
 	python3 parse.py perf-data/foo > $@
@@ -83,7 +83,7 @@ clean:
 
 # run_no_trace:
 # 	lttng stop || true
-# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max-copy=512 --scheduler=flow
+# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --chunk=512 --scheduler=flow
 
 # run_trace:
 # 	mkdir -p perf-data
@@ -92,6 +92,6 @@ clean:
 # 	lttng enable-event --userspace null_rand_latency:rx
 # 	lttng start
 
-# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --max-copy=512 --scheduler=flow
+# 	$(SHIELD) -- cargo run --release -- --pipes=6 --stages=6 --samples=1000000000 --chunk=512 --scheduler=flow
 
 # 	lttng stop

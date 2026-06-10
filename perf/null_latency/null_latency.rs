@@ -25,7 +25,7 @@ struct Args {
     #[clap(short = 'n', long, default_value_t = 15000000)]
     samples: usize,
     #[clap(short, long, default_value_t = 4000000000)]
-    max_copy: usize,
+    chunk: usize,
     #[clap(short = 'S', long, default_value = "smol1")]
     scheduler: String,
 }
@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         stages,
         pipes,
         samples,
-        max_copy,
+        chunk,
         scheduler,
     } = Args::parse();
 
@@ -47,13 +47,13 @@ fn main() -> Result<()> {
         let src = fg.add(LttngSource::<f32>::new(GRANULARITY))?;
         let head = fg.add(Head::<f32>::new(samples as u64))?;
 
-        let mut last = fg.add(CopyN::<f32>::new(max_copy))?;
+        let mut last = fg.add(CopyN::<f32>::new(chunk))?;
         {
             connect!(fg, src > head > last);
         }
 
         for _ in 1..stages {
-            let block = fg.add(CopyN::<f32>::new(max_copy))?;
+            let block = fg.add(CopyN::<f32>::new(chunk))?;
             {
                 connect!(fg, last > block);
             }
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
         pipes,
         stages,
         samples,
-        max_copy,
+        chunk,
         scheduler,
         elapsed.as_secs_f64()
     );

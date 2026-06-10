@@ -19,10 +19,11 @@ def conf_int(data, confidence=0.95):
 ### throughput vs stages
 d = pd.read_csv('perf-data/results.csv')
 print(d.groupby(['config', 'stages']).agg({'time': 'mean'}).unstack(level=[0]))
-d = d.groupby(['config', 'stages']).agg({'time': [np.mean, np.var, conf_int]})
+d = d.groupby(['config', 'stages']).agg({'time': ['mean', 'var', conf_int]})
 
 fig, ax = plt.subplots(1, 1)
-fig.subplots_adjust(bottom=.192, left=.11, top=.99, right=.97)
+fig.set_size_inches(5.2, 3.4)
+fig.subplots_adjust(bottom=.15, left=.09, top=.97, right=.58)
 
 if 'smol1' in d.index.droplevel('stages').unique():
     t = d.loc['smol1'].reset_index();
@@ -44,9 +45,13 @@ if 'flow-spsc' in d.index.droplevel('stages').unique():
     t = d.loc['flow-spsc'].reset_index();
     ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='SPSC/Flow')
 
-if 'local' in d.index.droplevel('stages').unique():
-    t = d.loc['local'].reset_index();
-    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Local Domains')
+if 'local-smol-spsc' in d.index.droplevel('stages').unique():
+    t = d.loc['local-smol-spsc'].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='SPSC/Local Smol')
+
+if 'local-flow-spsc' in d.index.droplevel('stages').unique():
+    t = d.loc['local-flow-spsc'].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='SPSC/Local Flow')
 
 ax.set_prop_cycle(None)
 
@@ -62,6 +67,14 @@ if 'flow-slab' in d.index.droplevel('stages').unique():
     t = d.loc['flow-slab'].reset_index();
     ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Slab/Flow', ls=':')
 
+if 'local-smol-slab' in d.index.droplevel('stages').unique():
+    t = d.loc['local-smol-slab'].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Slab/Local Smol', ls=':')
+
+if 'local-flow-slab' in d.index.droplevel('stages').unique():
+    t = d.loc['local-flow-slab'].reset_index();
+    ax.errorbar(t['stages'], t[('time', 'mean')], yerr=t[('time', 'conf_int')], label='Slab/Local Flow', ls=':')
+
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_xlabel(r'\#\,Stages')
 ax.set_ylabel('Execution Time (in s)')
@@ -69,7 +82,13 @@ ax.set_ylim(0)
 
 handles, labels = ax.get_legend_handles_labels()
 handles = [x[0] for x in handles]
-ax.legend(handles, labels, handlelength=2.95, ncol=2)
+legend = ax.legend(
+    handles,
+    labels,
+    handlelength=2.95,
+    loc='center left',
+    bbox_to_anchor=(1.04, 0.5),
+)
 
-plt.savefig('buffer_type.pdf')
+plt.savefig('buffer_type.pdf', bbox_inches='tight', bbox_extra_artists=(legend,))
 plt.close('all')

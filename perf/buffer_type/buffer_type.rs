@@ -4,16 +4,21 @@ use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::__private::SendKernelInterface;
+use futuresdr::runtime::buffer::LocalMode;
 use futuresdr::runtime::dev::BufferWriter;
 use futuresdr::runtime::dev::CpuBufferReader;
 use futuresdr::runtime::dev::CpuBufferWriter;
+use futuresdr::runtime::dev::LocalCpuWriter;
 use futuresdr::runtime::dev::SendCpuBufferReader;
 use futuresdr::runtime::dev::SendCpuBufferWriter;
 use futuresdr::runtime::dev::SendKernel;
 use futuresdr::runtime::dev::prelude::*;
+use futuresdr::runtime::scheduler::BasicLocalScheduler;
 use futuresdr::runtime::scheduler::FlowScheduler;
+use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
-use perf::CopyRand;
+use perf::CopyN;
+use perf::LocalFlowScheduler;
 use perf::local_spsc;
 use perf::spsc;
 use std::time;
@@ -29,7 +34,7 @@ struct Args {
     #[clap(short = 'n', long, default_value_t = 15000000)]
     samples: usize,
     #[clap(short, long, default_value_t = 4000000000)]
-    max_copy: usize,
+    chunk: usize,
     #[clap(short = 'S', long, default_value = "smol1")]
     config: String,
 }
@@ -51,14 +56,27 @@ impl BufferType for SpscBuffer {
     type Writer<T: CpuSample> = spsc::Writer<T>;
 }
 
+pub trait LocalBufferType {
+    type Writer<T: CpuSample>: CpuBufferWriter<Item = T, Mode = LocalMode> + 'static;
+}
+pub struct LocalSpscBuffer;
+impl LocalBufferType for LocalSpscBuffer {
+    type Writer<T: CpuSample> = local_spsc::Writer<T>;
+}
+pub struct LocalSlabBuffer;
+impl LocalBufferType for LocalSlabBuffer {
+    type Writer<T: CpuSample> = LocalCpuWriter<T>;
+}
+
 type ReaderOf<B, T> = <<B as BufferType>::Writer<T> as BufferWriter>::Reader;
+type LocalReaderOf<B, T> = <<B as LocalBufferType>::Writer<T> as BufferWriter>::Reader;
 
 #[allow(clippy::type_complexity)]
 fn generate<B>(
     pipes: usize,
     stages: usize,
     samples: usize,
-    max_copy: usize,
+    chunk: usize,
 ) -> Result<(
     Flowgraph,
     Vec<BlockRef<NullSink<f32, ReaderOf<B, f32>>>>,
@@ -69,7 +87,7 @@ where
     ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
     NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
     Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
-    CopyRand<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    CopyN<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
     NullSink<f32, ReaderOf<B, f32>>: SendKernel + SendKernelInterface,
 {
     let mut fg = Flowgraph::new();
@@ -83,9 +101,7 @@ where
         let head = fg.add(Head::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
             samples as u64,
         ))?;
-        let mut last = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
-            max_copy,
-        ))?;
+        let mut last = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(chunk))?;
 
         {
             connect!(fg, src > head > last);
@@ -96,9 +112,7 @@ where
         cpu_mapping[executor].push(last.id());
 
         for _ in 1..stages {
-            let block = fg.add(CopyRand::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(
-                max_copy,
-            ))?;
+            let block = fg.add(CopyN::<f32, ReaderOf<B, f32>, B::Writer<f32>>::new(chunk))?;
             {
                 connect!(fg, last > block);
             }
@@ -117,15 +131,20 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-fn generate_local(
+fn generate_local<B, LS>(
     pipes: usize,
     stages: usize,
     samples: usize,
-    max_copy: usize,
+    chunk: usize,
 ) -> Result<(
     Flowgraph,
-    Vec<BlockRef<NullSink<f32, local_spsc::Reader<f32>>>>,
-)> {
+    Vec<BlockRef<NullSink<f32, LocalReaderOf<B, f32>>>>,
+)>
+where
+    B: LocalBufferType,
+    LS: LocalScheduler,
+    LocalReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
+{
     let mut fg = Flowgraph::new();
     let mut snks = Vec::new();
     let core_ids = core_affinity::get_core_ids().expect("failed to get available CPU IDs");
@@ -139,14 +158,14 @@ fn generate_local(
     );
 
     for core_id in core_ids {
-        let local = fg.local_domain_pinned(core_id.id)?;
+        let local = fg.local_domain_pinned_with_scheduler::<LS>(core_id.id)?;
 
-        let src = fg.add_local(local, NullSource::<f32, local_spsc::Writer<f32>>::new)?;
+        let src = fg.add_local(local, NullSource::<f32, B::Writer<f32>>::new)?;
         let head = fg.add_local(local, move || {
-            Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+            Head::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(samples as u64)
         })?;
         let mut last = fg.add_local(local, move || {
-            CopyRand::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+            CopyN::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(chunk)
         })?;
 
         fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
@@ -154,18 +173,42 @@ fn generate_local(
 
         for _ in 1..stages {
             let block = fg.add_local(local, move || {
-                CopyRand::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(max_copy)
+                CopyN::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(chunk)
             })?;
             fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
             last = block;
         }
 
-        let snk = fg.add_local(local, NullSink::<f32, local_spsc::Reader<f32>>::new)?;
+        let snk = fg.add_local(local, NullSink::<f32, LocalReaderOf<B, f32>>::new)?;
         fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
         snks.push(snk);
     }
 
     Ok((fg, snks))
+}
+
+fn run_local<B, LS>(
+    pipes: usize,
+    stages: usize,
+    samples: usize,
+    chunk: usize,
+) -> Result<time::Duration>
+where
+    B: LocalBufferType,
+    LS: LocalScheduler,
+    LocalReaderOf<B, f32>: CpuBufferReader<Item = f32> + 'static,
+{
+    let (fg, snks) = generate_local::<B, LS>(pipes, stages, samples, chunk)?;
+    let runtime = Runtime::new();
+    let now = time::Instant::now();
+    let fg = runtime.run(fg)?;
+    let elapsed = now.elapsed();
+
+    for s in snks {
+        assert_eq!(fg.with(&s, |b| b.n_received())?, samples);
+    }
+
+    Ok(elapsed)
 }
 
 fn main() -> Result<()> {
@@ -174,34 +217,43 @@ fn main() -> Result<()> {
         stages,
         pipes,
         samples,
-        max_copy,
+        chunk,
         config,
     } = Args::parse();
 
     let use_spsc = matches!(config.as_str(), "smoln-spsc" | "flow-spsc");
     let use_slab = matches!(config.as_str(), "smol1-slab" | "smoln-slab" | "flow-slab");
     let scheduler = match config.as_str() {
-        "local" => "local",
+        "local-smol-spsc" | "local-smol-slab" => "local-smol",
+        "local-flow-spsc" | "local-flow-slab" => "local-flow",
         "smol1" | "smol1-slab" => "smol1",
         "smoln" | "smoln-spsc" | "smoln-slab" => "smoln",
         "flow" | "flow-spsc" | "flow-slab" => "flow",
         _ => panic!("unknown config"),
     };
 
-    let elapsed = if scheduler == "local" {
-        let (fg, snks) = generate_local(pipes, stages, samples, max_copy)?;
-        let runtime = Runtime::new();
-        let now = time::Instant::now();
-        let fg = runtime.run(fg)?;
-        let elapsed = now.elapsed();
-
-        for s in snks {
-            assert_eq!(fg.with(&s, |b| b.n_received())?, samples);
+    let elapsed = if scheduler == "local-smol" {
+        match config.as_str() {
+            "local-smol-spsc" => {
+                run_local::<LocalSpscBuffer, BasicLocalScheduler>(pipes, stages, samples, chunk)?
+            }
+            "local-smol-slab" => {
+                run_local::<LocalSlabBuffer, BasicLocalScheduler>(pipes, stages, samples, chunk)?
+            }
+            _ => panic!("unknown config"),
         }
-
-        elapsed
+    } else if scheduler == "local-flow" {
+        match config.as_str() {
+            "local-flow-spsc" => {
+                run_local::<LocalSpscBuffer, LocalFlowScheduler>(pipes, stages, samples, chunk)?
+            }
+            "local-flow-slab" => {
+                run_local::<LocalSlabBuffer, LocalFlowScheduler>(pipes, stages, samples, chunk)?
+            }
+            _ => panic!("unknown config"),
+        }
     } else if use_slab {
-        let (fg, snks, cpu_mapping) = generate::<SlabBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, snks, cpu_mapping) = generate::<SlabBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
@@ -228,7 +280,7 @@ fn main() -> Result<()> {
 
         elapsed
     } else if use_spsc {
-        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smoln" {
             let runtime = Runtime::with_scheduler(SmolScheduler::default());
             let now = time::Instant::now();
@@ -250,7 +302,7 @@ fn main() -> Result<()> {
 
         elapsed
     } else {
-        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, max_copy)?;
+        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, chunk)?;
         let (fg, elapsed) = if scheduler == "smol1" {
             let runtime = Runtime::with_scheduler(SmolScheduler::new(1, false));
             let now = time::Instant::now();
@@ -283,7 +335,7 @@ fn main() -> Result<()> {
         pipes,
         stages,
         samples,
-        max_copy,
+        chunk,
         config,
         elapsed.as_secs_f64()
     );
