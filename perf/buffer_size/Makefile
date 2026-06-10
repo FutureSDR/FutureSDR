@@ -23,7 +23,6 @@ perf-data/fs%.csv: buffer_size.rs Cargo.toml
 	$(eval BUFFER_SIZE=$(shell python3 -c "print(\"$@\".split(\"_\")[6])"))
 	$(eval CONFIG=$(shell python3 -c "print(\"$@\".split(\"_\")[7])"))
 	$(eval BUFFER=$(shell python3 -c "print(\"$@\".split(\"_\")[8])"))
-	$(eval BUFFER_FLAG=$(shell python3 -c "b=\"$@\".split(\"_\")[8]; print(\"--slab\" if b == \"slab\" else \"--spsc\" if b == \"spsc\" else \"\")"))
 	@echo RUN=$(RUN)
 	@echo PIPES=$(PIPES)
 	@echo STAGES=$(STAGES)
@@ -32,6 +31,5 @@ perf-data/fs%.csv: buffer_size.rs Cargo.toml
 	@echo CONFIG=$(CONFIG)
 	@echo BUFFER_SIZE=$(BUFFER_SIZE)
 	@echo BUFFER=$(BUFFER)
-	@echo BUFFER_FLAG=$(BUFFER_FLAG)
 
-	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) --config=$(CONFIG) --buffer-size=$(BUFFER_SIZE) $(BUFFER_FLAG) > $@
+	$(SHIELD) -- cargo run --release -- --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) --config=$(CONFIG) --buffer-size=$(BUFFER_SIZE) --buffer=$(BUFFER) > $@

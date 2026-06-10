@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use clap::ValueEnum;
 use futuresdr::blocks::Head;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
@@ -33,10 +34,25 @@ struct Args {
     buffer_size: usize,
     #[clap(short = 'S', long, alias = "scheduler", default_value = "flow")]
     config: String,
-    #[clap(long)]
-    slab: bool,
-    #[clap(long)]
-    spsc: bool,
+    #[clap(long, value_enum, default_value_t = BufferKind::Circ)]
+    buffer: BufferKind,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum BufferKind {
+    Circ,
+    Slab,
+    Spsc,
+}
+
+impl BufferKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            BufferKind::Circ => "circ",
+            BufferKind::Slab => "slab",
+            BufferKind::Spsc => "spsc",
+        }
+    }
 }
 
 pub trait BufferType {
@@ -141,8 +157,7 @@ fn main() -> Result<()> {
         chunk,
         buffer_size,
         config,
-        slab,
-        spsc,
+        buffer,
     } = Args::parse();
 
     futuresdr::runtime::init();
@@ -154,34 +169,10 @@ fn main() -> Result<()> {
         _ => panic!("unknown config"),
     };
 
-    if slab && spsc {
-        panic!("only one buffer type can be selected");
-    }
-
-    let (elapsed, buffer) = if slab {
-        let (fg, snks, cpu_mapping) = generate::<SlabBuffer>(pipes, stages, samples, chunk)?;
-        let (fg, elapsed) = run_flowgraph(scheduler, fg, cpu_mapping)?;
-        for s in snks {
-            let snk = fg.block(&s)?;
-            assert_eq!(snk.n_received(), samples);
-        }
-        (elapsed, "slab")
-    } else if spsc {
-        let (fg, snks, cpu_mapping) = generate::<SpscBuffer>(pipes, stages, samples, chunk)?;
-        let (fg, elapsed) = run_flowgraph(scheduler, fg, cpu_mapping)?;
-        for s in snks {
-            let snk = fg.block(&s)?;
-            assert_eq!(snk.n_received(), samples);
-        }
-        (elapsed, "spsc")
-    } else {
-        let (fg, snks, cpu_mapping) = generate::<CircBuffer>(pipes, stages, samples, chunk)?;
-        let (fg, elapsed) = run_flowgraph(scheduler, fg, cpu_mapping)?;
-        for s in snks {
-            let snk = fg.block(&s)?;
-            assert_eq!(snk.n_received(), samples);
-        }
-        (elapsed, "circ")
+    let elapsed = match buffer {
+        BufferKind::Circ => run_buffer::<CircBuffer>(scheduler, pipes, stages, samples, chunk)?,
+        BufferKind::Slab => run_buffer::<SlabBuffer>(scheduler, pipes, stages, samples, chunk)?,
+        BufferKind::Spsc => run_buffer::<SpscBuffer>(scheduler, pipes, stages, samples, chunk)?,
     };
 
     println!(
@@ -193,9 +184,33 @@ fn main() -> Result<()> {
         chunk,
         buffer_size,
         config,
-        buffer,
+        buffer.as_str(),
         elapsed.as_secs_f64()
     );
 
     Ok(())
+}
+
+fn run_buffer<B>(
+    scheduler: &str,
+    pipes: usize,
+    stages: usize,
+    samples: usize,
+    chunk: usize,
+) -> Result<time::Duration>
+where
+    B: BufferType,
+    ReaderOf<B, f32>: CpuBufferReader<Item = f32> + SendCpuBufferReader + 'static,
+    NullSource<f32, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    Head<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    CopyN<f32, ReaderOf<B, f32>, B::Writer<f32>>: SendKernel + SendKernelInterface,
+    NullSink<f32, ReaderOf<B, f32>>: SendKernel + SendKernelInterface,
+{
+    let (fg, snks, cpu_mapping) = generate::<B>(pipes, stages, samples, chunk)?;
+    let (fg, elapsed) = run_flowgraph(scheduler, fg, cpu_mapping)?;
+    for s in snks {
+        let snk = fg.block(&s)?;
+        assert_eq!(snk.n_received(), samples);
+    }
+    Ok(elapsed)
 }

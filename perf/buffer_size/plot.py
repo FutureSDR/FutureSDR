@@ -43,7 +43,7 @@ plot_series('spsc', 'SPSC')
 plt.setp(ax.get_yticklabels(), rotation=90, va="center")
 ax.set_xlabel('Buffer Size (in bytes)')
 ax.set_ylabel('Execution Time (in s)')
-ax.set_ylim(0)
+ax.set_ylim(bottom=0)
 
 handles, labels = ax.get_legend_handles_labels()
 if handles:
