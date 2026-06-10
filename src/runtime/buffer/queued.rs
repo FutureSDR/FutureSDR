@@ -305,7 +305,7 @@ where
             reader_input: VecDeque::new(),
         });
         state.with_mut(|state| {
-            for _ in 0..4 {
+            for _ in 0..2 {
                 state.writer_input.push_back(BufferEmpty {
                     buffer: vec![D::default(); min_items].into_boxed_slice(),
                 });
