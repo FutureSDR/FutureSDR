@@ -160,13 +160,13 @@ mod tests {
     use crate::runtime::PortIndex;
     use crate::runtime::block::BlockObject;
     use crate::runtime::block::LocalBlock;
+    use crate::runtime::block_inbox::BlockEndpoint;
     use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::BlockInboxReader;
     use crate::runtime::block_inbox::LocalBlockInbox;
     use crate::runtime::block_inbox::LocalBlockInboxReader;
     use crate::runtime::buffer::DynBufferReader;
     use crate::runtime::buffer::DynBufferWriter;
-    use crate::runtime::dev::BlockEndpoint;
     use crate::runtime::local_domain_common::build_local_block;
 
     struct WaitForTerminate {

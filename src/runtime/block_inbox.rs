@@ -143,31 +143,30 @@ impl Future for Notified {
     }
 }
 
-/// Concrete send-capable actor inbox for a normal-domain block.
+/// Buffer-facing send-capable inbox handle for a normal-domain block.
 ///
-/// Local-domain blocks keep one of these for cross-domain buffer finish
-/// notifications, while runtime/control/message ingress is routed through a
-/// domain proxy endpoint.
-#[doc(hidden)]
+/// Buffer implementations use this handle to wake a block or report stream
+/// finish notifications. Runtime/control/message ingress uses the
+/// runtime-internal [`BlockEndpoint`] routing handle instead.
 #[derive(Clone, Debug)]
 pub struct BlockInbox {
     tx: mpsc::Sender<BlockMessage>,
     notifier: BlockNotifier,
 }
 
-/// Send-safe endpoint for routing messages to a block.
+/// Runtime-internal send-safe endpoint for routing messages to a block.
 ///
-/// This is an opaque handle. Normal-domain blocks use a direct concrete inbox
-/// internally, while local-domain blocks use a domain proxy that forwards into
-/// the private local inbox owned by the domain.
+/// Normal-domain blocks use a direct concrete inbox internally, while
+/// local-domain blocks use a domain proxy that forwards into the private local
+/// inbox owned by the domain. Buffer implementations receive [`BlockInbox`] or
+/// [`LocalBlockInbox`] instead of this erased routing endpoint.
 #[derive(Clone)]
-pub struct BlockEndpoint {
+pub(crate) struct BlockEndpoint {
     inner: BlockEndpointInner,
 }
 
-// Keep the public `BlockEndpoint` split from these internal routing variants so
-// downstream developer API users can pass endpoint handles around without being
-// able to match on, construct, or depend on the runtime's normal-vs-local
+// Keep the erased endpoint split from these routing variants so runtime code can
+// pass endpoint handles around without depending on a public normal-vs-local
 // routing representation.
 #[derive(Clone)]
 enum BlockEndpointInner {
@@ -329,9 +328,9 @@ impl BlockEndpoint {
     }
 }
 
-/// Receiver-side actor inbox for normal thread-safe blocks.
+/// Runtime-internal receiver-side actor inbox for normal thread-safe blocks.
 #[derive(Debug)]
-pub struct BlockInboxReader {
+pub(crate) struct BlockInboxReader {
     control: mpsc::Receiver<BlockMessage>,
     notifier: BlockNotifier,
 }
@@ -434,7 +433,7 @@ struct LocalInboxState {
     notifier: LocalBlockNotifier,
 }
 
-/// Sender-side actor inbox for blocks running inside one local domain.
+/// Buffer-facing inbox handle for blocks running inside one local domain.
 #[derive(Clone, Debug)]
 pub struct LocalBlockInbox(Rc<LocalInboxState>);
 

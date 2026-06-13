@@ -6,9 +6,10 @@ use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::PortIndex;
-use crate::runtime::dev::BlockEndpoint;
+use crate::runtime::block_inbox::BlockEndpoint;
 
-/// One downstream message handler reached through a send-safe endpoint.
+/// Runtime-installed downstream message handler reached through an erased
+/// block endpoint.
 #[derive(Debug)]
 struct MessageHandler {
     port: PortIndex,
@@ -36,7 +37,7 @@ impl MessageOutput {
         &self.name
     }
 
-    /// Connect this output to one downstream message input.
+    /// Install one runtime-resolved downstream message input.
     fn connect(&mut self, port: PortIndex, dst: BlockEndpoint) {
         self.handlers.push(MessageHandler {
             port,
@@ -58,7 +59,7 @@ impl MessageOutput {
     }
 }
 
-/// Message output ports for one block.
+/// Developer-facing message output ports for one block.
 ///
 /// `MessageOutputs` is passed to [`Kernel`](crate::runtime::dev::Kernel)
 /// lifecycle methods. A block can use it to post [`Pmt`] values on named
@@ -92,8 +93,11 @@ impl MessageOutputs {
             .await;
         Ok(())
     }
-    /// Connect one message output port to a downstream block endpoint.
-    pub fn connect(
+    /// Install one resolved message edge.
+    ///
+    /// This is runtime setup plumbing. Blocks should emit messages through
+    /// [`MessageOutputs::post`].
+    pub(crate) fn connect(
         &mut self,
         src_port: &PortId,
         dst_block_endpoint: BlockEndpoint,

@@ -15,9 +15,9 @@ use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::PortName;
 use crate::runtime::Timer;
+use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockEndpoint;
 
 #[derive(Debug)]
 pub(crate) struct RunningFlowgraphControl {

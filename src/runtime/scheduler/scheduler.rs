@@ -7,9 +7,9 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::block::Block;
+use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::dev::BlockEndpoint;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::Task;
 
