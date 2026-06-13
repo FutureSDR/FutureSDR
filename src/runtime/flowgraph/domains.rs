@@ -594,10 +594,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Block for TestBlock {
-        fn is_blocking(&self) -> bool {
-            false
-        }
-
         async fn run(&mut self, _main_inbox: Sender<FlowgraphMessage>) {
             let _ = BlockMessage::Terminate;
         }

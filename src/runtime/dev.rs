@@ -4,9 +4,6 @@
 //! App authors building and running flowgraphs should generally prefer
 //! [`crate::prelude`] and the top-level [`crate::runtime`] APIs.
 
-pub use super::block::Block;
-#[doc(hidden)]
-pub use super::block::BlockObject;
 pub use super::block_inbox::BlockEndpoint;
 pub use super::block_inbox::BlockInbox;
 pub use super::block_inbox::BlockNotifier;
@@ -58,13 +55,10 @@ pub mod prelude {
     pub use crate::runtime::buffer::slab;
     pub use crate::runtime::channel::mpsc;
     pub use crate::runtime::channel::oneshot;
-    pub use crate::runtime::dev::Block;
     pub use crate::runtime::dev::BlockEndpoint;
     pub use crate::runtime::dev::BlockInbox;
     pub use crate::runtime::dev::BlockMeta;
     pub use crate::runtime::dev::BlockNotifier;
-    #[doc(hidden)]
-    pub use crate::runtime::dev::BlockObject;
     pub use crate::runtime::dev::BufferReader;
     pub use crate::runtime::dev::BufferWriter;
     pub use crate::runtime::dev::CpuBufferReader;

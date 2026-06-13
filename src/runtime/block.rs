@@ -14,8 +14,13 @@ use crate::runtime::buffer::DynBufferReader;
 use crate::runtime::buffer::DynBufferWriter;
 use crate::runtime::channel::mpsc::Sender;
 
-/// Object-safe runtime interface shared by normal and local block wrappers.
-pub trait BlockObject: Any {
+/// Internal object-safe erased interface shared by normal and local block wrappers.
+///
+/// Custom block authors implement [`Kernel`](crate::runtime::dev::Kernel);
+/// scheduler extensions use opaque runnable/stopped block handles. This trait
+/// is runtime plumbing for storing wrapped kernels after type erasure and
+/// installing dynamic edges.
+pub(crate) trait BlockObject: Any {
     /// Return this block as [`Any`] for downcasting.
     fn as_any(&self) -> &dyn Any;
     /// Return this block as mutable [`Any`] for downcasting.
@@ -54,16 +59,13 @@ pub trait BlockObject: Any {
     fn type_name(&self) -> &str;
 }
 
-/// Runtime object-safe interface for wrapped kernel instances.
+/// Internal object-safe interface for normal-domain wrapped kernel instances.
 ///
-/// Custom blocks implement [`Kernel`](crate::runtime::dev::Kernel); this trait
-/// is implemented by the normal runtime wrapper around send-capable kernels and
-/// is mainly useful for runtime extensions.
+/// Custom blocks implement [`Kernel`](crate::runtime::dev::Kernel). Scheduler
+/// extensions receive [`RunnableBlock`](crate::runtime::scheduler::RunnableBlock)
+/// instead of raw block trait objects.
 #[async_trait::async_trait]
-pub trait Block: BlockObject + Send {
-    /// Whether this block is flagged for a local blocking domain.
-    fn is_blocking(&self) -> bool;
-
+pub(crate) trait Block: BlockObject + Send {
     /// Run the block.
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>);
 }

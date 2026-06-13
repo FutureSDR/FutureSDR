@@ -552,10 +552,6 @@ impl<K> Block for NormalWrappedKernel<K>
 where
     K: SendKernel + SendKernelInterface + 'static,
 {
-    fn is_blocking(&self) -> bool {
-        K::is_blocking()
-    }
-
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match self.run_impl(main_inbox.clone()).await {
             Ok(_) => {

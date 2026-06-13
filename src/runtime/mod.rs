@@ -450,7 +450,7 @@ impl From<PmtConversionError> for Error {
     }
 }
 
-/// Description of the [`Block`] under which an [`Error::InvalidMessagePort`] or
+/// Description of the block under which an [`Error::InvalidMessagePort`] or
 /// [`Error::InvalidStreamPort`] error occurred.
 #[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -461,13 +461,6 @@ pub enum BlockPortCtx {
     Id(BlockId),
     /// Block is identified by its `type_name`
     Name(String),
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl From<&dyn crate::runtime::dev::Block> for BlockPortCtx {
-    fn from(value: &dyn crate::runtime::dev::Block) -> Self {
-        BlockPortCtx::Name(value.type_name().into())
-    }
 }
 
 impl Display for BlockPortCtx {
