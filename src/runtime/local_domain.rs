@@ -194,6 +194,14 @@ mod tests {
             self.id
         }
 
+        fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
+            Ok(Vec::new())
+        }
+
+        fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
+            Ok(Vec::new())
+        }
+
         fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
             Err(Error::InvalidStreamPort(
                 BlockPortCtx::Id(self.id),
