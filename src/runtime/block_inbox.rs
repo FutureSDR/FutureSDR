@@ -161,15 +161,7 @@ pub struct BlockInbox {
 /// inbox owned by the domain. Buffer implementations receive [`BlockInbox`] or
 /// [`LocalBlockInbox`] instead of this erased routing endpoint.
 #[derive(Clone)]
-pub(crate) struct BlockEndpoint {
-    inner: BlockEndpointInner,
-}
-
-// Keep the erased endpoint split from these routing variants so runtime code can
-// pass endpoint handles around without depending on a public normal-vs-local
-// routing representation.
-#[derive(Clone)]
-enum BlockEndpointInner {
+pub(crate) enum BlockEndpoint {
     Direct(BlockInbox),
     DomainProxy {
         domain: LocalDomainInbox,
@@ -179,11 +171,11 @@ enum BlockEndpointInner {
 
 impl fmt::Debug for BlockEndpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.inner {
-            BlockEndpointInner::Direct(_) => f
+        match self {
+            BlockEndpoint::Direct(_) => f
                 .debug_struct("BlockEndpoint::Direct")
                 .finish_non_exhaustive(),
-            BlockEndpointInner::DomainProxy { addr, .. } => f
+            BlockEndpoint::DomainProxy { addr, .. } => f
                 .debug_struct("BlockEndpoint::DomainProxy")
                 .field("addr", addr)
                 .finish_non_exhaustive(),
@@ -262,25 +254,21 @@ impl Default for BlockInbox {
 
 impl From<BlockInbox> for BlockEndpoint {
     fn from(inbox: BlockInbox) -> Self {
-        Self {
-            inner: BlockEndpointInner::Direct(inbox),
-        }
+        Self::Direct(inbox)
     }
 }
 
 impl BlockEndpoint {
     /// Create a sender-side domain proxy for a local-domain block.
     pub(crate) fn domain_proxy(domain: LocalDomainInbox, addr: LocalBlockAddr) -> Self {
-        Self {
-            inner: BlockEndpointInner::DomainProxy { domain, addr },
-        }
+        Self::DomainProxy { domain, addr }
     }
 
     /// Enqueue a block message and wake the destination block on success.
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
-        match &self.inner {
-            BlockEndpointInner::Direct(inbox) => inbox.send(msg).await,
-            BlockEndpointInner::DomainProxy { domain, addr } => {
+        match self {
+            BlockEndpoint::Direct(inbox) => inbox.send(msg).await,
+            BlockEndpoint::DomainProxy { domain, addr } => {
                 if has_current_local_inbox(domain.key(), *addr) {
                     return LocalSend {
                         target: CurrentLocalInbox {
