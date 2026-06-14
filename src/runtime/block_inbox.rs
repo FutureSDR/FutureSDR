@@ -276,31 +276,6 @@ impl BlockEndpoint {
         }
     }
 
-    /// Wake the destination block without sending a message.
-    #[allow(dead_code)]
-    #[inline(always)]
-    pub(crate) fn notify(&self) {
-        match &self.inner {
-            BlockEndpointInner::Direct(inbox) => inbox.notify(),
-            BlockEndpointInner::DomainProxy { domain, addr } => {
-                if let Some(inbox) = current_local_inbox(domain.key(), *addr) {
-                    inbox.notify();
-                } else {
-                    let _ = domain.notify_block(*addr);
-                }
-            }
-        }
-    }
-
-    /// Return whether the underlying receiver has been closed.
-    #[allow(dead_code)]
-    pub(crate) fn is_closed(&self) -> bool {
-        match &self.inner {
-            BlockEndpointInner::Direct(inbox) => inbox.tx.is_closed(),
-            BlockEndpointInner::DomainProxy { domain, .. } => domain.is_closed(),
-        }
-    }
-
     /// Enqueue a block message and wake the destination block on success.
     pub(crate) async fn send(&self, msg: BlockMessage) -> Result<(), Error> {
         match &self.inner {
