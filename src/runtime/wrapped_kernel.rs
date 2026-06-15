@@ -289,7 +289,8 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             BlockMessage::StreamInputDone { input_id } => {
                 stream_input_finish(kernel, input_id)?;
             }
-            BlockMessage::StreamOutputDone { .. } => {
+            BlockMessage::StreamOutputDone { output_id } => {
+                stream_output(kernel, &output_id)?;
                 work_io.finished = true;
             }
             BlockMessage::Post { port_id, data } => {

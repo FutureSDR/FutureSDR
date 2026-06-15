@@ -308,7 +308,6 @@ pub enum FlowgraphMessage {
 
 /// Block inbox message type
 #[doc(hidden)]
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum BlockMessage {
     /// Initialize

@@ -49,11 +49,6 @@ impl LocalDomainInbox {
         self.key
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn is_closed(&self) -> bool {
-        self.tx.is_closed()
-    }
-
     pub(crate) async fn post(
         &self,
         addr: LocalBlockAddr,
@@ -81,13 +76,6 @@ impl LocalDomainInbox {
             })
             .await
             .map_err(|_| Error::RuntimeError("local domain terminated".to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
-        self.tx
-            .try_send(LocalDomainMessage::Notify { addr })
-            .map_err(|_| Error::RuntimeError("local domain terminated or busy".to_string()))
     }
 
     pub(crate) fn start_run(
@@ -311,15 +299,6 @@ async fn call_local_message(
         .await
 }
 
-fn notify_local_block(state: &impl LocalInboxLookup, addr: LocalBlockAddr) -> Result<(), Error> {
-    let local_id = state.validate_addr(addr)?;
-    let inbox = state
-        .inbox(local_id)
-        .ok_or(Error::InvalidBlock(addr.block_id))?;
-    inbox.notify();
-    Ok(())
-}
-
 struct LocalRunningSlot {
     local_id: usize,
     block_id: BlockId,
@@ -445,10 +424,6 @@ impl LocalRunningState {
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
         call_local_message(self, addr, port_id, data, reply).await
-    }
-
-    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
-        notify_local_block(self, addr)
     }
 }
 
@@ -623,10 +598,6 @@ impl LocalDomainState {
         reply: oneshot::Sender<Result<Pmt, Error>>,
     ) -> Result<(), Error> {
         call_local_message(self, addr, port_id, data, reply).await
-    }
-
-    pub(crate) fn notify_block(&self, addr: LocalBlockAddr) -> Result<(), Error> {
-        notify_local_block(self, addr)
     }
 
     pub(crate) fn block(
@@ -860,12 +831,6 @@ pub(crate) async fn handle_idle_domain_message<LS: LocalScheduler>(
             }
             IdleDomainAction::Continue
         }
-        LocalDomainMessage::Notify { addr } => {
-            if let Err(e) = state.notify_block(addr) {
-                warn!("failed to notify local block: {e}");
-            }
-            IdleDomainAction::Continue
-        }
         LocalDomainMessage::Run {
             domain_id,
             slots,
@@ -933,10 +898,6 @@ pub(crate) enum LocalDomainMessage {
         port_id: PortIndex,
         data: Pmt,
         reply: oneshot::Sender<Result<Pmt, Error>>,
-    },
-    #[allow(dead_code)]
-    Notify {
-        addr: LocalBlockAddr,
     },
     Run {
         domain_id: usize,
@@ -1069,11 +1030,6 @@ mod tests {
         ));
 
         assert!(running.inbox(2).is_some());
-        assert!(
-            running
-                .notify_block(LocalBlockAddr::new(BlockId(7), 2))
-                .is_ok()
-        );
 
         let block = running.take_block(2, BlockId(7)).unwrap();
         assert!(matches!(

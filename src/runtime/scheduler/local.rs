@@ -287,12 +287,6 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
                 }
                 LocalDomainControl::Continue
             }
-            LocalDomainMessage::Notify { addr } => {
-                if let Err(e) = self.state.notify_block(addr) {
-                    warn!("failed to notify local block: {e}");
-                }
-                LocalDomainControl::Continue
-            }
         }
     }
 
