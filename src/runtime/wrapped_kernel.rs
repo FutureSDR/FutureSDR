@@ -340,7 +340,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn run_with_inbox<RI>(
+    async fn run_loop<RI>(
         id: BlockId,
         meta: &mut BlockMeta,
         mo: &mut MessageOutputs,
@@ -480,7 +480,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         Ok(())
     }
 
-    async fn run_impl(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>
+    async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) -> Result<(), Error>
     where
         K: Kernel,
     {
@@ -493,7 +493,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
             stream_outputs,
             inbox,
         } = self;
-        Self::run_with_inbox(
+        Self::run_loop(
             *id,
             meta,
             mo,
@@ -562,7 +562,7 @@ where
     K: SendKernel + SendKernelInterface + 'static,
 {
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match self.run_impl(main_inbox.clone()).await {
+        match WrappedKernel::run(self, main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })
@@ -597,7 +597,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
     }
 
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match self.run_impl(main_inbox.clone()).await {
+        match WrappedKernel::run(self, main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })
