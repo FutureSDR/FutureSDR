@@ -169,13 +169,13 @@ impl WrappedKernelInbox for LocalBlockInboxes {
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     /// Block metadata
-    pub meta: BlockMeta,
+    pub(crate) meta: BlockMeta,
     /// Message outputs
-    pub mo: MessageOutputs,
+    pub(crate) mo: MessageOutputs,
     /// User kernel implementation.
-    pub kernel: K,
+    pub(crate) kernel: K,
     /// Runtime block id.
-    pub id: BlockId,
+    pub(crate) id: BlockId,
     /// Instance stream input port names collected when the block is added.
     stream_inputs: Vec<String>,
     /// Instance stream output port names collected when the block is added.
@@ -187,7 +187,7 @@ pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
     /// Create typed block wrapper.
-    pub fn new(mut kernel: K, id: BlockId) -> Self {
+    pub(crate) fn new(mut kernel: K, id: BlockId) -> Self {
         let inbox = ThreadSafeInbox::new();
         crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
@@ -198,7 +198,11 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     /// Create typed block wrapper with an explicit external inbox.
-    pub fn new_local_with_external(mut kernel: K, id: BlockId, external: BlockEndpoint) -> Self {
+    pub(crate) fn new_local_with_external(
+        mut kernel: K,
+        id: BlockId,
+        external: BlockEndpoint,
+    ) -> Self {
         let inbox = LocalBlockInboxes::new(external);
         crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
