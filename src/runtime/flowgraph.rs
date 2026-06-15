@@ -549,7 +549,7 @@ impl Flowgraph {
         K: Kernel + KernelInterface + 'static,
     {
         let domain_id = self.validate_local_domain(domain)?;
-        self.add_kernel_to_domain(domain_id, block)
+        block_on(self.add_kernel_to_domain_async(domain_id, block))
     }
 
     /// Asynchronously add a block to a local domain with a local inbox/proxy split.
@@ -564,18 +564,6 @@ impl Flowgraph {
     {
         let domain_id = self.validate_local_domain(domain)?;
         self.add_kernel_to_domain_async(domain_id, block).await
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn add_kernel_to_domain<K>(
-        &mut self,
-        domain_id: usize,
-        block: impl FnOnce() -> K + Send + 'static,
-    ) -> Result<BlockRef<K>, Error>
-    where
-        K: Kernel + KernelInterface + 'static,
-    {
-        block_on(self.add_kernel_to_domain_async(domain_id, block))
     }
 
     async fn add_kernel_to_domain_async<K>(
@@ -923,13 +911,6 @@ impl Flowgraph {
         Ok((src, dst))
     }
 
-    fn get_typed_block_by_id<K: 'static>(
-        &self,
-        block_id: BlockId,
-    ) -> Result<TypedBlockGuard<'_, K>, Error> {
-        block_access::typed_guard(&self.blocks, &self.domains, self.location(block_id)?)
-    }
-
     /// Get typed shared access to a block in this flowgraph.
     ///
     /// The reference must have been returned by this flowgraph. Access fails
@@ -937,7 +918,7 @@ impl Flowgraph {
     /// the local domain.
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
-        self.get_typed_block_by_id(block.id)
+        block_access::typed_guard(&self.blocks, &self.domains, self.location(block.id)?)
     }
 
     /// Get typed mutable access to a block in this flowgraph.

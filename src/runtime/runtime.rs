@@ -274,13 +274,8 @@ impl<S: Scheduler> RuntimeHandle<S> {
     /// and the native control-port API until it terminates.
     pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
         let running = start_flowgraph(self.scheduler.clone(), fg).await?;
-        self.add_flowgraph(running.handle()).await;
+        self.flowgraphs.lock().await.insert(running.handle());
         Ok(running)
-    }
-
-    /// Add a [`FlowgraphHandle`] to make it available to web handlers.
-    async fn add_flowgraph(&self, handle: FlowgraphHandle) -> FlowgraphId {
-        self.flowgraphs.lock().await.insert(handle)
     }
 
     /// Get the control handle for a flowgraph by stable flowgraph id.
@@ -321,12 +316,8 @@ impl FlowgraphRegistry {
     }
 
     fn running_ids(&mut self) -> Vec<FlowgraphId> {
-        self.prune_terminated();
-        self.flowgraphs.keys().copied().collect()
-    }
-
-    fn prune_terminated(&mut self) {
         self.flowgraphs.retain(|_, handle| !handle.is_terminated());
+        self.flowgraphs.keys().copied().collect()
     }
 }
 

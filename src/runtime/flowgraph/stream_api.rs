@@ -215,7 +215,7 @@ impl Flowgraph {
         let dst = self.location(dst_block_id)?;
         let local_only = src.domain_id == dst.domain_id && src.is_local();
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        let edge = self.validate_stream_edge_ports(&edge)?;
+        let edge = self.named_stream_edge(&edge)?;
         self.stream_edges
             .push(StreamEdge::from_edge(edge, local_only));
         Ok(())
@@ -256,12 +256,8 @@ impl Flowgraph {
         Self::same_local_stream_locations(src, dst, true)?;
 
         let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        let edge = self.validate_stream_edge_ports(&edge)?;
+        let edge = self.named_stream_edge(&edge)?;
         self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
-    }
-
-    fn validate_stream_edge_ports(&self, edge: &Edge) -> Result<Edge, Error> {
-        self.named_stream_edge(edge)
     }
 }

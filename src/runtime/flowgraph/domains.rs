@@ -283,9 +283,9 @@ impl RunningFlowgraphDomains {
                             )));
                         }
                     };
-                    domains.push(FlowgraphDomain::Normal(
-                        domain.restore_stopped_blocks(blocks)?,
-                    ));
+                    domains.push(FlowgraphDomain::Normal(domain.restore_blocks(
+                        blocks.into_iter().map(StoppedBlock::into_block).collect(),
+                    )?));
                 }
                 (RunningFlowgraphDomain::Normal(_), None) => {
                     return Err(Error::RuntimeError(format!(
@@ -496,10 +496,6 @@ struct RunningNormalBlockSlot {
 }
 
 impl RunningNormalDomain {
-    fn restore_stopped_blocks(self, blocks: Vec<StoppedBlock>) -> Result<NormalDomain, Error> {
-        self.restore_blocks(blocks.into_iter().map(StoppedBlock::into_block).collect())
-    }
-
     fn restore_blocks(self, mut blocks: NormalBlocks) -> Result<NormalDomain, Error> {
         let mut slots = Vec::with_capacity(self.slots.len());
         for slot in self.slots {
