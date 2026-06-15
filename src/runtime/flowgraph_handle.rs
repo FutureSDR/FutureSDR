@@ -6,6 +6,7 @@ use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
+use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphId;
@@ -25,8 +26,8 @@ pub(crate) struct RunningFlowgraphControl {
     endpoints: Vec<BlockEndpoint>,
     ids: Vec<BlockId>,
     message_inputs: Vec<&'static [&'static str]>,
-    stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
-    message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+    stream_edges: Vec<Edge>,
+    message_edges: Vec<Edge>,
 }
 
 impl RunningFlowgraphControl {
@@ -34,8 +35,8 @@ impl RunningFlowgraphControl {
         endpoints: Vec<BlockEndpoint>,
         ids: Vec<BlockId>,
         message_inputs: Vec<&'static [&'static str]>,
-        stream_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
-        message_edges: Vec<(BlockId, PortId, BlockId, PortId)>,
+        stream_edges: Vec<Edge>,
+        message_edges: Vec<Edge>,
     ) -> Self {
         Self {
             endpoints,

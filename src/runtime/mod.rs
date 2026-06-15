@@ -83,6 +83,7 @@ pub use timer::Timer;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;
+pub use futuresdr_types::Edge;
 pub use futuresdr_types::FlowgraphDescription;
 pub use futuresdr_types::FlowgraphId;
 pub use futuresdr_types::Pmt;
@@ -90,67 +91,6 @@ pub use futuresdr_types::PmtKind;
 pub use futuresdr_types::PortId;
 pub use futuresdr_types::PortIndex;
 pub use futuresdr_types::PortName;
-
-/// A logical directed edge between two block ports.
-///
-/// Schedulers receive edge values through
-/// [`scheduler::DomainTopology`] so
-/// third-party scheduler implementations can inspect stream and message
-/// topology when making placement decisions. Edge values are immutable graph
-/// metadata; changing graph semantics remains the runtime's responsibility.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Edge {
-    pub(crate) src_block: BlockId,
-    pub(crate) src_port: PortId,
-    pub(crate) dst_block: BlockId,
-    pub(crate) dst_port: PortId,
-}
-
-impl Edge {
-    pub(crate) fn new(
-        src_block: BlockId,
-        src_port: PortId,
-        dst_block: BlockId,
-        dst_port: PortId,
-    ) -> Self {
-        Self {
-            src_block,
-            src_port,
-            dst_block,
-            dst_port,
-        }
-    }
-
-    /// Source block id.
-    pub fn src_block(&self) -> BlockId {
-        self.src_block
-    }
-
-    /// Source port id.
-    pub fn src_port(&self) -> &PortId {
-        &self.src_port
-    }
-
-    /// Destination block id.
-    pub fn dst_block(&self) -> BlockId {
-        self.dst_block
-    }
-
-    /// Destination port id.
-    pub fn dst_port(&self) -> &PortId {
-        &self.dst_port
-    }
-
-    /// Return the source block/port followed by the destination block/port.
-    pub fn endpoints(&self) -> (BlockId, PortId, BlockId, PortId) {
-        (
-            self.src_block,
-            self.src_port.clone(),
-            self.dst_block,
-            self.dst_port.clone(),
-        )
-    }
-}
 
 pub(crate) fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> bool {
     match port_id {

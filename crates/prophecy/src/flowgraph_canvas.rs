@@ -46,7 +46,7 @@ fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
     let mut stream_only_edges: Vec<(usize, usize)> = fg
         .stream_edges
         .iter()
-        .map(|(src, _, dst, _)| (src.0, dst.0))
+        .map(|edge| (edge.src_block.0, edge.dst_block.0))
         .filter(|(src, dst)| src != dst && node_set.contains(src) && node_set.contains(dst))
         .collect();
     stream_only_edges.sort_unstable();
@@ -55,11 +55,11 @@ fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
     let mut layout_edges: Vec<(usize, usize)> = fg
         .stream_edges
         .iter()
-        .map(|(src, _, dst, _)| (src.0, dst.0))
+        .map(|edge| (edge.src_block.0, edge.dst_block.0))
         .chain(
             fg.message_edges
                 .iter()
-                .map(|(src, _, dst, _)| (src.0, dst.0)),
+                .map(|edge| (edge.src_block.0, edge.dst_block.0)),
         )
         .filter(|(src, dst)| src != dst && node_set.contains(src) && node_set.contains(dst))
         .collect();
@@ -343,22 +343,28 @@ fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
     // heights differ (e.g., due to message rows).
     let mut stream_out_deg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
     let mut stream_in_deg: HashMap<usize, usize> = node_ids.iter().map(|id| (*id, 0)).collect();
-    for (src, _, dst, _) in &fg.stream_edges {
-        *stream_out_deg.entry(src.0).or_insert(0) += 1;
-        *stream_in_deg.entry(dst.0).or_insert(0) += 1;
+    for edge in &fg.stream_edges {
+        *stream_out_deg.entry(edge.src_block.0).or_insert(0) += 1;
+        *stream_in_deg.entry(edge.dst_block.0).or_insert(0) += 1;
     }
 
     let mut stream_edges_sorted = fg.stream_edges.clone();
-    stream_edges_sorted.sort_by_key(|(src, _, dst, _)| {
+    stream_edges_sorted.sort_by_key(|edge| {
         (
-            layer_of.get(&src.0).copied().unwrap_or(usize::MAX),
-            layer_of.get(&dst.0).copied().unwrap_or(usize::MAX),
+            layer_of
+                .get(&edge.src_block.0)
+                .copied()
+                .unwrap_or(usize::MAX),
+            layer_of
+                .get(&edge.dst_block.0)
+                .copied()
+                .unwrap_or(usize::MAX),
         )
     });
 
-    for (src, src_port, dst, dst_port) in stream_edges_sorted {
-        let src_id = src.0;
-        let dst_id = dst.0;
+    for edge in stream_edges_sorted {
+        let src_id = edge.src_block.0;
+        let dst_id = edge.dst_block.0;
         if stream_out_deg.get(&src_id).copied().unwrap_or(0) != 1
             || stream_in_deg.get(&dst_id).copied().unwrap_or(0) != 1
         {
@@ -379,14 +385,14 @@ fn compute_layout(fg: &FlowgraphDescription) -> HashMap<usize, BlockLayout> {
         let Some(src_idx) = src_block
             .stream_outputs
             .iter()
-            .position(|p| p == src_port.name())
+            .position(|p| p == edge.src_port.name())
         else {
             continue;
         };
         let Some(dst_idx) = dst_block
             .stream_inputs
             .iter()
-            .position(|p| p == dst_port.name())
+            .position(|p| p == edge.dst_port.name())
         else {
             continue;
         };
@@ -598,7 +604,13 @@ fn render_block_node(
         ev.prevent_default();
         ev.stop_propagation();
         let (bx, by) = pos.get_untracked();
-        dragging.set(Some((bid, ev.client_x(), ev.client_y(), bx, by)));
+        dragging.set(Some((
+            bid,
+            f64::from(ev.client_x()),
+            f64::from(ev.client_y()),
+            bx,
+            by,
+        )));
     };
 
     view! {
@@ -690,10 +702,10 @@ pub fn FlowgraphCanvas(
         .stream_edges
         .iter()
         .filter_map(|e| {
-            let src_id = e.0.0;
-            let src_port = e.1.name().to_string();
-            let dst_id = e.2.0;
-            let dst_port = e.3.name().to_string();
+            let src_id = e.src_block.0;
+            let src_port = e.src_port.name().to_string();
+            let dst_id = e.dst_block.0;
+            let dst_port = e.dst_port.name().to_string();
 
             let src_block = block_info.get(&src_id)?;
             let dst_block = block_info.get(&dst_id)?;
@@ -731,10 +743,10 @@ pub fn FlowgraphCanvas(
         .message_edges
         .iter()
         .filter_map(|e| {
-            let src_id = e.0.0;
-            let src_port = e.1.name().to_string();
-            let dst_id = e.2.0;
-            let dst_port = e.3.name().to_string();
+            let src_id = e.src_block.0;
+            let src_port = e.src_port.name().to_string();
+            let dst_id = e.dst_block.0;
+            let dst_port = e.dst_port.name().to_string();
 
             let src_block = block_info.get(&src_id)?;
             let dst_block = block_info.get(&dst_id)?;
@@ -789,23 +801,30 @@ pub fn FlowgraphCanvas(
     let on_container_mousedown = move |ev: web_sys::MouseEvent| {
         ev.prevent_default();
         let (ox, oy) = pan.get_untracked();
-        panning.set(Some((ev.client_x(), ev.client_y(), ox, oy)));
+        panning.set(Some((
+            f64::from(ev.client_x()),
+            f64::from(ev.client_y()),
+            ox,
+            oy,
+        )));
     };
 
     let on_mousemove = move |ev: web_sys::MouseEvent| {
+        let client_x = f64::from(ev.client_x());
+        let client_y = f64::from(ev.client_y());
         // Block drag: divide viewport delta by scale to get canvas-space delta
         if let Some((bid, mx0, my0, bx0, by0)) = dragging.get_untracked() {
             let s = scale.get_untracked();
-            let dx = (ev.client_x() - mx0) / s;
-            let dy = (ev.client_y() - my0) / s;
+            let dx = (client_x - mx0) / s;
+            let dy = (client_y - my0) / s;
             if let Some(&pos) = positions_for_move.get(&bid) {
                 pos.set((bx0 + dx, by0 + dy));
             }
         }
         // Canvas pan: viewport delta applied directly to pan offset
         if let Some((mx0, my0, ox0, oy0)) = panning.get_untracked() {
-            let dx = ev.client_x() - mx0;
-            let dy = ev.client_y() - my0;
+            let dx = client_x - mx0;
+            let dy = client_y - my0;
             pan.set((ox0 + dx, oy0 + dy));
         }
     };
@@ -836,8 +855,8 @@ pub fn FlowgraphCanvas(
         //   ox' = mx*(1 - ratio) + ox*ratio   (mx = mouse pos relative to container)
         if let Some(el) = container_ref.get() {
             let rect = el.get_bounding_client_rect();
-            let mx = ev.client_x() - rect.left();
-            let my = ev.client_y() - rect.top();
+            let mx = f64::from(ev.client_x()) - rect.left();
+            let my = f64::from(ev.client_y()) - rect.top();
             let (ox, oy) = pan.get_untracked();
             pan.set((
                 mx * (1.0 - ratio) + ox * ratio,
@@ -922,8 +941,8 @@ pub fn FlowgraphCanvas(
         }
 
         for e in &fg.stream_edges {
-            let src_id = e.0.0;
-            let dst_id = e.2.0;
+            let src_id = e.src_block.0;
+            let dst_id = e.dst_block.0;
             let Some(src_block) = block_info.get(&src_id) else {
                 continue;
             };
@@ -933,11 +952,15 @@ pub fn FlowgraphCanvas(
             let Some(src_idx) = src_block
                 .stream_outputs
                 .iter()
-                .position(|p| p == e.1.name())
+                .position(|p| p == e.src_port.name())
             else {
                 continue;
             };
-            let Some(dst_idx) = dst_block.stream_inputs.iter().position(|p| p == e.3.name()) else {
+            let Some(dst_idx) = dst_block
+                .stream_inputs
+                .iter()
+                .position(|p| p == e.dst_port.name())
+            else {
                 continue;
             };
             let Some(src_pos) = positions.get(&src_id) else {
@@ -959,8 +982,8 @@ pub fn FlowgraphCanvas(
         }
 
         for e in &fg.message_edges {
-            let src_id = e.0.0;
-            let dst_id = e.2.0;
+            let src_id = e.src_block.0;
+            let dst_id = e.dst_block.0;
             let Some(src_block) = block_info.get(&src_id) else {
                 continue;
             };
@@ -970,14 +993,14 @@ pub fn FlowgraphCanvas(
             let Some(src_idx) = src_block
                 .message_outputs
                 .iter()
-                .position(|p| p == e.1.name())
+                .position(|p| p == e.src_port.name())
             else {
                 continue;
             };
             let Some(dst_idx) = dst_block
                 .message_inputs
                 .iter()
-                .position(|p| p == e.3.name())
+                .position(|p| p == e.dst_port.name())
             else {
                 continue;
             };

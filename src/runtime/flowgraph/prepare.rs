@@ -4,7 +4,6 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
-use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::Result;
 use crate::runtime::block_inbox::BlockEndpoint;
@@ -33,8 +32,8 @@ pub(super) struct PreparedControl {
     endpoints: Vec<BlockEndpoint>,
     ids: Vec<BlockId>,
     message_inputs: Vec<&'static [&'static str]>,
-    stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-    message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+    stream_edges_desc: Vec<Edge>,
+    message_edges_desc: Vec<Edge>,
 }
 
 struct LocalDomainPlan {
@@ -615,8 +614,8 @@ impl FlowgraphCompiler {
             .iter()
             .filter_map(|location| location.is_normal().then_some(location.block_id))
             .collect::<Vec<_>>();
-        let stream_edges_desc = Self::edge_endpoints(&stream_edges_public);
-        let message_edges_desc = Self::edge_endpoints(&message_edges_public);
+        let stream_edges_desc = stream_edges_public.clone();
+        let message_edges_desc = message_edges_public.clone();
         let local_domains = Self::local_domain_plans(flowgraph, &block_locations);
         let control = Self::prepared_control(flowgraph, stream_edges_desc, message_edges_desc);
 
@@ -738,8 +737,8 @@ impl FlowgraphCompiler {
 
     fn prepared_control(
         flowgraph: &Flowgraph,
-        stream_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
-        message_edges_desc: Vec<(BlockId, PortId, BlockId, PortId)>,
+        stream_edges_desc: Vec<Edge>,
+        message_edges_desc: Vec<Edge>,
     ) -> PreparedControl {
         let mut endpoints = Vec::with_capacity(flowgraph.blocks.len());
         let mut ids = Vec::with_capacity(flowgraph.blocks.len());
@@ -758,10 +757,6 @@ impl FlowgraphCompiler {
             stream_edges_desc,
             message_edges_desc,
         }
-    }
-
-    fn edge_endpoints(edges: &[Edge]) -> Vec<(BlockId, PortId, BlockId, PortId)> {
-        edges.iter().map(Edge::endpoints).collect()
     }
 }
 
@@ -803,7 +798,7 @@ mod tests {
         assert!(prepared.connections.message_edges().is_empty());
         assert_eq!(
             prepared.control.stream_edges_desc,
-            vec![(
+            vec![Edge::new(
                 src.id(),
                 PortId::from("output"),
                 snk.id(),

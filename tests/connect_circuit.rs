@@ -222,13 +222,13 @@ fn connect_circuit_description_lists_stream_edges() -> Result<()> {
     connect!(fg, src > apply > snk);
 
     let expected_edges = vec![
-        (
+        futuresdr::runtime::Edge::new(
             src.id(),
             PortId::new("output"),
             apply.id(),
             PortId::new("input"),
         ),
-        (
+        futuresdr::runtime::Edge::new(
             apply.id(),
             PortId::new("output"),
             snk.id(),

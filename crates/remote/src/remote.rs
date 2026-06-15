@@ -142,12 +142,12 @@ impl Flowgraph {
         self.description
             .message_edges
             .iter()
-            .map(|d| Connection {
+            .map(|edge| Connection {
                 connection_type: ConnectionType::Message,
-                src_block: self.block(d.0).unwrap(),
-                src_port: d.1.clone(),
-                dst_block: self.block(d.2).unwrap(),
-                dst_port: d.3.clone(),
+                src_block: self.block(edge.src_block).unwrap(),
+                src_port: edge.src_port.clone(),
+                dst_block: self.block(edge.dst_block).unwrap(),
+                dst_port: edge.dst_port.clone(),
             })
             .collect()
     }
@@ -157,12 +157,12 @@ impl Flowgraph {
         self.description
             .stream_edges
             .iter()
-            .map(|d| Connection {
+            .map(|edge| Connection {
                 connection_type: ConnectionType::Stream,
-                src_block: self.block(d.0).unwrap(),
-                src_port: d.1.clone(),
-                dst_block: self.block(d.2).unwrap(),
-                dst_port: d.3.clone(),
+                src_block: self.block(edge.src_block).unwrap(),
+                src_port: edge.src_port.clone(),
+                dst_block: self.block(edge.dst_block).unwrap(),
+                dst_port: edge.dst_port.clone(),
             })
             .collect()
     }
@@ -331,6 +331,7 @@ mod tests {
     use crate::Flowgraph;
     use futuresdr_types::BlockDescription;
     use futuresdr_types::BlockId;
+    use futuresdr_types::Edge;
     use futuresdr_types::FlowgraphDescription;
     use futuresdr_types::PortId;
 
@@ -375,13 +376,13 @@ mod tests {
             id: 0,
             description: FlowgraphDescription {
                 blocks: vec![block(0, "a"), block(1, "b")],
-                stream_edges: vec![(
+                stream_edges: vec![Edge::new(
                     BlockId(0),
                     PortId::new("output"),
                     BlockId(1),
                     PortId::new("input"),
                 )],
-                message_edges: vec![(
+                message_edges: vec![Edge::new(
                     BlockId(1),
                     PortId::new("out"),
                     BlockId(0),

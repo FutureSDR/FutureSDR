@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futuresdr::runtime::BlockRef;
+use futuresdr::runtime::Edge;
 use futuresdr::runtime::Flowgraph;
 use futuresdr::runtime::LocalDomain;
 use futuresdr::runtime::PortId;
@@ -133,7 +134,12 @@ fn message_edge_accepts_indexed_ports_and_describes_names() -> Result<()> {
     let description = futuresdr::runtime::block_on(running.describe())?;
     assert_eq!(
         description.message_edges,
-        vec![(src.id(), PortId::from("out"), snk.id(), PortId::from("in"))]
+        vec![Edge::new(
+            src.id(),
+            PortId::from("out"),
+            snk.id(),
+            PortId::from("in")
+        )]
     );
 
     futuresdr::runtime::block_on(running.call(src, trigger, Pmt::Null))?;
