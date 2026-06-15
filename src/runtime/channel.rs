@@ -7,6 +7,9 @@
 pub mod mpsc {
     use std::fmt;
 
+    #[cfg(target_arch = "wasm32")]
+    use crate::runtime::wasm_event_loop_yield;
+
     pub use ::kanal::ReceiveError;
     pub use ::kanal::SendError;
 
@@ -89,7 +92,7 @@ pub mod mpsc {
                     Ok(()) => return Ok(()),
                     Err(TrySendError::Full(value)) => {
                         data = value;
-                        crate::runtime::wasm_event_loop_yield().await;
+                        wasm_event_loop_yield().await;
                     }
                     Err(TrySendError::Disconnected(_)) => return Err(SendError::ReceiveClosed),
                 }
@@ -131,7 +134,7 @@ pub mod mpsc {
                 match self.try_recv() {
                     Ok(value) => return Some(value),
                     Err(TryRecvError::Empty) => {
-                        crate::runtime::wasm_event_loop_yield().await;
+                        wasm_event_loop_yield().await;
                     }
                     Err(TryRecvError::Disconnected) => return None,
                 }

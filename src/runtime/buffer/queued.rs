@@ -724,10 +724,12 @@ where
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+    use crate::runtime::block_inbox::LocalBlockInbox;
     use crate::runtime::block_inbox::LocalBlockInboxReader;
+    use crate::runtime::block_on;
     use crate::runtime::buffer::local;
 
-    fn local_inbox() -> crate::runtime::block_inbox::LocalBlockInbox {
+    fn local_inbox() -> LocalBlockInbox {
         let (inbox, _rx) = LocalBlockInboxReader::pair();
         inbox
     }
@@ -750,7 +752,7 @@ mod tests {
         let out = CpuBufferWriter::slice(&mut writer);
         out[..4].copy_from_slice(&[1, 2, 3, 4]);
         CpuBufferWriter::produce(&mut writer, 4);
-        crate::runtime::block_on(BufferWriter::notify_finished(&mut writer));
+        block_on(BufferWriter::notify_finished(&mut writer));
 
         let input = CpuBufferReader::slice(&mut reader);
         assert_eq!(input, &[1, 2, 3, 4]);
@@ -777,7 +779,7 @@ mod tests {
         CpuBufferWriter::produce(&mut writer, 3);
         assert!(CpuBufferReader::slice(&mut reader).is_empty());
 
-        crate::runtime::block_on(BufferWriter::notify_finished(&mut writer));
+        block_on(BufferWriter::notify_finished(&mut writer));
 
         let input = CpuBufferReader::slice(&mut reader);
         assert_eq!(input, &[9, 8, 7]);

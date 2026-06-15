@@ -29,6 +29,8 @@ use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::local_domain_common::LocalDomainMessage;
 use crate::runtime::local_domain_common::LocalRunningState;
 use crate::runtime::scheduler::DomainTopology;
+#[cfg(target_arch = "wasm32")]
+use crate::runtime::yield_now;
 
 /// Scheduler for tasks that run inside one local scheduling domain.
 ///
@@ -402,7 +404,7 @@ impl BasicLocalScheduler {
                 }
 
                 if ran {
-                    crate::runtime::yield_now().await;
+                    yield_now().await;
                 } else {
                     gloo_timers::future::TimeoutFuture::new(1).await;
                 }

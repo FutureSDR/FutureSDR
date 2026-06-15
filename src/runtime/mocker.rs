@@ -5,9 +5,11 @@ use std::ops::DerefMut;
 
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
+use crate::runtime::block_on;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::CpuBufferReader;
@@ -22,9 +24,11 @@ use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
+use crate::runtime::dev::Kernel;
 use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
+use crate::runtime::resolve_port_index;
 use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 
 /// Native test harness for running one block without a [`Runtime`](crate::runtime::Runtime).
@@ -53,7 +57,7 @@ impl<K: KernelInterface + 'static> DerefMut for Mocker<K> {
     }
 }
 
-impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
+impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// Get the block id.
     pub fn id(&self) -> BlockId {
         self.block.id
@@ -116,9 +120,9 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
     /// that should be processed by the work loop.
     pub fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<Pmt, Error> {
         let id = id.into();
-        let port_id = crate::runtime::resolve_port_index(&id, K::message_inputs()).ok_or({
-            Error::InvalidMessagePort(crate::runtime::BlockPortCtx::Id(self.block.id), id)
-        })?;
+        let port_id = resolve_port_index(&id, K::message_inputs()).ok_or(
+            Error::InvalidMessagePort(BlockPortCtx::Id(self.block.id), id),
+        )?;
         let mut io = WorkIo {
             call_again: false,
             finished: false,
@@ -127,7 +131,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
         let NormalWrappedKernel {
             meta, mo, kernel, ..
         } = &mut self.block;
-        crate::runtime::block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))
+        block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))
             .map_err(|e| Error::HandlerError(e.to_string()))
     }
 
@@ -136,12 +140,12 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
     /// The loop repeats while the block sets [`WorkIo::call_again`]. Message
     /// outputs produced during each call are captured before the next iteration.
     pub fn run(&mut self) {
-        crate::runtime::block_on(self.run_async());
+        block_on(self.run_async());
     }
 
     /// Run the block's `init()` method synchronously.
     pub fn init(&mut self) {
-        crate::runtime::block_on(async {
+        block_on(async {
             self.block
                 .kernel
                 .init(&mut self.block.mo, &mut self.block.meta)
@@ -152,7 +156,7 @@ impl<K: KernelInterface + crate::runtime::dev::Kernel + 'static> Mocker<K> {
 
     /// Run the block's `deinit()` method synchronously.
     pub fn deinit(&mut self) {
-        crate::runtime::block_on(async {
+        block_on(async {
             self.block
                 .kernel
                 .deinit(&mut self.block.mo, &mut self.block.meta)

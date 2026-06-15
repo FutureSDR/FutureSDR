@@ -18,6 +18,7 @@ use crate::runtime::Timer;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
+use crate::runtime::resolve_port_index;
 
 #[derive(Debug)]
 pub(crate) struct RunningFlowgraphControl {
@@ -117,7 +118,7 @@ impl FlowgraphHandle {
             .message_inputs
             .get(block_id.0)
             .ok_or(Error::InvalidBlock(block_id))?;
-        crate::runtime::resolve_port_index(&port_id, inputs).ok_or(Error::InvalidMessagePort(
+        resolve_port_index(&port_id, inputs).ok_or(Error::InvalidMessagePort(
             BlockPortCtx::Id(block_id),
             port_id,
         ))

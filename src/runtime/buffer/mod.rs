@@ -39,16 +39,18 @@ use std::any::TypeId;
 use std::fmt::Debug;
 use std::future::Future;
 
+use crate::runtime::BlockId;
+use crate::runtime::BlockMessage;
+use crate::runtime::Error;
+use crate::runtime::PortId;
+use crate::runtime::PortIndex;
 use crate::runtime::block_inbox::BlockInbox;
+use crate::runtime::config::config;
 use crate::runtime::dev::BlockNotifier;
 use crate::runtime::dev::ItemTag;
 use crate::runtime::dev::LocalBlockInbox;
 use crate::runtime::dev::LocalBlockNotifier;
 use crate::runtime::dev::Tag;
-use futuresdr::runtime::BlockId;
-use futuresdr::runtime::Error;
-use futuresdr::runtime::PortId;
-use futuresdr::runtime::PortIndex;
 
 /// Shared stream-port configuration collected before a port is connected.
 ///
@@ -310,19 +312,11 @@ impl BufferInbox for LocalBlockInbox {
     }
 
     async fn stream_input_done(&self, input_id: PortId) -> Result<(), Error> {
-        LocalBlockInbox::send(
-            self,
-            crate::runtime::BlockMessage::StreamInputDone { input_id },
-        )
-        .await
+        LocalBlockInbox::send(self, BlockMessage::StreamInputDone { input_id }).await
     }
 
     async fn stream_output_done(&self, output_id: PortId) -> Result<(), Error> {
-        LocalBlockInbox::send(
-            self,
-            crate::runtime::BlockMessage::StreamOutputDone { output_id },
-        )
-        .await
+        LocalBlockInbox::send(self, BlockMessage::StreamOutputDone { output_id }).await
     }
 }
 
@@ -972,14 +966,14 @@ where
     W: BufferWriter<Mode = ThreadSafeMode> + Default + Send + 'static,
 {
     fn take_send_token(writer: &mut W) -> Result<Box<dyn DynSendBufferWriterToken>, Error> {
-        crate::runtime::buffer::take_send_token(writer)
+        self::take_send_token(writer)
     }
 
     fn replace_send_token(
         writer: &mut W,
         token: Box<dyn DynSendBufferWriterToken>,
     ) -> Result<(), Error> {
-        crate::runtime::buffer::replace_send_token(writer, token)
+        self::replace_send_token(writer, token)
     }
 }
 
@@ -1268,8 +1262,7 @@ pub trait InplaceWriter: BufferWriter + Default {
     fn has_more_buffers(&mut self) -> bool;
     /// Inject new empty buffers using the configured default item capacity.
     fn inject_buffers(&mut self, n_buffers: usize) {
-        let n_items =
-            futuresdr::runtime::config::config().buffer_size / std::mem::size_of::<Self::Item>();
+        let n_items = config().buffer_size / std::mem::size_of::<Self::Item>();
         self.inject_buffers_with_items(n_buffers, n_items);
     }
     /// Inject new empty buffers with an explicit item capacity.

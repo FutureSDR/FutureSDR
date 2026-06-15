@@ -11,6 +11,8 @@ use crate::runtime::Error;
 use crate::runtime::block_inbox::LocalDomainKey;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
+use crate::runtime::config::config;
+use crate::runtime::init;
 use crate::runtime::local_domain_common::IdleDomainAction;
 use crate::runtime::local_domain_common::LocalDomainControllerAccess;
 pub(crate) use crate::runtime::local_domain_common::LocalDomainInbox;
@@ -23,6 +25,7 @@ use crate::runtime::scheduler::LocalDomainRunSpec;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::scheduler::wasm::WasmWorker;
 use crate::runtime::scheduler::wasm::spawn_local_domain_worker;
+use crate::runtime::scheduler::wasm::worker_script;
 
 pub(crate) type LocalDomainRuntime = LocalDomainRuntimeBase<LocalDomainController>;
 
@@ -42,7 +45,7 @@ pub(crate) struct LocalDomainController {
 
 impl LocalDomainController {
     pub(crate) fn new<LS: LocalScheduler>() -> Result<Self, Error> {
-        let (tx, rx) = mpsc::channel(crate::runtime::config::config().queue_size);
+        let (tx, rx) = mpsc::channel(config().queue_size);
         let key = LocalDomainKey::new();
         let terminate = Arc::new(AtomicBool::new(false));
         let init = WasmLocalDomainInit {
@@ -107,7 +110,7 @@ struct WasmLocalDomainInit {
 }
 
 fn default_worker_script() -> String {
-    crate::runtime::scheduler::wasm::worker_script()
+    worker_script()
 }
 
 /// WASM local-domain worker entry point.
@@ -117,7 +120,7 @@ fn default_worker_script() -> String {
 /// domain runtime.
 #[wasm_bindgen]
 pub fn futuresdr_wasm_local_domain_worker_entry(domain_id: usize) {
-    crate::runtime::init();
+    init();
     let init = WASM_LOCAL_DOMAINS.lock().unwrap().try_remove(domain_id);
     if let Some(init) = init {
         wasm_bindgen_futures::spawn_local((init.runner)(init));

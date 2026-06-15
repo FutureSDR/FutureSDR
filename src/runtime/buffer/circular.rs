@@ -20,6 +20,7 @@ use crate::runtime::buffer::PortCore;
 use crate::runtime::buffer::PortEndpoint;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::ThreadSafeMode;
+use crate::runtime::config::config;
 use crate::runtime::dev::ItemTag;
 
 struct MyNotifier<N: BufferNotifier> {
@@ -186,7 +187,7 @@ where
                     std::cmp::max(min_self, min_reader) * size_of::<D>(),
                 )
             } else {
-                std::cmp::max(min_bytes, futuresdr::runtime::config::config().buffer_size)
+                std::cmp::max(min_bytes, config().buffer_size)
             };
 
             while (buffer_size < min_bytes) || !buffer_size.is_multiple_of(size_of::<D>()) {

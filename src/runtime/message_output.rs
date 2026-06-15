@@ -7,6 +7,7 @@ use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::block_inbox::BlockEndpoint;
+use crate::runtime::port_id_matches;
 
 /// Runtime-installed downstream message handler reached through an erased
 /// block endpoint.
@@ -126,7 +127,7 @@ impl MessageOutputs {
         self.outputs
             .iter_mut()
             .enumerate()
-            .find(|(index, item)| crate::runtime::port_id_matches(port, *index, item.name()))
+            .find(|(index, item)| port_id_matches(port, *index, item.name()))
             .map(|(_, item)| item)
     }
 }
@@ -136,6 +137,7 @@ mod tests {
     use super::*;
     use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::block_inbox::BlockNotifier;
+    use crate::runtime::block_on;
     use crate::runtime::channel::mpsc::channel;
 
     #[test]
@@ -147,7 +149,7 @@ mod tests {
         outputs
             .connect(&PortId::from("out"), endpoint, &PortId::index(0))
             .unwrap();
-        crate::runtime::block_on(outputs.post("out", Pmt::U32(7))).unwrap();
+        block_on(outputs.post("out", Pmt::U32(7))).unwrap();
 
         assert!(matches!(
             rx.try_recv().ok(),
@@ -165,7 +167,7 @@ mod tests {
         outputs
             .connect(&PortId::index(0), endpoint, &PortId::index(0))
             .unwrap();
-        crate::runtime::block_on(outputs.post(PortId::index(0), Pmt::U32(7))).unwrap();
+        block_on(outputs.post(PortId::index(0), Pmt::U32(7))).unwrap();
 
         assert!(matches!(
             rx.try_recv().ok(),

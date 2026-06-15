@@ -94,7 +94,7 @@ pub use futuresdr_types::PortName;
 /// A logical directed edge between two block ports.
 ///
 /// Schedulers receive edge values through
-/// [`scheduler::DomainTopology`](crate::runtime::scheduler::DomainTopology) so
+/// [`scheduler::DomainTopology`] so
 /// third-party scheduler implementations can inspect stream and message
 /// topology when making placement decisions. Edge values are immutable graph
 /// metadata; changing graph semantics remains the runtime's responsibility.

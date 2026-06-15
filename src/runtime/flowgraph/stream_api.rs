@@ -4,6 +4,8 @@ use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::PortName;
 use crate::runtime::Result;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 use crate::runtime::buffer::BufferReader;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::SendBufferWriter;
@@ -49,9 +51,7 @@ impl Flowgraph {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        crate::runtime::block_on(
-            self.stream_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
-        )
+        block_on(self.stream_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port))
     }
 
     /// Async counterpart to [`Flowgraph::stream`].
@@ -93,7 +93,8 @@ impl Flowgraph {
 
     /// Connect local-only stream ports through typed block handles owned by this flowgraph.
     ///
-    /// This only accepts two local-domain blocks in the same [`LocalDomain`].
+    /// This only accepts two local-domain blocks in the same
+    /// [`LocalDomain`](crate::runtime::LocalDomain).
     /// Use this for non-`Send` stream buffers such as
     /// [`LocalCpuWriter`](crate::runtime::buffer::LocalCpuWriter).
     #[cfg(not(target_arch = "wasm32"))]
@@ -111,7 +112,7 @@ impl Flowgraph {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        crate::runtime::block_on(
+        block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
         )
     }
@@ -194,12 +195,7 @@ impl Flowgraph {
         dst_block_id: impl Into<BlockId>,
         dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
-        crate::runtime::block_on(self.stream_dyn_async(
-            src_block_id,
-            src_port_id,
-            dst_block_id,
-            dst_port_id,
-        ))
+        block_on(self.stream_dyn_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
     }
 
     /// Async counterpart to [`Flowgraph::stream_dyn`].
@@ -227,7 +223,8 @@ impl Flowgraph {
 
     /// Connect local-only stream ports without static port type checks.
     ///
-    /// This only accepts two local-domain blocks in the same [`LocalDomain`].
+    /// This only accepts two local-domain blocks in the same
+    /// [`LocalDomain`](crate::runtime::LocalDomain).
     /// Use [`Flowgraph::stream_dyn`] for send-capable/default dynamic stream
     /// connections that involve normal runtime blocks.
     #[cfg(not(target_arch = "wasm32"))]
@@ -238,12 +235,7 @@ impl Flowgraph {
         dst_block_id: impl Into<BlockId>,
         dst_port_id: impl Into<PortName>,
     ) -> Result<(), Error> {
-        crate::runtime::block_on(self.stream_local_dyn_async(
-            src_block_id,
-            src_port_id,
-            dst_block_id,
-            dst_port_id,
-        ))
+        block_on(self.stream_local_dyn_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
     }
 
     /// Async counterpart to [`Flowgraph::stream_local_dyn`].

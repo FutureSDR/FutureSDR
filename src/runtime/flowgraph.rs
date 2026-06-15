@@ -14,14 +14,19 @@ use crate::runtime::block::Block;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::LocalBlockAddr;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 use crate::runtime::buffer::PortDirection;
 use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::Kernel;
 use crate::runtime::dev::SendKernel;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
+use crate::runtime::kernel_interface::stream_input_manifest;
+use crate::runtime::kernel_interface::stream_output_manifest;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::resolve_port_index;
 use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
@@ -350,7 +355,7 @@ impl Flowgraph {
         LS: LocalScheduler,
         R: Send + 'static,
     {
-        crate::runtime::block_on(
+        block_on(
             self.domain_run_async(domain, async move |ctx: &LocalDomainContext<'_, LS>| f(ctx)),
         )
     }
@@ -431,7 +436,7 @@ impl Flowgraph {
     {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            crate::runtime::block_on(self.add_async(block))
+            block_on(self.add_async(block))
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -471,11 +476,9 @@ impl Flowgraph {
         let stream_inputs = b.stream_inputs().to_vec();
         let stream_outputs = b.stream_outputs().to_vec();
         let stream_input_manifest =
-            crate::runtime::kernel_interface::stream_input_manifest(&mut b.kernel)
-                .expect("failed to collect stream input manifest");
-        let stream_output_manifest =
-            crate::runtime::kernel_interface::stream_output_manifest(&mut b.kernel)
-                .expect("failed to collect stream output manifest");
+            stream_input_manifest(&mut b.kernel).expect("failed to collect stream input manifest");
+        let stream_output_manifest = stream_output_manifest(&mut b.kernel)
+            .expect("failed to collect stream output manifest");
         self.add_normal_block(
             Box::new(b),
             inbox,
@@ -572,7 +575,7 @@ impl Flowgraph {
     where
         K: Kernel + KernelInterface + 'static,
     {
-        crate::runtime::block_on(self.add_kernel_to_domain_async(domain_id, block))
+        block_on(self.add_kernel_to_domain_async(domain_id, block))
     }
 
     async fn add_kernel_to_domain_async<K>(
@@ -826,7 +829,7 @@ impl Flowgraph {
     }
 
     pub(super) fn indexed_message_edge(&self, edge: &Edge) -> Result<Edge, Error> {
-        let src_port = crate::runtime::resolve_port_index(
+        let src_port = resolve_port_index(
             &edge.src_port,
             self.block_slot(edge.src_block)?.message_outputs(),
         )
@@ -834,7 +837,7 @@ impl Flowgraph {
         .ok_or_else(|| {
             Error::InvalidMessagePort(BlockPortCtx::Id(edge.src_block), edge.src_port.clone())
         })?;
-        let dst_port = crate::runtime::resolve_port_index(
+        let dst_port = resolve_port_index(
             &edge.dst_port,
             self.block_slot(edge.dst_block)?.message_inputs(),
         )

@@ -33,6 +33,11 @@ use crate::runtime::dev::SendKernel;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
+use crate::runtime::kernel_interface::stream_input;
+use crate::runtime::kernel_interface::stream_input_finish;
+use crate::runtime::kernel_interface::stream_output;
+use crate::runtime::kernel_interface::stream_ports_init;
+use crate::runtime::kernel_interface::stream_ports_validate;
 
 pub(crate) type NormalWrappedKernel<K> = WrappedKernel<K, ThreadSafeInbox>;
 pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalBlockInboxes>;
@@ -189,7 +194,7 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
     /// Create typed block wrapper.
     pub(crate) fn new(mut kernel: K, id: BlockId) -> Self {
         let inbox = ThreadSafeInbox::new();
-        crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
+        stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)
     }
@@ -204,7 +209,7 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
         external: BlockEndpoint,
     ) -> Self {
         let inbox = LocalBlockInboxes::new(external);
-        crate::runtime::kernel_interface::stream_ports_init(&mut kernel, id, inbox.init_arg())
+        stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)
     }
@@ -286,7 +291,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
                 }
             }
             BlockMessage::StreamInputDone { input_id } => {
-                crate::runtime::kernel_interface::stream_input_finish(kernel, input_id)?;
+                stream_input_finish(kernel, input_id)?;
             }
             BlockMessage::StreamOutputDone { .. } => {
                 work_io.finished = true;
@@ -351,7 +356,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     {
         let instance_name = meta.instance_name().unwrap_or(K::type_name()).to_owned();
 
-        crate::runtime::kernel_interface::stream_ports_validate(kernel)?;
+        stream_ports_validate(kernel)?;
 
         let mut work_io = WorkIo {
             call_again: true,
@@ -525,10 +530,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         Ok(self.stream_outputs.clone())
     }
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
-        crate::runtime::kernel_interface::stream_input(&mut self.kernel, id)
+        stream_input(&mut self.kernel, id)
     }
     fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
-        crate::runtime::kernel_interface::stream_output(&mut self.kernel, id)
+        stream_output(&mut self.kernel, id)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {

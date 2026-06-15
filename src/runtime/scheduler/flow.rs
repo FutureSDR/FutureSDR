@@ -23,6 +23,8 @@ use std::task::Waker;
 use std::thread;
 
 use crate::runtime::BlockId;
+use crate::runtime::Error;
+use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::NormalDomainSpec;
@@ -98,7 +100,7 @@ impl FlowScheduler {
                     debug!("starting executor thread on core id {}", id.id);
                     core_affinity::set_for_current(id);
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        crate::runtime::block_on(e.run_on(worker_index, async {
+                        block_on(e.run_on(worker_index, async {
                             b.wait().await;
                             receiver.await
                         }))
@@ -113,7 +115,7 @@ impl FlowScheduler {
             workers.push((handle, sender));
         }
 
-        crate::runtime::block_on(barrier.wait());
+        block_on(barrier.wait());
 
         FlowScheduler {
             inner: Arc::new(FlowSchedulerInner {
@@ -139,10 +141,7 @@ impl FlowScheduler {
 }
 
 impl Scheduler for FlowScheduler {
-    fn start_normal_domain(
-        &self,
-        spec: NormalDomainSpec,
-    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let mut spec = spec;
         let block_order = spec.topology().blocks().to_vec();
         let block_ids = spec.blocks().collect::<Vec<_>>();

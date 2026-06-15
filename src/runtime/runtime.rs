@@ -20,6 +20,7 @@ use crate::runtime::TerminatedFlowgraph;
 use crate::runtime::channel::mpsc::channel;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
+use crate::runtime::flowgraph::run_flowgraph;
 use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
@@ -340,7 +341,7 @@ async fn start_flowgraph<S: Scheduler>(
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
     let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
     let scheduler_clone = scheduler.clone();
-    let task = scheduler.spawn(crate::runtime::flowgraph::run_flowgraph(
+    let task = scheduler.spawn(run_flowgraph(
         fg,
         scheduler_clone,
         fg_inbox.clone(),

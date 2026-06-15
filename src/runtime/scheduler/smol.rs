@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use std::thread;
 
 use crate::runtime::Error;
+use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::NormalDomainSpec;
@@ -85,7 +86,7 @@ impl SmolScheduler {
                         core_affinity::set_for_current(c);
                     }
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        crate::runtime::block_on(e.run(receiver))
+                        block_on(e.run(receiver))
                     }));
                     if result.is_err() {
                         eprintln!("smol worker panicked {result:?}");
@@ -145,7 +146,7 @@ mod test {
         let _ = SmolScheduler::default();
         let s = SmolScheduler::default();
         let t = s.spawn(async { 1 + 1 });
-        let r = crate::runtime::block_on(t);
+        let r = block_on(t);
         assert_eq!(r, 2);
     }
 }

@@ -2,6 +2,8 @@ use crate::runtime::BlockId;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Result;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 
 use super::BlockSlot;
 use super::Flowgraph;
@@ -95,7 +97,7 @@ impl TerminatedFlowgraph {
         K: 'static,
         R: Send + 'static,
     {
-        crate::runtime::block_on(self.with_async(block, f))
+        block_on(self.with_async(block, f))
     }
 
     /// Async counterpart to [`Self::with`].
@@ -132,7 +134,7 @@ impl TerminatedFlowgraph {
         K: 'static,
         R: Send + 'static,
     {
-        crate::runtime::block_on(self.with_mut_async(block, f))
+        block_on(self.with_mut_async(block, f))
     }
 
     /// Async counterpart to [`Self::with_mut`].

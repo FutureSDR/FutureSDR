@@ -19,6 +19,7 @@ use crate::runtime::BlockMessage;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::channel::mpsc;
+use crate::runtime::config::config;
 use crate::runtime::local_domain::LocalDomainInbox;
 
 static NEXT_LOCAL_DOMAIN_KEY: AtomicUsize = AtomicUsize::new(0);
@@ -147,7 +148,7 @@ impl Future for Notified {
 ///
 /// Buffer implementations use this handle to wake a block or report stream
 /// finish notifications. Runtime/control/message ingress uses the
-/// runtime-internal [`BlockEndpoint`] routing handle instead.
+/// runtime-internal `BlockEndpoint` routing handle instead.
 #[derive(Clone, Debug)]
 pub struct BlockInbox {
     tx: mpsc::Sender<BlockMessage>,
@@ -402,7 +403,7 @@ pub struct LocalBlockInbox(Rc<LocalInboxState>);
 
 impl LocalInboxState {
     fn new(notifier: LocalBlockNotifier) -> Self {
-        let queue = VecDeque::with_capacity(crate::runtime::config::config().queue_size);
+        let queue = VecDeque::with_capacity(config().queue_size);
         let capacity = queue.capacity();
         Self {
             queue: RefCell::new(queue),

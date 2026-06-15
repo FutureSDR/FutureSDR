@@ -23,11 +23,14 @@ use web_sys::Worker;
 use web_sys::WorkerOptions;
 use web_sys::WorkerType;
 
+use crate::runtime::Error;
+use crate::runtime::init;
 use crate::runtime::scheduler::NormalDomainSpec;
 use crate::runtime::scheduler::NormalRunningDomain;
 use crate::runtime::scheduler::RunnableBlock;
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::scheduler::StoppedBlock;
+use crate::runtime::yield_now;
 
 static WASM_EXECUTORS: once_cell::sync::Lazy<Mutex<Slab<Arc<WasmExecutor>>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(Slab::new()));
@@ -99,7 +102,7 @@ impl WasmWorker {
 /// scheduler.
 #[wasm_bindgen]
 pub fn futuresdr_wasm_scheduler_worker_entry(executor_id: usize, worker_index: usize) {
-    crate::runtime::init();
+    init();
     let executor = WASM_EXECUTORS.lock().unwrap().get(executor_id).cloned();
     if let Some(executor) = executor {
         wasm_bindgen_futures::spawn_local(async move {
@@ -201,10 +204,7 @@ impl WasmScheduler {
 }
 
 impl Scheduler for WasmScheduler {
-    fn start_normal_domain(
-        &self,
-        spec: NormalDomainSpec,
-    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let mut spec = spec;
         let block_ids = spec.blocks().collect::<Vec<_>>();
         let n_blocks = block_ids.len();
@@ -252,10 +252,7 @@ impl WasmMainScheduler {
 }
 
 impl Scheduler for WasmMainScheduler {
-    fn start_normal_domain(
-        &self,
-        spec: NormalDomainSpec,
-    ) -> Result<NormalRunningDomain, crate::runtime::Error> {
+    fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let mut spec = spec;
         let block_ids = spec.blocks().collect::<Vec<_>>();
         let mut tasks = Vec::with_capacity(block_ids.len());
@@ -471,7 +468,7 @@ impl WasmExecutor {
             }
 
             if ran {
-                crate::runtime::yield_now().await;
+                yield_now().await;
             } else {
                 TimeoutFuture::new(1).await;
             }

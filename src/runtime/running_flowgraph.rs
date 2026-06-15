@@ -1,18 +1,22 @@
-use crate::runtime;
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::Error;
+use crate::runtime::FlowgraphBlockHandle;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphHandle;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphTask;
 use crate::runtime::Pmt;
+use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::PortName;
 use crate::runtime::Result;
 use crate::runtime::TerminatedFlowgraph;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 
-/// A running [`Flowgraph`] together with its control handle and completion task.
+/// A running [`Flowgraph`](crate::runtime::Flowgraph) together with its control
+/// handle and completion task.
 ///
 /// This value is returned by [`Runtime::start_async`](crate::runtime::Runtime::start_async)
 /// and by `Runtime::start` on native targets.
@@ -33,7 +37,7 @@ impl RunningFlowgraph {
         Self { handle, task }
     }
 
-    /// Get a clonable handle to the running [`Flowgraph`].
+    /// Get a clonable handle to the running [`Flowgraph`](crate::runtime::Flowgraph).
     pub fn handle(&self) -> FlowgraphHandle {
         self.handle.clone()
     }
@@ -44,7 +48,7 @@ impl RunningFlowgraph {
     }
 
     /// Get a control handle scoped to one block in the running flowgraph.
-    pub fn block(&self, block_id: impl Into<BlockId>) -> runtime::FlowgraphBlockHandle {
+    pub fn block(&self, block_id: impl Into<BlockId>) -> FlowgraphBlockHandle {
         self.handle.block(block_id)
     }
 
@@ -64,7 +68,7 @@ impl RunningFlowgraph {
     /// Block until the flowgraph terminates and return the final [`TerminatedFlowgraph`].
     #[cfg(not(target_arch = "wasm32"))]
     pub fn wait(self) -> Result<TerminatedFlowgraph, Error> {
-        crate::runtime::block_on(self.wait_async())
+        block_on(self.wait_async())
     }
 
     /// Resolve a message input name to its dense per-block index.
@@ -80,7 +84,7 @@ impl RunningFlowgraph {
     pub async fn post(
         &self,
         block_id: impl Into<BlockId>,
-        port_id: impl Into<crate::runtime::PortId>,
+        port_id: impl Into<PortId>,
         data: Pmt,
     ) -> Result<(), Error> {
         self.handle.post(block_id, port_id, data).await
@@ -90,7 +94,7 @@ impl RunningFlowgraph {
     pub async fn call(
         &self,
         block_id: impl Into<BlockId>,
-        port_id: impl Into<crate::runtime::PortId>,
+        port_id: impl Into<PortId>,
         data: Pmt,
     ) -> Result<Pmt, Error> {
         self.handle.call(block_id, port_id, data).await

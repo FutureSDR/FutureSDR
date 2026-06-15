@@ -531,6 +531,7 @@ mod tests {
     use crate::runtime::PortId;
     use crate::runtime::PortIndex;
     use crate::runtime::block_inbox::BlockEndpoint;
+    use crate::runtime::block_inbox::BlockInbox;
     use crate::runtime::buffer::DynBufferReader;
     use crate::runtime::buffer::DynBufferWriter;
     use crate::runtime::channel::mpsc::Sender;
@@ -549,7 +550,7 @@ mod tests {
         }
 
         fn inbox(&self) -> BlockEndpoint {
-            crate::runtime::block_inbox::BlockInbox::default().into()
+            BlockInbox::default().into()
         }
 
         fn id(&self) -> BlockId {

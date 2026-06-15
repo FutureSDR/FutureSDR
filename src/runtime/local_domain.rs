@@ -2,6 +2,7 @@ use std::thread;
 
 use crate::runtime::Error;
 use crate::runtime::block_inbox::LocalDomainKey;
+use crate::runtime::block_on;
 use crate::runtime::channel::mpsc;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
@@ -39,11 +40,6 @@ pub(crate) struct LocalDomainController {
 }
 
 impl LocalDomainController {
-    #[cfg(test)]
-    pub(crate) fn new() -> Result<Self, Error> {
-        Self::new_pinned::<crate::runtime::scheduler::BasicLocalScheduler>(None)
-    }
-
     pub(crate) fn new_pinned<LS: LocalScheduler>(cpuid: Option<usize>) -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(config::config().queue_size);
         let key = LocalDomainKey::new();
@@ -62,7 +58,7 @@ impl LocalDomainController {
                         warn!("failed to pin local domain thread to core id {}", cpuid);
                     }
                 }
-                crate::runtime::block_on(run_domain_thread::<LS>(rx, terminate_rx, key))
+                block_on(run_domain_thread::<LS>(rx, terminate_rx, key))
             })
             .map_err(|e| {
                 Error::RuntimeError(format!("failed to spawn local domain thread: {e}"))
@@ -168,6 +164,8 @@ mod tests {
     use crate::runtime::buffer::DynBufferReader;
     use crate::runtime::buffer::DynBufferWriter;
     use crate::runtime::local_domain_common::build_local_block;
+    use crate::runtime::scheduler::BasicLocalScheduler;
+    use crate::runtime::scheduler::DomainTopology;
 
     struct WaitForTerminate {
         id: BlockId,
@@ -267,9 +265,9 @@ mod tests {
 
     #[test]
     fn controller_drop_terminates_running_local_blocks() -> Result<(), Error> {
-        let controller = LocalDomainController::new()?;
+        let controller = LocalDomainController::new_pinned::<BasicLocalScheduler>(None)?;
         let (started_tx, started_rx) = oneshot::channel();
-        crate::runtime::block_on(build_local_block(
+        block_on(build_local_block(
             &controller.tx,
             0,
             Box::new(|| {
@@ -284,19 +282,18 @@ mod tests {
                 })
             }),
         ))?;
-        let (main_tx, _main_rx) = crate::runtime::channel::mpsc::channel(4);
+        let (main_tx, _main_rx) = mpsc::channel(4);
         let run = LocalDomainInbox::new(controller.tx.clone(), controller.key).start_run(
             0,
             vec![(BlockId(0), 0)],
-            crate::runtime::scheduler::DomainTopology::new(vec![BlockId(0)], vec![], vec![]),
+            DomainTopology::new(vec![BlockId(0)], vec![], vec![]),
             main_tx,
         )?;
 
-        crate::runtime::block_on(started_rx)
+        block_on(started_rx)
             .map_err(|_| Error::RuntimeError("local block did not start".to_string()))?;
         drop(controller);
 
-        crate::runtime::block_on(run)
-            .map_err(|_| Error::RuntimeError("local domain task canceled".to_string()))?
+        block_on(run).map_err(|_| Error::RuntimeError("local domain task canceled".to_string()))?
     }
 }

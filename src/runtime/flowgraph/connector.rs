@@ -101,7 +101,7 @@ impl<'a> FlowgraphConnector<'a> {
 
         let reader = dst_block.stream_input(&dst_port_id).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(dst_block_id), port)
+                Error::InvalidStreamPort(BlockPortCtx::Id(dst_block_id), port)
             }
             o => o,
         })?;
@@ -109,7 +109,7 @@ impl<'a> FlowgraphConnector<'a> {
 
         let writer = src_block.stream_output(&src_port_id).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+                Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
             }
             o => o,
         })?;
@@ -117,7 +117,7 @@ impl<'a> FlowgraphConnector<'a> {
 
         writer.connect_dyn(reader).map_err(|e| match e {
             Error::InvalidStreamPort(_, port) => {
-                Error::InvalidStreamPort(crate::runtime::BlockPortCtx::Id(src_block_id), port)
+                Error::InvalidStreamPort(BlockPortCtx::Id(src_block_id), port)
             }
             o => o,
         })?;

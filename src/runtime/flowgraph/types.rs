@@ -8,9 +8,12 @@ use crate::runtime::BlockPortCtx;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
+use crate::runtime::PortId;
 use crate::runtime::PortIndex;
 use crate::runtime::PortName;
 use crate::runtime::Result;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::kernel_interface::KernelInterface;
 
@@ -49,12 +52,8 @@ impl<K> TypedBlockGuard<'_, K> {
         K: KernelInterface,
     {
         let name = name.into();
-        K::message_input_id(name.clone()).ok_or_else(|| {
-            Error::InvalidMessagePort(
-                BlockPortCtx::Id(self.id),
-                crate::runtime::PortId::from(name),
-            )
-        })
+        K::message_input_id(name.clone())
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
     }
 
     /// Get block metadata.
@@ -88,12 +87,8 @@ impl<K> TypedBlockGuardMut<'_, K> {
         K: KernelInterface,
     {
         let name = name.into();
-        K::message_input_id(name.clone()).ok_or_else(|| {
-            Error::InvalidMessagePort(
-                BlockPortCtx::Id(self.id),
-                crate::runtime::PortId::from(name),
-            )
-        })
+        K::message_input_id(name.clone())
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
     }
 
     /// Get block metadata.
@@ -228,12 +223,8 @@ impl<K: KernelInterface> BlockRef<K> {
     /// Resolve a message input name to this block type's dense port index.
     pub fn message_input_id(&self, name: impl Into<PortName>) -> Result<PortIndex, Error> {
         let name = name.into();
-        K::message_input_id(name.clone()).ok_or_else(|| {
-            Error::InvalidMessagePort(
-                BlockPortCtx::Id(self.id),
-                crate::runtime::PortId::from(name),
-            )
-        })
+        K::message_input_id(name.clone())
+            .ok_or_else(|| Error::InvalidMessagePort(BlockPortCtx::Id(self.id), PortId::from(name)))
     }
 }
 
@@ -242,7 +233,8 @@ impl<K: 'static> BlockRef<K> {
     ///
     /// This is a convenience wrapper around [`Flowgraph::block`]. It can only
     /// access a block while the construction flowgraph owns its block instances,
-    /// i.e. before startup. Use [`TerminatedFlowgraph::block`] after runtime
+    /// i.e. before startup. Use
+    /// [`TerminatedFlowgraph::block`](crate::runtime::TerminatedFlowgraph::block) after runtime
     /// execution has stopped.
     pub fn get<'a>(&self, fg: &'a Flowgraph) -> Result<TypedBlockGuard<'a, K>, Error> {
         fg.block(self)
@@ -261,7 +253,7 @@ impl<K: 'static> BlockRef<K> {
     where
         R: Send + 'static,
     {
-        crate::runtime::block_on(self.with_async(fg, f))
+        block_on(self.with_async(fg, f))
     }
 
     /// Asynchronously access the typed block through the given [`Flowgraph`].
@@ -296,7 +288,7 @@ impl<K: 'static> BlockRef<K> {
     where
         R: Send + 'static,
     {
-        crate::runtime::block_on(self.with_mut_async(fg, f))
+        block_on(self.with_mut_async(fg, f))
     }
 
     /// Asynchronously mutably access the typed block through the given [`Flowgraph`].

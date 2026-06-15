@@ -11,12 +11,17 @@ use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::block_inbox::LocalBlockAddr;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
 use crate::runtime::buffer::BufferWriter;
 use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
+use crate::runtime::kernel_interface::stream_input_manifest;
+use crate::runtime::kernel_interface::stream_output_manifest;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::local_domain_common::LocalDomainState;
+use crate::runtime::resolve_port_name;
 use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
@@ -214,12 +219,10 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         let stream_outputs = block
             .stream_output_names()
             .expect("failed to collect stream output manifest");
-        let stream_input_manifest =
-            crate::runtime::kernel_interface::stream_input_manifest(&mut block.kernel)
-                .expect("failed to collect stream input manifest");
-        let stream_output_manifest =
-            crate::runtime::kernel_interface::stream_output_manifest(&mut block.kernel)
-                .expect("failed to collect stream output manifest");
+        let stream_input_manifest = stream_input_manifest(&mut block.kernel)
+            .expect("failed to collect stream input manifest");
+        let stream_output_manifest = stream_output_manifest(&mut block.kernel)
+            .expect("failed to collect stream output manifest");
         inner
             .state
             .insert_block(local_id, Box::new(block))
@@ -259,7 +262,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
         FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
     {
-        crate::runtime::block_on(
+        block_on(
             self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
         )
     }
@@ -355,12 +358,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         dst_block_id: impl Into<BlockId>,
         dst_port_id: impl Into<PortId>,
     ) -> Result<(), Error> {
-        crate::runtime::block_on(self.message_async(
-            src_block_id,
-            src_port_id,
-            dst_block_id,
-            dst_port_id,
-        ))
+        block_on(self.message_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
     }
 
     /// Asynchronously connect message ports between local blocks in this domain context.
@@ -387,15 +385,13 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .ok_or(Error::InvalidBlock(dst_block_id))?;
 
         let dst_block = inner.state.block(dst_local, dst_block_id)?;
-        let dst_port_id =
-            crate::runtime::resolve_port_name(&dst_port_id, dst_block.message_inputs()).ok_or(
-                Error::InvalidMessagePort(BlockPortCtx::Id(dst_block_id), dst_port_id),
-            )?;
+        let dst_port_id = resolve_port_name(&dst_port_id, dst_block.message_inputs()).ok_or(
+            Error::InvalidMessagePort(BlockPortCtx::Id(dst_block_id), dst_port_id),
+        )?;
         let src_block = inner.state.block(src_local, src_block_id)?;
-        let src_port_id =
-            crate::runtime::resolve_port_name(&src_port_id, src_block.message_outputs()).ok_or(
-                Error::InvalidMessagePort(BlockPortCtx::Id(src_block_id), src_port_id),
-            )?;
+        let src_port_id = resolve_port_name(&src_port_id, src_block.message_outputs()).ok_or(
+            Error::InvalidMessagePort(BlockPortCtx::Id(src_block_id), src_port_id),
+        )?;
         inner.message_edges.push(Edge::new(
             src_block_id,
             src_port_id,

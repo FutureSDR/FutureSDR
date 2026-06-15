@@ -7,6 +7,7 @@ use crate::runtime::dev::SendKernel;
 use crate::runtime::flowgraph::LocalDomainContext;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::SendKernelInterface;
+use crate::runtime::scheduler::LocalScheduler;
 
 #[doc(hidden)]
 pub trait AddToFlowgraph<B> {
@@ -37,7 +38,7 @@ impl<K: 'static> AddToFlowgraph<BlockRef<K>> for &mut Flowgraph {
 
 impl<'ctx, 'borrow, LS, K> AddToFlowgraph<K> for &'borrow LocalDomainContext<'ctx, LS>
 where
-    LS: crate::runtime::scheduler::LocalScheduler,
+    LS: LocalScheduler,
     K: Kernel + KernelInterface + 'static,
 {
     type Added = BlockRef<K>;
@@ -50,7 +51,7 @@ where
 impl<'ctx, 'borrow, LS, K: 'static> AddToFlowgraph<BlockRef<K>>
     for &'borrow LocalDomainContext<'ctx, LS>
 where
-    LS: crate::runtime::scheduler::LocalScheduler,
+    LS: LocalScheduler,
 {
     type Added = BlockRef<K>;
 

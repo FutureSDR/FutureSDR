@@ -34,11 +34,13 @@ use tower_service::Service as TowerService;
 
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
+use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
 use crate::runtime::FlowgraphId;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
 use crate::runtime::RuntimeHandle;
+use crate::runtime::block_on;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::scheduler::Scheduler;
@@ -117,15 +119,13 @@ async fn handler_id_post<S: Scheduler + Sync>(
         .map_err(status_from_error)
 }
 
-fn status_from_error(error: crate::runtime::Error) -> StatusCode {
+fn status_from_error(error: Error) -> StatusCode {
     match error {
-        crate::runtime::Error::FlowgraphTerminated | crate::runtime::Error::BlockTerminated => {
-            StatusCode::GONE
-        }
-        crate::runtime::Error::InvalidBlock(_)
-        | crate::runtime::Error::InvalidMessagePort(_, _)
-        | crate::runtime::Error::InvalidStreamPort(_, _)
-        | crate::runtime::Error::InvalidParameter => StatusCode::BAD_REQUEST,
+        Error::FlowgraphTerminated | Error::BlockTerminated => StatusCode::GONE,
+        Error::InvalidBlock(_)
+        | Error::InvalidMessagePort(_, _)
+        | Error::InvalidStreamPort(_, _)
+        | Error::InvalidParameter => StatusCode::BAD_REQUEST,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -213,7 +213,7 @@ impl<S> Drop for ControlPort<S> {
         }
 
         if let Some(task) = self.task.take() {
-            crate::runtime::block_on(task);
+            block_on(task);
         }
     }
 }
@@ -507,7 +507,7 @@ mod tests {
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
         let task = scheduler.spawn(run_server(addr, app, scheduler.clone(), rx_shutdown));
 
-        crate::runtime::block_on(async move {
+        block_on(async move {
             let deadline = Instant::now() + Duration::from_secs(2);
             let mut stream = loop {
                 match async_net::TcpStream::connect(addr).await {

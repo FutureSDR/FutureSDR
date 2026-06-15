@@ -4,6 +4,9 @@ use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::PortId;
 use crate::runtime::Result;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::runtime::block_on;
+use crate::runtime::resolve_port_name;
 
 use super::BlockSlot;
 use super::Flowgraph;
@@ -23,12 +26,7 @@ impl Flowgraph {
         dst_block_id: impl Into<BlockId>,
         dst_port_id: impl Into<PortId>,
     ) -> Result<(), Error> {
-        crate::runtime::block_on(self.message_async(
-            src_block_id,
-            src_port_id,
-            dst_block_id,
-            dst_port_id,
-        ))
+        block_on(self.message_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
     }
 
     /// Async counterpart to [`Flowgraph::message`].
@@ -55,7 +53,7 @@ impl Flowgraph {
         port_id: PortId,
         ports: &[&str],
     ) -> Result<PortId, Error> {
-        crate::runtime::resolve_port_name(&port_id, ports).ok_or(Error::InvalidMessagePort(
+        resolve_port_name(&port_id, ports).ok_or(Error::InvalidMessagePort(
             BlockPortCtx::Id(block_id),
             port_id,
         ))
