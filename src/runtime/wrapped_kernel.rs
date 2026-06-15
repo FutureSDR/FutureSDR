@@ -171,7 +171,6 @@ impl WrappedKernelInbox for LocalBlockInboxes {
 }
 
 /// Typed block wrapper around a concrete kernel instance.
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     /// Block metadata
     pub(crate) meta: BlockMeta,
@@ -189,7 +188,6 @@ pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
     pub(crate) inbox: I,
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
     /// Create typed block wrapper.
     pub(crate) fn new(mut kernel: K, id: BlockId) -> Self {
@@ -200,7 +198,6 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     /// Create typed block wrapper with an explicit external inbox.
     pub(crate) fn new_local_with_external(
@@ -215,7 +212,6 @@ impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     fn with_inbox(mut kernel: K, id: BlockId, inbox: I) -> Self {
         let mut stream_inputs = Vec::new();
