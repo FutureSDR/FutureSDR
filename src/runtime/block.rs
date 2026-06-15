@@ -30,6 +30,8 @@ pub(crate) trait BlockObject: Any {
     fn inbox(&self) -> BlockEndpoint;
     /// Get the block id.
     fn id(&self) -> BlockId;
+    /// Get the static type name of the block.
+    fn type_name(&self) -> &str;
 
     /// Get stream input port names declared by this block.
     fn stream_input_names(&mut self) -> Result<Vec<String>, Error>;
@@ -50,9 +52,6 @@ pub(crate) trait BlockObject: Any {
         dst: BlockEndpoint,
         dst_port: PortIndex,
     ) -> Result<(), Error>;
-
-    /// Get the static type name of the block.
-    fn type_name(&self) -> &str;
 }
 
 /// Internal object-safe interface for normal-domain wrapped kernel instances.
