@@ -573,8 +573,7 @@ where
                 let instance_name = self
                     .meta
                     .instance_name()
-                    .unwrap_or("<instance name not set>")
-                    .to_string();
+                    .unwrap_or("<instance name not set>");
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockError {
@@ -609,8 +608,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
                 let instance_name = self
                     .meta
                     .instance_name()
-                    .unwrap_or("<instance name not set>")
-                    .to_string();
+                    .unwrap_or("<instance name not set>");
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockError {
