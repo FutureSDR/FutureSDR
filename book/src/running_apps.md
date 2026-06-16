@@ -30,7 +30,6 @@ The available options are:
 - `queue_size`: number of messages that fit into a block’s inbox
 - `buffer_size`: default minimum size of a stream buffer in bytes
 - `stack_size`: stack size (in bytes) for all threads
-- `slab_reserved`: number of items a Slab buffer copies into the next buffer
 - `log_level`: one of `off`, `info`, `warn`, `error`, `debug`, or `trace`
 - `ctrlport_enable`: whether control port should be enabled (`true` or
   `false`; requires the `ctrl_port` Cargo feature, enabled by default)

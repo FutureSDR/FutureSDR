@@ -77,35 +77,7 @@ fn init_config() -> Config {
         Ok(settings) => match settings.collect() {
             Ok(config) => {
                 for (k, v) in config.iter() {
-                    match k.as_str() {
-                        "queue_size" => {
-                            c.queue_size = config_parse::<usize>(v);
-                        }
-                        "buffer_size" => {
-                            c.buffer_size = config_parse::<usize>(v);
-                        }
-                        "stack_size" => {
-                            c.stack_size = config_parse::<usize>(v);
-                        }
-                        "slab_reserved" => {
-                            c.slab_reserved = config_parse::<usize>(v);
-                        }
-                        "log_level" => {
-                            c.log_level = config_parse::<LevelFilter>(v);
-                        }
-                        "ctrlport_enable" => {
-                            c.ctrlport_enable = config_parse::<bool>(v);
-                        }
-                        "ctrlport_bind" => {
-                            c.ctrlport_bind = v.to_string();
-                        }
-                        "frontend_path" => {
-                            c.frontend_path = Some(config_parse::<PathBuf>(v));
-                        }
-                        _ => {
-                            c.misc.insert(k.clone(), v.clone());
-                        }
-                    }
+                    c.set_value(k.clone(), v.clone());
                 }
             }
             Err(e) => warn!("error parsing config {e:?}"),
@@ -131,8 +103,6 @@ pub struct Config {
     pub buffer_size: usize,
     /// Stack size for scheduler and local-domain threads.
     pub stack_size: usize,
-    /// Reserved look-ahead items for queue-backed CPU buffers.
-    pub slab_reserved: usize,
     /// Default tracing log level.
     pub log_level: LevelFilter,
     /// Whether to start the native HTTP control port.
@@ -151,28 +121,40 @@ impl Config {
 
         match name.as_str() {
             "queue_size" => {
-                self.queue_size = config_parse::<usize>(&value);
+                if let Some(value) = config_parse::<usize>(&name, &value) {
+                    self.queue_size = value;
+                }
             }
             "buffer_size" => {
-                self.buffer_size = config_parse::<usize>(&value);
+                if let Some(value) = config_parse::<usize>(&name, &value) {
+                    self.buffer_size = value;
+                }
             }
             "stack_size" => {
-                self.stack_size = config_parse::<usize>(&value);
-            }
-            "slab_reserved" => {
-                self.slab_reserved = config_parse::<usize>(&value);
+                if let Some(value) = config_parse::<usize>(&name, &value) {
+                    self.stack_size = value;
+                }
             }
             "log_level" => {
-                self.log_level = config_parse::<LevelFilter>(&value);
+                if let Some(value) = config_parse::<LevelFilter>(&name, &value) {
+                    self.log_level = value;
+                }
             }
             "ctrlport_enable" => {
-                self.ctrlport_enable = config_parse::<bool>(&value);
+                if let Some(value) = config_parse::<bool>(&name, &value) {
+                    self.ctrlport_enable = value;
+                }
             }
             "ctrlport_bind" => {
                 self.ctrlport_bind = value.to_string();
             }
             "frontend_path" => {
-                self.frontend_path = Some(config_parse::<PathBuf>(&value));
+                if let Some(value) = config_parse::<PathBuf>(&name, &value) {
+                    self.frontend_path = Some(value);
+                }
+            }
+            "slab_reserved" => {
+                warn!("config key {name} is no longer supported and will be ignored");
             }
             _ => {
                 self.misc.insert(name, value);
@@ -188,7 +170,6 @@ impl Default for Config {
             queue_size: 128,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
-            slab_reserved: 0,
             log_level: LevelFilter::DEBUG,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:1337".to_string(),
@@ -203,7 +184,6 @@ impl Default for Config {
             queue_size: 128,
             buffer_size: 32768,
             stack_size: 16 * 1024 * 1024,
-            slab_reserved: 0,
             log_level: LevelFilter::INFO,
             ctrlport_enable: true,
             ctrlport_bind: "127.0.0.1:1337".to_string(),
@@ -213,13 +193,56 @@ impl Default for Config {
     }
 }
 
-fn config_parse<T: FromStr>(v: &Value) -> T {
+fn config_parse<T: FromStr>(name: &str, v: &Value) -> Option<T> {
     if let Ok(v) = v.clone().into_string()
         && let Ok(v) = v.parse::<T>()
     {
-        return v;
+        return Some(v);
     }
 
-    println!("invalid config value {v:?}");
-    panic!();
+    warn!("invalid config value for {name}: {v:?}");
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_bool_config_value_is_ignored() {
+        let mut config = Config::default();
+        config.ctrlport_enable = true;
+
+        config.set_value("ctrlport_enable", "maybe");
+
+        assert!(config.ctrlport_enable);
+    }
+
+    #[test]
+    fn invalid_numeric_config_value_is_ignored() {
+        let mut config = Config::default();
+        config.queue_size = 256;
+
+        config.set_value("queue_size", "not-a-number");
+
+        assert_eq!(config.queue_size, 256);
+    }
+
+    #[test]
+    fn zero_buffer_size_is_valid() {
+        let mut config = Config::default();
+
+        config.set_value("buffer_size", 0_u64);
+
+        assert_eq!(config.buffer_size, 0);
+    }
+
+    #[test]
+    fn slab_reserved_is_ignored() {
+        let mut config = Config::default();
+
+        config.set_value("slab_reserved", 16_u64);
+
+        assert!(!config.misc.contains_key("slab_reserved"));
+    }
 }
