@@ -5,6 +5,8 @@ use futuresdr::runtime::dev::prelude::*;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
+use std::time::Instant;
 
 #[derive(Clone, Default)]
 struct Counters {
@@ -62,6 +64,21 @@ impl Drop for WaitBlock {
 }
 
 #[derive(Block)]
+struct FinishImmediately;
+
+impl Kernel for FinishImmediately {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        io.finished = true;
+        Ok(())
+    }
+}
+
+#[derive(Block)]
 struct InitFail;
 
 impl Kernel for InitFail {
@@ -100,6 +117,19 @@ impl FailOnCall {
 }
 
 impl Kernel for FailOnCall {}
+
+async fn wait_until_terminated(handle: &FlowgraphHandle) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        if handle.is_terminated() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            bail!("flowgraph did not terminate within 1 second");
+        }
+        Timer::after(Duration::from_millis(10)).await;
+    }
+}
 
 fn expect_start_err(fg: Flowgraph, expected: &str) -> Error {
     match Runtime::new().start(fg) {
@@ -197,4 +227,90 @@ fn run_failure_in_normal_domain_stops_all_domains() -> Result<()> {
 #[test]
 fn run_failure_in_local_domain_stops_all_domains() -> Result<()> {
     run_failure_stops_domains(true)
+}
+
+#[test]
+fn stop_and_wait_returns_finished_graph_when_already_terminated() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let finished = fg.add(FinishImmediately)?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let handle = running.handle();
+    let terminated = futuresdr::runtime::block_on(async {
+        wait_until_terminated(&handle).await?;
+        running.stop_and_wait().await
+    })?;
+
+    terminated.with(&finished, |_| ())?;
+    Ok(())
+}
+
+#[test]
+fn stop_and_wait_preserves_terminal_error_when_already_terminated() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let fail = fg.add(FailOnCall::new())?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let call_result = futuresdr::runtime::block_on(running.call(fail, "fail", Pmt::Null));
+    assert!(matches!(
+        call_result,
+        Err(Error::HandlerError(msg)) if msg.contains("run failed")
+    ));
+
+    let handle = running.handle();
+    futuresdr::runtime::block_on(wait_until_terminated(&handle))?;
+    match futuresdr::runtime::block_on(running.stop_and_wait()) {
+        Ok(_) => bail!("expected handler error after handler failure"),
+        Err(Error::HandlerError(msg)) => assert!(msg.contains("run failed")),
+        Err(e) => bail!("unexpected error: {e}"),
+    }
+
+    Ok(())
+}
+
+#[test]
+fn flowgraph_handle_stop_and_wait_succeeds_when_already_terminated() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let finished = fg.add(FinishImmediately)?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let handle = running.handle();
+    futuresdr::runtime::block_on(async {
+        wait_until_terminated(&handle).await?;
+        handle.stop_and_wait().await
+    })?;
+
+    let terminated = running.wait()?;
+    terminated.with(&finished, |_| ())?;
+    Ok(())
+}
+
+#[test]
+fn flowgraph_handle_stop_and_wait_succeeds_when_already_failed() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let fail = fg.add(FailOnCall::new())?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let handle = running.handle();
+    let call_result = futuresdr::runtime::block_on(running.call(fail, "fail", Pmt::Null));
+    assert!(matches!(
+        call_result,
+        Err(Error::HandlerError(msg)) if msg.contains("run failed")
+    ));
+
+    futuresdr::runtime::block_on(async {
+        wait_until_terminated(&handle).await?;
+        handle.stop_and_wait().await
+    })?;
+    match running.wait() {
+        Ok(_) => bail!("expected handler error after handler failure"),
+        Err(Error::HandlerError(msg)) => assert!(msg.contains("run failed")),
+        Err(e) => bail!("unexpected error: {e}"),
+    }
+
+    Ok(())
 }

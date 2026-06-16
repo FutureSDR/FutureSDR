@@ -123,7 +123,9 @@ impl RunningFlowgraph {
     /// Returns the final [`TerminatedFlowgraph`] after all block tasks have
     /// stopped and their block state has been collected for inspection.
     pub async fn stop_and_wait(self) -> Result<TerminatedFlowgraph, Error> {
-        self.handle.stop().await?;
-        self.wait_async().await
+        match self.handle.stop().await {
+            Ok(()) | Err(Error::FlowgraphTerminated) => self.wait_async().await,
+            Err(e) => Err(e),
+        }
     }
 }

@@ -260,7 +260,10 @@ impl FlowgraphHandle {
     /// [`crate::runtime::RunningFlowgraph::stop_and_wait`] when the caller needs
     /// to recover and inspect final block state.
     pub async fn stop_and_wait(&self) -> Result<(), Error> {
-        self.stop().await.map_err(|_| Error::FlowgraphTerminated)?;
+        match self.stop().await {
+            Ok(()) | Err(Error::FlowgraphTerminated) => {}
+            Err(e) => return Err(e),
+        }
         while !self.inbox.is_closed() {
             Timer::after(std::time::Duration::from_millis(200)).await;
         }
