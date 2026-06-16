@@ -177,6 +177,34 @@ impl StoppedLocalBlock {
     }
 }
 
+async fn wait_for_event_preserving_receive<Event, Task, Tasks>(
+    next_event: impl Future<Output = Event>,
+    tasks: &mut Tasks,
+    finished: &mut Vec<Task>,
+    n_tasks: usize,
+) -> Option<Event>
+where
+    Tasks: futures::Stream<Item = Task> + Unpin,
+{
+    futures::pin_mut!(next_event);
+
+    loop {
+        let next_task = tasks.next();
+        futures::pin_mut!(next_task);
+
+        match futures::future::select(next_event.as_mut(), next_task).await {
+            futures::future::Either::Left((event, _)) => return Some(event),
+            futures::future::Either::Right((Some(done), _)) => {
+                finished.push(done);
+                if finished.len() == n_tasks {
+                    return None;
+                }
+            }
+            futures::future::Either::Right((None, _)) => return None,
+        }
+    }
+}
+
 impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
     /// Get the local domain id.
     pub fn domain_id(&self) -> usize {
@@ -236,18 +264,23 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
     }
 
     /// Wait for the next local-domain run event or shutdown request.
-    pub fn next_event(&mut self) -> Pin<Box<dyn Future<Output = LocalDomainRunEvent> + '_>>
+    ///
+    /// If this future is selected against block-task completion, keep polling
+    /// the same future after task completions win. It contains a channel
+    /// receive that must not be dropped while the local domain continues
+    /// running.
+    pub fn next_event(&mut self) -> impl Future<Output = LocalDomainRunEvent> + '_
     where
         Shutdown: Future + Unpin,
     {
-        Box::pin(async move {
+        async move {
             let next_domain = self.domain_rx.recv();
             futures::pin_mut!(next_domain);
             match futures::future::select(next_domain, &mut *self.shutdown).await {
                 futures::future::Either::Left((message, _)) => LocalDomainRunEvent { message },
                 futures::future::Either::Right((_, _)) => LocalDomainRunEvent { message: None },
             }
-        })
+        }
     }
 
     /// Handle a local-domain run event using the runtime's standard ingress semantics.
@@ -547,33 +580,20 @@ where
                         continue;
                     }
 
-                    enum BasicNext {
-                        Event(LocalDomainRunEvent),
-                        Task(Option<StoppedLocalBlock>),
-                    }
+                    let event = wait_for_event_preserving_receive(
+                        spec.next_event(),
+                        &mut tasks,
+                        &mut finished,
+                        n_tasks,
+                    )
+                    .await;
 
-                    let next = {
-                        let next_event = spec.next_event();
-                        futures::pin_mut!(next_event);
-                        let next_task = tasks.next();
-                        futures::pin_mut!(next_task);
-
-                        match futures::future::select(next_event, next_task).await {
-                            futures::future::Either::Left((event, _)) => BasicNext::Event(event),
-                            futures::future::Either::Right((done, _)) => BasicNext::Task(done),
-                        }
+                    let Some(event) = event else {
+                        break;
                     };
 
-                    let request_shutdown = match next {
-                        BasicNext::Event(event) => {
-                            spec.handle_event(event).await == LocalDomainControl::Stop
-                        }
-                        BasicNext::Task(Some(done)) => {
-                            finished.push(done);
-                            false
-                        }
-                        BasicNext::Task(None) => break,
-                    };
+                    let request_shutdown =
+                        spec.handle_event(event).await == LocalDomainControl::Stop;
 
                     if request_shutdown {
                         for stop in &stop_handles {
@@ -596,4 +616,68 @@ where
             .into_iter()
             .try_for_each(|block| spec.restore_block(block))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use std::task::Context;
+    use std::task::Poll;
+
+    struct PendingThenReady {
+        polls: Rc<Cell<u8>>,
+        dropped_after_pending: Rc<Cell<bool>>,
+    }
+
+    impl Future for PendingThenReady {
+        type Output = &'static str;
+
+        fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
+            match self.polls.get() {
+                0 => {
+                    self.polls.set(1);
+                    Poll::Pending
+                }
+                1 => {
+                    self.polls.set(2);
+                    Poll::Ready("event")
+                }
+                _ => panic!("event future polled after completion"),
+            }
+        }
+    }
+
+    impl Drop for PendingThenReady {
+        fn drop(&mut self) {
+            if self.polls.get() == 1 {
+                self.dropped_after_pending.set(true);
+            }
+        }
+    }
+
+    #[test]
+    fn event_future_survives_task_completion() {
+        let polls = Rc::new(Cell::new(0));
+        let dropped_after_pending = Rc::new(Cell::new(false));
+        let event = PendingThenReady {
+            polls: polls.clone(),
+            dropped_after_pending: dropped_after_pending.clone(),
+        };
+        let mut tasks = futures::stream::iter(["task"]);
+        let mut finished = Vec::new();
+
+        let output = crate::runtime::block_on(wait_for_event_preserving_receive(
+            event,
+            &mut tasks,
+            &mut finished,
+            2,
+        ));
+
+        assert_eq!(output, Some("event"));
+        assert_eq!(finished, ["task"]);
+        assert_eq!(polls.get(), 2);
+        assert!(!dropped_after_pending.get());
+    }
 }

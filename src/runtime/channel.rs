@@ -122,12 +122,28 @@ pub mod mpsc {
 
     impl<T> Receiver<T> {
         /// Receive the next value from the channel.
+        ///
+        /// # Cancellation safety
+        ///
+        /// On native targets, this wraps `kanal`'s receive future. Once that
+        /// future has been polled, it must be driven to completion unless this
+        /// receiver will no longer be used. Do not put `recv()` directly in a
+        /// losing `select` branch while continuing to use the channel; use
+        /// [`Receiver::try_recv`] or keep the receive future pinned across
+        /// losing branches instead.
         #[cfg(not(target_arch = "wasm32"))]
         pub async fn recv(&self) -> Option<T> {
             self.0.recv().await.ok()
         }
 
         /// Receive the next value from the channel.
+        ///
+        /// # Cancellation safety
+        ///
+        /// Keep portable code consistent with native behavior: do not put
+        /// `recv()` directly in a losing `select` branch while continuing to
+        /// use the channel. Use [`Receiver::try_recv`] or keep the receive
+        /// future pinned across losing branches instead.
         #[cfg(target_arch = "wasm32")]
         pub async fn recv(&self) -> Option<T> {
             loop {

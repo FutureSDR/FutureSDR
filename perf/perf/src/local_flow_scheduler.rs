@@ -11,7 +11,6 @@ use futuresdr::runtime::Edge;
 use futuresdr::runtime::Error;
 use futuresdr::runtime::scheduler::LocalBlockStop;
 use futuresdr::runtime::scheduler::LocalDomainControl;
-use futuresdr::runtime::scheduler::LocalDomainRunEvent;
 use futuresdr::runtime::scheduler::LocalDomainRunSpec;
 use futuresdr::runtime::scheduler::LocalScheduler;
 use futuresdr::runtime::scheduler::StoppedLocalBlock;
@@ -269,31 +268,32 @@ where
             continue;
         }
 
-        enum Next {
-            Event(LocalDomainRunEvent),
-            Task(Option<StoppedLocalBlock>),
-        }
-
-        let next = {
+        let event = {
             let next_event = spec.next_event();
             futures::pin_mut!(next_event);
-            let next_task = tasks.next();
-            futures::pin_mut!(next_task);
 
-            match futures::future::select(next_event, next_task).await {
-                futures::future::Either::Left((event, _)) => Next::Event(event),
-                futures::future::Either::Right((done, _)) => Next::Task(done),
+            loop {
+                let next_task = tasks.next();
+                futures::pin_mut!(next_task);
+
+                match futures::future::select(next_event.as_mut(), next_task).await {
+                    futures::future::Either::Left((event, _)) => break Some(event),
+                    futures::future::Either::Right((Some(done), _)) => {
+                        finished.push(done);
+                        if finished.len() == n_tasks {
+                            break None;
+                        }
+                    }
+                    futures::future::Either::Right((None, _)) => break None,
+                }
             }
         };
 
-        let request_shutdown = match next {
-            Next::Event(event) => spec.handle_event(event).await == LocalDomainControl::Stop,
-            Next::Task(Some(done)) => {
-                finished.push(done);
-                false
-            }
-            Next::Task(None) => break,
+        let Some(event) = event else {
+            break;
         };
+
+        let request_shutdown = spec.handle_event(event).await == LocalDomainControl::Stop;
 
         if request_shutdown {
             stop_blocks(&stop_handles).await;
