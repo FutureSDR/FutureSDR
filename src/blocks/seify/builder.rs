@@ -79,12 +79,18 @@ impl<D: DeviceTrait + Clone> Builder<D> {
             min_input_buffer_size: None,
         }
     }
-    /// Channel
+    /// Channel: sets the hardware channel index 
+    /// #Example
+    /// For USRP B210:  
+    /// - `0`: corresponds to RF A
+    /// - `1`: corresponds to RF B
     pub fn channel(mut self, c: usize) -> Self {
         self.channels = vec![c];
         self
     }
-    /// Channels
+    /// Channels: sets multiple hardware channel indices for MIMO or multi-channel configurations  
+    /// #Example
+    /// For USRP B210: `vec![0, 1]` enables both RF A and RF B
     pub fn channels(mut self, c: Vec<usize>) -> Self {
         self.channels = c;
         self

@@ -1,0 +1,24 @@
+[package]
+name = "bluetooth"
+version = "0.1.0"
+edition = "2024"
+default-run = "sniffer"
+
+[workspace]
+
+[[bin]]
+name = "sniffer"
+path = "src/main.rs"
+
+[features]
+default = ["soapy"]
+rtlsdr = ["futuresdr/rtlsdr"]
+soapy = ["futuresdr/soapy"]
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+futuresdr = { path = "../..", features = ["seify"] }
+yagi = "0.1.5"
+num-complex = "0.4"
