@@ -10,6 +10,7 @@ use config::Source;
 use config::Value;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -108,7 +109,7 @@ pub struct Config {
     /// Whether to start the native HTTP control port.
     pub ctrlport_enable: bool,
     /// Socket address for the native HTTP control port.
-    pub ctrlport_bind: String,
+    pub ctrlport_bind: SocketAddr,
     /// Optional frontend directory served by the native control-port web server.
     pub frontend_path: Option<PathBuf>,
     misc: HashMap<String, Value>,
@@ -146,7 +147,9 @@ impl Config {
                 }
             }
             "ctrlport_bind" => {
-                self.ctrlport_bind = value.to_string();
+                if let Some(value) = config_parse::<SocketAddr>(&name, &value) {
+                    self.ctrlport_bind = value;
+                }
             }
             "frontend_path" => {
                 if let Some(value) = config_parse::<PathBuf>(&name, &value) {
@@ -172,7 +175,7 @@ impl Default for Config {
             stack_size: 16 * 1024 * 1024,
             log_level: LevelFilter::DEBUG,
             ctrlport_enable: true,
-            ctrlport_bind: "127.0.0.1:1337".to_string(),
+            ctrlport_bind: SocketAddr::from(([127, 0, 0, 1], 1337)),
             frontend_path: None,
             misc: HashMap::new(),
         }
@@ -186,7 +189,7 @@ impl Default for Config {
             stack_size: 16 * 1024 * 1024,
             log_level: LevelFilter::INFO,
             ctrlport_enable: true,
-            ctrlport_bind: "127.0.0.1:1337".to_string(),
+            ctrlport_bind: SocketAddr::from(([127, 0, 0, 1], 1337)),
             frontend_path: None,
             misc: HashMap::new(),
         }
@@ -235,6 +238,37 @@ mod tests {
         config.set_value("buffer_size", 0_u64);
 
         assert_eq!(config.buffer_size, 0);
+    }
+
+    #[test]
+    fn ctrlport_bind_string_parses_to_socket_addr() {
+        let mut config = Config::default();
+
+        config.set_value("ctrlport_bind", "0.0.0.0:4242");
+
+        assert_eq!(config.ctrlport_bind, SocketAddr::from(([0, 0, 0, 0], 4242)));
+    }
+
+    #[test]
+    fn invalid_ctrlport_bind_value_is_ignored() {
+        let mut config = Config::default();
+        config.ctrlport_bind = SocketAddr::from(([0, 0, 0, 0], 4242));
+
+        config.set_value("ctrlport_bind", "not-a-socket-addr");
+
+        assert_eq!(config.ctrlport_bind, SocketAddr::from(([0, 0, 0, 0], 4242)));
+    }
+
+    #[test]
+    fn ipv6_ctrlport_bind_string_parses_to_socket_addr() {
+        let mut config = Config::default();
+
+        config.set_value("ctrlport_bind", "[::1]:1337");
+
+        assert_eq!(
+            config.ctrlport_bind,
+            SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], 1337))
+        );
     }
 
     #[test]

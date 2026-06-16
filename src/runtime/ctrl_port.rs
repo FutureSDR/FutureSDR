@@ -184,16 +184,7 @@ impl<S: Scheduler + Sync> ControlPort<S> {
             app = app.fallback(move |uri: Uri| serve_static_file(frontend.clone(), uri));
         }
 
-        let addr = match config::config().ctrlport_bind.parse::<SocketAddr>() {
-            Ok(addr) => addr,
-            Err(_) => {
-                warn!(
-                    "failed to parse socket addr {}",
-                    config::config().ctrlport_bind
-                );
-                return;
-            }
-        };
+        let addr = config::config().ctrlport_bind;
 
         let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
         let server_scheduler = scheduler.clone();
