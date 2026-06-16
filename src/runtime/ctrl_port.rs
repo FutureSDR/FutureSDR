@@ -136,6 +136,26 @@ pub struct ControlPort<S> {
     handle: RuntimeHandle<S>,
 }
 
+struct ConnectionTask {
+    shutdown: Option<oneshot::Sender<()>>,
+    task: Task<()>,
+}
+
+impl ConnectionTask {
+    fn new(shutdown: oneshot::Sender<()>, task: Task<()>) -> Self {
+        Self {
+            shutdown: Some(shutdown),
+            task,
+        }
+    }
+
+    fn shutdown(&mut self) {
+        if let Some(tx) = self.shutdown.take() {
+            let _ = tx.send(());
+        }
+    }
+}
+
 impl<S: Scheduler + Sync> ControlPort<S> {
     pub fn new(handle: RuntimeHandle<S>, scheduler: S, routes: Router) -> Self {
         let mut cp = ControlPort {
@@ -233,6 +253,7 @@ async fn run_server<S>(
 
     let shutdown = rx_shutdown.fuse();
     futures::pin_mut!(shutdown);
+    let mut connections = Vec::new();
 
     loop {
         let accept = listener.accept().fuse();
@@ -247,10 +268,11 @@ async fn run_server<S>(
                     }
 
                     let app = app.clone();
+                    let (tx_connection_shutdown, rx_connection_shutdown) = oneshot::channel::<()>();
                     let task = scheduler.spawn(async move {
-                        serve_connection(stream, remote_addr, app).await;
+                        serve_connection(stream, remote_addr, app, rx_connection_shutdown).await;
                     });
-                    task.detach();
+                    connections.push(ConnectionTask::new(tx_connection_shutdown, task));
                 }
                 Err(e) => {
                     warn!("failed to accept CtrlPort connection: {e:?}");
@@ -262,10 +284,41 @@ async fn run_server<S>(
         if shutdown.is_terminated() {
             break;
         }
+
+        prune_finished_connections(&mut connections).await;
+    }
+
+    shutdown_connections(connections).await;
+}
+
+async fn prune_finished_connections(connections: &mut Vec<ConnectionTask>) {
+    let mut i = 0;
+    while i < connections.len() {
+        if connections[i].task.is_finished() {
+            let connection = connections.swap_remove(i);
+            connection.task.await;
+        } else {
+            i += 1;
+        }
     }
 }
 
-async fn serve_connection(stream: async_net::TcpStream, remote_addr: SocketAddr, app: Router) {
+async fn shutdown_connections(mut connections: Vec<ConnectionTask>) {
+    for connection in &mut connections {
+        connection.shutdown();
+    }
+
+    for connection in connections {
+        connection.task.await;
+    }
+}
+
+async fn serve_connection(
+    stream: async_net::TcpStream,
+    remote_addr: SocketAddr,
+    app: Router,
+    rx_shutdown: oneshot::Receiver<()>,
+) {
     let service = service_fn(move |req: hyper::Request<Incoming>| {
         let mut app = app.clone();
         async move { TowerService::call(&mut app, req).await }
@@ -274,11 +327,33 @@ async fn serve_connection(stream: async_net::TcpStream, remote_addr: SocketAddr,
     let mut builder = http1::Builder::new();
     builder.timer(AsyncIoTimer::new());
 
-    if let Err(e) = builder
-        .serve_connection(FuturesIo::new(stream), service)
-        .await
-    {
-        trace!("failed to serve CtrlPort connection {remote_addr}: {e:?}");
+    let conn = builder.serve_connection(FuturesIo::new(stream), service);
+    futures::pin_mut!(conn);
+    let shutdown = rx_shutdown.fuse();
+    futures::pin_mut!(shutdown);
+
+    select! {
+        result = conn.as_mut().fuse() => {
+            if let Err(e) = result {
+                trace!("failed to serve CtrlPort connection {remote_addr}: {e:?}");
+            }
+        }
+        _ = shutdown => {
+            conn.as_mut().graceful_shutdown();
+            let timeout = async_io::Timer::after(Duration::from_millis(250)).fuse();
+            futures::pin_mut!(timeout);
+
+            select! {
+                result = conn.as_mut().fuse() => {
+                    if let Err(e) = result {
+                        trace!("failed to gracefully shut down CtrlPort connection {remote_addr}: {e:?}");
+                    }
+                }
+                _ = timeout => {
+                    trace!("timed out gracefully shutting down CtrlPort connection {remote_addr}");
+                }
+            }
+        }
     }
 }
 
@@ -482,34 +557,112 @@ impl hyper::rt::Sleep for AsyncIoSleep {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::scheduler::SmolScheduler;
+    use futures::io::AsyncReadExt;
+    use futures::io::AsyncWriteExt;
 
-    #[test]
-    fn control_port_serves_axum_router_on_scheduler() {
-        use crate::runtime::scheduler::SmolScheduler;
-        use futures::io::AsyncReadExt;
-        use futures::io::AsyncWriteExt;
-
+    fn free_addr() -> SocketAddr {
         let socket = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let addr = socket.local_addr().unwrap();
         drop(socket);
+        addr
+    }
 
+    fn health_app() -> Router {
+        Router::new().route("/health", get(|| async { "ok" }))
+    }
+
+    fn start_test_server(
+        app: Router,
+    ) -> (SmolScheduler, SocketAddr, oneshot::Sender<()>, Task<()>) {
+        let addr = free_addr();
         let scheduler = SmolScheduler::new(1, false);
-        let app = Router::new().route("/health", get(|| async { "ok" }));
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
         let task = scheduler.spawn(run_server(addr, app, scheduler.clone(), rx_shutdown));
 
-        block_on(async move {
-            let deadline = Instant::now() + Duration::from_secs(2);
-            let mut stream = loop {
-                match async_net::TcpStream::connect(addr).await {
-                    Ok(stream) => break stream,
-                    Err(e) if Instant::now() < deadline => {
-                        trace!("waiting for test control port listener: {e:?}");
-                        async_io::Timer::after(Duration::from_millis(10)).await;
-                    }
-                    Err(e) => panic!("failed to connect to test control port: {e:?}"),
+        (scheduler, addr, tx_shutdown, task)
+    }
+
+    async fn connect_test_server(addr: SocketAddr) -> async_net::TcpStream {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match async_net::TcpStream::connect(addr).await {
+                Ok(stream) => break stream,
+                Err(e) if Instant::now() < deadline => {
+                    trace!("waiting for test control port listener: {e:?}");
+                    async_io::Timer::after(Duration::from_millis(10)).await;
                 }
+                Err(e) => panic!("failed to connect to test control port: {e:?}"),
+            }
+        }
+    }
+
+    async fn wait_for_server_shutdown(task: Task<()>) {
+        let task = task.fuse();
+        let timeout = async_io::Timer::after(Duration::from_secs(2)).fuse();
+        futures::pin_mut!(task);
+        futures::pin_mut!(timeout);
+
+        select! {
+            _ = task => {}
+            _ = timeout => panic!("timed out waiting for test control port shutdown"),
+        }
+    }
+
+    async fn read_response_body(stream: &mut async_net::TcpStream, body: &[u8]) -> String {
+        let mut response = Vec::new();
+
+        loop {
+            let mut buf = [0u8; 1024];
+            let read = stream.read(&mut buf).fuse();
+            let timeout = async_io::Timer::after(Duration::from_secs(2)).fuse();
+            futures::pin_mut!(read);
+            futures::pin_mut!(timeout);
+
+            let n = select! {
+                result = read => result.unwrap(),
+                _ = timeout => panic!("timed out waiting for HTTP response"),
             };
+
+            assert_ne!(n, 0, "connection closed before response body arrived");
+            response.extend_from_slice(&buf[..n]);
+
+            if response.windows(body.len()).any(|window| window == body) {
+                return String::from_utf8(response).unwrap();
+            }
+        }
+    }
+
+    async fn assert_connection_closed_without_response(mut stream: async_net::TcpStream) {
+        if stream
+            .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .is_err()
+        {
+            return;
+        }
+
+        let mut buf = [0u8; 1];
+        let read = stream.read(&mut buf).fuse();
+        let timeout = async_io::Timer::after(Duration::from_secs(2)).fuse();
+        futures::pin_mut!(read);
+        futures::pin_mut!(timeout);
+
+        select! {
+            result = read => match result {
+                Ok(0) | Err(_) => {}
+                Ok(_) => panic!("control port responded on a connection after shutdown"),
+            },
+            _ = timeout => panic!("connection remained open after control port shutdown"),
+        }
+    }
+
+    #[test]
+    fn control_port_serves_axum_router_on_scheduler() {
+        let (_scheduler, addr, tx_shutdown, task) = start_test_server(health_app());
+
+        block_on(async move {
+            let mut stream = connect_test_server(addr).await;
 
             stream
                 .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -521,10 +674,46 @@ mod tests {
             let response = String::from_utf8(response).unwrap();
 
             tx_shutdown.send(()).unwrap();
-            task.await;
+            wait_for_server_shutdown(task).await;
 
             assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
             assert!(response.ends_with("ok"), "{response}");
+        });
+    }
+
+    #[test]
+    fn control_port_shutdown_closes_idle_connection() {
+        let (_scheduler, addr, tx_shutdown, task) = start_test_server(health_app());
+
+        block_on(async move {
+            let stream = connect_test_server(addr).await;
+
+            tx_shutdown.send(()).unwrap();
+            wait_for_server_shutdown(task).await;
+
+            assert_connection_closed_without_response(stream).await;
+        });
+    }
+
+    #[test]
+    fn control_port_shutdown_closes_keep_alive_connection() {
+        let (_scheduler, addr, tx_shutdown, task) = start_test_server(health_app());
+
+        block_on(async move {
+            let mut stream = connect_test_server(addr).await;
+
+            stream
+                .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            let response = read_response_body(&mut stream, b"\r\n\r\nok").await;
+            assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
+
+            tx_shutdown.send(()).unwrap();
+            wait_for_server_shutdown(task).await;
+
+            assert_connection_closed_without_response(stream).await;
         });
     }
 
