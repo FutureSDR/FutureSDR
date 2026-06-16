@@ -34,7 +34,8 @@ impl<T> SendKernel for T where
 /// [`Kernel::work`] until the block marks itself finished or the flowgraph is
 /// stopped, and finally calls [`Kernel::deinit`]. A `work()` implementation
 /// should consume and produce exactly the number of stream items it handled and
-/// use [`WorkIo`] to request another immediate call, wait on a future, or finish.
+/// use [`WorkIo`] to request another immediate call or finish. Blocks that need
+/// to wait on their own future can provide it through [`Kernel::block_on`].
 ///
 /// Normal runtime entry points accept only kernels whose value, block-on future,
 /// and returned futures are `Send`. Kernels that do not satisfy these bounds can
