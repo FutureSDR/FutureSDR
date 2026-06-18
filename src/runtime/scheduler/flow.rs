@@ -148,7 +148,7 @@ impl Scheduler for FlowScheduler {
         let n_blocks = block_ids.len();
         let n_cores = self.inner.workers.len();
         let mut spawned: HashSet<BlockId> = HashSet::new();
-        let mut tasks = Vec::with_capacity(n_blocks);
+        let mut blocks = Vec::with_capacity(n_blocks);
 
         // Spawn manually pinned blocks in the exact order they appear in the mapping.
         for (executor, block_ids) in self.inner.pinned_blocks.iter().enumerate() {
@@ -176,10 +176,10 @@ impl Scheduler for FlowScheduler {
                     continue;
                 }
                 let block = spec.take_block(*block_id)?;
-                tasks.push(spawn_block_on_executor(
-                    &self.inner.executor,
-                    block,
-                    executor,
+                let stop = block.stop_handle();
+                blocks.push((
+                    spawn_block_on_executor(&self.inner.executor, block, executor),
+                    stop,
                 ));
             }
         }
@@ -201,14 +201,14 @@ impl Scheduler for FlowScheduler {
                 });
             let executor = FlowScheduler::map_block(block_index, n_blocks, n_cores);
             let block = spec.take_block(id)?;
-            tasks.push(spawn_block_on_executor(
-                &self.inner.executor,
-                block,
-                executor,
+            let stop = block.stop_handle();
+            blocks.push((
+                spawn_block_on_executor(&self.inner.executor, block, executor),
+                stop,
             ));
         }
 
-        Ok(NormalRunningDomain::new(tasks))
+        Ok(NormalRunningDomain::new(blocks))
     }
 
     fn spawn<T: Send + 'static>(

@@ -209,15 +209,19 @@ impl Scheduler for WasmScheduler {
         let block_ids = spec.blocks().collect::<Vec<_>>();
         let n_blocks = block_ids.len();
         let n_threads = self.inner.workers.len();
-        let mut tasks = Vec::with_capacity(n_blocks);
+        let mut blocks = Vec::with_capacity(n_blocks);
 
         for (block_index, block_id) in block_ids.into_iter().enumerate() {
             let block = spec.take_block(block_id)?;
+            let stop = block.stop_handle();
             let worker_index = block_index * n_threads / n_blocks;
-            tasks.push(spawn_wasm_block(&self.inner.executor, block, worker_index));
+            blocks.push((
+                spawn_wasm_block(&self.inner.executor, block, worker_index),
+                stop,
+            ));
         }
 
-        Ok(NormalRunningDomain::new(tasks))
+        Ok(NormalRunningDomain::new(blocks))
     }
 
     fn spawn<T: Send + 'static>(
@@ -255,11 +259,13 @@ impl Scheduler for WasmMainScheduler {
     fn start_normal_domain(&self, spec: NormalDomainSpec) -> Result<NormalRunningDomain, Error> {
         let mut spec = spec;
         let block_ids = spec.blocks().collect::<Vec<_>>();
-        let mut tasks = Vec::with_capacity(block_ids.len());
+        let mut blocks = Vec::with_capacity(block_ids.len());
         for block_id in block_ids {
-            tasks.push(spawn_wasm_main_block(spec.take_block(block_id)?));
+            let block = spec.take_block(block_id)?;
+            let stop = block.stop_handle();
+            blocks.push((spawn_wasm_main_block(block), stop));
         }
-        Ok(NormalRunningDomain::new(tasks))
+        Ok(NormalRunningDomain::new(blocks))
     }
 
     fn spawn<T: Send + 'static>(

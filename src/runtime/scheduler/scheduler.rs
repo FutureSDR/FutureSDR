@@ -218,16 +218,41 @@ impl LocalDomainSpec {
 /// Running normal-domain state returned by a scheduler.
 pub struct NormalRunningDomain {
     tasks: Vec<Task<StoppedBlock>>,
+    stop_handles: Vec<BlockStop>,
+    stop_requested: bool,
 }
 
 impl NormalRunningDomain {
-    /// Create a running normal domain from block task handles.
-    pub fn new(tasks: Vec<Task<StoppedBlock>>) -> Self {
-        Self { tasks }
+    /// Create a running normal domain from block task and stop-handle pairs.
+    pub fn new(blocks: Vec<(Task<StoppedBlock>, BlockStop)>) -> Self {
+        let mut tasks = Vec::with_capacity(blocks.len());
+        let mut stop_handles = Vec::with_capacity(blocks.len());
+        for (task, stop) in blocks {
+            tasks.push(task);
+            stop_handles.push(stop);
+        }
+        Self {
+            tasks,
+            stop_handles,
+            stop_requested: false,
+        }
     }
 
     /// Request the normal domain to stop.
     pub(crate) async fn stop(&mut self) -> Result<(), Error> {
+        if self.stop_requested {
+            return Ok(());
+        }
+        self.stop_requested = true;
+
+        for stop in &self.stop_handles {
+            if let Err(e) = stop.stop().await {
+                debug!(
+                    "normal domain tried to terminate block {:?}: {e}",
+                    stop.id()
+                );
+            }
+        }
         Ok(())
     }
 
@@ -372,4 +397,120 @@ pub trait Scheduler: Clone + Send + 'static {
     /// Spawn an independent sendable async task on this scheduler.
     fn spawn<T: Send + 'static>(&self, future: impl Future<Output = T> + Send + 'static)
     -> Task<T>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::BlockId;
+    use crate::runtime::BlockMessage;
+    use crate::runtime::BlockPortCtx;
+    use crate::runtime::FlowgraphMessage;
+    use crate::runtime::PortId;
+    use crate::runtime::PortIndex;
+    use crate::runtime::Result;
+    use crate::runtime::block::BlockObject;
+    use crate::runtime::block_inbox::BlockInbox;
+    use crate::runtime::buffer::DynBufferReader;
+    use crate::runtime::buffer::DynBufferWriter;
+    use crate::runtime::channel::mpsc::Sender;
+
+    struct TestBlock {
+        id: BlockId,
+        endpoint: BlockEndpoint,
+    }
+
+    impl BlockObject for TestBlock {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn inbox(&self) -> BlockEndpoint {
+            self.endpoint.clone()
+        }
+
+        fn id(&self) -> BlockId {
+            self.id
+        }
+
+        fn type_name(&self) -> &str {
+            "TestBlock"
+        }
+
+        fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
+            Ok(Vec::new())
+        }
+
+        fn stream_output_names(&mut self) -> Result<Vec<String>, Error> {
+            Ok(Vec::new())
+        }
+
+        fn stream_input(&mut self, _id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                PortId::new("test"),
+            ))
+        }
+
+        fn stream_output(&mut self, _id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
+            Err(Error::InvalidStreamPort(
+                BlockPortCtx::Id(self.id),
+                PortId::new("test"),
+            ))
+        }
+
+        fn message_inputs(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn message_outputs(&self) -> &'static [&'static str] {
+            &[]
+        }
+
+        fn connect_message(
+            &mut self,
+            _src_port: PortIndex,
+            _dst: BlockEndpoint,
+            _dst_port: PortIndex,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Block for TestBlock {
+        async fn run(&mut self, _main_inbox: Sender<FlowgraphMessage>) {}
+    }
+
+    #[test]
+    fn normal_domain_stop_sends_terminate_to_blocks_once() {
+        let block_id = BlockId(0);
+        let (inbox, mut reader) = BlockInbox::pair(4);
+        let endpoint = BlockEndpoint::Direct(inbox);
+        let task_endpoint = endpoint.clone();
+        let (_runnable, task) = async_task::spawn(
+            async move {
+                StoppedBlock {
+                    block_id,
+                    block: Box::new(TestBlock {
+                        id: block_id,
+                        endpoint: task_endpoint,
+                    }),
+                }
+            },
+            |_| {},
+        );
+        let stop = BlockStop { block_id, endpoint };
+        let mut domain = NormalRunningDomain::new(vec![(task, stop)]);
+
+        crate::runtime::block_on(domain.stop()).unwrap();
+        assert!(matches!(reader.try_recv(), Some(BlockMessage::Terminate)));
+
+        crate::runtime::block_on(domain.stop()).unwrap();
+        assert!(reader.try_recv().is_none());
+    }
 }

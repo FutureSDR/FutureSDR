@@ -224,12 +224,13 @@ impl Scheduler for RecordingScheduler {
         });
 
         let block_ids = spec.blocks().collect::<Vec<_>>();
-        let mut tasks = Vec::with_capacity(block_ids.len());
+        let mut blocks = Vec::with_capacity(block_ids.len());
         for block_id in block_ids {
             let block = spec.take_block(block_id)?;
-            tasks.push(self.inner.spawn(block.run()));
+            let stop = block.stop_handle();
+            blocks.push((self.inner.spawn(block.run()), stop));
         }
-        Ok(NormalRunningDomain::new(tasks))
+        Ok(NormalRunningDomain::new(blocks))
     }
 
     fn spawn<T: Send + 'static>(
