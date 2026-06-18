@@ -218,7 +218,7 @@ impl Modulation {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum Mcs {
     Bpsk_1_2,
@@ -311,7 +311,7 @@ impl Mcs {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrameParam {
     mcs: Mcs,
     psdu_size: usize,

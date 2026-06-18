@@ -10,15 +10,20 @@ pub trait TagAny: Any + DynClone + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
     /// Return this value as mutable [`Any`] for downcasting.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Return whether this payload equals another type-erased tag payload.
+    fn eq_any(&self, other: &dyn TagAny) -> bool;
 }
 dyn_clone::clone_trait_object!(TagAny);
 
-impl<T: Any + DynClone + Send + Sync + 'static> TagAny for T {
+impl<T: Any + DynClone + PartialEq + Send + Sync + 'static> TagAny for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+    fn eq_any(&self, other: &dyn TagAny) -> bool {
+        other.as_any().downcast_ref::<T>() == Some(self)
     }
 }
 
@@ -66,28 +71,19 @@ pub enum Tag {
 
 impl PartialEq for Tag {
     fn eq(&self, other: &Self) -> bool {
-        match self {
-            Tag::Id(x) => match other {
-                Tag::Id(y) => x == y,
-                _ => false,
-            },
-            Tag::String(x) => match other {
-                Tag::String(y) => x == y,
-                _ => false,
-            },
-            Tag::Data(x) => match other {
-                Tag::Data(y) => x == y,
-                _ => false,
-            },
-            Tag::NamedUsize(k1, v1) => match other {
-                Tag::NamedUsize(k2, v2) => k1 == k2 && v1 == v2,
-                _ => false,
-            },
-            Tag::NamedF32(k1, v1) => match other {
-                Tag::NamedF32(k2, v2) => k1 == k2 && v1 == v2,
-                _ => false,
-            },
-            _ => false,
+        match (self, other) {
+            (Tag::Id(x), Tag::Id(y)) => x == y,
+            (Tag::String(x), Tag::String(y)) => x == y,
+            (Tag::Data(x), Tag::Data(y)) => x == y,
+            (Tag::NamedUsize(k1, v1), Tag::NamedUsize(k2, v2)) => k1 == k2 && v1 == v2,
+            (Tag::NamedF32(k1, v1), Tag::NamedF32(k2, v2)) => k1 == k2 && v1 == v2,
+            (Tag::NamedAny(k1, v1), Tag::NamedAny(k2, v2)) => k1 == k2 && v1.eq_any(&**v2),
+            (Tag::Id(_), _)
+            | (Tag::String(_), _)
+            | (Tag::Data(_), _)
+            | (Tag::NamedUsize(_, _), _)
+            | (Tag::NamedF32(_, _), _)
+            | (Tag::NamedAny(_, _), _) => false,
         }
     }
 }
