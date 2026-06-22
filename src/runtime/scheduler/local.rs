@@ -269,17 +269,15 @@ impl<'a, Shutdown> LocalDomainRunSpec<'a, Shutdown> {
     /// the same future after task completions win. It contains a channel
     /// receive that must not be dropped while the local domain continues
     /// running.
-    pub fn next_event(&mut self) -> impl Future<Output = LocalDomainRunEvent> + '_
+    pub async fn next_event(&mut self) -> LocalDomainRunEvent
     where
         Shutdown: Future + Unpin,
     {
-        async move {
-            let next_domain = self.domain_rx.recv();
-            futures::pin_mut!(next_domain);
-            match futures::future::select(next_domain, &mut *self.shutdown).await {
-                futures::future::Either::Left((message, _)) => LocalDomainRunEvent { message },
-                futures::future::Either::Right((_, _)) => LocalDomainRunEvent { message: None },
-            }
+        let next_domain = self.domain_rx.recv();
+        futures::pin_mut!(next_domain);
+        match futures::future::select(next_domain, &mut *self.shutdown).await {
+            futures::future::Either::Left((message, _)) => LocalDomainRunEvent { message },
+            futures::future::Either::Right((_, _)) => LocalDomainRunEvent { message: None },
         }
     }
 

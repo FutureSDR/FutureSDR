@@ -1,7 +1,6 @@
 //! A signal processing library for SDR and real-time DSP.
 #![warn(missing_docs)]
 #![no_std]
-#![feature(float_algebraic)]
 
 #[macro_use]
 extern crate alloc;

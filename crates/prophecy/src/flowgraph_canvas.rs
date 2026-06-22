@@ -604,13 +604,7 @@ fn render_block_node(
         ev.prevent_default();
         ev.stop_propagation();
         let (bx, by) = pos.get_untracked();
-        dragging.set(Some((
-            bid,
-            f64::from(ev.client_x()),
-            f64::from(ev.client_y()),
-            bx,
-            by,
-        )));
+        dragging.set(Some((bid, ev.client_x(), ev.client_y(), bx, by)));
     };
 
     view! {
@@ -801,17 +795,12 @@ pub fn FlowgraphCanvas(
     let on_container_mousedown = move |ev: web_sys::MouseEvent| {
         ev.prevent_default();
         let (ox, oy) = pan.get_untracked();
-        panning.set(Some((
-            f64::from(ev.client_x()),
-            f64::from(ev.client_y()),
-            ox,
-            oy,
-        )));
+        panning.set(Some((ev.client_x(), ev.client_y(), ox, oy)));
     };
 
     let on_mousemove = move |ev: web_sys::MouseEvent| {
-        let client_x = f64::from(ev.client_x());
-        let client_y = f64::from(ev.client_y());
+        let client_x = ev.client_x();
+        let client_y = ev.client_y();
         // Block drag: divide viewport delta by scale to get canvas-space delta
         if let Some((bid, mx0, my0, bx0, by0)) = dragging.get_untracked() {
             let s = scale.get_untracked();
@@ -855,8 +844,8 @@ pub fn FlowgraphCanvas(
         //   ox' = mx*(1 - ratio) + ox*ratio   (mx = mouse pos relative to container)
         if let Some(el) = container_ref.get() {
             let rect = el.get_bounding_client_rect();
-            let mx = f64::from(ev.client_x()) - rect.left();
-            let my = f64::from(ev.client_y()) - rect.top();
+            let mx = ev.client_x() - rect.left();
+            let my = ev.client_y() - rect.top();
             let (ox, oy) = pan.get_untracked();
             pan.set((
                 mx * (1.0 - ratio) + ox * ratio,

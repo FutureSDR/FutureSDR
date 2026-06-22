@@ -213,8 +213,10 @@ mod tests {
 
     #[test]
     fn invalid_bool_config_value_is_ignored() {
-        let mut config = Config::default();
-        config.ctrlport_enable = true;
+        let mut config = Config {
+            ctrlport_enable: true,
+            ..Config::default()
+        };
 
         config.set_value("ctrlport_enable", "maybe");
 
@@ -223,8 +225,10 @@ mod tests {
 
     #[test]
     fn invalid_numeric_config_value_is_ignored() {
-        let mut config = Config::default();
-        config.queue_size = 256;
+        let mut config = Config {
+            queue_size: 256,
+            ..Config::default()
+        };
 
         config.set_value("queue_size", "not-a-number");
 
@@ -251,8 +255,10 @@ mod tests {
 
     #[test]
     fn invalid_ctrlport_bind_value_is_ignored() {
-        let mut config = Config::default();
-        config.ctrlport_bind = SocketAddr::from(([0, 0, 0, 0], 4242));
+        let mut config = Config {
+            ctrlport_bind: SocketAddr::from(([0, 0, 0, 0], 4242)),
+            ..Config::default()
+        };
 
         config.set_value("ctrlport_bind", "not-a-socket-addr");
 
