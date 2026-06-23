@@ -1,6 +1,6 @@
 [package]
 name = "futuresdr-remote"
-version = "0.0.9-dev"
+version.workspace = true
 authors = ["FutureSDR Contributors <team@futuresdr.org>"]
 edition = "2024"
 license = "Apache-2.0"
@@ -10,13 +10,11 @@ description = "Remote interaction library for FutureSDR."
 keywords = ["sdr", "radio", "runtime", "async", "acceleration"]
 categories = ["asynchronous", "concurrency", "hardware-support", "science", "wasm"]
 
-[workspace]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-futuresdr-types = { version = "0.0.17-dev", path = "../types/" }
+futuresdr-types.workspace = true
 reqwest = { version = "0.13", features = ["json"] }
 serde = "1.0"
 thiserror = "2.0"
