@@ -1,8 +1,14 @@
 use anyhow::Context;
+use seify::AntennaControl;
+use seify::BandwidthControl;
+use seify::ChannelInfo;
 use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction::Rx;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::RxDevice;
 use seify::RxStreamer;
+use seify::SampleRateControl;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
@@ -55,7 +61,14 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
-    D: DeviceTrait + Clone,
+    D: RxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     #[output]
@@ -69,7 +82,14 @@ where
 
 impl<D, OUT> Source<D, OUT>
 where
-    D: DeviceTrait + Clone,
+    D: RxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
@@ -131,12 +151,13 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.rx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_frequency(Rx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_frequency(Rx, *c, *v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(self.dev.frequency(Rx, *c)?)),
+                Pmt::F32(v) => channel.frequency().set(*v as f64)?,
+                Pmt::F64(v) => channel.frequency().set(*v)?,
+                Pmt::U32(v) => channel.frequency().set(*v as f64)?,
+                Pmt::U64(v) => channel.frequency().set(*v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(channel.frequency().value()?)),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -151,12 +172,13 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.rx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_gain(Rx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_gain(Rx, *c, *v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(self.dev.gain(Rx, *c)?.unwrap_or(f64::NAN))),
+                Pmt::F32(v) => channel.gain().set(*v as f64)?,
+                Pmt::F64(v) => channel.gain().set(*v)?,
+                Pmt::U32(v) => channel.gain().set(*v as f64)?,
+                Pmt::U64(v) => channel.gain().set(*v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(channel.gain().value()?.unwrap_or(f64::NAN))),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -171,12 +193,13 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.rx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_sample_rate(Rx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_sample_rate(Rx, *c, *v as f64)?,
-                Pmt::Null => return Ok(Pmt::F64(self.dev.sample_rate(Rx, *c)?)),
+                Pmt::F32(v) => channel.sample_rate().set(*v as f64)?,
+                Pmt::F64(v) => channel.sample_rate().set(*v)?,
+                Pmt::U32(v) => channel.sample_rate().set(*v as f64)?,
+                Pmt::U64(v) => channel.sample_rate().set(*v as f64)?,
+                Pmt::Null => return Ok(Pmt::F64(channel.sample_rate().value()?)),
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -219,7 +242,14 @@ where
 #[doc(hidden)]
 impl<D, OUT> Kernel for Source<D, OUT>
 where
-    D: DeviceTrait + Clone,
+    D: RxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     async fn work(
@@ -241,9 +271,9 @@ where
             Ok(len) => {
                 self.outputs.iter_mut().for_each(|o| o.produce(len));
             }
-            Err(seify::Error::Overflow) => {
+            Err(seify::Error::Overrun) => {
                 self.overflows += 1;
-                warn!("Seify Source Overflow");
+                warn!("Seify Source Overrun");
             }
             Err(e) => {
                 error!("Seify Source Error: {:?}", e);

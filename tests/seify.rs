@@ -5,8 +5,13 @@ use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::blocks::seify::*;
 use futuresdr::prelude::*;
-use futuresdr::seify::Direction::*;
 use std::collections::HashMap;
+
+fn dummy_device() -> Result<seify::Device<seify::DynDevice>> {
+    Ok(seify::Device::from_impl(seify::DynDevice::from_args(
+        "driver=dummy",
+    )?))
+}
 
 /// Test backwards compatible builder style
 ///
@@ -57,7 +62,7 @@ fn builder_compat_filter() -> Result<()> {
 fn builder_config() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = dummy_device()?;
     let src = Builder::from_device(dev.clone())
         .channels(vec![0]) //testing, same as default
         .sample_rate(1e6)
@@ -70,8 +75,8 @@ fn builder_config() -> Result<()> {
     let rt = Runtime::new();
     rt.start(fg)?;
 
-    assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
-    assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 100e6);
+    assert_approx_eq!(f64, dev.rx(0)?.sample_rate().value()?, 1e6);
+    assert_approx_eq!(f64, dev.rx(0)?.frequency().value()?, 100e6);
 
     Ok(())
 }
@@ -82,7 +87,7 @@ fn config_freq_gain_ports() -> Result<()> {
     futuresdr::runtime::init();
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = dummy_device()?;
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
@@ -99,13 +104,13 @@ fn config_freq_gain_ports() -> Result<()> {
     let ret = futuresdr::runtime::block_on(fg_handle.call(src, "freq", Pmt::F64(102e6)))?;
     assert_eq!(ret, Pmt::Ok);
 
-    assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
+    assert_approx_eq!(f64, dev.rx(0)?.frequency().value()?, 102e6, epsilon = 0.1);
 
     // Gain, use Pmt::U32 to test type conversion
     let ret = futuresdr::runtime::block_on(fg_handle.call(src, "gain", Pmt::U32(2)))?;
     assert_eq!(ret, Pmt::Ok);
 
-    assert_approx_eq!(f64, dev.gain(Rx, 0)?.unwrap(), 2.0);
+    assert_approx_eq!(f64, dev.rx(0)?.gain().value()?.unwrap(), 2.0);
 
     Ok(())
 }
@@ -116,7 +121,7 @@ fn config_freq_gain_ports() -> Result<()> {
 fn src_config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = dummy_device()?;
 
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
@@ -139,8 +144,8 @@ fn src_config_cmd_map() -> Result<()> {
     let ret = futuresdr::runtime::block_on(fg_handle.call(src, "cmd", pmt))?;
     assert_eq!(ret, Pmt::Ok);
 
-    assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 102e6, epsilon = 0.1);
-    assert_approx_eq!(f64, dev.sample_rate(Rx, 0)?, 1e6);
+    assert_approx_eq!(f64, dev.rx(0)?.frequency().value()?, 102e6, epsilon = 0.1);
+    assert_approx_eq!(f64, dev.rx(0)?.sample_rate().value()?, 1e6);
 
     let conf = futuresdr::runtime::block_on(fg_handle.call(src, "config", Pmt::Ok))?;
 
@@ -161,7 +166,7 @@ fn src_config_cmd_map() -> Result<()> {
 fn sink_config_cmd_map() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = dummy_device()?;
 
     let snk = Builder::from_device(dev.clone())
         .sample_rate(1e6)
@@ -183,8 +188,8 @@ fn sink_config_cmd_map() -> Result<()> {
     let ret = futuresdr::runtime::block_on(fg_handle.call(snk, "cmd", pmt))?;
     assert_eq!(ret, Pmt::Ok);
 
-    assert_approx_eq!(f64, dev.frequency(Tx, 0)?, 102e6, epsilon = 0.1);
-    assert_approx_eq!(f64, dev.sample_rate(Tx, 0)?, 1e6);
+    assert_approx_eq!(f64, dev.tx(0)?.frequency().value()?, 102e6, epsilon = 0.1);
+    assert_approx_eq!(f64, dev.tx(0)?.sample_rate().value()?, 1e6);
 
     let conf = futuresdr::runtime::block_on(fg_handle.call(snk, "config", Pmt::Ok))?;
 
@@ -203,7 +208,7 @@ fn sink_config_cmd_map() -> Result<()> {
 fn src_config_cmd_invalid_chan() -> Result<()> {
     let mut fg = Flowgraph::new();
 
-    let dev = seify::Device::from_args("driver=dummy")?;
+    let dev = dummy_device()?;
     let src = Builder::from_device(dev.clone())
         .sample_rate(1e6)
         .frequency(100e6)
@@ -221,7 +226,7 @@ fn src_config_cmd_invalid_chan() -> Result<()> {
     ]));
     let ret = futuresdr::runtime::block_on(fg_handle.call(src, "cmd", pmt))?;
     assert_eq!(ret, Pmt::InvalidValue);
-    assert_approx_eq!(f64, dev.frequency(Rx, 0)?, 100e6, epsilon = 0.1);
+    assert_approx_eq!(f64, dev.rx(0)?.frequency().value()?, 100e6, epsilon = 0.1);
 
     Ok(())
 }

@@ -1,6 +1,12 @@
+use seify::AntennaControl;
+use seify::BandwidthControl;
+use seify::ChannelInfo;
 use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction::Tx;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::SampleRateControl;
+use seify::TxDevice;
 use seify::TxStreamer;
 use std::time::Duration;
 
@@ -52,7 +58,14 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySink)]
 pub struct Sink<D, IN = DefaultCpuReader<Complex32>>
 where
-    D: DeviceTrait + Clone,
+    D: TxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     #[input]
@@ -66,7 +79,14 @@ where
 
 impl<D, IN> Sink<D, IN>
 where
-    D: DeviceTrait + Clone,
+    D: TxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     pub(super) fn new(
@@ -119,11 +139,12 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.tx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_frequency(Tx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_frequency(Tx, *c, *v as f64)?,
+                Pmt::F32(v) => channel.frequency().set(*v as f64)?,
+                Pmt::F64(v) => channel.frequency().set(*v)?,
+                Pmt::U32(v) => channel.frequency().set(*v as f64)?,
+                Pmt::U64(v) => channel.frequency().set(*v as f64)?,
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -138,11 +159,12 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.tx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_gain(Tx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_gain(Tx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_gain(Tx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_gain(Tx, *c, *v as f64)?,
+                Pmt::F32(v) => channel.gain().set(*v as f64)?,
+                Pmt::F64(v) => channel.gain().set(*v)?,
+                Pmt::U32(v) => channel.gain().set(*v as f64)?,
+                Pmt::U64(v) => channel.gain().set(*v as f64)?,
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -157,11 +179,12 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
+            let channel = self.dev.tx(*c)?;
             match &p {
-                Pmt::F32(v) => self.dev.set_sample_rate(Tx, *c, *v as f64)?,
-                Pmt::F64(v) => self.dev.set_sample_rate(Tx, *c, *v)?,
-                Pmt::U32(v) => self.dev.set_sample_rate(Tx, *c, *v as f64)?,
-                Pmt::U64(v) => self.dev.set_sample_rate(Tx, *c, *v as f64)?,
+                Pmt::F32(v) => channel.sample_rate().set(*v as f64)?,
+                Pmt::F64(v) => channel.sample_rate().set(*v)?,
+                Pmt::U32(v) => channel.sample_rate().set(*v as f64)?,
+                Pmt::U64(v) => channel.sample_rate().set(*v as f64)?,
                 _ => return Ok(Pmt::InvalidValue),
             };
         }
@@ -194,7 +217,14 @@ where
 #[doc(hidden)]
 impl<D, IN> Kernel for Sink<D, IN>
 where
-    D: DeviceTrait + Clone,
+    D: TxDevice
+        + AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     async fn work(
@@ -270,7 +300,7 @@ where
             let smallest_sample_rate: f32 =
                 self.channels
                     .iter()
-                    .map(|c| self.dev.sample_rate(Tx, *c).unwrap())
+                    .map(|c| self.dev.tx(*c).unwrap().sample_rate().value().unwrap())
                     .fold(f64::INFINITY, |a, b| a.min(b)) as f32;
             let termination_delay = consumed as f32 / smallest_sample_rate;
             Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;

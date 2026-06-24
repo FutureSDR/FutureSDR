@@ -8,6 +8,7 @@ edition = "2024"
 [features]
 default = ["soapy"]
 aaronia_http = ["futuresdr/aaronia_http"]
+hydrasdr = ["futuresdr/hydrasdr"]
 rtlsdr = ["futuresdr/rtlsdr"]
 soapy = ["futuresdr/soapy"]
 
@@ -24,4 +25,3 @@ serde_with = "3"
 [patch.crates-io]
 deku = { git = "https://github.com/sharksforarms/deku.git", tag = "deku-v0.19.0" }
 deku_derive = { git = "https://github.com/sharksforarms/deku.git", tag = "deku-v0.19.0" }
-

@@ -57,6 +57,7 @@ burn = ["dep:burn"]
 ctrl_port = ["dep:axum", "dep:hyper", "dep:tower-http", "dep:tower-service"]
 flow_scheduler = ["dep:spin"]
 hackrf = ["seify/hackrfone"]
+hydrasdr = ["seify/hydrasdr"]
 rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
@@ -103,7 +104,7 @@ num-complex = "0.4"
 num-integer = "0.1"
 once_cell = "1.21"
 rustfft = "6.4"
-seify = { version = "0.19", default-features = false, optional = true }
+seify = { version = "0.20", default-features = false, optional = true }
 slab = "0.4"
 spin = { version = "0.12", optional = true }
 serde = { version = "1.0", features = ["derive"] }

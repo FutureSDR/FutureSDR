@@ -1,8 +1,15 @@
+use seify::AntennaControl;
 use seify::Args;
+use seify::BandwidthControl;
+use seify::ChannelInfo;
 use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction;
-use seify::GenericDevice;
+use seify::DynDevice;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::RxDevice;
+use seify::SampleRateControl;
+use seify::TxDevice;
 
 use crate::blocks::seify::Config;
 use crate::blocks::seify::Sink;
@@ -35,7 +42,16 @@ impl IntoAntenna for Option<String> {
 }
 
 /// Seify Device builder
-pub struct Builder<D: DeviceTrait + Clone> {
+pub struct Builder<D>
+where
+    D: AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
+{
     channels: Vec<usize>,
     config: Config,
     dev: Device<D>,
@@ -43,11 +59,11 @@ pub struct Builder<D: DeviceTrait + Clone> {
     min_input_buffer_size: Option<usize>,
 }
 
-impl Builder<GenericDevice> {
+impl Builder<DynDevice> {
     /// Create Seify Device builder
     pub fn new<A: TryInto<Args>>(args: A) -> Result<Self, Error> {
         let args = args.try_into().or(Err(Error::SeifyArgsConversionError))?;
-        let dev = Device::from_args(args)?;
+        let dev = Device::from_impl(DynDevice::from_args(args)?);
         Ok(Self {
             channels: vec![0],
             config: Config::new(),
@@ -58,7 +74,16 @@ impl Builder<GenericDevice> {
     }
 }
 
-impl<D: DeviceTrait + Clone> Builder<D> {
+impl<D> Builder<D>
+where
+    D: AntennaControl
+        + BandwidthControl
+        + ChannelInfo
+        + FrequencyControl
+        + GainControl
+        + SampleRateControl
+        + Clone,
+{
     /// Create Seify Device builder
     pub fn from_device(dev: Device<D>) -> Self {
         Self {
@@ -70,7 +95,16 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         }
     }
     /// Seify device
-    pub fn device<D2: DeviceTrait + Clone>(self, dev: Device<D2>) -> Builder<D2> {
+    pub fn device<D2>(self, dev: Device<D2>) -> Builder<D2>
+    where
+        D2: AntennaControl
+            + BandwidthControl
+            + ChannelInfo
+            + FrequencyControl
+            + GainControl
+            + SampleRateControl
+            + Clone,
+    {
         Builder {
             channels: self.channels,
             config: self.config,
@@ -131,7 +165,10 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         self
     }
     /// Build Typed Seify Source
-    pub fn build_source(self) -> Result<Source<D>, Error> {
+    pub fn build_source(self) -> Result<Source<D>, Error>
+    where
+        D: RxDevice,
+    {
         self.config
             .apply(&self.dev, &self.channels, Direction::Rx)?;
         Ok(Source::new(self.dev, self.channels, self.start_time))
@@ -139,7 +176,10 @@ impl<D: DeviceTrait + Clone> Builder<D> {
     /// Build Typed Seify Source
     pub fn build_source_with_buffer<B: CpuBufferWriter<Item = Complex32>>(
         self,
-    ) -> Result<Source<D, B>, Error> {
+    ) -> Result<Source<D, B>, Error>
+    where
+        D: RxDevice,
+    {
         self.config
             .apply(&self.dev, &self.channels, Direction::Rx)?;
         Ok(Source::<D, B>::new(
@@ -149,7 +189,10 @@ impl<D: DeviceTrait + Clone> Builder<D> {
         ))
     }
     /// Builder Typed Seify Sink
-    pub fn build_sink(self) -> Result<Sink<D>, Error> {
+    pub fn build_sink(self) -> Result<Sink<D>, Error>
+    where
+        D: TxDevice,
+    {
         self.config
             .apply(&self.dev, &self.channels, Direction::Tx)?;
         Ok(Sink::new(
@@ -162,7 +205,10 @@ impl<D: DeviceTrait + Clone> Builder<D> {
     /// Builder Typed Seify Sink
     pub fn build_sink_with_buffer<B: CpuBufferReader<Item = Complex32>>(
         self,
-    ) -> Result<Sink<D, B>, Error> {
+    ) -> Result<Sink<D, B>, Error>
+    where
+        D: TxDevice,
+    {
         self.config
             .apply(&self.dev, &self.channels, Direction::Tx)?;
         Ok(Sink::<D, B>::new(

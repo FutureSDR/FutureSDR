@@ -1,6 +1,11 @@
+use seify::AntennaControl;
+use seify::BandwidthControl;
+use seify::ChannelInfo;
 use seify::Device;
-use seify::DeviceTrait;
 use seify::Direction;
+use seify::FrequencyControl;
+use seify::GainControl;
+use seify::SampleRateControl;
 use std::collections::HashMap;
 
 use crate::runtime::Error;
@@ -59,12 +64,15 @@ impl Config {
     }
 
     /// Apply config to a device
-    pub fn apply<D: DeviceTrait + Clone>(
-        &self,
-        dev: &Device<D>,
-        channels: &[usize],
-        dir: Direction,
-    ) -> Result<(), Error> {
+    pub fn apply<D>(&self, dev: &Device<D>, channels: &[usize], dir: Direction) -> Result<(), Error>
+    where
+        D: AntennaControl
+            + BandwidthControl
+            + ChannelInfo
+            + FrequencyControl
+            + GainControl
+            + SampleRateControl,
+    {
         if let Some(chan) = self.selected_channel(channels)? {
             self.apply_channel(dev, dir, chan)?;
         } else {
@@ -76,26 +84,52 @@ impl Config {
         Ok(())
     }
 
-    fn apply_channel<D: DeviceTrait + Clone>(
-        &self,
-        dev: &Device<D>,
-        dir: Direction,
-        chan: usize,
-    ) -> Result<(), Error> {
-        if let Some(ref a) = self.antenna {
-            dev.set_antenna(dir, chan, a)?;
-        }
-        if let Some(b) = self.bandwidth {
-            dev.set_bandwidth(dir, chan, b)?;
-        }
-        if let Some(f) = self.freq {
-            dev.set_frequency(dir, chan, f)?;
-        }
-        if let Some(g) = self.gain {
-            dev.set_gain(dir, chan, g)?;
-        }
-        if let Some(s) = self.sample_rate {
-            dev.set_sample_rate(dir, chan, s)?;
+    fn apply_channel<D>(&self, dev: &Device<D>, dir: Direction, chan: usize) -> Result<(), Error>
+    where
+        D: AntennaControl
+            + BandwidthControl
+            + ChannelInfo
+            + FrequencyControl
+            + GainControl
+            + SampleRateControl,
+    {
+        match dir {
+            Direction::Rx => {
+                let channel = dev.rx(chan)?;
+                if let Some(ref a) = self.antenna {
+                    channel.antenna().select(a)?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b)?;
+                }
+                if let Some(f) = self.freq {
+                    channel.frequency().set(f)?;
+                }
+                if let Some(g) = self.gain {
+                    channel.gain().set(g)?;
+                }
+                if let Some(s) = self.sample_rate {
+                    channel.sample_rate().set(s)?;
+                }
+            }
+            Direction::Tx => {
+                let channel = dev.tx(chan)?;
+                if let Some(ref a) = self.antenna {
+                    channel.antenna().select(a)?;
+                }
+                if let Some(b) = self.bandwidth {
+                    channel.bandwidth().set(b)?;
+                }
+                if let Some(f) = self.freq {
+                    channel.frequency().set(f)?;
+                }
+                if let Some(g) = self.gain {
+                    channel.gain().set(g)?;
+                }
+                if let Some(s) = self.sample_rate {
+                    channel.sample_rate().set(s)?;
+                }
+            }
         }
 
         Ok(())
@@ -108,19 +142,45 @@ impl Config {
     }
 
     /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
-    pub fn from<D: DeviceTrait + Clone>(
-        dev: &Device<D>,
-        dir: Direction,
-        channel: usize,
-    ) -> Result<Self, Error> {
-        let inner = dev.impl_ref::<D>()?;
+    pub fn from<D>(dev: &Device<D>, dir: Direction, channel: usize) -> Result<Self, Error>
+    where
+        D: AntennaControl
+            + BandwidthControl
+            + ChannelInfo
+            + FrequencyControl
+            + GainControl
+            + SampleRateControl,
+    {
+        let (antenna, bandwidth, freq, gain, sample_rate) = match dir {
+            Direction::Rx => {
+                let channel = dev.rx(channel)?;
+                (
+                    channel.antenna().selected().ok(),
+                    channel.bandwidth().value().ok(),
+                    channel.frequency().value().ok(),
+                    channel.gain().value().ok().flatten(),
+                    channel.sample_rate().value().ok(),
+                )
+            }
+            Direction::Tx => {
+                let channel = dev.tx(channel)?;
+                (
+                    channel.antenna().selected().ok(),
+                    channel.bandwidth().value().ok(),
+                    channel.frequency().value().ok(),
+                    channel.gain().value().ok().flatten(),
+                    channel.sample_rate().value().ok(),
+                )
+            }
+        };
+
         Ok(Config {
             chan: None,
-            antenna: inner.antenna(dir, channel).ok(),
-            bandwidth: inner.bandwidth(dir, channel).ok(),
-            freq: inner.frequency(dir, channel).ok(),
-            gain: inner.gain(dir, channel).ok().flatten(),
-            sample_rate: inner.sample_rate(dir, channel).ok(),
+            antenna,
+            bandwidth,
+            freq,
+            gain,
+            sample_rate,
         })
     }
 }
