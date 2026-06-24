@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rustfmt
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install libasound2-dev libsoapysdr-dev libzmq3-dev
+
+      - name: Validate tag matches workspace crate versions
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          mismatches="$(cargo metadata --no-deps --format-version 1 | jq -r --arg version "$tag_version" '.packages[] | select(.version != $version) | "\(.name) \(.version)"')"
+
+          if [ -n "$mismatches" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match workspace crate versions:"
+            echo "$mismatches"
+            exit 1
+          fi
+
+      - name: Check format
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --workspace --features=burn,aaronia_http,zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu
+
+      - name: Run doc tests
+        run: cargo test --doc --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu
+
+      - name: Check public API docs
+        run: cargo doc --no-deps --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu
+
+      - name: Package leaf crates
+        run: |
+          cargo package --manifest-path crates/futuredsp/Cargo.toml
+          cargo package --manifest-path crates/macros/Cargo.toml
+          cargo package --manifest-path crates/types/Cargo.toml
+
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish crates to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+
+          wait_for_crate() {
+            crate="$1"
+
+            for attempt in {1..30}; do
+              if cargo info "$crate@$version" >/dev/null 2>&1; then
+                return 0
+              fi
+
+              echo "Waiting for $crate $version to appear in the registry ($attempt/30)"
+              sleep 10
+            done
+
+            echo "::error::$crate $version did not appear in the registry"
+            exit 1
+          }
+
+          publish_and_wait() {
+            manifest="$1"
+            crate="$2"
+
+            cargo publish --manifest-path "$manifest"
+            wait_for_crate "$crate"
+          }
+
+          publish_and_wait crates/futuredsp/Cargo.toml futuredsp
+          publish_and_wait crates/macros/Cargo.toml futuresdr-macros
+          publish_and_wait crates/types/Cargo.toml futuresdr-types
+
+          cargo package --manifest-path crates/remote/Cargo.toml
+          publish_and_wait crates/remote/Cargo.toml futuresdr-remote
+
+          cargo package --manifest-path Cargo.toml
+          publish_and_wait Cargo.toml futuresdr
+
+          cargo package --manifest-path crates/prophecy/Cargo.toml
+          publish_and_wait crates/prophecy/Cargo.toml prophecy
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

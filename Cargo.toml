@@ -18,6 +18,17 @@ categories = [
     "science",
     "wasm",
 ]
+exclude = [
+    ".codex/",
+    ".github/",
+    "AGENTS.md",
+    "book/",
+    "check.sh",
+    "config.toml",
+    "perf/",
+    "rust-analyzer.toml",
+    "taplo.toml",
+]
 
 [workspace]
 members = [

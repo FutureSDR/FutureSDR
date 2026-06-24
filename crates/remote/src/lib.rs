@@ -36,7 +36,7 @@ use thiserror::Error;
 /// FutureSDR Remote Error
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Error in [`hyper`] crate.
+    /// Error returned by reqwest.
     #[error("Reqwest")]
     Reqwest(#[from] reqwest::Error),
     /// Wrong [`Flowgraph`] ID.
