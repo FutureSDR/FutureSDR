@@ -1,14 +1,10 @@
 use anyhow::Context;
-use seify::AntennaControl;
-use seify::BandwidthControl;
 use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction::Rx;
-use seify::FrequencyControl;
-use seify::GainControl;
+use seify::DynDevice;
 use seify::RxDevice;
 use seify::RxStreamer;
-use seify::SampleRateControl;
 use std::time::Duration;
 
 use crate::blocks::seify::Config;
@@ -61,20 +57,14 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
-    D: RxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: RxDevice + ChannelInfo + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     #[output]
     outputs: Vec<OUT>,
     channels: Vec<usize>,
     dev: Device<D>,
+    ctrl: DynDevice,
     streamer: Option<D::RxStreamer>,
     start_time: Option<i64>,
     overflows: u64,
@@ -82,17 +72,15 @@ where
 
 impl<D, OUT> Source<D, OUT>
 where
-    D: RxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: RxDevice + ChannelInfo + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
-    pub(super) fn new(dev: Device<D>, channels: Vec<usize>, start_time: Option<i64>) -> Self {
+    pub(super) fn new(
+        dev: Device<D>,
+        ctrl: DynDevice,
+        channels: Vec<usize>,
+        start_time: Option<i64>,
+    ) -> Self {
         assert!(!channels.is_empty());
 
         let mut outputs = Vec::new();
@@ -104,6 +92,7 @@ where
             outputs,
             channels,
             dev,
+            ctrl,
             start_time,
             streamer: None,
             overflows: 0,
@@ -136,7 +125,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         let c: Config = p.try_into()?;
-        match c.apply(&self.dev, &self.channels, Rx) {
+        match c.apply(&self.ctrl, &self.channels, Rx) {
             Ok(()) => Ok(Pmt::Ok),
             Err(Error::InvalidParameter) => Ok(Pmt::InvalidValue),
             Err(e) => Err(e.into()),
@@ -151,7 +140,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.rx(*c)?;
+            let channel = self.ctrl.rx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.frequency().set(*v as f64)?,
                 Pmt::F64(v) => channel.frequency().set(*v)?,
@@ -172,7 +161,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.rx(*c)?;
+            let channel = self.ctrl.rx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.gain().set(*v as f64)?,
                 Pmt::F64(v) => channel.gain().set(*v)?,
@@ -193,7 +182,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.rx(*c)?;
+            let channel = self.ctrl.rx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.sample_rate().set(*v as f64)?,
                 Pmt::F64(v) => channel.sample_rate().set(*v)?,
@@ -223,7 +212,7 @@ where
         if id >= self.channels.len() {
             return Ok(Pmt::InvalidValue);
         }
-        let mut config = Config::from(&self.dev, Rx, self.channels[id])?;
+        let mut config = Config::from(&self.ctrl, Rx, self.channels[id])?;
         config.chan = Some(id);
         Ok(config.to_serializable_pmt())
     }
@@ -242,14 +231,7 @@ where
 #[doc(hidden)]
 impl<D, OUT> Kernel for Source<D, OUT>
 where
-    D: RxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: RxDevice + ChannelInfo + Clone,
     OUT: CpuBufferWriter<Item = Complex32>,
 {
     async fn work(

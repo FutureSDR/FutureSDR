@@ -7,8 +7,102 @@ use futuresdr::blocks::seify::*;
 use futuresdr::prelude::*;
 use std::collections::HashMap;
 
-fn dummy_device() -> Result<seify::Device<seify::DynDevice>> {
-    Ok(seify::Device::from_impl(seify::DynDevice::from_args(
+#[derive(Clone)]
+struct RxStreamOnly;
+
+struct RxStreamOnlyStreamer;
+
+impl seify::DeviceInfo for RxStreamOnly {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn driver(&self) -> seify::Driver {
+        seify::Driver::Dummy
+    }
+
+    fn id(&self) -> Result<String, seify::Error> {
+        Ok("rx-stream-only".to_string())
+    }
+
+    fn info(&self) -> Result<seify::Args, seify::Error> {
+        Ok(seify::Args::new())
+    }
+}
+
+impl seify::DynDeviceBackend for RxStreamOnly {
+    fn channel_info(&self) -> Option<&dyn seify::ChannelInfo> {
+        Some(self)
+    }
+
+    fn rx_device(&self) -> Option<&dyn seify::ErasedRxDevice> {
+        Some(self)
+    }
+}
+
+impl seify::ChannelInfo for RxStreamOnly {
+    fn num_channels(&self, direction: seify::Direction) -> Result<usize, seify::Error> {
+        match direction {
+            seify::Direction::Rx => Ok(1),
+            seify::Direction::Tx => Ok(0),
+        }
+    }
+
+    fn full_duplex(
+        &self,
+        _direction: seify::Direction,
+        _channel: usize,
+    ) -> Result<bool, seify::Error> {
+        Ok(false)
+    }
+}
+
+impl seify::RxDevice for RxStreamOnly {
+    type RxStreamer = RxStreamOnlyStreamer;
+
+    fn rx_streamer(
+        &self,
+        channels: &[usize],
+        _args: seify::Args,
+    ) -> Result<Self::RxStreamer, seify::Error> {
+        match channels {
+            &[0] => Ok(RxStreamOnlyStreamer),
+            _ => Err(seify::Error::invalid_argument(
+                "channels",
+                "unsupported RX channel set",
+            )),
+        }
+    }
+}
+
+impl seify::RxStreamer for RxStreamOnlyStreamer {
+    fn mtu(&self) -> Result<usize, seify::Error> {
+        Ok(1)
+    }
+
+    fn activate_at(&mut self, _time_ns: Option<i64>) -> Result<(), seify::Error> {
+        Ok(())
+    }
+
+    fn deactivate_at(&mut self, _time_ns: Option<i64>) -> Result<(), seify::Error> {
+        Ok(())
+    }
+
+    fn read(
+        &mut self,
+        _buffers: &mut [&mut [Complex<f32>]],
+        _timeout_us: i64,
+    ) -> Result<usize, seify::Error> {
+        Ok(0)
+    }
+}
+
+fn dummy_device() -> Result<seify::Device<seify::impls::Dummy>> {
+    Ok(seify::Device::from_impl(seify::impls::Dummy::open(
         "driver=dummy",
     )?))
 }
@@ -79,6 +173,26 @@ fn builder_config() -> Result<()> {
     assert_approx_eq!(f64, dev.rx(0)?.frequency().value()?, 100e6);
 
     Ok(())
+}
+
+#[test]
+fn typed_source_without_control_traits_can_be_built() -> Result<()> {
+    let dev = seify::Device::from_impl(RxStreamOnly);
+    let _src = Builder::from_device(dev).build_source()?;
+
+    Ok(())
+}
+
+#[test]
+fn typed_source_unsupported_control_config_errors() {
+    let dev = seify::Device::from_impl(RxStreamOnly);
+    let result = Builder::from_device(dev).frequency(100e6).build_source();
+
+    assert!(matches!(
+        result,
+        Err(futuresdr::runtime::Error::SeifyError(ref msg))
+            if msg.contains("unsupported capability Frequency")
+    ));
 }
 
 /// Runtime configuration via the individual "freq" and "gain" ports

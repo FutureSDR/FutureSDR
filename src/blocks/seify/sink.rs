@@ -1,11 +1,7 @@
-use seify::AntennaControl;
-use seify::BandwidthControl;
 use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction::Tx;
-use seify::FrequencyControl;
-use seify::GainControl;
-use seify::SampleRateControl;
+use seify::DynDevice;
 use seify::TxDevice;
 use seify::TxStreamer;
 use std::time::Duration;
@@ -58,20 +54,14 @@ use crate::runtime::dev::prelude::*;
 #[type_name(SeifySink)]
 pub struct Sink<D, IN = DefaultCpuReader<Complex32>>
 where
-    D: TxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: TxDevice + ChannelInfo + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     #[input]
     inputs: Vec<IN>,
     channels: Vec<usize>,
     dev: Device<D>,
+    ctrl: DynDevice,
     streamer: Option<D::TxStreamer>,
     start_time: Option<i64>,
     max_input_buffer_size_in_samples: usize,
@@ -79,18 +69,12 @@ where
 
 impl<D, IN> Sink<D, IN>
 where
-    D: TxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: TxDevice + ChannelInfo + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     pub(super) fn new(
         dev: Device<D>,
+        ctrl: DynDevice,
         channels: Vec<usize>,
         start_time: Option<i64>,
         min_buffer_size: Option<usize>,
@@ -110,6 +94,7 @@ where
             inputs,
             channels,
             dev,
+            ctrl,
             start_time,
             streamer: None,
             max_input_buffer_size_in_samples: 0,
@@ -124,7 +109,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         let c: Config = p.try_into()?;
-        match c.apply(&self.dev, &self.channels, Tx) {
+        match c.apply(&self.ctrl, &self.channels, Tx) {
             Ok(()) => Ok(Pmt::Ok),
             Err(Error::InvalidParameter) => Ok(Pmt::InvalidValue),
             Err(e) => Err(e.into()),
@@ -139,7 +124,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.tx(*c)?;
+            let channel = self.ctrl.tx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.frequency().set(*v as f64)?,
                 Pmt::F64(v) => channel.frequency().set(*v)?,
@@ -159,7 +144,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.tx(*c)?;
+            let channel = self.ctrl.tx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.gain().set(*v as f64)?,
                 Pmt::F64(v) => channel.gain().set(*v)?,
@@ -179,7 +164,7 @@ where
         p: Pmt,
     ) -> Result<Pmt> {
         for c in &self.channels {
-            let channel = self.dev.tx(*c)?;
+            let channel = self.ctrl.tx(*c)?;
             match &p {
                 Pmt::F32(v) => channel.sample_rate().set(*v as f64)?,
                 Pmt::F64(v) => channel.sample_rate().set(*v)?,
@@ -208,7 +193,7 @@ where
         if id >= self.channels.len() {
             return Ok(Pmt::InvalidValue);
         }
-        let mut config = Config::from(&self.dev, Tx, self.channels[id])?;
+        let mut config = Config::from(&self.ctrl, Tx, self.channels[id])?;
         config.chan = Some(id);
         Ok(config.to_serializable_pmt())
     }
@@ -217,14 +202,7 @@ where
 #[doc(hidden)]
 impl<D, IN> Kernel for Sink<D, IN>
 where
-    D: TxDevice
-        + AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: TxDevice + ChannelInfo + Clone,
     IN: CpuBufferReader<Item = Complex32>,
 {
     async fn work(
@@ -297,11 +275,11 @@ where
             .any(|(input, input_length)| input.finished() && input_length - consumed == 0);
         if io.finished {
             // allow the necessary time plus overhead for the TX streamer to write the samples to the device before being terminated
-            let smallest_sample_rate: f32 =
+            let smallest_sample_rate =
                 self.channels
                     .iter()
-                    .map(|c| self.dev.tx(*c).unwrap().sample_rate().value().unwrap())
-                    .fold(f64::INFINITY, |a, b| a.min(b)) as f32;
+                    .map(|c| self.ctrl.tx(*c)?.sample_rate().value())
+                    .try_fold(f64::INFINITY, |a, b| b.map(|b| a.min(b)))? as f32;
             let termination_delay = consumed as f32 / smallest_sample_rate;
             Timer::after(Duration::from_secs_f32(termination_delay + 0.5)).await;
             // propagate flowgraph termination in case we need to signal a source block in a hitl loopback setup

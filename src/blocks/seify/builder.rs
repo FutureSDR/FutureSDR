@@ -1,14 +1,10 @@
-use seify::AntennaControl;
 use seify::Args;
-use seify::BandwidthControl;
 use seify::ChannelInfo;
 use seify::Device;
 use seify::Direction;
 use seify::DynDevice;
-use seify::FrequencyControl;
-use seify::GainControl;
+use seify::DynDeviceBackend;
 use seify::RxDevice;
-use seify::SampleRateControl;
 use seify::TxDevice;
 
 use crate::blocks::seify::Config;
@@ -42,19 +38,11 @@ impl IntoAntenna for Option<String> {
 }
 
 /// Seify Device builder
-pub struct Builder<D>
-where
-    D: AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
-{
+pub struct Builder<D> {
     channels: Vec<usize>,
     config: Config,
     dev: Device<D>,
+    ctrl: DynDevice,
     start_time: Option<i64>,
     min_input_buffer_size: Option<usize>,
 }
@@ -63,11 +51,13 @@ impl Builder<DynDevice> {
     /// Create Seify Device builder
     pub fn new<A: TryInto<Args>>(args: A) -> Result<Self, Error> {
         let args = args.try_into().or(Err(Error::SeifyArgsConversionError))?;
-        let dev = Device::from_impl(DynDevice::from_args(args)?);
+        let ctrl = DynDevice::from_args(args)?;
+        let dev = Device::from_impl(ctrl.clone());
         Ok(Self {
             channels: vec![0],
             config: Config::new(),
             dev,
+            ctrl,
             start_time: None,
             min_input_buffer_size: None,
         })
@@ -76,39 +66,34 @@ impl Builder<DynDevice> {
 
 impl<D> Builder<D>
 where
-    D: AntennaControl
-        + BandwidthControl
-        + ChannelInfo
-        + FrequencyControl
-        + GainControl
-        + SampleRateControl
-        + Clone,
+    D: DynDeviceBackend + Clone + 'static,
 {
     /// Create Seify Device builder
     pub fn from_device(dev: Device<D>) -> Self {
+        let ctrl = DynDevice::from_impl(dev.as_inner().clone());
         Self {
             channels: vec![0],
             config: Config::new(),
             dev,
+            ctrl,
             start_time: None,
             min_input_buffer_size: None,
         }
     }
+}
+
+impl<D> Builder<D> {
     /// Seify device
     pub fn device<D2>(self, dev: Device<D2>) -> Builder<D2>
     where
-        D2: AntennaControl
-            + BandwidthControl
-            + ChannelInfo
-            + FrequencyControl
-            + GainControl
-            + SampleRateControl
-            + Clone,
+        D2: DynDeviceBackend + Clone + 'static,
     {
+        let ctrl = DynDevice::from_impl(dev.as_inner().clone());
         Builder {
             channels: self.channels,
             config: self.config,
             dev,
+            ctrl,
             start_time: self.start_time,
             min_input_buffer_size: None,
         }
@@ -167,23 +152,29 @@ where
     /// Build Typed Seify Source
     pub fn build_source(self) -> Result<Source<D>, Error>
     where
-        D: RxDevice,
+        D: RxDevice + ChannelInfo + Clone,
     {
         self.config
-            .apply(&self.dev, &self.channels, Direction::Rx)?;
-        Ok(Source::new(self.dev, self.channels, self.start_time))
+            .apply(&self.ctrl, &self.channels, Direction::Rx)?;
+        Ok(Source::new(
+            self.dev,
+            self.ctrl,
+            self.channels,
+            self.start_time,
+        ))
     }
     /// Build Typed Seify Source
     pub fn build_source_with_buffer<B: CpuBufferWriter<Item = Complex32>>(
         self,
     ) -> Result<Source<D, B>, Error>
     where
-        D: RxDevice,
+        D: RxDevice + ChannelInfo + Clone,
     {
         self.config
-            .apply(&self.dev, &self.channels, Direction::Rx)?;
+            .apply(&self.ctrl, &self.channels, Direction::Rx)?;
         Ok(Source::<D, B>::new(
             self.dev,
+            self.ctrl,
             self.channels,
             self.start_time,
         ))
@@ -191,12 +182,13 @@ where
     /// Builder Typed Seify Sink
     pub fn build_sink(self) -> Result<Sink<D>, Error>
     where
-        D: TxDevice,
+        D: TxDevice + ChannelInfo + Clone,
     {
         self.config
-            .apply(&self.dev, &self.channels, Direction::Tx)?;
+            .apply(&self.ctrl, &self.channels, Direction::Tx)?;
         Ok(Sink::new(
             self.dev,
+            self.ctrl,
             self.channels,
             self.start_time,
             self.min_input_buffer_size,
@@ -207,12 +199,13 @@ where
         self,
     ) -> Result<Sink<D, B>, Error>
     where
-        D: TxDevice,
+        D: TxDevice + ChannelInfo + Clone,
     {
         self.config
-            .apply(&self.dev, &self.channels, Direction::Tx)?;
+            .apply(&self.ctrl, &self.channels, Direction::Tx)?;
         Ok(Sink::<D, B>::new(
             self.dev,
+            self.ctrl,
             self.channels,
             self.start_time,
             self.min_input_buffer_size,

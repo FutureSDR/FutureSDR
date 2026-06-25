@@ -1,11 +1,5 @@
-use seify::AntennaControl;
-use seify::BandwidthControl;
-use seify::ChannelInfo;
-use seify::Device;
 use seify::Direction;
-use seify::FrequencyControl;
-use seify::GainControl;
-use seify::SampleRateControl;
+use seify::DynDevice;
 use std::collections::HashMap;
 
 use crate::runtime::Error;
@@ -64,15 +58,7 @@ impl Config {
     }
 
     /// Apply config to a device
-    pub fn apply<D>(&self, dev: &Device<D>, channels: &[usize], dir: Direction) -> Result<(), Error>
-    where
-        D: AntennaControl
-            + BandwidthControl
-            + ChannelInfo
-            + FrequencyControl
-            + GainControl
-            + SampleRateControl,
-    {
+    pub fn apply(&self, dev: &DynDevice, channels: &[usize], dir: Direction) -> Result<(), Error> {
         if let Some(chan) = self.selected_channel(channels)? {
             self.apply_channel(dev, dir, chan)?;
         } else {
@@ -84,15 +70,7 @@ impl Config {
         Ok(())
     }
 
-    fn apply_channel<D>(&self, dev: &Device<D>, dir: Direction, chan: usize) -> Result<(), Error>
-    where
-        D: AntennaControl
-            + BandwidthControl
-            + ChannelInfo
-            + FrequencyControl
-            + GainControl
-            + SampleRateControl,
-    {
+    fn apply_channel(&self, dev: &DynDevice, dir: Direction, chan: usize) -> Result<(), Error> {
         match dir {
             Direction::Rx => {
                 let channel = dev.rx(chan)?;
@@ -142,34 +120,26 @@ impl Config {
     }
 
     /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
-    pub fn from<D>(dev: &Device<D>, dir: Direction, channel: usize) -> Result<Self, Error>
-    where
-        D: AntennaControl
-            + BandwidthControl
-            + ChannelInfo
-            + FrequencyControl
-            + GainControl
-            + SampleRateControl,
-    {
+    pub fn from(dev: &DynDevice, dir: Direction, channel: usize) -> Result<Self, Error> {
         let (antenna, bandwidth, freq, gain, sample_rate) = match dir {
             Direction::Rx => {
                 let channel = dev.rx(channel)?;
                 (
-                    channel.antenna().selected().ok(),
-                    channel.bandwidth().value().ok(),
-                    channel.frequency().value().ok(),
-                    channel.gain().value().ok().flatten(),
-                    channel.sample_rate().value().ok(),
+                    Self::optional_control(channel.antenna().selected())?,
+                    Self::optional_control(channel.bandwidth().value())?,
+                    Self::optional_control(channel.frequency().value())?,
+                    Self::optional_control(channel.gain().value())?.flatten(),
+                    Self::optional_control(channel.sample_rate().value())?,
                 )
             }
             Direction::Tx => {
                 let channel = dev.tx(channel)?;
                 (
-                    channel.antenna().selected().ok(),
-                    channel.bandwidth().value().ok(),
-                    channel.frequency().value().ok(),
-                    channel.gain().value().ok().flatten(),
-                    channel.sample_rate().value().ok(),
+                    Self::optional_control(channel.antenna().selected())?,
+                    Self::optional_control(channel.bandwidth().value())?,
+                    Self::optional_control(channel.frequency().value())?,
+                    Self::optional_control(channel.gain().value())?.flatten(),
+                    Self::optional_control(channel.sample_rate().value())?,
                 )
             }
         };
@@ -182,6 +152,14 @@ impl Config {
             gain,
             sample_rate,
         })
+    }
+
+    fn optional_control<T>(value: Result<T, seify::Error>) -> Result<Option<T>, Error> {
+        match value {
+            Ok(value) => Ok(Some(value)),
+            Err(e) if e.is_unsupported() => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
