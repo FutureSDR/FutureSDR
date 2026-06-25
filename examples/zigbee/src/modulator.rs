@@ -334,10 +334,16 @@ fn make_nibble(i: u8) -> impl Iterator<Item = Complex32> + Send {
         .map(|(x, y)| x * y)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn modulator(fg: &mut Flowgraph) -> Result<BlockId> {
+    futuresdr::runtime::block_on(modulator_async(fg))
+}
+
+pub async fn modulator_async(fg: &mut Flowgraph) -> Result<BlockId> {
     Ok(fg
-        .add(ApplyIntoIter::new(|i: &u8| {
+        .add_async(ApplyIntoIter::new(|i: &u8| {
             make_nibble(i & 0x0F).chain(make_nibble(i >> 4))
-        }))?
+        }))
+        .await?
         .into())
 }

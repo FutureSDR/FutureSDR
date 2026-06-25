@@ -151,7 +151,7 @@ rodio = { version = "0.22", default-features = false, features = [
     "symphonia-all",
 ], optional = true }
 hyper = { version = "1", default-features = false, features = ["http1", "server"], optional = true }
-tower-http = { version = "0.6", default-features = false, features = ["cors"], optional = true }
+tower-http = { version = "0.7", default-features = false, features = ["cors"], optional = true }
 tower-service = { version = "0.3", default-features = false, optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 vmcircbuffer = { version = "0.0.14", features = ["generic"] }
