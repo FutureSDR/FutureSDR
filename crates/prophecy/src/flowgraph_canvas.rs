@@ -17,6 +17,26 @@ const ROW_GAP: f64 = 40.0;
 const CANVAS_PADDING: f64 = 40.0;
 const BEZIER_OFFSET: f64 = 60.0;
 
+#[cfg(target_arch = "wasm32")]
+fn client_x(ev: &web_sys::MouseEvent) -> f64 {
+    ev.client_x()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn client_x(ev: &web_sys::MouseEvent) -> f64 {
+    ev.client_x() as f64
+}
+
+#[cfg(target_arch = "wasm32")]
+fn client_y(ev: &web_sys::MouseEvent) -> f64 {
+    ev.client_y()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn client_y(ev: &web_sys::MouseEvent) -> f64 {
+    ev.client_y() as f64
+}
+
 struct BlockLayout {
     x: f64,
     y: f64,
@@ -604,13 +624,7 @@ fn render_block_node(
         ev.prevent_default();
         ev.stop_propagation();
         let (bx, by) = pos.get_untracked();
-        dragging.set(Some((
-            bid,
-            ev.client_x() as f64,
-            ev.client_y() as f64,
-            bx,
-            by,
-        )));
+        dragging.set(Some((bid, client_x(&ev), client_y(&ev), bx, by)));
     };
 
     view! {
@@ -801,12 +815,12 @@ pub fn FlowgraphCanvas(
     let on_container_mousedown = move |ev: web_sys::MouseEvent| {
         ev.prevent_default();
         let (ox, oy) = pan.get_untracked();
-        panning.set(Some((ev.client_x() as f64, ev.client_y() as f64, ox, oy)));
+        panning.set(Some((client_x(&ev), client_y(&ev), ox, oy)));
     };
 
     let on_mousemove = move |ev: web_sys::MouseEvent| {
-        let client_x = ev.client_x() as f64;
-        let client_y = ev.client_y() as f64;
+        let client_x = client_x(&ev);
+        let client_y = client_y(&ev);
         // Block drag: divide viewport delta by scale to get canvas-space delta
         if let Some((bid, mx0, my0, bx0, by0)) = dragging.get_untracked() {
             let s = scale.get_untracked();
@@ -850,8 +864,8 @@ pub fn FlowgraphCanvas(
         //   ox' = mx*(1 - ratio) + ox*ratio   (mx = mouse pos relative to container)
         if let Some(el) = container_ref.get() {
             let rect = el.get_bounding_client_rect();
-            let mx = ev.client_x() as f64 - rect.left();
-            let my = ev.client_y() as f64 - rect.top();
+            let mx = client_x(&ev) - rect.left();
+            let my = client_y(&ev) - rect.top();
             let (ox, oy) = pan.get_untracked();
             pan.set((
                 mx * (1.0 - ratio) + ox * ratio,
