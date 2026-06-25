@@ -46,6 +46,7 @@ FutureSDR supports several features that you may want to enable.
 - `ctrl_port`: enable the native HTTP control port and Prophecy web UI server
 - `flow_scheduler`: enable the [Flow Scheduler](scheduler.md#flow)
 - `hackrf`: enable Rust HackRF driver for Seify (unstable, not recommended)
+- `hydrasdr`: enable HydraSDR driver for Seify
 - `rtlsdr`: enable Rust RTL SDR driver for Seify (unstable, not recommended)
 - `seify`: enable Seify SDR hardware abstraction
 - `seify_dummy`: enable dummy driver for Seify for use in unit tests

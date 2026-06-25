@@ -94,7 +94,7 @@ Benchmark before switching to the Flow Scheduler. Its deterministic mapping can 
 
 ## WebAssembly
 
-`WasmScheduler` is selected by `Runtime::new()` automatically when compiling for `wasm32` and starts one web worker by default. Use `WasmScheduler::new(n)` to run normal blocks on a worker pool.
+`Runtime::new()` selects `WasmMainScheduler` automatically when compiling for `wasm32`, so normal blocks run on the browser main thread by default. Use `Runtime::with_scheduler(futuresdr::runtime::scheduler::WasmScheduler::new(n))` to run normal blocks on a worker pool.
 
 Some browser APIs, including CPAL's WebAudio output backend, must be created and owned on the browser main thread. For those cases, use `Runtime::with_scheduler(futuresdr::runtime::scheduler::wasm::WasmMainScheduler::new())`. This keeps the flowgraph in FutureSDR but runs normal blocks on the UI thread, so it should only be used for light flowgraphs or main-thread-only browser APIs.
 
@@ -120,7 +120,7 @@ path = "src/bin/app.rs"
 <link data-trunk rel="copy-file" href="assets/futuresdr-wasm-scheduler-worker.js" />
 ```
 
-The worker template imports `./futuresdr_app.js`, initializes the module/memory from the init message, and dispatches both `futuresdr-wasm-scheduler-init` and `futuresdr-wasm-local-domain-init` messages. See `examples/wasm-threaded/assets/futuresdr-wasm-scheduler-worker.js` for the template. If a flowgraph is started from another web worker, give that worker target the `futuresdr_app` name/alias and use the same template there as well.
+The worker template imports `./futuresdr_app.js`, initializes the module/memory from the init message, and dispatches both `futuresdr-wasm-scheduler-init` and `futuresdr-wasm-local-domain-init` messages. See `examples/wasm/assets/futuresdr-wasm-scheduler-worker.js` for the template. If a flowgraph is started from another web worker, give that worker target the `futuresdr_app` name/alias and use the same template there as well.
 
 ```rust
 use futuresdr::prelude::*;
