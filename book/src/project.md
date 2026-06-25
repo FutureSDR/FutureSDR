@@ -13,7 +13,7 @@ Edit the `Cargo.toml` to add the dependency. There are several options:
 **Use a specific version** (stable, but code might be outdated due to irregular release cycles)
 ```toml
 [dependencies]
-futuresdr = { version = "0.0.40" }
+futuresdr = { version = "0.6.0" }
 ```
 
 **Track the main branch** (unstable but always up-to-date)
@@ -59,7 +59,7 @@ For example:
 
 ```toml
 [dependencies]
-futuresdr = { version = "0.0.40", default-features = false, features = ["audio", "seify", "ctrl_port"] }
+futuresdr = { version = "0.6.0", default-features = false, features = ["audio", "seify", "ctrl_port"] }
 ```
 
 
