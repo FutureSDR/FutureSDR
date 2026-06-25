@@ -11,9 +11,7 @@ mod mac;
 pub use mac::Mac;
 
 mod modulator;
-#[cfg(not(target_arch = "wasm32"))]
 pub use modulator::modulator;
-pub use modulator::modulator_async;
 
 #[cfg(all(target_arch = "wasm32", feature = "frontend"))]
 pub mod frontend;

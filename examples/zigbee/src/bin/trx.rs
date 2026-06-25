@@ -30,28 +30,62 @@ fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {args:?}");
 
+    let (fg, mac) = futuresdr::runtime::block_on(build_flowgraph(args))?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    let handle = running.handle();
+
+    // send a message every 0.8 seconds
+    let mut seq = 0u64;
+    rt.spawn_background(async move {
+        loop {
+            Timer::after(Duration::from_secs_f32(0.8)).await;
+            handle
+                .post(
+                    mac,
+                    "tx",
+                    Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
+                )
+                .await
+                .unwrap();
+            seq += 1;
+        }
+    });
+
+    running.wait()?;
+
+    Ok(())
+}
+
+async fn build_flowgraph(args: Args) -> Result<(Flowgraph, BlockId)> {
     let mut fg = Flowgraph::new();
 
     // ========================================
     // TRANSMITTER
     // ========================================
     let mac: Mac = Mac::new();
-    let mac = fg.add(mac)?;
-    let modulator = modulator(&mut fg)?;
+    let mac = fg.add_async(mac).await?;
+    let modulator = modulator(&mut fg).await?;
     let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add(iq_delay)?;
-    let snk = fg.add(
-        Builder::new("")?
-            .frequency(args.tx_freq)
-            .sample_rate(4e6)
-            .gain(args.tx_gain)
-            .min_in_buffer_size(98304)
-            .build_sink()?,
-    )?;
+    let iq_delay = fg.add_async(iq_delay).await?;
+    let snk = fg
+        .add_async(
+            Builder::new("")?
+                .frequency(args.tx_freq)
+                .sample_rate(4e6)
+                .gain(args.tx_gain)
+                .min_in_buffer_size(98304)
+                .build_sink()?,
+        )
+        .await?;
 
-    fg.stream_dyn(mac, "output", modulator, "input")?;
-    fg.stream_dyn(modulator, "output", iq_delay, "input")?;
-    fg.stream_dyn(iq_delay, "output", snk, "inputs[0]")?;
+    fg.stream_dyn_async(mac, "output", modulator, "input")
+        .await?;
+    fg.stream_dyn_async(modulator, "output", iq_delay, "input")
+        .await?;
+    fg.stream_dyn_async(iq_delay, "output", snk, "inputs[0]")
+        .await?;
 
     // ========================================
     // Receiver
@@ -82,32 +116,9 @@ fn main() -> Result<()> {
 
     let decoder = Decoder::new(6);
 
-    connect!(fg, src.outputs[0] > avg > mm > decoder);
-    connect!(fg, decoder | rx.mac);
+    connect_async!(fg, src.outputs[0] > avg > mm > decoder);
+    connect_async!(fg, decoder | rx.mac);
     let mac = mac.id();
 
-    let rt = Runtime::new();
-    let running = rt.start(fg)?;
-    let handle = running.handle();
-
-    // send a message every 0.8 seconds
-    let mut seq = 0u64;
-    rt.spawn_background(async move {
-        loop {
-            Timer::after(Duration::from_secs_f32(0.8)).await;
-            handle
-                .post(
-                    mac,
-                    "tx",
-                    Pmt::Blob(format!("FutureSDR {seq}").as_bytes().to_vec()),
-                )
-                .await
-                .unwrap();
-            seq += 1;
-        }
-    });
-
-    running.wait()?;
-
-    Ok(())
+    Ok((fg, mac))
 }

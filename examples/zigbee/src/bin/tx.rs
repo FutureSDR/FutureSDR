@@ -34,27 +34,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     println!("Configuration: {args:?}");
 
-    let mut fg = Flowgraph::new();
-
-    let mac: Mac = Mac::new();
-    let mac = fg.add(mac)?;
-    let modulator = modulator(&mut fg)?;
-    let iq_delay: IqDelay = IqDelay::new();
-    let iq_delay = fg.add(iq_delay)?;
-
-    let snk = Builder::new(args.args)?
-        .frequency(args.freq)
-        .sample_rate(args.sample_rate)
-        .gain(args.gain)
-        .antenna(args.antenna)
-        .min_in_buffer_size(98304)
-        .build_sink()?;
-    let snk = fg.add(snk)?;
-
-    fg.stream_dyn(mac, "output", modulator, "input")?;
-    fg.stream_dyn(modulator, "output", iq_delay, "input")?;
-    fg.stream_dyn(iq_delay, "output", snk, "inputs[0]")?;
-    let mac = mac.id();
+    let (fg, mac) = futuresdr::runtime::block_on(build_flowgraph(args))?;
 
     let rt = Runtime::new();
     let running = rt.start(fg)?;
@@ -79,4 +59,33 @@ fn main() -> Result<()> {
     running.wait()?;
 
     Ok(())
+}
+
+async fn build_flowgraph(args: Args) -> Result<(Flowgraph, BlockId)> {
+    let mut fg = Flowgraph::new();
+
+    let mac: Mac = Mac::new();
+    let mac = fg.add_async(mac).await?;
+    let modulator = modulator(&mut fg).await?;
+    let iq_delay: IqDelay = IqDelay::new();
+    let iq_delay = fg.add_async(iq_delay).await?;
+
+    let snk = Builder::new(args.args)?
+        .frequency(args.freq)
+        .sample_rate(args.sample_rate)
+        .gain(args.gain)
+        .antenna(args.antenna)
+        .min_in_buffer_size(98304)
+        .build_sink()?;
+    let snk = fg.add_async(snk).await?;
+
+    fg.stream_dyn_async(mac, "output", modulator, "input")
+        .await?;
+    fg.stream_dyn_async(modulator, "output", iq_delay, "input")
+        .await?;
+    fg.stream_dyn_async(iq_delay, "output", snk, "inputs[0]")
+        .await?;
+    let mac = mac.id();
+
+    Ok((fg, mac))
 }
