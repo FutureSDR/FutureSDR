@@ -589,18 +589,28 @@ async fn build_rx_flowgraph(
         "WLAN RX: dropping first {} samples after DC correction for warm-up",
         DC_OFFSET_WARMUP_SAMPLES
     );
-    let dc_warmup = fg.add(Delay::<Complex32>::new(-(DC_OFFSET_WARMUP_SAMPLES as isize)))?;
+    let dc_warmup = fg
+        .add_async(Delay::<Complex32>::new(
+            -(DC_OFFSET_WARMUP_SAMPLES as isize),
+        ))
+        .await?;
     fg.stream_dyn_async(prev, output, dc_warmup, "input").await?;
 
     // WASM slab buffers support one reader per output. Explicitly duplicate
     // streams whenever one output feeds multiple downstream blocks.
-    let input_dup = fg.add(StreamDuplicator::<Complex32, 4>::new())?;
+    let input_dup = fg.add_async(StreamDuplicator::<Complex32, 4>::new()).await?;
     connect_async!(fg, dc_warmup > input_dup);
 
-    let sample_stats = fg.add(SampleStats::new("WLAN RX samples after DC correction"))?;
-    let delay = fg.add(Delay::<Complex32>::new(16))?;
-    let complex_to_mag_2 = fg.add(Apply::new(|i: &Complex32| i.norm_sqr()))?;
-    let mult_conj = fg.add(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))?;
+    let sample_stats = fg
+        .add_async(SampleStats::new("WLAN RX samples after DC correction"))
+        .await?;
+    let delay = fg.add_async(Delay::<Complex32>::new(16)).await?;
+    let complex_to_mag_2 = fg
+        .add_async(Apply::new(|i: &Complex32| i.norm_sqr()))
+        .await?;
+    let mult_conj = fg
+        .add_async(Combine::new(|a: &Complex32, b: &Complex32| a * b.conj()))
+        .await?;
 
     fg.stream_dyn_async(input_dup, "outputs[0]", sample_stats, "input")
         .await?;

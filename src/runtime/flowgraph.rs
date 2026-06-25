@@ -427,30 +427,24 @@ impl Flowgraph {
     /// Add a block and return a typed reference to it.
     ///
     /// The returned [`BlockRef`] can be used for explicit typed connections or
-    /// for inspecting/mutating the block before the flowgraph is started. Blocks
-    /// marked as blocking are placed in an internal local domain so their async
-    /// API may perform blocking work without occupying a normal scheduler worker.
+    /// for inspecting/mutating the block before the flowgraph is started. This
+    /// is the native synchronous counterpart of [`Flowgraph::add_async`].
+    ///
+    /// Blocks marked as blocking are placed in an internal local domain so
+    /// their async API may perform blocking work without occupying a normal
+    /// scheduler worker.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn add<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
         K: SendKernel + SendKernelInterface + 'static,
     {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            block_on(self.add_async(block))
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            if <K as KernelInterface>::is_blocking() {
-                return Err(Error::RuntimeError(
-                    "Flowgraph::add cannot add blocking blocks on wasm32; use add_async"
-                        .to_string(),
-                ));
-            }
-            Ok(self.add_normal_kernel(block))
-        }
+        block_on(self.add_async(block))
     }
 
     /// Asynchronously add a block and return a typed reference to it.
+    ///
+    /// This is the cross-target block insertion API. On WASM, use this method
+    /// for manual flowgraph construction.
     pub async fn add_async<K>(&mut self, block: K) -> Result<BlockRef<K>, Error>
     where
         K: SendKernel + SendKernelInterface + 'static,
@@ -923,10 +917,11 @@ impl Flowgraph {
 
     /// Get typed mutable access to a block in this flowgraph.
     ///
-    /// Use this before startup to configure block state or metadata, or after
-    /// [`Runtime::run`](crate::runtime::Runtime::run) returns the finished
-    /// flowgraph. It cannot borrow a block while the runtime has taken
-    /// ownership of the block tasks.
+    /// Use this before startup to configure block state or metadata. After
+    /// runtime execution has stopped, use
+    /// [`TerminatedFlowgraph::block_mut`](crate::runtime::TerminatedFlowgraph::block_mut)
+    /// on the returned terminated flowgraph. This method cannot borrow a block
+    /// while the runtime has taken ownership of the block tasks.
     pub fn block_mut<K: 'static>(
         &mut self,
         block: &BlockRef<K>,

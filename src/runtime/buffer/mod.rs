@@ -1078,7 +1078,7 @@ where
 pub trait BufferWriter: Any {
     /// Wake/message mode used by this buffer.
     type Mode: BufferMode;
-    /// The corresponding local reader.
+    /// The corresponding matching reader.
     type Reader: BufferReader<Mode = Self::Mode>;
     /// Buffer requirements configured on this port.
     fn buffer_requirements(&self) -> BufferRequirements {
@@ -1112,7 +1112,7 @@ pub trait BufferWriter: Any {
     /// This is called while the flowgraph is being constructed, before runtime
     /// startup. Implementations should store peer queues, not transfer samples.
     fn connect(&mut self, dest: &mut Self::Reader);
-    /// Connect the writer to a type-erased local reader.
+    /// Connect the writer to a type-erased matching reader.
     fn connect_dyn(&mut self, dest: &mut dyn DynBufferReader) -> Result<(), Error> {
         if let Some(concrete) = dest.as_any_mut().downcast_mut::<Self::Reader>() {
             self.connect(concrete);

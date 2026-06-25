@@ -160,7 +160,7 @@ let snk = fg.domain_run(local, |ctx| {
 })?;
 ```
 
-On `wasm32`, use the async forms (`add_local_async`, `domain_run_async`, and `connect_async!`) while constructing the graph.
+On `wasm32`, use the async forms (`add_async`, `add_local_async`, `domain_run_async`, and `connect_async!`) while constructing the graph.
 
 ## Accessing Blocks
 

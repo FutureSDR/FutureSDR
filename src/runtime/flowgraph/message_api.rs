@@ -15,7 +15,7 @@ impl Flowgraph {
     /// Connect a message output port to a message input port.
     ///
     /// Message connections are type-erased and may form arbitrary topologies,
-    /// including cycles and self-connections. The destination message input is
+    /// including cycles and self-connections. The destination message input
     /// and the source message output are validated immediately. The concrete
     /// output handler list is populated from this logical edge at startup.
     #[cfg(not(target_arch = "wasm32"))]
