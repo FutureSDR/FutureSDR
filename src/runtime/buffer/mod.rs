@@ -97,11 +97,6 @@ impl PortConfig {
         self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
     }
 
-    /// Raise the minimum number of items to at least `min_items`.
-    pub fn set_min_items_max(&mut self, min_items: usize) {
-        self.raise_min_items(min_items);
-    }
-
     /// Minimum configured buffer size in items.
     pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.min_buffer_size_in_items
@@ -116,11 +111,6 @@ impl PortConfig {
     pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.min_buffer_size_in_items =
             Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
-    }
-
-    /// Raise the minimum buffer size to at least `min_items`.
-    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
-        self.raise_min_buffer_size_in_items(min_items);
     }
 }
 
@@ -562,11 +552,6 @@ impl<M: BufferMode> PortCore<M> {
         self.config.raise_min_items(min_items);
     }
 
-    /// Raise the minimum number of items required by the port.
-    pub fn set_min_items_max(&mut self, min_items: usize) {
-        self.raise_min_items(min_items);
-    }
-
     /// Minimum configured buffer size in items.
     pub fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.config.min_buffer_size_in_items()
@@ -595,11 +580,6 @@ impl<M: BufferMode> PortCore<M> {
     /// Raise the minimum buffer size in items.
     pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.config.raise_min_buffer_size_in_items(min_items);
-    }
-
-    /// Raise the minimum buffer size in items.
-    pub fn set_min_buffer_size_in_items_max(&mut self, min_items: usize) {
-        self.raise_min_buffer_size_in_items(min_items);
     }
 
     /// Create a validation error for an unconnected port.

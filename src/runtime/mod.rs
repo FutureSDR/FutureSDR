@@ -224,10 +224,9 @@ pub fn init() {
     logging::init();
 }
 
-/// Flowgraph inbox message type
-#[doc(hidden)]
+/// Internal flowgraph inbox message type.
 #[derive(Debug)]
-pub enum FlowgraphMessage {
+pub(crate) enum FlowgraphMessage {
     /// Terminate
     Terminate,
     /// Initialize
@@ -391,7 +390,6 @@ impl From<PmtConversionError> for Error {
 
 /// Description of the block under which an [`Error::InvalidMessagePort`] or
 /// [`Error::InvalidStreamPort`] error occurred.
-#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockPortCtx {
     /// BlockId is not specified
