@@ -88,8 +88,9 @@ impl MessageOutputs {
     /// Post data to all handlers connected to an output port.
     pub async fn post(&mut self, id: impl Into<PortId>, p: Pmt) -> Result<(), Error> {
         let id = id.into();
+        let block_id = self.block_id;
         self.output_mut(&id)
-            .ok_or(Error::InvalidMessagePort(BlockPortCtx::None, id))?
+            .ok_or(Error::InvalidMessagePort(BlockPortCtx::Id(block_id), id))?
             .post(p)
             .await;
         Ok(())
@@ -173,6 +174,18 @@ mod tests {
             rx.try_recv().ok(),
             Some(BlockMessage::Post { port_id, data })
                 if port_id == PortIndex::new(0) && data == Pmt::U32(7)
+        ));
+    }
+
+    #[test]
+    fn post_invalid_port_reports_block_id() {
+        let mut outputs = MessageOutputs::new(BlockId(7), vec!["out".to_string()]);
+        let result = block_on(outputs.post("missing", Pmt::U32(7)));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidMessagePort(ctx, port))
+                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::from("missing")
         ));
     }
 }
