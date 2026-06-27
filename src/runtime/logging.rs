@@ -7,9 +7,16 @@ pub fn init() {
     wasm::init();
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn env_filter(level: tracing::level_filters::LevelFilter) -> tracing_subscriber::filter::EnvFilter {
+    tracing_subscriber::filter::EnvFilter::builder()
+        .with_default_directive(level.into())
+        .with_env_var("FUTURESDR_LOG")
+        .from_env_lossy()
+}
+
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod native {
-    use tracing_subscriber::filter::EnvFilter;
     use tracing_subscriber::fmt;
     use tracing_subscriber::prelude::*;
 
@@ -24,14 +31,10 @@ mod native {
             .compact();
 
         let level = config::config().log_level;
-        let filter = EnvFilter::builder()
-            .with_default_directive(level.into())
-            .with_env_var("FUTURESDR_LOG")
-            .from_env_lossy();
-
+        let filter = super::env_filter(level);
         let subscriber = tracing_subscriber::registry().with(filter).with(format);
 
-        if tracing::subscriber::set_global_default(subscriber).is_err() {
+        if subscriber.try_init().is_err() {
             tracing::debug!("logger already initialized");
         }
     }
@@ -43,13 +46,19 @@ mod android {
     use tracing_android::layer;
     use tracing_subscriber::prelude::*;
 
+    use crate::runtime::config;
+
     // Make sure tracing is only initialized once.
     static TRACING_INIT: OnceCell<()> = OnceCell::new();
 
     pub(super) fn init() {
         TRACING_INIT.get_or_init(|| match layer("FutureSDR") {
             Ok(android_layer) => {
-                let subscriber = tracing_subscriber::registry().with(android_layer);
+                let level = config::config().log_level;
+                let filter = super::env_filter(level);
+                let subscriber = tracing_subscriber::registry()
+                    .with(filter)
+                    .with(android_layer);
                 if let Err(e) = subscriber.try_init() {
                     eprintln!("tracing already initialized or failed: {e}");
                 }
