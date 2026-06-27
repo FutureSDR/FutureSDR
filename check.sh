@@ -62,7 +62,7 @@ cd ${SCRIPTPATH}/examples/zynq && ${CARGO_FMT} --check
 # CLIPPY
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,wgpu,seify_dummy -- -D warnings
+cd ${SCRIPTPATH} && cargo clippy --all-targets --workspace --features=burn,zeromq,audio,flow_scheduler,soapy,wgpu,seify_dummy,mocker -- -D warnings
 cd ${SCRIPTPATH}/crates/futuredsp && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/macros && cargo clippy --all-targets -- -D warnings
 cd ${SCRIPTPATH}/crates/remote && cargo clippy --all-targets -- -D warnings
@@ -127,7 +127,7 @@ cd ${SCRIPTPATH}/examples/zigbee && cargo clippy --lib --target=wasm32-unknown-u
 # Test
 ###########################################################
 # aaronia feature is not tested, since most user might not have the sdr installed
-cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu -j 4
+cd ${SCRIPTPATH} && cargo test --all-targets --workspace --features=zeromq,audio,flow_scheduler,seify_dummy,soapy,wgpu,mocker -j 4
 cd ${SCRIPTPATH}/crates/futuredsp && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/macros && cargo test --all-targets
 cd ${SCRIPTPATH}/crates/remote && cargo test --all-targets

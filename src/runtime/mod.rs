@@ -47,7 +47,7 @@ mod local_domain;
 mod local_domain;
 mod local_domain_common;
 mod message_output;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "mocker"))]
 /// Mocker for unit testing and benchmarking
 pub mod mocker;
 mod running_flowgraph;

@@ -58,6 +58,7 @@ ctrl_port = ["dep:axum", "dep:hyper", "dep:tower-http", "dep:tower-service"]
 flow_scheduler = ["dep:spin"]
 hackrf = ["seify/hackrfone"]
 hydrasdr = ["seify/hydrasdr"]
+mocker = []
 rtlsdr = ["seify/rtlsdr"]
 seify = ["dep:seify", "futuresdr-types/seify"]
 seify_dummy = ["seify/dummy"]
@@ -70,6 +71,7 @@ zeromq = ["dep:zmq"]
 [[bench]]
 name = "apply"
 harness = false
+required-features = ["mocker"]
 
 [[bench]]
 name = "flowgraph"
@@ -78,10 +80,23 @@ harness = false
 [[bench]]
 name = "sync_vs_async"
 harness = false
+required-features = ["mocker"]
+
+[[example]]
+name = "mock"
+required-features = ["mocker"]
 
 [[test]]
 name = "flowgraph"
 required-features = ["flow_scheduler"]
+
+[[test]]
+name = "mocker"
+required-features = ["mocker"]
+
+[[test]]
+name = "moving_avg"
+required-features = ["mocker"]
 
 [[test]]
 name = "seify"

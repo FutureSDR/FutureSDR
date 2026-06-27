@@ -31,6 +31,9 @@ futuresdr = { path = "../..", features = ["seify"] }
 rand = "0.10"
 rand_distr = "0.6"
 
+[dev-dependencies]
+futuresdr = { path = "../..", features = ["mocker", "seify"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1"

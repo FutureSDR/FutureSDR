@@ -37,7 +37,11 @@ futuresdr = { path = "../FutureSDR" }
 
 ## Features
 
-FutureSDR supports several features that you may want to enable.
+FutureSDR keeps common native application functionality in default features and
+puts hardware drivers, optional integrations, and development-only helpers
+behind explicit Cargo features. Disable default features only when you want a
+smaller dependency graph or different compile-time logging filters, then enable
+the pieces your application needs explicitly.
 
 - `default`: enables `ctrl_port`, `tracing_max_level_debug`, and `tracing_release_max_level_info`
 - `aaronia_http`: drivers for Aaronia HTTP servers, usable through Seify
@@ -47,6 +51,7 @@ FutureSDR supports several features that you may want to enable.
 - `flow_scheduler`: enable the [Flow Scheduler](scheduler.md#flow)
 - `hackrf`: enable Rust HackRF driver for Seify (unstable, not recommended)
 - `hydrasdr`: enable HydraSDR driver for Seify
+- `mocker`: enable the native-only [`Mocker`](mocker.md) test and benchmark harness
 - `rtlsdr`: enable Rust RTL SDR driver for Seify (unstable, not recommended)
 - `seify`: enable Seify SDR hardware abstraction
 - `seify_dummy`: enable dummy driver for Seify for use in unit tests

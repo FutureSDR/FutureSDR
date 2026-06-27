@@ -9,7 +9,12 @@ This is useful for:
 - testing message handlers and message outputs,
 - microbenchmarks where the scheduler and graph setup would hide the cost of the block itself.
 
-`Mocker` is available on native targets through `futuresdr::runtime::mocker`.
+`Mocker` is available on native targets through `futuresdr::runtime::mocker`
+when the `mocker` Cargo feature is enabled:
+
+```toml
+futuresdr = { version = "...", features = ["mocker"] }
+```
 
 ## Stream Blocks
 

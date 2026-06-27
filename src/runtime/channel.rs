@@ -71,6 +71,7 @@ pub mod mpsc {
         (Sender(tx), Receiver(rx))
     }
 
+    #[cfg(all(not(target_arch = "wasm32"), feature = "mocker"))]
     pub(crate) fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
         let (tx, rx) = ::kanal::unbounded_async();
         (Sender(tx), Receiver(rx))
