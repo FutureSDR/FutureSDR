@@ -608,7 +608,7 @@ mod tests {
             &mut self,
             _io: &mut WorkIo,
             _mo: &mut MessageOutputs,
-            _meta: &mut BlockMeta,
+            _meta: &BlockMeta,
             _p: Pmt,
         ) -> Result<Pmt> {
             self.count.fetch_add(1, Ordering::SeqCst);

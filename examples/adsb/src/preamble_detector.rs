@@ -73,7 +73,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let samples = self.in_samples.slice();
         let nf = self.in_nf.slice();

@@ -39,7 +39,7 @@ where
     T: Send + Clone + 'static,
     O: CpuBufferWriter<Item = T>,
 {
-    async fn init(&mut self, _mo: &mut MessageOutputs, meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, meta: &BlockMeta) -> Result<()> {
         let s = meta.instance_name().unwrap();
         self.id = Some(s.split('-').next_back().unwrap().parse::<u64>().unwrap());
         Ok(())
@@ -49,7 +49,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();
         o.fill(unsafe { std::mem::zeroed() });

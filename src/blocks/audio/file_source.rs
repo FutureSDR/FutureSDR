@@ -72,7 +72,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let out = self.output.slice();
         let o_len = out.len();

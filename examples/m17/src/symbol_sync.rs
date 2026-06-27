@@ -1869,7 +1869,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let input = self.input.slice();
         let out = self.output.slice();

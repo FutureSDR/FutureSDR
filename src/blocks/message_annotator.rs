@@ -50,7 +50,7 @@ impl MessageAnnotator {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Some(payload_field_name) = self.payload_field_name.clone() {

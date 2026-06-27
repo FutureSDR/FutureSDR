@@ -67,7 +67,7 @@ impl Kernel for Dummy {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         io.finished = true;
         Ok(())
@@ -89,7 +89,7 @@ impl Handler {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if let Pmt::Finished = p {

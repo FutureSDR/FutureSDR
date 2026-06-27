@@ -64,7 +64,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if self.socket.is_none() {
             let (socket, _) = self
@@ -103,7 +103,7 @@ where
         Ok(())
     }
 
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         self.listener = Some(TcpListener::bind(format!("127.0.0.1:{}", self.port)).await?);
         Ok(())
     }

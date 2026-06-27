@@ -88,7 +88,7 @@ where
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
@@ -136,7 +136,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
@@ -170,7 +170,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         Ok(Pmt::VecU64(vec![self.n_sent, self.n_received]))
@@ -194,7 +194,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         loop {
             let (out, mut tags) = self.output.slice_with_tags();

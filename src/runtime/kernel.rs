@@ -58,7 +58,7 @@ impl<T> SendKernel for T where
 ///         &mut self,
 ///         io: &mut WorkIo,
 ///         _mo: &mut MessageOutputs,
-///         _meta: &mut BlockMeta,
+///         _meta: &BlockMeta,
 ///     ) -> Result<()> {
 ///         let input = self.input.slice();
 ///         let output = self.output.slice();
@@ -103,20 +103,21 @@ pub trait Kernel {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
     }
 
     /// Initialize the kernel before normal work starts.
     ///
-    /// This is the place to allocate runtime resources, send initial messages,
-    /// or update [`BlockMeta`]. Stream ports have already been initialized and
-    /// validated when this method is called.
+    /// This is the place to allocate runtime resources or send initial messages.
+    /// Stream ports have already been initialized and validated when this method
+    /// is called. Runtime metadata is read-only here; mutable block state should
+    /// live in the kernel implementation.
     fn init(
         &mut self,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
     }
@@ -129,7 +130,7 @@ pub trait Kernel {
     fn deinit(
         &mut self,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> impl Future<Output = Result<()>> {
         async { Ok(()) }
     }

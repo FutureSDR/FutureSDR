@@ -58,7 +58,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let out = self.output.slice();
         let ptr = out.as_mut_ptr() as *mut u8;
@@ -89,7 +89,7 @@ where
         Ok(())
     }
 
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         self.socket = Some(UdpSocket::bind(self.bind.clone()).await?);
         Ok(())
     }

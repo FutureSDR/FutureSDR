@@ -23,7 +23,7 @@ impl TriggerMsg {
         &mut self,
         _io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         mo.post("out", Pmt::U32(1)).await?;
@@ -48,7 +48,7 @@ impl CountMsg {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
@@ -74,7 +74,7 @@ impl FailMsg {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         Err(anyhow::anyhow!("boom"))

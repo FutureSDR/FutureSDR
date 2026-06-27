@@ -43,7 +43,7 @@ where
     T: Send + 'static,
     I: CpuBufferReader<Item = T>,
 {
-    async fn init(&mut self, _mo: &mut MessageOutputs, meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, meta: &BlockMeta) -> Result<()> {
         let s = meta.instance_name().unwrap();
         self.id = Some(s.split('-').next_back().unwrap().parse::<u64>().unwrap());
         Ok(())
@@ -53,7 +53,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
         let before = self.n_received / self.probe_granularity;

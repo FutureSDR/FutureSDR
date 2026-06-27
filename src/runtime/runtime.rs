@@ -442,7 +442,7 @@ mod tests {
         async fn init(
             &mut self,
             _mo: &mut MessageOutputs,
-            _meta: &mut BlockMeta,
+            _meta: &BlockMeta,
         ) -> crate::runtime::Result<()> {
             self.counters.init.fetch_add(1, Ordering::SeqCst);
             if let Some(init_entered) = self.init_entered.take() {
@@ -458,7 +458,7 @@ mod tests {
             &mut self,
             _io: &mut WorkIo,
             _mo: &mut MessageOutputs,
-            _meta: &mut BlockMeta,
+            _meta: &BlockMeta,
         ) -> crate::runtime::Result<()> {
             Ok(())
         }
@@ -466,7 +466,7 @@ mod tests {
         async fn deinit(
             &mut self,
             _mo: &mut MessageOutputs,
-            _meta: &mut BlockMeta,
+            _meta: &BlockMeta,
         ) -> crate::runtime::Result<()> {
             self.counters.deinit.fetch_add(1, Ordering::SeqCst);
             Ok(())

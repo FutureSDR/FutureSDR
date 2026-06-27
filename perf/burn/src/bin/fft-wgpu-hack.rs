@@ -781,7 +781,7 @@ impl Kernel for Fft {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let mut processed_input = false;
         let _ = self.emit_pending(false)?;
@@ -1077,7 +1077,7 @@ impl Kernel for TimeIt {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let n = self.input.slice().len();
         if n > 0 {

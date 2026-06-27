@@ -143,7 +143,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let input = self.input.slice();
         let n_items_to_consume = input.len();

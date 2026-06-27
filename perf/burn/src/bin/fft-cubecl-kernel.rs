@@ -349,7 +349,7 @@ impl Kernel for Fft {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let need = self.state.batch_size * FFT_SIZE;
         let mut made_progress = false;

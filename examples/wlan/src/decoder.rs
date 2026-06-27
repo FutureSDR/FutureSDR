@@ -134,7 +134,7 @@ where
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let (mut input, in_tags) = self.input.slice_with_tags();
 

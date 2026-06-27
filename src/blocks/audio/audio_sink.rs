@@ -147,7 +147,7 @@ impl<I> Kernel for AudioSink<I>
 where
     I: CpuBufferReader<Item = f32>,
 {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         let device = cpal::default_host()
             .default_output_device()
             .expect("no output device available");
@@ -227,7 +227,7 @@ where
         Ok(())
     }
 
-    async fn deinit(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn deinit(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         let _ = self.tx.as_mut().unwrap().send(Vec::new()).await;
         if let Some(t) = self.terminated.take() {
             _ = t.await;
@@ -239,7 +239,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
         let i_len = i.len();

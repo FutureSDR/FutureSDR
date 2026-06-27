@@ -35,7 +35,7 @@ impl MessagePipe {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         if self.sender.send(p).await.is_ok() {

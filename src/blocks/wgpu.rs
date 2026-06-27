@@ -104,7 +104,7 @@ impl Wgpu {
 
 #[doc(hidden)]
 impl Kernel for Wgpu {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         for _ in 0..self.n_output_buffers {
             let output_buffer = self.instance.device.create_buffer(&BufferDescriptor {
                 label: None,
@@ -160,7 +160,7 @@ impl Kernel for Wgpu {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         for m in self.output.buffers().into_iter() {
             info!("**** Empty Output Buffer is added to output_buffers");

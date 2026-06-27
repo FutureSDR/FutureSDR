@@ -106,7 +106,7 @@ impl Decoder {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {

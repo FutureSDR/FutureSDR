@@ -145,7 +145,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         block_on(async {
             self.block
                 .kernel
-                .init(&mut self.block.mo, &mut self.block.meta)
+                .init(&mut self.block.mo, &self.block.meta)
                 .await
                 .unwrap();
         });
@@ -156,7 +156,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         block_on(async {
             self.block
                 .kernel
-                .deinit(&mut self.block.mo, &mut self.block.meta)
+                .deinit(&mut self.block.mo, &self.block.meta)
                 .await
                 .unwrap();
         });
@@ -184,7 +184,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         loop {
             self.block
                 .kernel
-                .work(&mut io, &mut self.block.mo, &mut self.block.meta)
+                .work(&mut io, &mut self.block.mo, &self.block.meta)
                 .await
                 .unwrap();
 

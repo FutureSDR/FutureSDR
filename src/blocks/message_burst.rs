@@ -40,7 +40,7 @@ impl Kernel for MessageBurst {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         for _ in 0..self.n_messages {
             mo.post("out", self.message.clone()).await?;

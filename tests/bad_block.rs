@@ -46,7 +46,7 @@ impl<T: CpuSample> Kernel for BadBlock<T> {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        meta: &mut BlockMeta,
+        meta: &BlockMeta,
     ) -> Result<()> {
         match self.work_fail {
             Some(FailType::Panic) => {

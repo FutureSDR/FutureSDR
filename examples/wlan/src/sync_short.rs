@@ -76,7 +76,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let in_sig = self.in_sig.slice();
         let in_abs = self.in_abs.slice();

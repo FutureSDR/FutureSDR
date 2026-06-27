@@ -68,7 +68,7 @@ impl Kernel for NonSendLocalBlock {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if self.waited {
             io.finished = true;
@@ -93,7 +93,7 @@ impl Kernel for ImmediateFinish {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         io.finished = true;
         Ok(())
@@ -117,7 +117,7 @@ impl Kernel for BurstMessageSource {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         for i in 0..self.messages {
             mo.post("out", Pmt::U64(i)).await?;
@@ -144,7 +144,7 @@ impl Kernel for BlockingNoop {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         self.worked.store(true, Ordering::SeqCst);
         io.finished = true;
@@ -175,7 +175,7 @@ impl Kernel for NonSendLocalSource {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let _state = &self.state;
         if self.emitted {
@@ -224,7 +224,7 @@ impl Kernel for NonSendLocalSink {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let _state = &self.state;
         let input = self.input.slice();

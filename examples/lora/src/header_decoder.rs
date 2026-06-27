@@ -84,7 +84,7 @@ where
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let (input, in_tags) = self.input.slice_with_tags();
         let mut nitem_to_consume = input.len();

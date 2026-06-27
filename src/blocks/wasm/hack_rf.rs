@@ -273,7 +273,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let (hz, res) = match &p {
@@ -298,7 +298,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let (gain, res) = match &p {
@@ -323,7 +323,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let (gain, res) = match &p {
@@ -348,7 +348,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let (enabled, res) = match &p {
@@ -370,7 +370,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let rate = match &p {
@@ -407,7 +407,7 @@ impl HackRf {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let bandwidth = match &p {
@@ -723,7 +723,7 @@ impl HackRf {
 
 #[doc(hidden)]
 impl Kernel for HackRf {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         let usb = {
             if let Some(window) = web_sys::window() {
                 let navigator: web_sys::Navigator = window.navigator();
@@ -812,7 +812,7 @@ impl Kernel for HackRf {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let o = self.output.slice();
 

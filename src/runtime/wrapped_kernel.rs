@@ -256,7 +256,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
     async fn handle_runtime_message(
         id: BlockId,
         instance_name: &str,
-        meta: &mut BlockMeta,
+        meta: &BlockMeta,
         mo: &mut MessageOutputs,
         kernel: &mut K,
         work_io: &mut WorkIo,
@@ -339,7 +339,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
     #[allow(clippy::too_many_arguments)]
     async fn run_loop<RI>(
         id: BlockId,
-        meta: &mut BlockMeta,
+        meta: &BlockMeta,
         mo: &mut MessageOutputs,
         kernel: &mut K,
         main_inbox: Sender<FlowgraphMessage>,

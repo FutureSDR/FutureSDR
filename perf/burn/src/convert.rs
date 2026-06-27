@@ -30,7 +30,7 @@ impl<B: Backend> Kernel for Convert<B> {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         if self.current.is_none() {
             if let Some(mut b) = self.output.get_empty_buffer() {

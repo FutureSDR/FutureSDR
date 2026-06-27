@@ -1110,7 +1110,7 @@ fn derive_block_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 &mut self,
                 io: &mut #work_io_type,
                 mo: &mut ::futuresdr::runtime::dev::MessageOutputs,
-                meta: &mut ::futuresdr::runtime::dev::BlockMeta,
+                meta: &::futuresdr::runtime::dev::BlockMeta,
                 id: ::futuresdr::runtime::PortIndex,
                 p: ::futuresdr::runtime::Pmt) ->
                     ::futuresdr::runtime::Result<::futuresdr::runtime::Pmt, ::futuresdr::runtime::Error> {

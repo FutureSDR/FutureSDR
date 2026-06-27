@@ -39,7 +39,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut b) = self.output.get_empty_buffer() {
             let n = b.slice().len();
@@ -91,7 +91,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if self.remaining == 0 {
             io.finished = true;
@@ -165,7 +165,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut b) = self.input.get_full_buffer() {
             b.slice().iter_mut().for_each(|x| *x = x.wrapping_add(1));
@@ -229,7 +229,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut b) = self.input.get_full_buffer() {
             self.n_received += b.slice().len();

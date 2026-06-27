@@ -37,7 +37,7 @@ impl WaitBlock {
 }
 
 impl Kernel for WaitBlock {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         self.counters.init.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -46,12 +46,12 @@ impl Kernel for WaitBlock {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         Ok(())
     }
 
-    async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         self.counters.deinit.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -71,7 +71,7 @@ impl Kernel for FinishImmediately {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         io.finished = true;
         Ok(())
@@ -82,7 +82,7 @@ impl Kernel for FinishImmediately {
 struct InitFail;
 
 impl Kernel for InitFail {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         Err(anyhow!("init failed"))
     }
 }
@@ -91,7 +91,7 @@ impl Kernel for InitFail {
 struct InitRuntimeError;
 
 impl Kernel for InitRuntimeError {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _meta: &BlockMeta) -> Result<()> {
         Err(Error::ValidationError("init validation failed".to_string()).into())
     }
 }
@@ -109,7 +109,7 @@ impl FailOnCall {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         Err(anyhow!("run failed"))

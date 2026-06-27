@@ -119,7 +119,7 @@ impl RawPortNames {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         Ok(Pmt::Ok)
@@ -182,7 +182,7 @@ impl MessageContract {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         self.seen.push(p);
@@ -193,7 +193,7 @@ impl MessageContract {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         self.seen.push(p);
@@ -215,12 +215,12 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
         finished: false,
     };
     let mut mo = MessageOutputs::new(BlockId(0), vec!["out".to_string(), "done".to_string()]);
-    let mut meta = BlockMeta::new();
+    let meta = BlockMeta::new();
 
     let ret = futuresdr::runtime::block_on(block.call_handler(
         &mut io,
         &mut mo,
-        &mut meta,
+        &meta,
         MessageContract::message_input_id("renamed-ping").unwrap(),
         Pmt::U32(7),
     ))
@@ -230,7 +230,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     let ret = futuresdr::runtime::block_on(block.call_handler(
         &mut io,
         &mut mo,
-        &mut meta,
+        &meta,
         futuresdr::runtime::PortIndex::new(1),
         Pmt::U32(9),
     ))
@@ -241,7 +241,7 @@ fn derive_exposes_message_metadata_and_dispatches_handlers() {
     let err = futuresdr::runtime::block_on(block.call_handler(
         &mut io,
         &mut mo,
-        &mut meta,
+        &meta,
         futuresdr::runtime::PortIndex::new(99),
         Pmt::Null,
     ))
@@ -268,7 +268,7 @@ impl MessageSink {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         Ok(Pmt::Ok)

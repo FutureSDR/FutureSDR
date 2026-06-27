@@ -93,7 +93,7 @@ pub trait KernelInterface {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         id: PortIndex,
         _p: Pmt,
     ) -> impl Future<Output = Result<Pmt, Error>>;
@@ -255,7 +255,7 @@ mod tests {
             &mut self,
             _io: &mut WorkIo,
             _mo: &mut MessageOutputs,
-            _meta: &mut BlockMeta,
+            _meta: &BlockMeta,
             id: PortIndex,
             _p: Pmt,
         ) -> Result<Pmt, Error> {

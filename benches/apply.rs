@@ -75,7 +75,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
         let o = self.output.slice();
@@ -112,7 +112,7 @@ impl Kernel for Add {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
         let o = self.output.slice();
@@ -150,7 +150,7 @@ impl Kernel for AddChunk {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let i = self.input.slice();
         let o = self.output.slice();
@@ -199,7 +199,7 @@ mod avx2 {
             &mut self,
             io: &mut WorkIo,
             _mo: &mut MessageOutputs,
-            _b: &mut BlockMeta,
+            _b: &BlockMeta,
         ) -> Result<()> {
             let i = self.input.slice();
             let o = self.output.slice();

@@ -39,7 +39,7 @@ impl Kernel for Scale {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let input = self.input.slice();
         let output = self.output.slice();
@@ -88,7 +88,7 @@ impl AdjustableScale {
         &mut self,
         _io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         self.gain = f64::try_from(p)? as f32;
@@ -108,7 +108,7 @@ Use `#[message_inputs(set_gain = "gain")]` when the public port name should diff
 - `work()`: repeatedly, whenever data, messages, timers, or explicit wakeups make progress possible.
 - `deinit()`: once, during shutdown.
 
-All methods receive `MessageOutputs` and `BlockMeta`. `work()` also receives `WorkIo`, which is the block's way to communicate scheduling decisions back to the runtime.
+All methods receive `MessageOutputs` and read-only `BlockMeta`. `work()` also receives `WorkIo`, which is the block's way to communicate scheduling decisions back to the runtime.
 
 Use `io.block_on()` when the block should sleep until the future returned by `Kernel::block_on()` completes. The block may still be called earlier if stream data or a message arrives.
 
@@ -130,7 +130,7 @@ impl Kernel for UiBoundBlock {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if self.input.finished() {
             io.finished = true;

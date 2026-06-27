@@ -100,7 +100,7 @@ impl Kernel for MessageBenchSource {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         for i in 0..self.messages {
             mo.post("out", Pmt::U64(i)).await?;

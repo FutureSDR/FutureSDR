@@ -50,7 +50,7 @@ where
         &mut self,
         _io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         let r = (self.callback)(p)?;

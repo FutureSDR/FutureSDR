@@ -74,7 +74,7 @@ impl FramePipe {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         if let Pmt::Blob(data) = p {

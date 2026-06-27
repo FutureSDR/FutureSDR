@@ -51,7 +51,7 @@ impl BlobToUdp {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
@@ -77,7 +77,7 @@ impl BlobToUdp {
 
 #[doc(hidden)]
 impl Kernel for BlobToUdp {
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         let socket = UdpSocket::bind("127.0.0.1:0").await?;
         self.socket = Some(socket);
         Ok(())

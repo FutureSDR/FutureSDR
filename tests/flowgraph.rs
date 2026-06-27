@@ -38,7 +38,7 @@ impl StopOnMessage {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> futuresdr::runtime::Result<Pmt> {
         io.finished = true;
@@ -66,7 +66,7 @@ impl Kernel for RecordingSlabSource {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> futuresdr::runtime::Result<()> {
         let out = self.output.slice();
         self.first_slice_len.store(out.len(), Ordering::SeqCst);

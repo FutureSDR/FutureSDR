@@ -83,7 +83,7 @@ where
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let inbuf = self.input.slice().to_vec();
         let inbuf_len = inbuf.len();

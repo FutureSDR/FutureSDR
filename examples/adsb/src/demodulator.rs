@@ -50,7 +50,7 @@ where
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let (samples, tags) = self.input.slice_with_tags();
         let samples_len = samples.len();

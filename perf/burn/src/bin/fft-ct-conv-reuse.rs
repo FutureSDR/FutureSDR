@@ -106,7 +106,7 @@ impl Kernel for Fft {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         if self.output.has_more_buffers()
             && let Some(mut b) = self.input.get_full_buffer()

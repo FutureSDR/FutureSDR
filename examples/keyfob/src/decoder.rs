@@ -66,7 +66,7 @@ impl Kernel for Decoder {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let inbuf = self.input.slice();
         let mut i = 0;

@@ -24,7 +24,7 @@ impl Kernel for BurstOutput {
         &mut self,
         _io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         for i in 0..self.count {
             mo.post("out", Pmt::Usize(i)).await?;
@@ -42,7 +42,7 @@ impl FailHandler {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         _p: Pmt,
     ) -> Result<Pmt> {
         bail!("boom")

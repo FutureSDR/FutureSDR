@@ -101,7 +101,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         // Check whether an error has occurred in the websocket task before this call to `work`.
         if *self.ws_error.read().expect("Lock is poisoned") {

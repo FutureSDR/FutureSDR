@@ -23,7 +23,7 @@ impl AsyncTest {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let i_len = self.input.slice().len();
         let o_len = self.output.slice().len();
@@ -40,7 +40,7 @@ impl Kernel for AsyncTest {
         &mut self,
         _io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let i_len = self.input.slice().len();
         let o_len = self.output.slice().len();

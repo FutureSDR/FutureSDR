@@ -32,7 +32,7 @@ impl MessageSink {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
         p: Pmt,
     ) -> Result<Pmt> {
         match p {
@@ -60,7 +60,7 @@ impl Default for MessageSink {
 
 #[doc(hidden)]
 impl Kernel for MessageSink {
-    async fn deinit(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn deinit(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         debug!("n_received: {}", self.n_received);
         Ok(())
     }

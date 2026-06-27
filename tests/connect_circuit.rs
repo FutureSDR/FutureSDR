@@ -35,7 +35,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.output.get_empty_buffer() {
             let data = buffer.slice();
@@ -95,7 +95,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.input.get_full_buffer() {
             buffer
@@ -151,7 +151,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         if let Some(mut buffer) = self.input.get_full_buffer() {
             self.items.extend_from_slice(buffer.slice());

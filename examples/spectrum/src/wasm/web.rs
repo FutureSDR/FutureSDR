@@ -439,7 +439,7 @@ impl Kernel for Sink {
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _meta: &mut BlockMeta,
+        _meta: &BlockMeta,
     ) -> Result<()> {
         let input = self.input.slice();
         // log!("sink len {} io {:?}", input.len(), &io);

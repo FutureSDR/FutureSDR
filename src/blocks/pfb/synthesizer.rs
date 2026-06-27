@@ -81,7 +81,7 @@ where
         &mut self,
         io: &mut WorkIo,
         _mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let out = self.output.slice();
         let inputs: Vec<&[Complex32]> = self.input.iter_mut().map(|x| x.slice()).collect();

@@ -42,7 +42,7 @@ impl Kernel for MessageSource {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
 
@@ -62,7 +62,7 @@ impl Kernel for MessageSource {
         Ok(())
     }
 
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Kernel for MessageSource {
         &mut self,
         io: &mut WorkIo,
         mo: &mut MessageOutputs,
-        _b: &mut BlockMeta,
+        _b: &BlockMeta,
     ) -> Result<()> {
         let now = Instant::now();
 
@@ -101,7 +101,7 @@ impl Kernel for MessageSource {
         Ok(())
     }
 
-    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &mut BlockMeta) -> Result<()> {
+    async fn init(&mut self, _mo: &mut MessageOutputs, _b: &BlockMeta) -> Result<()> {
         self.t_last = Instant::now();
         Ok(())
     }
