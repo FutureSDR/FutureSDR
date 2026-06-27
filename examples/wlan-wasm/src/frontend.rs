@@ -527,13 +527,15 @@ async fn start_receiver(
     spawn_local(async move {
         let result = async move {
             let src = fg
-                .add_local_async(local, move || {
-                    HackRf::new()
-                        .frequency(config.frequency as u64)
-                        .sample_rate(config.sample_rate)
-                        .lna_gain(config.lna_gain)
-                        .vga_gain(config.vga_gain)
-                        .amp_enable(config.amp)
+                .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
+                    Ok(ctx.add(
+                        HackRf::new()
+                            .frequency(config.frequency as u64)
+                            .sample_rate(config.sample_rate)
+                            .lna_gain(config.lna_gain)
+                            .vga_gain(config.vga_gain)
+                            .amp_enable(config.amp),
+                    ))
                 })
                 .await?;
             let source = src.id();

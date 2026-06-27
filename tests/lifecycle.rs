@@ -196,9 +196,12 @@ fn init_failure_stops_started_domains_before_start_returns() -> Result<()> {
     fg.add(WaitBlock::new(normal.clone()))?;
     fg.add(InitFail)?;
     let domain = fg.local_domain()?;
-    fg.add_local(domain, {
+    fg.with_local_domain(domain, {
         let local = local.clone();
-        move || WaitBlock::new(local)
+        move |ctx| {
+            ctx.add(WaitBlock::new(local));
+            Ok(())
+        }
     })?;
 
     assert!(matches!(
@@ -233,12 +236,15 @@ fn run_failure_stops_domains(fail_local: bool) -> Result<()> {
     let mut fg = Flowgraph::new();
     fg.add(WaitBlock::new(normal.clone()))?;
     let domain = fg.local_domain()?;
-    fg.add_local(domain, {
+    fg.with_local_domain(domain, {
         let local = local.clone();
-        move || WaitBlock::new(local)
+        move |ctx| {
+            ctx.add(WaitBlock::new(local));
+            Ok(())
+        }
     })?;
     let fail = if fail_local {
-        fg.add_local(domain, FailOnCall::new)?
+        fg.with_local_domain(domain, |ctx| Ok(ctx.add(FailOnCall::new())))?
     } else {
         fg.add(FailOnCall::new())?
     };

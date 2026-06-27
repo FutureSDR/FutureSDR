@@ -182,13 +182,20 @@ fn opti(args: Args) -> Result<()> {
         } else {
             samples.as_ref().expect("samples missing").clone()
         };
-        let src = fg.add_local(local, move || {
-            VectorSource::<Complex32, SourceComplexWriter>::new(src_samples)
-        })?;
         let ldro_enabled = LdroMode::AUTO.resolve_if_auto(SF, BW).enabled();
-
-        let frame_sync = fg.add_local(local, move || {
-            FrameSync::<SourceComplexReader, LocalSpscTagsComplexWriter>::new(
+        let (
+            src,
+            frame_sync,
+            fft_demod,
+            gray_mapping,
+            deinterleaver,
+            hamming_dec,
+            header_decoder,
+            decoder,
+            sink,
+        ) = fg.with_local_domain(local, move |ctx| {
+            let src = ctx.add(VectorSource::<Complex32, SourceComplexWriter>::new(src_samples));
+            let frame_sync = ctx.add(FrameSync::<SourceComplexReader, LocalSpscTagsComplexWriter>::new(
                 CHANNEL,
                 BW,
                 SF,
@@ -199,43 +206,48 @@ fn opti(args: Args) -> Result<()> {
                 None,
                 false,
                 None,
-            )
-        })?;
-        let fft_demod = fg.add_local(local, move || {
-            FftDemod::<
+            ));
+            let fft_demod = ctx.add(FftDemod::<
                 DemodulatedSymbolHardDecoding,
                 lora::fft_demod::State<DemodulatedSymbolHardDecoding>,
                 LocalSpscTagsComplexReader,
                 LocalSpscTagsU16Writer,
-            >::new(SF, ldro_enabled)
-        })?;
-        let gray_mapping = fg.add_local(local, || {
-            GrayMapping::<
+            >::new(SF, ldro_enabled));
+            let gray_mapping = ctx.add(GrayMapping::<
                 DemodulatedSymbolHardDecoding,
                 LocalSpscTagsU16Reader,
                 LocalSpscTagsU16Writer,
-            >::new()
-        })?;
-        let deinterleaver = fg.add_local(local, move || {
-            Deinterleaver::<
+            >::new());
+            let deinterleaver = ctx.add(Deinterleaver::<
                 DemodulatedSymbolHardDecoding,
                 DeinterleavedSymbolHardDecoding,
                 LocalSpscTagsU16Reader,
                 LocalSpscTagsU8Writer,
-            >::new(ldro_enabled, SF)
-        })?;
-        let hamming_dec = fg.add_local(local, || {
-            HammingDecoder::<
+            >::new(ldro_enabled, SF));
+            let hamming_dec = ctx.add(HammingDecoder::<
                 DeinterleavedSymbolHardDecoding,
                 LocalSpscTagsU8Reader,
                 LocalSpscTagsU8Writer,
-            >::new()
+            >::new());
+            let header_decoder = ctx.add(HeaderDecoder::<LocalSpscTagsU8Reader>::new(
+                HeaderMode::Explicit,
+                ldro_enabled,
+            ));
+            let decoder = ctx.add(Decoder::new());
+            let sink = ctx.add(MessageSink::new());
+
+            Ok((
+                src,
+                frame_sync,
+                fft_demod,
+                gray_mapping,
+                deinterleaver,
+                hamming_dec,
+                header_decoder,
+                decoder,
+                sink,
+            ))
         })?;
-        let header_decoder = fg.add_local(local, move || {
-            HeaderDecoder::<LocalSpscTagsU8Reader>::new(HeaderMode::Explicit, ldro_enabled)
-        })?;
-        let decoder = fg.add_local(local, Decoder::new)?;
-        let sink = fg.add_local(local, MessageSink::new)?;
 
         fg.stream_dyn(src, "output", frame_sync, "input")?;
         fg.stream_dyn(frame_sync, "output", fft_demod, "input")?;

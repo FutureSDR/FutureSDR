@@ -137,27 +137,31 @@ fn generate_local(
     for core_id in core_ids {
         let local = fg.local_domain_pinned(core_id.id)?;
 
-        let src = fg.add_local(local, NullSource::<f32, local_spsc::Writer<f32>>::new)?;
-        let head = fg.add_local(local, move || {
-            Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
-        })?;
-        let mut last = fg.add_local(local, move || {
-            CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(chunk)
-        })?;
-
-        fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
-        fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
-
-        for _ in 1..stages {
-            let block = fg.add_local(local, move || {
+        let snk = fg.with_local_domain(local, move |ctx| {
+            let src = ctx.add(NullSource::<f32, local_spsc::Writer<f32>>::new());
+            let head = ctx.add(
+                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+            );
+            let mut last = ctx.add(
                 CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(chunk)
-            })?;
-            fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
-            last = block;
-        }
+            );
 
-        let snk = fg.add_local(local, NullSink::<f32, local_spsc::Reader<f32>>::new)?;
-        fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+            ctx.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
+            ctx.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
+
+            for _ in 1..stages {
+                let block = ctx.add(
+                    CopyN::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(chunk)
+                );
+                ctx.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
+                last = block;
+            }
+
+            let snk = ctx.add(NullSink::<f32, local_spsc::Reader<f32>>::new());
+            ctx.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+
+            Ok(snk)
+        })?;
         snks.push(snk);
     }
 

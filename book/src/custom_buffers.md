@@ -53,7 +53,7 @@ Normal native flowgraphs require send-capable buffers. The marker traits are imp
 - `SendInplaceReader`
 - `SendInplaceWriter`
 
-If a buffer is not `Send`, use a local domain and connect it with `stream_local()` or the `~>` operator in `connect!`.
+If a buffer is not `Send`, use a local domain and connect it inside `Flowgraph::with_local_domain()` with `LocalDomainContext::stream_local()` or the `~>` operator in `connect!`.
 
 ## CPU Buffer Expectations
 

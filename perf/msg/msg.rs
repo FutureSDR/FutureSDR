@@ -80,17 +80,21 @@ fn generate_local(
 
     for core_id in core_ids.into_iter().take(pipes) {
         let local = fg.local_domain_pinned(core_id.id)?;
-        let src = fg.add_local(local, move || MessageBurst::new(Pmt::F64(1.23), burst_size))?;
-        let mut prev = src.id();
+        let snk = fg.with_local_domain(local, move |ctx| {
+            let src = ctx.add(MessageBurst::new(Pmt::F64(1.23), burst_size));
+            let mut prev = src.id();
 
-        for _ in 0..stages {
-            let block = fg.add_local(local, MessageCopy::new)?;
-            fg.message(prev, "out", block.id(), "in")?;
-            prev = block.id();
-        }
+            for _ in 0..stages {
+                let block = ctx.add(MessageCopy::new());
+                ctx.message(prev, "out", block.id(), "in")?;
+                prev = block.id();
+            }
 
-        let snk = fg.add_local(local, MessageSink::new)?;
-        fg.message(prev, "out", snk.id(), "in")?;
+            let snk = ctx.add(MessageSink::new());
+            ctx.message(prev, "out", snk.id(), "in")?;
+
+            Ok(snk)
+        })?;
         snks.push(snk);
     }
 

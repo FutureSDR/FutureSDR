@@ -280,8 +280,10 @@ fn flowgraph_validates_message_outputs_from_cached_static_metadata() {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain().unwrap();
     let src = fg
-        .add_local(domain, || NonSendMessageSource {
-            _state: Rc::new(Cell::new(0)),
+        .with_local_domain(domain, |ctx| {
+            Ok(ctx.add(NonSendMessageSource {
+                _state: Rc::new(Cell::new(0)),
+            }))
         })
         .unwrap();
     let dst = fg.add(MessageSink).unwrap();
@@ -303,8 +305,10 @@ fn non_send_blocks_can_be_added_to_local_domains() {
     let mut fg = Flowgraph::new();
     let domain = fg.local_domain().unwrap();
     let block = fg
-        .add_local(domain, || NonSendLocalBlock {
-            state: Rc::new(Cell::new(42)),
+        .with_local_domain(domain, |ctx| {
+            Ok(ctx.add(NonSendLocalBlock {
+                state: Rc::new(Cell::new(42)),
+            }))
         })
         .unwrap();
 

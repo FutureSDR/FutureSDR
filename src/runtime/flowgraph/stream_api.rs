@@ -34,8 +34,8 @@ impl Flowgraph {
     /// This is the typed block-level stream API used by the
     /// [`connect`](crate::runtime::macros::connect) macro.
     ///
-    /// The selected writer must be send-capable and default-constructible. Use
-    /// [`Flowgraph::stream_local`] for local-only buffers in a local domain.
+    /// The selected writer must be send-capable and default-constructible.
+    /// Build local-only buffers inside [`LocalDomainContext`](crate::runtime::LocalDomainContext).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn stream<KS, KD, B, FS, FD>(
         &mut self,
@@ -88,65 +88,6 @@ impl Flowgraph {
                 .await?
         };
         self.stream_edges.push(StreamEdge::from_edge(edge, false));
-        Ok(())
-    }
-
-    /// Connect local-only stream ports through typed block handles owned by this flowgraph.
-    ///
-    /// This only accepts two local-domain blocks in the same
-    /// [`LocalDomain`](crate::runtime::LocalDomain).
-    /// Use this for non-`Send` stream buffers such as
-    /// [`LocalCpuWriter`](crate::runtime::buffer::LocalCpuWriter).
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn stream_local<KS, KD, B, FS, FD>(
-        &mut self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
-    {
-        block_on(
-            self.stream_local_async::<KS, KD, B, FS, FD>(src_block, src_port, dst_block, dst_port),
-        )
-    }
-
-    /// Async counterpart to [`Flowgraph::stream_local`].
-    pub async fn stream_local_async<KS, KD, B, FS, FD>(
-        &mut self,
-        src_block: &BlockRef<KS>,
-        src_port: FS,
-        dst_block: &BlockRef<KD>,
-        dst_port: FD,
-    ) -> Result<(), Error>
-    where
-        KS: 'static,
-        KD: 'static,
-        B: BufferWriter + 'static,
-        FS: FnOnce(&mut KS) -> &mut B + Send + 'static,
-        FD: FnOnce(&mut KD) -> &mut B::Reader + Send + 'static,
-    {
-        self.validate_block_ref(src_block)?;
-        self.validate_block_ref(dst_block)?;
-        let src_id = src_block.id;
-        let dst_id = dst_block.id;
-        let src = self.location(src_id)?;
-        let dst = self.location(dst_id)?;
-        let (src, dst) = Self::same_local_stream_locations(src, dst, false)?;
-        let edge = self
-            .with_same_domain_two_blocks_mut(src, dst, move |src_block, dst_block| {
-                let src = block_access::typed_kernel_mut_from_object::<KS>(src_block, src_id)?;
-                let dst = block_access::typed_kernel_mut_from_object::<KD>(dst_block, dst_id)?;
-                Ok(Self::stream_ports_edge(src_port(src), dst_port(dst)))
-            })
-            .await?;
-        self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 
@@ -218,46 +159,6 @@ impl Flowgraph {
         let edge = self.named_stream_edge(&edge)?;
         self.stream_edges
             .push(StreamEdge::from_edge(edge, local_only));
-        Ok(())
-    }
-
-    /// Connect local-only stream ports without static port type checks.
-    ///
-    /// This only accepts two local-domain blocks in the same
-    /// [`LocalDomain`](crate::runtime::LocalDomain).
-    /// Use [`Flowgraph::stream_dyn`] for send-capable/default dynamic stream
-    /// connections that involve normal runtime blocks.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn stream_local_dyn(
-        &mut self,
-        src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortName>,
-        dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortName>,
-    ) -> Result<(), Error> {
-        block_on(self.stream_local_dyn_async(src_block_id, src_port_id, dst_block_id, dst_port_id))
-    }
-
-    /// Async counterpart to [`Flowgraph::stream_local_dyn`].
-    pub async fn stream_local_dyn_async(
-        &mut self,
-        src_block_id: impl Into<BlockId>,
-        src_port_id: impl Into<PortName>,
-        dst_block_id: impl Into<BlockId>,
-        dst_port_id: impl Into<PortName>,
-    ) -> Result<(), Error> {
-        let src_block_id = src_block_id.into();
-        let src_port_id = PortId::from(src_port_id.into());
-        let dst_block_id = dst_block_id.into();
-        let dst_port_id = PortId::from(dst_port_id.into());
-
-        let src = self.location(src_block_id)?;
-        let dst = self.location(dst_block_id)?;
-        Self::same_local_stream_locations(src, dst, true)?;
-
-        let edge = Edge::new(src_block_id, src_port_id, dst_block_id, dst_port_id);
-        let edge = self.named_stream_edge(&edge)?;
-        self.stream_edges.push(StreamEdge::from_edge(edge, true));
         Ok(())
     }
 }

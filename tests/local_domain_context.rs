@@ -23,7 +23,7 @@ fn connect_macro_works_in_local_domain_context() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
 
-    let snk = fg.domain_run(local, |ctx| {
+    let snk = fg.with_local_domain(local, |ctx| {
         let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
         let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
         let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
@@ -41,13 +41,13 @@ fn failed_local_domain_context_rolls_back_added_blocks() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
 
-    let err: std::result::Result<(), Error> = fg.domain_run(local, |ctx| {
+    let err: std::result::Result<(), Error> = fg.with_local_domain(local, |ctx| {
         ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
         Err(Error::ValidationError("builder failed".to_string()))
     });
     assert!(matches!(err, Err(Error::ValidationError(_))));
 
-    let snk = fg.domain_run(local, |ctx| {
+    let snk = fg.with_local_domain(local, |ctx| {
         Ok(ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new()))
     })?;
     assert_eq!(snk.id(), BlockId(0));
@@ -62,7 +62,7 @@ fn local_domain_context_spawn_runs_task() -> Result<()> {
         let local = fg.local_domain()?;
 
         let value = fg
-            .domain_run_async(local, async |ctx: &LocalDomainContext<'_>| {
+            .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
                 let task = ctx.spawn(async { 42usize });
                 Ok(task.await)
             })
@@ -80,7 +80,7 @@ fn local_domain_context_spawn_background_survives_until_run() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
 
-    let (snk, release_task) = fg.domain_run(local, move |ctx| {
+    let (snk, release_task) = fg.with_local_domain(local, move |ctx| {
         let (release_task, wait_for_release) = futuresdr::runtime::channel::oneshot::channel();
         ctx.spawn_background(async move {
             let _ = wait_for_release.await;
@@ -112,7 +112,7 @@ fn connect_macro_works_in_async_local_domain_context() -> Result<()> {
         let local = fg.local_domain()?;
 
         let snk = fg
-            .domain_run_async(local, async |ctx: &LocalDomainContext<'_>| {
+            .with_local_domain_async(local, async |ctx: &LocalDomainContext<'_>| {
                 futures::future::ready(()).await;
 
                 let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());

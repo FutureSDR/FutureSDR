@@ -5,8 +5,8 @@ Procedural macros for FutureSDR applications and custom blocks.
 
 ## `connect!`
 
-`connect!` adds blocks to a flowgraph if needed and wires stream, local-stream,
-and message connections.
+`connect!` adds blocks to a flowgraph or local-domain context if needed and
+wires stream, local-stream, and message connections.
 
 ```rust
 connect!(fg,
@@ -28,7 +28,7 @@ connect!(fg,
 Connection operators:
 
 - `>`: send-capable stream connection.
-- `~>`: local-domain-only stream connection for non-`Send` buffers.
+- `~>`: local-domain-only stream connection for non-`Send` buffers, used with a `LocalDomainContext`.
 - `|`: message connection.
 
 Reusable in-place buffers recycle automatically when the final owner drops the

@@ -487,7 +487,7 @@ async fn run(
 
     let local = fg.local_domain()?;
     let hackrf_block_id = fg
-        .domain_run_async(local, async move |ctx: &LocalDomainContext<'_>| {
+        .with_local_domain_async(local, async move |ctx: &LocalDomainContext<'_>| {
             let src = ctx.add(HackRf::new());
             let hackrf_block_id = src.id().0;
             let fft = ctx.add(Fft::with_options(

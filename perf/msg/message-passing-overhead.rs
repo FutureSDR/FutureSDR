@@ -154,15 +154,18 @@ fn build_flowgraph(
         }
         Placement::LocalDomain => {
             let local = fg.local_domain()?;
-            let src = fg.add_local(local, move || MessageBenchSource::new(messages))?;
-            let mut prev = src.id();
-            for _ in 0..stages {
-                let copy = fg.add_local(local, MessageCopy::new)?;
-                fg.message(prev, "out", copy.id(), "in")?;
-                prev = copy.id();
-            }
-            let sink = fg.add_local(local, MessageSink::new)?;
-            fg.message(prev, "out", sink.id(), "in")?;
+            let sink = fg.with_local_domain(local, move |ctx| {
+                let src = ctx.add(MessageBenchSource::new(messages));
+                let mut prev = src.id();
+                for _ in 0..stages {
+                    let copy = ctx.add(MessageCopy::new());
+                    ctx.message(prev, "out", copy.id(), "in")?;
+                    prev = copy.id();
+                }
+                let sink = ctx.add(MessageSink::new());
+                ctx.message(prev, "out", sink.id(), "in")?;
+                Ok(sink)
+            })?;
             Ok((fg, sink))
         }
     }

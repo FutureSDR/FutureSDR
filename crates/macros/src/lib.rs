@@ -69,9 +69,10 @@ use syn::token;
 /// destination port means `input()`. Message endpoints default to `"out"` and
 /// `"in"`.
 ///
-/// Send-capable stream connections are indicated as `>`, while local-domain-only
-/// stream connections for non-`Send` buffers are indicated as `~>`. Message
-/// connections are indicated as `|`.
+/// Send-capable stream connections are indicated as `>`. Inside a
+/// [`LocalDomainContext`](futuresdr::runtime::LocalDomainContext),
+/// local-domain-only stream connections for non-`Send` buffers are indicated
+/// as `~>`. Message connections are indicated as `|`.
 ///
 /// If a block uses non-standard port names it is possible to use triples, e.g.:
 ///

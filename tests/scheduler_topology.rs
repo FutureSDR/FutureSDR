@@ -250,7 +250,9 @@ fn third_party_scheduler_can_inspect_normal_domain_topology() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
     let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3]))?;
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
+    let snk = fg.with_local_domain(local, |ctx| {
+        Ok(ctx.add(NullSink::<u8, DefaultCpuReader<u8>>::new()))
+    })?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -275,10 +277,12 @@ fn local_scheduler_can_use_low_level_run_spec_primitives() -> Result<()> {
     let rt = Runtime::new();
     let mut fg = Flowgraph::new();
     let local = fg.local_domain_with_scheduler::<LowLevelLocalScheduler>()?;
-    let src = fg.add_local(local, || {
-        VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3])
+    let (src, snk) = fg.with_local_domain(local, |ctx| {
+        Ok((
+            ctx.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3])),
+            ctx.add(NullSink::<u8, DefaultCpuReader<u8>>::new()),
+        ))
     })?;
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
@@ -298,13 +302,16 @@ fn flowgraph_can_select_local_scheduler_type() -> Result<()> {
     let mut fg = Flowgraph::new();
     let local = fg.local_domain_with_scheduler::<CountingLocalScheduler>()?;
     let src = fg.add(VectorSource::<u8, DefaultCpuWriter<u8>>::new(vec![1, 2, 3]))?;
-    let snk = fg.add_local(local, NullSink::<u8, DefaultCpuReader<u8>>::new)?;
+    let snk = fg.with_local_domain(local, |ctx| {
+        Ok(ctx.add(NullSink::<u8, DefaultCpuReader<u8>>::new()))
+    })?;
+    assert_eq!(LOCAL_RUNS.load(Ordering::SeqCst), 1);
 
     fg.stream(&src, |b| b.output(), &snk, |b| b.input())?;
 
     let fg = rt.run(fg)?;
     assert_eq!(fg.with(&snk, |b| b.n_received())?, 3);
-    assert_eq!(LOCAL_RUNS.load(Ordering::SeqCst), 1);
+    assert_eq!(LOCAL_RUNS.load(Ordering::SeqCst), 2);
 
     Ok(())
 }

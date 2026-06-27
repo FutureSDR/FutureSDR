@@ -271,9 +271,10 @@ impl Flowgraph {
     /// Create a local scheduling domain.
     ///
     /// Add non-`Send` or explicitly local blocks to this domain with
-    /// [`Flowgraph::add_local`]. Blocks in one local domain can use local-only
-    /// stream buffers with [`Flowgraph::stream_local`]. Normal send-capable
-    /// stream buffers may connect local-domain blocks to normal blocks.
+    /// [`Flowgraph::with_local_domain`]. Blocks in one local domain can use
+    /// local-only stream buffers through [`LocalDomainContext`]. Normal
+    /// send-capable stream buffers may connect local-domain blocks to normal
+    /// blocks after the local-domain builder closure returns.
     ///
     /// This can fail on WASM when the local-domain worker script cannot be
     /// started.
@@ -342,12 +343,12 @@ impl Flowgraph {
             .extend(entries.into_iter().map(|entry| entry.block_slot));
     }
 
-    /// Run a builder closure inside a local domain.
+    /// Build blocks and local-only connections inside a local domain.
     ///
     /// Blocks added through the [`LocalDomainContext`] are constructed inside the
     /// local domain and therefore may contain non-`Send` state.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn domain_run<LS, R>(
+    pub fn with_local_domain<LS, R>(
         &mut self,
         domain: LocalDomain<LS>,
         f: impl FnOnce(&LocalDomainContext<'_, LS>) -> Result<R, Error> + Send + 'static,
@@ -357,16 +358,19 @@ impl Flowgraph {
         R: Send + 'static,
     {
         block_on(
-            self.domain_run_async(domain, async move |ctx: &LocalDomainContext<'_, LS>| f(ctx)),
+            self.with_local_domain_async(domain, async move |ctx: &LocalDomainContext<'_, LS>| {
+                f(ctx)
+            }),
         )
     }
 
-    /// Run an async builder closure inside a local domain.
+    /// Build blocks and local-only connections inside a local domain asynchronously.
     ///
-    /// This is the async counterpart of [`Flowgraph::domain_run`]. The future
-    /// is created and awaited inside the local domain, so it may hold non-`Send`
-    /// state across await points as long as that state is constructed there.
-    pub async fn domain_run_async<LS, R, F>(
+    /// This is the async counterpart of [`Flowgraph::with_local_domain`]. The
+    /// future is created and awaited inside the local domain, so it may hold
+    /// non-`Send` state across await points as long as that state is constructed
+    /// there.
+    pub async fn with_local_domain_async<LS, R, F>(
         &mut self,
         domain: LocalDomain<LS>,
         f: F,
@@ -452,7 +456,9 @@ impl Flowgraph {
     {
         if <K as KernelInterface>::is_blocking() {
             let domain = self.local_domain()?;
-            self.add_local_async(domain, move || block).await
+            let domain_id = self.validate_local_domain(domain)?;
+            self.add_kernel_to_domain_async(domain_id, move || block)
+                .await
         } else {
             Ok(self.add_normal_kernel(block))
         }
@@ -532,44 +538,6 @@ impl Flowgraph {
             blocking,
         ));
         self.block_ref(block_id, placement)
-    }
-
-    /// Add a block to a local domain with the local non-atomic wake path.
-    ///
-    /// The closure is executed inside the local domain, so it may construct
-    /// non-`Send` state that never leaves that domain. Use this for blocks with
-    /// non-`Send` buffers, non-`Send` futures, or integrations that must remain
-    /// thread-affine.
-    ///
-    /// Blocks added this way use a direct local inbox for same-domain stream
-    /// wakeups. Cross-domain/runtime ingress is delivered at the domain boundary.
-    /// Placement chooses the wake path; buffer type chooses the transport.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn add_local<LS, K>(
-        &mut self,
-        domain: LocalDomain<LS>,
-        block: impl FnOnce() -> K + Send + 'static,
-    ) -> Result<BlockRef<K>, Error>
-    where
-        LS: LocalScheduler,
-        K: Kernel + KernelInterface + 'static,
-    {
-        let domain_id = self.validate_local_domain(domain)?;
-        block_on(self.add_kernel_to_domain_async(domain_id, block))
-    }
-
-    /// Asynchronously add a block to a local domain with a local inbox/proxy split.
-    pub async fn add_local_async<LS, K>(
-        &mut self,
-        domain: LocalDomain<LS>,
-        block: impl FnOnce() -> K + Send + 'static,
-    ) -> Result<BlockRef<K>, Error>
-    where
-        LS: LocalScheduler,
-        K: Kernel + KernelInterface + 'static,
-    {
-        let domain_id = self.validate_local_domain(domain)?;
-        self.add_kernel_to_domain_async(domain_id, block).await
     }
 
     async fn add_kernel_to_domain_async<K>(

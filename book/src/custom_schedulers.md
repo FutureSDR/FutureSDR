@@ -25,7 +25,7 @@ Local domains are not started by the normal scheduler. The runtime activates the
 
 Schedulers manage the implicit normal domain, which contains send-capable block tasks. Local domains are created by the flowgraph for:
 
-- blocks added through `Flowgraph::add_local()`,
+- blocks added through `Flowgraph::with_local_domain()`,
 - blocks marked with `#[blocking]`.
 
 Blocking or thread-affine work should be placed in a local domain instead of being hidden inside the normal scheduler. A local domain can select a local scheduler type with `fg.local_domain_with_scheduler::<MyLocalScheduler>()`; `fg.local_domain()` uses the built-in basic local scheduler.

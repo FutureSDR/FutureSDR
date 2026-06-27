@@ -106,7 +106,7 @@ Use `connect!` for normal application code. The explicit form is useful when blo
 
 Normal blocks and buffers must be send-capable because the scheduler may move block tasks between workers. A local domain gives you a single-thread execution island for blocks or buffers that are not `Send`, or for integrations that must stay on one thread. On WASM, local domains are backed by web workers.
 
-Create a local domain, add blocks with `add_local()`, and connect local-only stream buffers with `~>` in `connect!` or `stream_local()` manually:
+Create a local domain, add blocks through the provided `LocalDomainContext`, and connect local-only stream buffers with `~>` in `connect!` or `ctx.stream_local()` manually:
 
 ```rust
 use futuresdr::blocks::NullSink;
@@ -118,25 +118,25 @@ use futuresdr::runtime::buffer::LocalCpuWriter;
 let mut fg = Flowgraph::new();
 let local = fg.local_domain()?;
 
-let src = fg.add_local(local, || {
-    NullSource::<f32, LocalCpuWriter<f32>>::new()
-});
-let snk = fg.add_local(local, || {
-    NullSink::<f32, LocalCpuReader<f32>>::new()
-});
+fg.with_local_domain(local, |ctx| {
+    let src = ctx.add(NullSource::<f32, LocalCpuWriter<f32>>::new());
+    let snk = ctx.add(NullSink::<f32, LocalCpuReader<f32>>::new());
 
-fg.stream_local(&src, |b| b.output(), &snk, |b| b.input())?;
+    ctx.stream_local(&src, |b| b.output(), &snk, |b| b.input())?;
+
+    Ok(())
+})?;
 ```
 
 The `~>` macro operator is the equivalent typed local-stream connection:
 
 ```rust
-connect!(fg, src ~> snk);
+connect!(ctx, src ~> snk);
 ```
 
 Local-only stream connections must stay inside one local domain. Send-capable stream buffers can still connect normal blocks and local-domain blocks. Message connections are not restricted by local domains.
 
-When a block's state must be created on the local-domain thread itself, build that part of the graph with `domain_run()` (or `domain_run_async()` in async code). The closure receives a `LocalDomainContext`; add local blocks through `ctx.add(...)` and use the same `connect!` syntax with `ctx` as the graph argument:
+When a block's state must be created on the local-domain thread itself, build that part of the graph with `with_local_domain()` (or `with_local_domain_async()` in async code). The closure receives a `LocalDomainContext`; add local blocks through `ctx.add(...)` and use the same `connect!` syntax with `ctx` as the graph argument:
 
 ```rust
 use futuresdr::blocks::Head;
@@ -149,7 +149,7 @@ use futuresdr::runtime::buffer::LocalCpuWriter;
 let mut fg = Flowgraph::new();
 let local = fg.local_domain()?;
 
-let snk = fg.domain_run(local, |ctx| {
+let snk = fg.with_local_domain(local, |ctx| {
     let src = ctx.add(NullSource::<u8, LocalCpuWriter<u8>>::new());
     let head = ctx.add(Head::<u8, LocalCpuReader<u8>, LocalCpuWriter<u8>>::new(10));
     let snk = ctx.add(NullSink::<u8, LocalCpuReader<u8>>::new());
@@ -160,7 +160,7 @@ let snk = fg.domain_run(local, |ctx| {
 })?;
 ```
 
-On `wasm32`, use the async forms (`add_async`, `add_local_async`, `domain_run_async`, and `connect_async!`) while constructing the graph.
+On `wasm32`, use the async forms (`add_async`, `with_local_domain_async`, and `connect_async!`) while constructing the graph.
 
 ## Accessing Blocks
 

@@ -158,30 +158,35 @@ fn generate_local(
 
     for core_id in core_ids {
         let local = fg.local_domain_pinned(core_id.id)?;
+        let taps = taps.to_vec();
 
-        let src = fg.add_local(local, move || {
-            LttngSource::<f32, local_spsc::Writer<f32>>::new(GRANULARITY)
-        })?;
-        let head = fg.add_local(local, move || {
-            Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
-        })?;
-        let stage_taps = taps.to_vec();
-        let mut last = fg.add_local(local, move || local_fir(stage_taps))?;
-
-        fg.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
-        fg.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
-
-        for _ in 1..stages {
+        let snk = fg.with_local_domain(local, move |ctx| {
+            let src = ctx.add(LttngSource::<f32, local_spsc::Writer<f32>>::new(
+                GRANULARITY,
+            ));
+            let head = ctx.add(
+                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+            );
             let stage_taps = taps.to_vec();
-            let block = fg.add_local(local, move || local_fir(stage_taps))?;
-            fg.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
-            last = block;
-        }
+            let mut last = ctx.add(local_fir(stage_taps));
 
-        let snk = fg.add_local(local, move || {
-            LttngSink::<f32, local_spsc::Reader<f32>>::new(GRANULARITY)
+            ctx.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
+            ctx.stream_local(&head, |b| b.output(), &last, |b| b.input())?;
+
+            for _ in 1..stages {
+                let stage_taps = taps.to_vec();
+                let block = ctx.add(local_fir(stage_taps));
+                ctx.stream_local(&last, |b| b.output(), &block, |b| b.input())?;
+                last = block;
+            }
+
+            let snk = ctx.add(LttngSink::<f32, local_spsc::Reader<f32>>::new(
+                GRANULARITY,
+            ));
+            ctx.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
+
+            Ok(snk)
         })?;
-        fg.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
         snks.push(snk);
     }
 
