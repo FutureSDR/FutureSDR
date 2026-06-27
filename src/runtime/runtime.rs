@@ -129,9 +129,7 @@ impl<S: Scheduler> Runtime<S> {
     /// [`RunningFlowgraph`] can be used to send messages, stop the graph, or
     /// wait for completion.
     pub async fn start_async(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
-        let running = start_flowgraph(self.scheduler.clone(), fg).await?;
-        self.flowgraphs.lock().await.insert(running.handle());
-        Ok(running)
+        start_flowgraph(self.scheduler.clone(), self.flowgraphs.clone(), fg).await
     }
 
     /// Start a [`Flowgraph`] on the [`Runtime`] and await its termination.
@@ -275,20 +273,18 @@ impl<S: Scheduler> RuntimeHandle<S> {
     /// returned flowgraph is available through [`RuntimeHandle::get_flowgraph`]
     /// and the native control-port API until it terminates.
     pub async fn start(&self, fg: Flowgraph) -> Result<RunningFlowgraph, Error> {
-        let running = start_flowgraph(self.scheduler.clone(), fg).await?;
-        self.flowgraphs.lock().await.insert(running.handle());
-        Ok(running)
+        start_flowgraph(self.scheduler.clone(), self.flowgraphs.clone(), fg).await
     }
 
     /// Get the control handle for a flowgraph by stable flowgraph id.
     ///
-    /// Terminated flowgraphs are pruned from the registry and return `None`.
-    /// The ids of other running flowgraphs are not changed by pruning.
+    /// Flowgraphs are removed from the registry when their runtime task exits.
+    /// A graph may still terminate between listing ids and looking up a handle.
     pub async fn get_flowgraph(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
         self.flowgraphs.lock().await.get(id)
     }
 
-    /// Get the stable ids of running flowgraphs known to this runtime handle.
+    /// Get the stable ids of flowgraphs currently registered with this runtime handle.
     pub async fn get_flowgraphs(&self) -> Vec<FlowgraphId> {
         self.flowgraphs.lock().await.running_ids()
     }
@@ -306,25 +302,22 @@ impl FlowgraphRegistry {
         id
     }
 
-    fn get(&mut self, id: FlowgraphId) -> Option<FlowgraphHandle> {
-        match self.flowgraphs.get(&id) {
-            Some(handle) if handle.is_terminated() => {
-                self.flowgraphs.remove(&id);
-                None
-            }
-            Some(handle) => Some(handle.clone()),
-            None => None,
-        }
+    fn remove(&mut self, id: FlowgraphId) {
+        self.flowgraphs.remove(&id);
     }
 
-    fn running_ids(&mut self) -> Vec<FlowgraphId> {
-        self.flowgraphs.retain(|_, handle| !handle.is_terminated());
+    fn get(&self, id: FlowgraphId) -> Option<FlowgraphHandle> {
+        self.flowgraphs.get(&id).cloned()
+    }
+
+    fn running_ids(&self) -> Vec<FlowgraphId> {
         self.flowgraphs.keys().copied().collect()
     }
 }
 
 async fn start_flowgraph<S: Scheduler>(
     scheduler: S,
+    flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
     fg: Flowgraph,
 ) -> Result<RunningFlowgraph, Error> {
     let id = fg.id();
@@ -333,15 +326,25 @@ async fn start_flowgraph<S: Scheduler>(
 
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
     let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
+    let (registered_tx, registered_rx) = oneshot::channel::<()>();
+    let cleanup_flowgraphs = flowgraphs.clone();
+    let main_channel = fg_inbox.clone();
     let scheduler_clone = scheduler.clone();
-    let task = scheduler.spawn(run_flowgraph(
-        fg,
-        scheduler_clone,
-        fg_inbox.clone(),
-        fg_inbox_rx,
-        tx,
-        control_tx,
-    ));
+    let task = FlowgraphTask::new(scheduler.spawn(async move {
+        let result = run_flowgraph(
+            fg,
+            scheduler_clone,
+            main_channel,
+            fg_inbox_rx,
+            tx,
+            control_tx,
+        )
+        .await;
+        // Startup may still be inserting the handle when a short-lived graph exits.
+        let _ = registered_rx.await;
+        cleanup_flowgraphs.lock().await.remove(id);
+        result
+    }));
 
     rx.await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
@@ -350,7 +353,9 @@ async fn start_flowgraph<S: Scheduler>(
     })?;
 
     let handle = FlowgraphHandle::new(id, fg_inbox, control);
-    Ok(RunningFlowgraph::new(handle, FlowgraphTask::new(task)))
+    flowgraphs.lock().await.insert(handle.clone());
+    let _ = registered_tx.send(());
+    Ok(RunningFlowgraph::new(handle, task))
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -380,18 +385,36 @@ mod tests {
         };
 
         runtime::block_on(async {
-            let running = handle
-                .start(message_source_flowgraph(Some(1)))
-                .await
-                .unwrap();
+            let running = handle.start(message_source_flowgraph(None)).await.unwrap();
             let id = running.id();
 
             assert_eq!(handle.get_flowgraphs().await, vec![id]);
 
-            running.wait_async().await.unwrap();
+            running.stop_and_wait().await.unwrap();
 
             assert!(handle.get_flowgraph(id).await.is_none());
             assert!(handle.get_flowgraphs().await.is_empty());
+        });
+    }
+
+    #[test]
+    fn completed_flowgraph_removes_registry_entry_without_query() {
+        let scheduler = DefaultScheduler::default();
+        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
+        let handle = RuntimeHandle {
+            scheduler,
+            flowgraphs: flowgraphs.clone(),
+        };
+
+        runtime::block_on(async {
+            let running = handle.start(message_source_flowgraph(None)).await.unwrap();
+            let id = running.id();
+
+            assert!(flowgraphs.lock().await.flowgraphs.contains_key(&id));
+
+            running.stop_and_wait().await.unwrap();
+
+            assert!(!flowgraphs.lock().await.flowgraphs.contains_key(&id));
         });
     }
 
