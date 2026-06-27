@@ -393,6 +393,7 @@ struct LocalInboxState {
     queue: RefCell<VecDeque<BlockMessage>>,
     capacity: usize,
     send_wakers: RefCell<Vec<Waker>>,
+    closed: Cell<bool>,
     message_pending: Cell<bool>,
     notifier: LocalBlockNotifier,
 }
@@ -409,6 +410,7 @@ impl LocalInboxState {
             queue: RefCell::new(queue),
             capacity,
             send_wakers: RefCell::new(Vec::new()),
+            closed: Cell::new(false),
             message_pending: Cell::new(false),
             notifier,
         }
@@ -427,6 +429,20 @@ impl LocalInboxState {
             .any(|registered| registered.will_wake(waker))
         {
             send_wakers.push(waker.clone());
+        }
+    }
+
+    fn close(&self) {
+        if self.closed.replace(true) {
+            return;
+        }
+
+        self.message_pending.set(false);
+        let messages = self.queue.borrow_mut().drain(..).collect::<Vec<_>>();
+        self.wake_senders();
+
+        for msg in messages {
+            fail_closed_message(msg);
         }
     }
 }
@@ -449,10 +465,14 @@ impl LocalBlockInbox {
         self.0.notifier.notify();
     }
 
-    fn try_send(&self, msg: BlockMessage) -> Result<(), BlockMessage> {
+    fn try_send(&self, msg: BlockMessage) -> Result<(), LocalTrySendError> {
+        if self.0.closed.get() {
+            return Err(LocalTrySendError::Closed(msg));
+        }
+
         let mut queue = self.0.queue.borrow_mut();
         if queue.len() == self.0.capacity {
-            return Err(msg);
+            return Err(LocalTrySendError::Full(msg));
         }
 
         queue.push_back(msg);
@@ -485,6 +505,18 @@ impl LocalBlockInbox {
     fn take_message_pending(&self) -> bool {
         self.0.message_pending.replace(false)
     }
+}
+
+enum LocalTrySendError {
+    Full(BlockMessage),
+    Closed(BlockMessage),
+}
+
+fn fail_closed_message(msg: BlockMessage) -> Error {
+    if let BlockMessage::Call { tx, .. } = msg {
+        let _ = tx.send(Err(Error::BlockTerminated));
+    }
+    Error::BlockTerminated
 }
 
 #[derive(Debug)]
@@ -601,7 +633,8 @@ impl<T: LocalSendTarget + Unpin> Future for LocalSend<T> {
 
         match inbox.try_send(msg) {
             Ok(()) => Poll::Ready(Ok(())),
-            Err(msg) => {
+            Err(LocalTrySendError::Closed(msg)) => Poll::Ready(Err(fail_closed_message(msg))),
+            Err(LocalTrySendError::Full(msg)) => {
                 this.msg = Some(msg);
                 inbox.0.register_sender(cx.waker());
 
@@ -612,7 +645,10 @@ impl<T: LocalSendTarget + Unpin> Future for LocalSend<T> {
                 };
                 match inbox.try_send(msg) {
                     Ok(()) => Poll::Ready(Ok(())),
-                    Err(msg) => {
+                    Err(LocalTrySendError::Closed(msg)) => {
+                        Poll::Ready(Err(fail_closed_message(msg)))
+                    }
+                    Err(LocalTrySendError::Full(msg)) => {
                         this.msg = Some(msg);
                         Poll::Pending
                     }
@@ -650,6 +686,9 @@ impl LocalBlockInboxReader {
             if let Some(msg) = self.inbox.try_recv() {
                 return Some(msg);
             }
+            if self.inbox.0.closed.get() {
+                return None;
+            }
             self.notified().await;
         }
     }
@@ -669,6 +708,12 @@ impl LocalBlockInboxReader {
         LocalNotified {
             state: self.inbox.0.notifier.clone(),
         }
+    }
+}
+
+impl Drop for LocalBlockInboxReader {
+    fn drop(&mut self) {
+        self.inbox.0.close();
     }
 }
 
@@ -699,7 +744,12 @@ impl Future for LocalNotified {
 mod tests {
     use super::*;
     use crate::runtime::BlockMessage;
+    use crate::runtime::Pmt;
+    use crate::runtime::PortIndex;
+    use crate::runtime::channel::oneshot;
     use futures::executor::block_on;
+    use std::task::Context;
+    use std::task::Poll;
 
     #[test]
     fn coalesces_multiple_notifies() {
@@ -776,13 +826,83 @@ mod tests {
 
         assert!(matches!(
             tx.try_send(BlockMessage::Initialize),
-            Err(BlockMessage::Initialize)
+            Err(LocalTrySendError::Full(BlockMessage::Initialize))
         ));
 
         for _ in 0..capacity {
             assert!(matches!(rx.try_recv(), Some(BlockMessage::Terminate)));
         }
         assert!(rx.try_recv().is_none());
+    }
+
+    #[test]
+    fn local_send_after_reader_drop_fails() {
+        let (tx, rx) = LocalBlockInboxReader::pair();
+        drop(rx);
+
+        assert_eq!(
+            block_on(tx.send(BlockMessage::Initialize)),
+            Err(Error::BlockTerminated)
+        );
+    }
+
+    #[test]
+    fn local_call_after_reader_drop_replies_block_terminated() {
+        let (tx, rx) = LocalBlockInboxReader::pair();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        drop(rx);
+
+        assert_eq!(
+            block_on(tx.send(BlockMessage::Call {
+                port_id: PortIndex::new(0),
+                data: Pmt::Null,
+                tx: reply_tx,
+            })),
+            Err(Error::BlockTerminated)
+        );
+        assert_eq!(block_on(reply_rx).unwrap(), Err(Error::BlockTerminated));
+    }
+
+    #[test]
+    fn local_queued_call_replies_block_terminated_on_reader_drop() {
+        let (tx, rx) = LocalBlockInboxReader::pair();
+        let (reply_tx, reply_rx) = oneshot::channel();
+
+        assert!(matches!(
+            tx.try_send(BlockMessage::Call {
+                port_id: PortIndex::new(0),
+                data: Pmt::Null,
+                tx: reply_tx,
+            }),
+            Ok(())
+        ));
+        drop(rx);
+
+        assert_eq!(block_on(reply_rx).unwrap(), Err(Error::BlockTerminated));
+    }
+
+    #[test]
+    fn local_pending_send_wakes_and_fails_on_reader_drop() {
+        let (tx, rx) = LocalBlockInboxReader::pair();
+
+        for _ in 0..tx.0.capacity {
+            assert!(tx.try_send(BlockMessage::Terminate).is_ok());
+        }
+
+        let send = tx.send(BlockMessage::Initialize);
+        futures::pin_mut!(send);
+        let mut cx = Context::from_waker(futures::task::noop_waker_ref());
+        assert!(matches!(
+            Future::poll(send.as_mut(), &mut cx),
+            Poll::Pending
+        ));
+
+        drop(rx);
+
+        assert!(matches!(
+            Future::poll(send.as_mut(), &mut cx),
+            Poll::Ready(Err(Error::BlockTerminated))
+        ));
     }
 
     #[test]

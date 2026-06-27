@@ -112,7 +112,7 @@ pub(super) struct LocalKernelInboxes {
     thread_safe_tx: BlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
     local_tx: LocalBlockInbox,
-    local_rx: LocalBlockInboxReader,
+    local_rx: Option<LocalBlockInboxReader>,
 }
 
 impl LocalKernelInboxes {
@@ -124,7 +124,7 @@ impl LocalKernelInboxes {
             thread_safe_tx,
             thread_safe_rx: Some(thread_safe_rx),
             local_tx,
-            local_rx,
+            local_rx: Some(local_rx),
         }
     }
 }
@@ -165,7 +165,9 @@ impl WrappedKernelInbox for LocalKernelInboxes {
     }
 
     fn run_inbox_mut(&mut self) -> &mut Self::RunInbox {
-        &mut self.local_rx
+        self.local_rx
+            .as_mut()
+            .expect("local inbox receiver missing while block is running")
     }
 }
 
@@ -563,6 +565,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
         match KernelWrapper::run(self, main_inbox.clone()).await {
             Ok(_) => {
+                drop(self.inbox.local_rx.take());
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })
                     .await;
@@ -574,6 +577,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
                     .instance_name()
                     .unwrap_or("<instance name not set>");
                 error!("{}: Error in Block.run() {:?}", instance_name, e);
+                drop(self.inbox.local_rx.take());
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockError {
                         block_id: self.id,
