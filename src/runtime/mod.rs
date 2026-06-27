@@ -83,6 +83,7 @@ pub use timer::Timer;
 
 pub use futuresdr_types::BlockDescription;
 pub use futuresdr_types::BlockId;
+pub use futuresdr_types::BlockStatus;
 pub use futuresdr_types::Edge;
 pub use futuresdr_types::FlowgraphDescription;
 pub use futuresdr_types::FlowgraphId;
@@ -99,18 +100,21 @@ pub(crate) fn port_id_matches(port_id: &PortId, index: usize, name: &str) -> boo
     }
 }
 
-pub(crate) fn resolve_port_index(port_id: &PortId, names: &[&str]) -> Option<PortIndex> {
+pub(crate) fn resolve_port_index<N: AsRef<str>>(
+    port_id: &PortId,
+    names: &[N],
+) -> Option<PortIndex> {
     match port_id {
         PortId::Index(index) => (index.index() < names.len()).then_some(*index),
         PortId::Name(name) => names
             .iter()
-            .position(|candidate| *candidate == name.as_str())
+            .position(|candidate| candidate.as_ref() == name.as_str())
             .map(PortIndex::new),
     }
 }
 
-pub(crate) fn resolve_port_name(port_id: &PortId, names: &[&str]) -> Option<PortId> {
-    resolve_port_index(port_id, names).map(|index| PortId::new(names[index.index()].to_string()))
+pub(crate) fn resolve_port_name<N: AsRef<str>>(port_id: &PortId, names: &[N]) -> Option<PortId> {
+    resolve_port_index(port_id, names).map(|index| PortId::new(names[index.index()].as_ref()))
 }
 
 /// Block the current thread until a future completes.
@@ -255,11 +259,6 @@ pub(crate) enum BlockMessage {
     Start,
     /// Terminate
     Terminate,
-    /// Get [`BlockDescription`]
-    BlockDescription {
-        /// Channel for return value
-        tx: oneshot::Sender<BlockDescription>,
-    },
     /// Stream input port is done
     StreamInputDone {
         /// Stream input Id

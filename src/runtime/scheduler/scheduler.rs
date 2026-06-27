@@ -441,6 +441,10 @@ mod tests {
             "TestBlock"
         }
 
+        fn instance_name(&self) -> Option<&str> {
+            None
+        }
+
         fn stream_input_names(&mut self) -> Result<Vec<String>, Error> {
             Ok(Vec::new())
         }

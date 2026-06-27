@@ -79,6 +79,49 @@ impl Kernel for FinishImmediately {
 }
 
 #[derive(Block)]
+#[message_outputs(out)]
+struct FinishWithMessageOutput;
+
+impl Kernel for FinishWithMessageOutput {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> Result<()> {
+        io.finished = true;
+        Ok(())
+    }
+}
+
+#[derive(Block)]
+#[message_inputs(r#in)]
+struct WaitMessageSink;
+
+impl WaitMessageSink {
+    async fn r#in(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        Ok(Pmt::Ok)
+    }
+}
+
+impl Kernel for WaitMessageSink {
+    async fn work(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Block)]
 struct InitFail;
 
 impl Kernel for InitFail {
@@ -311,6 +354,54 @@ fn flowgraph_handle_stop_and_wait_succeeds_when_already_failed() -> Result<()> {
         Err(Error::HandlerError(msg)) => assert!(msg.contains("run failed")),
         Err(e) => bail!("unexpected error: {e}"),
     }
+
+    Ok(())
+}
+
+#[test]
+fn describe_keeps_terminated_blocks_and_edges_while_running() -> Result<()> {
+    let mut fg = Flowgraph::new();
+    let finished = fg.add(FinishWithMessageOutput)?;
+    let waiting = fg.add(WaitMessageSink)?;
+    fg.message(finished, "out", waiting, "in")?;
+
+    let rt = Runtime::new();
+    let running = rt.start(fg)?;
+    futuresdr::runtime::block_on(async {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            let description = running.describe().await?;
+            let finished_status = description
+                .blocks
+                .iter()
+                .find(|block| block.id == finished.id())
+                .map(|block| block.status);
+            let waiting_status = description
+                .blocks
+                .iter()
+                .find(|block| block.id == waiting.id())
+                .map(|block| block.status);
+
+            if finished_status == Some(BlockStatus::Terminated) {
+                assert_eq!(description.blocks.len(), 2);
+                assert_eq!(waiting_status, Some(BlockStatus::Running));
+                assert_eq!(description.message_edges.len(), 1);
+                assert_eq!(description.message_edges[0].src_block, finished.id());
+                assert_eq!(description.message_edges[0].dst_block, waiting.id());
+
+                let block = running.describe_block(finished).await?;
+                assert_eq!(block.status, BlockStatus::Terminated);
+                return running.stop_and_wait().await.map(|_| ());
+            }
+
+            if Instant::now() >= deadline {
+                return Err(Error::RuntimeError(
+                    "finished block was not marked terminated within 1 second".to_string(),
+                ));
+            }
+            Timer::after(Duration::from_millis(10)).await;
+        }
+    })?;
 
     Ok(())
 }

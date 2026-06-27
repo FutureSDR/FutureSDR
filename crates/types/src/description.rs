@@ -84,6 +84,8 @@ pub struct FlowgraphDescription {
 pub struct BlockDescription {
     /// Block id inside the flowgraph.
     pub id: BlockId,
+    /// Runtime lifecycle status of the block.
+    pub status: BlockStatus,
     /// Rust type name of the block kernel.
     pub type_name: String,
     /// Runtime instance name assigned to the block.
@@ -101,4 +103,13 @@ pub struct BlockDescription {
     /// Blocking blocks have an async API but are spawned in a separate thread, i.e., it is ok to
     /// block inside the async function.
     pub blocking: bool,
+}
+
+/// Runtime lifecycle status of a block in a running flowgraph description.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BlockStatus {
+    /// The block is still running.
+    Running,
+    /// The block has finished or failed.
+    Terminated,
 }

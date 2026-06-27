@@ -14,7 +14,6 @@ use crate::runtime::block_inbox::LocalBlockAddr;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::block_on;
 use crate::runtime::buffer::BufferWriter;
-use crate::runtime::buffer::PortManifest;
 use crate::runtime::dev::Kernel;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::kernel_interface::stream_input_manifest;
@@ -26,6 +25,7 @@ use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
 
+use super::BlockSlot;
 use super::Flowgraph;
 use super::types::BlockPlacement;
 use super::types::BlockRef;
@@ -54,14 +54,7 @@ impl<LS> Clone for LocalDomain<LS> {
 
 pub(super) struct LocalDomainContextEntry {
     pub(super) block_id: BlockId,
-    pub(super) placement: BlockPlacement,
-    pub(super) inbox: BlockEndpoint,
-    pub(super) stream_inputs: Vec<String>,
-    pub(super) stream_outputs: Vec<String>,
-    pub(super) stream_input_manifest: Vec<PortManifest>,
-    pub(super) stream_output_manifest: Vec<PortManifest>,
-    pub(super) message_inputs: &'static [&'static str],
-    pub(super) message_outputs: &'static [&'static str],
+    pub(super) block_slot: BlockSlot,
 }
 
 struct LocalDomainContextInner<'a> {
@@ -151,7 +144,7 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         let mut inner = self.inner.borrow_mut();
         let mut result = Ok(());
         for entry in entries.iter().rev() {
-            let BlockPlacement::Local { local_id, .. } = entry.placement else {
+            let BlockPlacement::Local { local_id, .. } = entry.block_slot.placement() else {
                 continue;
             };
             if let Err(e) = inner.state.remove_block(local_id, entry.block_id)
@@ -199,8 +192,9 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
         inner.next_block_id += 1;
         let local_id = inner.next_local_id;
         inner.next_local_id += 1;
+        let domain_id = inner.domain_id;
         let placement = BlockPlacement::Local {
-            domain_id: inner.domain_id,
+            domain_id,
             local_id,
         };
 
@@ -223,20 +217,28 @@ impl<'a, LS: LocalScheduler> LocalDomainContext<'a, LS> {
             .expect("failed to collect stream input manifest");
         let stream_output_manifest = stream_output_manifest(&mut block.kernel)
             .expect("failed to collect stream output manifest");
+        let type_name = K::type_name();
+        let instance_name = block.meta.instance_name().unwrap_or(type_name).to_string();
         inner
             .state
             .insert_block(local_id, Box::new(block))
             .expect("failed to insert local-domain block");
         inner.entries.push(LocalDomainContextEntry {
             block_id,
-            placement,
-            inbox,
-            stream_inputs,
-            stream_outputs,
-            stream_input_manifest,
-            stream_output_manifest,
-            message_inputs: K::message_inputs(),
-            message_outputs: K::message_outputs(),
+            block_slot: BlockSlot::local(
+                domain_id,
+                local_id,
+                inbox,
+                stream_inputs,
+                stream_outputs,
+                stream_input_manifest,
+                stream_output_manifest,
+                K::message_inputs(),
+                K::message_outputs(),
+                type_name,
+                instance_name,
+                K::is_blocking(),
+            ),
         });
         BlockRef {
             id: block_id,

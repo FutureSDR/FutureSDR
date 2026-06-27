@@ -1,11 +1,12 @@
-use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
+use crate::runtime::BlockStatus;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphDescription;
@@ -22,29 +23,132 @@ use crate::runtime::channel::oneshot;
 use crate::runtime::resolve_port_index;
 
 #[derive(Debug)]
-pub(crate) struct RunningFlowgraphControl {
-    endpoints: Vec<BlockEndpoint>,
-    ids: Vec<BlockId>,
-    message_inputs: Vec<&'static [&'static str]>,
+pub(crate) struct RunningFlowgraphRegistry {
+    blocks: Vec<RunningBlockEntry>,
     stream_edges: Vec<Edge>,
     message_edges: Vec<Edge>,
 }
 
-impl RunningFlowgraphControl {
+impl RunningFlowgraphRegistry {
     pub(crate) fn new(
-        endpoints: Vec<BlockEndpoint>,
-        ids: Vec<BlockId>,
-        message_inputs: Vec<&'static [&'static str]>,
+        blocks: Vec<RunningBlockEntry>,
         stream_edges: Vec<Edge>,
         message_edges: Vec<Edge>,
     ) -> Self {
         Self {
-            endpoints,
-            ids,
-            message_inputs,
+            blocks,
             stream_edges,
             message_edges,
         }
+    }
+
+    pub(crate) fn mark_terminated(&self, block_id: BlockId) {
+        if let Some(entry) = self.blocks.get(block_id.0) {
+            entry.mark_terminated();
+        }
+    }
+
+    pub(crate) fn endpoints(&self) -> impl Iterator<Item = &BlockEndpoint> {
+        self.blocks.iter().map(|entry| &entry.endpoint)
+    }
+
+    fn entry(&self, block_id: BlockId) -> Result<&RunningBlockEntry, Error> {
+        self.blocks
+            .get(block_id.0)
+            .ok_or(Error::InvalidBlock(block_id))
+    }
+
+    fn message_input_index(
+        &self,
+        block_id: BlockId,
+        port_id: impl Into<PortId>,
+    ) -> Result<PortIndex, Error> {
+        let port_id = port_id.into();
+        self.entry(block_id)?.message_input_index(block_id, port_id)
+    }
+
+    fn message_target(
+        &self,
+        block_id: BlockId,
+        port_id: impl Into<PortId>,
+    ) -> Result<RunningMessageTarget, Error> {
+        let entry = self.entry(block_id)?;
+        let port_id = entry.message_input_index(block_id, port_id.into())?;
+        entry.ensure_running()?;
+        Ok(RunningMessageTarget {
+            endpoint: entry.endpoint.clone(),
+            port_id,
+        })
+    }
+
+    pub(crate) fn describe(&self) -> FlowgraphDescription {
+        FlowgraphDescription {
+            blocks: self
+                .blocks
+                .iter()
+                .map(RunningBlockEntry::description)
+                .collect(),
+            stream_edges: self.stream_edges.clone(),
+            message_edges: self.message_edges.clone(),
+        }
+    }
+
+    fn describe_block(&self, block_id: BlockId) -> Result<BlockDescription, Error> {
+        Ok(self.entry(block_id)?.description())
+    }
+}
+
+#[derive(Debug)]
+struct RunningMessageTarget {
+    endpoint: BlockEndpoint,
+    port_id: PortIndex,
+}
+
+#[derive(Debug)]
+pub(crate) struct RunningBlockEntry {
+    endpoint: BlockEndpoint,
+    description: BlockDescription,
+    terminated: AtomicBool,
+}
+
+impl RunningBlockEntry {
+    pub(crate) fn new(endpoint: BlockEndpoint, description: BlockDescription) -> Self {
+        Self {
+            endpoint,
+            description,
+            terminated: AtomicBool::new(false),
+        }
+    }
+
+    fn message_input_index(&self, block_id: BlockId, port_id: PortId) -> Result<PortIndex, Error> {
+        resolve_port_index(&port_id, &self.description.message_inputs).ok_or(
+            Error::InvalidMessagePort(BlockPortCtx::Id(block_id), port_id),
+        )
+    }
+
+    fn ensure_running(&self) -> Result<(), Error> {
+        match self.status() {
+            BlockStatus::Running => Ok(()),
+            BlockStatus::Terminated => Err(Error::BlockTerminated),
+        }
+    }
+
+    fn mark_terminated(&self) {
+        self.terminated.store(true, Ordering::Release);
+    }
+
+    fn status(&self) -> BlockStatus {
+        if self.terminated.load(Ordering::Acquire) {
+            BlockStatus::Terminated
+        } else {
+            BlockStatus::Running
+        }
+    }
+
+    fn description(&self) -> BlockDescription {
+        let mut description = self.description.clone();
+        description.status = self.status();
+        description
     }
 }
 
@@ -61,7 +165,7 @@ impl RunningFlowgraphControl {
 pub struct FlowgraphHandle {
     id: FlowgraphId,
     inbox: Sender<FlowgraphMessage>,
-    control: Arc<RunningFlowgraphControl>,
+    registry: Arc<RunningFlowgraphRegistry>,
 }
 
 /// Control handle scoped to one block in a running [`crate::runtime::Flowgraph`].
@@ -78,12 +182,12 @@ impl FlowgraphHandle {
     pub(crate) fn new(
         id: FlowgraphId,
         inbox: Sender<FlowgraphMessage>,
-        control: RunningFlowgraphControl,
+        registry: Arc<RunningFlowgraphRegistry>,
     ) -> FlowgraphHandle {
         FlowgraphHandle {
             id,
             inbox,
-            control: Arc::new(control),
+            registry,
         }
     }
 
@@ -97,15 +201,11 @@ impl FlowgraphHandle {
         self.inbox.is_closed()
     }
 
-    fn endpoint(&self, block_id: BlockId) -> Result<BlockEndpoint, Error> {
+    fn description(&self, block_id: BlockId) -> Result<BlockDescription, Error> {
         if self.is_terminated() {
             return Err(Error::FlowgraphTerminated);
         }
-        self.control
-            .endpoints
-            .get(block_id.0)
-            .cloned()
-            .ok_or(Error::InvalidBlock(block_id))
+        self.registry.describe_block(block_id)
     }
 
     fn message_input_index(
@@ -113,16 +213,18 @@ impl FlowgraphHandle {
         block_id: BlockId,
         port_id: impl Into<PortId>,
     ) -> Result<PortIndex, Error> {
-        let port_id = port_id.into();
-        let inputs = self
-            .control
-            .message_inputs
-            .get(block_id.0)
-            .ok_or(Error::InvalidBlock(block_id))?;
-        resolve_port_index(&port_id, inputs).ok_or(Error::InvalidMessagePort(
-            BlockPortCtx::Id(block_id),
-            port_id,
-        ))
+        self.registry.message_input_index(block_id, port_id)
+    }
+
+    fn message_target(
+        &self,
+        block_id: BlockId,
+        port_id: impl Into<PortId>,
+    ) -> Result<RunningMessageTarget, Error> {
+        if self.is_terminated() {
+            return Err(Error::FlowgraphTerminated);
+        }
+        self.registry.message_target(block_id, port_id)
     }
 
     /// Get a handle scoped to one block in the running flowgraph.
@@ -156,10 +258,13 @@ impl FlowgraphHandle {
         data: Pmt,
     ) -> Result<(), Error> {
         let block_id = block_id.into();
-        let endpoint = self.endpoint(block_id)?;
-        let port_id = self.message_input_index(block_id, port_id)?;
-        endpoint
-            .send(BlockMessage::Post { port_id, data })
+        let target = self.message_target(block_id, port_id)?;
+        target
+            .endpoint
+            .send(BlockMessage::Post {
+                port_id: target.port_id,
+                data,
+            })
             .await
             .map_err(|_| Error::BlockTerminated)
     }
@@ -175,14 +280,18 @@ impl FlowgraphHandle {
         data: Pmt,
     ) -> Result<Pmt, Error> {
         let block_id = block_id.into();
-        let endpoint = self.endpoint(block_id)?;
-        let port_id = self.message_input_index(block_id, port_id)?;
+        let target = self.message_target(block_id, port_id)?;
         let (tx, rx) = oneshot::channel::<Result<Pmt, Error>>();
-        endpoint
-            .send(BlockMessage::Call { port_id, data, tx })
+        target
+            .endpoint
+            .send(BlockMessage::Call {
+                port_id: target.port_id,
+                data,
+                tx,
+            })
             .await
             .map_err(|_| Error::BlockTerminated)?;
-        rx.await?
+        rx.await.map_err(|_| Error::BlockTerminated)?
     }
 
     /// Describe the running flowgraph.
@@ -195,20 +304,7 @@ impl FlowgraphHandle {
             return Err(Error::FlowgraphTerminated);
         }
 
-        let mut blocks = Vec::new();
-        for id in &self.control.ids {
-            match self.describe_block(*id).await {
-                Ok(block) => blocks.push(block),
-                Err(Error::BlockTerminated) => {}
-                Err(e) => return Err(e),
-            }
-        }
-
-        Ok(FlowgraphDescription {
-            blocks,
-            stream_edges: self.control.stream_edges.clone(),
-            message_edges: self.control.message_edges.clone(),
-        })
+        Ok(self.registry.describe())
     }
 
     /// Describe one block in the running flowgraph.
@@ -216,28 +312,7 @@ impl FlowgraphHandle {
         &self,
         block_id: impl Into<BlockId>,
     ) -> Result<BlockDescription, Error> {
-        let block_id = block_id.into();
-        let endpoint = self.endpoint(block_id)?;
-        let (tx, rx) = oneshot::channel::<BlockDescription>();
-        endpoint
-            .send(BlockMessage::BlockDescription { tx })
-            .await
-            .map_err(|_| Error::BlockTerminated)?;
-
-        let mut rx = Box::pin(rx);
-        loop {
-            match futures::future::select(rx, Timer::after(Duration::from_millis(10))).await {
-                futures::future::Either::Left((description, _)) => {
-                    return description.map_err(|_| Error::BlockTerminated);
-                }
-                futures::future::Either::Right((_, pending)) => {
-                    if self.is_terminated() {
-                        return Err(Error::BlockTerminated);
-                    }
-                    rx = pending;
-                }
-            }
-        }
+        self.description(block_id.into())
     }
 
     /// Send a stop message to the [`crate::runtime::Flowgraph`].

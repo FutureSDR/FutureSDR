@@ -1,16 +1,20 @@
+use std::sync::Arc;
+
+use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
+use crate::runtime::BlockStatus;
 use crate::runtime::Edge;
 use crate::runtime::Error;
 use crate::runtime::FlowgraphId;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::PortIndex;
 use crate::runtime::Result;
-use crate::runtime::block_inbox::BlockEndpoint;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
+use crate::runtime::flowgraph_handle::RunningBlockEntry;
+use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
 use crate::runtime::local_domain::LocalDomainInbox;
 use crate::runtime::scheduler::DomainTopology;
 use crate::runtime::scheduler::LocalDomainSpec;
@@ -27,14 +31,6 @@ use super::domains::NORMAL_DOMAIN_ID;
 use super::domains::RunningFlowgraphDomains;
 use super::terminated::TerminatedFlowgraph;
 use super::types::BlockLocation;
-
-pub(super) struct PreparedControl {
-    endpoints: Vec<BlockEndpoint>,
-    ids: Vec<BlockId>,
-    message_inputs: Vec<&'static [&'static str]>,
-    stream_edges_desc: Vec<Edge>,
-    message_edges_desc: Vec<Edge>,
-}
 
 struct LocalDomainPlan {
     domain_id: usize,
@@ -77,7 +73,7 @@ impl ResolvedEdge {
 }
 
 struct GraphPlan {
-    control: PreparedControl,
+    registry: Arc<RunningFlowgraphRegistry>,
     stream_edges: Vec<ResolvedEdge>,
     message_edges: Vec<ResolvedEdge>,
     stream_edges_public: Vec<Edge>,
@@ -224,7 +220,7 @@ impl PreparedDomains {
 
 pub(super) struct PreparedFlowgraph {
     flowgraph: Flowgraph,
-    control: PreparedControl,
+    registry: Arc<RunningFlowgraphRegistry>,
     connections: PreparedConnections,
     domains: PreparedDomains,
 }
@@ -236,7 +232,7 @@ impl PreparedFlowgraph {
         main_channel: Sender<FlowgraphMessage>,
     ) -> Self {
         let GraphPlan {
-            control,
+            registry,
             stream_edges,
             message_edges,
             stream_edges_public,
@@ -272,7 +268,7 @@ impl PreparedFlowgraph {
 
         Self {
             flowgraph,
-            control,
+            registry,
             connections: PreparedConnections::new(stream_edges, message_edges),
             domains: PreparedDomains::new(domains, main_channel),
         }
@@ -294,11 +290,11 @@ impl PreparedFlowgraph {
         scheduler: S,
         main_rx: &Receiver<FlowgraphMessage>,
         initialized: oneshot::Sender<Result<(), Error>>,
-        control_tx: oneshot::Sender<RunningFlowgraphControl>,
+        registry_tx: oneshot::Sender<Arc<RunningFlowgraphRegistry>>,
     ) -> Result<RunningFlowgraph, Error> {
         let Self {
             flowgraph,
-            control,
+            registry,
             connections: _,
             domains,
         } = self;
@@ -321,7 +317,7 @@ impl PreparedFlowgraph {
             id,
             blocks,
             graph_domains: running_domains,
-            control,
+            registry,
             domains: Vec::with_capacity(prepared_domains.len()),
             active_blocks: 0,
         };
@@ -345,10 +341,10 @@ impl PreparedFlowgraph {
             }
         };
 
-        if control_tx.send(running.control_handle()).is_err() {
+        if registry_tx.send(running.registry.clone()).is_err() {
             running.cleanup().await;
             let e = Error::RuntimeError(
-                "main thread dropped running flowgraph control receiver".to_string(),
+                "main thread dropped running flowgraph registry receiver".to_string(),
             );
             let _ = initialized.send(Err(e.clone()));
             return Err(e);
@@ -368,20 +364,14 @@ pub(super) struct RunningFlowgraph {
     id: FlowgraphId,
     blocks: Vec<BlockSlot>,
     graph_domains: RunningFlowgraphDomains,
-    control: PreparedControl,
+    registry: Arc<RunningFlowgraphRegistry>,
     domains: Vec<RunningDomain>,
     active_blocks: u32,
 }
 
 impl RunningFlowgraph {
-    fn control_handle(&self) -> RunningFlowgraphControl {
-        RunningFlowgraphControl::new(
-            self.control.endpoints.clone(),
-            self.control.ids.clone(),
-            self.control.message_inputs.clone(),
-            self.control.stream_edges_desc.clone(),
-            self.control.message_edges_desc.clone(),
-        )
+    fn mark_block_terminated(&self, block_id: BlockId) {
+        self.registry.mark_terminated(block_id);
     }
 
     async fn initialize_blocks(
@@ -390,7 +380,7 @@ impl RunningFlowgraph {
     ) -> Result<u32, Error> {
         debug!("init blocks");
         let mut active_blocks = 0u32;
-        for inbox in &mut self.control.endpoints {
+        for inbox in self.registry.endpoints() {
             inbox.send(BlockMessage::Initialize).await?;
             active_blocks += 1;
         }
@@ -406,6 +396,7 @@ impl RunningFlowgraph {
             match message {
                 FlowgraphMessage::Initialized => initializing -= 1,
                 FlowgraphMessage::BlockError { block_id, error } => {
+                    self.mark_block_terminated(block_id);
                     initializing -= 1;
                     active_blocks -= 1;
                     error!("flowgraph init: block {:?} reported an error", block_id);
@@ -414,6 +405,7 @@ impl RunningFlowgraph {
                     }
                 }
                 FlowgraphMessage::BlockDone { block_id } => {
+                    self.mark_block_terminated(block_id);
                     initializing -= 1;
                     active_blocks -= 1;
                     debug!("block {:?} terminated during initialization", block_id);
@@ -429,7 +421,7 @@ impl RunningFlowgraph {
         }
 
         debug!("running blocks");
-        for inbox in &mut self.control.endpoints {
+        for inbox in self.registry.endpoints() {
             if inbox.send(BlockMessage::Start).await.is_err() {
                 debug!("runtime wanted to start block that already terminated");
             }
@@ -439,7 +431,7 @@ impl RunningFlowgraph {
     }
 
     async fn terminate_endpoints(&mut self) {
-        for inbox in &mut self.control.endpoints {
+        for inbox in self.registry.endpoints() {
             if inbox.send(BlockMessage::Terminate).await.is_err() {
                 debug!("runtime tried to terminate block that was already terminated");
             }
@@ -498,7 +490,7 @@ impl RunningFlowgraph {
             id,
             blocks,
             graph_domains,
-            control: _,
+            registry: _,
             domains,
             active_blocks: _,
         } = self;
@@ -529,10 +521,12 @@ impl RunningFlowgraph {
             })?;
 
             match message {
-                FlowgraphMessage::BlockDone { .. } => {
+                FlowgraphMessage::BlockDone { block_id } => {
+                    self.mark_block_terminated(block_id);
                     active_blocks -= 1;
                 }
-                FlowgraphMessage::BlockError { error, .. } => {
+                FlowgraphMessage::BlockError { block_id, error } => {
+                    self.mark_block_terminated(block_id);
                     if block_error.is_none() {
                         block_error = Some(error);
                     }
@@ -614,13 +608,15 @@ impl FlowgraphCompiler {
             .iter()
             .filter_map(|location| location.is_normal().then_some(location.block_id))
             .collect::<Vec<_>>();
-        let stream_edges_desc = stream_edges_public.clone();
-        let message_edges_desc = message_edges_public.clone();
         let local_domains = Self::local_domain_plans(flowgraph, &block_locations);
-        let control = Self::prepared_control(flowgraph, stream_edges_desc, message_edges_desc);
+        let registry = Self::running_registry(
+            flowgraph,
+            stream_edges_public.clone(),
+            message_edges_public.clone(),
+        );
 
         Ok(GraphPlan {
-            control,
+            registry,
             stream_edges,
             message_edges,
             stream_edges_public,
@@ -735,28 +731,56 @@ impl FlowgraphCompiler {
         Ok(())
     }
 
-    fn prepared_control(
+    fn running_registry(
         flowgraph: &Flowgraph,
-        stream_edges_desc: Vec<Edge>,
-        message_edges_desc: Vec<Edge>,
-    ) -> PreparedControl {
-        let mut endpoints = Vec::with_capacity(flowgraph.blocks.len());
-        let mut ids = Vec::with_capacity(flowgraph.blocks.len());
-        let mut message_inputs = Vec::with_capacity(flowgraph.blocks.len());
+        stream_edges: Vec<Edge>,
+        message_edges: Vec<Edge>,
+    ) -> Arc<RunningFlowgraphRegistry> {
+        let mut blocks = Vec::with_capacity(flowgraph.blocks.len());
         for (id, entry) in flowgraph.blocks.iter().enumerate() {
             let block_id = BlockId(id);
-            endpoints.push(entry.endpoint().clone());
-            ids.push(block_id);
-            message_inputs.push(entry.message_inputs());
+            let (type_name, instance_name) = if entry.is_normal()
+                && let Ok(block) = flowgraph.domains.direct_block(entry.location(block_id))
+            {
+                let type_name = block.type_name().to_string();
+                let instance_name = block.instance_name().unwrap_or(&type_name).to_string();
+                (type_name, instance_name)
+            } else {
+                (
+                    entry.type_name().to_string(),
+                    entry.instance_name().to_string(),
+                )
+            };
+            let description = BlockDescription {
+                id: block_id,
+                status: BlockStatus::Running,
+                type_name,
+                instance_name,
+                stream_inputs: entry.stream_inputs().to_vec(),
+                stream_outputs: entry.stream_outputs().to_vec(),
+                message_inputs: entry
+                    .message_inputs()
+                    .iter()
+                    .map(|n| n.to_string())
+                    .collect(),
+                message_outputs: entry
+                    .message_outputs()
+                    .iter()
+                    .map(|n| n.to_string())
+                    .collect(),
+                blocking: entry.is_blocking(),
+            };
+            blocks.push(RunningBlockEntry::new(
+                entry.endpoint().clone(),
+                description,
+            ));
         }
 
-        PreparedControl {
-            endpoints,
-            ids,
-            message_inputs,
-            stream_edges_desc,
-            message_edges_desc,
-        }
+        Arc::new(RunningFlowgraphRegistry::new(
+            blocks,
+            stream_edges,
+            message_edges,
+        ))
     }
 }
 
@@ -784,8 +808,22 @@ mod tests {
 
         assert!(prepared.flowgraph.stream_edges.is_empty());
         assert!(prepared.flowgraph.message_edges.is_empty());
-        assert_eq!(prepared.control.ids, vec![src.id(), snk.id()]);
-        assert_eq!(prepared.control.endpoints.len(), 2);
+        let description = prepared.registry.describe();
+        assert_eq!(
+            description
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>(),
+            vec![src.id(), snk.id()]
+        );
+        assert_eq!(description.blocks.len(), 2);
+        assert!(
+            description
+                .blocks
+                .iter()
+                .all(|description| description.status == BlockStatus::Running)
+        );
         assert_eq!(
             prepared.connections.stream_edges(),
             &[ResolvedEdge::new(
@@ -797,7 +835,7 @@ mod tests {
         );
         assert!(prepared.connections.message_edges().is_empty());
         assert_eq!(
-            prepared.control.stream_edges_desc,
+            description.stream_edges,
             vec![Edge::new(
                 src.id(),
                 PortId::from("output"),

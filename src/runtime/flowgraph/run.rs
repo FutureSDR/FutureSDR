@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::runtime::Error;
 use crate::runtime::FlowgraphMessage;
 use crate::runtime::Result;
 use crate::runtime::channel::mpsc::Receiver;
 use crate::runtime::channel::mpsc::Sender;
 use crate::runtime::channel::oneshot;
-use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
+use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
 use crate::runtime::scheduler::Scheduler;
 
 use super::Flowgraph;
@@ -17,7 +19,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     main_channel: Sender<FlowgraphMessage>,
     main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<Result<(), Error>>,
-    control: oneshot::Sender<RunningFlowgraphControl>,
+    registry: oneshot::Sender<Arc<RunningFlowgraphRegistry>>,
     startup_committed: oneshot::Receiver<()>,
 ) -> Result<TerminatedFlowgraph, Error> {
     debug!("in run_flowgraph");
@@ -39,7 +41,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     };
 
     let running = match prepared
-        .start_initialized(scheduler, &main_rx, initialized, control)
+        .start_initialized(scheduler, &main_rx, initialized, registry)
         .await
     {
         Ok(running) => running,

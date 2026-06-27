@@ -292,7 +292,7 @@ impl BlockEndpoint {
     }
 }
 
-/// Runtime-internal receiver-side actor inbox for normal thread-safe blocks.
+/// Runtime-internal receiver-side inbox for normal thread-safe blocks.
 #[derive(Debug)]
 pub(crate) struct BlockInboxReader {
     control: mpsc::Receiver<BlockMessage>,
@@ -622,7 +622,7 @@ impl<T: LocalSendTarget + Unpin> Future for LocalSend<T> {
     }
 }
 
-/// Receiver-side actor inbox for local-domain blocks.
+/// Receiver-side inbox for local-domain blocks.
 #[derive(Debug)]
 pub(crate) struct LocalBlockInboxReader {
     inbox: LocalBlockInbox,

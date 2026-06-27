@@ -331,6 +331,7 @@ mod tests {
     use crate::Flowgraph;
     use futuresdr_types::BlockDescription;
     use futuresdr_types::BlockId;
+    use futuresdr_types::BlockStatus;
     use futuresdr_types::Edge;
     use futuresdr_types::FlowgraphDescription;
     use futuresdr_types::PortId;
@@ -338,6 +339,7 @@ mod tests {
     fn block(id: usize, name: &str) -> BlockDescription {
         BlockDescription {
             id: BlockId(id),
+            status: BlockStatus::Running,
             type_name: "test_block".to_string(),
             instance_name: name.to_string(),
             stream_inputs: vec!["in".to_string()],

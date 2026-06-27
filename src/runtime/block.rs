@@ -32,6 +32,8 @@ pub(crate) trait BlockObject: Any {
     fn id(&self) -> BlockId;
     /// Get the static type name of the block.
     fn type_name(&self) -> &str;
+    /// Get the current runtime instance name of the block.
+    fn instance_name(&self) -> Option<&str>;
 
     /// Get stream input port names declared by this block.
     fn stream_input_names(&mut self) -> Result<Vec<String>, Error>;

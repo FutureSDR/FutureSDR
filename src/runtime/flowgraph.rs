@@ -27,6 +27,7 @@ use crate::runtime::kernel_interface::stream_output_manifest;
 use crate::runtime::local_domain::LocalDomainRuntime;
 use crate::runtime::local_domain_common::LocalDomainState;
 use crate::runtime::resolve_port_index;
+use crate::runtime::resolve_port_name;
 use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
@@ -59,23 +60,6 @@ use types::BlockLocation;
 use types::BlockPlacement;
 use types::StreamEdge;
 
-fn resolve_stream_port_index(port_id: &PortId, names: &[String]) -> Option<PortId> {
-    match port_id {
-        PortId::Index(index) => (index.index() < names.len()).then_some(PortId::index(*index)),
-        PortId::Name(name) => names
-            .iter()
-            .position(|candidate| candidate == name.as_str())
-            .map(PortId::index),
-    }
-}
-
-fn resolve_stream_port_name(port_id: &PortId, names: &[String]) -> Option<PortId> {
-    let PortId::Index(index) = resolve_stream_port_index(port_id, names)? else {
-        unreachable!("resolve_stream_port_index always returns indexed ids")
-    };
-    names.get(index.index()).cloned().map(PortId::new)
-}
-
 pub(super) struct BlockSlot {
     placement: BlockPlacement,
     endpoint: BlockEndpoint,
@@ -85,6 +69,9 @@ pub(super) struct BlockSlot {
     stream_output_manifest: Vec<PortManifest>,
     message_inputs: &'static [&'static str],
     message_outputs: &'static [&'static str],
+    type_name: &'static str,
+    instance_name: String,
+    blocking: bool,
 }
 
 impl BlockSlot {
@@ -98,6 +85,9 @@ impl BlockSlot {
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
+        type_name: &'static str,
+        instance_name: String,
+        blocking: bool,
     ) -> Self {
         Self {
             placement: BlockPlacement::Normal { normal_id },
@@ -108,6 +98,9 @@ impl BlockSlot {
             stream_output_manifest,
             message_inputs,
             message_outputs,
+            type_name,
+            instance_name,
+            blocking,
         }
     }
 
@@ -122,6 +115,9 @@ impl BlockSlot {
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
+        type_name: &'static str,
+        instance_name: String,
+        blocking: bool,
     ) -> Self {
         Self {
             placement: BlockPlacement::Local {
@@ -135,6 +131,9 @@ impl BlockSlot {
             stream_output_manifest,
             message_inputs,
             message_outputs,
+            type_name,
+            instance_name,
+            blocking,
         }
     }
 
@@ -151,19 +150,19 @@ impl BlockSlot {
     }
 
     fn stream_input_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_stream_port_name(port_id, &self.stream_inputs)
+        resolve_port_name(port_id, &self.stream_inputs)
     }
 
     fn stream_output_name(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_stream_port_name(port_id, &self.stream_outputs)
+        resolve_port_name(port_id, &self.stream_outputs)
     }
 
     fn stream_input_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_stream_port_index(port_id, &self.stream_inputs)
+        resolve_port_index(port_id, &self.stream_inputs).map(PortId::index)
     }
 
     fn stream_output_index(&self, port_id: &PortId) -> Option<PortId> {
-        resolve_stream_port_index(port_id, &self.stream_outputs)
+        resolve_port_index(port_id, &self.stream_outputs).map(PortId::index)
     }
 
     fn stream_input_manifest(&self, port_id: PortIndex) -> Option<&PortManifest> {
@@ -188,6 +187,26 @@ impl BlockSlot {
 
     fn message_outputs(&self) -> &'static [&'static str] {
         self.message_outputs
+    }
+
+    fn stream_inputs(&self) -> &[String] {
+        &self.stream_inputs
+    }
+
+    fn stream_outputs(&self) -> &[String] {
+        &self.stream_outputs
+    }
+
+    fn type_name(&self) -> &'static str {
+        self.type_name
+    }
+
+    fn instance_name(&self) -> &str {
+        &self.instance_name
+    }
+
+    fn is_blocking(&self) -> bool {
+        self.blocking
     }
 
     fn is_normal(&self) -> bool {
@@ -319,26 +338,8 @@ impl Flowgraph {
             .local_mut(domain_id)
             .expect("validated local domain disappeared")
             .reserve_blocks(entries.len());
-        self.blocks.extend(entries.into_iter().map(|entry| {
-            let BlockPlacement::Local {
-                domain_id,
-                local_id,
-            } = entry.placement
-            else {
-                unreachable!("local-domain context entries must be local")
-            };
-            BlockSlot::local(
-                domain_id,
-                local_id,
-                entry.inbox,
-                entry.stream_inputs,
-                entry.stream_outputs,
-                entry.stream_input_manifest,
-                entry.stream_output_manifest,
-                entry.message_inputs,
-                entry.message_outputs,
-            )
-        }));
+        self.blocks
+            .extend(entries.into_iter().map(|entry| entry.block_slot));
     }
 
     /// Run a builder closure inside a local domain.
@@ -473,6 +474,8 @@ impl Flowgraph {
             stream_input_manifest(&mut b.kernel).expect("failed to collect stream input manifest");
         let stream_output_manifest = stream_output_manifest(&mut b.kernel)
             .expect("failed to collect stream output manifest");
+        let type_name = K::type_name();
+        let instance_name = b.meta.instance_name().unwrap_or(type_name).to_string();
         self.add_normal_block(
             Box::new(b),
             inbox,
@@ -482,6 +485,9 @@ impl Flowgraph {
             stream_output_manifest,
             <K as KernelInterface>::message_inputs(),
             <K as KernelInterface>::message_outputs(),
+            type_name,
+            instance_name,
+            K::is_blocking(),
         )
     }
 
@@ -505,6 +511,9 @@ impl Flowgraph {
         stream_output_manifest: Vec<PortManifest>,
         message_inputs: &'static [&'static str],
         message_outputs: &'static [&'static str],
+        type_name: &'static str,
+        instance_name: String,
+        blocking: bool,
     ) -> BlockRef<K> {
         let block_id = BlockId(self.blocks.len());
         let normal_id = self.domains.normal_mut().push_block(block);
@@ -518,6 +527,9 @@ impl Flowgraph {
             stream_output_manifest,
             message_inputs,
             message_outputs,
+            type_name,
+            instance_name,
+            blocking,
         ));
         self.block_ref(block_id, placement)
     }
@@ -610,6 +622,7 @@ impl Flowgraph {
                 return Err(e);
             }
         };
+        let instance_name = format!("{}-{}", K::type_name(), block_id.0);
         self.blocks.push(BlockSlot::local(
             domain_id,
             local_id,
@@ -620,6 +633,9 @@ impl Flowgraph {
             build_info.stream_output_manifest,
             K::message_inputs(),
             K::message_outputs(),
+            K::type_name(),
+            instance_name,
+            K::is_blocking(),
         ));
         Ok(self.block_ref(block_id, placement))
     }

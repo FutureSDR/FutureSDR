@@ -21,7 +21,7 @@ use crate::runtime::channel::mpsc::channel;
 use crate::runtime::channel::oneshot;
 use crate::runtime::config;
 use crate::runtime::flowgraph::run_flowgraph;
-use crate::runtime::flowgraph_handle::RunningFlowgraphControl;
+use crate::runtime::flowgraph_handle::RunningFlowgraphRegistry;
 use crate::runtime::scheduler::Scheduler;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::runtime::scheduler::SmolScheduler;
@@ -351,7 +351,7 @@ async fn start_flowgraph<S: Scheduler>(
     let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
 
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
-    let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
+    let (registry_tx, registry_rx) = oneshot::channel::<Arc<RunningFlowgraphRegistry>>();
     let (commit_tx, commit_rx) = oneshot::channel::<()>();
     let cleanup_flowgraphs = flowgraphs.clone();
     let main_channel = fg_inbox.clone();
@@ -363,7 +363,7 @@ async fn start_flowgraph<S: Scheduler>(
             main_channel,
             fg_inbox_rx,
             tx,
-            control_tx,
+            registry_tx,
             commit_rx,
         )
         .await;
@@ -373,11 +373,11 @@ async fn start_flowgraph<S: Scheduler>(
 
     rx.await
         .map_err(|_| Error::RuntimeError("run_flowgraph panicked".to_string()))??;
-    let control = control_rx.await.map_err(|_| {
-        Error::RuntimeError("run_flowgraph did not publish control endpoints".to_string())
+    let registry = registry_rx.await.map_err(|_| {
+        Error::RuntimeError("run_flowgraph did not publish running flowgraph registry".to_string())
     })?;
 
-    let handle = FlowgraphHandle::new(id, fg_inbox, control);
+    let handle = FlowgraphHandle::new(id, fg_inbox, registry);
     flowgraphs.lock().await.insert(handle.clone());
     let _ = commit_tx.send(());
     Ok(RunningFlowgraph::new(
@@ -553,7 +553,7 @@ mod tests {
         let queue_size = config::config().queue_size;
         let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
         let (initialized_tx, initialized_rx) = oneshot::channel::<Result<(), Error>>();
-        let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
+        let (registry_tx, registry_rx) = oneshot::channel::<Arc<RunningFlowgraphRegistry>>();
         let (commit_tx, commit_rx) = oneshot::channel::<()>();
 
         runtime::block_on(async {
@@ -563,14 +563,14 @@ mod tests {
                 fg_inbox,
                 fg_inbox_rx,
                 initialized_tx,
-                control_tx,
+                registry_tx,
                 commit_rx,
             ));
 
             init_entered_rx.await.unwrap();
             let _ = release_init_tx.send(());
             initialized_rx.await.unwrap().unwrap();
-            control_rx.await.unwrap();
+            registry_rx.await.unwrap();
 
             drop(commit_tx);
             let result = task.await;

@@ -595,6 +595,10 @@ mod tests {
         fn type_name(&self) -> &str {
             "TestBlock"
         }
+
+        fn instance_name(&self) -> Option<&str> {
+            None
+        }
     }
 
     #[async_trait::async_trait]

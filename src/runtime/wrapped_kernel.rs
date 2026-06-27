@@ -4,7 +4,6 @@ use std::future::Future;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::runtime::BlockDescription;
 use crate::runtime::BlockId;
 use crate::runtime::BlockMessage;
 use crate::runtime::BlockPortCtx;
@@ -260,32 +259,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
         mo: &mut MessageOutputs,
         kernel: &mut K,
         work_io: &mut WorkIo,
-        stream_inputs: &[String],
-        stream_outputs: &[String],
         msg: BlockMessage,
     ) -> Result<(), Error>
     where
         K: Kernel,
     {
         match msg {
-            BlockMessage::BlockDescription { tx } => {
-                let message_inputs = K::message_inputs().iter().map(|n| n.to_string()).collect();
-                let message_outputs = K::message_outputs().iter().map(|n| n.to_string()).collect();
-
-                let description = BlockDescription {
-                    id,
-                    type_name: K::type_name().to_string(),
-                    instance_name: instance_name.to_string(),
-                    stream_inputs: stream_inputs.to_vec(),
-                    stream_outputs: stream_outputs.to_vec(),
-                    message_inputs,
-                    message_outputs,
-                    blocking: K::is_blocking(),
-                };
-                if tx.send(description).is_err() {
-                    warn!("failed to return BlockDescription, oneshot receiver dropped");
-                }
-            }
             BlockMessage::StreamInputDone { input_id } => {
                 stream_input_finish(kernel, id, input_id)?;
             }
@@ -344,8 +323,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
         kernel: &mut K,
         main_inbox: Sender<FlowgraphMessage>,
         inbox: &mut RI,
-        stream_inputs: &[String],
-        stream_outputs: &[String],
     ) -> Result<(), Error>
     where
         K: Kernel,
@@ -424,8 +401,6 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                         mo,
                         kernel,
                         &mut work_io,
-                        stream_inputs,
-                        stream_outputs,
                         msg,
                     )
                     .await?;
@@ -486,21 +461,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
             meta,
             mo,
             kernel,
-            stream_inputs,
-            stream_outputs,
             inbox,
+            ..
         } = self;
-        Self::run_loop(
-            *id,
-            meta,
-            mo,
-            kernel,
-            main_inbox,
-            inbox.run_inbox_mut(),
-            stream_inputs,
-            stream_outputs,
-        )
-        .await
+        Self::run_loop(*id, meta, mo, kernel, main_inbox, inbox.run_inbox_mut()).await
     }
 }
 
@@ -550,6 +514,9 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
     }
     fn type_name(&self) -> &str {
         K::type_name()
+    }
+    fn instance_name(&self) -> Option<&str> {
+        self.meta.instance_name()
     }
 }
 

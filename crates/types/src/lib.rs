@@ -10,6 +10,7 @@
 //! depending on concrete block Rust types.
 mod description;
 pub use description::BlockDescription;
+pub use description::BlockStatus;
 pub use description::Edge;
 pub use description::FlowgraphDescription;
 
