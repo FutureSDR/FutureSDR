@@ -123,7 +123,7 @@ impl Config {
         match name.as_str() {
             "queue_size" => {
                 if let Some(value) = config_parse::<usize>(&name, &value) {
-                    self.queue_size = value;
+                    self.queue_size = value.max(1);
                 }
             }
             "buffer_size" => {
@@ -233,6 +233,15 @@ mod tests {
         config.set_value("queue_size", "not-a-number");
 
         assert_eq!(config.queue_size, 256);
+    }
+
+    #[test]
+    fn zero_queue_size_is_clamped_to_one() {
+        let mut config = Config::default();
+
+        config.set_value("queue_size", 0_u64);
+
+        assert_eq!(config.queue_size, 1);
     }
 
     #[test]
