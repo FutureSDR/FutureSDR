@@ -114,8 +114,19 @@ impl PortConfig {
     }
 }
 
-/// Internal buffer constraints collected from a port before connection setup.
-#[doc(hidden)]
+/// Stream-buffer constraints collected before connection setup.
+///
+/// Blocks configure these constraints through buffer-specific APIs such as
+/// [`CpuBufferReader::set_min_items`] and [`CpuBufferWriter::set_min_items`].
+/// Buffer implementations publish them through [`BufferReader::buffer_requirements`]
+/// and [`BufferWriter::buffer_requirements`]. Before `connect()` runs, the
+/// flowgraph merges peer requirements and passes them back through
+/// [`BufferReader::raise_buffer_requirements`] and
+/// [`BufferWriter::raise_buffer_requirements`].
+///
+/// `max_readers` is an output-side capability. Writers that support fanout
+/// should set it explicitly; the default writer requirement supports one
+/// downstream reader.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BufferRequirements {
     min_items: Option<usize>,
@@ -124,7 +135,8 @@ pub struct BufferRequirements {
 }
 
 impl BufferRequirements {
-    pub(crate) const fn new() -> Self {
+    /// Create empty buffer requirements.
+    pub const fn new() -> Self {
         Self {
             min_items: None,
             min_buffer_size_in_items: None,
@@ -132,7 +144,8 @@ impl BufferRequirements {
         }
     }
 
-    pub(crate) const fn from_port_config(config: PortConfig) -> Self {
+    /// Create buffer requirements from pre-connection port configuration.
+    pub const fn from_port_config(config: PortConfig) -> Self {
         Self {
             min_items: config.min_items(),
             min_buffer_size_in_items: config.min_buffer_size_in_items(),
@@ -140,32 +153,42 @@ impl BufferRequirements {
         }
     }
 
-    pub(crate) const fn min_items(&self) -> Option<usize> {
+    /// Minimum number of readable or writable items requested by the port.
+    pub const fn min_items(&self) -> Option<usize> {
         self.min_items
     }
 
-    pub(crate) const fn min_buffer_size_in_items(&self) -> Option<usize> {
+    /// Minimum buffer capacity requested by the port, in items.
+    pub const fn min_buffer_size_in_items(&self) -> Option<usize> {
         self.min_buffer_size_in_items
     }
 
-    pub(crate) const fn max_readers(&self) -> Option<usize> {
+    /// Maximum number of downstream readers supported by an output port.
+    pub const fn max_readers(&self) -> Option<usize> {
         self.max_readers
     }
 
-    pub(crate) fn set_max_readers(&mut self, max_readers: usize) {
+    /// Set the maximum number of downstream readers supported by an output port.
+    pub fn set_max_readers(&mut self, max_readers: usize) {
         self.max_readers = Some(max_readers);
     }
 
-    pub(crate) fn raise_min_items(&mut self, min_items: usize) {
+    /// Raise the minimum item requirement to at least `min_items`.
+    pub fn raise_min_items(&mut self, min_items: usize) {
         self.min_items = Some(self.min_items.unwrap_or(0).max(min_items));
     }
 
-    pub(crate) fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
+    /// Raise the minimum buffer capacity requirement to at least `min_items`.
+    pub fn raise_min_buffer_size_in_items(&mut self, min_items: usize) {
         self.min_buffer_size_in_items =
             Some(self.min_buffer_size_in_items.unwrap_or(0).max(min_items));
     }
 
-    pub(crate) fn merge(&mut self, other: Self) {
+    /// Merge item and buffer-size requirements, keeping the larger values.
+    ///
+    /// This does not merge `max_readers`; fanout capability belongs to the
+    /// source writer and is not a peer requirement.
+    pub fn merge(&mut self, other: Self) {
         if let Some(min_items) = other.min_items {
             self.raise_min_items(min_items);
         }
@@ -558,12 +581,22 @@ impl<M: BufferMode> PortCore<M> {
     }
 
     /// Return the buffer requirements configured on this port.
-    pub(crate) fn requirements(&self) -> BufferRequirements {
+    ///
+    /// Custom buffer implementations can use this from
+    /// [`BufferReader::buffer_requirements`] or
+    /// [`BufferWriter::buffer_requirements`], then add implementation-specific
+    /// capabilities such as [`BufferRequirements::set_max_readers`].
+    pub fn requirements(&self) -> BufferRequirements {
         BufferRequirements::from_port_config(self.config)
     }
 
     /// Raise this port's configured requirements to at least `requirements`.
-    pub(crate) fn raise_requirements(&mut self, requirements: BufferRequirements) {
+    ///
+    /// Custom buffer implementations can call this from
+    /// [`BufferReader::raise_buffer_requirements`] or
+    /// [`BufferWriter::raise_buffer_requirements`] before allocating or
+    /// connecting their backend state.
+    pub fn raise_requirements(&mut self, requirements: BufferRequirements) {
         if let Some(min_items) = requirements.min_items() {
             self.config.raise_min_items(min_items);
         }
