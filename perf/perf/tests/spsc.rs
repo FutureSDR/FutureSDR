@@ -30,9 +30,8 @@ fn local_flowgraph_spsc_finishes() -> Result<()> {
 
     let snk = fg.with_local_domain(local, |ctx| {
         let src = ctx.add(NullSource::<f32, local_spsc::Writer<f32>>::new());
-        let head = ctx.add(Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(
-            100_000,
-        ));
+        let head =
+            ctx.add(Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(100_000));
         let snk = ctx.add(NullSink::<f32, local_spsc::Reader<f32>>::new());
 
         ctx.stream_local(&src, |b| b.output(), &head, |b| b.input())?;
@@ -55,9 +54,8 @@ fn local_flow_scheduler_spsc_finishes() -> Result<()> {
 
     let snk = fg.with_local_domain(local, |ctx| {
         let src = ctx.add(NullSource::<f32, local_spsc::Writer<f32>>::new());
-        let head = ctx.add(Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(
-            100_000,
-        ));
+        let head =
+            ctx.add(Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(100_000));
         let snk = ctx.add(NullSink::<f32, local_spsc::Reader<f32>>::new());
 
         ctx.stream_local(&src, |b| b.output(), &head, |b| b.input())?;

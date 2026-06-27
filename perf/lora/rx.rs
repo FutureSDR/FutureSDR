@@ -194,19 +194,23 @@ fn opti(args: Args) -> Result<()> {
             decoder,
             sink,
         ) = fg.with_local_domain(local, move |ctx| {
-            let src = ctx.add(VectorSource::<Complex32, SourceComplexWriter>::new(src_samples));
-            let frame_sync = ctx.add(FrameSync::<SourceComplexReader, LocalSpscTagsComplexWriter>::new(
-                CHANNEL,
-                BW,
-                SF,
-                false,
-                &[SynchWord::Public],
-                oversampling(),
-                None,
-                None,
-                false,
-                None,
+            let src = ctx.add(VectorSource::<Complex32, SourceComplexWriter>::new(
+                src_samples,
             ));
+            let frame_sync = ctx.add(
+                FrameSync::<SourceComplexReader, LocalSpscTagsComplexWriter>::new(
+                    CHANNEL,
+                    BW,
+                    SF,
+                    false,
+                    &[SynchWord::Public],
+                    oversampling(),
+                    None,
+                    None,
+                    false,
+                    None,
+                ),
+            );
             let fft_demod = ctx.add(FftDemod::<
                 DemodulatedSymbolHardDecoding,
                 lora::fft_demod::State<DemodulatedSymbolHardDecoding>,

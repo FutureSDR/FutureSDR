@@ -162,9 +162,9 @@ where
 
         let snk = fg.with_local_domain(local, move |ctx| {
             let src = ctx.add(NullSource::<f32, B::Writer<f32>>::new());
-            let head = ctx.add(
-                Head::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(samples as u64)
-            );
+            let head = ctx.add(Head::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(
+                samples as u64,
+            ));
             let mut last = ctx.add(CopyN::<f32, LocalReaderOf<B, f32>, B::Writer<f32>>::new(
                 chunk,
             ));

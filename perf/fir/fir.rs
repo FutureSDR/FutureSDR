@@ -161,7 +161,7 @@ fn generate_local(
         let snk = fg.with_local_domain(local, move |ctx| {
             let src = ctx.add(NullSource::<f32, local_spsc::Writer<f32>>::new());
             let head = ctx.add(
-                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64),
             );
             let stage_taps = taps.to_vec();
             let mut last = ctx.add(local_fir(stage_taps));

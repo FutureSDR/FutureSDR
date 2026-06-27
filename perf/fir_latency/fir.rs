@@ -165,7 +165,7 @@ fn generate_local(
                 GRANULARITY,
             ));
             let head = ctx.add(
-                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64)
+                Head::<f32, local_spsc::Reader<f32>, local_spsc::Writer<f32>>::new(samples as u64),
             );
             let stage_taps = taps.to_vec();
             let mut last = ctx.add(local_fir(stage_taps));
@@ -180,9 +180,7 @@ fn generate_local(
                 last = block;
             }
 
-            let snk = ctx.add(LttngSink::<f32, local_spsc::Reader<f32>>::new(
-                GRANULARITY,
-            ));
+            let snk = ctx.add(LttngSink::<f32, local_spsc::Reader<f32>>::new(GRANULARITY));
             ctx.stream_local(&last, |b| b.output(), &snk, |b| b.input())?;
 
             Ok(snk)
