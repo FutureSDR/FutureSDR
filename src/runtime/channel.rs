@@ -71,6 +71,11 @@ pub mod mpsc {
         (Sender(tx), Receiver(rx))
     }
 
+    pub(crate) fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
+        let (tx, rx) = ::kanal::unbounded_async();
+        (Sender(tx), Receiver(rx))
+    }
+
     impl<T> Clone for Sender<T> {
         fn clone(&self) -> Self {
             Self(self.0.clone())

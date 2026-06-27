@@ -18,8 +18,7 @@ use crate::runtime::buffer::CpuSample;
 use crate::runtime::buffer::Tags;
 use crate::runtime::buffer::ThreadSafeMode;
 use crate::runtime::channel::mpsc::Receiver;
-use crate::runtime::channel::mpsc::channel;
-use crate::runtime::config::config;
+use crate::runtime::channel::mpsc::unbounded;
 use crate::runtime::dev::BlockInbox;
 use crate::runtime::dev::BlockMeta;
 use crate::runtime::dev::BlockNotifier;
@@ -90,11 +89,10 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
         let mut block = WrappedKernel::new(kernel, BlockId(0));
         let mut messages = Vec::new();
         let mut message_sinks: Vec<Receiver<BlockMessage>> = Vec::new();
-        let msg_len = config().queue_size;
 
         for n in <K as KernelInterface>::message_outputs() {
             messages.push(Vec::new());
-            let (tx, rx) = channel(msg_len);
+            let (tx, rx) = unbounded();
             message_sinks.push(rx);
             block
                 .mo
@@ -132,7 +130,6 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             meta, mo, kernel, ..
         } = &mut self.block;
         block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))
-            .map_err(|e| Error::HandlerError(e.to_string()))
     }
 
     /// Run the block's `work()` loop synchronously.
@@ -172,7 +169,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
 
     /// Take produced PMTs from output message ports.
     pub fn take_messages(&mut self) -> Vec<Vec<Pmt>> {
-        std::mem::take(&mut self.messages)
+        self.messages.iter_mut().map(std::mem::take).collect()
     }
 
     /// Run the block's `work()` loop asynchronously.

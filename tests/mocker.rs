@@ -1,12 +1,55 @@
 use anyhow::Result;
+use anyhow::bail;
 use futuresdr::blocks::Apply;
 use futuresdr::blocks::MessageCopy;
+use futuresdr::futures::FutureExt;
+use futuresdr::futures::select;
+use futuresdr::runtime::Timer;
 use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::mocker::Mocker;
 use futuresdr::runtime::mocker::Reader;
 use futuresdr::runtime::mocker::Writer;
 use rand::RngExt;
 use rand::distr::Uniform;
+use std::time::Duration;
+
+#[derive(Block)]
+#[message_outputs(out)]
+struct BurstOutput {
+    count: usize,
+}
+
+impl Kernel for BurstOutput {
+    async fn work(
+        &mut self,
+        _io: &mut WorkIo,
+        mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+    ) -> Result<()> {
+        for i in 0..self.count {
+            mo.post("out", Pmt::Usize(i)).await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Block)]
+#[message_inputs(fail)]
+struct FailHandler;
+
+impl FailHandler {
+    async fn fail(
+        &mut self,
+        _io: &mut WorkIo,
+        _mo: &mut MessageOutputs,
+        _meta: &mut BlockMeta,
+        _p: Pmt,
+    ) -> Result<Pmt> {
+        bail!("boom")
+    }
+}
+
+impl Kernel for FailHandler {}
 
 #[test]
 fn multi_input_mock() {
@@ -101,5 +144,42 @@ fn mock_pmts() -> Result<()> {
     let pmts = mock.take_messages();
     assert_eq!(pmts, vec![vec![Pmt::Usize(123)]]);
 
+    let ret = mock.post("in", Pmt::Usize(456));
+    assert_eq!(ret, Ok(Pmt::Ok));
+    mock.run();
+
+    let pmts = mock.take_messages();
+    assert_eq!(pmts, vec![vec![Pmt::Usize(456)]]);
+
     Ok(())
+}
+
+#[test]
+fn mock_message_sinks_do_not_backpressure_work() -> Result<()> {
+    let mut mock = Mocker::new(BurstOutput { count: 1024 });
+
+    futuresdr::runtime::block_on(async {
+        let run = mock.run_async().fuse();
+        let timeout = Timer::after(Duration::from_secs(1)).fuse();
+        futuresdr::futures::pin_mut!(run);
+        futuresdr::futures::pin_mut!(timeout);
+
+        select! {
+            _ = run => {}
+            _ = timeout => panic!("mocker blocked while collecting message outputs"),
+        }
+    });
+
+    assert_eq!(mock.take_messages()[0].len(), 1024);
+    Ok(())
+}
+
+#[test]
+fn mock_post_preserves_handler_error() {
+    let mut mock = Mocker::new(FailHandler);
+
+    assert!(matches!(
+        mock.post("fail", Pmt::Null),
+        Err(Error::HandlerError(msg)) if msg == "boom"
+    ));
 }
