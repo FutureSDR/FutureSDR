@@ -52,7 +52,9 @@ pub struct Runtime<S = DefaultScheduler> {
     scheduler: S,
     flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
     #[cfg(all(not(target_arch = "wasm32"), feature = "ctrl_port"))]
-    _control_port: ControlPort<S>,
+    // Kept alive so Drop shuts down the control-port server task.
+    #[allow(dead_code)]
+    control_port: ControlPort<S>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -200,7 +202,7 @@ impl<S: Scheduler + Sync> Runtime<S> {
         Runtime {
             scheduler: scheduler.clone(),
             flowgraphs,
-            _control_port: ControlPort::new(handle, scheduler, routes),
+            control_port: ControlPort::new(handle, scheduler, routes),
         }
     }
 }
