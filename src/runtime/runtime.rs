@@ -315,6 +315,32 @@ impl FlowgraphRegistry {
     }
 }
 
+type RuntimeFlowgraphTask = Task<Result<TerminatedFlowgraph, Error>>;
+
+struct StartupFlowgraphTask {
+    task: Option<RuntimeFlowgraphTask>,
+}
+
+impl StartupFlowgraphTask {
+    fn new(task: RuntimeFlowgraphTask) -> Self {
+        Self { task: Some(task) }
+    }
+
+    fn into_inner(mut self) -> RuntimeFlowgraphTask {
+        self.task
+            .take()
+            .expect("startup flowgraph task already taken")
+    }
+}
+
+impl Drop for StartupFlowgraphTask {
+    fn drop(&mut self) {
+        if let Some(task) = self.task.take() {
+            task.detach();
+        }
+    }
+}
+
 async fn start_flowgraph<S: Scheduler>(
     scheduler: S,
     flowgraphs: Arc<Mutex<FlowgraphRegistry>>,
@@ -326,11 +352,11 @@ async fn start_flowgraph<S: Scheduler>(
 
     let (tx, rx) = oneshot::channel::<Result<(), Error>>();
     let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
-    let (registered_tx, registered_rx) = oneshot::channel::<()>();
+    let (commit_tx, commit_rx) = oneshot::channel::<()>();
     let cleanup_flowgraphs = flowgraphs.clone();
     let main_channel = fg_inbox.clone();
     let scheduler_clone = scheduler.clone();
-    let task = FlowgraphTask::new(scheduler.spawn(async move {
+    let task = StartupFlowgraphTask::new(scheduler.spawn(async move {
         let result = run_flowgraph(
             fg,
             scheduler_clone,
@@ -338,10 +364,9 @@ async fn start_flowgraph<S: Scheduler>(
             fg_inbox_rx,
             tx,
             control_tx,
+            commit_rx,
         )
         .await;
-        // Startup may still be inserting the handle when a short-lived graph exits.
-        let _ = registered_rx.await;
         cleanup_flowgraphs.lock().await.remove(id);
         result
     }));
@@ -354,8 +379,11 @@ async fn start_flowgraph<S: Scheduler>(
 
     let handle = FlowgraphHandle::new(id, fg_inbox, control);
     flowgraphs.lock().await.insert(handle.clone());
-    let _ = registered_tx.send(());
-    Ok(RunningFlowgraph::new(handle, task))
+    let _ = commit_tx.send(());
+    Ok(RunningFlowgraph::new(
+        handle,
+        FlowgraphTask::new(task.into_inner()),
+    ))
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -363,7 +391,87 @@ mod tests {
     use super::*;
     use crate::blocks::MessageSourceBuilder;
     use crate::runtime::Pmt;
+    use crate::runtime::Timer;
+    use crate::runtime::dev::prelude::*;
+    use futures::FutureExt;
+    use futures::select;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
     use std::time::Duration;
+    use std::time::Instant;
+
+    #[derive(Clone, Default)]
+    struct StartupCounters {
+        init: Arc<AtomicUsize>,
+        deinit: Arc<AtomicUsize>,
+    }
+
+    impl StartupCounters {
+        fn init(&self) -> usize {
+            self.init.load(Ordering::SeqCst)
+        }
+
+        fn deinit(&self) -> usize {
+            self.deinit.load(Ordering::SeqCst)
+        }
+    }
+
+    #[derive(Block)]
+    struct StartupBlock {
+        counters: StartupCounters,
+        init_entered: Option<oneshot::Sender<()>>,
+        release_init: Option<oneshot::Receiver<()>>,
+    }
+
+    impl StartupBlock {
+        fn new(
+            counters: StartupCounters,
+            init_entered: oneshot::Sender<()>,
+            release_init: oneshot::Receiver<()>,
+        ) -> Self {
+            Self {
+                counters,
+                init_entered: Some(init_entered),
+                release_init: Some(release_init),
+            }
+        }
+    }
+
+    impl Kernel for StartupBlock {
+        async fn init(
+            &mut self,
+            _mo: &mut MessageOutputs,
+            _meta: &mut BlockMeta,
+        ) -> crate::runtime::Result<()> {
+            self.counters.init.fetch_add(1, Ordering::SeqCst);
+            if let Some(init_entered) = self.init_entered.take() {
+                let _ = init_entered.send(());
+            }
+            if let Some(release_init) = self.release_init.take() {
+                let _ = release_init.await;
+            }
+            Ok(())
+        }
+
+        async fn work(
+            &mut self,
+            _io: &mut WorkIo,
+            _mo: &mut MessageOutputs,
+            _meta: &mut BlockMeta,
+        ) -> crate::runtime::Result<()> {
+            Ok(())
+        }
+
+        async fn deinit(
+            &mut self,
+            _mo: &mut MessageOutputs,
+            _meta: &mut BlockMeta,
+        ) -> crate::runtime::Result<()> {
+            self.counters.deinit.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
 
     fn message_source_flowgraph(n_messages: Option<usize>) -> Flowgraph {
         let mut fg = Flowgraph::new();
@@ -374,6 +482,107 @@ mod tests {
         };
         fg.add(builder.build()).unwrap();
         fg
+    }
+
+    fn startup_block_flowgraph(
+        counters: StartupCounters,
+    ) -> (Flowgraph, oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let mut fg = Flowgraph::new();
+        let (init_entered_tx, init_entered_rx) = oneshot::channel();
+        let (release_init_tx, release_init_rx) = oneshot::channel();
+        fg.add(StartupBlock::new(
+            counters,
+            init_entered_tx,
+            release_init_rx,
+        ))
+        .unwrap();
+        (fg, init_entered_rx, release_init_tx)
+    }
+
+    async fn wait_for_deinit(counters: &StartupCounters) {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            if counters.deinit() == 1 {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "flowgraph startup cancellation did not deinit block"
+            );
+            Timer::after(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[test]
+    fn dropped_startup_future_cleans_up_initializing_flowgraph() {
+        let scheduler = DefaultScheduler::default();
+        let flowgraphs = Arc::new(Mutex::new(FlowgraphRegistry::default()));
+        let counters = StartupCounters::default();
+        let (fg, init_entered_rx, release_init_tx) = startup_block_flowgraph(counters.clone());
+
+        runtime::block_on(async {
+            let mut startup = Box::pin(start_flowgraph(scheduler, flowgraphs.clone(), fg).fuse());
+            let init_entered = init_entered_rx.fuse();
+            futures::pin_mut!(init_entered);
+
+            select! {
+                result = startup.as_mut() => match result {
+                    Ok(_) => panic!("startup completed unexpectedly"),
+                    Err(e) => panic!("startup failed unexpectedly: {e}"),
+                },
+                result = init_entered => result.unwrap(),
+            }
+
+            drop(startup);
+            let _ = release_init_tx.send(());
+            wait_for_deinit(&counters).await;
+
+            let registry = flowgraphs.lock().await;
+            assert!(registry.flowgraphs.is_empty());
+        });
+
+        assert_eq!(counters.init(), 1);
+        assert_eq!(counters.deinit(), 1);
+    }
+
+    #[test]
+    fn dropped_startup_commit_cleans_up_initialized_flowgraph() {
+        let scheduler = DefaultScheduler::default();
+        let counters = StartupCounters::default();
+        let (fg, init_entered_rx, release_init_tx) = startup_block_flowgraph(counters.clone());
+        let queue_size = config::config().queue_size;
+        let (fg_inbox, fg_inbox_rx) = channel::<FlowgraphMessage>(queue_size);
+        let (initialized_tx, initialized_rx) = oneshot::channel::<Result<(), Error>>();
+        let (control_tx, control_rx) = oneshot::channel::<RunningFlowgraphControl>();
+        let (commit_tx, commit_rx) = oneshot::channel::<()>();
+
+        runtime::block_on(async {
+            let task = scheduler.spawn(run_flowgraph(
+                fg,
+                scheduler.clone(),
+                fg_inbox,
+                fg_inbox_rx,
+                initialized_tx,
+                control_tx,
+                commit_rx,
+            ));
+
+            init_entered_rx.await.unwrap();
+            let _ = release_init_tx.send(());
+            initialized_rx.await.unwrap().unwrap();
+            control_rx.await.unwrap();
+
+            drop(commit_tx);
+            let result = task.await;
+            assert!(matches!(
+                result,
+                Err(Error::RuntimeError(msg))
+                    if msg == "main thread dropped flowgraph startup before registration"
+            ));
+        });
+
+        assert_eq!(counters.init(), 1);
+        assert_eq!(counters.deinit(), 1);
     }
 
     #[test]

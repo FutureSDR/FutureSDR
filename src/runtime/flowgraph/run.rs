@@ -18,6 +18,7 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
     main_rx: Receiver<FlowgraphMessage>,
     initialized: oneshot::Sender<Result<(), Error>>,
     control: oneshot::Sender<RunningFlowgraphControl>,
+    startup_committed: oneshot::Receiver<()>,
 ) -> Result<TerminatedFlowgraph, Error> {
     debug!("in run_flowgraph");
 
@@ -46,6 +47,13 @@ pub(crate) async fn run_flowgraph<S: Scheduler>(
             return Err(e);
         }
     };
+
+    if startup_committed.await.is_err() {
+        running.cleanup().await;
+        return Err(Error::RuntimeError(
+            "main thread dropped flowgraph startup before registration".to_string(),
+        ));
+    }
 
     let terminated = running.wait(&main_rx).await?;
     drop(scheduler_guard);

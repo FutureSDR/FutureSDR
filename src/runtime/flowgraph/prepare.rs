@@ -471,7 +471,7 @@ impl RunningFlowgraph {
         Ok(stopped_domains)
     }
 
-    async fn cleanup(mut self) {
+    pub(super) async fn cleanup(mut self) {
         self.terminate_endpoints().await;
         self.stop_domains().await;
         match Self::join_domains(self.domains).await {
