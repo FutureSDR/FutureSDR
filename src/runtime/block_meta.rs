@@ -15,7 +15,7 @@ impl BlockMeta {
     }
     /// Get the block instance name, if one has been assigned.
     pub fn instance_name(&self) -> Option<&str> {
-        self.instance_name.as_ref().map(|x| x as _)
+        self.instance_name.as_deref()
     }
     /// Set the block instance name.
     pub fn set_instance_name(&mut self, name: impl Into<String>) {
