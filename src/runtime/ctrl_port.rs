@@ -10,6 +10,7 @@ use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::get;
+use axum::routing::post;
 use futures::FutureExt;
 use futures::future::FusedFuture;
 use futures::select;
@@ -119,6 +120,21 @@ async fn handler_id_post<S: Scheduler + Sync>(
         .map_err(status_from_error)
 }
 
+async fn handler_id_post_message<S: Scheduler + Sync>(
+    Path((fg, blk, handler)): Path<(usize, BlockId, PortId)>,
+    State(rt): State<RuntimeHandle<S>>,
+    Json(pmt): Json<Pmt>,
+) -> Result<StatusCode, StatusCode> {
+    let Some(fg) = rt.get_flowgraph(FlowgraphId(fg)).await else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    fg.post(blk, handler, pmt)
+        .await
+        .map(|()| StatusCode::ACCEPTED)
+        .map_err(status_from_error)
+}
+
 fn status_from_error(error: Error) -> StatusCode {
     match error {
         Error::FlowgraphTerminated | Error::BlockTerminated => StatusCode::GONE,
@@ -183,6 +199,10 @@ impl<S: Scheduler + Sync> ControlPort<S> {
             .route(
                 "/api/fg/{fg}/block/{blk}/call/{handler}/",
                 get(handler_id).post(handler_id_post),
+            )
+            .route(
+                "/api/fg/{fg}/block/{blk}/post/{handler}/",
+                post(handler_id_post_message),
             )
             .layer(CorsLayer::permissive())
             .with_state(self.handle.clone());
@@ -557,9 +577,46 @@ impl hyper::rt::Sleep for AsyncIoSleep {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::Flowgraph;
+    use crate::runtime::Result;
+    use crate::runtime::Runtime;
+    use crate::runtime::Timer;
+    use crate::runtime::dev::BlockMeta;
+    use crate::runtime::dev::Kernel;
+    use crate::runtime::dev::MessageOutputs;
+    use crate::runtime::dev::WorkIo;
+    use crate::runtime::macros::Block;
     use crate::runtime::scheduler::SmolScheduler;
     use futures::io::AsyncReadExt;
     use futures::io::AsyncWriteExt;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    #[derive(Block)]
+    #[message_inputs(r#in)]
+    struct CountPost {
+        count: Arc<AtomicUsize>,
+    }
+
+    impl CountPost {
+        fn new(count: Arc<AtomicUsize>) -> Self {
+            Self { count }
+        }
+
+        async fn r#in(
+            &mut self,
+            _io: &mut WorkIo,
+            _mo: &mut MessageOutputs,
+            _meta: &mut BlockMeta,
+            _p: Pmt,
+        ) -> Result<Pmt> {
+            self.count.fetch_add(1, Ordering::SeqCst);
+            Ok(Pmt::U64(1))
+        }
+    }
+
+    impl Kernel for CountPost {}
 
     fn free_addr() -> SocketAddr {
         let socket = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -606,6 +663,22 @@ mod tests {
         select! {
             _ = task => {}
             _ = timeout => panic!("timed out waiting for test control port shutdown"),
+        }
+    }
+
+    async fn wait_for_count(count: &AtomicUsize, expected: usize) {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if count.load(Ordering::SeqCst) == expected {
+                return;
+            }
+            if Instant::now() >= deadline {
+                panic!(
+                    "timed out waiting for count {expected}, got {}",
+                    count.load(Ordering::SeqCst)
+                );
+            }
+            Timer::after(Duration::from_millis(10)).await;
         }
     }
 
@@ -678,6 +751,31 @@ mod tests {
 
             assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
             assert!(response.ends_with("ok"), "{response}");
+        });
+    }
+
+    #[test]
+    fn post_handler_route_forwards_without_waiting_for_reply() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let mut fg = Flowgraph::new();
+        let block = fg.add(CountPost::new(count.clone())).unwrap();
+        let rt = Runtime::new();
+        let running = rt.start(fg).unwrap();
+        let handle = rt.handle();
+        let flowgraph_id = running.handle().id().0;
+
+        block_on(async {
+            let status = handler_id_post_message(
+                Path((flowgraph_id, block.id(), PortId::from("in"))),
+                State(handle),
+                Json(Pmt::U64(7)),
+            )
+            .await
+            .unwrap();
+            assert_eq!(status, StatusCode::ACCEPTED);
+
+            wait_for_count(&count, 1).await;
+            running.stop_and_wait().await.unwrap();
         });
     }
 

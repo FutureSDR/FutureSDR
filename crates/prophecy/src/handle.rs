@@ -183,7 +183,7 @@ impl FlowgraphHandle {
         match self {
             Self::Remote(u) => {
                 let _ = gloo_net::http::Request::post(&format!(
-                    "{}block/{}/call/{}/",
+                    "{}block/{}/post/{}/",
                     u,
                     block_id,
                     handler.into().name()
@@ -234,7 +234,7 @@ impl FlowgraphHandle {
         match self {
             Self::Remote(u) => {
                 let _ = gloo_net::http::Request::post(&format!(
-                    "{}block/{}/call/{}/",
+                    "{}block/{}/post/{}/",
                     u,
                     block_id,
                     handler.into().name()
