@@ -891,9 +891,9 @@ impl Flowgraph {
 
     /// Get typed shared access to a block in this flowgraph.
     ///
-    /// The reference must have been returned by this flowgraph. Access fails
-    /// while a local-domain block is running because its state lives in
-    /// the local domain.
+    /// The reference must have been returned by this flowgraph. This direct
+    /// guard API supports normal-domain blocks only; use [`BlockRef::with`] for
+    /// local-domain blocks, whose state lives in the local domain.
     pub fn block<K: 'static>(&self, block: &BlockRef<K>) -> Result<TypedBlockGuard<'_, K>, Error> {
         self.validate_block_ref(block)?;
         block_access::typed_guard(&self.blocks, &self.domains, self.location(block.id)?)
@@ -901,7 +901,8 @@ impl Flowgraph {
 
     /// Get typed mutable access to a block in this flowgraph.
     ///
-    /// Use this before startup to configure block state or metadata. After
+    /// Use this before startup to configure normal-domain block state or
+    /// metadata. Use [`BlockRef::with_mut`] for local-domain blocks. After
     /// runtime execution has stopped, use
     /// [`TerminatedFlowgraph::block_mut`](crate::runtime::TerminatedFlowgraph::block_mut)
     /// on the returned terminated flowgraph. This method cannot borrow a block

@@ -231,9 +231,10 @@ impl<K: KernelInterface> BlockRef<K> {
 impl<K: 'static> BlockRef<K> {
     /// Get typed shared access to the block stored in the given [`Flowgraph`].
     ///
-    /// This is a convenience wrapper around [`Flowgraph::block`]. It can only
-    /// access a block while the construction flowgraph owns its block instances,
-    /// i.e. before startup. Use
+    /// This is a convenience wrapper around [`Flowgraph::block`]. It only
+    /// supports normal-domain blocks while the construction flowgraph owns its
+    /// block instances, i.e. before startup. Use [`BlockRef::with`] for
+    /// local-domain blocks and use
     /// [`TerminatedFlowgraph::block`](crate::runtime::TerminatedFlowgraph::block) after runtime
     /// execution has stopped.
     pub fn get<'a>(&self, fg: &'a Flowgraph) -> Result<TypedBlockGuard<'a, K>, Error> {
