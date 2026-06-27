@@ -29,7 +29,7 @@ use crate::runtime::dev::MessageOutputs;
 use crate::runtime::dev::WorkIo;
 use crate::runtime::kernel_interface::KernelInterface;
 use crate::runtime::resolve_port_index;
-use crate::runtime::wrapped_kernel::NormalWrappedKernel;
+use crate::runtime::wrapped_kernel::WrappedKernel;
 
 /// Native test harness for running one block without a [`Runtime`](crate::runtime::Runtime).
 ///
@@ -39,7 +39,7 @@ use crate::runtime::wrapped_kernel::NormalWrappedKernel;
 /// [`Flowgraph`](crate::runtime::Flowgraph) would add noise.
 pub struct Mocker<K: KernelInterface> {
     /// Wrapped Block
-    block: NormalWrappedKernel<K>,
+    block: WrappedKernel<K>,
     message_sinks: Vec<Receiver<BlockMessage>>,
     messages: Vec<Vec<Pmt>>,
 }
@@ -65,7 +65,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
 
     /// Get mutable access to the wrapped kernel state used by `Kernel::work`.
     pub fn parts_mut(&mut self) -> (&mut K, &mut MessageOutputs, &mut BlockMeta) {
-        let NormalWrappedKernel {
+        let WrappedKernel {
             kernel, mo, meta, ..
         } = &mut self.block;
         (kernel, mo, meta)
@@ -87,7 +87,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
     /// sinks so tests can inspect emitted PMTs with [`Mocker::messages`] or
     /// [`Mocker::take_messages`].
     pub fn new(kernel: K) -> Self {
-        let mut block = NormalWrappedKernel::new(kernel, BlockId(0));
+        let mut block = WrappedKernel::new(kernel, BlockId(0));
         let mut messages = Vec::new();
         let mut message_sinks: Vec<Receiver<BlockMessage>> = Vec::new();
         let msg_len = config().queue_size;
@@ -128,7 +128,7 @@ impl<K: KernelInterface + Kernel + 'static> Mocker<K> {
             finished: false,
         };
 
-        let NormalWrappedKernel {
+        let WrappedKernel {
             meta, mo, kernel, ..
         } = &mut self.block;
         block_on(kernel.call_handler(&mut io, mo, meta, port_id, p))

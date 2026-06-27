@@ -3,7 +3,7 @@ use crate::runtime::Error;
 use crate::runtime::Result;
 use crate::runtime::block::BlockObject;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
-use crate::runtime::wrapped_kernel::NormalWrappedKernel;
+use crate::runtime::wrapped_kernel::WrappedKernel;
 
 use super::BlockSlot;
 use super::domains::FlowgraphDomains;
@@ -32,20 +32,20 @@ pub(super) fn raw_block_mut<'a>(
 pub(super) fn typed_wrapped_block_from_object<K: 'static>(
     block: &dyn BlockObject,
     block_id: BlockId,
-) -> Result<&NormalWrappedKernel<K>, Error> {
+) -> Result<&WrappedKernel<K>, Error> {
     block
         .as_any()
-        .downcast_ref::<NormalWrappedKernel<K>>()
+        .downcast_ref::<WrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
 
 pub(super) fn typed_wrapped_block_mut_from_object<K: 'static>(
     block: &mut dyn BlockObject,
     block_id: BlockId,
-) -> Result<&mut NormalWrappedKernel<K>, Error> {
+) -> Result<&mut WrappedKernel<K>, Error> {
     block
         .as_any_mut()
-        .downcast_mut::<NormalWrappedKernel<K>>()
+        .downcast_mut::<WrappedKernel<K>>()
         .ok_or_else(|| unexpected_type::<K>(block_id))
 }
 
@@ -53,7 +53,7 @@ pub(super) fn typed_kernel_ref_from_object<K: 'static>(
     block: &dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&K, Error> {
-    if let Some(block) = block.as_any().downcast_ref::<NormalWrappedKernel<K>>() {
+    if let Some(block) = block.as_any().downcast_ref::<WrappedKernel<K>>() {
         return Ok(&block.kernel);
     }
     if let Some(block) = block.as_any().downcast_ref::<LocalWrappedKernel<K>>() {
@@ -66,10 +66,10 @@ pub(super) fn typed_kernel_mut_from_object<K: 'static>(
     block: &mut dyn BlockObject,
     block_id: BlockId,
 ) -> Result<&mut K, Error> {
-    if block.as_any().is::<NormalWrappedKernel<K>>() {
+    if block.as_any().is::<WrappedKernel<K>>() {
         return block
             .as_any_mut()
-            .downcast_mut::<NormalWrappedKernel<K>>()
+            .downcast_mut::<WrappedKernel<K>>()
             .map(|block| &mut block.kernel)
             .ok_or(Error::LockError);
     }
@@ -87,7 +87,7 @@ pub(super) fn typed_wrapped_block<'a, K: 'static>(
     blocks: &'a [BlockSlot],
     domains: &'a FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a NormalWrappedKernel<K>, Error> {
+) -> Result<&'a WrappedKernel<K>, Error> {
     let block = raw_block(blocks, domains, location)?;
     typed_wrapped_block_from_object(block, location.block_id)
 }
@@ -96,7 +96,7 @@ pub(super) fn typed_wrapped_block_mut<'a, K: 'static>(
     blocks: &'a [BlockSlot],
     domains: &'a mut FlowgraphDomains,
     location: BlockLocation,
-) -> Result<&'a mut NormalWrappedKernel<K>, Error> {
+) -> Result<&'a mut WrappedKernel<K>, Error> {
     let block = raw_block_mut(blocks, domains, location)?;
     typed_wrapped_block_mut_from_object(block, location.block_id)
 }

@@ -30,7 +30,7 @@ use crate::runtime::resolve_port_index;
 use crate::runtime::scheduler::BasicLocalScheduler;
 use crate::runtime::scheduler::LocalScheduler;
 use crate::runtime::wrapped_kernel::LocalWrappedKernel;
-use crate::runtime::wrapped_kernel::NormalWrappedKernel;
+use crate::runtime::wrapped_kernel::WrappedKernel;
 
 static NEXT_FLOWGRAPH_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -462,7 +462,7 @@ impl Flowgraph {
         K: SendKernel + SendKernelInterface + 'static,
     {
         let block_id = BlockId(self.blocks.len());
-        let mut b = NormalWrappedKernel::new(block, block_id);
+        let mut b = WrappedKernel::new(block, block_id);
         let block_name = <K as KernelInterface>::type_name();
         b.meta
             .set_instance_name(format!("{}-{}", block_name, block_id.0));

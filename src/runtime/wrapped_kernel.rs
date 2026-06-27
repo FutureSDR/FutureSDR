@@ -39,10 +39,10 @@ use crate::runtime::kernel_interface::stream_output;
 use crate::runtime::kernel_interface::stream_ports_init;
 use crate::runtime::kernel_interface::stream_ports_validate;
 
-pub(crate) type NormalWrappedKernel<K> = WrappedKernel<K, ThreadSafeInbox>;
-pub(crate) type LocalWrappedKernel<K> = WrappedKernel<K, LocalBlockInboxes>;
+pub(super) type WrappedKernel<K> = KernelWrapper<K, KernelInboxes>;
+pub(super) type LocalWrappedKernel<K> = KernelWrapper<K, LocalKernelInboxes>;
 
-pub(crate) trait WrappedInbox {
+pub(super) trait WrappedInbox {
     fn try_recv(&mut self) -> Option<BlockMessage>;
     fn recv(&mut self) -> impl Future<Output = Option<BlockMessage>> + '_;
     fn take_message_pending(&self) -> bool;
@@ -95,12 +95,12 @@ impl WrappedInbox for LocalBlockInboxReader {
 }
 
 /// Inbox bundle for normal thread-safe blocks.
-pub(crate) struct ThreadSafeInbox {
+pub(super) struct KernelInboxes {
     tx: BlockInbox,
     rx: BlockInboxReader,
 }
 
-impl ThreadSafeInbox {
+impl KernelInboxes {
     fn new() -> Self {
         let (tx, rx) = BlockInbox::pair(config::config().queue_size);
         Self { tx, rx }
@@ -108,7 +108,7 @@ impl ThreadSafeInbox {
 }
 
 /// Inbox bundle for blocks that execute inside a local domain.
-pub(crate) struct LocalBlockInboxes {
+pub(super) struct LocalKernelInboxes {
     external_tx: BlockEndpoint,
     thread_safe_tx: BlockInbox,
     thread_safe_rx: Option<BlockInboxReader>,
@@ -116,7 +116,7 @@ pub(crate) struct LocalBlockInboxes {
     local_rx: LocalBlockInboxReader,
 }
 
-impl LocalBlockInboxes {
+impl LocalKernelInboxes {
     fn new(external_tx: BlockEndpoint) -> Self {
         let (thread_safe_tx, thread_safe_rx) = BlockInbox::pair(config::config().queue_size);
         let (local_tx, local_rx) = LocalBlockInboxReader::pair();
@@ -130,7 +130,7 @@ impl LocalBlockInboxes {
     }
 }
 
-pub(crate) trait WrappedKernelInbox {
+pub(super) trait WrappedKernelInbox {
     type RunInbox: WrappedInbox;
 
     fn init_arg(&self) -> PortInboxes;
@@ -138,7 +138,7 @@ pub(crate) trait WrappedKernelInbox {
     fn run_inbox_mut(&mut self) -> &mut Self::RunInbox;
 }
 
-impl WrappedKernelInbox for ThreadSafeInbox {
+impl WrappedKernelInbox for KernelInboxes {
     type RunInbox = BlockInboxReader;
 
     fn init_arg(&self) -> PortInboxes {
@@ -154,7 +154,7 @@ impl WrappedKernelInbox for ThreadSafeInbox {
     }
 }
 
-impl WrappedKernelInbox for LocalBlockInboxes {
+impl WrappedKernelInbox for LocalKernelInboxes {
     type RunInbox = LocalBlockInboxReader;
 
     fn init_arg(&self) -> PortInboxes {
@@ -171,27 +171,27 @@ impl WrappedKernelInbox for LocalBlockInboxes {
 }
 
 /// Typed block wrapper around a concrete kernel instance.
-pub(crate) struct WrappedKernel<K, I = ThreadSafeInbox> {
+pub(super) struct KernelWrapper<K, I = KernelInboxes> {
     /// Block metadata
-    pub(crate) meta: BlockMeta,
+    pub(super) meta: BlockMeta,
     /// Message outputs
-    pub(crate) mo: MessageOutputs,
+    pub(super) mo: MessageOutputs,
     /// User kernel implementation.
-    pub(crate) kernel: K,
+    pub(super) kernel: K,
     /// Runtime block id.
-    pub(crate) id: BlockId,
+    pub(super) id: BlockId,
     /// Instance stream input port names collected when the block is added.
     stream_inputs: Vec<String>,
     /// Instance stream output port names collected when the block is added.
     stream_outputs: Vec<String>,
     /// Inbox bundle for the block placement mode.
-    pub(crate) inbox: I,
+    pub(super) inbox: I,
 }
 
-impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
+impl<K: KernelInterface + 'static> WrappedKernel<K> {
     /// Create typed block wrapper.
-    pub(crate) fn new(mut kernel: K, id: BlockId) -> Self {
-        let inbox = ThreadSafeInbox::new();
+    pub(super) fn new(mut kernel: K, id: BlockId) -> Self {
+        let inbox = KernelInboxes::new();
         stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)
@@ -200,19 +200,19 @@ impl<K: KernelInterface + 'static> NormalWrappedKernel<K> {
 
 impl<K: KernelInterface + 'static> LocalWrappedKernel<K> {
     /// Create typed block wrapper with an explicit external inbox.
-    pub(crate) fn new_local_with_external(
+    pub(super) fn new_local_with_external(
         mut kernel: K,
         id: BlockId,
         external: BlockEndpoint,
     ) -> Self {
-        let inbox = LocalBlockInboxes::new(external);
+        let inbox = LocalKernelInboxes::new(external);
         stream_ports_init(&mut kernel, id, inbox.init_arg())
             .expect("failed to initialize stream ports");
         Self::with_inbox(kernel, id, inbox)
     }
 }
 
-impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
+impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
     fn with_inbox(mut kernel: K, id: BlockId, inbox: I) -> Self {
         let mut stream_inputs = Vec::new();
         kernel
@@ -244,11 +244,11 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
         }
     }
 
-    pub(crate) fn stream_inputs(&self) -> &[String] {
+    pub(super) fn stream_inputs(&self) -> &[String] {
         &self.stream_inputs
     }
 
-    pub(crate) fn stream_outputs(&self) -> &[String] {
+    pub(super) fn stream_outputs(&self) -> &[String] {
         &self.stream_outputs
     }
 
@@ -481,7 +481,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
     where
         K: Kernel,
     {
-        let WrappedKernel {
+        let KernelWrapper {
             id,
             meta,
             mo,
@@ -505,7 +505,7 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> WrappedKernel<K, I> {
 }
 
 impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
-    for WrappedKernel<K, I>
+    for KernelWrapper<K, I>
 {
     fn as_any(&self) -> &dyn Any {
         self
@@ -554,12 +554,12 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
 }
 
 #[async_trait::async_trait]
-impl<K> Block for NormalWrappedKernel<K>
+impl<K> Block for WrappedKernel<K>
 where
     K: SendKernel + SendKernelInterface + 'static,
 {
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match WrappedKernel::run(self, main_inbox.clone()).await {
+        match KernelWrapper::run(self, main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })
@@ -594,7 +594,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
     }
 
     async fn run(&mut self, main_inbox: Sender<FlowgraphMessage>) {
-        match WrappedKernel::run(self, main_inbox.clone()).await {
+        match KernelWrapper::run(self, main_inbox.clone()).await {
             Ok(_) => {
                 let _ = main_inbox
                     .send(FlowgraphMessage::BlockDone { block_id: self.id })
@@ -618,7 +618,7 @@ impl<K: KernelInterface + Kernel + 'static> LocalBlock for LocalWrappedKernel<K>
     }
 }
 
-impl<K, I> Deref for WrappedKernel<K, I> {
+impl<K, I> Deref for KernelWrapper<K, I> {
     type Target = K;
 
     fn deref(&self) -> &Self::Target {
@@ -626,7 +626,7 @@ impl<K, I> Deref for WrappedKernel<K, I> {
     }
 }
 
-impl<K, I> DerefMut for WrappedKernel<K, I> {
+impl<K, I> DerefMut for KernelWrapper<K, I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.kernel
     }
