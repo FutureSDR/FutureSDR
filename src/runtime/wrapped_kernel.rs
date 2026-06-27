@@ -287,10 +287,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox> KernelWrapper<K, I> {
                 }
             }
             BlockMessage::StreamInputDone { input_id } => {
-                stream_input_finish(kernel, input_id)?;
+                stream_input_finish(kernel, id, input_id)?;
             }
             BlockMessage::StreamOutputDone { output_id } => {
-                stream_output(kernel, &output_id)?;
+                stream_output(kernel, id, &output_id)?;
                 work_io.finished = true;
             }
             BlockMessage::Post { port_id, data } => {
@@ -527,10 +527,10 @@ impl<K: KernelInterface + 'static, I: WrappedKernelInbox + 'static> BlockObject
         Ok(self.stream_outputs.clone())
     }
     fn stream_input(&mut self, id: &PortId) -> Result<&mut dyn DynBufferReader, Error> {
-        stream_input(&mut self.kernel, id)
+        stream_input(&mut self.kernel, self.id, id)
     }
     fn stream_output(&mut self, id: &PortId) -> Result<&mut dyn DynBufferWriter, Error> {
-        stream_output(&mut self.kernel, id)
+        stream_output(&mut self.kernel, self.id, id)
     }
 
     fn message_inputs(&self) -> &'static [&'static str] {

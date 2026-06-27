@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use crate::runtime::BlockId;
+use crate::runtime::BlockPortCtx;
 use crate::runtime::Error;
 use crate::runtime::Pmt;
 use crate::runtime::PortId;
@@ -156,23 +157,148 @@ pub(crate) fn stream_ports_validate<K: KernelInterface>(kernel: &mut K) -> Resul
     kernel.visit_stream_outputs(&mut |_, port| port.validate())
 }
 
+fn stream_port_error_with_block_id(block_id: BlockId, error: Error) -> Error {
+    match error {
+        Error::InvalidStreamPort(BlockPortCtx::None, port) => {
+            Error::InvalidStreamPort(BlockPortCtx::Id(block_id), port)
+        }
+        error => error,
+    }
+}
+
 pub(crate) fn stream_input_finish<K: KernelInterface>(
     kernel: &mut K,
+    block_id: BlockId,
     port_id: PortId,
 ) -> Result<(), Error> {
-    kernel.with_stream_input(&port_id, |port| port.finish())
+    kernel
+        .with_stream_input(&port_id, |port| port.finish())
+        .map_err(|error| stream_port_error_with_block_id(block_id, error))
 }
 
 pub(crate) fn stream_input<'a, K: KernelInterface>(
     kernel: &'a mut K,
+    block_id: BlockId,
     id: &PortId,
 ) -> Result<&'a mut dyn DynBufferReader, Error> {
-    kernel.with_stream_input(id, |port| port)
+    kernel
+        .with_stream_input(id, |port| port)
+        .map_err(|error| stream_port_error_with_block_id(block_id, error))
 }
 
 pub(crate) fn stream_output<'a, K: KernelInterface>(
     kernel: &'a mut K,
+    block_id: BlockId,
     id: &PortId,
 ) -> Result<&'a mut dyn DynBufferWriter, Error> {
-    kernel.with_stream_output(id, |port| port)
+    kernel
+        .with_stream_output(id, |port| port)
+        .map_err(|error| stream_port_error_with_block_id(block_id, error))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MissingPorts;
+
+    impl KernelInterface for MissingPorts {
+        fn is_blocking() -> bool {
+            false
+        }
+
+        fn type_name() -> &'static str {
+            "MissingPorts"
+        }
+
+        fn visit_stream_inputs(
+            &mut self,
+            _f: &mut dyn FnMut(PortId, &mut dyn DynBufferReader) -> Result<(), Error>,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn visit_stream_outputs(
+            &mut self,
+            _f: &mut dyn FnMut(PortId, &mut dyn DynBufferWriter) -> Result<(), Error>,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn with_stream_input<'a, R>(
+            &'a mut self,
+            id: &PortId,
+            _f: impl FnOnce(&'a mut dyn DynBufferReader) -> R,
+        ) -> Result<R, Error> {
+            Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+        }
+
+        fn with_stream_output<'a, R>(
+            &'a mut self,
+            id: &PortId,
+            _f: impl FnOnce(&'a mut dyn DynBufferWriter) -> R,
+        ) -> Result<R, Error> {
+            Err(Error::InvalidStreamPort(BlockPortCtx::None, id.clone()))
+        }
+
+        async fn stream_ports_notify_finished(&mut self) {}
+
+        fn message_inputs() -> &'static [&'static str] {
+            &[]
+        }
+
+        fn message_outputs() -> &'static [&'static str] {
+            &[]
+        }
+
+        async fn call_handler(
+            &mut self,
+            _io: &mut WorkIo,
+            _mo: &mut MessageOutputs,
+            _meta: &mut BlockMeta,
+            id: PortIndex,
+            _p: Pmt,
+        ) -> Result<Pmt, Error> {
+            Err(Error::InvalidMessagePort(
+                BlockPortCtx::None,
+                PortId::from(id),
+            ))
+        }
+    }
+
+    #[test]
+    fn stream_input_finish_invalid_port_reports_block_id() {
+        let mut kernel = MissingPorts;
+        let result = stream_input_finish(&mut kernel, BlockId(7), PortId::index(3));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidStreamPort(ctx, port))
+                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
+        ));
+    }
+
+    #[test]
+    fn stream_input_invalid_port_reports_block_id() {
+        let mut kernel = MissingPorts;
+        let result = stream_input(&mut kernel, BlockId(7), &PortId::index(3));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidStreamPort(ctx, port))
+                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
+        ));
+    }
+
+    #[test]
+    fn stream_output_invalid_port_reports_block_id() {
+        let mut kernel = MissingPorts;
+        let result = stream_output(&mut kernel, BlockId(7), &PortId::index(3));
+
+        assert!(matches!(
+            result,
+            Err(Error::InvalidStreamPort(ctx, port))
+                if ctx == BlockPortCtx::Id(BlockId(7)) && port == PortId::index(3)
+        ));
+    }
 }
