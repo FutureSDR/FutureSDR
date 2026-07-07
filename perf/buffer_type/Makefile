@@ -10,7 +10,7 @@ all: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../migrate-processes.sh
+	../perf_setup.sh
 
 perf-data/fs%.csv: buffer_type.rs
 	mkdir -p perf-data

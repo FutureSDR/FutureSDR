@@ -14,7 +14,7 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../migrate-processes.sh
+	../perf_setup.sh
 
 perf-data/gr%.csv: build/fir_rand_flowgraph
 	mkdir -p perf-data

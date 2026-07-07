@@ -22,7 +22,7 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../migrate-processes.sh
+	../perf_setup.sh
 
 perf-data/gr_%.csv:
 	mkdir -p perf-data

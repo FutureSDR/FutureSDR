@@ -16,7 +16,7 @@ fs: setup $(FSRESULTS)
 
 setup:
 	@echo "### SETTING UP"
-	../migrate-processes.sh
+	../perf_setup.sh
 
 build/msg_flowgraph: msg_flowgraph.cpp msg_flowgraph.hpp
 	rm -rf build
