@@ -101,7 +101,6 @@ pub fn generate_ble_packet_bits(channel_index: u8) -> Vec<u8> {
     for byte in whitened_pdu_crc {
         push_byte_bits_lsb_first(&mut bits, byte);
     }
-    bits.extend(std::iter::repeat_n(0, 500));
     bits
 }
 

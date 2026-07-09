@@ -1,4 +1,5 @@
 use crate::ble_protocol;
+use crate::ble_protocol::BlePacket;
 
 const BLE_ACCESS_ADDRESS_INVERT: u32 = !ble_protocol::BLE_ACCESS_ADDRESS;
 const MAX_HAMMING_DISTANCE: u32 = 2;
@@ -21,7 +22,7 @@ enum PacketState {
 #[derive(Clone, Debug)]
 pub(crate) enum DetectorEvent {
     None,
-    ValidPacket,
+    ValidPacket { packet: BlePacket },
     CrcRejected { reason: String },
     HeaderRejected,
 }
@@ -38,10 +39,17 @@ pub(crate) struct PacketDetector {
     packets: u64,
     crc_rejects: u64,
     duplicate_crc_rejects: u64,
+    connect_ind_packets: u64,
+    print_packets: bool,
 }
 
 impl PacketDetector {
+    #[cfg(test)]
     pub(crate) fn new(phase: usize, channel_index: u8) -> Self {
+        Self::with_packet_output(phase, channel_index, true)
+    }
+
+    pub(crate) fn with_packet_output(phase: usize, channel_index: u8, print_packets: bool) -> Self {
         Self {
             phase,
             shift_reg: 0,
@@ -54,6 +62,8 @@ impl PacketDetector {
             packets: 0,
             crc_rejects: 0,
             duplicate_crc_rejects: 0,
+            connect_ind_packets: 0,
+            print_packets,
         }
     }
 
@@ -92,6 +102,7 @@ impl PacketDetector {
             packets: self.packets,
             crc_rejects: self.crc_rejects,
             duplicate_crc_rejects: self.duplicate_crc_rejects,
+            connect_ind_packets: self.connect_ind_packets,
         }
     }
 
@@ -151,10 +162,13 @@ impl PacketDetector {
                 self.reset_to_search();
                 DetectorEvent::CrcRejected { reason }
             }
-            CandidateWindowResult::ValidPacket => {
+            CandidateWindowResult::ValidPacket { packet } => {
                 self.packets += 1;
+                if packet.pdu_type == ble_protocol::BleAdvPduType::ConnectInd {
+                    self.connect_ind_packets += 1;
+                }
                 self.reset_to_search();
-                DetectorEvent::ValidPacket
+                DetectorEvent::ValidPacket { packet }
             }
         }
     }
@@ -179,7 +193,7 @@ impl PacketDetector {
             let whitened_pdu_crc = bits_to_bytes(&self.candidate_bits[offset..needed_bits]);
             match ble_protocol::parse_advertising_pdu(self.channel_index, &whitened_pdu_crc) {
                 Ok(packet) => {
-                    if print_diagnostics() {
+                    if self.print_packets && print_diagnostics() {
                         let relative_offset = offset as isize - PDU_OFFSET_RADIUS_BITS as isize;
                         println!(
                             "BLE packet: phase={} offset={} {}",
@@ -187,13 +201,13 @@ impl PacketDetector {
                             relative_offset,
                             ble_protocol::format_packet_summary(&packet)
                         );
-                    } else {
+                    } else if self.print_packets {
                         println!(
                             "BLE packet: {}",
                             ble_protocol::format_packet_summary(&packet)
                         );
                     }
-                    return CandidateWindowResult::ValidPacket;
+                    return CandidateWindowResult::ValidPacket { packet };
                 }
                 Err(err) => last_error = Some(err.to_string()),
             }
@@ -249,7 +263,7 @@ enum CandidateWindowResult {
     NeedMoreBits,
     HeaderRejected,
     CrcRejected { reason: String },
-    ValidPacket,
+    ValidPacket { packet: BlePacket },
 }
 
 fn bits_to_bytes(bits: &[u8]) -> Vec<u8> {
@@ -272,6 +286,7 @@ pub(crate) struct DetectorStats {
     pub(crate) packets: u64,
     pub(crate) crc_rejects: u64,
     pub(crate) duplicate_crc_rejects: u64,
+    pub(crate) connect_ind_packets: u64,
 }
 
 impl DetectorStats {
@@ -317,6 +332,7 @@ mod tests {
             packets: 4,
             crc_rejects: 4,
             duplicate_crc_rejects: 2,
+            connect_ind_packets: 1,
         };
 
         assert_eq!(stats.pdu_attempts(), 8);

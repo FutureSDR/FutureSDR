@@ -20,5 +20,6 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 futuresdr = { path = "../..", features = ["seify"] }
+futuredsp = { path = "../../crates/futuredsp" }
 yagi = "0.1.5"
 num-complex = "0.4"

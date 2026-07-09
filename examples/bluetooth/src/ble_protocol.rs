@@ -127,6 +127,93 @@ impl BlePacket {
 
         BleExtAdvHeader::parse(&self.payload)
     }
+
+    pub fn connection_request(&self) -> Option<BleConnectionRequest> {
+        if self.pdu_type != BleAdvPduType::ConnectInd {
+            return None;
+        }
+
+        BleConnectionRequest::parse(&self.payload)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BleConnectionRequest {
+    pub access_address: u32,
+    pub crc_init: u32,
+    pub window_size_units: u8,
+    pub window_offset_units: u16,
+    pub interval_units: u16,
+    pub latency: u16,
+    pub timeout_units: u16,
+    pub channel_map: [u8; 5],
+    pub hop_increment: u8,
+    pub sca: u8,
+}
+
+impl BleConnectionRequest {
+    fn parse(payload: &[u8]) -> Option<Self> {
+        let ll_data = payload.get(12..34)?;
+
+        let access_address = u32::from_le_bytes([ll_data[0], ll_data[1], ll_data[2], ll_data[3]]);
+        let crc_init = ll_data[4] as u32 | ((ll_data[5] as u32) << 8) | ((ll_data[6] as u32) << 16);
+        let window_size_units = ll_data[7];
+        let window_offset_units = u16::from_le_bytes([ll_data[8], ll_data[9]]);
+        let interval_units = u16::from_le_bytes([ll_data[10], ll_data[11]]);
+        let latency = u16::from_le_bytes([ll_data[12], ll_data[13]]);
+        let timeout_units = u16::from_le_bytes([ll_data[14], ll_data[15]]);
+        let channel_map = [
+            ll_data[16],
+            ll_data[17],
+            ll_data[18],
+            ll_data[19],
+            ll_data[20],
+        ];
+        let hop_sca = ll_data[21];
+
+        Some(Self {
+            access_address,
+            crc_init,
+            window_size_units,
+            window_offset_units,
+            interval_units,
+            latency,
+            timeout_units,
+            channel_map,
+            hop_increment: hop_sca & 0x1f,
+            sca: hop_sca >> 5,
+        })
+    }
+
+    fn window_size_ms(&self) -> f32 {
+        self.window_size_units as f32 * 1.25
+    }
+
+    fn window_offset_ms(&self) -> f32 {
+        self.window_offset_units as f32 * 1.25
+    }
+
+    fn interval_ms(&self) -> f32 {
+        self.interval_units as f32 * 1.25
+    }
+
+    fn timeout_ms(&self) -> u32 {
+        self.timeout_units as u32 * 10
+    }
+
+    fn used_channel_count(&self) -> u32 {
+        self.channel_map
+            .iter()
+            .enumerate()
+            .map(|(byte_index, byte)| {
+                if byte_index == 4 {
+                    (byte & 0x1f).count_ones()
+                } else {
+                    byte.count_ones()
+                }
+            })
+            .sum()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -369,6 +456,10 @@ pub fn format_packet_summary(packet: &BlePacket) -> String {
         fields.push(format!("ext=[{}]", format_ext_adv_header(&ext_header)));
     }
 
+    if let Some(conn) = packet.connection_request() {
+        fields.push(format!("conn=[{}]", format_connection_request(&conn)));
+    }
+
     fields.join(" ")
 }
 
@@ -439,6 +530,22 @@ fn format_ext_adv_header(header: &BleExtAdvHeader) -> String {
     }
 
     fields.join(" ")
+}
+
+fn format_connection_request(conn: &BleConnectionRequest) -> String {
+    format!(
+        "aa=0x{:08X} crc_init=0x{:06X} win={:.2}ms offset={:.2}ms interval={:.2}ms latency={} timeout={}ms hop={} sca={} channels={}",
+        conn.access_address,
+        conn.crc_init,
+        conn.window_size_ms(),
+        conn.window_offset_ms(),
+        conn.interval_ms(),
+        conn.latency,
+        conn.timeout_ms(),
+        conn.hop_increment,
+        conn.sca,
+        conn.used_channel_count(),
+    )
 }
 
 fn read_addr(payload: &[u8], pos: &mut usize, end: usize) -> Option<Option<[u8; 6]>> {
@@ -584,6 +691,36 @@ mod tests {
         assert_eq!(
             format_packet_summary(&packet),
             "ch=37 type=ADV_EXT_IND len=12 adv_a=FF:EE:DD:CC:BB:AA ext=[mode=nonconn_nonscan aux_ch=5 aux_offset=3000us aux_phy=1M tx_power=-8dBm]"
+        );
+    }
+
+    #[test]
+    fn packet_summary_includes_connection_request_parameters() {
+        let init_a = [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let adv_a = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&init_a);
+        payload.extend_from_slice(&adv_a);
+        payload.extend_from_slice(&0xa1b2c3d4u32.to_le_bytes());
+        payload.extend_from_slice(&[0x56, 0x34, 0x12]);
+        payload.push(2);
+        payload.extend_from_slice(&4u16.to_le_bytes());
+        payload.extend_from_slice(&24u16.to_le_bytes());
+        payload.extend_from_slice(&0u16.to_le_bytes());
+        payload.extend_from_slice(&200u16.to_le_bytes());
+        payload.extend_from_slice(&[0xff, 0xff, 0xff, 0xff, 0x1f]);
+        payload.push((3 << 5) | 12);
+
+        let whitened = build_raw_pdu_crc(37, BleAdvPduType::ConnectInd, &payload);
+        let packet = parse_advertising_pdu(37, &whitened).unwrap();
+        let conn = packet.connection_request().unwrap();
+
+        assert_eq!(conn.access_address, 0xa1b2c3d4);
+        assert_eq!(conn.crc_init, 0x123456);
+        assert_eq!(conn.used_channel_count(), 37);
+        assert_eq!(
+            format_packet_summary(&packet),
+            "ch=37 type=CONNECT_IND len=34 init_a=FF:EE:DD:CC:BB:AA adv_a=66:55:44:33:22:11 conn=[aa=0xA1B2C3D4 crc_init=0x123456 win=2.50ms offset=5.00ms interval=30.00ms latency=0 timeout=2000ms hop=12 sca=3 channels=37]"
         );
     }
 

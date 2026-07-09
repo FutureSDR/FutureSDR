@@ -1,5 +1,7 @@
 use futuresdr::runtime::dev::prelude::*;
 
+use crate::ble_connection::ConnectionTable;
+use crate::ble_connection::format_connection_summary;
 use crate::ble_detector::DetectorEvent;
 use crate::ble_detector::DetectorStats;
 use crate::ble_detector::PacketDetector;
@@ -33,6 +35,7 @@ where
     slicer: SymbolSlicer,
     detectors: Vec<PacketDetector>,
     pending_crc_rejects: Vec<PendingReject>,
+    connections: ConnectionTable,
 }
 
 impl<I, O> BleSyncBlock<I, O>
@@ -40,16 +43,35 @@ where
     I: CpuBufferReader<Item = f32>,
     O: CpuBufferWriter<Item = u8>,
 {
-    pub fn with_channel_and_phase(
+    #[cfg(test)]
+    fn with_channel_and_phase(
         threshold: f32,
         normalize_levels: bool,
         samples_per_symbol: usize,
         channel_index: u8,
         initial_delay: usize,
     ) -> Self {
+        Self::with_channel_phase_and_packet_output(
+            threshold,
+            normalize_levels,
+            samples_per_symbol,
+            channel_index,
+            initial_delay,
+            true,
+        )
+    }
+
+    pub fn with_channel_phase_and_packet_output(
+        threshold: f32,
+        normalize_levels: bool,
+        samples_per_symbol: usize,
+        channel_index: u8,
+        initial_delay: usize,
+        print_packets: bool,
+    ) -> Self {
         let samples_per_symbol = std::cmp::max(1, samples_per_symbol);
         let detectors = (0..samples_per_symbol)
-            .map(|phase| PacketDetector::new(phase, channel_index))
+            .map(|phase| PacketDetector::with_packet_output(phase, channel_index, print_packets))
             .collect();
 
         Self {
@@ -61,27 +83,21 @@ where
             slicer: SymbolSlicer::new(threshold, normalize_levels),
             detectors,
             pending_crc_rejects: Vec::new(),
+            connections: ConnectionTable::default(),
         }
     }
 
     fn aggregate_stats(&self) -> DetectorStats {
-        self.detectors.iter().map(PacketDetector::stats).fold(
-            DetectorStats::default(),
-            |acc, stats| DetectorStats {
-                aa_candidates: acc.aa_candidates + stats.aa_candidates,
-                header_rejects: acc.header_rejects + stats.header_rejects,
-                packets: acc.packets + stats.packets,
-                crc_rejects: acc.crc_rejects + stats.crc_rejects,
-                duplicate_crc_rejects: acc.duplicate_crc_rejects + stats.duplicate_crc_rejects,
-            },
-        )
+        aggregate_stats(self.detectors.iter().map(PacketDetector::stats))
     }
 
     fn print_stats(&self) {
         let stats = self.aggregate_stats();
         println!(
-            "BLE stats: packets={} aa_candidates={} aa_per_packet={:.2} header_rejects={} pdu_attempts={} crc_rejects={} duplicate_crc_rejects={} raw_crc_rejects={} crc_reject_rate={:.1}%",
+            "BLE stats: packets={} connect_ind={} connections={} aa_candidates={} aa_per_packet={:.2} header_rejects={} pdu_attempts={} crc_rejects={} duplicate_crc_rejects={} raw_crc_rejects={} crc_reject_rate={:.1}%",
             stats.packets,
+            stats.connect_ind_packets,
+            self.connections.len(),
             stats.aa_candidates,
             stats.aa_per_packet(),
             stats.header_rejects,
@@ -91,6 +107,13 @@ where
             stats.raw_crc_rejects(),
             stats.crc_reject_rate()
         );
+        for connection in self.connections.iter() {
+            println!(
+                "BLE connection: ch={} {}",
+                connection.last_channel,
+                format_connection_summary(connection)
+            );
+        }
     }
 
     fn crc_reject_guard_samples(&self) -> usize {
@@ -201,7 +224,8 @@ where
             let bit = self.slicer.slice(sample);
             match self.detectors[phase].process_symbol(bit) {
                 DetectorEvent::None | DetectorEvent::HeaderRejected => {}
-                DetectorEvent::ValidPacket => {
+                DetectorEvent::ValidPacket { packet } => {
+                    self.connections.observe_packet(&packet);
                     self.suppress_duplicate_crc_rejects();
                     for detector in &mut self.detectors {
                         detector.reset_to_search();
@@ -229,6 +253,17 @@ where
 
         Ok(())
     }
+}
+
+fn aggregate_stats(stats: impl Iterator<Item = DetectorStats>) -> DetectorStats {
+    stats.fold(DetectorStats::default(), |acc, stats| DetectorStats {
+        aa_candidates: acc.aa_candidates + stats.aa_candidates,
+        header_rejects: acc.header_rejects + stats.header_rejects,
+        packets: acc.packets + stats.packets,
+        crc_rejects: acc.crc_rejects + stats.crc_rejects,
+        duplicate_crc_rejects: acc.duplicate_crc_rejects + stats.duplicate_crc_rejects,
+        connect_ind_packets: acc.connect_ind_packets + stats.connect_ind_packets,
+    })
 }
 
 #[cfg(test)]
