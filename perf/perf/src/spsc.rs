@@ -270,8 +270,13 @@ where
         let inner = self.inner.as_ref().expect("writer not connected");
         assert!(n <= self.last_space, "perf::spsc produced too much");
 
-        let read_pos = inner.read_pos.load(Ordering::Acquire);
-        debug_assert!(Inner::<T>::space(inner.capacity, read_pos, self.write_pos) >= n);
+        debug_assert!(
+            Inner::<T>::space(
+                inner.capacity,
+                inner.read_pos.load(Ordering::Acquire),
+                self.write_pos
+            ) >= n
+        );
         self.write_pos = self.write_pos.wrapping_add(n);
 
         inner.write_pos.store(self.write_pos, Ordering::Release);
@@ -447,8 +452,9 @@ where
         let inner = self.inner.as_ref().expect("reader not connected");
         assert!(n <= self.last_space, "perf::spsc consumed too much");
 
-        let write_pos = inner.write_pos.load(Ordering::Acquire);
-        debug_assert!(Inner::<T>::occupancy(self.read_pos, write_pos) >= n);
+        debug_assert!(
+            Inner::<T>::occupancy(self.read_pos, inner.write_pos.load(Ordering::Acquire)) >= n
+        );
         self.read_pos = self.read_pos.wrapping_add(n);
 
         inner.read_pos.store(self.read_pos, Ordering::Release);
