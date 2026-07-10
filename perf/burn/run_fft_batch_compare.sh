@@ -12,6 +12,7 @@ bins=(
     fft-ct-noconv-reuse
     fft-cubecl-kernel
     fft-cubecl-buffer-reuse
+    fft-wgpu-circular
     fft-wgpu-hack
 )
 
