@@ -211,13 +211,40 @@ mod avx2 {
                 unsafe {
                     let ones: __m256i = _mm256_set1_epi8(1);
 
-                    for (i, o) in i.chunks_exact(32).zip(o.chunks_exact_mut(32)) {
-                        // load 32 bytes (unaligned)
-                        let v = _mm256_loadu_si256(i.as_ptr() as *const __m256i);
-                        // add 1 to each lane, wrapping modulo 256
+                    let input = i.as_ptr();
+                    let output = o.as_mut_ptr();
+                    let mut offset = 0;
+                    let vector_end = n & !127;
+
+                    while offset < vector_end {
+                        let v0 = _mm256_loadu_si256(input.add(offset) as *const __m256i);
+                        let v1 = _mm256_loadu_si256(input.add(offset + 32) as *const __m256i);
+                        let v2 = _mm256_loadu_si256(input.add(offset + 64) as *const __m256i);
+                        let v3 = _mm256_loadu_si256(input.add(offset + 96) as *const __m256i);
+
+                        let r0 = _mm256_add_epi8(v0, ones);
+                        let r1 = _mm256_add_epi8(v1, ones);
+                        let r2 = _mm256_add_epi8(v2, ones);
+                        let r3 = _mm256_add_epi8(v3, ones);
+
+                        _mm256_storeu_si256(output.add(offset) as *mut __m256i, r0);
+                        _mm256_storeu_si256(output.add(offset + 32) as *mut __m256i, r1);
+                        _mm256_storeu_si256(output.add(offset + 64) as *mut __m256i, r2);
+                        _mm256_storeu_si256(output.add(offset + 96) as *mut __m256i, r3);
+                        offset += 128;
+                    }
+
+                    let chunk_end = n & !31;
+                    while offset < chunk_end {
+                        let v = _mm256_loadu_si256(input.add(offset) as *const __m256i);
                         let r = _mm256_add_epi8(v, ones);
-                        // store back
-                        _mm256_storeu_si256(o.as_mut_ptr() as *mut __m256i, r);
+                        _mm256_storeu_si256(output.add(offset) as *mut __m256i, r);
+                        offset += 32;
+                    }
+
+                    while offset < n {
+                        *output.add(offset) = (*input.add(offset)).wrapping_add(1);
+                        offset += 1;
                     }
                 }
 
