@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use futuresdr::blocks::MessageBurst;
 use futuresdr::blocks::MessageCopy;
 use futuresdr::blocks::MessageSink;
 use futuresdr::prelude::*;
+use futuresdr::runtime::dev::prelude::*;
 use futuresdr::runtime::scheduler::FlowScheduler;
 use futuresdr::runtime::scheduler::SmolScheduler;
 use std::time;
@@ -24,6 +24,35 @@ struct Args {
     config: String,
 }
 
+#[derive(Block)]
+#[message_outputs(out)]
+struct MessageBurst {
+    value: f64,
+    n_messages: u64,
+}
+
+impl MessageBurst {
+    fn new(value: f64, n_messages: u64) -> Self {
+        Self { value, n_messages }
+    }
+}
+
+impl Kernel for MessageBurst {
+    async fn work(
+        &mut self,
+        io: &mut WorkIo,
+        mo: &mut MessageOutputs,
+        _meta: &BlockMeta,
+    ) -> Result<()> {
+        for _ in 0..self.n_messages {
+            mo.post("out", Pmt::F64(self.value)).await?;
+        }
+
+        io.finished = true;
+        Ok(())
+    }
+}
+
 type MessageSinks = Vec<BlockRef<MessageSink>>;
 type CpuMapping = Vec<Vec<BlockId>>;
 
@@ -39,7 +68,7 @@ fn generate(
 
     for p in 0..pipes {
         let executor = p % n_executors;
-        let src = fg.add(MessageBurst::new(Pmt::F64(1.23), burst_size))?;
+        let src = fg.add(MessageBurst::new(1.23, burst_size))?;
         let mut prev = src.id();
 
         cpu_mapping[executor].push(src.id());
@@ -81,7 +110,7 @@ fn generate_local(
     for core_id in core_ids.into_iter().take(pipes) {
         let local = fg.local_domain_pinned(core_id.id)?;
         let snk = fg.with_local_domain(local, move |ctx| {
-            let src = ctx.add(MessageBurst::new(Pmt::F64(1.23), burst_size));
+            let src = ctx.add(MessageBurst::new(1.23, burst_size));
             let mut prev = src.id();
 
             for _ in 0..stages {

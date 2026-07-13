@@ -2,8 +2,8 @@ SHELL=/bin/bash
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_6_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,25,2), [200000000], [512])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_6_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,25,2), [200000000], [512], ["smoln", "flow"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_6_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,26,2), [200000000], [512])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_6_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(20), np.arange(1,26,2), [200000000], [512], ["smoln", "flow"])]))')
 
 .PHONY: setup all clean run_trace run_no_trace
 
@@ -15,6 +15,10 @@ fs: setup $(FSRESULTS)
 setup:
 	@echo "### SETTING UP"
 	../perf_setup.sh
+
+build/null_latency_flowgraph: CMakeLists.txt null_latency_flowgraph.cpp
+	cmake -S . -B build
+	cmake --build build -j
 
 perf-data/gr%.csv: build/null_latency_flowgraph
 	mkdir -p perf-data
@@ -47,7 +51,7 @@ perf-data/gr%.csv: build/null_latency_flowgraph
 	python3 parse.py perf-data/foo > $@
 	rm -rf perf-data/foo
 
-perf-data/fs%.csv: null_latency.rs
+perf-data/fs%.csv: null_latency.rs Cargo.toml parse.py
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))

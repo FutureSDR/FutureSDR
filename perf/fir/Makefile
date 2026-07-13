@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_legacy_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,25,2), [20000000])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [20000000], ["flow", "smoln", "flow-spsc", "smoln-spsc", "local"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_legacy_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,26,2), [20000000])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,26,2), [20000000], ["flow", "smoln", "flow-spsc", "smoln-spsc", "local"])]))')
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
@@ -15,6 +15,10 @@ fs: setup $(FSRESULTS)
 setup:
 	@echo "### SETTING UP"
 	../perf_setup.sh
+
+build/fir_rand_flowgraph: CMakeLists.txt fir_rand_flowgraph.cpp
+	cmake -S . -B build
+	cmake --build build -j
 
 perf-data/gr%.csv: build/fir_rand_flowgraph
 	mkdir -p perf-data
@@ -32,7 +36,7 @@ perf-data/gr%.csv: build/fir_rand_flowgraph
 
 	$(SHIELD) -- ./build/fir_rand_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) > $@
 
-perf-data/fs%.csv: fir.rs
+perf-data/fs%.csv: fir.rs Cargo.toml
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))

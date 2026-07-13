@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [10000])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,30,2), [1000000], ["smoln", "flow", "local"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,26,2), [10000])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,26,2), [1000000], ["smoln", "flow", "local"])]))')
 
 REPETITIONS=1
 
@@ -37,7 +37,7 @@ perf-data/gr%.csv: build/msg_flowgraph
 
 	$(SHIELD) -- ./build/msg_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --repetitions=$(REPETITIONS) --burst_size=$(BURST_SIZE) > $@
 
-perf-data/fs%.csv: msg.rs
+perf-data/fs%.csv: msg.rs Cargo.toml
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))

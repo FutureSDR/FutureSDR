@@ -25,7 +25,7 @@ setup:
 	@echo "### SETTING UP"
 	../perf_setup.sh
 
-perf-data/gr_%.csv:
+perf-data/gr_%.csv: gnuradio-rx.py
 	mkdir -p perf-data
 	$(eval RUN=$(word 1,$(subst _, ,$*)))
 	$(eval PAYLOAD=$(word 2,$(subst _, ,$*)))
@@ -34,7 +34,7 @@ perf-data/gr_%.csv:
 	@echo "GR run=$(RUN) payload=$(PAYLOAD) file=$(FILE)"
 	$(SHIELD) $(SHIELD_ENV) -- python3 gnuradio-rx.py --run=$(RUN) --file=$(FILE) > $@
 
-perf-data/fs_%.csv:
+perf-data/fs_%.csv: rx.rs Cargo.toml
 	mkdir -p perf-data
 	$(eval RUN=$(word 1,$(subst _, ,$*)))
 	$(eval PAYLOAD=$(word 2,$(subst _, ,$*)))

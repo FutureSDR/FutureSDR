@@ -793,7 +793,17 @@ impl Kernel for Fft {
             }
         }
 
-        if let Some(in_full) = self.input.get_buffer() {
+        // A full H2D token cannot be put back into the input queue. Reserve a
+        // readback buffer before acquiring it so output backpressure cannot
+        // discard unprocessed input.
+        if !self
+            .state
+            .as_ref()
+            .expect("wgpu state initialized")
+            .output_buffers
+            .is_empty()
+            && let Some(in_full) = self.input.get_buffer()
+        {
             processed_input = true;
             self.input_items_reported += in_full.n_items as u64;
             if self.state.as_ref().unwrap().pending_readbacks.len() >= READBACK_SLOTS {
@@ -824,19 +834,10 @@ impl Kernel for Fft {
                     max_batches_by_items
                 );
             } else {
-                let out_buf = match state.output_buffers.pop() {
-                    Some(buf) => buf,
-                    None => {
-                        self.input.submit(wgpu_buffer::InputBufferEmpty {
-                            buffer: in_full.buffer,
-                            capacity: in_full.capacity,
-                            slot_id: in_full.slot_id,
-                            _p: std::marker::PhantomData,
-                        });
-                        io.call_again = true;
-                        return Ok(());
-                    }
-                };
+                let out_buf = state
+                    .output_buffers
+                    .pop()
+                    .expect("readback buffer availability checked before acquiring input");
                 let mag_bytes = (FFT_SIZE * size_of::<f32>()) as u64;
                 let mut encoder =
                     state

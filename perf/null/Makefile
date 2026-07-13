@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,25,2), [600000000], [128])]))')
-FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,25,2), [600000000], [128], ["flow", "smoln", "flow-spsc", "smoln-spsc", "local"])]))')
+GRRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/gr_{0}_4_{1}_{2}_{3}_legacy_.csv".format(*x) for x in itertools.product(range(10), np.arange(1,26,2), [600000000], [128])]))')
+FSRESULTS=$(shell python3 -c 'import itertools; import numpy as np; print(" ".join(["perf-data/fs_{0}_4_{1}_{2}_{3}_{4}_.csv".format(*x) for x in itertools.product(range(5), np.arange(1,26,2), [600000000], [128], ["flow", "smoln", "flow-spsc", "smoln-spsc", "local"])]))')
 
 SHIELD=sudo systemd-run --uid=1000 --slice=sdr --wait -P -d
 
@@ -15,6 +15,10 @@ fs: setup $(FSRESULTS)
 setup:
 	@echo "### SETTING UP"
 	../perf_setup.sh
+
+build/null_flowgraph: CMakeLists.txt null_flowgraph.cpp null_flowgraph.hpp
+	cmake -S . -B build
+	cmake --build build -j
 
 perf-data/gr%.csv: build/null_flowgraph
 	mkdir -p perf-data
@@ -34,7 +38,7 @@ perf-data/gr%.csv: build/null_flowgraph
 
 	$(SHIELD) -- ./build/null_flowgraph --run=$(RUN) --pipes=$(PIPES) --stages=$(STAGES) --samples=$(SAMPLES) --chunk=$(CHUNK) > $@
 
-perf-data/fs%.csv:
+perf-data/fs%.csv: null.rs Cargo.toml
 	mkdir -p perf-data
 	@echo $@
 	$(eval RUN=$(shell python3 -c "print(\"$@\".split(\"_\")[1])"))

@@ -1,6 +1,7 @@
 mod convert;
 pub use convert::Convert;
 
+pub mod cubecl_fft;
 pub mod cubecl_wgpu_buffer;
 
 mod time_it;
