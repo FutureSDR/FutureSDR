@@ -6,6 +6,7 @@ use crate::ble_detector::DetectorEvent;
 use crate::ble_detector::DetectorStats;
 use crate::ble_detector::PacketDetector;
 use crate::ble_slicer::SymbolSlicer;
+use crate::ble_wireshark;
 
 const CRC_REJECT_GUARD_SYMBOLS: usize = 512;
 
@@ -20,6 +21,7 @@ struct PendingReject {
 }
 
 #[derive(Block)]
+#[message_outputs(wireshark)]
 pub struct BleSyncBlock<I = DefaultCpuReader<f32>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = f32>,
@@ -32,6 +34,7 @@ where
     samples_per_symbol: usize,
     initial_delay: usize,
     total_sample_index: usize,
+    wireshark_output: bool,
     slicer: SymbolSlicer,
     detectors: Vec<PacketDetector>,
     pending_crc_rejects: Vec<PendingReject>,
@@ -51,23 +54,25 @@ where
         channel_index: u8,
         initial_delay: usize,
     ) -> Self {
-        Self::with_channel_phase_and_packet_output(
+        Self::with_channel_phase_packet_and_wireshark_output(
             threshold,
             normalize_levels,
             samples_per_symbol,
             channel_index,
             initial_delay,
             true,
+            false,
         )
     }
 
-    pub fn with_channel_phase_and_packet_output(
+    pub fn with_channel_phase_packet_and_wireshark_output(
         threshold: f32,
         normalize_levels: bool,
         samples_per_symbol: usize,
         channel_index: u8,
         initial_delay: usize,
         print_packets: bool,
+        wireshark_output: bool,
     ) -> Self {
         let samples_per_symbol = std::cmp::max(1, samples_per_symbol);
         let detectors = (0..samples_per_symbol)
@@ -80,6 +85,7 @@ where
             samples_per_symbol,
             initial_delay,
             total_sample_index: 0,
+            wireshark_output,
             slicer: SymbolSlicer::new(threshold, normalize_levels),
             detectors,
             pending_crc_rejects: Vec::new(),
@@ -208,6 +214,9 @@ where
         let n = self.input.slice().len();
 
         if n == 0 {
+            if self.input.finished() {
+                _io.finished = true;
+            }
             return Ok(());
         }
 
@@ -226,6 +235,13 @@ where
                 DetectorEvent::None | DetectorEvent::HeaderRejected => {}
                 DetectorEvent::ValidPacket { packet } => {
                     self.connections.observe_packet(&packet);
+                    if self.wireshark_output {
+                        _mo.post(
+                            "wireshark",
+                            Pmt::Blob(ble_wireshark::packet_to_udp_payload(&packet)),
+                        )
+                        .await?;
+                    }
                     self.suppress_duplicate_crc_rejects();
                     for detector in &mut self.detectors {
                         detector.reset_to_search();
@@ -249,6 +265,9 @@ where
 
     async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         self.flush_all_crc_rejects();
+        if self.wireshark_output {
+            _mo.post("wireshark", Pmt::Finished).await?;
+        }
         self.print_stats();
 
         Ok(())

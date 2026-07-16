@@ -6,6 +6,8 @@ use crate::ble_connection::format_connection_summary;
 use crate::ble_detector::DetectorEvent;
 use crate::ble_detector::DetectorStats;
 use crate::ble_detector::PacketDetector;
+use crate::ble_protocol::BlePacket;
+use crate::ble_wireshark;
 
 const AGC_ALPHA: f32 = 0.25;
 const SQUELCH_TIMEOUT_SAMPLES: usize = 100;
@@ -20,6 +22,7 @@ fn print_diagnostics() -> bool {
 }
 
 #[derive(Block)]
+#[message_outputs(wireshark)]
 pub struct BleIqBurstBlock<I = DefaultCpuReader<Complex32>, O = DefaultCpuWriter<u8>>
 where
     I: CpuBufferReader<Item = Complex32>,
@@ -32,6 +35,7 @@ where
     samples_per_symbol: usize,
     channel_index: u8,
     print_packets: bool,
+    wireshark_output: bool,
     catcher: BurstCatcher,
     stats: BurstStats,
     connections: ConnectionTable,
@@ -42,11 +46,12 @@ where
     I: CpuBufferReader<Item = Complex32>,
     O: CpuBufferWriter<Item = u8>,
 {
-    pub fn with_packet_output(
+    pub fn with_packet_and_wireshark_output(
         samples_per_symbol: usize,
         channel_index: u8,
         squelch_db: f32,
         print_packets: bool,
+        wireshark_output: bool,
     ) -> Self {
         Self {
             input: I::default(),
@@ -54,27 +59,29 @@ where
             samples_per_symbol: samples_per_symbol.max(1),
             channel_index,
             print_packets,
+            wireshark_output,
             catcher: BurstCatcher::new(squelch_db),
             stats: BurstStats::default(),
             connections: ConnectionTable::default(),
         }
     }
 
-    fn process_burst(&mut self, burst: Vec<Complex32>) {
+    fn process_burst(&mut self, burst: Vec<Complex32>) -> Vec<BlePacket> {
         self.stats.bursts += 1;
 
         if burst.len() < MIN_BURST_SAMPLES {
             self.stats.short_bursts += 1;
-            return;
+            return Vec::new();
         }
 
         let Some(demod) = demodulate_burst(&burst, self.samples_per_symbol) else {
             self.stats.fsk_rejects += 1;
-            return;
+            return Vec::new();
         };
 
         let mut burst_stats = DetectorStats::default();
         let mut decoded = false;
+        let mut packets = Vec::new();
 
         for phase in 0..self.samples_per_symbol {
             let mut detector =
@@ -85,6 +92,7 @@ where
                     DetectorEvent::None | DetectorEvent::HeaderRejected => {}
                     DetectorEvent::ValidPacket { packet } => {
                         self.connections.observe_packet(&packet);
+                        packets.push(packet);
                         decoded = true;
                         break;
                     }
@@ -108,6 +116,8 @@ where
         if decoded {
             self.stats.decoded_bursts += 1;
         }
+
+        packets
     }
 
     fn print_stats(&self) {
@@ -152,6 +162,9 @@ where
     ) -> Result<()> {
         let n = self.input.slice().len();
         if n == 0 {
+            if self.input.finished() {
+                _io.finished = true;
+            }
             return Ok(());
         }
 
@@ -168,7 +181,10 @@ where
 
         self.input.consume(n);
         for burst in bursts {
-            self.process_burst(burst);
+            let packets = self.process_burst(burst);
+            if self.wireshark_output {
+                post_wireshark_packets(_mo, &packets).await?;
+            }
         }
 
         if self.input.finished() {
@@ -179,11 +195,29 @@ where
 
     async fn deinit(&mut self, _mo: &mut MessageOutputs, _meta: &mut BlockMeta) -> Result<()> {
         if let Some(burst) = self.catcher.finish() {
-            self.process_burst(burst);
+            let packets = self.process_burst(burst);
+            if self.wireshark_output {
+                post_wireshark_packets(_mo, &packets).await?;
+            }
+        }
+        if self.wireshark_output {
+            _mo.post("wireshark", Pmt::Finished).await?;
         }
         self.print_stats();
         Ok(())
     }
+}
+
+async fn post_wireshark_packets(mo: &mut MessageOutputs, packets: &[BlePacket]) -> Result<()> {
+    for packet in packets {
+        mo.post(
+            "wireshark",
+            Pmt::Blob(ble_wireshark::packet_to_udp_payload(packet)),
+        )
+        .await?;
+    }
+
+    Ok(())
 }
 
 #[derive(Default)]

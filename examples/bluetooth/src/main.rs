@@ -3,6 +3,8 @@ use anyhow::bail;
 use clap::Parser;
 use futuredsp::firdes::remez;
 use futuresdr::blocks::Apply;
+use futuresdr::blocks::BlobToUdp;
+use futuresdr::blocks::FileSource;
 use futuresdr::blocks::FirBuilder;
 use futuresdr::blocks::NullSink;
 use futuresdr::blocks::PfbChannelizer;
@@ -10,9 +12,11 @@ use futuresdr::blocks::VectorSource;
 use futuresdr::blocks::seify::Builder;
 use futuresdr::num_complex::Complex32;
 use futuresdr::prelude::*;
+use futuresdr::runtime::BlockId;
 use futuresdr::runtime::Error as RuntimeError;
 use futuresdr::runtime::dev::DefaultCpuReader;
 use futuresdr::runtime::dev::DefaultCpuWriter;
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -28,6 +32,7 @@ mod ble_protocol;
 mod ble_sim;
 mod ble_slicer;
 mod ble_sync;
+mod ble_wireshark;
 mod gmsk_demod;
 
 #[derive(Parser, Debug)]
@@ -60,9 +65,15 @@ struct Args {
     #[arg(long, default_value_t = false)]
     quiet: bool,
     #[arg(long, default_value_t = false)]
+    wireshark: bool,
+    #[arg(long, default_value = "127.0.0.1:55556")]
+    wireshark_addr: String,
+    #[arg(long, default_value_t = false)]
     simulate: bool,
     #[arg(long, default_value_t = 1)]
     simulate_packets: usize,
+    #[arg(long)]
+    iq_file: Option<PathBuf>,
     #[arg(long)]
     duration: Option<f64>,
 }
@@ -77,6 +88,10 @@ fn main() -> Result<()> {
     let capture_channels = capture_channels(&args, &selected_channels)?;
     let mut sample_rate = args.sample_rate;
 
+    if args.simulate && args.iq_file.is_some() {
+        bail!("--simulate and --iq-file cannot be used together");
+    }
+
     if args.multi_channel && (sample_rate - 2.0e6).abs() < f64::EPSILON {
         let center_frequency = center_frequency_for_channels(&capture_channels)?;
         sample_rate = auto_multi_channel_sample_rate(&capture_channels, center_frequency)?;
@@ -90,6 +105,9 @@ fn main() -> Result<()> {
         if args.simulate {
             bail!("--multi-channel simulation is not implemented yet");
         }
+        if args.iq_file.is_some() {
+            bail!("--multi-channel --iq-file input is not implemented yet");
+        }
         build_multi_channel_flowgraph(
             &mut fg,
             &args,
@@ -102,6 +120,16 @@ fn main() -> Result<()> {
         build_single_channel_flowgraph(&mut fg, &args, sample_rate)?;
     }
 
+    if args.simulate || args.iq_file.is_some() {
+        if args.duration.is_some() {
+            println!("Finite input mode: ignoring --duration and running until input EOF.");
+        }
+        println!("Runtime started.");
+        Runtime::new().run(fg)?;
+        println!("Runtime stopped.");
+        return Ok(());
+    }
+
     let rt = Runtime::new();
     let running = rt.start(fg)?;
     println!("Runtime started.");
@@ -111,34 +139,24 @@ fn main() -> Result<()> {
         let _ = shutdown_tx.send(());
     })?;
 
-    if args.simulate && args.duration.is_none() {
-        Runtime::block_on(async move {
-            match running.wait_async().await {
-                Ok(_) | Err(RuntimeError::FlowgraphTerminated) => {}
-                Err(err) => return Err(err.into()),
-            }
-            Ok::<(), anyhow::Error>(())
-        })?;
+    if let Some(duration) = args.duration {
+        let _ = shutdown_rx.recv_timeout(Duration::from_secs_f64(duration));
     } else {
-        if let Some(duration) = args.duration {
-            let _ = shutdown_rx.recv_timeout(Duration::from_secs_f64(duration));
-        } else {
-            println!("Press Ctrl+C to stop.");
-            shutdown_rx.recv()?;
-        }
-
-        Runtime::block_on(async move {
-            match running.stop().await {
-                Ok(()) | Err(RuntimeError::FlowgraphTerminated) => {}
-                Err(err) => return Err(err.into()),
-            }
-            match running.wait_async().await {
-                Ok(_) | Err(RuntimeError::FlowgraphTerminated) => {}
-                Err(err) => return Err(err.into()),
-            }
-            Ok::<(), anyhow::Error>(())
-        })?;
+        println!("Press Ctrl+C to stop.");
+        shutdown_rx.recv()?;
     }
+
+    Runtime::block_on(async move {
+        match running.stop().await {
+            Ok(()) | Err(RuntimeError::FlowgraphTerminated) => {}
+            Err(err) => return Err(err.into()),
+        }
+        match running.wait_async().await {
+            Ok(_) | Err(RuntimeError::FlowgraphTerminated) => {}
+            Err(err) => return Err(err.into()),
+        }
+        Ok::<(), anyhow::Error>(())
+    })?;
 
     println!("Runtime stopped.");
     Ok(())
@@ -182,11 +200,12 @@ fn build_single_channel_flowgraph(
         let ble_burst = ble_iq_burst::BleIqBurstBlock::<
             DefaultCpuReader<Complex32>,
             DefaultCpuWriter<u8>,
-        >::with_packet_output(
+        >::with_packet_and_wireshark_output(
             samples_per_symbol,
             channel_index,
             args.squelch_db,
             !args.quiet,
+            args.wireshark,
         );
 
         if args.simulate {
@@ -198,6 +217,15 @@ fn build_single_channel_flowgraph(
             );
             let src = VectorSource::<Complex32>::new(simulated_samples);
             connect!(fg, src > gmsk_filter > ble_burst > snk);
+            connect_wireshark(fg, ble_burst, args)?;
+        } else if let Some(iq_file) = &args.iq_file {
+            println!(
+                "File mode: Reading interleaved f32 IQ samples from {}",
+                iq_file.display()
+            );
+            let src = FileSource::<Complex32>::new(iq_file, false);
+            connect!(fg, src > gmsk_filter > ble_burst > snk);
+            connect_wireshark(fg, ble_burst, args)?;
         } else {
             println!("Hardware mode: Deploying Seify source live SDR chain");
             let src = Builder::new(args.args.clone())?
@@ -207,15 +235,17 @@ fn build_single_channel_flowgraph(
                 .antenna(args.antenna.clone())
                 .build_source()?;
             connect!(fg, src.outputs[0] > gmsk_filter > ble_burst > snk);
+            connect_wireshark(fg, ble_burst, args)?;
         }
     } else {
-        let ble_sync = ble_sync::BleSyncBlock::<DefaultCpuReader<f32>, DefaultCpuWriter<u8>>::with_channel_phase_and_packet_output(
+        let ble_sync = ble_sync::BleSyncBlock::<DefaultCpuReader<f32>, DefaultCpuWriter<u8>>::with_channel_phase_packet_and_wireshark_output(
             args.threshold,
             args.normalize_levels,
             samples_per_symbol,
             channel_index,
             0,
             !args.quiet,
+            args.wireshark,
         );
         let discriminator = discriminator_block();
 
@@ -228,6 +258,15 @@ fn build_single_channel_flowgraph(
             );
             let src = VectorSource::<Complex32>::new(simulated_samples);
             connect!(fg, src > gmsk_filter > discriminator > ble_sync > snk);
+            connect_wireshark(fg, ble_sync, args)?;
+        } else if let Some(iq_file) = &args.iq_file {
+            println!(
+                "File mode: Reading interleaved f32 IQ samples from {}",
+                iq_file.display()
+            );
+            let src = FileSource::<Complex32>::new(iq_file, false);
+            connect!(fg, src > gmsk_filter > discriminator > ble_sync > snk);
+            connect_wireshark(fg, ble_sync, args)?;
         } else {
             println!("Hardware mode: Deploying Seify source live SDR chain");
             let src = Builder::new(args.args.clone())?
@@ -237,6 +276,7 @@ fn build_single_channel_flowgraph(
                 .antenna(args.antenna.clone())
                 .build_source()?;
             connect!(fg, src.outputs[0] > gmsk_filter > discriminator > ble_sync > snk);
+            connect_wireshark(fg, ble_sync, args)?;
         }
     }
 
@@ -356,27 +396,48 @@ fn build_multi_channel_flowgraph(
             let ble_burst = fg.add(ble_iq_burst::BleIqBurstBlock::<
                 DefaultCpuReader<Complex32>,
                 DefaultCpuWriter<u8>,
-            >::with_packet_output(
-                samples_per_symbol, channel, args.squelch_db, !args.quiet
+            >::with_packet_and_wireshark_output(
+                samples_per_symbol,
+                channel,
+                args.squelch_db,
+                !args.quiet,
+                args.wireshark,
             ));
             connect!(fg, gmsk_filter > ble_burst > snk);
+            connect_wireshark(fg, ble_burst, args)?;
         } else {
             let ble_sync = fg.add(ble_sync::BleSyncBlock::<
                 DefaultCpuReader<f32>,
                 DefaultCpuWriter<u8>,
-            >::with_channel_phase_and_packet_output(
+            >::with_channel_phase_packet_and_wireshark_output(
                 args.threshold,
                 args.normalize_levels,
                 samples_per_symbol,
                 channel,
                 0,
                 !args.quiet,
+                args.wireshark,
             ));
             let discriminator = fg.add(discriminator_block());
             connect!(fg, gmsk_filter > discriminator > ble_sync > snk);
+            connect_wireshark(fg, ble_sync, args)?;
         }
     }
 
+    Ok(())
+}
+
+fn connect_wireshark(fg: &mut Flowgraph, source: impl Into<BlockId>, args: &Args) -> Result<()> {
+    if !args.wireshark {
+        return Ok(());
+    }
+
+    let udp = fg.add(BlobToUdp::new(&args.wireshark_addr));
+    fg.message(source.into(), "wireshark", udp, "in")?;
+    println!(
+        "Streaming BLE LL packets to Wireshark UDP endpoint {}.",
+        args.wireshark_addr
+    );
     Ok(())
 }
 
