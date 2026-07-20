@@ -20,11 +20,11 @@ struct Args {
     run: usize,
     #[clap(short, long, default_value_t = 6)]
     stages: usize,
-    #[clap(short, long, default_value_t = 5)]
+    #[clap(short, long, default_value_t = 4)]
     pipes: usize,
     #[clap(short = 'n', long, default_value_t = 15000000)]
     samples: usize,
-    #[clap(short, long, default_value_t = 4000000000)]
+    #[clap(short, long, default_value_t = 128)]
     chunk: usize,
     #[clap(short = 'S', long, default_value = "smol1")]
     scheduler: String,
