@@ -170,6 +170,8 @@ where
         let m = cmp::min(i.len(), o.len());
         let m = (m / self.len) * self.len;
         let m = cmp::min(m, self.len * BUFF_FFTS);
+        let has_complete_input = i.len() - m >= self.len;
+        let has_complete_output = o.len() - m >= self.len;
 
         if m > 0 {
             in_tags
@@ -214,7 +216,11 @@ where
             self.output.produce(m);
         }
 
-        if self.input.finished() && m == (m / self.len) * self.len {
+        if has_complete_input && has_complete_output {
+            io.call_again = true;
+        }
+
+        if self.input.finished() && !has_complete_input {
             io.finished = true;
         }
 
