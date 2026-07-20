@@ -1,23 +1,32 @@
 #![recursion_limit = "512"]
 use anyhow::Result;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
-use perf_burn::N_SAMPLES;
+use perf_burn::TimedSink;
 use perf_burn::batch_size_from_args;
+use perf_burn::benchmark_input_samples;
+use perf_burn::benchmark_output_items;
 use perf_burn::cubecl_fft::CubeFft;
+use perf_burn::cubecl_wgpu_buffer::CubeBufferResource;
 use perf_burn::cubecl_wgpu_buffer::CubeWgpuContext;
 use std::collections::VecDeque;
+use std::sync::mpsc;
 use std::time::Duration;
 use std::time::Instant;
 
-type ReadbackFut = cubecl::future::DynFut<anyhow::Result<Vec<u8>>>;
-
 struct PendingRead {
     submitted_at: Instant,
-    fut: ReadbackFut,
+    slot: usize,
+    _output_resource: CubeBufferResource,
+    receiver: mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+}
+
+struct TransferSlot {
+    input_handle: cubecl::server::Handle,
+    input_resource: CubeBufferResource,
+    readback: wgpu::Buffer,
 }
 
 #[derive(Block)]
@@ -27,8 +36,9 @@ struct Fft {
     #[output]
     output: circular::Writer<f32>,
     state: CubeFft,
+    transfers: Vec<TransferSlot>,
+    free_slots: Vec<usize>,
     pending: VecDeque<PendingRead>,
-    next_slot: usize,
     t_upload: Duration,
     t_kernels: Duration,
     t_readback: Duration,
@@ -43,19 +53,43 @@ struct Fft {
 }
 
 impl Fft {
-    fn new(context: CubeWgpuContext, batch_size: usize) -> Self {
+    fn new(context: CubeWgpuContext, batch_size: usize) -> Result<Self> {
         let state = CubeFft::new(context, batch_size);
         let mut input: circular::Reader<Complex32> = Default::default();
         input.set_min_items(batch_size * FFT_SIZE);
         let mut output: circular::Writer<f32> = Default::default();
         output.set_min_items(FFT_SIZE);
+        let input_bytes = batch_size * FFT_SIZE * size_of::<Complex32>();
+        let output_bytes = FFT_SIZE * size_of::<f32>();
+        let mut transfers = Vec::with_capacity(state.in_flight());
+        for _ in 0..state.in_flight() {
+            let input_handle = state.context().client.empty(input_bytes);
+            let input_resource = CubeBufferResource::new(state.context(), input_handle.clone())?;
+            let readback = state
+                .context()
+                .setup
+                .device
+                .create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("cubecl_circular_readback_buffer"),
+                    size: output_bytes as u64,
+                    usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            transfers.push(TransferSlot {
+                input_handle,
+                input_resource,
+                readback,
+            });
+        }
+        let free_slots = (0..state.in_flight()).rev().collect();
 
-        Self {
+        Ok(Self {
             input,
             output,
             state,
+            transfers,
+            free_slots,
             pending: VecDeque::new(),
-            next_slot: 0,
             t_upload: Duration::ZERO,
             t_kernels: Duration::ZERO,
             t_readback: Duration::ZERO,
@@ -67,7 +101,99 @@ impl Fft {
             poll_pending: 0,
             pending_max: 0,
             timing_printed: false,
+        })
+    }
+
+    fn submit_readback(&mut self, slot: usize) -> Result<()> {
+        let transfer = &self.transfers[slot];
+        let output_resource =
+            CubeBufferResource::new(self.state.context(), self.state.output(slot))?;
+        let used_bytes = FFT_SIZE * size_of::<f32>();
+        let mut encoder = self.state.context().setup.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("cubecl_circular_readback_encoder"),
+            },
+        );
+        encoder.copy_buffer_to_buffer(
+            &output_resource.buffer,
+            output_resource.offset,
+            &transfer.readback,
+            0,
+            used_bytes as u64,
+        );
+        self.state
+            .context()
+            .setup
+            .queue
+            .submit(Some(encoder.finish()));
+
+        let slice = transfer.readback.slice(0..used_bytes as u64);
+        let (sender, receiver) = mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            sender.send(result).unwrap()
+        });
+        self.pending.push_back(PendingRead {
+            submitted_at: Instant::now(),
+            slot,
+            _output_resource: output_resource,
+            receiver,
+        });
+        self.pending_max = self.pending_max.max(self.pending.len());
+        Ok(())
+    }
+
+    fn emit_one_pending(&mut self, pending: PendingRead) -> Result<()> {
+        let transfer = &self.transfers[pending.slot];
+        {
+            let mapped = transfer.readback.slice(..).get_mapped_range();
+            let values: &[f32] = bytemuck::cast_slice(&mapped);
+            if self.output.slice().len() < values.len() {
+                anyhow::bail!("not enough circular output space for CubeCL readback");
+            }
+            let t0 = Instant::now();
+            self.output.slice()[..values.len()].copy_from_slice(values);
+            self.t_copy_out += t0.elapsed();
         }
+        transfer.readback.unmap();
+        self.output.produce(FFT_SIZE);
+        self.free_slots.push(pending.slot);
+        Ok(())
+    }
+
+    fn emit_pending(&mut self, wait: bool) -> Result<bool> {
+        if self.pending.is_empty() || self.output.slice().len() < FFT_SIZE {
+            return Ok(false);
+        }
+
+        let pending = if wait {
+            let pending = self.pending.pop_front().unwrap();
+            self.state
+                .context()
+                .setup
+                .device
+                .poll(wgpu::PollType::wait_indefinitely())?;
+            pending.receiver.recv()??;
+            pending
+        } else {
+            self.state
+                .context()
+                .setup
+                .device
+                .poll(wgpu::PollType::Poll)?;
+            let ready = match self.pending.front().unwrap().receiver.try_recv() {
+                Ok(result) => result,
+                Err(mpsc::TryRecvError::Empty) => return Ok(false),
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    anyhow::bail!("CubeCL readback channel disconnected")
+                }
+            };
+            let pending = self.pending.pop_front().unwrap();
+            ready?;
+            pending
+        };
+        self.t_readback_latency += pending.submitted_at.elapsed();
+        self.emit_one_pending(pending)?;
+        Ok(true)
     }
 }
 
@@ -80,12 +206,13 @@ impl Kernel for Fft {
     ) -> Result<()> {
         let need = self.state.batch_size() * FFT_SIZE;
         let mut made_progress = false;
-        while self.pending.len() < self.state.in_flight() {
+        while let Some(slot) = self.free_slots.pop() {
             if self.input.slice().len() < need {
+                self.free_slots.push(slot);
                 break;
             }
 
-            let input_handle = {
+            {
                 let input = self.input.slice();
                 let in_slice = &input[..need];
                 let in_bytes = unsafe {
@@ -95,76 +222,36 @@ impl Kernel for Fft {
                     )
                 };
                 let t0 = Instant::now();
-                let handle = self.state.context().client.create_from_slice(in_bytes);
+                let transfer = &self.transfers[slot];
+                self.state.context().setup.queue.write_buffer(
+                    &transfer.input_resource.buffer,
+                    transfer.input_resource.offset,
+                    in_bytes,
+                );
                 self.t_upload += t0.elapsed();
-                handle
-            };
+            }
 
-            let slot = self.next_slot;
-            self.next_slot = (self.next_slot + 1) % self.state.in_flight();
             let t1 = Instant::now();
-            self.chunks += self.state.process(&input_handle, slot);
+            self.chunks += self.state.process(&self.transfers[slot].input_handle, slot);
             self.t_kernels += t1.elapsed();
 
-            let client = self.state.context().client.clone();
-            let out_handle = self.state.output(slot);
-            let fut: ReadbackFut = Box::pin(async move {
-                let mut values = client
-                    .read_async(vec![out_handle])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-                Ok(values.remove(0).to_vec())
-            });
-            self.pending.push_back(PendingRead {
-                submitted_at: Instant::now(),
-                fut,
-            });
-            self.pending_max = self.pending_max.max(self.pending.len());
+            self.submit_readback(slot)?;
             self.input.consume(need);
             self.batches += 1;
             made_progress = true;
         }
 
-        let must_drain = self.pending.len() == self.state.in_flight()
+        let must_drain = self.free_slots.is_empty()
             || (self.input.finished() && self.input.slice().len() < need);
         if must_drain {
-            let mut ready: Option<(Instant, anyhow::Result<Vec<u8>>)> = None;
-            if let Some(front) = self.pending.front_mut()
-                && self.output.slice().len() >= FFT_SIZE
-            {
-                if let Some(result) = front.fut.as_mut().now_or_never() {
-                    self.poll_ready += 1;
-                    ready = Some((front.submitted_at, result));
-                } else {
-                    self.poll_pending += 1;
-                    let PendingRead { submitted_at, fut } = self.pending.pop_front().unwrap();
-                    self.t_readback_latency += submitted_at.elapsed();
-                    let t2 = Instant::now();
-                    let out_vec = fut.await?;
-                    self.t_readback += t2.elapsed();
-                    let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
-
-                    let t3 = Instant::now();
-                    self.output.slice()[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
-                    self.output.produce(FFT_SIZE);
-                    self.t_copy_out += t3.elapsed();
-                    made_progress = true;
-                }
-            }
-
-            if let Some((submitted_at, result)) = ready {
-                let _ = self.pending.pop_front();
-                self.t_readback_latency += submitted_at.elapsed();
-                let t2 = Instant::now();
-                let out_vec = result?;
-                self.t_readback += t2.elapsed();
-                let out_vals: &[f32] = bytemuck::cast_slice(&out_vec);
-
-                let t3 = Instant::now();
-                self.output.slice()[..FFT_SIZE].copy_from_slice(&out_vals[..FFT_SIZE]);
-                self.output.produce(FFT_SIZE);
-                self.t_copy_out += t3.elapsed();
+            let t2 = Instant::now();
+            let emitted = self.emit_pending(true)?;
+            self.t_readback += t2.elapsed();
+            if emitted {
+                self.poll_ready += 1;
                 made_progress = true;
+            } else if !self.pending.is_empty() {
+                self.poll_pending += 1;
             }
         }
 
@@ -186,7 +273,7 @@ impl Kernel for Fft {
                     }
                 };
                 println!(
-                    "phase_timing,batches={},chunks={},chunk_batches={},in_flight={},submit_upload={:.6}s ({:.1}% of submit),submit_kernels={:.6}s ({:.1}% of submit),host_readback_copy={:.6}s,host_copy_out={:.6}s,poll_ready={},poll_pending={},pending_max={},readback_latency_total={:.6}s,readback_latency_avg_ms={:.3}",
+                    "phase_timing,batches={},chunks={},chunk_batches={},in_flight={},submit_upload={:.6}s ({:.1}% of submit),submit_kernels={:.6}s ({:.1}% of submit),host_readback_wait={:.6}s,host_copy_out={:.6}s,poll_ready={},poll_pending={},pending_max={},readback_latency_total={:.6}s,readback_latency_avg_ms={:.3}",
                     self.batches,
                     self.chunks,
                     self.state.chunk_batches(),
@@ -227,14 +314,46 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
     let context = CubeWgpuContext::new();
     let src = NullSource::<Complex32>::new();
-    let head = Head::<Complex32>::new(N_SAMPLES);
-    let fft = Fft::new(context, batch_size);
-    let snk = NullSink::<f32>::new();
+    let head = Head::<Complex32>::new(benchmark_input_samples(batch_size));
+    let fft = Fft::new(context, batch_size)?;
+    let snk = TimedSink::<DefaultCpuReader<f32>>::new(FFT_SIZE, benchmark_output_items(batch_size));
 
     connect!(fg, src > head > fft; fft > snk);
 
-    let now = Instant::now();
     futuresdr::runtime::Runtime::new().run(fg)?;
-    println!("took {:?}", now.elapsed());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::blocks::VectorSink;
+    use futuresdr::blocks::VectorSource;
+    use perf_burn::test_utils::assert_spectrum_close;
+    use perf_burn::test_utils::nontrivial_input;
+    use perf_burn::test_utils::reference_spectrum;
+
+    #[test]
+    fn spectrum_matches_reference_for_nontrivial_input() -> Result<()> {
+        futuresdr::runtime::init();
+        let batch_size = 2;
+        let spectrum_batches = 10;
+        let input = nontrivial_input(batch_size * spectrum_batches);
+        let expected = input
+            .chunks_exact(batch_size * FFT_SIZE)
+            .flat_map(|batch| reference_spectrum(batch, batch_size))
+            .collect::<Vec<_>>();
+
+        let mut fg = Flowgraph::new();
+        let context = CubeWgpuContext::new();
+        let src = VectorSource::<Complex32>::new(input);
+        let fft = Fft::new(context, batch_size)?;
+        let snk = VectorSink::<f32>::new(FFT_SIZE);
+        connect!(fg, src > fft > snk);
+
+        let fg = Runtime::new().run(fg)?;
+        let actual = fg.with(&snk, |snk| snk.items().clone())?;
+        assert_spectrum_close(&actual, &expected);
+        Ok(())
+    }
 }

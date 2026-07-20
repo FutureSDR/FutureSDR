@@ -2,12 +2,13 @@ use anyhow::Result;
 use futuresdr::blocks::Fft;
 use futuresdr::blocks::FftDirection;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
-use perf_burn::N_SAMPLES;
+use perf_burn::TimedSink;
 use perf_burn::batch_size_from_args;
+use perf_burn::benchmark_input_samples;
+use perf_burn::benchmark_output_items;
 
 #[derive(Block)]
 struct Avg {
@@ -81,17 +82,44 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
 
     let src = NullSource::<Complex32>::new();
-    let head = Head::<Complex32>::new(N_SAMPLES);
+    let head = Head::<Complex32>::new(benchmark_input_samples(batch_size));
     let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
     let avg = Avg::new(batch_size);
-    let snk = NullSink::<f32>::new();
+    let snk = TimedSink::<DefaultCpuReader<f32>>::new(FFT_SIZE, benchmark_output_items(batch_size));
 
     connect!(fg, src > head > fft > avg > snk);
 
-    let now = std::time::Instant::now();
     Runtime::new().run(fg)?;
-    let elapsed = now.elapsed();
-    println!("took {elapsed:?}");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::blocks::VectorSink;
+    use futuresdr::blocks::VectorSource;
+    use perf_burn::test_utils::assert_spectrum_close;
+    use perf_burn::test_utils::nontrivial_input;
+    use perf_burn::test_utils::reference_spectrum;
+
+    #[test]
+    fn spectrum_matches_reference_for_nontrivial_input() -> Result<()> {
+        // More than Fft's internal per-call limit exercises shutdown with queued input.
+        let batch_size = 33;
+        let input = nontrivial_input(batch_size);
+        let expected = reference_spectrum(&input, batch_size);
+
+        let mut fg = Flowgraph::new();
+        let src = VectorSource::<Complex32>::new(input);
+        let fft = Fft::with_options(FFT_SIZE, FftDirection::Forward, true, None);
+        let avg = Avg::new(batch_size);
+        let snk = VectorSink::<f32>::new(FFT_SIZE);
+        connect!(fg, src > fft > avg > snk);
+
+        let fg = Runtime::new().run(fg)?;
+        let actual = fg.with(&snk, |snk| snk.items().clone())?;
+        assert_spectrum_close(&actual, &expected);
+        Ok(())
+    }
 }

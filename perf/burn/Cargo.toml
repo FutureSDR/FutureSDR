@@ -25,5 +25,6 @@ cubecl-runtime = "0.10"
 futuresdr = { path = "../..", default-features = false, features = ["burn", "seify", "wgpu"] }
 futuresdr-burn = { path = "../../examples/burn" }
 ndarray = "0.17"
+rustfft = "6.4"
 tracing = { version = "0.1", features = ["release_max_level_off"] }
 wgpu = "29.0"

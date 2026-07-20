@@ -1,12 +1,13 @@
 #![recursion_limit = "512"]
 use anyhow::Result;
 use futuresdr::blocks::Head;
-use futuresdr::blocks::NullSink;
 use futuresdr::blocks::NullSource;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
-use perf_burn::N_SAMPLES;
+use perf_burn::TimedSink;
 use perf_burn::batch_size_from_args;
+use perf_burn::benchmark_input_samples;
+use perf_burn::benchmark_output_items;
 use perf_burn::cubecl_fft::CubeFft;
 use perf_burn::cubecl_wgpu_buffer;
 use perf_burn::cubecl_wgpu_buffer::CubeBufferResource;
@@ -282,8 +283,9 @@ fn main() -> Result<()> {
     let mut fg = Flowgraph::new();
     let context = cubecl_wgpu_buffer::CubeWgpuContext::new();
     let src = NullSource::<Complex32>::new();
-    let mut head =
-        Head::<Complex32, DefaultCpuReader<Complex32>, H2DWriter<Complex32>>::new(N_SAMPLES);
+    let mut head = Head::<Complex32, DefaultCpuReader<Complex32>, H2DWriter<Complex32>>::new(
+        benchmark_input_samples(batch_size),
+    );
     head.output().set_context(context.clone());
     let chunk_batches = CubeFft::chunk_batches_for(&context, batch_size);
     let in_flight = CubeFft::in_flight_for(batch_size, chunk_batches);
@@ -292,11 +294,46 @@ fn main() -> Result<()> {
 
     let mut fft = Fft::new(context, batch_size)?;
     fft.output().inject_buffers_with_items(in_flight, FFT_SIZE);
-    let snk = NullSink::<f32, D2HReader<f32>>::new();
+    let snk = TimedSink::<D2HReader<f32>>::new(FFT_SIZE, benchmark_output_items(batch_size));
     connect!(fg, src > head > fft > snk);
 
-    let now = Instant::now();
     futuresdr::runtime::Runtime::new().run(fg)?;
-    println!("took {:?}", now.elapsed());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::blocks::VectorSink;
+    use futuresdr::blocks::VectorSource;
+    use perf_burn::test_utils::assert_spectrum_close;
+    use perf_burn::test_utils::nontrivial_input;
+    use perf_burn::test_utils::reference_spectrum;
+
+    #[test]
+    fn spectrum_matches_reference_for_nontrivial_input() -> Result<()> {
+        futuresdr::runtime::init();
+        let batch_size = 2;
+        let input = nontrivial_input(batch_size);
+        let expected = reference_spectrum(&input, batch_size);
+
+        let mut fg = Flowgraph::new();
+        let context = CubeWgpuContext::new();
+        let chunk_batches = CubeFft::chunk_batches_for(&context, batch_size);
+        let in_flight = CubeFft::in_flight_for(batch_size, chunk_batches);
+
+        let mut src = VectorSource::<Complex32, H2DWriter<Complex32>>::new(input);
+        src.output().set_context(context.clone());
+        src.output()
+            .inject_buffers_with_items(in_flight, batch_size * FFT_SIZE);
+        let mut fft = Fft::new(context, batch_size)?;
+        fft.output().inject_buffers_with_items(in_flight, FFT_SIZE);
+        let snk = VectorSink::<f32, D2HReader<f32>>::new(FFT_SIZE);
+        connect!(fg, src > fft > snk);
+
+        let fg = Runtime::new().run(fg)?;
+        let actual = fg.with(&snk, |snk| snk.items().clone())?;
+        assert_spectrum_close(&actual, &expected);
+        Ok(())
+    }
 }

@@ -8,12 +8,12 @@ use futuresdr::blocks::NullSource;
 use futuresdr::runtime::buffer::wgpu as wgpu_buffer;
 use futuresdr::runtime::dev::prelude::*;
 use perf_burn::FFT_SIZE;
-use perf_burn::N_SAMPLES;
+use perf_burn::TimedSink;
+use perf_burn::benchmark_input_samples;
+use perf_burn::benchmark_output_items;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::env;
-use std::time::Instant;
-use wgpu::util::DeviceExt;
 
 const LOG_N: usize = FFT_SIZE.ilog2() as usize;
 const WORKGROUP_SIZE: u32 = 256;
@@ -136,6 +136,7 @@ struct WgpuState {
     output_buffers: Vec<wgpu::Buffer>,
     pending_readbacks: VecDeque<PendingReadback>,
     params_buf: wgpu::Buffer,
+    params_stride: u64,
     bitrev_pipeline: wgpu::ComputePipeline,
     stage_pipeline: wgpu::ComputePipeline,
     reduce_accum_pipeline: wgpu::ComputePipeline,
@@ -258,15 +259,13 @@ impl Fft {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        let params_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let params_stride = u64::from(device.limits().min_uniform_buffer_offset_alignment)
+            .max(size_of::<RunParams>() as u64);
+        let params_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("fft_params"),
-            contents: cast_slice(&[RunParams {
-                stage: 0,
-                active_batches: 0,
-                total_batches: batch_size as u32,
-                _pad0: 0,
-            }]),
+            size: params_stride * (LOG_N as u64 + 1),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
         let output_buffers = (0..READBACK_SLOTS)
             .map(|i| {
@@ -446,8 +445,8 @@ fn finalize_shift_log(
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                        has_dynamic_offset: true,
+                        min_binding_size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
                     },
                     count: None,
                 },
@@ -531,7 +530,11 @@ fn finalize_shift_log(
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: params_buf.as_entire_binding(),
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &params_buf,
+                                offset: 0,
+                                size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                            }),
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
@@ -560,7 +563,11 @@ fn finalize_shift_log(
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: params_buf.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &params_buf,
+                        offset: 0,
+                        size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -586,7 +593,11 @@ fn finalize_shift_log(
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: params_buf.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &params_buf,
+                        offset: 0,
+                        size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -613,7 +624,11 @@ fn finalize_shift_log(
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: params_buf.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &params_buf,
+                        offset: 0,
+                        size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -639,7 +654,11 @@ fn finalize_shift_log(
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: params_buf.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &params_buf,
+                        offset: 0,
+                        size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -665,7 +684,11 @@ fn finalize_shift_log(
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: params_buf.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &params_buf,
+                        offset: 0,
+                        size: std::num::NonZeroU64::new(size_of::<RunParams>() as u64),
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -694,6 +717,7 @@ fn finalize_shift_log(
             output_buffers,
             pending_readbacks: VecDeque::new(),
             params_buf,
+            params_stride,
             bitrev_pipeline,
             stage_pipeline,
             reduce_accum_pipeline,
@@ -711,17 +735,26 @@ fn finalize_shift_log(
 }
 
 impl WgpuState {
-    fn write_params(&self, stage: u32, active_batches: usize, total_batches: usize) {
-        self.queue.write_buffer(
-            &self.params_buf,
-            0,
-            cast_slice(&[RunParams {
+    fn write_params(&self, active_batches: usize, total_batches: usize) {
+        let mut data = vec![0; (self.params_stride * (LOG_N as u64 + 1)) as usize];
+        for stage in 0..=LOG_N as u32 {
+            let params = RunParams {
                 stage,
                 active_batches: active_batches as u32,
                 total_batches: total_batches as u32,
                 _pad0: 0,
-            }]),
-        );
+            };
+            let start = (u64::from(stage) * self.params_stride) as usize;
+            let bytes = bytemuck::bytes_of(&params);
+            data[start..start + bytes.len()].copy_from_slice(bytes);
+        }
+        self.queue.write_buffer(&self.params_buf, 0, &data);
+    }
+
+    fn params_offset(&self, stage: u32) -> u32 {
+        (u64::from(stage) * self.params_stride)
+            .try_into()
+            .expect("uniform parameter offset fits in u32")
     }
 }
 
@@ -879,20 +912,19 @@ impl Kernel for Fft {
                             });
                     state.queue.write_buffer(in_buf, 0, cast_slice(input_chunk));
 
-                    state.write_params(0, active_batches, total_batches);
+                    state.write_params(active_batches, total_batches);
                     {
                         let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                             label: Some("fft_bitrev_pass"),
                             timestamp_writes: None,
                         });
                         cpass.set_pipeline(&state.bitrev_pipeline);
-                        cpass.set_bind_group(0, bitrev_bg, &[]);
+                        cpass.set_bind_group(0, bitrev_bg, &[state.params_offset(0)]);
                         cpass.dispatch_workgroups(fft_dispatch_x, fft_dispatch_y, 1);
                     }
 
                     let mut src_is_ping = true;
                     for stage in 1..=LOG_N as u32 {
-                        state.write_params(stage, active_batches, total_batches);
                         let bind_group = if src_is_ping {
                             &state.stage_bg_ping_to_pong
                         } else {
@@ -905,13 +937,12 @@ impl Kernel for Fft {
                                     timestamp_writes: None,
                                 });
                             cpass.set_pipeline(&state.stage_pipeline);
-                            cpass.set_bind_group(0, bind_group, &[]);
+                            cpass.set_bind_group(0, bind_group, &[state.params_offset(stage)]);
                             cpass.dispatch_workgroups(fft_dispatch_x, fft_dispatch_y, 1);
                         }
                         src_is_ping = !src_is_ping;
                     }
 
-                    state.write_params(0, active_batches, total_batches);
                     {
                         let reduce_bg = if src_is_ping {
                             &state.reduce_bg_ping
@@ -923,7 +954,7 @@ impl Kernel for Fft {
                             timestamp_writes: None,
                         });
                         cpass.set_pipeline(&state.reduce_accum_pipeline);
-                        cpass.set_bind_group(0, reduce_bg, &[]);
+                        cpass.set_bind_group(0, reduce_bg, &[state.params_offset(0)]);
                         cpass.dispatch_workgroups(state.mag_dispatch_x, state.mag_dispatch_y, 1);
                     }
 
@@ -936,14 +967,14 @@ impl Kernel for Fft {
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some("fft_finalize_encoder"),
                         });
-                state.write_params(0, 0, total_batches);
+                state.write_params(0, total_batches);
                 {
                     let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                         label: Some("fft_finalize_pass"),
                         timestamp_writes: None,
                     });
                     cpass.set_pipeline(&state.finalize_pipeline);
-                    cpass.set_bind_group(0, &state.finalize_bg, &[]);
+                    cpass.set_bind_group(0, &state.finalize_bg, &[state.params_offset(0)]);
                     cpass.dispatch_workgroups(state.mag_dispatch_x, state.mag_dispatch_y, 1);
                 }
                 encoder.copy_buffer_to_buffer(&state.mag_buf, 0, &out_buf, 0, mag_bytes);
@@ -1005,50 +1036,6 @@ impl Kernel for Fft {
     }
 }
 
-#[derive(Block)]
-struct TimeIt {
-    start: Option<Instant>,
-    #[input]
-    input: circular::Reader<f32>,
-}
-
-impl TimeIt {
-    fn new() -> Self {
-        Self {
-            start: None,
-            input: Default::default(),
-        }
-    }
-}
-
-impl Kernel for TimeIt {
-    async fn work(
-        &mut self,
-        io: &mut WorkIo,
-        _mo: &mut MessageOutputs,
-        _b: &BlockMeta,
-    ) -> Result<()> {
-        let n = self.input.slice().len();
-        if n > 0 {
-            if self.start.is_none() {
-                self.start = Some(Instant::now());
-            }
-            self.input.consume(n);
-        }
-
-        if self.input.finished() {
-            let elapsed = self
-                .start
-                .map(|s| s.elapsed())
-                .unwrap_or(std::time::Duration::ZERO);
-            println!("took {:?}", elapsed);
-            io.finished = true;
-        }
-
-        Ok(())
-    }
-}
-
 fn main() -> Result<()> {
     let args = Args::parse()?;
     futuresdr::runtime::init();
@@ -1056,17 +1043,53 @@ fn main() -> Result<()> {
     let instance = futuresdr::runtime::block_on(wgpu_buffer::Instance::new());
 
     let src = NullSource::<Complex32>::new();
-    let mut head = Head::<Complex32>::new(N_SAMPLES);
+    let mut head = Head::<Complex32>::new(benchmark_input_samples(args.batch_size));
     head.output()
         .set_min_buffer_size_in_items(args.batch_size * FFT_SIZE);
 
     let mut fft = Fft::new(instance, args)?;
     fft.output().set_min_buffer_size_in_items(FFT_SIZE);
 
-    let snk = TimeIt::new();
+    let snk =
+        TimedSink::<DefaultCpuReader<f32>>::new(FFT_SIZE, benchmark_output_items(args.batch_size));
 
     connect!(fg, src > head > fft > snk);
 
     Runtime::new().run(fg)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futuresdr::blocks::VectorSink;
+    use futuresdr::blocks::VectorSource;
+    use perf_burn::test_utils::assert_spectrum_close;
+    use perf_burn::test_utils::nontrivial_input;
+    use perf_burn::test_utils::reference_spectrum;
+
+    #[test]
+    fn spectrum_matches_reference_for_nontrivial_input() -> Result<()> {
+        futuresdr::runtime::init();
+        let batch_size = 2;
+        let input = nontrivial_input(batch_size);
+        let expected = reference_spectrum(&input, batch_size);
+
+        let mut fg = Flowgraph::new();
+        let instance = futuresdr::runtime::block_on(wgpu_buffer::Instance::new());
+        let src = VectorSource::<Complex32>::new(input);
+        let args = Args {
+            batch_size,
+            ..Default::default()
+        };
+        let mut fft = Fft::new(instance, args)?;
+        fft.output().set_min_buffer_size_in_items(FFT_SIZE);
+        let snk = VectorSink::<f32>::new(FFT_SIZE);
+        connect!(fg, src > fft > snk);
+
+        let fg = Runtime::new().run(fg)?;
+        let actual = fg.with(&snk, |snk| snk.items().clone())?;
+        assert_spectrum_close(&actual, &expected);
+        Ok(())
+    }
 }
