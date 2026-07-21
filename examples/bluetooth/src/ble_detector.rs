@@ -9,9 +9,7 @@ const PDU_OFFSET_COUNT: usize = PDU_OFFSET_RADIUS_BITS * 2 + 1;
 const BLE_MAX_PDU_CRC_BITS: usize = (2 + ble_protocol::BLE_MAX_ADV_PAYLOAD_LEN + BLE_CRC_LEN) * 8;
 const BLE_CAPTURE_WINDOW_BITS: usize = BLE_MAX_PDU_CRC_BITS + PDU_OFFSET_RADIUS_BITS * 2;
 
-fn print_diagnostics() -> bool {
-    cfg!(debug_assertions)
-}
+use crate::diagnostics;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PacketState {
@@ -113,7 +111,7 @@ impl PacketDetector {
 
         if diff_normal <= MAX_HAMMING_DISTANCE {
             self.aa_candidates += 1;
-            if print_diagnostics() {
+            if self.print_packets && diagnostics::enabled() {
                 println!(
                     "BLE access address caught: phase={} aa=0x{:08X} hamming={}",
                     self.phase,
@@ -124,7 +122,7 @@ impl PacketDetector {
             self.start_packet_recovery(false);
         } else if diff_invert <= MAX_HAMMING_DISTANCE {
             self.aa_candidates += 1;
-            if print_diagnostics() {
+            if self.print_packets && diagnostics::enabled() {
                 println!(
                     "BLE access address caught with inverted phase: phase={} aa=0x{:08X} hamming={}",
                     self.phase,
@@ -149,7 +147,7 @@ impl PacketDetector {
             CandidateWindowResult::NeedMoreBits => DetectorEvent::None,
             CandidateWindowResult::HeaderRejected => {
                 self.header_rejects += 1;
-                if print_diagnostics() {
+                if self.print_packets && diagnostics::enabled() {
                     println!(
                         "BLE header rejected: phase={} no plausible offset",
                         self.phase
@@ -193,7 +191,7 @@ impl PacketDetector {
             let whitened_pdu_crc = bits_to_bytes(&self.candidate_bits[offset..needed_bits]);
             match ble_protocol::parse_advertising_pdu(self.channel_index, &whitened_pdu_crc) {
                 Ok(packet) => {
-                    if self.print_packets && print_diagnostics() {
+                    if self.print_packets && diagnostics::enabled() {
                         let relative_offset = offset as isize - PDU_OFFSET_RADIUS_BITS as isize;
                         println!(
                             "BLE packet: phase={} offset={} {}",
@@ -290,6 +288,15 @@ pub(crate) struct DetectorStats {
 }
 
 impl DetectorStats {
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.aa_candidates += other.aa_candidates;
+        self.header_rejects += other.header_rejects;
+        self.packets += other.packets;
+        self.crc_rejects += other.crc_rejects;
+        self.duplicate_crc_rejects += other.duplicate_crc_rejects;
+        self.connect_ind_packets += other.connect_ind_packets;
+    }
+
     pub(crate) fn pdu_attempts(&self) -> u64 {
         self.packets + self.crc_rejects
     }
@@ -302,8 +309,8 @@ impl DetectorStats {
         }
     }
 
-    pub(crate) fn crc_reject_rate(&self) -> f64 {
-        percentage(self.crc_rejects, self.pdu_attempts())
+    pub(crate) fn crc_pass_rate(&self) -> f64 {
+        percentage(self.packets, self.pdu_attempts())
     }
 
     pub(crate) fn raw_crc_rejects(&self) -> u64 {
@@ -325,7 +332,7 @@ mod tests {
     use super::bits_to_bytes;
 
     #[test]
-    fn stats_report_reject_rates() {
+    fn stats_report_crc_rates() {
         let stats = DetectorStats {
             aa_candidates: 10,
             header_rejects: 2,
@@ -337,7 +344,7 @@ mod tests {
 
         assert_eq!(stats.pdu_attempts(), 8);
         assert_eq!(stats.aa_per_packet(), 2.5);
-        assert_eq!(stats.crc_reject_rate(), 50.0);
+        assert_eq!(stats.crc_pass_rate(), 50.0);
         assert_eq!(stats.raw_crc_rejects(), 6);
     }
 

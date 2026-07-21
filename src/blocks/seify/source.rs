@@ -37,7 +37,7 @@ use crate::runtime::dev::prelude::*;
 ///
 /// # Message Outputs
 ///
-/// No message outputs.
+/// `overflow`: `Pmt::U64` cumulative receive overflow count after each overflow.
 ///
 /// # Usage
 /// ```ignore
@@ -52,6 +52,7 @@ use crate::runtime::dev::prelude::*;
 #[derive(Block)]
 #[blocking]
 #[message_inputs(freq, gain, sample_rate, cmd, terminate, config, overflows)]
+#[message_outputs(overflow)]
 #[type_name(SeifySource)]
 pub struct Source<D, OUT = DefaultCpuWriter<Complex32>>
 where
@@ -225,7 +226,7 @@ where
     async fn work(
         &mut self,
         io: &mut WorkIo,
-        _mo: &mut MessageOutputs,
+        mo: &mut MessageOutputs,
         _meta: &mut BlockMeta,
     ) -> Result<()> {
         let mut bufs: Vec<&mut [Complex32]> = self.outputs.iter_mut().map(|b| b.slice()).collect();
@@ -244,6 +245,7 @@ where
             Err(seify::Error::Overflow) => {
                 self.overflows += 1;
                 warn!("Seify Source Overflow");
+                mo.post("overflow", Pmt::U64(self.overflows)).await?;
             }
             Err(e) => {
                 error!("Seify Source Error: {:?}", e);

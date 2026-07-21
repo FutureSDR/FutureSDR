@@ -6,6 +6,7 @@ pub use crate::ble_ad::parse_ad_structures;
 pub use crate::ble_phy::BLE_ACCESS_ADDRESS;
 pub use crate::ble_phy::BLE_ADV_CRC_INIT;
 pub use crate::ble_phy::BLE_MAX_ADV_PAYLOAD_LEN;
+pub use crate::ble_phy::BlePhy;
 pub use crate::ble_phy::apply_whitening;
 pub use crate::ble_phy::crc24_ble;
 pub use crate::ble_phy::frequency_hz_from_channel_index;
@@ -60,14 +61,15 @@ impl fmt::Display for BleAdvPduType {
 pub struct BlePacket {
     pub access_address: u32,
     pub channel_index: u8,
+    pub phy: BlePhy,
     pub pdu_type: BleAdvPduType,
+    pub channel_selection_2: bool,
     pub tx_add: bool,
     pub rx_add: bool,
     pub payload_len: usize,
     pub payload: Vec<u8>,
     pub pdu: Vec<u8>,
     pub crc: u32,
-    pub crc_valid: bool,
 }
 
 impl BlePacket {
@@ -243,13 +245,25 @@ pub enum BleExtAdvPhy {
     Reserved(u8),
 }
 
+impl BleExtAdvPhy {
+    pub fn as_ble_phy(self) -> Option<BlePhy> {
+        match self {
+            Self::Le1M => Some(BlePhy::Le1M),
+            Self::Le2M => Some(BlePhy::Le2M),
+            Self::LeCoded => Some(BlePhy::LeCoded),
+            Self::Reserved(_) => None,
+        }
+    }
+}
+
 impl fmt::Display for BleExtAdvPhy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(phy) = self.as_ble_phy() {
+            return f.write_str(phy.short_name());
+        }
         match self {
-            Self::Le1M => write!(f, "1M"),
-            Self::Le2M => write!(f, "2M"),
-            Self::LeCoded => write!(f, "coded"),
             Self::Reserved(x) => write!(f, "reserved({x})"),
+            _ => unreachable!(),
         }
     }
 }
@@ -415,14 +429,15 @@ pub fn parse_advertising_pdu(
     Ok(BlePacket {
         access_address: BLE_ACCESS_ADDRESS,
         channel_index,
+        phy: BlePhy::Le1M,
         pdu_type: BleAdvPduType::from_header(pdu[0]),
+        channel_selection_2: pdu[0] & 0x20 != 0,
         tx_add: pdu[0] & 0x40 != 0,
         rx_add: pdu[0] & 0x80 != 0,
         payload_len,
         payload: pdu[2..].to_vec(),
         pdu,
         crc: received_crc,
-        crc_valid: true,
     })
 }
 
@@ -436,8 +451,9 @@ pub fn format_addr(addr: &[u8; 6]) -> String {
 pub fn format_packet_summary(packet: &BlePacket) -> String {
     let mut fields = vec![
         format!("ch={}", packet.channel_index),
-        format!("type={}", packet.pdu_type),
-        format!("len={}", packet.payload_len),
+        format!("phy={}", packet.phy.short_name()),
+        format!("pdu={}", packet.pdu_type),
+        format!("payload_len={}", packet.payload_len),
     ];
 
     append_address_fields(packet, &mut fields);
@@ -457,6 +473,10 @@ pub fn format_packet_summary(packet: &BlePacket) -> String {
     }
 
     if let Some(conn) = packet.connection_request() {
+        fields.push(format!(
+            "csa={}",
+            if packet.channel_selection_2 { 2 } else { 1 }
+        ));
         fields.push(format!("conn=[{}]", format_connection_request(&conn)));
     }
 
@@ -470,45 +490,65 @@ fn append_address_fields(packet: &BlePacket, fields: &mut Vec<String>) {
         | BleAdvPduType::ScanRsp
         | BleAdvPduType::AdvScanInd => {
             if let Some(addr) = packet.advertiser_address() {
-                fields.push(format!("adv_a={}", format_addr(&addr)));
+                fields.push(format!("adv_a={}", format_typed_addr(&addr, packet.tx_add)));
             }
         }
         BleAdvPduType::AdvDirectInd => {
             if let Some(addr) = packet.advertiser_address() {
-                fields.push(format!("adv_a={}", format_addr(&addr)));
+                fields.push(format!("adv_a={}", format_typed_addr(&addr, packet.tx_add)));
             }
             if let Some(addr) = packet.target_address() {
-                fields.push(format!("target_a={}", format_addr(&addr)));
+                fields.push(format!(
+                    "target_a={}",
+                    format_typed_addr(&addr, packet.rx_add)
+                ));
             }
         }
         BleAdvPduType::ScanReq => {
             if let Some(addr) = packet.scanner_address() {
-                fields.push(format!("scan_a={}", format_addr(&addr)));
+                fields.push(format!(
+                    "scan_a={}",
+                    format_typed_addr(&addr, packet.tx_add)
+                ));
             }
             if let Some(addr) = packet.advertiser_address() {
-                fields.push(format!("adv_a={}", format_addr(&addr)));
+                fields.push(format!("adv_a={}", format_typed_addr(&addr, packet.rx_add)));
             }
         }
         BleAdvPduType::ConnectInd => {
             if let Some(addr) = packet.initiator_address() {
-                fields.push(format!("init_a={}", format_addr(&addr)));
+                fields.push(format!(
+                    "init_a={}",
+                    format_typed_addr(&addr, packet.tx_add)
+                ));
             }
             if let Some(addr) = packet.advertiser_address() {
-                fields.push(format!("adv_a={}", format_addr(&addr)));
+                fields.push(format!("adv_a={}", format_typed_addr(&addr, packet.rx_add)));
             }
         }
         BleAdvPduType::AdvExtInd => {
             if let Some(ext_header) = packet.extended_advertising_header() {
                 if let Some(addr) = ext_header.adv_a {
-                    fields.push(format!("adv_a={}", format_addr(&addr)));
+                    fields.push(format!("adv_a={}", format_typed_addr(&addr, packet.tx_add)));
                 }
                 if let Some(addr) = ext_header.target_a {
-                    fields.push(format!("target_a={}", format_addr(&addr)));
+                    fields.push(format!(
+                        "target_a={}",
+                        format_typed_addr(&addr, packet.rx_add)
+                    ));
                 }
             }
         }
         BleAdvPduType::Reserved(_) => {}
     }
+}
+
+fn format_typed_addr(addr: &[u8; 6], random: bool) -> String {
+    format!(
+        "{}({})",
+        format_addr(addr),
+        if random { "random" } else { "public" }
+    )
 }
 
 fn format_ext_adv_header(header: &BleExtAdvHeader) -> String {
@@ -629,7 +669,6 @@ mod tests {
         assert_eq!(packet.payload_len, 9);
         assert_eq!(packet.advertiser_address(), Some(adv_a));
         assert_eq!(packet.payload[6..], adv_data);
-        assert!(packet.crc_valid);
     }
 
     #[test]
@@ -641,7 +680,7 @@ mod tests {
 
         assert_eq!(
             format_packet_summary(&packet),
-            "ch=37 type=ADV_IND len=15 adv_a=66:55:44:33:22:11 ad=[flags=0x06, name=\"FSDR\"]"
+            "ch=37 phy=1M pdu=ADV_IND payload_len=15 adv_a=66:55:44:33:22:11(public) ad=[flags=0x06, name=\"FSDR\"]"
         );
     }
 
@@ -656,7 +695,7 @@ mod tests {
         assert_eq!(packet.advertiser_address(), Some(adv_a));
         assert_eq!(
             format_packet_summary(&packet),
-            "ch=37 type=SCAN_REQ len=12 scan_a=FF:EE:DD:CC:BB:AA adv_a=66:55:44:33:22:11"
+            "ch=37 phy=1M pdu=SCAN_REQ payload_len=12 scan_a=FF:EE:DD:CC:BB:AA(public) adv_a=66:55:44:33:22:11(public)"
         );
     }
 
@@ -685,12 +724,12 @@ mod tests {
             adv_a[0], adv_a[1], adv_a[2], adv_a[3], adv_a[4], adv_a[5], aux_ptr[0], aux_ptr[1],
             aux_ptr[2], 0xf8,
         ];
-        let whitened = build_raw_pdu_crc(37, BleAdvPduType::AdvExtInd, &payload);
+        let whitened = build_raw_pdu_crc(37, BleAdvPduType::AdvExtInd, 0, &payload);
         let packet = parse_advertising_pdu(37, &whitened).unwrap();
 
         assert_eq!(
             format_packet_summary(&packet),
-            "ch=37 type=ADV_EXT_IND len=12 adv_a=FF:EE:DD:CC:BB:AA ext=[mode=nonconn_nonscan aux_ch=5 aux_offset=3000us aux_phy=1M tx_power=-8dBm]"
+            "ch=37 phy=1M pdu=ADV_EXT_IND payload_len=12 adv_a=FF:EE:DD:CC:BB:AA(public) ext=[mode=nonconn_nonscan aux_ch=5 aux_offset=3000us aux_phy=1M tx_power=-8dBm]"
         );
     }
 
@@ -711,20 +750,26 @@ mod tests {
         payload.extend_from_slice(&[0xff, 0xff, 0xff, 0xff, 0x1f]);
         payload.push((3 << 5) | 12);
 
-        let whitened = build_raw_pdu_crc(37, BleAdvPduType::ConnectInd, &payload);
+        let whitened = build_raw_pdu_crc(37, BleAdvPduType::ConnectInd, 0x20, &payload);
         let packet = parse_advertising_pdu(37, &whitened).unwrap();
         let conn = packet.connection_request().unwrap();
 
         assert_eq!(conn.access_address, 0xa1b2c3d4);
         assert_eq!(conn.crc_init, 0x123456);
         assert_eq!(conn.used_channel_count(), 37);
+        assert!(packet.channel_selection_2);
         assert_eq!(
             format_packet_summary(&packet),
-            "ch=37 type=CONNECT_IND len=34 init_a=FF:EE:DD:CC:BB:AA adv_a=66:55:44:33:22:11 conn=[aa=0xA1B2C3D4 crc_init=0x123456 win=2.50ms offset=5.00ms interval=30.00ms latency=0 timeout=2000ms hop=12 sca=3 channels=37]"
+            "ch=37 phy=1M pdu=CONNECT_IND payload_len=34 init_a=FF:EE:DD:CC:BB:AA(public) adv_a=66:55:44:33:22:11(public) csa=2 conn=[aa=0xA1B2C3D4 crc_init=0x123456 win=2.50ms offset=5.00ms interval=30.00ms latency=0 timeout=2000ms hop=12 sca=3 channels=37]"
         );
     }
 
-    fn build_raw_pdu_crc(channel_index: u8, pdu_type: BleAdvPduType, payload: &[u8]) -> Vec<u8> {
+    fn build_raw_pdu_crc(
+        channel_index: u8,
+        pdu_type: BleAdvPduType,
+        header_flags: u8,
+        payload: &[u8],
+    ) -> Vec<u8> {
         let pdu_type = match pdu_type {
             BleAdvPduType::AdvInd => 0,
             BleAdvPduType::AdvDirectInd => 1,
@@ -737,7 +782,7 @@ mod tests {
             BleAdvPduType::Reserved(x) => x,
         };
 
-        let mut pdu = vec![pdu_type, payload.len() as u8];
+        let mut pdu = vec![pdu_type | header_flags, payload.len() as u8];
         pdu.extend_from_slice(payload);
         let crc = crc24_ble(&pdu, BLE_ADV_CRC_INIT);
         pdu.push((crc & 0xff) as u8);

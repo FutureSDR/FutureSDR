@@ -1,9 +1,46 @@
+use std::fmt;
+
 use crate::ble_protocol::BleAdvPduType;
 use crate::ble_protocol::BleParseError;
 
 pub const BLE_ACCESS_ADDRESS: u32 = 0x8E89_BED6;
 pub const BLE_ADV_CRC_INIT: u32 = 0x55_55_55;
 pub const BLE_MAX_ADV_PAYLOAD_LEN: usize = 37;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum BlePhy {
+    #[default]
+    Le1M,
+    Le2M,
+    LeCoded,
+}
+
+impl BlePhy {
+    pub const fn symbol_rate_hz(self) -> f64 {
+        match self {
+            Self::Le1M | Self::LeCoded => 1.0e6,
+            Self::Le2M => 2.0e6,
+        }
+    }
+
+    pub const fn short_name(self) -> &'static str {
+        match self {
+            Self::Le1M => "1M",
+            Self::Le2M => "2M",
+            Self::LeCoded => "coded",
+        }
+    }
+}
+
+impl fmt::Display for BlePhy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Le1M => write!(f, "LE 1M"),
+            Self::Le2M => write!(f, "LE 2M"),
+            Self::LeCoded => write!(f, "LE Coded"),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct WhiteningState {
@@ -208,5 +245,12 @@ mod tests {
             frequency_hz_from_channel_index(40),
             Err(BleParseError::InvalidChannel(40))
         ));
+    }
+
+    #[test]
+    fn reports_phy_symbol_rates() {
+        assert_eq!(BlePhy::Le1M.symbol_rate_hz(), 1.0e6);
+        assert_eq!(BlePhy::Le2M.symbol_rate_hz(), 2.0e6);
+        assert_eq!(BlePhy::LeCoded.symbol_rate_hz(), 1.0e6);
     }
 }

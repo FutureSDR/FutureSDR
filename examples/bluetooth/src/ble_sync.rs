@@ -1,7 +1,9 @@
 use futuresdr::runtime::dev::prelude::*;
 
-use crate::ble_connection::ConnectionTable;
+use crate::ble_connection::SharedConnectionTable;
 use crate::ble_connection::format_connection_summary;
+use crate::ble_connection_follower::format_planned_events;
+use crate::ble_connection_report::format_tracking_summary;
 use crate::ble_detector::DetectorEvent;
 use crate::ble_detector::DetectorStats;
 use crate::ble_detector::PacketDetector;
@@ -10,9 +12,7 @@ use crate::ble_wireshark;
 
 const CRC_REJECT_GUARD_SYMBOLS: usize = 512;
 
-fn print_diagnostics() -> bool {
-    cfg!(debug_assertions)
-}
+use crate::diagnostics;
 
 struct PendingReject {
     sample_index: usize,
@@ -31,14 +31,16 @@ where
     input: I,
     #[output]
     output: O,
+    channel_index: u8,
     samples_per_symbol: usize,
     initial_delay: usize,
     total_sample_index: usize,
+    print_packets: bool,
     wireshark_output: bool,
     slicer: SymbolSlicer,
     detectors: Vec<PacketDetector>,
     pending_crc_rejects: Vec<PendingReject>,
-    connections: ConnectionTable,
+    connections: SharedConnectionTable,
 }
 
 impl<I, O> BleSyncBlock<I, O>
@@ -48,15 +50,11 @@ where
 {
     #[cfg(test)]
     fn with_channel_and_phase(
-        threshold: f32,
-        normalize_levels: bool,
         samples_per_symbol: usize,
         channel_index: u8,
         initial_delay: usize,
     ) -> Self {
         Self::with_channel_phase_packet_and_wireshark_output(
-            threshold,
-            normalize_levels,
             samples_per_symbol,
             channel_index,
             initial_delay,
@@ -66,8 +64,6 @@ where
     }
 
     pub fn with_channel_phase_packet_and_wireshark_output(
-        threshold: f32,
-        normalize_levels: bool,
         samples_per_symbol: usize,
         channel_index: u8,
         initial_delay: usize,
@@ -82,15 +78,22 @@ where
         Self {
             input: I::default(),
             output: O::default(),
+            channel_index,
             samples_per_symbol,
             initial_delay,
             total_sample_index: 0,
+            print_packets,
             wireshark_output,
-            slicer: SymbolSlicer::new(threshold, normalize_levels),
+            slicer: SymbolSlicer::new(),
             detectors,
             pending_crc_rejects: Vec::new(),
-            connections: ConnectionTable::default(),
+            connections: SharedConnectionTable::default(),
         }
+    }
+
+    pub(crate) fn with_connections(mut self, connections: SharedConnectionTable) -> Self {
+        self.connections = connections;
+        self
     }
 
     fn aggregate_stats(&self) -> DetectorStats {
@@ -100,25 +103,46 @@ where
     fn print_stats(&self) {
         let stats = self.aggregate_stats();
         println!(
-            "BLE stats: packets={} connect_ind={} connections={} aa_candidates={} aa_per_packet={:.2} header_rejects={} pdu_attempts={} crc_rejects={} duplicate_crc_rejects={} raw_crc_rejects={} crc_reject_rate={:.1}%",
+            "BLE summary: ch={} mode=continuous packets={} connect_ind={} crc_passes={} crc_checks={} crc_pass_rate={:.1}%",
+            self.channel_index,
             stats.packets,
             stats.connect_ind_packets,
-            self.connections.len(),
-            stats.aa_candidates,
-            stats.aa_per_packet(),
-            stats.header_rejects,
+            stats.packets,
             stats.pdu_attempts(),
-            stats.crc_rejects,
-            stats.duplicate_crc_rejects,
-            stats.raw_crc_rejects(),
-            stats.crc_reject_rate()
+            stats.crc_pass_rate()
         );
-        for connection in self.connections.iter() {
+        if self.print_packets && diagnostics::enabled() {
             println!(
-                "BLE connection: ch={} {}",
-                connection.last_channel,
-                format_connection_summary(connection)
+                "BLE detector diagnostics: ch={} aa_candidates={} aa_per_packet={:.2} header_rejects={} duplicate_crc_rejects={} raw_crc_rejects={}",
+                self.channel_index,
+                stats.aa_candidates,
+                stats.aa_per_packet(),
+                stats.header_rejects,
+                stats.duplicate_crc_rejects,
+                stats.raw_crc_rejects(),
             );
+        }
+        if self.connections.finish_reporter() {
+            if self.print_packets && diagnostics::enabled() {
+                for connection in self.connections.snapshot() {
+                    println!(
+                        "BLE connection: ch={} {}",
+                        connection.first_channel,
+                        format_connection_summary(&connection)
+                    );
+                }
+                for plan in self.connections.follow_plans(8) {
+                    println!(
+                        "BLE follow plan: aa=0x{:08X} next_events=[{}]",
+                        plan.access_address,
+                        format_planned_events(&plan.events)
+                    );
+                }
+            }
+            let summary = self.connections.tracking_summary();
+            if summary.connect_ind_seen > 0 {
+                println!("BLE tracking summary: {}", format_tracking_summary(summary));
+            }
         }
     }
 
@@ -187,7 +211,7 @@ where
             }
 
             self.detectors[phase].add_crc_reject();
-            if print_diagnostics() {
+            if self.print_packets && diagnostics::enabled() {
                 if duplicates == 0 {
                     println!("BLE candidate rejected: phase={phase} {reason}");
                 } else {
@@ -295,7 +319,7 @@ mod tests {
     fn crc_guard_marks_nearby_reject_as_duplicate() {
         let mut block =
             BleSyncBlock::<DefaultCpuReader<f32>, DefaultCpuWriter<u8>>::with_channel_and_phase(
-                0.0, false, 2, 37, 0,
+                2, 37, 0,
             );
 
         block.total_sample_index = 100;
@@ -312,7 +336,7 @@ mod tests {
     fn crc_guard_flushes_expired_reject() {
         let mut block =
             BleSyncBlock::<DefaultCpuReader<f32>, DefaultCpuWriter<u8>>::with_channel_and_phase(
-                0.0, false, 2, 37, 0,
+                2, 37, 0,
             );
 
         block.total_sample_index = 100;
@@ -329,7 +353,7 @@ mod tests {
     fn crc_guard_groups_nearby_expired_rejects() {
         let mut block =
             BleSyncBlock::<DefaultCpuReader<f32>, DefaultCpuWriter<u8>>::with_channel_and_phase(
-                0.0, false, 2, 37, 0,
+                2, 37, 0,
             );
 
         block.total_sample_index = 100;

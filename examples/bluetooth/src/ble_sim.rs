@@ -6,11 +6,13 @@ pub fn generate_ble_packet_samples(
     channel_index: u8,
 ) -> Vec<Complex32> {
     let bits = super::ble_protocol::generate_ble_packet_bits(channel_index);
-    let silence = samples_per_symbol * 100;
-    let mut samples =
-        Vec::with_capacity((bits.len() * samples_per_symbol + silence) * packet_count);
+    let startup_silence = samples_per_symbol * 600;
+    let packet_gap = samples_per_symbol * 100;
+    let mut samples = Vec::with_capacity(
+        startup_silence + (bits.len() * samples_per_symbol + packet_gap) * packet_count,
+    );
 
-    for _ in 0..silence {
+    for _ in 0..startup_silence {
         samples.push(Complex32::new(0.0, 0.0));
     }
 
@@ -34,7 +36,7 @@ pub fn generate_ble_packet_samples(
             }
         }
 
-        for _ in 0..silence {
+        for _ in 0..packet_gap {
             samples.push(Complex32::new(0.0, 0.0));
         }
     }
