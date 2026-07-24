@@ -70,7 +70,7 @@ use syn::token;
 /// `"in"`.
 ///
 /// Send-capable stream connections are indicated as `>`. Inside a
-/// [`LocalDomainContext`](futuresdr::runtime::LocalDomainContext),
+/// `LocalDomainContext`,
 /// local-domain-only stream connections for non-`Send` buffers are indicated
 /// as `~>`. Message connections are indicated as `|`.
 ///

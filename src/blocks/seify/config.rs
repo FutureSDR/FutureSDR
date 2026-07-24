@@ -119,7 +119,7 @@ impl Config {
             .transpose()
     }
 
-    /// Extracts a [`Config`] from a [`Device`], [`Direction`], and channel id.
+    /// Extracts a [`Config`] from a [`DynDevice`], [`Direction`], and channel id.
     pub fn from(dev: &DynDevice, dir: Direction, channel: usize) -> Result<Self, Error> {
         let (antenna, bandwidth, freq, gain, sample_rate) = match dir {
             Direction::Rx => {
