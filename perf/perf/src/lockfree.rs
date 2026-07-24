@@ -216,19 +216,18 @@ where
             .add_reader()
             .expect("perf::lockfree reader limit exceeded");
 
-        self.readers
-            .push((dest.port_id.clone(), dest.inbox.clone()));
+        self.readers.push((dest.port_id, dest.inbox.clone()));
         self.reader_notifiers.push(dest.notifier.clone());
 
         dest.reader = Some(reader);
-        dest.writer_output_id = self.port_id.clone();
+        dest.writer_output_id = self.port_id;
         dest.writer_inbox = self.inbox.clone();
         dest.writer_notifier = self.notifier.clone();
     }
 
     async fn notify_finished(&mut self) {
         for (input_id, inbox) in &mut self.readers {
-            let _ = inbox.stream_input_done(input_id.clone()).await;
+            let _ = inbox.stream_input_done(*input_id).await;
         }
     }
 
@@ -237,7 +236,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 
@@ -251,7 +250,7 @@ where
     fn take_reader_token(reader: &mut Reader<T, MAX_READERS>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
             reader_inbox: reader.inbox.clone(),
-            reader_input_id: reader.port_id.clone(),
+            reader_input_id: reader.port_id,
             reader_notifier: reader.notifier.clone(),
             reader_min_items: reader.min_items,
             reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
@@ -322,7 +321,7 @@ where
         ThreadSafeReturnToken {
             reader,
             writer_inbox: self.inbox.clone(),
-            writer_output_id: self.port_id.clone(),
+            writer_output_id: self.port_id,
             writer_notifier: self.notifier.clone(),
             min_buffer_size_in_items,
         }
@@ -474,7 +473,7 @@ where
     async fn notify_finished(&mut self) {
         let _ = self
             .writer_inbox
-            .stream_output_done(self.writer_output_id.clone())
+            .stream_output_done(self.writer_output_id)
             .await;
     }
 
@@ -491,7 +490,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 

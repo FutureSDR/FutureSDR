@@ -425,11 +425,7 @@ mod tests {
     use futuresdr::runtime::dev::Tag;
 
     fn init<T: CpuSample>(w: &mut Writer<T>, readers: &mut [&mut Reader<T>]) {
-        w.init(
-            BlockId(0),
-            PortIndex::new(0),
-            LocalBlockInbox::default(),
-        );
+        w.init(BlockId(0), PortIndex::new(0), LocalBlockInbox::default());
         for (i, reader) in readers.iter_mut().enumerate() {
             reader.init(
                 BlockId(i + 1),

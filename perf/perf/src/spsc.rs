@@ -227,7 +227,7 @@ where
         self.min_buffer_size_in_items = Some(capacity);
         dest.min_buffer_size_in_items = Some(capacity);
         self.reader_inbox = dest.inbox.clone();
-        self.reader_input_id = dest.port_id.clone();
+        self.reader_input_id = dest.port_id;
         self.reader_notifier = dest.notifier.clone();
         self.inner = Some(inner.clone());
         self.connected = true;
@@ -235,7 +235,7 @@ where
 
         dest.inner = Some(inner);
         dest.writer_inbox = self.inbox.clone();
-        dest.writer_output_id = self.port_id.clone();
+        dest.writer_output_id = self.port_id;
         dest.writer_notifier = self.notifier.clone();
         dest.read_pos = 0;
     }
@@ -243,7 +243,7 @@ where
     async fn notify_finished(&mut self) {
         let _ = self
             .reader_inbox
-            .stream_input_done(self.reader_input_id.clone())
+            .stream_input_done(self.reader_input_id)
             .await;
     }
 
@@ -252,7 +252,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 
@@ -266,7 +266,7 @@ where
     fn take_reader_token(reader: &mut Reader<T>) -> Self::ReaderToken {
         ThreadSafeConnectToken {
             reader_inbox: reader.inbox.clone(),
-            reader_input_id: reader.port_id.clone(),
+            reader_input_id: reader.port_id,
             reader_notifier: reader.notifier.clone(),
             reader_min_items: reader.min_items,
             reader_min_buffer_size_in_items: reader.min_buffer_size_in_items,
@@ -322,7 +322,7 @@ where
         ThreadSafeReturnToken {
             inner,
             writer_inbox: self.inbox.clone(),
-            writer_output_id: self.port_id.clone(),
+            writer_output_id: self.port_id,
             writer_notifier: self.notifier.clone(),
         }
     }
@@ -499,7 +499,7 @@ where
     async fn notify_finished(&mut self) {
         let _ = self
             .writer_inbox
-            .stream_output_done(self.writer_output_id.clone())
+            .stream_output_done(self.writer_output_id)
             .await;
     }
 
@@ -516,7 +516,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 

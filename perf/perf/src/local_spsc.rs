@@ -196,7 +196,7 @@ where
         self.min_buffer_size_in_items = Some(capacity);
         dest.min_buffer_size_in_items = Some(capacity);
         self.reader_inbox = dest.inbox.clone();
-        self.reader_input_id = dest.port_id.clone();
+        self.reader_input_id = dest.port_id;
         self.reader_notifier = dest.notifier.clone();
         self.inner = Rc::as_ptr(&inner);
         self.inner_owner = Some(inner.clone());
@@ -207,7 +207,7 @@ where
         dest.inner = Rc::as_ptr(&inner);
         dest.inner_owner = Some(inner);
         dest.writer_inbox = self.inbox.clone();
-        dest.writer_output_id = self.port_id.clone();
+        dest.writer_output_id = self.port_id;
         dest.writer_notifier = self.notifier.clone();
         dest.read_pos = 0;
         dest.read_offset = 0;
@@ -216,7 +216,7 @@ where
     async fn notify_finished(&mut self) {
         let _ = self
             .reader_inbox
-            .stream_input_done(self.reader_input_id.clone())
+            .stream_input_done(self.reader_input_id)
             .await;
     }
 
@@ -225,7 +225,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 
@@ -391,7 +391,7 @@ where
     async fn notify_finished(&mut self) {
         let _ = self
             .writer_inbox
-            .stream_output_done(self.writer_output_id.clone())
+            .stream_output_done(self.writer_output_id)
             .await;
     }
 
@@ -408,7 +408,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 

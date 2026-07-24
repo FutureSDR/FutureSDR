@@ -207,13 +207,13 @@ where
         let full = queue();
         self.connected = Some(ConnectedWriter {
             reader_inbox: dest.inbox.clone(),
-            reader_input_id: dest.port_id.clone(),
+            reader_input_id: dest.port_id,
             reader_notifier: dest.notifier.clone(),
             outbound: full.clone(),
         });
         dest.connected = Some(ConnectedReader {
             writer_inbox: self.inbox.clone(),
-            writer_output_id: self.port_id.clone(),
+            writer_output_id: self.port_id,
             inbound: full,
         });
     }
@@ -224,7 +224,7 @@ where
         };
         let _ = connected
             .reader_inbox
-            .stream_input_done(connected.reader_input_id.clone())
+            .stream_input_done(connected.reader_input_id)
             .await;
     }
 
@@ -233,7 +233,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 
@@ -356,7 +356,7 @@ where
         };
         let _ = connected
             .writer_inbox
-            .stream_output_done(connected.writer_output_id.clone())
+            .stream_output_done(connected.writer_output_id)
             .await;
     }
 
@@ -377,7 +377,7 @@ where
     }
 
     fn port_id(&self) -> PortIndex {
-        self.port_id.clone()
+        self.port_id
     }
 }
 
