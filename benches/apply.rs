@@ -159,7 +159,7 @@ impl Kernel for AddChunk {
         let n = std::cmp::min(i_len, o.len());
 
         if n > 0 {
-            for (i, o) in i.chunks_exact(32).zip(o.chunks_exact_mut(32)) {
+            for (i, o) in i.as_chunks::<32>().0.iter().zip(o.as_chunks_mut::<32>().0) {
                 for x in 0..32 {
                     o[x] = i[x].wrapping_add(1);
                 }

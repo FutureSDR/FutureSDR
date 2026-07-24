@@ -42,7 +42,7 @@ impl Decoder {
 
         let slice = &frame.nibbles[start..end];
 
-        for (i, c) in slice.chunks_exact(2).enumerate() {
+        for (i, c) in slice.as_chunks::<2>().0.iter().enumerate() {
             let low_nib = c[0] ^ (WHITENING_SEQ[i] & 0x0F);
             let high_nib = c[1] ^ ((WHITENING_SEQ[i] & 0xF0) >> 4);
             dewhitened.push((high_nib << 4) | low_nib);

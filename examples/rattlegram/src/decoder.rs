@@ -57,7 +57,7 @@ where
         let input = self.input.slice();
         let input_len = input.len();
 
-        for s in input.chunks_exact(960) {
+        for s in input.as_chunks::<960>().0 {
             if !self.decoder.feed(s) {
                 continue;
             }

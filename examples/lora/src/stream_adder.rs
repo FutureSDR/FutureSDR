@@ -64,7 +64,7 @@ where
                 out[..nitem_to_process]
                     .iter_mut()
                     .zip(&input[..nitem_to_process])
-                    .for_each(|(x, y)| *x = x.clone() + y.clone());
+                    .for_each(|(x, y)| *x = *x + *y);
                 self.inputs[j].consume(nitem_to_process);
             }
             self.output.produce(nitem_to_process);

@@ -338,7 +338,9 @@ impl Spectrum {
 
                 for (a, (i, f)) in self
                     .coordinates
-                    .chunks_exact_mut(2)
+                    .as_chunks_mut::<2>()
+                    .0
+                    .iter_mut()
                     .zip(samples.iter().enumerate())
                 {
                     a[0] = i as f32;

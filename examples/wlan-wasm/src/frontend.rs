@@ -513,12 +513,7 @@ async fn start_receiver(
     let (frame_tx, frames) = mpsc::channel::<Vec<u8>>(FRAME_QUEUE_LIMIT);
     let frames_for_pipe = frame_tx.clone();
     let failure = Shared::<String>::default();
-    spawn_local(poll_frames(
-        frames,
-        failure.clone(),
-        set_frames,
-        set_status,
-    ));
+    spawn_local(poll_frames(frames, failure.clone(), set_frames, set_status));
 
     let mut fg = Flowgraph::new();
     let local = fg.local_domain()?;
@@ -596,11 +591,14 @@ async fn build_rx_flowgraph(
             -(DC_OFFSET_WARMUP_SAMPLES as isize),
         ))
         .await?;
-    fg.stream_dyn_async(prev, output, dc_warmup, "input").await?;
+    fg.stream_dyn_async(prev, output, dc_warmup, "input")
+        .await?;
 
     // WASM slab buffers support one reader per output. Explicitly duplicate
     // streams whenever one output feeds multiple downstream blocks.
-    let input_dup = fg.add_async(StreamDuplicator::<Complex32, 4>::new()).await?;
+    let input_dup = fg
+        .add_async(StreamDuplicator::<Complex32, 4>::new())
+        .await?;
     connect_async!(fg, dc_warmup > input_dup);
 
     let sample_stats = fg
@@ -633,9 +631,11 @@ async fn build_rx_flowgraph(
                  mult_conj > complex_avg);
 
     let complex_avg_dup = StreamDuplicator::<Complex32, 2>::new();
-    let divide_mag = Combine::new(|a: &Complex32, b: &f32| {
-        if *b > 1.0e-12 { a.norm() / b } else { 0.0 }
-    });
+    let divide_mag = Combine::new(
+        |a: &Complex32, b: &f32| {
+            if *b > 1.0e-12 { a.norm() / b } else { 0.0 }
+        },
+    );
     connect_async!(fg, complex_avg > complex_avg_dup;
                  complex_avg_dup.outputs[0] > in0.divide_mag;
                  float_avg > in1.divide_mag);
@@ -710,7 +710,10 @@ async fn poll_frames(
                 displayed_frames.pop_back();
             }
         }
-        futuresdr::tracing::info!("updating GUI frame list with {} entries", displayed_frames.len());
+        futuresdr::tracing::info!(
+            "updating GUI frame list with {} entries",
+            displayed_frames.len()
+        );
         set_frames.set(displayed_frames.clone());
     }
 }
@@ -763,7 +766,9 @@ fn parse_wlan_frame(data: &[u8]) -> String {
             parse_management_frame(data, frame, subtype, &mut parts)
         }
         ieee80211::common::FrameType::Control(_) => parse_control_frame(frame, &mut parts),
-        ieee80211::common::FrameType::Data(_) => parse_data_frame(data, flags.protected(), &mut parts),
+        ieee80211::common::FrameType::Data(_) => {
+            parse_data_frame(data, flags.protected(), &mut parts)
+        }
         ieee80211::common::FrameType::Unknown(_) => {}
     }
 
@@ -1037,7 +1042,9 @@ fn ipv4_addr(b: &[u8]) -> String {
 }
 
 fn ipv6_addr(b: &[u8]) -> String {
-    b.chunks_exact(2)
+    b.as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| format!("{:x}", u16::from_be_bytes([chunk[0], chunk[1]])))
         .collect::<Vec<_>>()
         .join(":")

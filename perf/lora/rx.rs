@@ -66,7 +66,7 @@ fn load_cf32(path: &str) -> Result<Vec<Complex32>> {
     );
 
     let mut samples = Vec::with_capacity(bytes.len() / 8);
-    for chunk in bytes.chunks_exact(8) {
+    for chunk in bytes.as_chunks::<8>().0 {
         let re = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         let im = f32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]);
         samples.push(Complex32::new(re, im));

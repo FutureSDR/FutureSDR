@@ -1496,26 +1496,21 @@ impl ClockTrackingLoop {
     }
 
     fn update_gains(&mut self) {
-        let omega_d_t;
-
-        let cosx_omega_d_t;
-
         let omega_n_t = self.omega_n_norm;
         let zeta_omega_n_t = self.zeta * omega_n_t;
         let k0 = 2.0 / self.ted_gain;
         let k1 = (-zeta_omega_n_t).exp();
         let sinh_zeta_omega_n_t = (zeta_omega_n_t).sinh();
 
-        if self.zeta > 1.0 {
-            omega_d_t = omega_n_t * (self.zeta * self.zeta - 1.0).sqrt();
-            cosx_omega_d_t = omega_d_t.cosh();
+        let cosx_omega_d_t = if self.zeta > 1.0 {
+            let omega_d_t = omega_n_t * (self.zeta * self.zeta - 1.0).sqrt();
+            omega_d_t.cosh()
         } else if self.zeta == 1.0 {
-            // omega_d_t = 0.0;
-            cosx_omega_d_t = 1.0;
+            1.0
         } else {
-            omega_d_t = omega_n_t * (1.0 - self.zeta * self.zeta).sqrt();
-            cosx_omega_d_t = omega_d_t.cos();
-        }
+            let omega_d_t = omega_n_t * (1.0 - self.zeta * self.zeta).sqrt();
+            omega_d_t.cos()
+        };
 
         let alpha = k0 * k1 * sinh_zeta_omega_n_t;
         let beta = k0 * (1.0 - k1 * (sinh_zeta_omega_n_t + cosx_omega_d_t));
