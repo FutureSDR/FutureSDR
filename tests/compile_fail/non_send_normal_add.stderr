@@ -1,5 +1,5 @@
 error[E0277]: `Rc<()>` cannot be sent between threads safely
-  --> tests/ui/non_send_normal_add.rs:13:20
+  --> tests/compile_fail/non_send_normal_add.rs:13:20
    |
 13 |     let _ = fg.add(NonSendBlock { _state: Rc::new(()) });
    |                --- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<()>` cannot be sent between threads safely
@@ -8,7 +8,7 @@ error[E0277]: `Rc<()>` cannot be sent between threads safely
    |
    = help: within `NonSendBlock`, the trait `std::marker::Send` is not implemented for `Rc<()>`
 note: required because it appears within the type `NonSendBlock`
-  --> tests/ui/non_send_normal_add.rs:7:8
+  --> tests/compile_fail/non_send_normal_add.rs:7:8
    |
  7 | struct NonSendBlock {
    |        ^^^^^^^^^^^^
